@@ -40,6 +40,14 @@ You can report issues in our [Github issues](https://github.com/hatchet-dev/hatc
 
 ## Changelog
 
+### 0.2.3
+
+- **Empty state and type check** - full support of wrappers based on type system checks as well as valid empty states for DAGs with no tasks.
+
+### 0.2.2
+
+- **Wrapper support** - initial support for wrapper functions in the TypeScript SDK using static analysis.
+
 ### 0.2.1
 
 - **Fix memory leak** — workspace annotation scanning now reads files via `vscode.workspace.fs.readFile` instead of `openTextDocument`, preventing Monaco text models from being created for every `.ts`/`.tsx` file in the workspace.

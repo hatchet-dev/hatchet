@@ -1,4 +1,19 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.batch_assign.worker import (
+    batch_keyed,
+    batch_keyed_interval,
+    batch_keyed_failable,
+    batch_large,
+    batch_simple,
+    batch_single,
+    batch_ordered,
+    batch_broadcast,
+    batch_cancel,
+    batch_child_spawn,
+    batch_child_batch_spawn,
+    child_batch,
+    child,
+)
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
 )
@@ -12,7 +27,13 @@ from examples.cancellation.worker import cancellation_workflow
 from examples.concurrency_cancel_in_progress.worker import (
     concurrency_cancel_in_progress_workflow,
 )
+from examples.concurrency_cancel_in_progress_task_level.worker import (
+    concurrency_cancel_in_progress_task_level_workflow,
+)
 from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
+from examples.concurrency_cancel_newest_task_level.worker import (
+    concurrency_cancel_newest_task_level_workflow,
+)
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
@@ -20,6 +41,7 @@ from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
 from examples.conditions.worker import task_condition_workflow
+from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -103,6 +125,17 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
+from examples.idempotency.worker import (
+    idempotent_task,
+    idempotent_task_short_window,
+    idempotent_status_based_task,
+    idempotent_status_based_task_with_retries,
+)
+from examples.bug_tests.durable_spawn_index_collision.worker import (
+    durable_spawn_index_collision,
+    spawn_index_child_a,
+    spawn_index_child_b,
+)
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -114,6 +147,19 @@ def main() -> None:
         slots=100,
         workflows=[
             affinity_worker_workflow,
+            batch_simple,
+            batch_keyed,
+            batch_keyed_interval,
+            batch_keyed_failable,
+            batch_large,
+            batch_single,
+            batch_ordered,
+            batch_broadcast,
+            batch_child_spawn,
+            batch_child_batch_spawn,
+            child_batch,
+            child,
+            batch_cancel,
             bulk_child_wf,
             bulk_parent_wf,
             concurrency_limit_workflow,
@@ -132,6 +178,7 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
+            cron_input_example_send_greeting,
             cancellation_workflow,
             sync_fanout_parent,
             sync_fanout_child,
@@ -139,6 +186,8 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
+            concurrency_cancel_newest_task_level_workflow,
+            concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
             run_detail_test_workflow,
@@ -195,8 +244,15 @@ def main() -> None:
             welcome_email,
             durable_parent_child_key_bug,
             child_child_key_bug,
+            durable_spawn_index_collision,
+            spawn_index_child_a,
+            spawn_index_child_b,
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
+            idempotent_task,
+            idempotent_task_short_window,
+            idempotent_status_based_task,
+            idempotent_status_based_task_with_retries,
             error_raising_durable_parent,
             error_raising_task,
         ],

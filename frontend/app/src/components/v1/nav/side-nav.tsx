@@ -12,6 +12,7 @@ import {
   SidebarButtonPrimary,
   SidebarButtonPrimaryAction,
   SidebarButtonSecondary,
+  type SideNavActiveMatch,
 } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -50,6 +51,9 @@ export type SideNavItem = {
   prefix?: string;
   displayAsActiveWhenThisRouteIsMatched?: string;
   activeFuzzy?: boolean;
+  // Extra route patterns that should also mark this item as active, for items
+  // whose active state spans multiple route subtrees
+  additionalActiveMatches?: SideNavActiveMatch[];
   children?: SideNavChild[];
   params?: Record<string, string>;
 } & (
@@ -362,15 +366,25 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                         ('to' in item ? item.to : null);
 
                       const activeFuzzy = item.activeFuzzy ?? false;
-                      const active = displayAsActiveWhenThisRouteIsMatched
-                        ? Boolean(
+                      const active =
+                        (displayAsActiveWhenThisRouteIsMatched
+                          ? Boolean(
+                              matchRoute({
+                                to: displayAsActiveWhenThisRouteIsMatched,
+                                params: itemParams,
+                                fuzzy: activeFuzzy,
+                              }),
+                            )
+                          : false) ||
+                        (item.additionalActiveMatches ?? []).some((match) =>
+                          Boolean(
                             matchRoute({
-                              to: displayAsActiveWhenThisRouteIsMatched,
-                              params: itemParams,
-                              fuzzy: activeFuzzy,
+                              to: match.to,
+                              params: match.params,
+                              fuzzy: match.fuzzy,
                             }),
-                          )
-                        : false;
+                          ),
+                        );
 
                       if (item.children && item.children.length > 0) {
                         return (
@@ -498,6 +512,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             to={item.to!}
                             params={itemParams}
                             prefix={item.prefix}
+                            additionalActiveMatches={
+                              item.additionalActiveMatches
+                            }
                             name={item.name}
                             icon={item.icon({
                               collapsed: false,

@@ -3,3 +3,5 @@ version: 2
 secret:
   ignored_paths:
     - 'frontend/app/cypress/e2e/**'
+    - 'pkg/authmode/keyset/**'
+    - '**/*_test.go'

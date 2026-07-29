@@ -5,11 +5,30 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.2] - 2026-06-23
+## [0.6.1] - 2026-07-29
 
 ### Fixed
 
 - Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries, and the worker releases completions to user code strictly in that order (gated on the previously woken continuation parking again), so replays deterministically reproduce the original wake order instead of raising spurious non-determinism errors.
+
+## [0.6.0] - 2026-07-23
+
+### Changed
+
+- Adds beta `batch_task` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
+
+
+## [0.5.0] - 2026-07-22
+
+### Added
+
+- Adds support for terminal status-based idempotency keys, which are released when the task holding the key reaches a terminal state (either completed, cancelled, or having failed and exhausted all retries).
+
+## [0.4.0] - 2026-06-03
+
+### Added
+
+- Adds support for defining **idempotency keys** on workflows and standalone tasks via an `idempotency` option, which ensures that they're only run once in a provided time window, based on a CEL expression. Triggers that collide with an existing run raise an `IdempotencyCollisionError` containing the existing run's ID.
 
 ## [0.3.1] - 2026-06-12
 

@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the invite belongs to the user
-	if invite.InviteeEmail != user.Email {
+	if !strings.EqualFold(invite.InviteeEmail, user.Email) {
 		return gen.TenantInviteReject400JSONResponse(apierrors.NewAPIErrors("wrong email for invite")), nil
 	}
 

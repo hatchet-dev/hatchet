@@ -48,6 +48,13 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
+	// authPreflight only returns handled=true in authdisabled builds, where it authorizes the
+	// request against the NOAUTH role and short-circuits the strategy switch below. In normal
+	// builds it is a no-op (returns false), so authorization always proceeds. Do not invert this.
+	if handled, err := a.authPreflight(c, r); handled {
+		return err
+	}
+
 	var err error
 
 	switch c.Get("auth_strategy").(string) {
@@ -182,7 +189,7 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 		c.Set("tenant-member", tenantMember)
 
 		// authorize tenant operations
-		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
+		if err := a.authorizeTenantOperations(string(tenantMember.Role), r); err != nil {
 			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
 
 			return unauthorized
@@ -192,14 +199,14 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 	return nil
 }
 
-func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
+func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteInfo) error {
 	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
 	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
 		return nil
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
+	if !a.rbac.IsAuthorized(roleName, r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 

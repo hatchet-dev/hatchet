@@ -28,7 +28,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 	defer cancel()
 
 	wg := &sync.WaitGroup{}
-	wg.Add(2) // we wait for 2 messages here
+	wg.Add(1) // we wait for 1 message here
 
 	url := "amqp://user:password@localhost:5672/"
 
@@ -65,9 +65,6 @@ func TestMessageQueueIntegration(t *testing.T) {
 		t.Fatalf("error creating task: %v", err)
 	}
 
-	err = tq.SendMessage(ctx, staticQueue, task)
-	assert.NoError(t, err, "adding task to static queue should not error")
-
 	preAck := func(receivedMessage *msgqueue.Message) error {
 		defer wg.Done()
 		assert.Equal(t, task.ID, receivedMessage.ID, "received task ID should match sent task ID")
@@ -77,27 +74,6 @@ func TestMessageQueueIntegration(t *testing.T) {
 	// Test subscription to the static queue
 	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
 	require.NoError(t, err, "subscribing to static queue should not error")
-
-	// Test tenant registration and queue creation
-	err = tq.RegisterTenant(ctx, testTenantUUID)
-	assert.NoError(t, err, "registering tenant should not error")
-
-	// Assuming there's a mechanism to retrieve a tenant-specific queue, e.g., by tenant ID
-	tenantQueue := msgqueue.TenantEventConsumerQueue(testTenantUUID)
-
-	if err != nil {
-		t.Fatalf("error creating tenant-specific queue: %v", err)
-	}
-
-	tqAck := func(receivedMessage *msgqueue.Message) error {
-		defer wg.Done()
-		assert.Equal(t, task.ID, receivedMessage.ID, "received tenant task ID should match sent task ID")
-		return nil
-	}
-
-	// Test subscription to the tenant-specific queue
-	cleanupTenantQueue, err := tq.Subscribe(tenantQueue, tqAck, msgqueue.NoOpHook)
-	require.NoError(t, err, "subscribing to tenant-specific queue should not error")
 
 	// send task to queue after 1 second to give time for subscriber
 	go func() {
@@ -109,9 +85,6 @@ func TestMessageQueueIntegration(t *testing.T) {
 	wg.Wait()
 
 	if err := cleanupQueue(); err != nil {
-		t.Fatalf("error cleaning up queue: %v", err)
-	}
-	if err := cleanupTenantQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)
 	}
 }

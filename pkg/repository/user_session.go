@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -37,6 +39,8 @@ type UserSessionRepository interface {
 	Update(ctx context.Context, sessionId uuid.UUID, opts *UpdateSessionOpts) (*sqlcv1.UserSession, error)
 	Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 	GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
+
+	CleanupUserSessions(ctx context.Context) error
 }
 
 type userSessionRepository struct {
@@ -164,4 +168,24 @@ func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID
 		r.pool,
 		sessionId,
 	)
+}
+
+func (r *userSessionRepository) CleanupUserSessions(ctx context.Context) error {
+	const batchSize int32 = 1000
+
+	for {
+		result, err := r.queries.CleanupUserSessions(ctx, r.pool, batchSize)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			return err
+		}
+
+		if result.RowsAffected() < int64(batchSize) {
+			break
+		}
+	}
+
+	return nil
 }

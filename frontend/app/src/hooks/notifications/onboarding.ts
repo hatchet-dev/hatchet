@@ -1,4 +1,5 @@
 import { Notification } from './types';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { queries } from '@/lib/api';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -11,6 +12,7 @@ function exactlyOneElement<T>(array: T[]): array is [T] {
 
 export const useOnboardingNotifications = () => {
   const { tenantMemberships } = useUserUniverse();
+  const authDisabled = useAuthDisabled();
 
   const tenants = useMemo(
     () =>
@@ -30,7 +32,7 @@ export const useOnboardingNotifications = () => {
 
   const tokenQuery = useQuery({
     ...queries.tokens.list(tenantId),
-    enabled: hasOneTenant,
+    enabled: hasOneTenant && !authDisabled,
   });
 
   const isLoading = workflowQuery.isLoading || tokenQuery.isLoading;
@@ -38,6 +40,11 @@ export const useOnboardingNotifications = () => {
   const notifications = useMemo((): Notification[] => {
     // Why not when they have zero tenants?  Because in that case they're getting redirected to the tenant creation screen
     if (!hasOneTenant || isLoading) {
+      return [];
+    }
+
+    // Auth-disabled instances have no API-token onboarding step
+    if (authDisabled) {
       return [];
     }
 
@@ -58,7 +65,14 @@ export const useOnboardingNotifications = () => {
         url: appRoutes.tenantOverviewRoute.to.replace('$tenant', tenantId),
       },
     ];
-  }, [hasOneTenant, isLoading, tenantId, workflowQuery.data, tokenQuery.data]);
+  }, [
+    hasOneTenant,
+    isLoading,
+    tenantId,
+    workflowQuery.data,
+    tokenQuery.data,
+    authDisabled,
+  ]);
 
   return {
     notifications,

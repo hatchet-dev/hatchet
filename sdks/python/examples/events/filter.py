@@ -7,6 +7,9 @@ hatchet = Hatchet()
 hatchet.filters.create(
     workflow_id=event_workflow.id,
     expression="input.should_skip == false",
+    # the scope groups filters: only events pushed with a matching
+    # scope are evaluated against this filter. in a real app, this is
+    # often an id, e.g. a customer, user, or organization id
     scope="foobarbaz",
     payload={
         "main_character": "Anna",

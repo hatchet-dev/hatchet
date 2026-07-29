@@ -1,6 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
-import { Callout, Tabs } from "nextra/components";
+import { Callout } from "nextra/components";
+import { Tabs } from "./StyledTabs";
 import { useLanguage } from "../context/LanguageContext";
 import { LOGO_PATHS } from "@/lib/docs-languages";
 

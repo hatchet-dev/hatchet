@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import useCloud from '@/hooks/use-cloud';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -65,6 +66,7 @@ function AccountDropdown({ user }: { user?: User }) {
   const [open, setOpen] = React.useState(false);
   const { logoutMutation } = useUserUniverse();
   const { theme, setTheme } = useTheme();
+  const authDisabled = useAuthDisabled();
 
   if (!user) {
     return null;
@@ -122,17 +124,21 @@ function AccountDropdown({ user }: { user?: User }) {
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="interactive"
-          className="cursor-pointer"
-          onClick={() => logoutMutation.mutate()}
-          disabled={logoutMutation.isPending}
-        >
-          <LogOut className="mr-2 size-4" />
-          {logoutMutation.isPending ? 'Logging out...' : 'Log out'}
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {!authDisabled && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="interactive"
+              className="cursor-pointer"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
+              <LogOut className="mr-2 size-4" />
+              {logoutMutation.isPending ? 'Logging out...' : 'Log out'}
+              <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

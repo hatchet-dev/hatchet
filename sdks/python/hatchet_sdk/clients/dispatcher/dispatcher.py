@@ -16,6 +16,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
+    BatchActionEvent,
+    BatchActionEventItem,
     GetVersionRequest,
     GetVersionResponse,
     OverridesData,
@@ -31,7 +33,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.runnables.action import Action, BatchEventItem
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 
@@ -82,7 +84,7 @@ class DispatcherClient:
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
-            await aio_client.Register(  # type: ignore[misc]
+            await aio_client.Register(
                 WorkerRegisterRequest(
                     worker_name=worker_name,
                     actions=actions,
@@ -121,7 +123,7 @@ class DispatcherClient:
         try:
             response = cast(
                 GetVersionResponse,
-                await aio_client.GetVersion(  # type: ignore[misc]
+                await aio_client.GetVersion(  # type: ignore
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -199,7 +201,7 @@ class DispatcherClient:
         try:
             return cast(
                 ActionEventResponse,
-                await aio_client.SendStepActionEvent(  # type: ignore[misc]
+                await aio_client.SendStepActionEvent(
                     event,
                     metadata=create_authorization_header(self.token),
                 ),
@@ -208,6 +210,108 @@ class DispatcherClient:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
                 # resetting the client if we get `UNAVAILABLE` to try making
                 # a new connection on the next retry, to see if that helps recover
+                old_channel, self.aio_channel = self.aio_channel, None
+                self.aio_client = None
+                if old_channel is not None:
+                    await old_channel.close()
+            raise
+
+    def _build_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> BatchActionEvent:
+        event_timestamp = Timestamp()
+        event_timestamp.GetCurrentTime()
+
+        return BatchActionEvent(
+            worker_id=action.worker_id,
+            job_id=action.job_id,
+            action_id=action.action_id,
+            batch_id=action.batch_id,
+            event_timestamp=event_timestamp,
+            event_type=event_type,
+            items=[
+                BatchActionEventItem(
+                    task_run_external_id=item.task_run_external_id,
+                    event_payload=item.payload or "",
+                    retry_count=action.retry_count,
+                    should_not_retry=item.should_not_retry,
+                )
+                for item in items
+            ],
+        )
+
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
+    def send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse:
+        client = self._get_or_create_client()
+        event = self._build_batch_action_event(action, event_type, items)
+
+        return cast(
+            ActionEventResponse,
+            client.SendBatchActionEvent(  # type: ignore[attr-defined]
+                event,
+                metadata=create_authorization_header(self.token),
+            ),
+        )
+
+    async def aio_send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse | None:
+        try:
+            return await self._try_aio_send_batch_action_event(
+                action, event_type, items
+            )
+        except Exception:
+            message = f"failed to send batch action event {event_type} for action {action.action_id}."
+
+            if event_type == STEP_EVENT_TYPE_FAILED:
+                message += "**IMPORTANT**: the batch failed, but the engine failed to receive the failed event. the engine will eventually consider the tasks timed out, and invoke any retries configured on the task."
+
+            logger.exception(message)
+            return None
+
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
+    async def _try_aio_send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse:
+        aio_client = self._get_or_create_aio_client()
+        event = self._build_batch_action_event(action, event_type, items)
+
+        try:
+            return cast(
+                ActionEventResponse,
+                await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
+                    event,
+                    metadata=create_authorization_header(self.token),
+                ),
+            )
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.UNAVAILABLE:
                 old_channel, self.aio_channel = self.aio_channel, None
                 self.aio_client = None
                 if old_channel is not None:
@@ -280,7 +384,7 @@ class DispatcherClient:
                 worker_labels[key] = WorkerLabels(str_value=str(value))
 
         # fixme: figure out how to get typing right here
-        await aio_client.UpsertWorkerLabels(  # type: ignore[misc]
+        await aio_client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),

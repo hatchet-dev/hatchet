@@ -48,7 +48,7 @@ var devCmd = &cobra.Command{
 	Use:   "dev",
 	Short: "Start a development environment for the Hatchet worker",
 	Long:  `Start a Hatchet worker in development mode with automatic reloading on file changes. This command connects to your Hatchet instance using a profile and runs your worker with the configuration specified in hatchet.yaml.`,
-	Example: `  # Start worker in dev mode (prompts for profile selection)
+	Example: `  # Start worker in dev mode (uses the default or only profile, otherwise prompts)
   hatchet worker dev
 
   # Start worker with a specific profile
@@ -188,14 +188,14 @@ func init() {
 	workerCmd.AddCommand(workerListCmd, workerGetCmd)
 
 	// Add flags for dev command
-	devCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	devCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	devCmd.Flags().Bool("no-reload", false, "Disable automatic reloading on file changes")
 	devCmd.Flags().StringP("run-cmd", "r", "", "Override the run command from hatchet.yaml")
 
 	// Add flags for list/get commands
-	workerListCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	workerListCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	workerListCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
-	workerGetCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	workerGetCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	workerGetCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
 }
 
@@ -323,7 +323,7 @@ func startLocalServerAndCreateProfile(cmd *cobra.Command) string {
 	}
 
 	// Show success message
-	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, "Starting worker..."))
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, false, "Starting worker..."))
 
 	return result.ProfileName
 }

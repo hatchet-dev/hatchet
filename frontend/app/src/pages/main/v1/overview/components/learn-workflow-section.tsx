@@ -1,7 +1,25 @@
+import {
+  installMethodOptions,
+  workflowLanguageOptions,
+  workflowStepOptions,
+  type InstallMethod,
+  type WorkflowLanguageKey,
+  type WorkflowStepKey,
+} from './onboarding-options';
 import { SectionHeader } from './section-header';
+import {
+  availableUseCases,
+  isLanguageSupported,
+  escapeForDoubleQuotes,
+  scaffoldCommand,
+  triggerCommand,
+  workerDevCommand,
+  type AvailableUseCaseKey,
+} from './use-case-options';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
+import { RadioGroup, RadioGroupCardItem } from '@/components/v1/ui/radio-group';
 import {
   Tabs,
   TabsContent,
@@ -10,86 +28,159 @@ import {
 } from '@/components/v1/ui/tabs';
 import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
 import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
-export const workflowStepOptions = {
-  install: { value: 'install', label: 'Install the CLI' },
-  profile: { value: 'profile', label: 'Set your profile' },
-  quickstart: { value: 'quickstart', label: 'Project quickstart' },
-  runTask: { value: 'runTask', label: 'Run a task' },
-  aiDocs: { value: 'aiDocs', label: 'Install Docs MCP (optional)' },
-} as const;
-
-export const workflowLanguageOptions = {
-  python: { value: 'python', label: 'Python' },
-  typescript: { value: 'typescript', label: 'TypeScript' },
-  go: { value: 'go', label: 'Go' },
-} as const;
-
-export const installMethodOptions = {
-  native: { value: 'native', label: 'Native (Recommended)' },
-  homebrew: { value: 'homebrew', label: 'Homebrew' },
-} as const;
-
-export type WorkflowStepKey = keyof typeof workflowStepOptions;
-export type WorkflowLanguageKey =
-  (typeof workflowLanguageOptions)[keyof typeof workflowLanguageOptions]['value'];
-export type InstallMethod =
-  (typeof installMethodOptions)[keyof typeof installMethodOptions]['value'];
+// Re-exported so existing importers keep working after the catalogs moved
+// to onboarding-options.ts.
+export {
+  installMethodOptions,
+  workflowLanguageOptions,
+  workflowStepOptions,
+  type InstallMethod,
+  type WorkflowLanguageKey,
+  type WorkflowStepKey,
+} from './onboarding-options';
 
 export function LearnWorkflowSection({
   tenantName,
   selectedTab,
   onSelectedTabChange,
+  useCase,
+  onUseCaseChange,
+  language,
+  onLanguageChange,
   profileToken,
   isGeneratingProfileToken,
   profileTokenError,
   onGenerateProfileToken,
-  hasActiveWorker,
+  hasConnectedWorker,
+  hasQualifiedRun,
+  onViewRuns,
+  onSkip,
   onTabChangeEvent,
+  onLanguageSelectedEvent,
+  onUseCaseSelectedEvent,
   onFinish,
   installMethod,
   onInstallMethodChange,
+  authDisabled,
+  authDisabledToken,
 }: {
   tenantName?: string;
   selectedTab: WorkflowStepKey;
   onSelectedTabChange: (tab: WorkflowStepKey) => void;
+  useCase: AvailableUseCaseKey;
+  onUseCaseChange: (useCase: AvailableUseCaseKey) => void;
   language: WorkflowLanguageKey;
   onLanguageChange: (language: WorkflowLanguageKey) => void;
   profileToken?: string;
   isGeneratingProfileToken: boolean;
   profileTokenError?: string;
   onGenerateProfileToken: () => void;
-  hasActiveWorker: boolean;
+  // An ACTIVE worker registered after the confirmed selection exists.
+  hasConnectedWorker: boolean;
+  // A completed run created after the confirmed selection exists.
+  hasQualifiedRun: boolean;
+  onViewRuns: () => void;
+  onSkip: () => void;
   onTabChangeEvent?: (tab: WorkflowStepKey, tabLabel: string) => void;
   onLanguageSelectedEvent?: (
     language: WorkflowLanguageKey,
     label: string,
   ) => void;
+  onUseCaseSelectedEvent?: (
+    useCase: AvailableUseCaseKey,
+    label: string,
+  ) => void;
   onFinish: () => void;
   installMethod: InstallMethod;
   onInstallMethodChange: (installMethod: InstallMethod) => void;
+  authDisabled?: boolean;
+  authDisabledToken?: string;
 }) {
   const profileName = tenantName?.trim() || 'local';
-  const escapeForDoubleQuotes = (value: string) =>
-    value
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`');
 
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
-  const [hasCopiedProfileToken, setHasCopiedProfileToken] = useState(false);
 
-  useEffect(() => {
-    setHasCopiedProfileToken(false);
-  }, [profileToken]);
+  // The shared Button removes the native focus outline without a
+  // replacement, so every focusable onboarding control carries an explicit
+  // ring here rather than changing the shared primitives app-wide.
+  const focusRing =
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background';
 
   const steps: Array<{
     value: WorkflowStepKey;
     label: string;
     content: ReactNode;
   }> = [
+    {
+      ...workflowStepOptions.chooseUseCase,
+      content: (
+        <>
+          <p className="text-sm">Preferred language</p>
+          <Tabs
+            value={language}
+            onValueChange={(value) => {
+              const nextLanguage = value as WorkflowLanguageKey;
+              onLanguageChange(nextLanguage);
+              onLanguageSelectedEvent?.(
+                nextLanguage,
+                workflowLanguageOptions[nextLanguage].label,
+              );
+            }}
+            className="w-full"
+          >
+            <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
+              {Object.values(workflowLanguageOptions).map((option) => (
+                <TabsTrigger
+                  key={option.value}
+                  value={option.value}
+                  disabled={!isLanguageSupported(useCase, option.value)}
+                  className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+                >
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <p className="text-sm">Use case</p>
+          <RadioGroup
+            value={useCase}
+            onValueChange={(value) => {
+              const nextUseCase = value as AvailableUseCaseKey;
+              onUseCaseChange(nextUseCase);
+              onUseCaseSelectedEvent?.(
+                nextUseCase,
+                availableUseCases[nextUseCase].label,
+              );
+            }}
+            className="grid-cols-1 gap-3 lg:grid-cols-2"
+          >
+            {Object.values(availableUseCases).map((option) => (
+              <RadioGroupCardItem key={option.value} value={option.value}>
+                <span className="block text-sm font-medium">
+                  {option.label}
+                </span>
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  {option.description}
+                </span>
+              </RadioGroupCardItem>
+            ))}
+          </RadioGroup>
+          <Button
+            variant="outline"
+            size="default"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.install.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
+        </>
+      ),
+    },
     {
       ...workflowStepOptions.install,
       content: (
@@ -107,7 +198,7 @@ export function LearnWorkflowSection({
                 <TabsTrigger
                   key={key}
                   value={value.value}
-                  className="rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset"
+                  className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
                 >
                   {value.label}
                 </TabsTrigger>
@@ -116,7 +207,7 @@ export function LearnWorkflowSection({
 
             <TabsContent
               value={installMethodOptions.native.value}
-              className="mt-4 space-y-3"
+              className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
             >
               <p className="text-sm">
                 <b>MacOS, Linux, WSL</b>
@@ -131,7 +222,7 @@ export function LearnWorkflowSection({
 
             <TabsContent
               value={installMethodOptions.homebrew.value}
-              className="mt-4 space-y-3"
+              className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
             >
               <p className="text-sm">
                 <b>MacOS</b>
@@ -154,7 +245,7 @@ export function LearnWorkflowSection({
           <Button
             variant="outline"
             size="default"
-            className="w-fit gap-2 bg-muted/70"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
             onClick={() =>
               onSelectedTabChange(workflowStepOptions.profile.value)
             }
@@ -167,7 +258,37 @@ export function LearnWorkflowSection({
     },
     {
       ...workflowStepOptions.profile,
-      content: (
+      content: authDisabled ? (
+        <>
+          <p className="text-sm">
+            Authentication is disabled, but workers still authenticate over gRPC
+            with an API token.
+          </p>
+          <p className="text-sm">
+            This instance ships with a built-in token for the default tenant.
+            Add it to a CLI profile:
+          </p>
+          <CodeHighlighter
+            className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+            code={`hatchet profile add --name "${escapeForDoubleQuotes(
+              profileName,
+            )}" --token "${authDisabledToken ?? '<token>'}"`}
+            language="shell"
+            copy
+          />
+          <Button
+            variant="outline"
+            size="default"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.quickstart.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
+        </>
+      ) : (
         <>
           <p className="text-sm">
             Add a Hatchet CLI profile using an API token.
@@ -176,11 +297,8 @@ export function LearnWorkflowSection({
             <Button
               variant="outline"
               size="default"
-              className="w-fit gap-2 bg-muted/70"
-              onClick={() => {
-                setHasCopiedProfileToken(false);
-                onGenerateProfileToken();
-              }}
+              className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+              onClick={onGenerateProfileToken}
               disabled={isGeneratingProfileToken}
             >
               {isGeneratingProfileToken && <Spinner />}
@@ -196,45 +314,29 @@ export function LearnWorkflowSection({
             <div className="text-sm text-red-500">{profileTokenError}</div>
           )}
           {profileToken && (
-            <div
-              onMouseDown={() => setHasCopiedProfileToken(true)}
-              onClick={() => setHasCopiedProfileToken(true)}
-            >
-              <CodeHighlighter
-                className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-                code={`hatchet profile add --name "${escapeForDoubleQuotes(
-                  profileName,
-                )}" --token "${escapeForDoubleQuotes(profileToken)}"`}
-                language="shell"
-                copy
-                onCopy={() => setHasCopiedProfileToken(true)}
-              />
-            </div>
+            <CodeHighlighter
+              className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+              code={`hatchet profile add --name "${escapeForDoubleQuotes(
+                profileName,
+              )}" --token "${escapeForDoubleQuotes(profileToken)}"`}
+              language="shell"
+              copy
+            />
           )}
-          <div className="flex flex-wrap items-center gap-2 justify-between">
-            <Button
-              variant="outline"
-              size="default"
-              className="w-fit gap-2 bg-muted/70"
-              disabled={!profileToken || !hasCopiedProfileToken}
-              onClick={() =>
-                onSelectedTabChange(workflowStepOptions.quickstart.value)
-              }
-            >
-              Continue
-              <ChevronRightIcon className="size-3 text-foreground/50" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="default"
-              className="w-fit"
-              onClick={() =>
-                onSelectedTabChange(workflowStepOptions.quickstart.value)
-              }
-            >
-              Skip
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Already have a Hatchet CLI profile? Continue to the next step.
+          </p>
+          <Button
+            variant="outline"
+            size="default"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.quickstart.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
         </>
       ),
     },
@@ -243,12 +345,13 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p className="text-sm">
-            Run the quickstart command to clone an example project repository
-            and follow the instructions to cd into the project directory..
+            Run the quickstart command to generate an example project for your
+            selected use case. The CLI asks for the package manager, project
+            name, and directory.
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-            code={`hatchet quickstart`}
+            code={scaffoldCommand({ useCase, language })}
             language="shell"
             copy
           />
@@ -259,13 +362,13 @@ export function LearnWorkflowSection({
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-            code={`hatchet worker dev`}
+            code={workerDevCommand(profileName)}
             language="shell"
             copy
           />
 
           <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
-            {hasActiveWorker ? (
+            {hasConnectedWorker ? (
               <>
                 <CheckIcon className="size-5 text-green-500" />
                 <span className="text-sm font-medium">Worker is connected</span>
@@ -282,7 +385,7 @@ export function LearnWorkflowSection({
           <Button
             variant="outline"
             size="default"
-            className="w-fit gap-2 bg-muted/70"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
             onClick={() =>
               onSelectedTabChange(workflowStepOptions.runTask.value)
             }
@@ -305,7 +408,7 @@ export function LearnWorkflowSection({
           <div className="space-y-3">
             <CodeHighlighter
               className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-              code={`hatchet trigger simple`}
+              code={triggerCommand(useCase, profileName)}
               language="shell"
               copy
             />
@@ -315,17 +418,44 @@ export function LearnWorkflowSection({
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="default"
-            className="w-fit gap-2 bg-muted/70"
-            onClick={() =>
-              onSelectedTabChange(workflowStepOptions.aiDocs.value)
-            }
-          >
-            Continue
-            <ChevronRightIcon className="size-3 text-foreground/50" />
-          </Button>
+          <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
+            {hasQualifiedRun ? (
+              <>
+                <CheckIcon className="size-5 text-green-500" />
+                <span className="text-sm font-medium">Run completed</span>
+              </>
+            ) : (
+              <>
+                <Spinner className="size-5" />
+                <span className="text-sm text-muted-foreground">
+                  Waiting for a completed run...
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <Button
+              variant="outline"
+              size="default"
+              className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+              disabled={!hasQualifiedRun}
+              onClick={() =>
+                onSelectedTabChange(workflowStepOptions.aiDocs.value)
+              }
+            >
+              Continue
+              <ChevronRightIcon className="size-3 text-foreground/50" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="default"
+              className={`w-fit ${focusRing}`}
+              onClick={onViewRuns}
+            >
+              View runs
+            </Button>
+          </div>
         </>
       ),
     },
@@ -334,8 +464,8 @@ export function LearnWorkflowSection({
       content: (
         <>
           <p className="text-sm">
-            Get Hatchet documentation directly in your AI coding assistant
-            (Cursor, Claude Code, Claude Desktop, and more).
+            Optional next step: get Hatchet documentation directly in your AI
+            coding assistant (Cursor, Claude Code, Claude Desktop, and more).
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
@@ -355,10 +485,17 @@ export function LearnWorkflowSection({
             </a>{' '}
             for manual configuration options.
           </p>
+          {!hasQualifiedRun && (
+            <p className="text-sm text-muted-foreground">
+              Waiting for a completed run before finishing. See the Run a task
+              step.
+            </p>
+          )}
           <Button
             variant="outline"
             size="default"
-            className="w-fit gap-2 bg-muted/70"
+            className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
+            disabled={!hasQualifiedRun}
             onClick={onFinish}
           >
             Finish
@@ -376,7 +513,20 @@ export function LearnWorkflowSection({
         show={showTriggerWorkflow}
         onClose={() => setShowTriggerWorkflow(false)}
       />
-      <SectionHeader title="Setup your local environment" showOnboardingBadge />
+      <SectionHeader
+        title="Set up your local environment"
+        showOnboardingBadge
+      />
+      <div className="mb-2 flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`text-muted-foreground ${focusRing}`}
+          onClick={onSkip}
+        >
+          Skip onboarding
+        </Button>
+      </div>
       <Tabs
         value={selectedTab}
         onValueChange={(value) => {
@@ -393,9 +543,7 @@ export function LearnWorkflowSection({
             <TabsTrigger
               key={step.value}
               value={step.value}
-              className={
-                'text-xs text-muted-foreground rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none'
-              }
+              className={`text-xs text-muted-foreground rounded-none pt-2.5 px-1 font-medium border-t border-transparent hover:border-border bg-transparent data-[state=active]:border-primary/50 data-[state=active]:bg-transparent data-[state=active]:shadow-none ${focusRing}`}
             >
               <div className="flex items-center gap-2">
                 {index + 1} {step.label}
@@ -407,7 +555,7 @@ export function LearnWorkflowSection({
           <TabsContent
             key={step.value}
             value={step.value}
-            className="mt-0 space-y-5"
+            className={`mt-0 space-y-5 rounded-sm ${focusRing}`}
           >
             {step.content}
           </TabsContent>

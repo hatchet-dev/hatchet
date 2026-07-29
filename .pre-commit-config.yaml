@@ -26,11 +26,11 @@ repos:
         exclude: ^examples/
       - id: mixed-line-ending
         args: ["--fix=lf"]
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: end-of-file-fixer
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: trailing-whitespace
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: check-yaml
         exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
   - repo: https://github.com/golangci/golangci-lint

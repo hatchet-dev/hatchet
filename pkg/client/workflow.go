@@ -5,7 +5,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -90,54 +89,41 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 
 // Result waits for the workflow run to complete and returns the results.
 //
-// Retry strategy (best-effort):
-// 1. This function retries AddWorkflowRun up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
-// 2. AddWorkflowRun calls retrySend which retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
-// 3. Each retrySend attempt calls retrySubscribe which itself retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
-func (c *Workflow) Result() (*WorkflowResult, error) {
+// AddWorkflowRun is attempted once; it uses bounded synchronous reconnect
+// (StreamSyncMaxAttempts) for send and subscribe failures. The background
+// listen loop reconnects unboundedly while the listener remains open.
+func (r *Workflow) Result() (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
+	failChan := make(chan error, 1)
 	sessionId := uuid.NewString()
 
-	var err error
-	retries := 0
-
-	for retries < DefaultActionListenerRetryCount {
-		if retries > 0 {
-			time.Sleep(DefaultActionListenerRetryInterval)
-		}
-
-		err = c.listener.AddWorkflowRun(
-			c.workflowRunId,
-			sessionId,
-			func(event WorkflowRunEvent) error {
-				resChan <- &WorkflowResult{
-					workflowRun: event,
-				}
-
-				return nil
-			},
-		)
-
-		if err == nil {
-			defer c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
-
-			break
-		}
-
-		retries++
-	}
-
-	if retries == DefaultActionListenerRetryCount && err != nil {
+	err := r.listener.addWorkflowRun(r.workflowRunId, sessionId,
+		func(event WorkflowRunEvent) error {
+			resChan <- &WorkflowResult{workflowRun: event}
+			return nil
+		},
+		func(err error) {
+			select {
+			case failChan <- err:
+			default:
+			}
+		},
+	)
+	if err != nil {
+		r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
 	}
+	defer r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 
-	res := <-resChan
-
-	for _, stepRunResult := range res.workflowRun.Results {
-		if stepRunResult.Error != nil {
-			return nil, fmt.Errorf("%s", *stepRunResult.Error)
+	select {
+	case res := <-resChan:
+		for _, stepRunResult := range res.workflowRun.Results {
+			if stepRunResult.Error != nil {
+				return nil, fmt.Errorf("%s", *stepRunResult.Error)
+			}
 		}
+		return res, nil
+	case err := <-failChan:
+		return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", r.workflowRunId, err)
 	}
-
-	return res, nil
 }

@@ -149,6 +149,7 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 		CloudRegisterID:        cf.CloudRegisterID,
 		RunnableActions:        rawRunnableActions,
 		NoGrpcRetry:            cf.NoGrpcRetry,
+		NoRetry:                cf.NoRetry,
 		PresetWorkerLabels:     presetLabels,
 		DisableGzipCompression: cf.DisableGzipCompression,
 	}, nil

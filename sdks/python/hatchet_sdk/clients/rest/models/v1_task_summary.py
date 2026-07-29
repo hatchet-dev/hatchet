@@ -128,6 +128,11 @@ class V1TaskSummary(BaseModel):
         description="The external ID of the parent task.",
         alias="parentTaskExternalId",
     )
+    idempotency_key: Optional[StrictStr] = Field(
+        default=None,
+        description="The idempotency key that was claimed by the task run",
+        alias="idempotencyKey",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "actionId",
@@ -159,6 +164,7 @@ class V1TaskSummary(BaseModel):
         "workflowVersionId",
         "workflowConfig",
         "parentTaskExternalId",
+        "idempotencyKey",
     ]
 
     model_config = ConfigDict(
@@ -259,6 +265,7 @@ class V1TaskSummary(BaseModel):
                 "workflowVersionId": obj.get("workflowVersionId"),
                 "workflowConfig": obj.get("workflowConfig"),
                 "parentTaskExternalId": obj.get("parentTaskExternalId"),
+                "idempotencyKey": obj.get("idempotencyKey"),
             }
         )
         return _obj

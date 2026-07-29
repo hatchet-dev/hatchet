@@ -13,6 +13,8 @@
 import {
   AcceptOrganizationInviteRequest,
   AcceptTenantInviteRequest,
+  AddOrgMembersToTenantRequest,
+  AddUserGroupMemberRequest,
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
@@ -28,6 +30,7 @@ import {
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
   CreateTenantInviteRequest,
+  CreateUserGroupRequest,
   ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
@@ -37,27 +40,35 @@ import {
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationMember,
   OrganizationPaymentMethodList,
   OrganizationTenant,
   OrganizationTenantResourceLimitsList,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SetTagsRequest,
   SsoConfig,
   SsoDomainArray,
   SubscriptionPlanList,
+  TagList,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  UpdateOrganizationMemberRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationSubscriptionRequest,
   UpdateOrganizationSubscriptionResponse,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
+  UpdateUserGroupRequest,
   User,
   UserChangePasswordRequest,
+  UserGroup,
+  UserGroupList,
+  UserGroupMemberList,
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
@@ -479,12 +490,12 @@ export class Api<
        */
       offset?: number;
       /**
-       * The start of the time range (RFC3339)
+       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
        * @format date-time
        */
       since?: string;
       /**
-       * The end of the time range (RFC3339)
+       * The end of the time range (RFC3339). When omitted, defaults to the current time.
        * @format date-time
        */
       until?: string;
@@ -577,6 +588,29 @@ export class Api<
       path: `/api/v1/control-plane/organization-tenants/${tenant}/api-tokens/${apiToken}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update an organization member's role
+   *
+   * @tags Management
+   * @name OrganizationMemberUpdate
+   * @summary Update Organization Member Role
+   * @request PATCH:/api/v1/control-plane/organization-members/{organization-member}
+   * @secure
+   */
+  organizationMemberUpdate = (
+    organizationMember: string,
+    data: UpdateOrganizationMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationMember, APIError>({
+      path: `/api/v1/control-plane/organization-members/${organizationMember}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
@@ -930,6 +964,292 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description List the tags applied to a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantListTags
+   * @summary List Tenant Tags
+   * @request GET:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/tags
+   * @secure
+   */
+  organizationTenantListTags = (
+    organization: string,
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/tags`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replace all tags on a tenant. Triggers a membership sync workflow to add or remove tenant members based on the new tags.
+   *
+   * @tags Management
+   * @name OrganizationTenantSetTags
+   * @summary Set Tenant Tags
+   * @request PUT:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/tags
+   * @secure
+   */
+  organizationTenantSetTags = (
+    organization: string,
+    tenant: string,
+    data: SetTagsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/tags`,
+      method: "PUT",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Directly add one or more org members to a tenant, bypassing tag matching. Only org OWNERs can call this endpoint. The memberships are marked explicit and will not be removed by tag sync.
+   *
+   * @tags Management
+   * @name OrganizationTenantMembersAdd
+   * @summary Add Org Members to Tenant
+   * @request POST:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/members
+   * @secure
+   */
+  organizationTenantMembersAdd = (
+    organization: string,
+    tenant: string,
+    data: AddOrgMembersToTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description List all user groups for an organization
+   *
+   * @tags Management
+   * @name OrganizationUserGroupsList
+   * @summary List User Groups
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups
+   * @secure
+   */
+  organizationUserGroupsList = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroupList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new user group for an organization
+   *
+   * @tags Management
+   * @name OrganizationUserGroupsCreate
+   * @summary Create User Group
+   * @request POST:/api/v1/control-plane/organizations/{organization}/user-groups
+   * @secure
+   */
+  organizationUserGroupsCreate = (
+    organization: string,
+    data: CreateUserGroupRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a user group by ID
+   *
+   * @tags Management
+   * @name OrganizationUserGroupGet
+   * @summary Get User Group
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupGet = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a user group's name or role
+   *
+   * @tags Management
+   * @name OrganizationUserGroupUpdate
+   * @summary Update User Group
+   * @request PATCH:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupUpdate = (
+    organization: string,
+    userGroup: string,
+    data: UpdateUserGroupRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a user group. Triggers a membership sync to remove tag-based access granted by this group.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupDelete
+   * @summary Delete User Group
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupDelete = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List the tags applied to a user group
+   *
+   * @tags Management
+   * @name OrganizationUserGroupListTags
+   * @summary List User Group Tags
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/tags
+   * @secure
+   */
+  organizationUserGroupListTags = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/tags`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replace all tags on a user group. Triggers a membership sync for all group members.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupSetTags
+   * @summary Set User Group Tags
+   * @request PUT:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/tags
+   * @secure
+   */
+  organizationUserGroupSetTags = (
+    organization: string,
+    userGroup: string,
+    data: SetTagsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/tags`,
+      method: "PUT",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List members of a user group
+   *
+   * @tags Management
+   * @name OrganizationUserGroupListMembers
+   * @summary List User Group Members
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members
+   * @secure
+   */
+  organizationUserGroupListMembers = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroupMemberList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Add an organization member to a user group. Triggers a membership sync for the added member.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupAddMember
+   * @summary Add Member to User Group
+   * @request POST:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members
+   * @secure
+   */
+  organizationUserGroupAddMember = (
+    organization: string,
+    userGroup: string,
+    data: AddUserGroupMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Remove an organization member from a user group. Triggers a membership sync for the removed member.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupRemoveMember
+   * @summary Remove Member from User Group
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members/{organization-member}
+   * @secure
+   */
+  organizationUserGroupRemoveMember = (
+    organization: string,
+    userGroup: string,
+    organizationMember: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members/${organizationMember}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
   /**

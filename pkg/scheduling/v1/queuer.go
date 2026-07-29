@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"time"
@@ -14,6 +15,19 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+)
+
+const (
+	// queuePollInterval is the base polling interval for a queue loop.
+	queuePollInterval = 1 * time.Second
+
+	// emptyPollsBeforeBackoff is the number of consecutive polls which return no queue items
+	// before the loop starts backing off. Enqueues wake the loop immediately via notifyQueueCh,
+	// so backing off only delays polls of queues with no work.
+	emptyPollsBeforeBackoff = 3
+
+	// maxQueuePollInterval caps the backed-off polling interval.
+	maxQueuePollInterval = 30 * time.Second
 )
 
 type Queuer struct {
@@ -49,6 +63,36 @@ type Queuer struct {
 	unassignedMu mutex
 
 	hasRateLimits bool
+
+	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
+	// accessed from the loopQueue goroutine.
+	consecutiveEmptyPolls int
+}
+
+// nextPollInterval returns the duration until the next poll of the queue. The interval doubles
+// for every consecutive empty poll beyond emptyPollsBeforeBackoff (capped at
+// maxQueuePollInterval), and always includes up to 50% random jitter. Jitter prevents queue
+// loops created in the same batch (e.g. on lease acquisition or after a cron sweep touches many
+// queues at once) from staying phase-locked and stampeding the connection pool in bursts.
+func (q *Queuer) nextPollInterval() time.Duration {
+	interval := queuePollInterval
+
+	if q.consecutiveEmptyPolls > emptyPollsBeforeBackoff {
+		shift := q.consecutiveEmptyPolls - emptyPollsBeforeBackoff
+
+		// 2^5 = 32x already exceeds any reasonable cap; avoid overflow on long idle streaks
+		if shift > 5 {
+			shift = 5
+		}
+
+		interval = queuePollInterval << shift
+
+		if interval > maxQueuePollInterval {
+			interval = maxQueuePollInterval
+		}
+	}
+
+	return interval + rand.N(interval/2) //nolint:gosec
 }
 
 func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -131,7 +175,19 @@ func (q *Queuer) queue(ctx context.Context) {
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	timer := time.NewTimer(q.nextPollInterval())
+	defer timer.Stop()
+
+	resetTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+
+		timer.Reset(q.nextPollInterval())
+	}
 
 	q.l.Debug().Ctx(ctx).Int("limit", q.limit).Msg("starting queue loop")
 
@@ -141,9 +197,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		case carrier = <-q.notifyQueueCh:
 		}
+
+		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
+		// again after the refill once the empty-poll streak is known
+		resetTimer()
 
 		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
 
@@ -181,6 +241,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.item_count", Value: len(qis)})
+
+		if len(qis) == 0 {
+			q.consecutiveEmptyPolls++
+		} else {
+			q.consecutiveEmptyPolls = 0
+		}
+
+		// re-arm with the interval reflecting the latest empty-poll streak
+		resetTimer()
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -240,6 +310,20 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
+		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+
+		if err != nil {
+			span.RecordError(err)
+			span.End()
+			q.l.Error().Err(err).Msg("error getting batch configs")
+
+			q.unackedToUnassigned(qis)
+			continue
+		}
+
+		batchConfigTime := time.Since(checkpoint)
+		checkpoint = time.Now()
+
 		stepRequests, err := q.repo.GetStepSlotRequests(ctx, nil, stepIds)
 
 		if err != nil {
@@ -254,7 +338,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -276,7 +360,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
-				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
+				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -348,6 +432,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur(
 				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
+				"batch_config_time", batchConfigTime,
+			).Dur(
 				"assign_time", assignTime,
 			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
@@ -355,7 +441,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		// if we processed all queue items, queue again
 		prevQis := qis
 
-		go func(originalStart time.Time) {
+		go func(originalStart time.Time) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
 			wg.Wait()
 			span.End()
 
@@ -444,6 +530,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 type QueueResults struct {
 	TenantId uuid.UUID
 	Assigned []*v1.AssignedItem
+	Buffered []*v1.AssignedItem
 
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
@@ -460,6 +547,24 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
 		delete(q.unassigned, assignedItem.QueueItem.ID)
+	}
+
+	for _, bufferedItem := range r.buffered {
+		if bufferedItem == nil || bufferedItem.QueueItem == nil {
+			continue
+		}
+
+		delete(q.unacked, bufferedItem.QueueItem.ID)
+		delete(q.unassigned, bufferedItem.QueueItem.ID)
+	}
+
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+
+		delete(q.unacked, batchedItem.qi.ID)
+		delete(q.unassigned, batchedItem.qi.ID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
@@ -503,21 +608,39 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	begin := time.Now()
 
-	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+	q.l.Debug().
+		Ctx(ctx).Int("assigned", len(r.assigned)).
+		Int("buffered", len(r.buffered)).
+		Int("batched", len(r.batched)).
+		Int("unassigned", len(r.unassigned)).
+		Int("scheduling_timed_out", len(r.schedulingTimedOut)).
+		Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
+	if len(r.assigned) == 0 && len(r.buffered) == 0 && len(r.batched) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return 0
 	}
 
+	// bulk write to v1_buffer_queue_item table
+
 	opts := &v1.AssignResults{
 		Assigned:           make([]*v1.AssignedItem, 0, len(r.assigned)),
+		Buffered:           make([]*v1.AssignedItem, 0, len(r.buffered)),
+		Batched:            make([]*sqlcv1.V1QueueItem, 0, len(r.batched)),
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
@@ -533,6 +656,25 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			WorkerId:  assignedItem.WorkerId,
 			QueueItem: assignedItem.QueueItem,
 		})
+	}
+
+	for _, bufferedItem := range r.buffered {
+		if bufferedItem == nil {
+			continue
+		}
+
+		opts.Buffered = append(opts.Buffered, &v1.AssignedItem{
+			WorkerId:  bufferedItem.WorkerId,
+			QueueItem: bufferedItem.QueueItem,
+		})
+	}
+
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+
+		opts.Batched = append(opts.Batched, batchedItem.qi)
 	}
 
 	for _, rateLimitedItem := range r.rateLimited {
@@ -570,6 +712,13 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	if err != nil {
 		q.l.Error().Ctx(ctx).Err(err).Msg("error marking queue items processed")
 
+		// Release any rate limits reserved for items that were supposed to be moved to the batched queue table.
+		for _, batchedItem := range r.batched {
+			if batchedItem != nil && batchedItem.rateLimitNack != nil {
+				batchedItem.rateLimitNack()
+			}
+		}
+
 		nackIds := make([]int, 0, len(r.assigned))
 
 		for _, assignedItem := range r.assigned {
@@ -579,6 +728,13 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		q.s.nack(nackIds)
 
 		return 0
+	}
+
+	// DB write succeeded: finalize rate limits reserved for items moved to the batched queue table.
+	for _, batchedItem := range r.batched {
+		if batchedItem != nil && batchedItem.rateLimitAck != nil {
+			batchedItem.rateLimitAck()
+		}
 	}
 
 	writeDuration := time.Since(begin)
@@ -610,12 +766,22 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	q.resultsCh <- &QueueResults{
 		TenantId:           q.tenantId,
 		Assigned:           succeeded,
+		Buffered:           opts.Buffered,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}
 
 	chWriteDuration := time.Since(checkpoint)
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
 
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
@@ -628,10 +794,26 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
-	return len(succeeded) + len(r.schedulingTimedOut)
+	return len(succeeded) + len(r.buffered) + len(r.batched) + len(r.schedulingTimedOut)
 }
 
 func (q *Queuer) runOptimisticQueue(
@@ -663,6 +845,11 @@ func (q *Queuer) runOptimisticQueue(
 
 			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
 		}
+
+	}
+	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
@@ -676,7 +863,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -707,14 +894,22 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 && len(r.batched) == 0 {
 		return nil, nil, nil
 	}
 
@@ -724,6 +919,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
 		RateLimitedToMove:  make([]*v1.RateLimitResult, 0, len(r.rateLimitedToMove)),
+		Batched:            make([]*sqlcv1.V1QueueItem, 0, len(r.batched)),
 	}
 
 	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
@@ -763,6 +959,12 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		})
 	}
 
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+		opts.Batched = append(opts.Batched, batchedItem.qi)
+	}
 	var succeeded []*v1.AssignedItem
 	var failed []*v1.AssignedItem
 	var err error
@@ -822,6 +1024,16 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	chWriteDuration := time.Since(checkpoint)
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "result.succeeded_local", Value: len(succeededLocal)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
+
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
@@ -833,7 +1045,25 @@ func (q *Queuer) flushToDatabaseOptimistic(
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Int(
+			"succeeded_local", len(succeededLocal),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
 	return succeededLocal, &QueueResults{
@@ -843,4 +1073,8 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}, nil
+}
+
+func assignResultsItemCount(r *assignResults) int {
+	return len(r.assigned) + len(r.unassigned) + len(r.schedulingTimedOut) + len(r.rateLimited) + len(r.rateLimitedToMove)
 }

@@ -5,7 +5,6 @@ package client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -13,17 +12,12 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
-
-var errListenerClosed = errors.New("listener is closed")
 
 // ResourceType represents the type of resource
 type ResourceType int32
@@ -97,22 +91,33 @@ type RunHandler func(event WorkflowEvent) error
 type StreamHandler func(event StreamEvent) error
 type WorkflowRunEventHandler func(event WorkflowRunEvent) error
 
+// WorkflowRunsListener streams workflow run completion events and dispatches
+// them to per-run session handlers.
 type WorkflowRunsListener struct {
-	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+	stream *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient]
+	reg    handlerRegistry[string, WorkflowRunEvent]
+	gate   listenGate
+	l      *zerolog.Logger
+}
 
-	client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
-	clientMu   sync.Mutex
-	generation uint64
-
-	reconnectGroup singleflight.Group
-	listenMu       sync.Mutex
-	listening      bool
-	closed         bool
-
-	l *zerolog.Logger
-
-	// map of workflow run ids to a list of handlers
-	handlers sync.Map
+func newWorkflowRunsListener(
+	l *zerolog.Logger,
+	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error),
+) *WorkflowRunsListener {
+	w := &WorkflowRunsListener{
+		reg: newHandlerRegistry[string, WorkflowRunEvent](),
+		l:   l,
+	}
+	w.stream = newReconnectingStream(
+		l,
+		"workflow run listener",
+		constructor,
+		func(client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+			return client.CloseSend()
+		},
+		w.replayHandlers,
+	)
+	return w
 }
 
 func (r *subscribeClientImpl) getWorkflowRunsListener(
@@ -125,462 +130,195 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		return r.workflowRunListener, nil
 	}
 
-	constructor := func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	l := newWorkflowRunsListener(r.l, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
 		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
-	}
+	})
 
-	w := &WorkflowRunsListener{
-		constructor: constructor,
-		l:           r.l,
-	}
-
-	err := w.retrySubscribe(ctx)
-
-	if err != nil {
+	if err := l.stream.connectSync(ctx); err != nil {
 		return nil, err
 	}
 
-	r.workflowRunListener = w
-	if !w.startListening() {
-		if closeErr := w.closeStream(); closeErr != nil {
-			r.l.Error().Err(closeErr).Msg("failed to close workflow run events listener")
+	onExit := func() {
+		r.workflowRunListenerMu.Lock()
+		if r.workflowRunListener == l {
+			r.workflowRunListener = nil
 		}
-
-		r.workflowRunListener = nil
-		return nil, errListenerClosed
+		r.workflowRunListenerMu.Unlock()
 	}
 
-	go func() {
-		defer func() {
-			r.workflowRunListenerMu.Lock()
-			if r.workflowRunListener == w {
-				r.workflowRunListener = nil
-			}
-			r.workflowRunListenerMu.Unlock()
-		}()
-		defer w.stopListening()
-
-		err := w.listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
-		}
-	}()
-
-	return w, nil
-}
-
-// getClientSnapshot returns the current client and its generation without holding the lock.
-func (w *WorkflowRunsListener) getClientSnapshot() (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, uint64) {
-	w.clientMu.Lock()
-	defer w.clientMu.Unlock()
-	return w.client, w.generation
-}
-
-func (w *WorkflowRunsListener) isListening() bool {
-	w.listenMu.Lock()
-	defer w.listenMu.Unlock()
-	return w.listening
-}
-
-func (w *WorkflowRunsListener) isClosed() bool {
-	w.listenMu.Lock()
-	defer w.listenMu.Unlock()
-	return w.closed
-}
-
-func (w *WorkflowRunsListener) startListening() bool {
-	w.listenMu.Lock()
-	defer w.listenMu.Unlock()
-
-	if w.listening || w.closed {
-		return false
+	if err := l.startBackground(onExit); err != nil {
+		_ = l.stream.closeStream()
+		return nil, err
 	}
 
-	w.listening = true
-	return true
-}
-
-func (w *WorkflowRunsListener) stopListening() {
-	w.listenMu.Lock()
-	w.listening = false
-	w.listenMu.Unlock()
-}
-
-func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
-	if w.isClosed() {
-		return errListenerClosed
-	}
-
-	if w.isListening() {
-		return nil
-	}
-
-	if err := w.retrySubscribe(ctx); err != nil {
-		return err
-	}
-
-	if !w.startListening() {
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		return nil
-	}
-
-	go func() {
-		defer w.stopListening()
-
-		if err := w.listen(ctx); err != nil {
-			w.l.Error().Err(err).Msg("failed to listen for workflow run events")
-		}
-	}()
-
-	return nil
-}
-
-// retrySubscribe coalesces concurrent reconnection attempts via singleflight.
-// Multiple goroutines calling this concurrently will share a single reconnection attempt.
-func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
-	if w.isClosed() {
-		return errListenerClosed
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
-		return nil, w.doRetrySubscribe(context.Background())
-	})
-	return err
-}
-
-func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
-	if w.isClosed() {
-		return errListenerClosed
-	}
-
-	retries := 0
-
-	for retries < DefaultActionListenerRetryCount {
-		if retries > 0 {
-			time.Sleep(DefaultActionListenerRetryInterval)
-		}
-
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		client, err := w.constructor(ctx)
-
-		if err != nil {
-			retries++
-			w.l.Error().Err(err).Msgf("could not resubscribe to the listener")
-			continue
-		}
-
-		var rangeErr error
-
-		w.handlers.Range(func(key, value interface{}) bool {
-			workflowRunId := key.(string)
-
-			err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
-				WorkflowRunId: workflowRunId,
-			})
-
-			if err != nil {
-				w.l.Error().Err(err).Msgf("could not subscribe to the worker for workflow run id %s", workflowRunId)
-				rangeErr = err
-				return false
-			}
-
-			return true
-		})
-
-		if rangeErr != nil {
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after replay failure")
-			}
-
-			retries++
-			continue
-		}
-
-		w.clientMu.Lock()
-		if w.isClosed() {
-			w.clientMu.Unlock()
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listener closed")
-			}
-
-			return errListenerClosed
-		}
-
-		w.client = client
-		w.generation++
-		w.clientMu.Unlock()
-		return nil
-	}
-
-	return fmt.Errorf("could not subscribe to the worker after %d retries", retries)
-}
-
-type threadSafeHandlers struct {
-	// map of session ids to handlers
-	handlers map[string]WorkflowRunEventHandler
-	mu       sync.RWMutex
+	r.workflowRunListener = l
+	return l, nil
 }
 
 func (l *WorkflowRunsListener) AddWorkflowRun(
 	workflowRunId, sessionId string,
 	handler WorkflowRunEventHandler,
 ) error {
-	if l.isClosed() {
+	return l.addWorkflowRun(workflowRunId, sessionId, handler, nil)
+}
+
+func (l *WorkflowRunsListener) addWorkflowRun(
+	workflowRunId, sessionId string,
+	handler WorkflowRunEventHandler,
+	onError func(error),
+) error {
+	if l.stream.isClosed() {
 		return errListenerClosed
 	}
 
-	if !l.isListening() {
-		if err := l.ensureListening(context.Background()); err != nil {
-			return err
-		}
-	}
-
-	handlers, _ := l.handlers.LoadOrStore(workflowRunId, &threadSafeHandlers{
-		handlers: map[string]WorkflowRunEventHandler{},
-	})
-
-	h := handlers.(*threadSafeHandlers)
-
-	h.mu.Lock()
-	h.handlers[sessionId] = handler
-	l.handlers.Store(workflowRunId, h)
-	h.mu.Unlock()
-
-	if err := l.retrySend(workflowRunId); err != nil {
-		if !l.isListening() {
-			if listenErr := l.ensureListening(context.Background()); listenErr != nil {
-				return listenErr
-			}
-
-			return l.retrySend(workflowRunId)
-		}
-
+	lifecycle := l.stream.lifecycleContext()
+	if err := l.ensureListening(lifecycle); err != nil {
 		return err
 	}
 
-	return l.ensureListening(context.Background())
+	remove := l.reg.store(workflowRunId, sessionId, handler, onError)
+	if err := l.retrySend(workflowRunId); err != nil {
+		if err2 := l.ensureListening(lifecycle); err2 != nil {
+			remove()
+			return err2
+		}
+		if err2 := l.retrySend(workflowRunId); err2 != nil {
+			remove()
+			return err2
+		}
+	}
+
+	if err := l.ensureListening(lifecycle); err != nil {
+		remove()
+		return err
+	}
+
+	return nil
 }
 
-func (l *WorkflowRunsListener) RemoveWorkflowRun(
-	workflowRunId, sessionId string,
-) {
-	handlers, ok := l.handlers.Load(workflowRunId)
-
-	if !ok {
-		return
-	}
-
-	h := handlers.(*threadSafeHandlers)
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	delete(h.handlers, sessionId)
-
-	if len(h.handlers) == 0 {
-		l.handlers.Delete(workflowRunId)
-	}
+func (l *WorkflowRunsListener) RemoveWorkflowRun(workflowRunId, sessionId string) {
+	l.reg.removeSession(workflowRunId, sessionId)
 }
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
-	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		client, genBefore := l.getClientSnapshot()
-
-		if client == nil {
-			return fmt.Errorf("client is not connected")
-		}
-
-		err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
-			WorkflowRunId: workflowRunId,
+	return l.stream.retrySend(l.stream.lifecycleContext(),
+		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+			return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: workflowRunId})
 		})
-
-		if err == nil {
-			return nil
-		}
-
-		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
-
-		// Check if someone else (e.g. Listen) already reconnected while we were sending.
-		// If so, skip the reconnect and retry the send on the new client immediately.
-		if _, genAfter := l.getClientSnapshot(); genAfter != genBefore {
-			continue
-		}
-
-		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
-			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
-		}
-
-		time.Sleep(DefaultActionListenerRetryInterval)
-	}
-
-	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)
 }
 
-func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
-	if !l.startListening() {
-		return nil
-	}
-	defer l.stopListening()
-
-	return l.listen(ctx)
-}
-
-func (l *WorkflowRunsListener) listen(ctx context.Context) error {
-	consecutiveErrors := 0
-	maxConsecutiveErrors := 10
-
-	// Take a snapshot of the client so we never hold the lock during a blocking Recv.
-	client, generation := l.getClientSnapshot()
-	if client == nil {
-		return fmt.Errorf("client is not connected")
-	}
-	defer func() {
-		if closeErr := client.CloseSend(); closeErr != nil {
-			l.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listen exit")
-		}
-	}()
-
-	for {
-		event, err := client.Recv()
-
-		if err != nil {
-			switch {
-			case errors.Is(err, io.EOF):
-				if !l.shouldReconnectOnEOF(ctx) {
-					return nil
-				}
-			case status.Code(err) == codes.Canceled:
-				return nil
-			case status.Code(err) == codes.Unavailable:
-				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying subscribe after 1 second")
-				time.Sleep(1 * time.Second)
-			}
-
-			consecutiveErrors++
-
-			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
-				client, generation = l.getClientSnapshot()
-				consecutiveErrors = 0
-				continue
-			}
-
-			retryErr := l.retrySubscribe(ctx)
-
-			if retryErr != nil {
-				if errors.Is(retryErr, errListenerClosed) {
-					return nil
-				}
-
-				l.l.Error().Err(retryErr).Msgf("failed to resubscribe (consecutive errors: %d/%d)", consecutiveErrors, maxConsecutiveErrors)
-
-				if consecutiveErrors >= maxConsecutiveErrors {
-					return fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveErrors, retryErr)
-				}
-
-				time.Sleep(DefaultActionListenerRetryInterval)
-				continue
-			}
-
-			client, generation = l.getClientSnapshot()
-			consecutiveErrors = 0
-			continue
-		}
-
-		consecutiveErrors = 0
-
-		if err := l.handleWorkflowRun(event); err != nil {
+func (l *WorkflowRunsListener) replayHandlers(ctx context.Context, client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	for _, runId := range l.reg.keys() {
+		if err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: runId}); err != nil {
 			return err
 		}
 	}
+	return nil
 }
 
-func (l *WorkflowRunsListener) Close() error {
-	l.listenMu.Lock()
-	l.closed = true
-	l.listenMu.Unlock()
-
-	return l.closeStream()
-}
-
-func (l *WorkflowRunsListener) closeStream() error {
-	l.clientMu.Lock()
-	client := l.client
-	l.clientMu.Unlock()
-
-	if client == nil {
+func (l *WorkflowRunsListener) dispatch(event *dispatchercontracts.WorkflowRunEvent) error {
+	regs := l.reg.snapshot(event.WorkflowRunId)
+	if len(regs) == 0 {
 		return nil
 	}
 
-	return client.CloseSend()
-}
-
-func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.WorkflowRunEvent) error {
-	// find all handlers for this workflow run
-	handlers, ok := l.handlers.Load(event.WorkflowRunId)
-
-	if !ok {
-		return nil
+	ev, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
+	if err != nil {
+		return err
 	}
 
 	eg := errgroup.Group{}
-
-	h := handlers.(*threadSafeHandlers)
-
-	h.mu.RLock()
-
-	for _, handler := range h.handlers {
-		handlerCp := handler
-
+	for _, r := range regs {
+		r := r
 		eg.Go(func() error {
-			workflowRunEvent, err := workflowRunEventToDeprecatedWorkflowRunEvent(event)
-			if err != nil {
+			if err := r.handle(ev); err != nil {
+				l.l.Error().Err(err).Str("workflow_run_id", event.WorkflowRunId).
+					Msg("workflow run handler failed")
 				return err
 			}
-
-			return handlerCp(workflowRunEvent)
+			return nil
 		})
 	}
-
-	h.mu.RUnlock()
-
-	err := eg.Wait()
-
-	return err
-}
-
-func (l *WorkflowRunsListener) hasHandlers() bool {
-	hasHandlers := false
-
-	l.handlers.Range(func(key, value interface{}) bool {
-		h := value.(*threadSafeHandlers)
-
-		h.mu.RLock()
-		hasHandlers = len(h.handlers) > 0
-		h.mu.RUnlock()
-
-		return !hasHandlers
-	})
-
-	return hasHandlers
+	_ = eg.Wait()
+	return nil
 }
 
 func (l *WorkflowRunsListener) shouldReconnectOnEOF(ctx context.Context) bool {
-	if ctx.Err() != nil || l.isClosed() {
-		return false
-	}
+	return ctx.Err() == nil && !l.stream.isClosed() && l.reg.hasAny()
+}
 
-	return l.hasHandlers()
+func (l *WorkflowRunsListener) runLoop(ctx context.Context) error {
+	err := listenStream(ctx, l.stream,
+		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) (*dispatchercontracts.WorkflowRunEvent, error) {
+			return c.Recv()
+		},
+		l.dispatch,
+		newStreamClassifier(l.shouldReconnectOnEOF),
+	)
+	if err != nil {
+		n := l.reg.failAll(err)
+		l.l.Error().Err(err).Str("stream", l.stream.name).Int("handlers", n).
+			Msg("stream listener terminated; failing registered handlers")
+	}
+	return err
+}
+
+func (l *WorkflowRunsListener) ensureListening(ctx context.Context) error {
+	if l.stream.isClosed() {
+		return errListenerClosed
+	}
+	if l.gate.active() {
+		return nil
+	}
+	if err := l.stream.connectSync(ctx); err != nil {
+		return err
+	}
+	if !l.gate.tryStart(l.stream.isClosed()) {
+		if l.stream.isClosed() {
+			return errListenerClosed
+		}
+		return nil
+	}
+	go func() {
+		defer l.gate.stop()
+		_ = l.runLoop(l.stream.lifecycleContext())
+	}()
+	return nil
+}
+
+func (l *WorkflowRunsListener) startBackground(onExit func()) error {
+	if !l.gate.tryStart(l.stream.isClosed()) {
+		if l.stream.isClosed() {
+			return errListenerClosed
+		}
+		return nil
+	}
+	go func() {
+		defer onExit()
+		defer l.gate.stop()
+		_ = l.runLoop(l.stream.lifecycleContext())
+	}()
+	return nil
+}
+
+func (l *WorkflowRunsListener) listen(ctx context.Context) error {
+	if !l.gate.tryStart(l.stream.isClosed()) {
+		return nil
+	}
+	defer l.gate.stop()
+	return l.runLoop(ctx)
+}
+
+func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
+	return l.listen(ctx)
+}
+
+func (l *WorkflowRunsListener) Close() error {
+	return l.stream.Close()
+}
+
+func (l *WorkflowRunsListener) isListening() bool {
+	return l.gate.active()
 }
 
 type SubscribeClient interface {
@@ -694,45 +432,75 @@ func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, 
 	}
 }
 
-func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error {
-	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
-		AdditionalMetaKey:   &key,
-		AdditionalMetaValue: &value,
-	})
+func (r *subscribeClientImpl) newMetadataStream(ctx context.Context, key, value string) *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient] {
+	return newReconnectingStreamWithLifecycle(
+		ctx,
+		r.l,
+		"metadata stream listener",
+		func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+			return r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
+				AdditionalMetaKey:   &key,
+				AdditionalMetaValue: &value,
+			}, grpc_retry.Disable())
+		},
+		func(client dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient) error {
+			return client.CloseSend()
+		},
+		nil,
+	)
+}
 
-	if err != nil {
-		return err
+func metadataStreamClassifier() streamClassifier {
+	base := newStreamClassifier(func(ctx context.Context) bool { return ctx.Err() == nil })
+	return func(ctx context.Context, err error) streamVerdict {
+		if v := base(ctx, err); v != verdictNoProgress {
+			return v
+		}
+		return verdictStopError
 	}
+}
 
-	for {
-		event, err := stream.Recv()
-
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
+func runMetadataStream(
+	ctx context.Context,
+	stream *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient],
+	handler StreamHandler,
+) error {
+	return listenStream(
+		ctx,
+		stream,
+		func(client dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient) (*dispatchercontracts.WorkflowEvent, error) {
+			return client.Recv()
+		},
+		func(event *dispatchercontracts.WorkflowEvent) error {
+			if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+				return ctx.Err()
 			}
 
-			return err
-		}
+			if err := handler(StreamEvent{
+				Message: []byte(event.EventPayload),
+			}); err != nil {
+				return err
+			}
 
-		if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
-			continue
-		}
+			return ctx.Err()
+		},
+		metadataStreamClassifier(),
+	)
+}
 
-		if err := handler(StreamEvent{
-			Message: []byte(event.EventPayload),
-		}); err != nil {
-			return err
-		}
-	}
+func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error {
+	stream := r.newMetadataStream(ctx, key, value)
+	defer func() { _ = stream.Close() }()
+
+	return runMetadataStream(ctx, stream, handler)
 }
 
 func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error) {
-	return r.getWorkflowRunsListener(context.Background())
+	return r.getWorkflowRunsListener(ctx)
 }
 
 func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
-	return r.getDurableEventsListener(context.Background())
+	return r.getDurableEventsListener(ctx)
 }
 
 func workflowEventToDeprecatedWorkflowEvent(event *dispatchercontracts.WorkflowEvent) (*workflowEvent, error) {

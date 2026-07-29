@@ -204,6 +204,9 @@ TenantMember:
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
+    manually_added:
+      type: boolean
+      description: Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
   required:
     - metadata
     - user
@@ -428,6 +431,9 @@ TaskStatusStat:
       items:
         $ref: "#/ConcurrencyStat"
     oldest:
+      type: string
+      format: date-time
+    oldestExcludingRetries:
       type: string
       format: date-time
   type: object

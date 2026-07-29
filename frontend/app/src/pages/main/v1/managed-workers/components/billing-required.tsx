@@ -3,6 +3,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
 import { queries } from '@/lib/api/queries';
 import { BillingContext } from '@/lib/atoms';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { appRoutes } from '@/router';
 import {
   CalendarIcon,
@@ -159,7 +160,7 @@ export function BillingRequired({
               </div>
 
               <a
-                href="https://hatchet.run/office-hours"
+                href={OFFICE_HOURS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full"

@@ -12,6 +12,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const syncListUsers = `-- name: SyncListUsers :many
+SELECT
+    "id",
+    "email"
+FROM
+    "User"
+WHERE
+    "deletedAt" IS NULL
+`
+
+type SyncListUsersRow struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+}
+
+func (q *Queries) SyncListUsers(ctx context.Context, db DBTX) ([]*SyncListUsersRow, error) {
+	rows, err := db.Query(ctx, syncListUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*SyncListUsersRow
+	for rows.Next() {
+		var i SyncListUsersRow
+		if err := rows.Scan(&i.ID, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const syncSoftDeleteTenant = `-- name: SyncSoftDeleteTenant :exec
 UPDATE "Tenant"
 SET

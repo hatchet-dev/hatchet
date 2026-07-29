@@ -19,6 +19,7 @@ import invariant from 'tiny-invariant';
 type NewTenantSaverFormProps = {
   defaultTenantName?: string;
   defaultOrganizationId?: string;
+  allTenantTags?: string[];
   afterSave: (
     data:
       | { type: 'cloud'; tenant: OrganizationTenant; organizationId: string }
@@ -43,10 +44,12 @@ const useSaveTenant = ({
       tenantName,
       organizationId,
       region,
+      tags,
     }: {
       tenantName: string;
       organizationId?: string;
       region?: string;
+      tags?: string[];
     }) => {
       const slug = generateTenantSlug(tenantName);
       if (isCloudEnabled) {
@@ -60,6 +63,9 @@ const useSaveTenant = ({
             name: tenantName,
             slug,
             ...(isControlPlaneEnabled && region ? { region } : {}),
+            ...(isControlPlaneEnabled && tags && tags.length > 0
+              ? { tags }
+              : {}),
           });
         return { type: 'cloud' as const, tenant, organizationId };
       } else {
@@ -91,6 +97,7 @@ const useSaveTenant = ({
 export function NewTenantSaverForm({
   defaultTenantName,
   defaultOrganizationId,
+  allTenantTags,
   afterSave,
 }: NewTenantSaverFormProps) {
   const {
@@ -143,6 +150,8 @@ export function NewTenantSaverForm({
       organizationId={selectedOrgId}
       onOrganizationIdChange={setSelectedOrgId}
       showRegionSelect={isControlPlaneEnabled}
+      showTagsInput={isControlPlaneEnabled}
+      allTenantTags={allTenantTags}
       availableShards={shardsQuery.data?.rows}
       isShardsLoading={shardsQuery.isLoading}
       onSubmit={saveTenantMutation.mutate}

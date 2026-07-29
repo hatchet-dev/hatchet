@@ -24,6 +24,12 @@ module HatchetSdkRest
     # The log metadata.
     attr_accessor :metadata
 
+    # The external ID of the task associated with the log line.
+    attr_accessor :task_external_id
+
+    # The display name of the task associated with the log line.
+    attr_accessor :task_display_name
+
     # The retry count of the log line.
     attr_accessor :retry_count
 
@@ -61,6 +67,8 @@ module HatchetSdkRest
         :'created_at' => :'createdAt',
         :'message' => :'message',
         :'metadata' => :'metadata',
+        :'task_external_id' => :'taskExternalId',
+        :'task_display_name' => :'taskDisplayName',
         :'retry_count' => :'retryCount',
         :'attempt' => :'attempt',
         :'level' => :'level'
@@ -83,6 +91,8 @@ module HatchetSdkRest
         :'created_at' => :'Time',
         :'message' => :'String',
         :'metadata' => :'Object',
+        :'task_external_id' => :'String',
+        :'task_display_name' => :'String',
         :'retry_count' => :'Integer',
         :'attempt' => :'Integer',
         :'level' => :'V1LogLineLevel'
@@ -129,6 +139,14 @@ module HatchetSdkRest
         self.metadata = nil
       end
 
+      if attributes.key?(:'task_external_id')
+        self.task_external_id = attributes[:'task_external_id']
+      end
+
+      if attributes.key?(:'task_display_name')
+        self.task_display_name = attributes[:'task_display_name']
+      end
+
       if attributes.key?(:'retry_count')
         self.retry_count = attributes[:'retry_count']
       end
@@ -159,6 +177,14 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "metadata", metadata cannot be nil.')
       end
 
+      if !@task_external_id.nil? && @task_external_id.to_s.length > 36
+        invalid_properties.push('invalid value for "task_external_id", the character length must be smaller than or equal to 36.')
+      end
+
+      if !@task_external_id.nil? && @task_external_id.to_s.length < 36
+        invalid_properties.push('invalid value for "task_external_id", the character length must be greater than or equal to 36.')
+      end
+
       invalid_properties
     end
 
@@ -169,6 +195,8 @@ module HatchetSdkRest
       return false if @created_at.nil?
       return false if @message.nil?
       return false if @metadata.nil?
+      return false if !@task_external_id.nil? && @task_external_id.to_s.length > 36
+      return false if !@task_external_id.nil? && @task_external_id.to_s.length < 36
       true
     end
 
@@ -202,6 +230,24 @@ module HatchetSdkRest
       @metadata = metadata
     end
 
+    # Custom attribute writer method with validation
+    # @param [Object] task_external_id Value to be assigned
+    def task_external_id=(task_external_id)
+      if task_external_id.nil?
+        fail ArgumentError, 'task_external_id cannot be nil'
+      end
+
+      if task_external_id.to_s.length > 36
+        fail ArgumentError, 'invalid value for "task_external_id", the character length must be smaller than or equal to 36.'
+      end
+
+      if task_external_id.to_s.length < 36
+        fail ArgumentError, 'invalid value for "task_external_id", the character length must be greater than or equal to 36.'
+      end
+
+      @task_external_id = task_external_id
+    end
+
     # Checks equality by comparing each attribute.
     # @param [Object] Object to be compared
     def ==(o)
@@ -210,6 +256,8 @@ module HatchetSdkRest
           created_at == o.created_at &&
           message == o.message &&
           metadata == o.metadata &&
+          task_external_id == o.task_external_id &&
+          task_display_name == o.task_display_name &&
           retry_count == o.retry_count &&
           attempt == o.attempt &&
           level == o.level
@@ -224,7 +272,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [created_at, message, metadata, retry_count, attempt, level].hash
+      [created_at, message, metadata, task_external_id, task_display_name, retry_count, attempt, level].hash
     end
 
     # Builds the object from hash

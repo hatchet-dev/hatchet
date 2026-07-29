@@ -4,7 +4,9 @@ import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -113,7 +115,22 @@ export function UserRegisterForm({
           </div>
           {props.errors && props.errors.length > 0 && (
             <Alert variant="destructive">
-              <AlertDescription>{props.errors.join(' ')}</AlertDescription>
+              <AlertDescription>
+                {props.errors.join(' ')}
+                {props.errors.some((e) =>
+                  e.toLowerCase().includes('already exists'),
+                ) && (
+                  <>
+                    {' '}
+                    <Link
+                      to={appRoutes.authLoginRoute.to}
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Log in instead
+                    </Link>
+                  </>
+                )}
+              </AlertDescription>
             </Alert>
           )}
           <Button disabled={props.isLoading || !isValid}>

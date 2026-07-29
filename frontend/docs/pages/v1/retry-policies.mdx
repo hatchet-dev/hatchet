@@ -212,6 +212,79 @@ You can add non-idempotent methods to `retry_transport_methods`, but only do so 
 
 Python SDK client retries use exponential backoff with jitter. Fine-grained backoff timing is not currently configurable through `TenacityConfig`.
 
+## Go SDK Client Retry Behavior
+
+The retry behavior described above is for task execution inside Hatchet. The Go SDK also retries some REST and gRPC calls that the SDK itself makes to Hatchet.
+
+These SDK client retries are configured separately from task retries. They do not control whether Hatchet retries a task after it fails in a worker.
+
+<Callout type="info">
+  Task retries and SDK client retries are separate mechanisms. Task retries
+  control whether Hatchet retries a task after task failure. SDK client retries
+  control whether the Go SDK retries certain API calls to Hatchet.
+</Callout>
+
+### Default Go client retry behavior
+
+By default, the Go SDK retries certain client calls with exponential backoff. REST reads use up to 5 total attempts: the initial attempt plus up to 4 retries. gRPC calls keep the existing 5 attempt retry limit.
+
+REST read retries use bounded jittered backoff. When the caller request context has no deadline, each REST attempt uses a response-header timeout without cutting off response body reads. If the caller context already has a deadline, that deadline governs the whole request.
+
+**REST API calls (bodyless `GET` and `HEAD` only)**
+
+| Error Type                                            | Retried by Default |
+| ----------------------------------------------------- | ------------------ |
+| HTTP 502, 503, 504 (gateway errors)                   | Yes                |
+| HTTP 404 (not found)                                  | No                 |
+| HTTP 429 (too many requests)                          | Yes                |
+| HTTP 400, 401, 403, 409, 422 (client errors)          | No                 |
+| Transport errors (timeout, connection, TLS, protocol) | Yes                |
+
+For HTTP 429 responses on idempotent reads, the Go SDK honors a valid `Retry-After` header when it fits the client retry cap. When `Retry-After` is missing, invalid, or oversized, it falls back to the same bounded jittered backoff used for other retriable errors.
+
+<Callout type="info">
+  Unlike the Python SDK, the Go SDK does not retry HTTP 404 responses on REST
+  reads in this release. Python retries some 404 reads to account for
+  replication lag between the core database and the OLAP database.
+</Callout>
+
+**gRPC calls**
+
+| Status Code                                              | Retried |
+| -------------------------------------------------------- | ------- |
+| `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `INTERNAL`           | Yes     |
+| `RESOURCE_EXHAUSTED`                                     | Yes     |
+| `FAILED_PRECONDITION`                                    | No      |
+| `UNIMPLEMENTED`, `NOT_FOUND`, `INVALID_ARGUMENT`         | No      |
+| `ALREADY_EXISTS`, `UNAUTHENTICATED`, `PERMISSION_DENIED` | No      |
+
+<Callout type="info">
+  `FAILED_PRECONDITION` is not retried because Hatchet uses it for non-transient
+  control-plane signals such as inactive listeners. The unary interceptor still
+  retries all unary RPCs, including writes, in this release.
+</Callout>
+
+### Configuring Go SDK client retries
+
+Use environment variables to disable SDK client retries:
+
+| Environment Variable           | Description                                                                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `HATCHET_CLIENT_NO_RETRY`      | Disables both REST and gRPC SDK client retries when set to a truthy value.                                                                |
+| `HATCHET_CLIENT_NO_GRPC_RETRY` | Legacy gRPC-only retry control. Disables gRPC SDK retries only. REST read retries remain enabled unless `HATCHET_CLIENT_NO_RETRY` is set. |
+
+If both variables are set, all SDK client retries are disabled.
+
+### Idempotency considerations
+
+<Callout type="warning">
+  Go SDK REST retries apply only to bodyless `GET` and `HEAD` requests. `POST`,
+  `PUT`, `PATCH`, and `DELETE` requests are never retried by the SDK client in
+  this release. Bodied requests are excluded because Go `http.Request` bodies
+  are one-shot unless `GetBody` is set or the SDK buffers and rebuilds the body.
+  The generated REST clients do not set `GetBody`.
+</Callout>
+
 ## Conclusion
 
 Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your tasks, improving the reliability and resilience of your tasks. By specifying the number of retries for each task, you can ensure that your tasks can recover from temporary issues without requiring complex error handling logic.

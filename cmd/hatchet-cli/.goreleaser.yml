@@ -82,7 +82,7 @@ release:
     name: hatchet
   draft: false
   prerelease: auto
-  mode: append
+  mode: replace
   footer: |
     ---
 

@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module Hatchet
-  VERSION = "0.3.2"
+  VERSION = "0.6.1"
 end

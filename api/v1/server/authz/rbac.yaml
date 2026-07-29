@@ -1,6 +1,8 @@
 roles:
   OWNER:
     inherits: [ADMIN]
+  NOAUTH:
+    inherits: [MEMBER]
   ADMIN:
     inherits: [MEMBER]
     permissions:

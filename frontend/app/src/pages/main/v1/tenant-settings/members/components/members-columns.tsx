@@ -1,6 +1,7 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -30,6 +31,7 @@ export function MemberActions({
   const { handleApiError } = useApiError({});
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const { tenantMemberDeleteMutation } = useTenantApi();
   const deleteMemberMutation = useMutation({
@@ -52,7 +54,12 @@ export function MemberActions({
 
   const isOwnerRole = member.role === 'OWNER';
 
+  // outside the control plane there's no tag-based membership, so every
+  // member is implicitly "manually added"
+  const isManuallyAdded = !isControlPlaneEnabled || member.manually_added;
+
   const canDeleteMember =
+    isManuallyAdded &&
     member.user.email !== user?.email &&
     meta?.allowInvites &&
     !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
@@ -60,7 +67,7 @@ export function MemberActions({
   const canChangePassword =
     member.user.email === user?.email && meta?.allowChangePassword;
 
-  const canEditRole = member.user.email !== user?.email;
+  const canEditRole = isManuallyAdded && member.user.email !== user?.email;
 
   return (
     <>

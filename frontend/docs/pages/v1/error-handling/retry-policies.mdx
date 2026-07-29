@@ -113,6 +113,14 @@ The Hatchet SDKs each expose a `NonRetryable` exception, which allows you to byp
 
 In these cases, even though `retries` is set to a non-zero number (meaning the task would ordinarily retry), Hatchet will not retry.
 
+<Callout type="info">
+  For SDK client retry behavior (automatic retries on REST and gRPC API calls),
+  see the{" "}
+  <a href="/v1/retry-policies#go-sdk-client-retry-behavior">
+    Go SDK client retry behavior section
+  </a>
+</Callout>
+
 ## Conclusion
 
 Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your tasks, improving the reliability and resilience of your tasks. By specifying the number of retries for each task, you can ensure that your tasks can recover from temporary issues without requiring complex error handling logic.

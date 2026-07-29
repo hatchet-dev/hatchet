@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -24,13 +22,16 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const MAX_RETRY_COUNT = 15
 const RETRY_INTERVAL = 2 * time.Second
 const RETRY_RESET_INTERVAL = 30 * time.Second
+
+// consumerTimeout is the x-consumer-timeout applied to declared queues: the
+// broker requeues a delivery if it isn't acked within this window.
+const consumerTimeout = 5 * time.Minute
 
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
@@ -42,19 +43,13 @@ type MessageQueueImpl struct {
 
 	l *zerolog.Logger
 
-	disableTenantExchangePubs bool
-
-	// lru cache for tenant ids
-	tenantIdCache *lru.Cache[uuid.UUID, bool]
-
 	pubChannels *channelPool
 	subChannels *channelPool
 
 	deadLetterBackoff time.Duration
 
-	maxPayloadSize         int
-	compressionEnabled     bool
-	compressionThreshold   int
+	compressor msgqueue.Compressor
+
 	enableMessageRejection bool
 	maxDeathCount          int
 }
@@ -66,28 +61,26 @@ func (t *MessageQueueImpl) IsReady() bool {
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {
-	l                         *zerolog.Logger
-	url                       string
-	qos                       int
-	disableTenantExchangePubs bool
-	deadLetterBackoff         time.Duration
-	maxPubChannels            int32
-	maxSubChannels            int32
-	compressionEnabled        bool
-	compressionThreshold      int
-	enableMessageRejection    bool
-	maxDeathCount             int
+	l                      *zerolog.Logger
+	url                    string
+	qos                    int
+	deadLetterBackoff      time.Duration
+	maxPubChannels         int32
+	maxSubChannels         int32
+	compressionEnabled     bool
+	compressionThreshold   int
+	enableMessageRejection bool
+	maxDeathCount          int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	l := logger.NewDefaultLogger("rabbitmq")
 
 	return &MessageQueueImplOpts{
-		l:                         &l,
-		disableTenantExchangePubs: false,
-		deadLetterBackoff:         5 * time.Second,
-		enableMessageRejection:    false,
-		maxDeathCount:             5,
+		l:                      &l,
+		deadLetterBackoff:      5 * time.Second,
+		enableMessageRejection: false,
+		maxDeathCount:          5,
 	}
 }
 
@@ -121,12 +114,6 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
-func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
-	return func(opts *MessageQueueImplOpts) {
-		opts.disableTenantExchangePubs = disable
-	}
-}
-
 func WithDeadLetterBackoff(backoff time.Duration) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
 		opts.deadLetterBackoff = backoff
@@ -138,7 +125,7 @@ func WithGzipCompression(enabled bool, threshold int) MessageQueueImplOpt {
 		opts.compressionEnabled = enabled
 
 		if threshold <= 0 {
-			threshold = 5 * 1024 // default to 5KB
+			threshold = msgqueue.DefaultCompressionThreshold
 		}
 
 		opts.compressionThreshold = threshold
@@ -198,24 +185,21 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}
 
 	t := &MessageQueueImpl{
-		ctx:                       ctx,
-		identity:                  identity(),
-		l:                         opts.l,
-		qos:                       opts.qos,
-		configFs:                  fs,
-		disableTenantExchangePubs: opts.disableTenantExchangePubs,
-		pubChannels:               pubChannelPool,
-		subChannels:               subChannelPool,
-		deadLetterBackoff:         opts.deadLetterBackoff,
-		compressionEnabled:        opts.compressionEnabled,
-		compressionThreshold:      opts.compressionThreshold,
-		enableMessageRejection:    opts.enableMessageRejection,
-		maxDeathCount:             opts.maxDeathCount,
-		maxPayloadSize:            16 * 1024 * 1024, // 16 MB
+		ctx:               ctx,
+		identity:          identity(),
+		l:                 opts.l,
+		qos:               opts.qos,
+		configFs:          fs,
+		pubChannels:       pubChannelPool,
+		subChannels:       subChannelPool,
+		deadLetterBackoff: opts.deadLetterBackoff,
+		compressor: msgqueue.Compressor{
+			Enabled:   opts.compressionEnabled,
+			Threshold: opts.compressionThreshold,
+		},
+		enableMessageRejection: opts.enableMessageRejection,
+		maxDeathCount:          opts.maxDeathCount,
 	}
-
-	// create a new lru cache for tenant ids
-	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	poolCh, err := subChannelPool.Acquire(ctx)
@@ -298,20 +282,25 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
-	var compressionResult *CompressionResult
+	var compressionResult *msgqueue.CompressionResult
 
-	// don't re-compress if the message was already compressed
+	// don't re-compress if the message was already compressed. We work on a
+	// shallow copy rather than mutating in place: callers may hand the same
+	// *Message to a pub/sub on a different backend afterwards (PubTenantMessage),
+	// and compression is a rabbitmq wire concern
 	if len(msg.Payloads) > 0 && !msg.Compressed {
 		var err error
-		compressionResult, err = t.compressPayloads(msg.Payloads)
+		compressionResult, err = t.compressor.CompressPayloads(msg.Payloads)
 		if err != nil {
 			t.l.Error().Msgf("error compressing payloads: %v", err)
 			return fmt.Errorf("failed to compress payloads: %w", err)
 		}
 
 		if compressionResult.WasCompressed {
-			msg.Payloads = compressionResult.Payloads
-			msg.Compressed = true
+			msgCp := msg.Clone()
+			msgCp.Payloads = compressionResult.Payloads
+			msgCp.Compressed = true
+			msg = msgCp
 
 			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
 				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
@@ -366,9 +355,9 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	bodySize := len(body)
 
-	if bodySize > t.maxPayloadSize {
+	if bodySize > msgqueue.MaxMessageSize {
 		if len(msg.Payloads) == 1 {
-			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
+			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, msgqueue.MaxMessageSize)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
 			return err
@@ -391,16 +380,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			// recursively call pubMessage with the chunked payloads
 			// if the payload chunks are still too large, this will continue to split them
 			// until they are under the max size.
-			err := t.pubMessage(ctx, q, &msgqueue.Message{
-				ID:                msg.ID,
-				Payloads:          chunk,
-				TenantID:          msg.TenantID,
-				ImmediatelyExpire: msg.ImmediatelyExpire,
-				Persistent:        msg.Persistent,
-				OtelCarrier:       msg.OtelCarrier,
-				Retries:           msg.Retries,
-				Compressed:        msg.Compressed,
-			})
+			msgCp := msg.Clone()
+			msgCp.Payloads = chunk
+
+			err := t.pubMessage(ctx, q, msgCp)
 
 			if err != nil {
 				return err
@@ -469,31 +452,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.End()
 
-	// if this is a tenant msg, publish to the tenant exchange
-	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
-		// determine if the tenant exchange exists
-		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
-			// register the tenant exchange
-			err = t.RegisterTenant(ctx, msg.TenantID)
-
-			if err != nil {
-				t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error registering tenant exchange: %v", err)
-				return err
-			}
-		}
-
-		t.l.Debug().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("publishing tenant msg to exchange %s", msg.TenantID)
-
-		err = pub.PublishWithContext(ctx, msgqueue.GetTenantExchangeName(msg.TenantID), "", false, false, amqp.Publishing{
-			Body: body,
-		})
-
-		if err != nil {
-			t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error publishing tenant msg: %v", err)
-			return err
-		}
-	}
-
 	t.l.Debug().Msgf("published msg to queue %s", q.Name())
 
 	return nil
@@ -502,8 +460,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 // Subscribe subscribes to the msg queue.
 func (t *MessageQueueImpl) Subscribe(
 	q msgqueue.Queue,
-	preAck msgqueue.AckHook,
-	postAck msgqueue.AckHook,
+	preAck msgqueue.MsgHandler,
+	postAck msgqueue.MsgHandler,
 ) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -553,67 +511,14 @@ func (t *MessageQueueImpl) Subscribe(
 	}, nil
 }
 
-func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
-	// create a new fanout exchange for the tenant
-	poolCh, err := t.pubChannels.Acquire(ctx)
-
-	if err != nil {
-		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("[RegisterTenant] cannot acquire channel: %v", err)
-		return err
-	}
-
-	sub := poolCh.Value()
-
-	if sub.IsClosed() {
-		poolCh.Destroy()
-		return fmt.Errorf("channel is closed")
-	}
-
-	defer poolCh.Release()
-
-	t.l.Debug().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("registering tenant exchange: %s", tenantId)
-
-	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
-	// with the tenant events.
-	err = sub.ExchangeDeclare(
-		msgqueue.GetTenantExchangeName(tenantId),
-		"fanout",
-		true,  // durable
-		false, // auto-deleted
-		false, // not internal, accepts publishings
-		false, // no-wait
-		nil,   // arguments
-	)
-
-	if err != nil {
-		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("cannot declare exchange: %q, %v", tenantId, err)
-		return err
-	}
-
-	t.tenantIdCache.Add(tenantId, true)
-
-	return nil
-}
-
 func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string, error) {
 	if q.IsDLQ() {
 		return q.Name(), nil
 	}
 
 	args := make(amqp.Table)
-	args["x-consumer-timeout"] = 300000 // 5 minutes
+	args["x-consumer-timeout"] = consumerTimeout.Milliseconds()
 	name := q.Name()
-
-	if q.FanoutExchangeKey() != "" {
-		suffix, err := random.Generate(8)
-
-		if err != nil {
-			t.l.Error().Msgf("error generating random bytes: %v", err)
-			return "", err
-		}
-
-		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
-	}
 
 	if !q.IsDLQ() && q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		dlx1 := getTmpDLQName(q.DLQ().Name())
@@ -660,16 +565,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 		return "", err
 	}
 
-	// if the queue has a subscriber key, bind it to the fanout exchange
-	if q.FanoutExchangeKey() != "" {
-		t.l.Debug().Msgf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
-
-		if err := ch.QueueBind(name, "", q.FanoutExchangeKey(), false, nil); err != nil {
-			t.l.Error().Msgf("cannot bind queue: %q, %v", name, err)
-			return "", err
-		}
-	}
-
 	return name, nil
 }
 
@@ -677,8 +572,8 @@ func (t *MessageQueueImpl) subscribe(
 	ctx context.Context,
 	subId string,
 	q msgqueue.Queue,
-	preAck msgqueue.AckHook,
-	postAck msgqueue.AckHook,
+	preAck msgqueue.MsgHandler,
+	postAck msgqueue.MsgHandler,
 ) (func() error, error) {
 	sessionCount := 0
 
@@ -785,7 +680,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 
 				if msg.Compressed {
-					decompressedPayloads, err := t.decompressPayloads(msg.Payloads)
+					decompressedPayloads, err := msgqueue.DecompressPayloads(msg.Payloads)
 					if err != nil {
 						t.l.Error().Msgf("error decompressing payloads: %v", err)
 						// reject this message

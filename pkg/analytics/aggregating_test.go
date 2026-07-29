@@ -14,12 +14,14 @@ import (
 var nopLogger = zerolog.Nop()
 
 type flushedEvent struct {
-	Resource   Resource
-	Action     Action
-	TenantID   uuid.UUID
-	TokenID    *uuid.UUID
-	Count      int64
-	Properties Properties
+	Resource     Resource
+	Action       Action
+	TenantID     uuid.UUID
+	TokenID      *uuid.UUID
+	Count        int64
+	FirstEventAt time.Time
+	LastEventAt  time.Time
+	Properties   Properties
 }
 
 type flushRecorder struct {
@@ -27,16 +29,18 @@ type flushRecorder struct {
 	events []flushedEvent
 }
 
-func (r *flushRecorder) record(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties Properties) {
+func (r *flushRecorder) record(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, firstEventAt, lastEventAt time.Time, properties Properties) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.events = append(r.events, flushedEvent{
-		Resource:   resource,
-		Action:     action,
-		TenantID:   tenantID,
-		TokenID:    tokenID,
-		Count:      count,
-		Properties: properties,
+		Resource:     resource,
+		Action:       action,
+		TenantID:     tenantID,
+		TokenID:      tokenID,
+		Count:        count,
+		FirstEventAt: firstEventAt,
+		LastEventAt:  lastEventAt,
+		Properties:   properties,
 	})
 }
 
@@ -321,6 +325,200 @@ func TestCount_FlagsPassedToFlush(t *testing.T) {
 	}
 	if e.Properties["has_scope"] != true {
 		t.Errorf("expected has_scope=true, got %v", e.Properties["has_scope"])
+	}
+}
+
+func TestFlush_FirstAndLastEventAt(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record)
+
+	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	agg.now = func() time.Time { return now }
+
+	tenantID := uuid.New()
+	props := Properties{"has_priority": true}
+
+	agg.Count(Event, Create, tenantID, nil, 1, props)
+	now = now.Add(2 * time.Minute)
+	agg.Count(Event, Create, tenantID, nil, 1, props)
+	now = now.Add(3 * time.Minute)
+	agg.Count(Event, Create, tenantID, nil, 1, props)
+
+	agg.flush()
+
+	events := rec.getEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 flushed event, got %d", len(events))
+	}
+
+	e := events[0]
+	if e.Count != 3 {
+		t.Errorf("expected count 3, got %d", e.Count)
+	}
+
+	wantFirst := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	wantLast := time.Date(2026, 7, 3, 10, 5, 0, 0, time.UTC)
+	if !e.FirstEventAt.Equal(wantFirst) {
+		t.Errorf("expected first_event_at %v, got %v", wantFirst, e.FirstEventAt)
+	}
+	if !e.LastEventAt.Equal(wantLast) {
+		t.Errorf("expected last_event_at %v, got %v", wantLast, e.LastEventAt)
+	}
+	if e.Properties["has_priority"] != true {
+		t.Errorf("expected has_priority=true, got %v", e.Properties["has_priority"])
+	}
+}
+
+func TestFlush_MarkersResetBetweenWindows(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record)
+
+	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	agg.now = func() time.Time { return now }
+
+	tenantID := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1)
+	now = now.Add(time.Minute)
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	now = now.Add(time.Hour)
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	events := rec.getEvents()
+	if len(events) != 2 {
+		t.Fatalf("expected 2 flushed events, got %d", len(events))
+	}
+
+	second := events[1]
+	wantSecond := time.Date(2026, 7, 3, 11, 1, 0, 0, time.UTC)
+	if !second.FirstEventAt.Equal(wantSecond) {
+		t.Errorf("expected second window first_event_at %v, got %v", wantSecond, second.FirstEventAt)
+	}
+	if !second.LastEventAt.Equal(wantSecond) {
+		t.Errorf("expected second window last_event_at %v, got %v", wantSecond, second.LastEventAt)
+	}
+	if second.Count != 1 {
+		t.Errorf("expected second window count 1, got %d", second.Count)
+	}
+}
+
+func TestFlush_MarkersPerPropertyBucket(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record)
+
+	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	agg.now = func() time.Time { return now }
+
+	tenantID := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1, Properties{"has_priority": true})
+	now = now.Add(30 * time.Minute)
+	agg.Count(Event, Create, tenantID, nil, 1, Properties{"has_scope": true})
+
+	agg.flush()
+
+	events := rec.getEvents()
+	if len(events) != 2 {
+		t.Fatalf("expected 2 flushed buckets, got %d", len(events))
+	}
+
+	byProp := make(map[string]flushedEvent)
+	for _, e := range events {
+		if _, ok := e.Properties["has_priority"]; ok {
+			byProp["priority"] = e
+		}
+		if _, ok := e.Properties["has_scope"]; ok {
+			byProp["scope"] = e
+		}
+	}
+
+	wantPriority := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	wantScope := time.Date(2026, 7, 3, 10, 30, 0, 0, time.UTC)
+	if !byProp["priority"].FirstEventAt.Equal(wantPriority) {
+		t.Errorf("expected priority bucket first_event_at %v, got %v", wantPriority, byProp["priority"].FirstEventAt)
+	}
+	if !byProp["scope"].FirstEventAt.Equal(wantScope) {
+		t.Errorf("expected scope bucket first_event_at %v, got %v", wantScope, byProp["scope"].FirstEventAt)
+	}
+}
+
+func TestFlush_CountWithoutMarkers(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, 10*time.Second, 0, rec.record)
+
+	tenantID := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1)
+
+	// Construct the boundary state where an event was counted in this
+	// interval but its markers were consumed by the previous flush.
+	agg.counters.Range(func(_, v any) bool {
+		e := v.(*counterEntry)
+		e.firstEventAtNanos.Store(0)
+		e.lastEventAtNanos.Store(0)
+		return true
+	})
+
+	agg.flush()
+
+	events := rec.getEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 flushed event, got %d", len(events))
+	}
+	if events[0].Count != 1 {
+		t.Errorf("expected count 1, got %d", events[0].Count)
+	}
+	if !events[0].FirstEventAt.IsZero() {
+		t.Errorf("expected zero first_event_at, got %v", events[0].FirstEventAt)
+	}
+	if !events[0].LastEventAt.IsZero() {
+		t.Errorf("expected zero last_event_at, got %v", events[0].LastEventAt)
+	}
+}
+
+func TestFlush_ConcurrentCountsKeepMarkerInvariants(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, time.Millisecond, 0, rec.record)
+	agg.Start()
+
+	tenantID := uuid.New()
+	start := time.Now().Add(-time.Millisecond)
+
+	const goroutines = 20
+	const countsPerGoroutine = 500
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < countsPerGoroutine; j++ {
+				agg.Count(Event, Create, tenantID, nil, 1)
+			}
+		}()
+	}
+	wg.Wait()
+	agg.Shutdown()
+
+	end := time.Now().Add(time.Millisecond)
+
+	events := rec.getEvents()
+	var total int64
+	for _, e := range events {
+		total += e.Count
+		if !e.FirstEventAt.IsZero() && !e.LastEventAt.IsZero() && e.LastEventAt.Before(e.FirstEventAt) {
+			t.Errorf("last_event_at %v before first_event_at %v", e.LastEventAt, e.FirstEventAt)
+		}
+		if !e.FirstEventAt.IsZero() && (e.FirstEventAt.Before(start) || e.FirstEventAt.After(end)) {
+			t.Errorf("first_event_at %v outside test window [%v, %v]", e.FirstEventAt, start, end)
+		}
+		if !e.LastEventAt.IsZero() && (e.LastEventAt.Before(start) || e.LastEventAt.After(end)) {
+			t.Errorf("last_event_at %v outside test window [%v, %v]", e.LastEventAt, start, end)
+		}
+	}
+
+	if total != goroutines*countsPerGoroutine {
+		t.Errorf("expected total count %d, got %d", goroutines*countsPerGoroutine, total)
 	}
 }
 

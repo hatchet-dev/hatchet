@@ -68,7 +68,7 @@ export function StepRunEvents({
   const durableLogsQueries = useQueries({
     queries: [...(durableTaskIds ?? []), ...(taskRunId ? [taskRunId] : [])].map(
       (id) => ({
-        ...queries.v1DurableTasks.eventLog(id),
+        ...queries.v1DurableTasks.eventLog(tenantId, id),
         refetchInterval: 5000,
       }),
     ),

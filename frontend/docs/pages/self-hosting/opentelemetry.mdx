@@ -1,0 +1,44 @@
+# Internal OpenTelemetry traces
+
+This page describes how to export traces emitted by Hatchet's own services, including the engine and the API server, to an OpenTelemetry collector, for visibility into a self-hosted Hatchet instance. This is different from the [OpenTelemetry](/v1/opentelemetry) page in the guide, which covers tracing your own application, task, and workflow code that runs on your workers. Internal trace export is off by default, and is enabled only when you set a collector URL.
+
+## Enable trace export
+
+Set a collector URL on the Hatchet service you want to trace. Export uses OTLP over gRPC, so the URL is a host and port with no scheme:
+
+```bash
+SERVER_OTEL_COLLECTOR_URL=<otel-collector-host>:4317
+SERVER_OTEL_SERVICE_NAME=hatchet-engine
+```
+
+By default the connection uses TLS. For a collector that does not terminate TLS, set `SERVER_OTEL_INSECURE=true`. If your collector requires authentication, set `SERVER_OTEL_COLLECTOR_AUTH` to the value Hatchet should send in the `Authorization` header. To export only a fraction of traces, set `SERVER_OTEL_TRACE_ID_RATIO` to a value between `0` and `1`. This is OpenTelemetry head sampling, and is unrelated to [Trace Sampling](/self-hosting/sampling), which samples dashboard results stored in the database.
+
+The engine and the API server are configured independently. Set these variables on each service you want to export from, and set a distinct `SERVER_OTEL_SERVICE_NAME` on each if you want to tell them apart in your collector.
+
+## Kubernetes and Helm
+
+The Helm charts do not expose dedicated OpenTelemetry values. Set the `SERVER_OTEL_*` variables through the generic environment passthrough described in [Configuring the Helm Chart](/self-hosting/kubernetes-helm-configuration). For the `hatchet-stack` and `hatchet-ha` charts this is `sharedConfig.env`:
+
+```yaml
+sharedConfig:
+  env:
+    SERVER_OTEL_COLLECTOR_URL: "<otel-collector-host>:4317"
+```
+
+Values under `sharedConfig.env` apply to all backend services, so a `SERVER_OTEL_SERVICE_NAME` set here is shared by every service. To give the engine and API server distinct service names, set `SERVER_OTEL_SERVICE_NAME` on the individual service deployments instead.
+
+## What Hatchet emits
+
+When export is enabled, the engine and the API server initialize tracing and can emit spans, including spans for database queries traced through `otelpgx`. Spans are namespaced under `hatchet.run/`. Each exporting service sets the `service.name` resource attribute, from `SERVER_OTEL_SERVICE_NAME`, along with `library.language=go`, and adds `k8s.pod.name` and `k8s.namespace.name` when `K8S_POD_NAME` and `K8S_POD_NAMESPACE` are set.
+
+## Configuration reference
+
+These variables are also listed on the [engine configuration options](/self-hosting/configuration-options) page, with the configuration file key shown in parentheses. A related setting, `SERVER_OTEL_METRICS_ENABLED` (`otel.metricsEnabled`), enables OpenTelemetry metrics export over the same collector URL.
+
+| Variable (config key)                               | Description                                                         | Default  |
+| --------------------------------------------------- | ------------------------------------------------------------------- | -------- |
+| `SERVER_OTEL_COLLECTOR_URL` (`otel.collectorURL`)   | OTLP gRPC collector endpoint as `host:port`. Empty disables export. | empty    |
+| `SERVER_OTEL_SERVICE_NAME` (`otel.serviceName`)     | Value of the `service.name` resource attribute.                     | `server` |
+| `SERVER_OTEL_TRACE_ID_RATIO` (`otel.traceIdRatio`)  | Head sampling ratio between `0` and `1`.                            | `1`      |
+| `SERVER_OTEL_INSECURE` (`otel.insecure`)            | Use a plaintext connection instead of TLS.                          | `false`  |
+| `SERVER_OTEL_COLLECTOR_AUTH` (`otel.collectorAuth`) | Value sent in the `Authorization` header to the collector.          | empty    |

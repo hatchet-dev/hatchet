@@ -1,6 +1,5 @@
-import { UpgradeRequired } from '@/components/v1/cloud/upgrade-required';
 import { DocsButton } from '@/components/v1/docs/docs-button';
-import { Button } from '@/components/v1/ui/button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
@@ -10,7 +9,7 @@ import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 
 function SectionHeader({
   title,
@@ -123,22 +122,29 @@ function AuditLogEnabled({ orgId }: { orgId: string }) {
 }
 
 function AuditLogUpgrade({ orgId }: { orgId: string }) {
+  const navigate = useNavigate();
+
   return (
-    <UpgradeRequired
-      icon={<ShieldCheckIcon className="h-8 w-8 text-primary" />}
-      title="Unlock Audit Logs"
-      description="Audit logs give you an immutable record of actions taken across your organization's tenants for compliance and security review. Upgrade your plan to enable this feature."
-      action={
-        <Link
-          to={appRoutes.organizationBillingRoute.to}
-          params={{ organization: orgId }}
-          className="w-full"
-        >
-          <Button className="min-w-40 px-8 py-6 text-base" size="lg">
-            View plans
-          </Button>
-        </Link>
-      }
-    />
+    <div className="py-12">
+      <EmptyState
+        graphic={
+          <div className="rounded-full bg-primary/10 p-3">
+            <ShieldCheckIcon className="h-8 w-8 text-primary" />
+          </div>
+        }
+        title="Unlock Audit Logs"
+        description="Audit logs give you an immutable record of actions taken across your organization's tenants for compliance and security review. Upgrade your plan to enable this feature."
+        buttons={[
+          {
+            label: 'View plans',
+            onClick: () =>
+              navigate({
+                to: appRoutes.organizationBillingRoute.to,
+                params: { organization: orgId },
+              }),
+          },
+        ]}
+      />
+    </div>
   );
 }

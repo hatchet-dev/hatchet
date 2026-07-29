@@ -46,10 +46,6 @@ export const useScheduledRuns = ({
   const { refetchInterval } = useRefetchInterval();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-    });
 
   const paramKey = `scheduled-runs-${key}`;
   const {
@@ -65,6 +61,19 @@ export const useScheduledRuns = ({
 
   // todo: allow multiple workflow ids here
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
+
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+      resetPageOnChange: [
+        selectedWorkflowIds,
+        selectedStatuses,
+        selectedMetadata,
+        workflowId,
+        parentWorkflowRunId,
+        parentStepRunId,
+      ],
+    });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     ...queries.scheduledRuns.list(tenantId, {

@@ -129,6 +129,70 @@ BEGIN                -- null is covered by STRICT
 END
 $func$;
 
+-- Mirrors the body of the convert_duration_to_interval migration so sqlc can
+-- resolve the function during codegen. Keep both definitions in sync.
+CREATE OR REPLACE FUNCTION convert_duration_to_interval(duration text) RETURNS interval AS $$
+DECLARE
+    rest text;
+    total_seconds double precision := 0;
+    m text[];
+    val double precision;
+    unit text;
+    factor double precision;
+BEGIN
+    IF duration IS NULL OR length(duration) = 0 THEN
+        RETURN '5 minutes'::interval;
+    END IF;
+
+    m := regexp_match(duration, '^([0-9]{1,8})(d|w|y)$');
+    IF m IS NOT NULL THEN
+        val := m[1]::double precision;
+        unit := m[2];
+        CASE unit
+            WHEN 'd' THEN RETURN make_interval(days => val::int);
+            WHEN 'w' THEN RETURN make_interval(days => (val * 7)::int);
+            WHEN 'y' THEN RETURN make_interval(months => (val * 12)::int);
+        END CASE;
+    END IF;
+
+    rest := duration;
+
+    LOOP
+        EXIT WHEN length(rest) = 0;
+
+        m := regexp_match(rest, '^([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(ms|s|m|h)');
+
+        IF m IS NULL THEN
+            RETURN '5 minutes'::interval;
+        END IF;
+
+        IF length(m[1]) > 15 THEN
+            RAISE EXCEPTION 'duration % has a numeric component exceeding 15 digits', duration;
+        END IF;
+
+        val := m[1]::double precision;
+        unit := m[2];
+
+        CASE unit
+            WHEN 'ms' THEN factor := 1e-3;
+            WHEN 's' THEN factor := 1;
+            WHEN 'm' THEN factor := 60;
+            WHEN 'h' THEN factor := 3600;
+        END CASE;
+
+        total_seconds := total_seconds + val * factor;
+
+        rest := substring(rest from length(m[1]) + length(m[2]) + 1);
+    END LOOP;
+
+    IF total_seconds > 9223372036 THEN
+        RAISE EXCEPTION 'duration % exceeds maximum supported value (~292 years)', duration;
+    END IF;
+
+    RETURN make_interval(secs => total_seconds);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+
 -- CreateTable
 CREATE TABLE v1_queue (
     tenant_id UUID NOT NULL,
@@ -173,6 +237,8 @@ CREATE TABLE v1_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
@@ -303,12 +369,14 @@ CREATE TABLE v1_task (
     concurrency_parent_strategy_ids BIGINT[],
     concurrency_strategy_ids BIGINT[],
     concurrency_keys TEXT[],
+    batch_key TEXT,
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
     desired_worker_label JSONB,
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
+    idempotency_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -389,6 +457,7 @@ CREATE TABLE v1_queue_item (
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
+    batch_key TEXT,
     CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
@@ -420,6 +489,10 @@ CREATE TABLE v1_task_runtime (
     task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID,
+    batch_id UUID,
+    batch_size INTEGER,
+    batch_index INTEGER,
+    batch_key TEXT,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
@@ -432,6 +505,79 @@ CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
+
+CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+-- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
+CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
+RETURNS trigger AS
+$$
+BEGIN
+    WITH deleted_batches AS (
+        SELECT DISTINCT
+            d.tenant_id,
+            d.batch_id
+        FROM
+            deleted_rows d
+        WHERE
+            d.batch_id IS NOT NULL
+    ), deletable AS (
+        SELECT
+            br.tenant_id,
+            br.batch_id
+        FROM
+            v1_batch_runtime br
+        JOIN
+            deleted_batches db ON db.tenant_id = br.tenant_id AND db.batch_id = br.batch_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE tr.tenant_id = br.tenant_id
+              AND tr.batch_id = br.batch_id
+        )
+        ORDER BY br.batch_id
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_batch_runtime br
+    WHERE
+        (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM deletable);
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
+AFTER DELETE ON v1_task_runtime
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+
+CREATE TABLE v1_batch_runtime (
+    tenant_id UUID NOT NULL,
+    step_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    batch_key TEXT NOT NULL,
+    batch_id UUID NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT v1_batch_runtime_pkey PRIMARY KEY (tenant_id, batch_id)
+);
+
+CREATE INDEX v1_batch_runtime_key_idx
+    ON v1_batch_runtime (tenant_id, step_id, batch_key);
+
+-- Per-step batching configuration
+CREATE TABLE v1_step_batch_config (
+    step_id UUID NOT NULL,
+    batch_max_size INTEGER NOT NULL,
+    batch_max_interval INTEGER,
+    batch_group_key TEXT,
+    batch_group_max_runs INTEGER,
+    broadcast_output BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT v1_step_batch_config_pkey PRIMARY KEY (step_id)
+);
 
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
@@ -506,6 +652,7 @@ CREATE TABLE v1_rate_limited_queue_items (
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
+    batch_key TEXT,
 
     CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -523,6 +670,56 @@ alter table v1_rate_limited_queue_items set (
     autovacuum_analyze_threshold='25',
     autovacuum_vacuum_cost_delay='10',
     autovacuum_vacuum_cost_limit='1000'
+);
+
+CREATE TABLE v1_batched_queue_item (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_run_id UUID NOT NULL,
+    schedule_timeout_at TIMESTAMP(3),
+    step_timeout TEXT,
+    priority INTEGER NOT NULL DEFAULT 1,
+    sticky v1_sticky_strategy NOT NULL,
+    desired_worker_id UUID,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    batch_key TEXT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload_size INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT v1_batched_queue_item_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_batched_queue_item_task_key UNIQUE (task_id, task_inserted_at, retry_count)
+);
+
+alter table v1_batched_queue_item set (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
+
+CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
+    tenant_id ASC,
+    step_id ASC,
+    batch_key ASC,
+    id ASC
+);
+
+-- covers ListBatchedQueueItemsForStep's WHERE (tenant_id, step_id) + ORDER BY (priority DESC, id ASC),
+-- avoiding a seq scan + sort once a step's backlog grows large
+CREATE INDEX v1_batched_queue_item_step_priority_idx ON v1_batched_queue_item (
+    tenant_id ASC,
+    step_id ASC,
+    priority DESC,
+    id ASC
 );
 
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
@@ -711,6 +908,7 @@ CREATE TABLE v1_dag (
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
     desired_worker_labels JSONB,
+    idempotency_key TEXT,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -843,12 +1041,13 @@ BEGIN
             v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
         WHERE
             strategy.is_active = FALSE
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
         ORDER BY
             strategy.id
         FOR UPDATE
     )
     UPDATE v1_step_concurrency strategy
-    SET is_active = TRUE
+    SET is_active = TRUE, last_active_at = NOW()
     FROM inactive_strategies
     WHERE
         strategy.workflow_id = inactive_strategies.workflow_id AND
@@ -1120,7 +1319,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1138,7 +1338,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -1335,7 +1536,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         nt.tenant_id,
@@ -1353,7 +1555,8 @@ BEGIN
         nt.sticky,
         nt.desired_worker_id,
         nt.retry_count,
-        nt.desired_worker_label
+        nt.desired_worker_label,
+        nt.batch_key
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
@@ -1480,7 +1683,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1498,7 +1702,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM tasks
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
@@ -1623,7 +1828,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1641,7 +1847,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM tasks
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
@@ -2220,10 +2427,10 @@ CREATE TABLE v1_idempotency_key (
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, expires_at, key)
+    PRIMARY KEY (tenant_id, key)
 );
 
-CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);
+CREATE INDEX v1_idempotency_key_expires_at_idx ON v1_idempotency_key (tenant_id, expires_at);
 
 -- v1_operation_interval_settings represents the interval settings for a specific tenant. "Operation" means
 -- any sort of tenant-specific polling-based operation on the engine, like timeouts, reassigns, etc.
@@ -2406,8 +2613,98 @@ CREATE TABLE tenant_entitlement (
 
     prometheus_metrics BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- Opts the tenant into AND-semantics additional_metadata filters backed by
+    -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
+    strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
 );
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'INSERT',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM new_table nt
+    WHERE nt.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_insert_outbox
+AFTER INSERT ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_insert_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_delete_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || dr.tenant_id::text || '.' || dr.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'DELETE',
+            'key', dr.key,
+            'priority', dr.priority,
+            'taskId', dr.task_id,
+            'taskInsertedAt', dr.task_inserted_at,
+            'taskRetryCount', dr.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM dr.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM deleted_rows dr
+    WHERE dr.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_delete_outbox
+AFTER DELETE ON v1_concurrency_slot
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_delete_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_update_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'UPDATE',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint,
+            'isFilled', nt.is_filled
+        )
+    FROM new_table nt
+    WHERE nt.parent_strategy_id IS NULL
+        AND nt.is_filled = FALSE;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_update_outbox
+AFTER UPDATE ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();

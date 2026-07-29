@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import {
   FilterSearchConfig,
+  FilterOperatorConfig,
   FilterOption,
   TimeRangeConfig,
   ToolbarFilters,
@@ -26,6 +27,7 @@ import {
 } from '@/components/v1/ui/select';
 import { V1TaskStatus } from '@/lib/api';
 import {
+  additionalMetadataOperatorKey,
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
@@ -52,6 +54,7 @@ interface FilterControlProps<TData> {
     options?: FilterOption[];
     timeRangeConfig?: TimeRangeConfig;
     searchConfig?: FilterSearchConfig;
+    operatorConfig?: FilterOperatorConfig;
   };
 }
 
@@ -189,6 +192,26 @@ function FilterControl<TData>({
 
       return (
         <div className="space-y-3">
+          {filter.operatorConfig && currentKVPairs.length > 1 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">Match</span>
+              <Select
+                value={filter.operatorConfig.value}
+                onValueChange={(value) =>
+                  filter.operatorConfig?.onChange(value as 'AND' | 'OR')
+                }
+              >
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AND">All (AND)</SelectItem>
+                  <SelectItem value="OR">Any (OR)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {currentKVPairs.length > 0 && (
             <div className="space-y-2">
               {currentKVPairs.map((val: string, index: number) => {
@@ -390,8 +413,7 @@ function FilterControl<TData>({
                   ? table.getColumn(option.subFilterColumnId)
                   : undefined;
                 const subValue = subColumn?.getFilterValue() as
-                  | string
-                  | undefined;
+                  string | undefined;
                 const allSubValues =
                   option.subOptions?.map((s) => s.value) || [];
 
@@ -593,7 +615,10 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === runningFilterKey) {
+        if (
+          f.id === runningFilterKey ||
+          f.id === additionalMetadataOperatorKey
+        ) {
           return false;
         }
 

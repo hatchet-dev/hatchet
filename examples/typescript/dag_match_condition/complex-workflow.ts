@@ -78,6 +78,24 @@ const waitForEvent = taskConditionWorkflow.task({
   },
 });
 
+// > Add multiple or groups
+taskConditionWorkflow.task({
+  name: 'waitForOrGroups',
+  parents: [start],
+  waitFor: [
+    Or(new ParentCondition(start, 'output.randomNumber > 50'), new SleepCondition('30s')),
+    Or(
+      new ParentCondition(start, 'output.randomNumber > 50'),
+      new UserEventCondition('payment:processed', 'true')
+    ),
+  ],
+  fn: () => {
+    return {
+      randomNumber: Math.floor(Math.random() * 100) + 1,
+    };
+  },
+});
+
 // > Add sum
 taskConditionWorkflow.task({
   name: 'sum',

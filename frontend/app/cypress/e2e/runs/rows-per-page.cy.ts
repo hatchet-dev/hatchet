@@ -7,6 +7,32 @@ describe('runs table: rows per page', () => {
       'listRuns',
     );
 
+    // Stub the workflow-count probe so the tenant looks onboarded and the
+    // runs table (not the no-workflows placeholder) renders.
+    cy.intercept(
+      {
+        method: 'GET',
+        pathname: '/api/v1/tenants/*/workflows',
+        query: { limit: '1' },
+      },
+      {
+        statusCode: 200,
+        body: {
+          rows: [
+            {
+              metadata: {
+                id: 'a0000000-0000-0000-0000-000000000001',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+              name: 'test-workflow',
+            },
+          ],
+          pagination: { num_pages: 1 },
+        },
+      },
+    );
+
     // Start from the authenticated root, then derive the active tenant base path.
     cy.visit('/');
     cy.location('pathname', { timeout: 30000 })
@@ -22,7 +48,10 @@ describe('runs table: rows per page', () => {
         cy.visit(`${tenantBase}/runs`);
       });
 
-    // Wait for the initial load (default page size is 50).
+    // The runs page first issues a limit=1 probe for recent runs (used to
+    // decide whether to show the onboarding placeholder), then the table
+    // loads with the default page size of 50.
+    cy.wait('@listRuns').its('request.url').should('include', 'limit=1');
     cy.wait('@listRuns').its('request.url').should('include', 'limit=50');
 
     cy.get('#rows-per-page').should('be.visible').click();

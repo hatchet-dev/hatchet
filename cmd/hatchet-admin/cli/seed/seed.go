@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -100,5 +102,47 @@ func SeedDatabase(dc *database.Layer) error {
 		}
 	}
 
+	if authmode.IsDisabled {
+		if err := seedAuthDisabledToken(dc); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func seedAuthDisabledToken(dc *database.Layer) error {
+	ctx := context.Background()
+
+	if dc.Seed.DefaultTenantID != authmode.EmbeddedTokenTenantID {
+		return fmt.Errorf("authdisabled mode requires the default tenant ID (%s) to match the embedded token tenant (%s)", dc.Seed.DefaultTenantID, authmode.EmbeddedTokenTenantID)
+	}
+
+	tokenID, err := uuid.Parse(authmode.EmbeddedTokenID)
+	if err != nil {
+		return fmt.Errorf("invalid embedded token ID: %w", err)
+	}
+
+	if _, getErr := dc.V1.APIToken().GetAPITokenById(ctx, tokenID); getErr == nil {
+		return nil
+	} else if !errors.Is(getErr, pgx.ErrNoRows) {
+		return fmt.Errorf("checking for embedded token: %w", getErr)
+	}
+
+	tenantID, err := uuid.Parse(authmode.EmbeddedTokenTenantID)
+	if err != nil {
+		return fmt.Errorf("invalid embedded token tenant ID: %w", err)
+	}
+
+	name := "authdisabled-default"
+
+	_, err = dc.V1.APIToken().CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
+		ID:        tokenID,
+		ExpiresAt: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
+		TenantId:  &tenantID,
+		Name:      &name,
+		Internal:  true,
+	})
+
+	return err
 }

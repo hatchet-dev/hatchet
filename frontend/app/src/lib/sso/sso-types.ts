@@ -3,12 +3,7 @@
  * ========================================================================= */
 
 export type ProviderKey =
-  | 'Okta'
-  | 'MicrosoftEntra'
-  | 'Google'
-  | 'OneLogin'
-  | 'JumpCloud'
-  | 'Generic';
+  'Okta' | 'MicrosoftEntra' | 'Google' | 'OneLogin' | 'JumpCloud' | 'Generic';
 
 export type IdpInfoFromCustomer =
   | {

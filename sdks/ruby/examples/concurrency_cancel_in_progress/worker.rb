@@ -4,6 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
+# > Cancel In Progress
 CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyCancelInProgress",
   concurrency: Hatchet::ConcurrencyExpression.new(
@@ -12,6 +13,7 @@ CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW = HATCHET.workflow(
     limit_strategy: :cancel_in_progress
   )
 )
+# !!
 
 STEP1_CIP = CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW.task(:step1) do |input, ctx|
   50.times { sleep 0.10 }

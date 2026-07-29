@@ -153,11 +153,37 @@ async def test_stop_event_stops_action_loop_without_kill() -> None:
     await asyncio.wait_for(task, timeout=5.0)
 
     assert process.killing, "_stop_action_loop should have set killing=True"
-    listener.cleanup.assert_called_once()
+    assert listener.stop_signal, "action stream should stop reading new actions"
+    # The heartbeat must NOT stop here: in-flight tasks may still be draining in
+    # the parent process, and stopping the heartbeat now would make the engine
+    # think this worker died, reassigning tasks that are about to finish
+    # successfully. cleanup() (which stops the heartbeat) is deferred until
+    # finalize_listener_cleanup() is called, after draining is confirmed done.
+    listener.cleanup.assert_not_called()
 
 
 async def test_stop_action_loop_is_idempotent() -> None:
-    """_stop_action_loop must not raise or double-call cleanup when called twice."""
+    """_stop_action_loop must not raise or double-call stop_stream when called twice."""
+    stop_event = _CTX.Event()
+    worker_id_queue: Any = _CTX.Queue()
+
+    process = _make_process(stop_event, worker_id_queue)
+    listener = _make_listener()
+    listener.stop_stream = MagicMock()  # type: ignore[method-assign]
+    process.listener = listener
+
+    await process._stop_action_loop()
+    assert process.killing
+
+    # Second call must succeed silently.
+    await process._stop_action_loop()
+    # stop_stream() is called exactly once (the second call short-circuits).
+    listener.stop_stream.assert_called_once()
+    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
+
+
+async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
+    """finalize_listener_cleanup is the only path that should call listener.cleanup()."""
     stop_event = _CTX.Event()
     worker_id_queue: Any = _CTX.Queue()
 
@@ -166,12 +192,53 @@ async def test_stop_action_loop_is_idempotent() -> None:
     process.listener = listener
 
     await process._stop_action_loop()
-    assert process.killing
+    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
 
-    # Second call must succeed silently.
-    await process._stop_action_loop()
-    # cleanup() is called exactly once (the second call short-circuits).
+    process.finalize_listener_cleanup()
     listener.cleanup.assert_called_once()  # type: ignore[attr-defined]
+
+
+async def test_heartbeat_survives_stop_action_loop_until_finalize_cleanup() -> None:
+    """The real heartbeat task must outlive _stop_action_loop and only be
+    cancelled once finalize_listener_cleanup runs.
+    """
+    stop_event = _CTX.Event()
+    worker_id_queue: Any = _CTX.Queue()
+
+    process = _make_process(stop_event, worker_id_queue)
+
+    with patch(f"{_ACTION_LISTENER_MODULE}.new_conn"):
+        listener = ActionListener(config=MagicMock(), worker_id="test-worker-id")
+    listener.token = "test-token"
+
+    listener.aio_client = MagicMock()
+    listener.aio_client.Heartbeat = AsyncMock(return_value=MagicMock())
+    listener.aio_client.Unsubscribe = MagicMock(return_value=MagicMock())
+    process.listener = listener
+
+    await listener.start_heartbeater()
+    heartbeat_task = listener.heartbeat_task
+    assert heartbeat_task is not None
+
+    await asyncio.sleep(0)
+    assert not heartbeat_task.done()
+
+    await process._stop_action_loop()
+
+    assert (
+        listener.run_heartbeat is True
+    ), "heartbeat must keep running while in-flight tasks may still be draining"
+    assert not heartbeat_task.cancelled()
+    assert not heartbeat_task.done(), "heartbeat task must still be alive"
+    listener.aio_client.Unsubscribe.assert_not_called()
+
+    process.finalize_listener_cleanup()
+
+    assert listener.run_heartbeat is False
+    with pytest.raises(asyncio.CancelledError):
+        await heartbeat_task
+    assert heartbeat_task.cancelled()
+    listener.aio_client.Unsubscribe.assert_called_once()
 
 
 async def test_worker_id_published_to_queue_on_start() -> None:

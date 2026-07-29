@@ -18,6 +18,7 @@ type TenantedPath =
   | '/tenants/:tenant/managed-workers/demo-template'
   | '/tenants/:tenant/managed-workers/:managed-worker'
   | '/tenants/:tenant/settings/overview'
+  | '/tenants/:tenant/settings/resource-limits'
   | '/tenants/:tenant/settings/api-tokens'
   | '/tenants/:tenant/settings/github'
   | '/tenants/:tenant/settings/members'
@@ -32,6 +33,16 @@ type TenantedPath =
   | '/tenants/:tenant/workflows'
   | '/tenants/:tenant/workflows/:workflow'
   | '/tenants/:tenant/settings';
+
+type OrganizationPath =
+  | '/organizations/:organization/settings'
+  | '/organizations/:organization/settings/team'
+  | '/organizations/:organization/settings/tenants'
+  | '/organizations/:organization/settings/tokens'
+  | '/organizations/:organization/settings/regions'
+  | '/organizations/:organization/settings/sso'
+  | '/organizations/:organization/settings/audit-log'
+  | '/organizations/:organization/settings/billing';
 
 export interface BreadcrumbItem {
   label: string;
@@ -82,6 +93,8 @@ const createRouteLabel = (
       return 'Managed Worker Detail';
     case '/tenants/:tenant/settings/overview':
       return 'General';
+    case '/tenants/:tenant/settings/resource-limits':
+      return 'Resource Limits';
     case '/tenants/:tenant/settings/api-tokens':
       return 'API Tokens';
     case '/tenants/:tenant/settings/github':
@@ -111,6 +124,69 @@ const createRouteLabel = (
       throw new Error(`Unhandled tenanted path: ${exhaustiveCheck}`);
   }
 };
+
+const createOrganizationRouteLabel = (path: OrganizationPath): string => {
+  switch (path) {
+    // The organization settings index renders the General section, so it gets
+    // the same leaf label as the tenant `/settings/overview` page.
+    case '/organizations/:organization/settings':
+      return 'General';
+    case '/organizations/:organization/settings/team':
+      return 'Team';
+    case '/organizations/:organization/settings/tenants':
+      return 'Tenants';
+    case '/organizations/:organization/settings/tokens':
+      return 'Management Tokens';
+    case '/organizations/:organization/settings/regions':
+      return 'Available Regions';
+    case '/organizations/:organization/settings/sso':
+      return 'SSO';
+    case '/organizations/:organization/settings/audit-log':
+      return 'Audit Log';
+    case '/organizations/:organization/settings/billing':
+      return 'Billing & Usage';
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = path;
+      throw new Error(`Unhandled organization path: ${exhaustiveCheck}`);
+  }
+};
+
+function generateOrganizationBreadcrumbs(
+  pathname: string,
+  organizationId: string,
+): BreadcrumbItem[] {
+  const normalizedPath = pathname
+    .replace(/\/+$/, '')
+    .replace(
+      `/organizations/${organizationId}`,
+      '/organizations/:organization',
+    );
+
+  let label: string;
+  try {
+    label = createOrganizationRouteLabel(normalizedPath as OrganizationPath);
+  } catch {
+    // Unknown organization paths (e.g. redirect-only routes) get no crumbs.
+    return [];
+  }
+
+  return [
+    {
+      // The Home href is patched in `useBreadcrumbs` once the active tenant
+      // is resolved (there is no tenant URL param on organization routes).
+      label: 'Home',
+    },
+    {
+      label: 'Settings',
+      href: `/organizations/${organizationId}/settings`,
+    },
+    {
+      label,
+      isCurrentPage: true,
+    },
+  ];
+}
 
 function getTenantedPathLabel(
   pathSegments: string[],
@@ -153,11 +229,20 @@ export function generateBreadcrumbs(
 ): BreadcrumbItem[] {
   const breadcrumbs: BreadcrumbItem[] = [];
 
-  if (
-    !pathname.startsWith('/tenants/') ||
-    pathname.includes('/auth') ||
-    pathname.includes('/onboarding')
-  ) {
+  if (pathname.includes('/auth') || pathname.includes('/onboarding')) {
+    return breadcrumbs;
+  }
+
+  if (pathname.startsWith('/organizations/')) {
+    const organizationId = params?.organization;
+    if (!organizationId) {
+      return breadcrumbs;
+    }
+
+    return generateOrganizationBreadcrumbs(pathname, organizationId);
+  }
+
+  if (!pathname.startsWith('/tenants/')) {
     return breadcrumbs;
   }
 

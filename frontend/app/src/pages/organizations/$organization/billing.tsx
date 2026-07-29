@@ -16,12 +16,9 @@ import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
-import type { TenantResourceLimit } from '@/lib/api';
 import { getApiErrorStatus } from '@/lib/api/api';
-import type { TenantResourceLimit as ControlPlaneTenantResourceLimit } from '@/lib/api/generated/control-plane/data-contracts';
 import { useSearchParams } from '@/lib/router-helpers';
 import { SettingsPageHeader } from '@/pages/main/v1/tenant-settings/components/settings-page-header';
-import { TenantResourceLimitsTable } from '@/pages/main/v1/tenant-settings/resource-limits/components/tenant-resource-limits-table';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -110,15 +107,6 @@ function BillingErrorCard({
       </CardContent>
     </Card>
   );
-}
-
-function toTenantResourceLimit(
-  limit: ControlPlaneTenantResourceLimit,
-): TenantResourceLimit {
-  return {
-    ...limit,
-    resource: limit.resource as TenantResourceLimit['resource'],
-  };
 }
 
 export default function OrganizationBillingPage() {
@@ -246,13 +234,6 @@ function OrganizationBillingContent() {
     );
   }, [billingState.data?.plans, expectedPlanCode]);
 
-  const tenantResourceLimits = useQuery({
-    ...queries.controlPlane.tenantResourceLimits(organization),
-    enabled: isCloudEnabled,
-  });
-
-  const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
-
   if (billingState.isError) {
     const status = getApiErrorStatus(billingState.error);
     const isUnauthorized = status === 401 || status === 403;
@@ -325,36 +306,6 @@ function OrganizationBillingContent() {
         plans={billingState.data?.plans}
         coupons={billingState.data?.coupons}
       />
-
-      {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (
-        <div className="mt-12 space-y-8">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              Resource limits
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Usage limits applied to each tenant in this organization.
-            </p>
-          </div>
-
-          {tenantResourceLimits.isLoading ? (
-            <div className="py-6">
-              <Spinner />
-            </div>
-          ) : (
-            organizationTenants.map((tenant) => (
-              <TenantResourceLimitsTable
-                key={tenant.tenantId}
-                tenantId={tenant.tenantId}
-                tenantName={
-                  tenant.tenantName || tenant.tenantSlug || tenant.tenantId
-                }
-                limits={tenant.limits.map(toTenantResourceLimit)}
-              />
-            ))
-          )}
-        </div>
-      ) : null}
 
       <div className="mt-12 space-y-4">
         <div>

@@ -89,10 +89,11 @@ type IngestTriggerRunsEntry struct {
 }
 
 type IngestTriggerRunsResult struct {
-	Entries         []*IngestTriggerRunsEntry
-	CreatedTasks    []*V1TaskWithPayload
-	CreatedDAGs     []*DAGWithData
-	InvocationCount int32
+	Entries               []*IngestTriggerRunsEntry
+	CreatedTasks          []*V1TaskWithPayload
+	CreatedDAGs           []*DAGWithData
+	InvocationCount       int32
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type IngestWaitForResult struct {
@@ -242,8 +243,8 @@ func describeCondition(c DurableWaitCondition) string {
 	switch c.Kind {
 	case DurableWaitConditionKindSleep:
 		if c.SleepDurationMs != nil {
-			sleepDurationMs := time.Duration(*c.SleepDurationMs) * time.Millisecond
-			return "sleep(" + sleepDurationMs.String() + ")"
+			sleepDuration := time.Duration(*c.SleepDurationMs) * time.Millisecond
+			return "sleep(" + sleepDuration.String() + ")"
 		}
 		return "sleep"
 	case DurableWaitConditionKindUserEvent:
@@ -924,8 +925,26 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 
 		for _, o := range skipOpts {
-			if _, ok := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]; !ok {
+			e, ok := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]
+
+			if !ok {
 				return nil, fmt.Errorf("expected to find log entry for skipped child task external id %s", o.ChildTaskExternalId)
+			}
+
+			if len(o.IdempotencyKey) > 0 && !bytes.Equal(o.IdempotencyKey, e.IdempotencyKey) {
+				return nil, &NonDeterminismError{
+					BranchId:                e.BranchID,
+					NodeId:                  e.NodeID,
+					TaskExternalId:          opts.DurableTaskExternalId,
+					ExpectedIdempotencyKey:  e.IdempotencyKey,
+					ActualIdempotencyKey:    o.IdempotencyKey,
+					ExpectedKind:            e.Kind,
+					ActualKind:              o.Kind,
+					ExistingEntryId:         e.ID,
+					ExistingEntryInsertedAt: e.InsertedAt,
+					ExistingEntryTenantId:   e.TenantID,
+					ExistingEntryExternalId: e.ExternalID,
+				}
 			}
 		}
 	}
@@ -1076,6 +1095,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
+		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
+			return nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		}
+
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
 		nonSkipOffset := int64(0)
@@ -1083,9 +1106,22 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			externalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
 
 			if triggerOpts.ShouldSkip {
+				// only index-based dedupe is validated against the existing entry's
+				// idempotency key: an explicit child_key intentionally reuses the
+				// cached child even when the inputs differ
+				var idempotencyKey []byte
+				if triggerOpts.ChildKey == nil {
+					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+					if keyErr != nil {
+						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+					}
+					idempotencyKey = key
+				}
+
 				innerOpts[i] = GetOrCreateLogEntryOpt{
 					Kind:                sqlcv1.V1DurableEventLogKindRUN,
 					ChildTaskExternalId: triggerOpts.ExternalId,
+					IdempotencyKey:      idempotencyKey,
 					ShouldSkip:          true,
 				}
 				continue
@@ -1274,7 +1310,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		if len(newTriggerOpts) > 0 {
-			createdTasks, createdDags, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
+			createdTasks, createdDags, _, celFailures, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
 
 			if triggerErr != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", triggerErr)
@@ -1282,6 +1318,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			triggerRunsResult.CreatedTasks = createdTasks
 			triggerRunsResult.CreatedDAGs = createdDags
+			triggerRunsResult.CELEvaluationFailures = celFailures
 
 			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks)+len(createdDags))
 
@@ -1490,6 +1527,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
 		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &IngestDurableTaskEventResult{

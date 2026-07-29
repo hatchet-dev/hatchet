@@ -12,13 +12,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
 import { MINISEARCH_OPTIONS, SEARCH_OPTIONS, rerankResults, expandSynonyms } from "../lib/search-config.js";
 
 // ---------------------------------------------------------------------------
 // Load the search index
 // ---------------------------------------------------------------------------
-const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(SCRIPT_DIR, "..");
 const INDEX_PATH = path.join(DOCS_ROOT, "public", "llms-search-index.json");
 

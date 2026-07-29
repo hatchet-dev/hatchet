@@ -154,3 +154,21 @@ DELETE FROM
 WHERE
     "id" = @id::uuid
 RETURNING *;
+
+-- name: CleanupUserSessions :execresult
+WITH sessions_to_delete AS (
+    SELECT "id"
+    FROM "UserSession"
+    WHERE
+        "expiresAt" < NOW()
+        OR (
+          "userId" IS NULL
+          AND "createdAt" < NOW() - INTERVAL '24 hours'
+        )
+    ORDER BY "createdAt" ASC
+    LIMIT @batchSize::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM "UserSession" AS us
+USING sessions_to_delete AS s
+WHERE us."id" = s."id";

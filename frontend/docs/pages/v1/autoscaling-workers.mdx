@@ -154,3 +154,53 @@ triggers:
     authenticationRef:
       name: hatchet-api-token
 ```
+
+### Scaling Based on Worker Slot Utilization
+
+Instead of scaling on queue depth, you can scale on how utilized your workers' slots are. Hatchet exposes [Prometheus metrics](/self-hosting/prometheus-metrics) that track used and total slots per unique worker label `(key, value)` pair and slot type, so each labeled worker pool can be scaled independently:
+
+- `hatchet_tenant_worker_label_slots{tenant_id, label_key, label_value, slot_type}`: total slots of the slot type across workers with the label pair
+- `hatchet_tenant_used_worker_label_slots{tenant_id, label_key, label_value, slot_type}`: used slots of the slot type across workers with the label pair
+
+The `slot_type` label separates a worker's independent slot pools (e.g. `default` and `durable`). Scale on the slot type your tasks consume — usually `default` — so that a large, mostly-idle durable slot pool doesn't mask saturation of the default slots.
+
+Averaging the used and total slot gauges separately over a time window and then dividing gives the average utilization of a worker pool over that window:
+
+```promql
+avg_over_time(hatchet_tenant_used_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+/
+avg_over_time(hatchet_tenant_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+```
+
+This query returns a value between 0 and 1. Averaging the numerator and denominator separately (rather than averaging the ratio) keeps the result correct when workers scale up or down within the window.
+
+With [KEDA's Prometheus scaler](https://keda.sh/docs/latest/scalers/prometheus/), you can scale a worker deployment up when average utilization exceeds 75%:
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gpu-worker-scaler
+spec:
+  scaleTargetRef:
+    name: gpu-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        threshold: "0.75"
+        query: |
+          avg_over_time(hatchet_tenant_used_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+          /
+          avg_over_time(hatchet_tenant_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+```
+
+Workers that do not carry the targeted label do not affect the query. To autoscale on a tenant's entire worker fleet regardless of labels, use the per-worker gauges instead:
+
+```promql
+sum by (tenant_id) (avg_over_time(hatchet_tenant_used_worker_slots{tenant_id="<tenant-id>"}[5m]))
+/
+sum by (tenant_id) (avg_over_time(hatchet_tenant_worker_slots{tenant_id="<tenant-id>"}[5m]))
+```

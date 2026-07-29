@@ -1,6 +1,6 @@
 import { useLanguage } from "@/context/LanguageContext";
 import { getPackageManagers } from "@/lib/docs-languages";
-import { Tabs } from "nextra/components";
+import { Tabs } from "@/components/StyledTabs";
 import UniversalTabs from "@/components/UniversalTabs";
 import { CodeBlock } from "@/components/code/CodeBlock";
 

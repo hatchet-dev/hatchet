@@ -9,8 +9,32 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cleanupUserSessions = `-- name: CleanupUserSessions :execresult
+WITH sessions_to_delete AS (
+    SELECT "id"
+    FROM "UserSession"
+    WHERE
+        "expiresAt" < NOW()
+        OR (
+          "userId" IS NULL
+          AND "createdAt" < NOW() - INTERVAL '24 hours'
+        )
+    ORDER BY "createdAt" ASC
+    LIMIT $1::int
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM "UserSession" AS us
+USING sessions_to_delete AS s
+WHERE us."id" = s."id"
+`
+
+func (q *Queries) CleanupUserSessions(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupUserSessions, batchsize)
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO "User" (

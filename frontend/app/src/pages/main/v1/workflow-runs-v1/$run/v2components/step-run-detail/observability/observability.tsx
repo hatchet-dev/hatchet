@@ -18,7 +18,6 @@ import {
   TraceSearchInput,
   type TraceAutocompleteContext,
 } from '@/components/v1/cloud/observability/trace-search';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Loading } from '@/components/v1/ui/loading';
 import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
 import useCloud from '@/hooks/use-cloud';
@@ -28,7 +27,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { Activity } from 'lucide-react';
+import { Activity, ExternalLink } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
@@ -331,11 +330,15 @@ export const Observability = (props: ObservabilityProps) => {
               </>
             }
             actions={
-              <DocsButton
-                doc={docsPages['self-hosting']['configuration-options']}
-                label="View setup guide"
-                variant="text"
-              />
+              <a
+                href={docsPages['self-hosting']['configuration-options'].href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+              >
+                View setup guide
+                <ExternalLink className="size-3" />
+              </a>
             }
           />
         ) : (
@@ -352,11 +355,15 @@ export const Observability = (props: ObservabilityProps) => {
               </>
             }
             actions={
-              <DocsButton
-                doc={docsPages.v1.opentelemetry}
-                label="View instrumentation docs"
-                variant="text"
-              />
+              <a
+                href={docsPages.v1.opentelemetry.href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+              >
+                View instrumentation docs
+                <ExternalLink className="size-3" />
+              </a>
             }
           />
         )}
@@ -390,11 +397,15 @@ export const Observability = (props: ObservabilityProps) => {
             </>
           }
           actions={
-            <DocsButton
-              doc={docsPages.v1.opentelemetry}
-              label="View instrumentation docs"
-              variant="text"
-            />
+            <a
+              href={docsPages.v1.opentelemetry.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+            >
+              View instrumentation docs
+              <ExternalLink className="size-3" />
+            </a>
           }
         />
       )}

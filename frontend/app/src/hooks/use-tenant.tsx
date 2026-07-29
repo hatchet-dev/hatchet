@@ -50,7 +50,7 @@ export function useTenantDetails() {
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
-  const [, setLastTenant] = useAtom(lastTenantAtom);
+  const [lastTenantValue, setLastTenant] = useAtom(lastTenantAtom);
   const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
@@ -230,5 +230,6 @@ export function useTenantDetails() {
     billing: billingContext,
     organizationId,
     can,
+    lastTenantId: lastTenantValue?.metadata.id,
   };
 }

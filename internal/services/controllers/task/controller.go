@@ -43,6 +43,7 @@ type TasksController interface {
 
 type TasksControllerImpl struct {
 	mq                                       msgqueue.MessageQueue
+	pubsub                                   msgqueue.PubSub
 	pubBuffer                                *msgqueue.MQPubBuffer
 	l                                        *zerolog.Logger
 	queueLogger                              *zerolog.Logger
@@ -61,17 +62,19 @@ type TasksControllerImpl struct {
 	emitSleepOperations                      *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
-	replayEnabled                            bool
-	analyzeCronInterval                      time.Duration
-	signaler                                 *signal.OLAPSignaler
-	tw                                       *trigger.TriggerWriter
-	promGate                                 *prometheus.Gate
+
+	replayEnabled       bool
+	analyzeCronInterval time.Duration
+	signaler            *signal.OLAPSignaler
+	tw                  *trigger.TriggerWriter
+	promGate            *prometheus.Gate
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
 
 type TasksControllerOpts struct {
 	mq                  msgqueue.MessageQueue
+	pubsub              msgqueue.PubSub
 	l                   *zerolog.Logger
 	repov1              v1.Repository
 	dv                  datautils.DataDecoderValidator
@@ -109,6 +112,12 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 func WithMessageQueue(mq msgqueue.MessageQueue) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -192,6 +201,10 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
 	}
@@ -214,11 +227,12 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
+		pubsub:              opts.pubsub,
 		pubBuffer:           pubBuffer,
 		l:                   opts.l,
 		queueLogger:         opts.queueLogger,
@@ -809,8 +823,11 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 			return fmt.Errorf("could not create message for task cancellation: %w", err)
 		}
 
-		return tc.mq.SendMessage(
+		return msgqueue.PubTenantMessage(
 			ctx,
+			tc.l,
+			tc.mq,
+			tc.pubsub,
 			msgqueue.TASK_PROCESSING_QUEUE,
 			msg,
 		)
@@ -990,14 +1007,14 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		if err != nil {
 			tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
-			err = tc.mq.SendMessage(
+			err = tc.pubsub.Pub(
 				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+				msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 				msg,
 			)
 
 			if err != nil {
-				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 			}
 		}
 	}
@@ -1023,14 +1040,12 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		return
 	}
 
-	err = tc.mq.SendMessage(
-		ctx,
-		msgqueue.TenantEventConsumerQueue(tenantId),
-		msg,
-	)
+	// fanout-only: the dispatcher's workflow run subscriptions consume
+	// workflow-run-finished-candidate off the tenant stream
+	err = msgqueue.PubTenantMessage(ctx, tc.l, nil, tc.pubsub, nil, msg)
 
 	if err != nil {
-		tc.l.Err(err).Ctx(ctx).Msg("could not send workflow-run-finished-candidate message")
+		tc.l.Err(err).Ctx(ctx).Msg("could not publish workflow-run-finished-candidate message")
 		return
 	}
 }
@@ -1044,23 +1059,15 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
-	eg := &errgroup.Group{}
+	if err := tc.handleProcessUserEventTrigger(ctx, tenantId, msgs); err != nil {
+		return err
+	}
 
-	// TODO: run these in the same tx or send as separate messages?
-	eg.Go(func() error {
-		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
-	})
-
-	eg.Go(func() error {
-		return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
-	})
-
-	return eg.Wait()
+	return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
-	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
@@ -1078,8 +1085,6 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
-
-		opts = append(opts, opt)
 
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
@@ -1106,7 +1111,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	_, err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	return err
 }
 
 // processUserEventMatches looks for user event matches

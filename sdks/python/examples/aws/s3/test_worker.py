@@ -1,4 +1,6 @@
 import os
+import shutil
+import subprocess
 import time
 from pathlib import Path
 from subprocess import Popen, run
@@ -8,6 +10,26 @@ from typing import Any, Callable
 import pytest
 
 from examples.aws.s3.worker import fetch_buckets_workflow
+
+
+def _docker_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return (
+            subprocess.run(
+                ["docker", "info"], capture_output=True, timeout=5
+            ).returncode
+            == 0
+        )
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _docker_available(),
+    reason="Docker daemon is not available",
+)
 
 # Set variables running worker against LocalStack instance
 os.environ.setdefault("AWS_ENDPOINT_URL", "http://localhost:4566")

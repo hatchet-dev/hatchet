@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	goerrors "errors"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -11,6 +12,23 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
+
+// contextErrorStatus maps wrapped context cancellation/deadline errors to their
+// canonical gRPC codes, returning nil if the error is not context-related.
+// These are triggered by clients disconnecting mid-request (e.g. a worker
+// cancelling Unsubscribe during shutdown) and should not be treated as
+// internal errors or alerted on.
+func contextErrorStatus(err error) error {
+	if goerrors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, "request was canceled")
+	}
+
+	if goerrors.Is(err, context.DeadlineExceeded) {
+		return status.Error(codes.DeadlineExceeded, "request deadline exceeded")
+	}
+
+	return nil
+}
 
 type ErrorInterceptor struct {
 	a errors.Alerter
@@ -31,6 +49,10 @@ func (e *ErrorInterceptor) ErrorUnaryServerInterceptor() grpc.UnaryServerInterce
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
+			if statusErr := contextErrorStatus(err); statusErr != nil {
+				return res, statusErr
+			}
+
 			e.l.Err(err).Ctx(ctx).Msg("")
 			e.a.SendAlert(context.Background(), err, nil)
 
@@ -48,6 +70,10 @@ func (e *ErrorInterceptor) ErrorStreamServerInterceptor() grpc.StreamServerInter
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
+			if statusErr := contextErrorStatus(err); statusErr != nil {
+				return statusErr
+			}
+
 			e.l.Err(err).Ctx(stream.Context()).Msg("")
 			e.a.SendAlert(context.Background(), err, nil)
 

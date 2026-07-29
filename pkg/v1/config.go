@@ -19,6 +19,7 @@ type Config struct {
 	ServerURL          string
 	Namespace          string
 	NoGrpcRetry        bool
+	NoRetry            bool
 	CloudRegisterID    string
 	RawRunnableActions []string
 	AutoscalingTarget  string
@@ -44,6 +45,7 @@ func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 	cf.ServerURL = opts.ServerURL
 	cf.Namespace = opts.Namespace
 	cf.NoGrpcRetry = opts.NoGrpcRetry
+	cf.NoRetry = opts.NoRetry
 	cf.CloudRegisterID = &opts.CloudRegisterID
 	cf.RawRunnableActions = opts.RawRunnableActions
 	cf.AutoscalingTarget = opts.AutoscalingTarget

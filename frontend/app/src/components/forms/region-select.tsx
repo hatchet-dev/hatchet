@@ -1,5 +1,3 @@
-import { usePylon } from '@/components/support-chat';
-import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import {
   Select,
@@ -13,8 +11,6 @@ import {
   formatShardDeploymentKey,
   shardDeploymentKey,
 } from '@/lib/shard-deployment-key';
-
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
 type RegionSelectProps = {
   shards: OrganizationAvailableShard[];
@@ -33,14 +29,13 @@ export function RegionSelect({
   disabled = false,
   id = 'deployment-region',
 }: RegionSelectProps) {
-  const pylon = usePylon();
   const selectDisabled = disabled || isLoading || shards.length <= 1;
 
   return (
     <div className="grid gap-2">
       <Label htmlFor={id}>Region</Label>
       <p className="text-sm text-muted-foreground">
-        Choose where this tenant&apos;s control plane and data are deployed.
+        Choose where this tenant is deployed.
       </p>
       <Select
         value={value}
@@ -64,31 +59,6 @@ export function RegionSelect({
           })}
         </SelectContent>
       </Select>
-      <p className="text-sm text-muted-foreground">
-        Don&apos;t see your region? Reach out via{' '}
-        {pylon.enabled ? (
-          <>
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-sm font-normal"
-              onClick={() => pylon.show()}
-            >
-              Open support chat
-            </Button>
-            , or{' '}
-          </>
-        ) : null}
-        <a
-          href={OFFICE_HOURS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Schedule office hours
-        </a>
-        .
-      </p>
     </div>
   );
 }

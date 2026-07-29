@@ -34,6 +34,7 @@ from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
+    QueuedBatchActionEvent,
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
@@ -112,7 +113,9 @@ class Worker:
         self._ctx = multiprocessing.get_context("spawn")
 
         self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
-        self._event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = self._ctx.Queue()
+        self._event_queue: Queue[
+            ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
+        ] = self._ctx.Queue()
         self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
         self._durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] | None = None
 
@@ -269,7 +272,9 @@ class Worker:
         return self._action_queue
 
     @property
-    def event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE]":
+    def event_queue(
+        self,
+    ) -> "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]":
         warn(
             "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -773,15 +778,16 @@ class Worker:
         # tell the engine that the worker is paused
         await self._pause_task_assignment()
 
-        # stop the gRPC stream — no new actions will be dispatched.
-        self._stop_listener_action_loops()
-
         # wait for tasks to complete, needs the event queue so that completion tasks aren't dropped
         if self._action_runner:
             await self._action_runner.exit_gracefully()
 
         if self._legacy_durable_action_runner:
             await self._legacy_durable_action_runner.exit_gracefully()
+
+        # Only now that in-flight tasks have finished draining is it safe to
+        # stop the gRPC stream.
+        self._stop_listener_action_loops()
 
         # drain event_send_loop
         self._event_queue.put(STOP_LOOP)

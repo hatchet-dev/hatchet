@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,25 +40,51 @@ type TenantLimitRepository interface {
 
 	DefaultLimits() []Limit
 
-	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
+	Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 
 	Stop()
 }
+
+type meterKey struct {
+	resource sqlcv1.LimitResource
+	tenantId uuid.UUID
+}
+
+// cacheKey is the string form used for the canCreate result cache, which is
+// backed by a string-keyed TTL cache.
+func (k meterKey) cacheKey() string {
+	return fmt.Sprintf("%s:%s", k.resource, k.tenantId)
+}
+
+type meterSet map[meterKey]int32
 
 type tenantLimitRepository struct {
 	c cache.Cacheable
 	*sharedRepository
 	config        limits.LimitConfigFile
 	enforceLimits bool
+
+	unflushedMu sync.RWMutex
+	unflushed   meterSet
+
+	cleanup func()
 }
 
 func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile, enforceLimits bool, cacheDuration time.Duration) TenantLimitRepository {
-	return &tenantLimitRepository{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	t := &tenantLimitRepository{
 		sharedRepository: shared,
 		config:           s,
 		enforceLimits:    enforceLimits,
 		c:                cache.New(cacheDuration),
+		unflushed:        make(meterSet),
+		cleanup:          cancel,
 	}
+
+	go t.loopFlush(ctx)
+
+	return t
 }
 
 func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Context) error {
@@ -150,11 +177,19 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 }
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	return t.canCreate(ctx, nil, resource, tenantId, numberOfResources)
+}
+
+func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
-	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
+	if dbtx == nil {
+		dbtx = t.pool
+	}
+
+	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: resource,
@@ -165,13 +200,22 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Ctx(ctx).Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.UpdateLimits(ctx, tenantId, t.DefaultLimits())
-
+		// Insert-only so concurrent first-use and existing paid/custom limits are not overwritten.
+		err = t.insertDefaultLimitsIfMissing(ctx, dbtx, tenantId)
 		if err != nil {
 			return false, 0, err
 		}
 
-		return true, 0, nil
+		limit, err = t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
+			Tenantid: tenantId,
+			Resource: sqlcv1.NullLimitResource{
+				LimitResource: resource,
+				Valid:         true,
+			},
+		})
+		if err != nil {
+			return false, 0, err
+		}
 	} else if err != nil {
 		return false, 0, err
 	}
@@ -180,12 +224,17 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 
 	// patch custom worker limits aggregate methods
 	if resource == sqlcv1.LimitResourceWORKER {
-		count, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
+		count, err := t.queries.CountTenantWorkers(ctx, dbtx, tenantId)
 		value = int32(count) // nolint: gosec
 
 		if err != nil {
 			return false, 0, err
 		}
+	}
+
+	// include meters accepted but not yet flushed (same idea as rateLimiter.subtractUnflushed)
+	if !hasCustomValueMeter(resource) {
+		value += t.unflushedAmount(tenantId, resource)
 	}
 
 	// subtract 1 for backwards compatibility
@@ -201,29 +250,101 @@ func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
-func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (*sqlcv1.TenantResourceLimit, error) {
-	if !t.enforceLimits {
-		return nil, nil
+func (t *tenantLimitRepository) unflushedAmount(tenantId uuid.UUID, resource sqlcv1.LimitResource) int32 {
+	t.unflushedMu.RLock()
+	defer t.unflushedMu.RUnlock()
+
+	return t.unflushed[meterKey{tenantId: tenantId, resource: resource}]
+}
+
+func (t *tenantLimitRepository) addToUnflushed(resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) {
+	if numberOfResources == 0 {
+		return
 	}
 
-	r, err := t.queries.MeterTenantResource(ctx, t.pool, sqlcv1.MeterTenantResourceParams{
-		Tenantid: tenantId,
-		Resource: sqlcv1.NullLimitResource{
-			LimitResource: resource,
-			Valid:         true,
-		},
-		Numresources: numberOfResources,
+	t.unflushedMu.Lock()
+	defer t.unflushedMu.Unlock()
+
+	t.unflushed[meterKey{tenantId: tenantId, resource: resource}] += numberOfResources
+}
+
+func (t *tenantLimitRepository) loopFlush(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := t.flushToDatabase(ctx)
+
+			if err != nil {
+				t.l.Error().Ctx(ctx).Err(err).Msg("error flushing tenant resource meters")
+			}
+		}
+	}
+}
+
+// flushToDatabase writes coalesced meter deltas in a single bulk update. The
+// unflushed set is swapped out before the DB call so the hot paths (Meter
+// postcommit, canCreate) never block on a slow flush since mutex is global.
+func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
+	if !t.enforceLimits {
+		return nil
+	}
+
+	t.unflushedMu.Lock()
+
+	if len(t.unflushed) == 0 {
+		t.unflushedMu.Unlock()
+		return nil
+	}
+
+	updates := t.unflushed
+	t.unflushed = make(meterSet)
+	t.unflushedMu.Unlock()
+
+	tenantIds := make([]uuid.UUID, 0, len(updates))
+	resources := make([]string, 0, len(updates))
+	numResources := make([]int32, 0, len(updates))
+
+	for key, n := range updates {
+		tenantIds = append(tenantIds, key.tenantId)
+		resources = append(resources, string(key.resource))
+		numResources = append(numResources, n)
+	}
+
+	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool, sqlcv1.BulkMeterTenantResourcesParams{
+		Tenantids:    tenantIds,
+		Resources:    resources,
+		Numresources: numResources,
 	})
 
 	if err != nil {
-		return nil, err
+		// merge the deltas back so the next flush retries them
+		t.unflushedMu.Lock()
+		for key, n := range updates {
+			t.unflushed[key] += n
+		}
+		t.unflushedMu.Unlock()
+
+		return err
 	}
 
-	return r, nil
+	for _, limit := range limits {
+		percent := calcPercent(limit.Value, limit.LimitValue)
+		if percent <= 50 || percent >= 100 {
+			key := meterKey{tenantId: limit.TenantId, resource: limit.Resource}
+			t.c.Set(key.cacheKey(), limit.Value < limit.LimitValue)
+		}
+	}
+
+	return nil
 }
 
-func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
-	var key = fmt.Sprintf("%s:%s", resource, tenantId)
+func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	key := meterKey{tenantId: tenantId, resource: resource}.cacheKey()
 
 	var canCreate *bool
 	var percent int
@@ -234,7 +355,7 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sq
 	}
 
 	if canCreate == nil {
-		c, p, err := t.CanCreate(ctx, resource, tenantId, numberOfResources)
+		c, p, err := t.canCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 		if err != nil {
 			return false, 0, fmt.Errorf("could not check tenant limit: %w", err)
@@ -251,9 +372,9 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sq
 	return *canCreate, percent, nil
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
+func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
-			canCreate, _, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
+			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
 				return fmt.Errorf("could not check tenant limit: %w", err)
@@ -265,36 +386,26 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 
 			return nil
 		}, func() {
-			_, percent, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
-
-			if err != nil {
-				t.l.Error().Ctx(ctx).Err(err).Msg("could not check tenant limit")
+			if !t.enforceLimits || numberOfResources == 0 {
 				return
 			}
 
-			limit, err := t.saveMeter(ctx, resource, tenantId, numberOfResources)
-
-			if limit != nil && (percent <= 50 || percent >= 100) {
-				var key = fmt.Sprintf("%s:%s", resource, tenantId)
-				t.c.Set(key, limit.Value < limit.LimitValue)
-			}
-
-			if err != nil {
-				t.l.Error().Ctx(ctx).Err(err).Msg("could not meter resource")
-			}
+			t.addToUnflushed(resource, tenantId, numberOfResources)
 		}
 }
 
 func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.UUID, limits []Limit) error {
-	if len(limits) == 0 {
-		return nil
-	}
+	return t.updateLimits(ctx, nil, tenantId, limits)
+}
 
-	resources := make([]string, len(limits))
-	limitValues := make([]int32, len(limits))
-	alarmValues := make([]int32, len(limits))
-	windows := make([]string, len(limits))
-	customValueMeters := make([]bool, len(limits))
+// prepareTenantResourceLimitParams builds the shared SQL array params used by both
+// overwrite (upsert) and insert-only paths.
+func prepareTenantResourceLimitParams(limits []Limit) (resources []string, limitValues, alarmValues []int32, windows []string, customValueMeters []bool) {
+	resources = make([]string, len(limits))
+	limitValues = make([]int32, len(limits))
+	alarmValues = make([]int32, len(limits))
+	windows = make([]string, len(limits))
+	customValueMeters = make([]bool, len(limits))
 
 	for i, limit := range limits {
 		resources[i] = string(limit.Resource)
@@ -312,7 +423,42 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 		}
 	}
 
-	return t.queries.UpsertTenantResourceLimits(ctx, t.pool, sqlcv1.UpsertTenantResourceLimitsParams{
+	return resources, limitValues, alarmValues, windows, customValueMeters
+}
+
+func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
+	if len(limits) == 0 {
+		return nil
+	}
+
+	if dbtx == nil {
+		dbtx = t.pool
+	}
+
+	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
+
+	return t.queries.UpsertTenantResourceLimits(ctx, dbtx, sqlcv1.UpsertTenantResourceLimitsParams{
+		Tenantid:          tenantId,
+		Resources:         resources,
+		Limitvalues:       limitValues,
+		Alarmvalues:       alarmValues,
+		Windows:           windows,
+		Customvaluemeters: customValueMeters,
+	})
+}
+
+// insertDefaultLimitsIfMissing inserts DefaultLimits() with ON CONFLICT DO NOTHING so
+// first-use of a missing resource cannot overwrite existing paid/custom limit rows.
+// Caller must pass a non-nil dbtx (canCreate always normalizes nil → pool first).
+func (t *tenantLimitRepository) insertDefaultLimitsIfMissing(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID) error {
+	limits := t.DefaultLimits()
+	if len(limits) == 0 {
+		return nil
+	}
+
+	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
+
+	return t.queries.InsertTenantResourceLimitsIfNotExists(ctx, dbtx, sqlcv1.InsertTenantResourceLimitsIfNotExistsParams{
 		Tenantid:          tenantId,
 		Resources:         resources,
 		Limitvalues:       limitValues,
@@ -325,5 +471,17 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 var ErrResourceExhausted = fmt.Errorf("resource exhausted")
 
 func (t *tenantLimitRepository) Stop() {
+	if t.cleanup != nil {
+		t.cleanup()
+	}
+
+	// final flush (rateLimiter leaves this to the next process; metering should not drop counts)
+	flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := t.flushToDatabase(flushCtx); err != nil {
+		t.l.Error().Err(err).Msg("error flushing tenant resource meters on shutdown")
+	}
+
 	t.c.Stop()
 }

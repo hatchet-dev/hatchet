@@ -1,29 +1,45 @@
 import useControlPlane from '@/hooks/use-control-plane';
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi, fetchControlPlaneStatus } from '@/lib/api/api';
 import {
   APICloudMetadata,
   FeatureFlags,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useQuery } from '@tanstack/react-query';
 
-export const metadataIndicatesCloudEnabled = (cloudMeta: APICloudMetadata) => {
+export const metadataIndicatesLegacyCloudEnabled = (
+  cloudMeta: APICloudMetadata,
+) => {
   // @ts-expect-error errors is returned when this is oss
   return !!cloudMeta && !cloudMeta?.errors;
 };
 
+// Detects the legacy (non-control-plane) hosted-cloud backend. This is a
+// distinct concept from `useCloud().isCloudEnabled`, which is `true` under the
+// control plane too — see the note there. Callers that mean "is the legacy
+// cloud backend active?" (route loaders, cloud metadata consumers) read
+// `isLegacyCloudEnabled`; callers that mean "should cloud-style features be
+// available?" read `useCloud().isCloudEnabled`.
 export const getCloudMetadataQuery = {
   queryKey: ['cloud-metadata:get'],
   retry: false,
   queryFn: async () => {
+    // Under the control plane there is no legacy cloud backend: the control
+    // plane is the source of truth, so `/api/v1/cloud/metadata` (which 403s) is
+    // never hit.
+    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+    if (isControlPlaneEnabled) {
+      return { isLegacyCloudEnabled: false } as const;
+    }
+
     try {
       const { data: meta } = await cloudApi.metadataGet();
-      const isCloudEnabled = metadataIndicatesCloudEnabled(meta);
-      if (isCloudEnabled) {
+      const isLegacyCloudEnabled = metadataIndicatesLegacyCloudEnabled(meta);
+      if (isLegacyCloudEnabled) {
         console.log('🪓☁️');
 
         return {
           ...meta,
-          isCloudEnabled,
+          isLegacyCloudEnabled,
         };
       }
 
@@ -36,7 +52,7 @@ export const getCloudMetadataQuery = {
     }
 
     return {
-      isCloudEnabled: false,
+      isLegacyCloudEnabled: false,
     } as const;
   },
   staleTime: 1000 * 60,
@@ -65,6 +81,11 @@ type UseCloudReturn =
       cloud: null;
     };
 
+// `isCloudEnabled` here is the *feature* sense: "should cloud-style features
+// (billing, GitHub linking, metrics) be available?". It is `true` under the
+// control plane, which provides those features, even though there is no legacy
+// cloud backend (`isLegacyCloudEnabled` is `false` then). Outside the control
+// plane the two coincide.
 export default function useCloud(tenantId?: string): UseCloudReturn {
   const cloudMetaQuery = useQuery(getCloudMetadataQuery);
   const { isControlPlaneEnabled, controlPlaneMeta } = useControlPlane();
@@ -73,7 +94,7 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     queryKey: ['feature-flags:list', tenantId],
     retry: false,
     enabled:
-      (isControlPlaneEnabled || cloudMetaQuery.data?.isCloudEnabled) &&
+      (isControlPlaneEnabled || cloudMetaQuery.data?.isLegacyCloudEnabled) &&
       !!tenantId,
     queryFn: async () => {
       try {
@@ -106,10 +127,10 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     };
   }
 
-  if (cloudMetaQuery.data && cloudMetaQuery.data.isCloudEnabled) {
+  if (cloudMetaQuery.data && cloudMetaQuery.data.isLegacyCloudEnabled) {
     return {
       cloud: cloudMetaQuery.data,
-      isCloudEnabled: cloudMetaQuery.data.isCloudEnabled,
+      isCloudEnabled: cloudMetaQuery.data.isLegacyCloudEnabled,
       isCloudLoaded: true,
       isCloudLoading: cloudMetaQuery.isLoading,
       featureFlags: featureFlagsQuery.data?.data || null,
@@ -121,6 +142,8 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
     isCloudLoaded: cloudMetaQuery.isSuccess,
     isCloudLoading: cloudMetaQuery.isLoading,
     featureFlags: featureFlagsQuery.data?.data || null,
-    cloud: cloudMetaQuery?.data?.isCloudEnabled ? cloudMetaQuery.data : null,
+    cloud: cloudMetaQuery?.data?.isLegacyCloudEnabled
+      ? cloudMetaQuery.data
+      : null,
   };
 }

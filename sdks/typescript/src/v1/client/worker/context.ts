@@ -15,7 +15,8 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import type { Action } from '@hatchet/clients/dispatcher/action-listener';
+import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -25,6 +26,7 @@ import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/
 import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
+import { StepActionEventType } from '@hatchet/protoc/dispatcher';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
@@ -193,9 +195,26 @@ export class Context<T, K = {}> {
   }
 
   async cancel() {
-    await this.v1.runs.cancel({
-      ids: [this.action.taskRunExternalId],
-    });
+    if (this.action.batchId) {
+      // Batch tasks share one context across every buffered member, so there is no single
+      // task-run id to cancel — cancel every member of the batch instead. `this.data` is
+      // the raw batch-items map for a START_BATCH action, keyed by each member's
+      // task-run external id.
+      const memberIds = Object.keys(this.data ?? {});
+      await this.v1.dispatcher.sendBatchActionEvent({
+        workerId: this.worker.id() ?? '',
+        jobId: this.action.jobId,
+        actionId: this.action.actionId,
+        batchId: this.action.batchId,
+        eventTimestamp: new Date(),
+        eventType: StepActionEventType.STEP_EVENT_TYPE_CANCELLED,
+        items: memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: '' })),
+      });
+    } else {
+      await this.v1.runs.cancel({
+        ids: [this.action.taskRunExternalId],
+      });
+    }
 
     // optimistically abort the run
     this.controller.abort();
@@ -279,9 +298,19 @@ export class Context<T, K = {}> {
   /**
    * Gets the name of the current workflow.
    * @returns The name of the workflow.
+   * @deprecated This method returns the task name. Use {@link workflowNameV1} for the workflow
+   * name or {@link taskName} for the task name.
    */
   workflowName(): string {
     return this.action.jobName;
+  }
+
+  /**
+   * Gets the name of the current workflow.
+   * @returns The name of the workflow.
+   */
+  workflowNameV1(): string {
+    return workflowNameFromAction(this.action);
   }
 
   /**
@@ -371,7 +400,7 @@ export class Context<T, K = {}> {
       workflowRunId: this.action.workflowRunId,
       taskRunExternalId: this.action.taskRunExternalId,
       retryCount: this.action.retryCount,
-      workflowName: this.action.jobName,
+      workflowName: this.workflowNameV1(),
       ...extra?.extra,
     };
 
