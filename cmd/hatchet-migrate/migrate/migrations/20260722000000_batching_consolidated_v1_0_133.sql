@@ -105,6 +105,7 @@ ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_FLUSHED';
 -- +goose StatementEnd
 
 -- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
