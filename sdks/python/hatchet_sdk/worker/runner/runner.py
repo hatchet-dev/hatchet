@@ -456,7 +456,7 @@ class Runner:
         self, task: Task[TWorkflowInput, R], input: JSONSerializableMapping
     ) -> TWorkflowInput:
         if not task._workflow.input_validator:
-            return None
+            return cast("TWorkflowInput", None)
 
         return task._workflow.input_validator.validate_python(
             input, context=HATCHET_PYDANTIC_SENTINEL

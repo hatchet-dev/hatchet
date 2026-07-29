@@ -181,7 +181,7 @@ class Task(Generic[TWorkflowInput, R]):
         self._slot_requests = slot_requests
 
         self._fn = _fn
-        self._is_async_function = is_async_fn(self._fn)  # type: ignore[arg-type]
+        self._is_async_function = is_async_fn(self._fn)  # type: ignore[arg-type, type-var]
 
         if is_durable and not self._is_async_function:
             raise TypeError("Durable tasks must be async functions.")
@@ -396,8 +396,8 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_sync_fn(self._fn):  # type: ignore[arg-type]
-            return self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type]
+        if is_sync_fn(self._fn):  # type: ignore[arg-type, type-var]
+            return self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type, return-value]
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
     async def aio_call(
@@ -412,7 +412,7 @@ class Task(Generic[TWorkflowInput, R]):
         dependencies = dependencies or {}
 
         if is_async_fn(self._fn):  # type: ignore[arg-type, type-var]
-            return await self._fn(workflow_input, ctx, **dependencies)
+            return await self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type, return-value]
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
