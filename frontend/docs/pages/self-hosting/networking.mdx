@@ -32,6 +32,53 @@ engine:
     SERVER_GRPC_BROADCAST_ADDRESS: "engine.hatchet.example.com:443" # example.com should be replaced with your domain
 ```
 
+## Serving Hatchet under a URL subpath
+
+By default the dashboard assumes it is served from the root of a host (for example `https://hatchet.example.com/`). If you need to host it behind a reverse proxy under a subpath (for example `https://example.com/hatchet/`), set the frontend base path so the dashboard renders links, assets, and client-side routes relative to that subpath.
+
+The base path is injected into the served `index.html` at request time, so a single image works for any subpath without rebuilding the frontend.
+
+### Configuring the base path
+
+Set the base path via the environment variable for your deployment mode. It defaults to `/`, which preserves the root-hosted behavior.
+
+| Deployment                        | Variable                  | Notes                                                       |
+| --------------------------------- | ------------------------- | ----------------------------------------------------------- |
+| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server. |
+| Combined `dashboard` image        | `BASE_PATH`               | Substituted into `index.html` by the container entrypoint.  |
+| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                             |
+| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                             |
+
+<Callout type="info">
+  The base path is normalized automatically, so `hatchet`, `/hatchet`, and
+  `/hatchet/` are all equivalent — the dashboard's relative asset URLs always
+  resolve under the subpath.
+</Callout>
+
+### Reverse proxy requirements
+
+Two routing rules are required on the reverse proxy sitting in front of Hatchet:
+
+1. **Strip the subpath prefix before forwarding to the frontend.** The static file server serves assets and SPA routes from its own root, so the proxy must remove `/hatchet` from the request path (Caddy's `handle_path`, or the nginx ingress `rewrite-target` annotation).
+2. **Keep `/api` at the host root.** The dashboard issues API requests to absolute `/api/...` paths, which are unaffected by the base path. Do not move the API under the subpath — route `/api/*` straight to the API service.
+
+Using the chart's built-in Caddy proxy, the `Caddyfile` becomes:
+
+```caddyfile
+example.com {
+    handle /api/* {
+        reverse_proxy hatchet-stack-api:8080
+    }
+
+    # handle_path strips the /hatchet prefix before proxying to the frontend
+    handle_path /hatchet/* {
+        reverse_proxy hatchet-stack-frontend:8080
+    }
+}
+```
+
+With `frontend.env.BASE_PATH` set to `/hatchet/` and the proxy above, the dashboard is reachable at `https://example.com/hatchet/` and API calls continue to hit `https://example.com/api/...`.
+
 ## Example: `nginx-ingress`
 
 Let's walk through an example of exposing Hatchet over `hatchet.example.com` (for the API and frontend) and `engine.hatchet.example.com` (for the engine).
