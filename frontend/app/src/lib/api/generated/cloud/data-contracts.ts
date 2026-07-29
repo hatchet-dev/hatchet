@@ -730,12 +730,6 @@ export interface CreateManagedWorkerFromTemplateRequest {
   name: TemplateOptions;
 }
 
-export interface MonthlyComputeCost {
-  cost: number;
-  hasCreditsRemaining: boolean;
-  creditsRemaining?: number;
-}
-
 export interface Organization {
   metadata: APIResourceMeta;
   /** Name of the organization */
@@ -889,8 +883,6 @@ export interface OrganizationInvite {
    * @format uuid
    */
   organizationId: string;
-  /** The name of the organization */
-  organizationName?: string;
   /**
    * The email of the inviter
    * @format email
