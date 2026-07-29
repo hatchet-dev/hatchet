@@ -281,6 +281,8 @@ github.com/hatchet-dev/hatchet-quickstarts v0.2.1 h1:HqA02r13AHGPlhMvuUKPKU1GL4w
 github.com/hatchet-dev/hatchet-quickstarts v0.2.1/go.mod h1:kuGRjIxJUqfY6MR8x1oOrozo+G1Yo3q6A/GQqoDRp6M=
 github.com/hatchet-dev/pgoutbox v0.3.0 h1:l3/1y1+mAGOVLVAEP13aU66RfpruOpOzSCTxi8AAV14=
 github.com/hatchet-dev/pgoutbox v0.3.0/go.mod h1:x7wEFajIrOJ+goWri49MjzlkdwLHMdr+dZkXjVCm9ho=
+github.com/hatchet-dev/pgoutbox v0.4.0 h1:+q9l14zzl/IVnxQ5PHZUyuZ+5D+leXqPJzJrt2iE+2I=
+github.com/hatchet-dev/pgoutbox v0.4.0/go.mod h1:x7wEFajIrOJ+goWri49MjzlkdwLHMdr+dZkXjVCm9ho=
 github.com/hatchet-dev/timediff v0.0.4 h1:RfYX1ehoa/qxHKAGQBMAvmkPx+FRQfUV37tDy/G1pOY=
 github.com/hatchet-dev/timediff v0.0.4/go.mod h1:PrtGf43MxnKwg3DNrRxdBdkCu+7BUgcJ8V5X1Gtx5xI=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=

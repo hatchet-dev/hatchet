@@ -126,6 +126,16 @@ func (t *tenantManager) Cleanup() error {
 		q.Cleanup()
 	}
 
+	t.concurrencyMu.Lock()
+
+	for _, c := range t.concurrencyStrategies {
+		c.cleanup()
+	}
+
+	t.concurrencyStrategies = nil
+
+	t.concurrencyMu.Unlock()
+
 	t.rl.cleanup()
 
 	t.batchSchedulersMu.Lock()
