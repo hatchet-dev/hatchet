@@ -108,21 +108,17 @@ type DurableTaskListener struct {
 	bufferedCompletions   map[PendingCallbackKey]bufferedCompletion
 	pendingEventAcks      map[PendingAckKey]chan EventAckResult
 	pendingCallbacks      map[PendingCallbackKey]chan CallbackResult
-	gates                 map[PendingAckKey]*invocationGate
 	callbackTerminalErr   error
 	workerID              string
 	streamSeq             int
 	reconnectInterval     time.Duration
 	evictionAckTTL        time.Duration
-	parkTimeout           time.Duration
-	gapTimeout            time.Duration
 	onServerEvictMu       sync.RWMutex
 	streamMu              sync.Mutex
 	callbackStateMu       sync.Mutex
 	callbacksTerminal     bool
 	pendingEvictionAcksMu sync.Mutex
 	pendingEventAcksMu    sync.Mutex
-	gateMu                sync.Mutex
 	mu                    sync.Mutex
 	running               bool
 }

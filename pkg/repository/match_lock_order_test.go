@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -19,19 +18,24 @@ func TestSortedUniqueLogFileRefs(t *testing.T) {
 	ts1 := sqlchelpers.TimestamptzFromTime(t1)
 	ts2 := sqlchelpers.TimestamptzFromTime(t2)
 
-	taskIds := []int64{5, 3, 5, 3, 5}
-	insertedAts := []pgtype.Timestamptz{ts1, ts2, ts1, ts2, ts2}
+	refs := []IdInsertedAt{
+		{ID: 5, InsertedAt: ts1},
+		{ID: 3, InsertedAt: ts2},
+		{ID: 5, InsertedAt: ts1},
+		{ID: 3, InsertedAt: ts2},
+		{ID: 5, InsertedAt: ts2},
+	}
 
-	gotIds, gotAts := sortedUniqueLogFileRefs(taskIds, insertedAts)
+	got := sortedUniqueLogFileRefs(refs)
 
 	// deduplicated and sorted by (task id, inserted at) so concurrent
 	// transactions lock log files in a consistent order
+	gotIds := []int64{got[0].ID, got[1].ID, got[2].ID}
+	gotAts := []time.Time{got[0].InsertedAt.Time, got[1].InsertedAt.Time, got[2].InsertedAt.Time}
 	assert.Equal(t, []int64{3, 5, 5}, gotIds)
-	assert.Equal(t, []time.Time{t2, t1, t2}, []time.Time{gotAts[0].Time, gotAts[1].Time, gotAts[2].Time})
+	assert.Equal(t, []time.Time{t2, t1, t2}, gotAts)
 }
 
 func TestSortedUniqueLogFileRefs_Empty(t *testing.T) {
-	gotIds, gotAts := sortedUniqueLogFileRefs(nil, nil)
-	assert.Empty(t, gotIds)
-	assert.Empty(t, gotAts)
+	assert.Empty(t, sortedUniqueLogFileRefs(nil))
 }

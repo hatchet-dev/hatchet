@@ -94,9 +94,9 @@ ORDER BY node_id ASC, branch_id ASC;
 
 
 -- name: LockDurableEventLogFiles :exec
--- Locks the log file rows for the given durable tasks. Callers MUST sort the
--- input tuples (durable_task_id, durable_task_inserted_at) to keep lock
--- acquisition order consistent across concurrent transactions.
+-- Locks the log file rows for the given durable tasks. The ORDER BY makes the row
+-- lock acquisition order deterministic across concurrent transactions so they can't
+-- deadlock (the planner is otherwise free to lock in any order).
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
@@ -105,6 +105,7 @@ WITH inputs AS (
 SELECT lf.durable_task_id
 FROM v1_durable_event_log_file lf
 JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
 FOR UPDATE OF lf
 ;
 
@@ -189,8 +190,9 @@ WHERE
     e.branch_id = twn.requested_branch_id
     AND e.node_id = twn.requested_node_id
     AND e.is_satisfied
--- best-effort ordered redelivery; NULLS FIRST so legacy unstamped entries are
--- released before gated entries on the worker
+-- ascending satisfied_order so the engine's ordered release sees entries in the order
+-- they completed; NULLS FIRST releases legacy unstamped entries (from before this column
+-- existed) ahead of stamped ones
 ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.satisfied_order ASC NULLS FIRST
 ;
 
