@@ -793,7 +793,6 @@ WHERE
     e.branch_id = twn.requested_branch_id
     AND e.node_id = twn.requested_node_id
     AND e.is_satisfied
-ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.satisfied_order ASC NULLS FIRST
 `
 
 type ListSatisfiedEntriesParams struct {
@@ -826,9 +825,6 @@ type ListSatisfiedEntriesRow struct {
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
-// ascending satisfied_order so the engine's ordered release sees entries in the order
-// they completed; NULLS FIRST releases legacy unstamped entries (from before this column
-// existed) ahead of stamped ones
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
 	rows, err := db.Query(ctx, listSatisfiedEntries, arg.Taskexternalids, arg.Nodeids, arg.Branchids)
 	if err != nil {
