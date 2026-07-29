@@ -1,0 +1,19 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import { UserGroupSyncDiagram } from "@/components/UserGroupSyncDiagram";
+
+# User Groups
+
+User groups make granting automatic access to tenants within an organization easier.
+
+## Tag Syncing
+
+User groups work by automatically granting access for the users inside the group to tenants that have a *subset*
+of the user group's tags. The diagram below shows an example tenant-user group setup. Three tenants — "Preview" (tagged `production` and `staging`), "Production" (tagged
+`production`), and "Staging" (tagged `staging`) — alongside three user groups with the same tag combinations. Each
+tenant lists the users who are synced into it automatically, based on which groups' tags are a superset of its own:
+
+<UserGroupSyncDiagram />
+
+## Organization Owners
+
+Organization owners are exempt from the tag-syncing roles, they are added to every tenant in the organization with role "OWNER".

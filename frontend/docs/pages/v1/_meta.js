@@ -80,6 +80,12 @@ export default {
     title: "Troubleshooting",
     theme: { collapsed: true },
   },
+  "--enterprise": {
+    title: "Enterprise",
+    type: "separator",
+  },
+  'single-sign-on': "SSO",
+  'user-groups': "User Groups",
   "--evaluate": {
     title: "Evaluating Hatchet?",
     type: "separator",
