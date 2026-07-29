@@ -95,9 +95,11 @@ The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
 Two caveats when comparing backends:
 
 - Publish duration is how long `Pub` blocks the caller, not how long the broker
-  took to deliver. NATS buffers the write and returns immediately, while
-  RabbitMQ performs a synchronous channel write, so NATS will look faster here
-  without necessarily delivering any sooner.
+  took to deliver, and only Postgres waits on the broker at all — it publishes
+  with a query, while NATS buffers in memory and RabbitMQ returns once the
+  frames hit the socket (publisher confirms are not enabled). Expect `nats` to
+  report the smallest durations and `postgres` the largest, regardless of how
+  quickly each actually delivers.
 - Transit latency is a difference between two clocks, so it is subject to skew
   between the publishing and subscribing pods. Messages published by engines
   that predate the `published_at` stamp are not observed at all.
