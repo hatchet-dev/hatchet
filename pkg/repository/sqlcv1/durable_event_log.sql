@@ -93,9 +93,6 @@ WHERE durable_task_id = @durableTaskId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
 -- name: UpdateDurableEventLogEntriesSatisfied :many
--- Important: callers must hold the v1_durable_event_log_file row locks for all
--- affected log files (via LockDurableEventLogFiles) in the same transaction so
--- that satisfied_order stamps are assigned from a stable counter.
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,

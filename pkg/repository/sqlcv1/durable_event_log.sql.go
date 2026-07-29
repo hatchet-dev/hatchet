@@ -1011,9 +1011,6 @@ type UpdateDurableEventLogEntriesSatisfiedRow struct {
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
-// Important: callers must hold the v1_durable_event_log_file row locks for all
-// affected log files (via LockDurableEventLogFiles) in the same transaction so
-// that satisfied_order stamps are assigned from a stable counter.
 func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntriesSatisfiedParams) ([]*UpdateDurableEventLogEntriesSatisfiedRow, error) {
 	rows, err := db.Query(ctx, updateDurableEventLogEntriesSatisfied,
 		arg.Durabletaskids,
