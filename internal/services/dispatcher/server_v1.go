@@ -342,14 +342,15 @@ type orderedReleaseKey struct {
 }
 
 type orderedRelease struct {
-	// cursor is the highest satisfied_order sent to the worker; the next release is
-	// cursor+1. Seeded at 0 for a fresh (task, invocation).
-	cursor int64
-	// held buffers completions whose satisfied_order is not yet contiguous.
-	held map[int64]*contracts.DurableTaskResponse
-	// oldestHoldAt is when held first became non-empty (zero when empty), for the
-	// gap-timeout backstop.
-	oldestHoldAt time.Time
+	// maxSatisfiedOrderSentAlready is the highest satisfied_order sent to the worker;
+	// the next release is maxSatisfiedOrderSentAlready+1. Seeded at 0 for a fresh
+	// (task, invocation).
+	maxSatisfiedOrderSentAlready int64
+	// bufferedCompletions holds completions whose satisfied_order is not yet contiguous.
+	bufferedCompletions map[int64]*contracts.DurableTaskResponse
+	// oldestBufferedAt is when bufferedCompletions first became non-empty (zero when
+	// empty), for the gap-timeout backstop.
+	oldestBufferedAt time.Time
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -376,7 +377,7 @@ func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedReleas
 		}
 	}
 
-	rel := &orderedRelease{held: make(map[int64]*contracts.DurableTaskResponse)}
+	rel := &orderedRelease{bufferedCompletions: make(map[int64]*contracts.DurableTaskResponse)}
 	s.releases[key] = rel
 	return rel
 }
@@ -398,38 +399,38 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	rel := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
 
 	switch {
-	case order <= rel.cursor:
+	case order <= rel.maxSatisfiedOrderSentAlready:
 		// already released (e.g. reconnect / worker-status re-delivery); the worker
 		// dedupes by node id, so send it through again.
 		return s.send(resp)
-	case order == rel.cursor+1:
+	case order == rel.maxSatisfiedOrderSentAlready+1:
 		if err := s.send(resp); err != nil {
 			return err
 		}
-		rel.cursor++
+		rel.maxSatisfiedOrderSentAlready++
 
 		for {
-			next, ok := rel.held[rel.cursor+1]
+			next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
 			if !ok {
 				break
 			}
-			delete(rel.held, rel.cursor+1)
+			delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
 			if err := s.send(next); err != nil {
 				return err
 			}
-			rel.cursor++
+			rel.maxSatisfiedOrderSentAlready++
 		}
 
-		if len(rel.held) == 0 {
-			rel.oldestHoldAt = time.Time{}
+		if len(rel.bufferedCompletions) == 0 {
+			rel.oldestBufferedAt = time.Time{}
 		}
 
 		return nil
 	default:
-		if _, exists := rel.held[order]; !exists {
-			rel.held[order] = resp
-			if rel.oldestHoldAt.IsZero() {
-				rel.oldestHoldAt = time.Now()
+		if _, exists := rel.bufferedCompletions[order]; !exists {
+			rel.bufferedCompletions[order] = resp
+			if rel.oldestBufferedAt.IsZero() {
+				rel.oldestBufferedAt = time.Now()
 			}
 		}
 		return nil
@@ -448,7 +449,7 @@ func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []order
 	var stale []orderedReleaseKey
 
 	for key, rel := range s.releases {
-		if len(rel.held) > 0 && !rel.oldestHoldAt.IsZero() && now.Sub(rel.oldestHoldAt) > timeout {
+		if len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout {
 			stale = append(stale, key)
 		}
 	}
