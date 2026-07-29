@@ -362,6 +362,11 @@ type OLAPRepositoryImpl struct {
 
 	shouldPartitionEventsTables bool
 	shouldPartitionOtelTables   bool
+	// shouldPartitionHighVolumeTables gates partition maintenance for the high-volume
+	// OLAP tables (v1_statuses_olap, v1_task_events_olap, v1_lookup_table_olap,
+	// v1_dag_to_task_olap). Downstream consumers that manage these tables externally
+	// (e.g. as TimescaleDB hypertables) set this to false.
+	shouldPartitionHighVolumeTables bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 }
@@ -376,15 +381,16 @@ func NewOLAPRepositoryFromPool(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
 	shouldPartitionOtelTables bool,
+	shouldPartitionHighVolumeTables bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, shouldPartitionHighVolumeTables, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, shouldPartitionOtelTables bool, shouldPartitionHighVolumeTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -392,13 +398,14 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		readPool:                    shared.pool,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         olapRetentionPeriod,
-		shouldPartitionEventsTables: shouldPartitionEventsTables,
-		shouldPartitionOtelTables:   shouldPartitionOtelTables,
-		statusUpdateBatchSizeLimits: statusUpdateBatchSizeLimits,
+		sharedRepository:                shared,
+		readPool:                        shared.pool,
+		eventCache:                      eventCache,
+		olapRetentionPeriod:             olapRetentionPeriod,
+		shouldPartitionEventsTables:     shouldPartitionEventsTables,
+		shouldPartitionOtelTables:       shouldPartitionOtelTables,
+		shouldPartitionHighVolumeTables: shouldPartitionHighVolumeTables,
+		statusUpdateBatchSizeLimits:     statusUpdateBatchSizeLimits,
 	}
 }
 
@@ -484,6 +491,14 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if r.shouldPartitionHighVolumeTables {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPHighVolumePartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+		}); err != nil {
+			return err
+		}
+	}
+
 	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
 		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
 			Date:       pgtype.Date{Time: tomorrow, Valid: true},
@@ -509,9 +524,18 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if r.shouldPartitionHighVolumeTables {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPHighVolumePartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		}); err != nil {
+			return err
+		}
+	}
+
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
-		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
-		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
+		Shouldpartitioneventstables:     r.shouldPartitionEventsTables,
+		Shouldpartitionoteltables:       r.shouldPartitionOtelTables,
+		Shouldpartitionhighvolumetables: r.shouldPartitionHighVolumeTables,
 		Date: pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
