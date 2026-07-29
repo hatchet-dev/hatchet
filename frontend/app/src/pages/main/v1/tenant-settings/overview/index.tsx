@@ -16,7 +16,6 @@ import { MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
 import {
   defaultOnboardingState,
-  normalizeOnboardingState,
   onboardingStorageKey,
 } from '@/pages/main/v1/overview/components/onboarding-state';
 import { type OrganizationTenantWithRegion } from '@/pages/main/v1/tenant-settings/organization';
@@ -286,23 +285,15 @@ const AnalyticsOptOut: React.FC = () => {
   );
 };
 
-// A visible onboarding needs no recovery control, and after a restart the
-// row removes itself because hidden returns to false.
 const OnboardingSettingRow: React.FC = () => {
   const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
   // The same tenant-scoped key and defaults the Overview onboarding reads,
   // so restarting here is indistinguishable from a first visit there.
-  const [storedOnboarding, setStoredOnboarding] = useLocalStorageState<unknown>(
+  const [, setStoredOnboarding] = useLocalStorageState<unknown>(
     onboardingStorageKey(tenantId),
     null,
   );
-
-  const onboarding = normalizeOnboardingState(storedOnboarding);
-
-  if (!onboarding.hidden) {
-    return null;
-  }
 
   return (
     <SettingRow
