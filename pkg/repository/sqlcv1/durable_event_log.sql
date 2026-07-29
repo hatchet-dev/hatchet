@@ -101,7 +101,16 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
-), existing_log_entries AS (
+), locked_log_files AS (
+    SELECT *
+    FROM v1_durable_event_log_file
+    WHERE (durable_task_id, durable_task_inserted_at) IN (
+        SELECT durable_task_id, durable_task_inserted_at
+        FROM inputs
+    )
+    ORDER BY durable_task_id, durable_task_inserted_at
+    FOR UPDATE
+), locked_log_entries AS (
     SELECT *
     FROM v1_durable_event_log_entry e
     WHERE (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) IN (
@@ -110,23 +119,19 @@ WITH inputs AS (
     )
     ORDER BY durable_task_id, durable_task_inserted_at, branch_id, node_id
     FOR UPDATE
-), max_satisfied_orders AS (
-    SELECT durable_task_id, durable_task_inserted_at, COALESCE(MAX(satisfied_order), 0) AS latest_satisfied_order
-    FROM existing_log_entries
-    GROUP BY durable_task_id, durable_task_inserted_at
 ), to_stamp AS (
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
         e.branch_id,
         e.node_id,
-        mso.latest_satisfied_order + ROW_NUMBER() OVER (
+        llf.latest_satisfied_order + ROW_NUMBER() OVER (
             PARTITION BY e.durable_task_id, e.durable_task_inserted_at
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
-    FROM existing_log_entries e
-    JOIN max_satisfied_orders mso USING (durable_task_id, durable_task_inserted_at)
-    WHERE satisfied_order IS NULL
+    FROM locked_log_entries e
+    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    WHERE e.satisfied_order IS NULL
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
     SET
@@ -142,6 +147,11 @@ WITH inputs AS (
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
     RETURNING e.*
+), log_file_updates AS (
+    UPDATE v1_durable_event_log_file lf
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.latest_satisfied_order)
+    FROM to_stamp mso
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (mso.durable_task_id, mso.durable_task_inserted_at)
 )
 
 SELECT updated.*, lf.latest_invocation_count AS invocation_count

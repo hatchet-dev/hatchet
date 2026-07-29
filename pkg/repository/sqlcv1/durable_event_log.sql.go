@@ -931,7 +931,16 @@ WITH inputs AS (
         UNNEST($4::BIGINT[]) AS branch_id,
         UNNEST($5::BOOLEAN[]) AS child_task_is_failure,
         UNNEST($6::TEXT[]) AS child_task_error_message
-), existing_log_entries AS (
+), locked_log_files AS (
+    SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
+    FROM v1_durable_event_log_file
+    WHERE (durable_task_id, durable_task_inserted_at) IN (
+        SELECT durable_task_id, durable_task_inserted_at
+        FROM inputs
+    )
+    ORDER BY durable_task_id, durable_task_inserted_at
+    FOR UPDATE
+), locked_log_entries AS (
     SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
     FROM v1_durable_event_log_entry e
     WHERE (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) IN (
@@ -940,23 +949,19 @@ WITH inputs AS (
     )
     ORDER BY durable_task_id, durable_task_inserted_at, branch_id, node_id
     FOR UPDATE
-), max_satisfied_orders AS (
-    SELECT durable_task_id, durable_task_inserted_at, COALESCE(MAX(satisfied_order), 0) AS latest_satisfied_order
-    FROM existing_log_entries
-    GROUP BY durable_task_id, durable_task_inserted_at
 ), to_stamp AS (
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
         e.branch_id,
         e.node_id,
-        mso.latest_satisfied_order + ROW_NUMBER() OVER (
+        llf.latest_satisfied_order + ROW_NUMBER() OVER (
             PARTITION BY e.durable_task_id, e.durable_task_inserted_at
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
-    FROM existing_log_entries e
-    JOIN max_satisfied_orders mso USING (durable_task_id, durable_task_inserted_at)
-    WHERE satisfied_order IS NULL
+    FROM locked_log_entries e
+    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    WHERE e.satisfied_order IS NULL
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
     SET
@@ -972,6 +977,11 @@ WITH inputs AS (
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
     RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data
+), log_file_updates AS (
+    UPDATE v1_durable_event_log_file lf
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.latest_satisfied_order)
+    FROM to_stamp mso
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (mso.durable_task_id, mso.durable_task_inserted_at)
 )
 
 SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, lf.latest_invocation_count AS invocation_count
