@@ -403,9 +403,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			Msg("sending a very large message, this may impact performance")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	t.l.Debug().Msgf("publishing msg to queue %s", q.Name())
 
 	pubMsg := amqp.Publishing{
@@ -440,6 +437,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.SetAttributes(spanAttrs...)
 
+	// no timeout here on purpose: amqp091-go takes the context as `_` and
+	// clears socket deadlines after the handshake, so a publish is bounded
+	// only by TCP flow control. confirms are off, so a nil error means the
+	// frames were written, not that the broker accepted them
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
 	// retry failed delivery on the next session
