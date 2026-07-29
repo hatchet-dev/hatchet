@@ -12,6 +12,84 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bulkMeterTenantResources = `-- name: BulkMeterTenantResources :many
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS tenant_id,
+        unnest(cast($2::text[] AS "LimitResource"[])) AS resource,
+        unnest($3::int[]) AS num_resources
+), to_update AS (
+    SELECT
+        trl.id, trl."createdAt", trl."updatedAt", trl.resource, trl."tenantId", trl."limitValue", trl."alarmValue", trl.value, trl."window", trl."lastRefill", trl."customValueMeter",
+        i.num_resources
+    FROM
+        "TenantResourceLimit" trl
+    JOIN
+        input i ON i.tenant_id = trl."tenantId" AND i.resource = trl."resource"
+    ORDER BY
+        trl."tenantId", trl."resource"
+    FOR UPDATE
+)
+UPDATE "TenantResourceLimit" trl
+SET
+    "value" = CASE
+        WHEN (trl."customValueMeter" = true OR (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL)) THEN
+            0
+        ELSE
+            trl."value" + tu.num_resources
+    END,
+    "lastRefill" = CASE
+        WHEN (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL) THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            trl."lastRefill"
+    END
+FROM
+    to_update tu
+WHERE
+    trl."tenantId" = tu."tenantId"
+    AND trl."resource" = tu."resource"
+RETURNING trl.id, trl."createdAt", trl."updatedAt", trl.resource, trl."tenantId", trl."limitValue", trl."alarmValue", trl.value, trl."window", trl."lastRefill", trl."customValueMeter"
+`
+
+type BulkMeterTenantResourcesParams struct {
+	Tenantids    []uuid.UUID `json:"tenantids"`
+	Resources    []string    `json:"resources"`
+	Numresources []int32     `json:"numresources"`
+}
+
+func (q *Queries) BulkMeterTenantResources(ctx context.Context, db DBTX, arg BulkMeterTenantResourcesParams) ([]*TenantResourceLimit, error) {
+	rows, err := db.Query(ctx, bulkMeterTenantResources, arg.Tenantids, arg.Resources, arg.Numresources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantResourceLimit
+	for rows.Next() {
+		var i TenantResourceLimit
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Resource,
+			&i.TenantId,
+			&i.LimitValue,
+			&i.AlarmValue,
+			&i.Value,
+			&i.Window,
+			&i.LastRefill,
+			&i.CustomValueMeter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countTenantWorkers = `-- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"
 FROM "Worker"
@@ -83,6 +161,60 @@ func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTe
 		&i.CustomValueMeter,
 	)
 	return &i, err
+}
+
+const insertTenantResourceLimitsIfNotExists = `-- name: InsertTenantResourceLimitsIfNotExists :exec
+WITH input_values AS (
+    SELECT
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "window",
+        "customValueMeter"
+    FROM (
+        SELECT
+            unnest(cast($2::text[] AS "LimitResource"[])) AS "resource",
+            unnest($3::int[]) AS "limitValue",
+            unnest($4::int[]) AS "alarmValue",
+            unnest($5::text[]) AS "window",
+            unnest($6::boolean[]) AS "customValueMeter"
+    ) AS subquery
+)
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
+SELECT
+    gen_random_uuid(),
+    $1::uuid,
+    iv."resource",
+    0,
+    iv."limitValue",
+    NULLIF(iv."alarmValue", 0),
+    NULLIF(iv."window", ''),
+    iv."customValueMeter",
+    CURRENT_TIMESTAMP
+FROM input_values iv
+ON CONFLICT ("tenantId", "resource") DO NOTHING
+`
+
+type InsertTenantResourceLimitsIfNotExistsParams struct {
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Resources         []string  `json:"resources"`
+	Limitvalues       []int32   `json:"limitvalues"`
+	Alarmvalues       []int32   `json:"alarmvalues"`
+	Windows           []string  `json:"windows"`
+	Customvaluemeters []bool    `json:"customvaluemeters"`
+}
+
+// Insert-only defaults for first-use of a resource. Must not overwrite paid/custom limits.
+func (q *Queries) InsertTenantResourceLimitsIfNotExists(ctx context.Context, db DBTX, arg InsertTenantResourceLimitsIfNotExistsParams) error {
+	_, err := db.Exec(ctx, insertTenantResourceLimitsIfNotExists,
+		arg.Tenantid,
+		arg.Resources,
+		arg.Limitvalues,
+		arg.Alarmvalues,
+		arg.Windows,
+		arg.Customvaluemeters,
+	)
+	return err
 }
 
 const listTenantResourceLimits = `-- name: ListTenantResourceLimits :many

@@ -12,12 +12,15 @@ lib/hatchet-sdk-rest.rb
 lib/hatchet-sdk-rest/api/api_token_api.rb
 lib/hatchet-sdk-rest/api/cel_api.rb
 lib/hatchet-sdk-rest/api/default_api.rb
+lib/hatchet-sdk-rest/api/durable_tasks_api.rb
 lib/hatchet-sdk-rest/api/event_api.rb
+lib/hatchet-sdk-rest/api/feature_flags_api.rb
 lib/hatchet-sdk-rest/api/filter_api.rb
 lib/hatchet-sdk-rest/api/github_api.rb
 lib/hatchet-sdk-rest/api/healthcheck_api.rb
 lib/hatchet-sdk-rest/api/log_api.rb
 lib/hatchet-sdk-rest/api/metadata_api.rb
+lib/hatchet-sdk-rest/api/observability_api.rb
 lib/hatchet-sdk-rest/api/rate_limits_api.rb
 lib/hatchet-sdk-rest/api/slack_api.rb
 lib/hatchet-sdk-rest/api/sns_api.rb
@@ -70,6 +73,8 @@ lib/hatchet-sdk-rest/models/event_order_by_field.rb
 lib/hatchet-sdk-rest/models/event_update_cancel200_response.rb
 lib/hatchet-sdk-rest/models/event_workflow_run_summary.rb
 lib/hatchet-sdk-rest/models/events.rb
+lib/hatchet-sdk-rest/models/feature_flag_evaluation_result.rb
+lib/hatchet-sdk-rest/models/feature_flag_id.rb
 lib/hatchet-sdk-rest/models/get_step_run_diff_response.rb
 lib/hatchet-sdk-rest/models/info_get_version200_response.rb
 lib/hatchet-sdk-rest/models/job.rb
@@ -84,6 +89,10 @@ lib/hatchet-sdk-rest/models/log_line_level.rb
 lib/hatchet-sdk-rest/models/log_line_list.rb
 lib/hatchet-sdk-rest/models/log_line_order_by_direction.rb
 lib/hatchet-sdk-rest/models/log_line_order_by_field.rb
+lib/hatchet-sdk-rest/models/otel_span.rb
+lib/hatchet-sdk-rest/models/otel_span_kind.rb
+lib/hatchet-sdk-rest/models/otel_span_list.rb
+lib/hatchet-sdk-rest/models/otel_status_code.rb
 lib/hatchet-sdk-rest/models/pagination_response.rb
 lib/hatchet-sdk-rest/models/pull_request.rb
 lib/hatchet-sdk-rest/models/pull_request_state.rb
@@ -144,6 +153,7 @@ lib/hatchet-sdk-rest/models/tenant_resource_limit.rb
 lib/hatchet-sdk-rest/models/tenant_resource_policy.rb
 lib/hatchet-sdk-rest/models/tenant_step_run_queue_metrics.rb
 lib/hatchet-sdk-rest/models/tenant_version.rb
+lib/hatchet-sdk-rest/models/trigger_run_result.rb
 lib/hatchet-sdk-rest/models/trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/update_cron_workflow_trigger_request.rb
 lib/hatchet-sdk-rest/models/update_scheduled_workflow_run_request.rb
@@ -158,6 +168,9 @@ lib/hatchet-sdk-rest/models/user_login_request.rb
 lib/hatchet-sdk-rest/models/user_register_request.rb
 lib/hatchet-sdk-rest/models/user_tenant_memberships_list.rb
 lib/hatchet-sdk-rest/models/user_tenant_public.rb
+lib/hatchet-sdk-rest/models/v1_additional_metadata_operator.rb
+lib/hatchet-sdk-rest/models/v1_branch_durable_task_request.rb
+lib/hatchet-sdk-rest/models/v1_branch_durable_task_response.rb
 lib/hatchet-sdk-rest/models/v1_cancel_task_request.rb
 lib/hatchet-sdk-rest/models/v1_cancelled_tasks.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_request.rb
@@ -170,6 +183,10 @@ lib/hatchet-sdk-rest/models/v1_create_webhook_request_base.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request_basic_auth.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request_hmac.rb
 lib/hatchet-sdk-rest/models/v1_dag_children.rb
+lib/hatchet-sdk-rest/models/v1_durable_event_log_entry.rb
+lib/hatchet-sdk-rest/models/v1_durable_event_log_kind.rb
+lib/hatchet-sdk-rest/models/v1_durable_wait_condition.rb
+lib/hatchet-sdk-rest/models/v1_durable_wait_condition_kind.rb
 lib/hatchet-sdk-rest/models/v1_event.rb
 lib/hatchet-sdk-rest/models/v1_event_list.rb
 lib/hatchet-sdk-rest/models/v1_event_triggered_run.rb
@@ -180,8 +197,13 @@ lib/hatchet-sdk-rest/models/v1_log_line.rb
 lib/hatchet-sdk-rest/models/v1_log_line_level.rb
 lib/hatchet-sdk-rest/models/v1_log_line_list.rb
 lib/hatchet-sdk-rest/models/v1_log_line_order_by_direction.rb
+lib/hatchet-sdk-rest/models/v1_logs_point_metric.rb
+lib/hatchet-sdk-rest/models/v1_logs_point_metrics.rb
 lib/hatchet-sdk-rest/models/v1_replay_task_request.rb
 lib/hatchet-sdk-rest/models/v1_replayed_tasks.rb
+lib/hatchet-sdk-rest/models/v1_restore_task_response.rb
+lib/hatchet-sdk-rest/models/v1_running_detail_count.rb
+lib/hatchet-sdk-rest/models/v1_running_filter.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb
@@ -198,6 +220,7 @@ lib/hatchet-sdk-rest/models/v1_task_timing_list.rb
 lib/hatchet-sdk-rest/models/v1_trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/v1_update_filter_request.rb
 lib/hatchet-sdk-rest/models/v1_update_webhook_request.rb
+lib/hatchet-sdk-rest/models/v1_wait_item.rb
 lib/hatchet-sdk-rest/models/v1_webhook.rb
 lib/hatchet-sdk-rest/models/v1_webhook_api_key_auth.rb
 lib/hatchet-sdk-rest/models/v1_webhook_auth_type.rb
@@ -227,6 +250,7 @@ lib/hatchet-sdk-rest/models/worker_list.rb
 lib/hatchet-sdk-rest/models/worker_runtime_info.rb
 lib/hatchet-sdk-rest/models/worker_runtime_sdks.rb
 lib/hatchet-sdk-rest/models/worker_slot_config.rb
+lib/hatchet-sdk-rest/models/worker_status.rb
 lib/hatchet-sdk-rest/models/worker_type.rb
 lib/hatchet-sdk-rest/models/workflow.rb
 lib/hatchet-sdk-rest/models/workflow_concurrency.rb

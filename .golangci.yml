@@ -16,14 +16,16 @@ linters:
       enable-all: true
       disable:
         - printf
+        - shadow
+        - fieldalignment
     staticcheck:
       checks:
+        - all
         - -SA1029
         - -SA4006
         - -ST1003
         - -ST1005
         - -ST1016
-        - all
   exclusions:
     generated: lax
     presets:
@@ -43,7 +45,7 @@ linters:
       - path: (.+)\.go$
         text: "unused-parameter: parameter"
       - path: (.+)\.go$
-        text: "context-keys-type: should not use basic type string"
+        text: "context-keys-type: should not use basic type"
       - path: (.+)\.go$
         text: error strings should not be capitalized
       - path: "internal/services/dispatcher/(.+).go"
@@ -51,6 +53,18 @@ linters:
       - linters:
           - staticcheck
         text: "ST1003:"
+      # The following packages intentionally use Hatchet's deprecated legacy v0/v1
+      # SDK and worker internals during the gradual migration to sdks/go, and
+      # internal/services/admin/v1 must keep accepting deprecated request fields
+      # from old clients for backward compatibility.
+      - path: "^(pkg/v1|pkg/worker|pkg/client|sdks/go|cmd/hatchet-loadtest|cmd/hatchet-cli|internal/services/admin/v1)/(.+)\\.go$"
+        linters:
+          - staticcheck
+        text: "SA1019:"
+      - path: "internal/cel/cel.go"
+        text: "SA1019: cel.Declarations is deprecated"
+      - path: "internal/msgqueue/rabbitmq/rabbitmq.go"
+        text: "SA1019: msg.Retries is deprecated"
 
     paths:
       - third_party$

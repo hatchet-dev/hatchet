@@ -7,18 +7,19 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
-func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {
-	localTasks, tasks, dags, err := s.pool.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, []v1.IdempotencyCollision, error) {
+	localTasks, tasks, dags, idempotencyKeyCollisions, err := s.pool.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	go func() {
+	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -27,7 +28,7 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.U
 		}
 	}()
 
-	return localTasks, err
+	return localTasks, idempotencyKeyCollisions, err
 }
 
 func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {
@@ -43,7 +44,7 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		eventIdToOpts[opt.ExternalId] = opt
 	}
 
-	go func() {
+	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

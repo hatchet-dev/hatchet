@@ -66,10 +66,11 @@ type inMemorySlotIndex struct {
 	byTaskID map[int64]slotLocation
 }
 
-// priorityCompare is the default slot ordering, shared by GROUP_ROUND_ROBIN and CANCEL_IN_PROGRESS:
-// higher priority first, then earlier taskInsertedAt, then lower taskId. It is a total order
-// (taskId is unique per slot), so it is tie-free. Cancel strategies that keep the opposite end (e.g.
-// CANCEL_NEWEST) pass reverseCompare(priorityCompare).
+// priorityCompare is the default slot ordering, shared by GROUP_ROUND_ROBIN and CANCEL_NEWEST:
+// higher priority first, then earlier taskInsertedAt, then lower taskId ("smaller" = should run).
+// Among equal-priority slots it keeps the OLDEST, which is what GROUP_ROUND_ROBIN (fill oldest
+// first) and CANCEL_NEWEST (keep oldest, cancel the newest) both want. It is a total order (taskId
+// is unique per slot), so it is tie-free.
 func priorityCompare(a, b slot) int {
 	if a.priority != b.priority {
 		return cmp.Compare(b.priority, a.priority)
@@ -78,6 +79,22 @@ func priorityCompare(a, b slot) int {
 		return cmp.Compare(a.taskInsertedAtNs, b.taskInsertedAtNs)
 	}
 	return cmp.Compare(a.taskId, b.taskId)
+}
+
+// cancelInProgressCompare is priorityCompare with the recency tiebreak reversed: higher priority
+// first, then LATER taskInsertedAt, then HIGHER taskId. Among equal-priority slots it keeps the
+// NEWEST, matching the legacy runCancelInProgress SQL (ORDER BY sort_id DESC) - CANCEL_IN_PROGRESS
+// keeps the most-recently-created runs and cancels older ones, including running tasks. Priority
+// stays primary (a higher-priority arrival still preempts), consistent with the in-memory
+// priority-aware design. It is a total order, so it is tie-free.
+func cancelInProgressCompare(a, b slot) int {
+	if a.priority != b.priority {
+		return cmp.Compare(b.priority, a.priority)
+	}
+	if a.taskInsertedAtNs != b.taskInsertedAtNs {
+		return cmp.Compare(b.taskInsertedAtNs, a.taskInsertedAtNs)
+	}
+	return cmp.Compare(b.taskId, a.taskId)
 }
 
 // reverseCompare flips a comparator's order while preserving ties, so an index built with it pops

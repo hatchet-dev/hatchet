@@ -5,6 +5,37 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.0] - 2026-07-23
+
+### Changed
+
+- Adds beta `batch_task` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
+
+
+## [1.36.0] - 2026-07-21
+
+### Added
+
+- Adds support for terminal status-based idempotency keys, which are released when the task holding the key reaches a terminal state (either completed, cancelled, or having failed and exhausted all retries).
+
+## [1.35.1] - 2026-07-20
+
+### Fixed
+
+- Removes a merge conflict that snuck into `main`
+
+## [1.35.0] - 2026-07-16
+
+### Added
+
+- Adds support for defining **idempotency keys** on workflows and standalone tasks, which ensures that they're only run once in a provided time window, based on a CEL expression.
+
+## [1.34.1] - 2026-07-15
+
+### Added
+
+- Adds a `cron_input` option to `workflow`, `task`, and `durable_task` declarations, allowing an input to be supplied to runs triggered by a workflow's `on_crons` schedules. The value is typed against the workflow's input model and serialized onto the workflow version.
+
 ## [1.34.0] - 2026-07-09
 
 ### Added

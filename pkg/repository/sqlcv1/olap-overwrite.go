@@ -72,6 +72,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -124,6 +128,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -178,6 +186,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -199,6 +211,7 @@ type CountTasksParams struct {
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -225,6 +238,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.Values,
 		arg.TriggeringEventExternalId,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -279,6 +293,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
     LIMIT 20000
 )
 
@@ -330,6 +348,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     LIMIT 20000
 )
@@ -383,6 +405,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
     LIMIT 20000
 )
 
@@ -402,6 +428,7 @@ type CountWorkflowRunsParams struct {
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -428,6 +455,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -480,6 +508,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -527,6 +559,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -576,6 +612,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -595,6 +635,7 @@ type FetchWorkflowRunIdsParams struct {
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -630,6 +671,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 
 	if err != nil {
@@ -702,6 +744,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
 ORDER BY
     inserted_at DESC
 LIMIT $10::integer
@@ -751,6 +797,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY
     inserted_at DESC
@@ -802,6 +852,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+	AND (
+		$13::TEXT[] IS NULL
+		OR idempotency_key = ANY($13::TEXT[])
+	)
 ORDER BY
     inserted_at DESC
 LIMIT $10::integer
@@ -822,6 +876,7 @@ type ListTasksOlapParams struct {
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
 }
 
 type ListTasksOlapRow struct {
@@ -855,6 +910,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -881,12 +937,11 @@ WITH to_insert AS (
         UNNEST($2::UUID[]) AS external_id,
         UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
         UNNEST($4::TEXT[]) AS key,
-        UNNEST($5::JSONB[]) AS payload,
-        UNNEST($6::JSONB[]) AS additional_metadata,
+        UNNEST($5::JSONB[]) AS additional_metadata,
         -- Scopes are nullable
-        UNNEST($7::TEXT[]) AS scope,
+        UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($8::TEXT[]) AS triggering_webhook_name
+        UNNEST($7::TEXT[]) AS triggering_webhook_name
 
 )
 INSERT INTO v1_events_olap (
@@ -899,7 +954,7 @@ INSERT INTO v1_events_olap (
     scope,
 	triggering_webhook_name
 )
-SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
 RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
 `
@@ -909,7 +964,6 @@ type BulkCreateEventsOLAPParams struct {
 	Externalids            []uuid.UUID          `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
-	Payloads               [][]byte             `json:"payloads"`
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
@@ -921,7 +975,6 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 		arg.Externalids,
 		arg.Seenats,
 		arg.Keys,
-		arg.Payloads,
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
@@ -1023,12 +1076,12 @@ WITH inputs AS (
         UNNEST($14::UUID[]) AS desired_worker_id,
         UNNEST($15::UUID[]) AS external_id,
         UNNEST($16::TEXT[]) AS display_name,
-        UNNEST($17::JSONB[]) AS input,
-        UNNEST($18::JSONB[]) AS additional_metadata,
-        UNNEST($19::BIGINT[]) AS dag_id,
-        UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
-        UNNEST($21::UUID[]) AS parent_task_external_id,
-        UNNEST($22::BOOLEAN[]) AS is_durable
+        UNNEST($17::JSONB[]) AS additional_metadata,
+        UNNEST($18::BIGINT[]) AS dag_id,
+        UNNEST($19::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($20::UUID[]) AS parent_task_external_id,
+        UNNEST($21::BOOLEAN[]) AS is_durable,
+		UNNEST($22::TEXT[]) AS idempotency_key
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1052,7 +1105,8 @@ INSERT INTO v1_tasks_olap (
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable
+    is_durable,
+	idempotency_key
 )
 SELECT
     tenant_id,
@@ -1071,12 +1125,13 @@ SELECT
     desired_worker_id,
     external_id,
     display_name,
-    input,
+    '{}'::JSONB AS input,
     additional_metadata,
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable
+    is_durable,
+	idempotency_key
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -1098,12 +1153,12 @@ type CreateTasksOLAPParams struct {
 	Desiredworkerids      []*uuid.UUID         `json:"desiredworkerids"`
 	Externalids           []uuid.UUID          `json:"externalids"`
 	Displaynames          []string             `json:"displaynames"`
-	Inputs                [][]byte             `json:"inputs"`
 	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
 	Dagids                []pgtype.Int8        `json:"dagids"`
 	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
+	IdempotencyKeys       []pgtype.Text        `json:"idempotencykeys"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -1124,12 +1179,12 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Desiredworkerids,
 		arg.Externalids,
 		arg.Displaynames,
-		arg.Inputs,
 		arg.Additionalmetadatas,
 		arg.Dagids,
 		arg.Daginsertedats,
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
+		arg.IdempotencyKeys,
 	)
 	return err
 }
@@ -1144,10 +1199,10 @@ WITH inputs AS (
         UNNEST($5::TEXT[]) AS display_name,
         UNNEST($6::UUID[]) AS workflow_id,
         UNNEST($7::UUID[]) AS workflow_version_id,
-        UNNEST($8::JSONB[]) AS input,
-        UNNEST($9::JSONB[]) AS additional_metadata,
-        UNNEST($10::UUID[]) AS parent_task_external_id,
-        UNNEST($11::INTEGER[]) AS total_tasks
+        UNNEST($8::JSONB[]) AS additional_metadata,
+        UNNEST($9::UUID[]) AS parent_task_external_id,
+        UNNEST($10::INTEGER[]) AS total_tasks,
+		UNNEST($11::TEXT[]) AS idempotency_key
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1192,7 +1247,8 @@ INSERT INTO v1_dags_olap (
     additional_metadata,
     parent_task_external_id,
     total_tasks,
-    readable_status
+    readable_status,
+	idempotency_key
 )
 SELECT
     i.tenant_id,
@@ -1202,11 +1258,12 @@ SELECT
     i.display_name,
     i.workflow_id,
     i.workflow_version_id,
-    i.input,
+    '{}'::JSONB AS input,
     i.additional_metadata,
     i.parent_task_external_id,
     i.total_tasks,
-    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap)
+    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
+	i.idempotency_key
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
 ON CONFLICT (inserted_at, id) DO UPDATE SET
@@ -1225,10 +1282,10 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Displaynames          []string             `json:"displaynames"`
 	Workflowids           []uuid.UUID          `json:"workflowids"`
 	Workflowversionids    []uuid.UUID          `json:"workflowversionids"`
-	Inputs                [][]byte             `json:"inputs"`
 	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
+	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -1240,10 +1297,10 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Displaynames,
 		arg.Workflowids,
 		arg.Workflowversionids,
-		arg.Inputs,
 		arg.Additionalmetadatas,
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
+		arg.IdempotencyKeys,
 	)
 	return err
 }

@@ -19,7 +19,8 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
-	outbox pgoutbox.Outbox
+	outbox   pgoutbox.Outbox
+	taskRepo v1.TaskRepository
 
 	l *zerolog.Logger
 
@@ -61,6 +62,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	taskRepo v1.TaskRepository,
 	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
@@ -94,6 +96,7 @@ func NewSchedulingPool(
 			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			taskRepo:                               taskRepo,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
@@ -250,9 +253,9 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	if !p.optimisticSchedulingEnabled {
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	// attempt to acquire a slot in the semaphore
@@ -264,13 +267,13 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId u
 		}()
 	default:
 		// no slots available
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	tm := p.getTenantManager(tenantId, false)
 
 	if tm == nil {
-		return nil, nil, nil, ErrTenantNotFound
+		return nil, nil, nil, nil, ErrTenantNotFound
 	}
 
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)

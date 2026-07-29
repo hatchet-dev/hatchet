@@ -530,6 +530,8 @@ export class Api<
       include_payloads?: boolean;
       /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
       running_filter?: V1RunningFilter;
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -3601,6 +3603,8 @@ export class Api<
       limit?: number;
       /** Filter by worker status */
       statuses?: WorkerStatus[];
+      /** Filter by worker labels */
+      labels?: string[];
     },
     params: RequestParams = {},
   ) =>

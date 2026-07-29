@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Hatchet
   # Context object passed to task execution blocks.
   #
@@ -128,10 +130,28 @@ module Hatchet
       @client&.logger&.info(msg) || puts(msg)
     end
 
-    # Cancel the current workflow run
+    # Cancel the current workflow run.
+    #
+    # Batch tasks share one context across every buffered member, so there is no single
+    # task run to cancel; instead this sends a batch CANCELLED event covering every
+    # member of the batch.
     def cancel
       @cancelled = true
       @exit_flag = true
+
+      if batch_action?
+        begin
+          @dispatcher_client&.send_batch_action_event(
+            action: @action,
+            event_type: :STEP_EVENT_TYPE_CANCELLED,
+            items: batch_member_ids.map { |id| { task_run_external_id: id } },
+          )
+        rescue StandardError
+          nil
+        end
+        return
+      end
+
       return unless @client && @workflow_run_id
 
       begin
@@ -203,6 +223,22 @@ module Hatchet
     # @return [WorkerContext, nil]
     def worker
       @worker_context
+    end
+
+    private
+
+    def batch_action?
+      @action.respond_to?(:action_type) && @action.action_type == :START_BATCH
+    end
+
+    def batch_member_ids
+      raw = @action.respond_to?(:action_payload) ? @action.action_payload : nil
+      return [] if raw.nil? || raw.to_s.empty?
+
+      parsed = JSON.parse(raw)
+      parsed.is_a?(Hash) ? parsed.keys : []
+    rescue JSON::ParserError
+      []
     end
   end
 end

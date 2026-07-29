@@ -10,7 +10,10 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
+from hatchet_sdk.worker.action_listener_process import (
+    ActionEvent,
+    QueuedBatchActionEvent,
+)
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
 
@@ -26,7 +29,7 @@ class WorkerActionRunLoopManager:
         durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
-        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+        event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         debug: bool,

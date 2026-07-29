@@ -140,6 +140,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		Offset:          offset,
 		IncludePayloads: includePayloads,
 		UseGinIndex:     useGinIndex,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -291,6 +292,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		WorkerId:        request.Params.WorkerId,
 		IncludePayloads: includePayloads,
 		UseGinIndex:     useGinIndex,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -379,9 +381,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 	if request.Params.OnlyTasks {
 		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex)
-	} else {
-		return t.WithDags(spanContext, request, tenantId, useGinIndex)
 	}
+
+	return t.WithDags(spanContext, request, tenantId, useGinIndex)
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query

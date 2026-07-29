@@ -241,6 +241,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.item_count", Value: len(qis)})
 
 		if len(qis) == 0 {
 			q.consecutiveEmptyPolls++
@@ -309,6 +310,20 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
+		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+
+		if err != nil {
+			span.RecordError(err)
+			span.End()
+			q.l.Error().Err(err).Msg("error getting batch configs")
+
+			q.unackedToUnassigned(qis)
+			continue
+		}
+
+		batchConfigTime := time.Since(checkpoint)
+		checkpoint = time.Now()
+
 		stepRequests, err := q.repo.GetStepSlotRequests(ctx, nil, stepIds)
 
 		if err != nil {
@@ -323,7 +338,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		getSlotRequestsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
+		assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 		count := 0
 
 		countMu := sync.Mutex{}
@@ -345,7 +360,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
-				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
+				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -417,6 +432,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur(
 				"get_slot_requests_time", getSlotRequestsTime,
 			).Dur(
+				"batch_config_time", batchConfigTime,
+			).Dur(
 				"assign_time", assignTime,
 			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
@@ -424,7 +441,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		// if we processed all queue items, queue again
 		prevQis := qis
 
-		go func(originalStart time.Time) {
+		go func(originalStart time.Time) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
 			wg.Wait()
 			span.End()
 
@@ -513,6 +530,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 type QueueResults struct {
 	TenantId uuid.UUID
 	Assigned []*v1.AssignedItem
+	Buffered []*v1.AssignedItem
 
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
@@ -529,6 +547,24 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
 		delete(q.unassigned, assignedItem.QueueItem.ID)
+	}
+
+	for _, bufferedItem := range r.buffered {
+		if bufferedItem == nil || bufferedItem.QueueItem == nil {
+			continue
+		}
+
+		delete(q.unacked, bufferedItem.QueueItem.ID)
+		delete(q.unassigned, bufferedItem.QueueItem.ID)
+	}
+
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+
+		delete(q.unacked, batchedItem.qi.ID)
+		delete(q.unassigned, batchedItem.qi.ID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
@@ -587,14 +623,24 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	begin := time.Now()
 
-	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+	q.l.Debug().
+		Ctx(ctx).Int("assigned", len(r.assigned)).
+		Int("buffered", len(r.buffered)).
+		Int("batched", len(r.batched)).
+		Int("unassigned", len(r.unassigned)).
+		Int("scheduling_timed_out", len(r.schedulingTimedOut)).
+		Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
+	if len(r.assigned) == 0 && len(r.buffered) == 0 && len(r.batched) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return 0
 	}
 
+	// bulk write to v1_buffer_queue_item table
+
 	opts := &v1.AssignResults{
 		Assigned:           make([]*v1.AssignedItem, 0, len(r.assigned)),
+		Buffered:           make([]*v1.AssignedItem, 0, len(r.buffered)),
+		Batched:            make([]*sqlcv1.V1QueueItem, 0, len(r.batched)),
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
@@ -610,6 +656,25 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			WorkerId:  assignedItem.WorkerId,
 			QueueItem: assignedItem.QueueItem,
 		})
+	}
+
+	for _, bufferedItem := range r.buffered {
+		if bufferedItem == nil {
+			continue
+		}
+
+		opts.Buffered = append(opts.Buffered, &v1.AssignedItem{
+			WorkerId:  bufferedItem.WorkerId,
+			QueueItem: bufferedItem.QueueItem,
+		})
+	}
+
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+
+		opts.Batched = append(opts.Batched, batchedItem.qi)
 	}
 
 	for _, rateLimitedItem := range r.rateLimited {
@@ -647,6 +712,13 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	if err != nil {
 		q.l.Error().Ctx(ctx).Err(err).Msg("error marking queue items processed")
 
+		// Release any rate limits reserved for items that were supposed to be moved to the batched queue table.
+		for _, batchedItem := range r.batched {
+			if batchedItem != nil && batchedItem.rateLimitNack != nil {
+				batchedItem.rateLimitNack()
+			}
+		}
+
 		nackIds := make([]int, 0, len(r.assigned))
 
 		for _, assignedItem := range r.assigned {
@@ -656,6 +728,13 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		q.s.nack(nackIds)
 
 		return 0
+	}
+
+	// DB write succeeded: finalize rate limits reserved for items moved to the batched queue table.
+	for _, batchedItem := range r.batched {
+		if batchedItem != nil && batchedItem.rateLimitAck != nil {
+			batchedItem.rateLimitAck()
+		}
 	}
 
 	writeDuration := time.Since(begin)
@@ -687,6 +766,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	q.resultsCh <- &QueueResults{
 		TenantId:           q.tenantId,
 		Assigned:           succeeded,
+		Buffered:           opts.Buffered,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
@@ -733,7 +813,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
-	return len(succeeded) + len(r.schedulingTimedOut)
+	return len(succeeded) + len(r.buffered) + len(r.batched) + len(r.schedulingTimedOut)
 }
 
 func (q *Queuer) runOptimisticQueue(
@@ -765,6 +845,11 @@ func (q *Queuer) runOptimisticQueue(
 
 			taskIdToDesiredLabelsFromTrigger[qi.TaskID] = desiredLabels
 		}
+
+	}
+	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
@@ -778,7 +863,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -824,7 +909,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 && len(r.batched) == 0 {
 		return nil, nil, nil
 	}
 
@@ -834,6 +919,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
 		RateLimitedToMove:  make([]*v1.RateLimitResult, 0, len(r.rateLimitedToMove)),
+		Batched:            make([]*sqlcv1.V1QueueItem, 0, len(r.batched)),
 	}
 
 	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
@@ -873,6 +959,12 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		})
 	}
 
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+		opts.Batched = append(opts.Batched, batchedItem.qi)
+	}
 	var succeeded []*v1.AssignedItem
 	var failed []*v1.AssignedItem
 	var err error

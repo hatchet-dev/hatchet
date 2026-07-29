@@ -144,9 +144,11 @@ from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
+    BulkTriggerIdempotencyCollisionError,
     DedupeViolationError,
     EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
+    IdempotencyCollisionError,
     NonDeterminismError,
     NonRetryableException,
     TaskRunError,
@@ -166,6 +168,10 @@ from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.types.idempotency import (
+    StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
@@ -201,6 +207,7 @@ __all__ = [
     "BulkCancelReplayOpts",
     "BulkPushEventOptions",
     "BulkPushEventWithMetadata",
+    "BulkTriggerIdempotencyCollisionError",
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
@@ -236,6 +243,7 @@ __all__ = [
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "IdempotencyCollisionError",
     "Job",
     "JobRun",
     "JobRunStatus",
@@ -272,11 +280,13 @@ __all__ = [
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "SlotType",
+    "StatusBasedIdempotencyConfig",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",
     "StepRunStatus",
     "StickyStrategy",
+    "TTLBasedIdempotencyConfig",
     "Task",
     "TaskDefaults",
     "TaskRunError",

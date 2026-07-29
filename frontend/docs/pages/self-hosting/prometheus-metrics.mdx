@@ -6,7 +6,20 @@ This document provides an overview of the Prometheus metrics exposed by Hatchet,
 
 ### Setup
 
-To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on the `grpc`, `controllers`, and `scheduler` deployments.
+
+<Callout type="warning">
+  The [global metrics](#global-metrics) are per-process counters — every engine
+  pod maintains its own values, and different metrics are emitted by different
+  roles. Task-creation counters in particular (`hatchet_created_tasks_total` and
+  `hatchet_tenant_created_tasks`) increment on the `grpc` role, so a scrape that
+  only covers `controllers` and `scheduler` will never see them, and example
+  queries that reference created tasks (e.g. _Queue Processing Efficiency:
+  Assigned vs Created_) cannot be computed. Make sure your scrape configuration
+  targets all engine pods — including any pod running the combined `all`
+  services — and aggregate the counters across pods (e.g. with `sum(...)`) when
+  querying.
+</Callout>
 
 - Required
   - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)

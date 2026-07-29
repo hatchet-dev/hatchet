@@ -29,6 +29,7 @@ type Message struct {
 	OtelCarrier map[string]string `json:"otel_carrier"`
 
 	// Retries is the number of retries for the task.
+	//
 	// Deprecated: retries are set globally at the moment.
 	Retries int `json:"retries"`
 
@@ -65,6 +66,13 @@ func DecodeAndValidateSingleton(dv datautils.DataDecoderValidator, payloads [][]
 	}
 
 	return dv.DecodeAndValidate(payloads[0], target)
+}
+
+// Clone returns a shallow copy of the message. Payloads and OtelCarrier are
+// shared with the original: callers must replace them, never mutate in place.
+func (t *Message) Clone() *Message {
+	c := *t
+	return &c
 }
 
 func (t *Message) Serialize() ([]byte, error) {

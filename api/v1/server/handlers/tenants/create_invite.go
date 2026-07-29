@@ -2,6 +2,8 @@ package tenants
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -35,8 +37,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		return gen.TenantInviteCreate400JSONResponse(*apiErrors), nil
 	}
 
+	inviteeEmail := strings.ToLower(request.Body.Email)
+
 	// ensure that this user isn't already a member of the tenant
-	if _, err := t.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, request.Body.Email); err == nil {
+	if _, err := t.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, inviteeEmail); err == nil {
 		t.config.Logger.Warn().Msg("this user is already a member of this tenant")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("this user is already a member of this tenant"),
@@ -53,7 +57,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	// construct the database query
 	createOpts := &v1.CreateTenantInviteOpts{
-		InviteeEmail: request.Body.Email,
+		InviteeEmail: inviteeEmail,
 		InviterEmail: user.Email,
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
 		Role:         string(request.Body.Role),
@@ -65,6 +69,12 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")
+
+		if errors.Is(err, v1.ErrInviteAlreadyExists) {
+			return gen.TenantInviteCreate400JSONResponse(
+				apierrors.NewAPIErrors("invite already exists for this email"),
+			), nil
+		}
 
 		return gen.TenantInviteCreate403JSONResponse{
 			Description: err.Error(),
@@ -82,7 +92,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 			name = user.Name.String
 		}
 
-		if err := t.config.Email.SendTenantInviteEmail(emailCtx, invite.InviteeEmail, email.TenantInviteEmailData{
+		if err := t.config.Email.SendTenantInviteEmail(emailCtx, inviteeEmail, email.TenantInviteEmailData{
 			InviteSenderName: name,
 			TenantName:       tenant.Name,
 			ActionURL:        t.config.Runtime.FrontendURL,

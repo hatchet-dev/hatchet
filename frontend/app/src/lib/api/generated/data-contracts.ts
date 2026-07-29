@@ -339,6 +339,8 @@ export enum V1TaskEventType {
   CREATED = "CREATED",
   QUEUED = "QUEUED",
   SKIPPED = "SKIPPED",
+  WAITING_FOR_BATCH = "WAITING_FOR_BATCH",
+  BATCH_FLUSHED = "BATCH_FLUSHED",
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
   DURABLE_EVICTED = "DURABLE_EVICTED",
   DURABLE_RESTORING = "DURABLE_RESTORING",
@@ -473,6 +475,8 @@ export interface V1TaskSummary {
    * @format uuid
    */
   parentTaskExternalId?: string;
+  /** The idempotency key that was claimed by the task run */
+  idempotencyKey?: string;
 }
 
 export interface APIError {

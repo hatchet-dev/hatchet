@@ -42,6 +42,48 @@ export type Concurrency = {
  */
 export type TaskConcurrency = Concurrency;
 
+/**
+ * Base type for idempotency configurations.
+ */
+export type BaseIdempotencyConfig = {
+  /**
+   * CEL expression to create an idempotency key from input and metadata.
+   * @example "input.id" // use the 'id' field from input as the key
+   */
+  expression: string;
+};
+
+/**
+ * TTL-based idempotency: prevents duplicate runs within a sliding time window.
+ */
+export type TTLBasedIdempotencyConfig = BaseIdempotencyConfig & {
+  strategy: 'ttl';
+
+  /**
+   * How long the idempotency key should live (in milliseconds).
+   */
+  ttlMs: number;
+};
+
+/**
+ * Status-based idempotency: keeps the idempotency key alive until the associated run
+ * reaches a terminal status. `fallbackTtlMs` caps how long the key can live before it's evicted.
+ */
+export type StatusBasedIdempotencyConfig = BaseIdempotencyConfig & {
+  strategy: 'status';
+
+  /**
+   * Fallback time-to-live (in milliseconds): the longest the idempotency key can live
+   * before it's evicted, even if the run has not reached a terminal status.
+   */
+  fallbackTtlMs: number;
+};
+
+/**
+ * Union of all supported idempotency configurations.
+ */
+export type IdempotencyConfig = TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig;
+
 export class NonRetryableError extends Error {
   constructor(message?: string) {
     super(message);
@@ -61,6 +103,57 @@ export type DurableTaskFn<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = TaskFn<I, O, DurableContext<I>>;
+
+/**
+ * Configures a task as a batch task: concurrent runs are buffered and dispatched together
+ * as a single execution once maxSize is reached, maxInterval elapses, or (if groupKey is
+ * set) once groupMaxRuns concurrent batches per group are exceeded.
+ *
+ * Preview: batch tasks are in beta and may change in future releases.
+ */
+export type BatchTaskConfig = {
+  /**
+   * Maximum number of items buffered before the batch is flushed. Must be positive.
+   */
+  maxSize: number;
+
+  /**
+   * (optional) maximum time to wait before flushing a partially-filled batch.
+   * go duration format (e.g., "1s", "5m", "1h").
+   */
+  maxInterval?: Duration;
+
+  /**
+   * (optional) CEL expression evaluated against each item's input to partition items into
+   * independent batches, e.g. "input.group". When unset, all items buffered for the task
+   * share a single batch.
+   */
+  groupKey?: string;
+
+  /**
+   * (optional) maximum number of concurrent batches per group.
+   */
+  groupMaxRuns?: number;
+
+  /**
+   * (optional) when true, the handler returns a single value that is broadcast as the
+   * result to every member of the batch, instead of a Record keyed by batch member id.
+   *
+   * default: false
+   */
+  broadcastOutput?: boolean;
+};
+
+/**
+ * The function signature for a batch task's handler. `input` maps each buffered run's
+ * task-run external id (its "batch member id") to that run's input. Unless
+ * `batch.broadcastOutput` is set, the handler must return a Record with the exact same
+ * key set, mapping each id to that run's output.
+ */
+export type BatchTaskFn<I extends InputType = UnknownInputType, O extends OutputType = void> = (
+  input: Record<string, I>,
+  ctx: Context<Record<string, I>>
+) => O | Promise<O>;
 
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
@@ -172,6 +265,14 @@ export type CreateBaseTaskOpts<
 
   /** @internal */
   slotRequests?: Record<string, number>;
+
+  /**
+   * (optional) configures this task as a batch task. Not available on durable tasks.
+   * retries is always forced to 0 when batch is set.
+   *
+   * Preview: batch tasks are in beta and may change in future releases.
+   */
+  batch?: BatchTaskConfig;
 };
 
 export type CreateWorkflowTaskOpts<
@@ -250,7 +351,7 @@ export type CreateWorkflowDurableTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = Omit<CreateWorkflowTaskOpts<I, O, C>, 'slotCost'> & {
+> = Omit<CreateWorkflowTaskOpts<I, O, C>, 'slotCost' | 'batch'> & {
   /**
    * Eviction policy for the durable task. Controls TTL-based eviction and capacity-based eviction.
    * Defaults to the built-in eviction policy when omitted or `undefined`.
