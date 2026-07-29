@@ -20,6 +20,7 @@ import pytest
 from examples.durable_eviction.worker import (
     EVENT_KEY,
     capacity_evictable_sleep,
+    concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
@@ -96,9 +97,9 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     await asyncio.sleep(20)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert not _has_evicted_task(
-        details
-    ), f"Non-evictable task should never be evicted, got is_evicted=True"
+    assert not _has_evicted_task(details), (
+        f"Non-evictable task should never be evicted, got is_evicted=True"
+    )
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -134,9 +135,9 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert (
-        V1TaskStatus.RUNNING in statuses
-    ), f"Expected RUNNING after restore, got: {statuses}"
+    assert V1TaskStatus.RUNNING in statuses, (
+        f"Expected RUNNING after restore, got: {statuses}"
+    )
 
 
 @requires_durable_eviction
@@ -222,9 +223,9 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert (
-        V1TaskStatus.RUNNING in statuses
-    ), f"Expected RUNNING after restore, got: {statuses}"
+    assert V1TaskStatus.RUNNING in statuses, (
+        f"Expected RUNNING after restore, got: {statuses}"
+    )
 
 
 @requires_durable_eviction
@@ -391,9 +392,9 @@ async def test_capacity_eviction_fires(
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert _has_evicted_task(
-        details
-    ), f"Expected capacity eviction (ttl=None), got no evicted tasks"
+    assert _has_evicted_task(details), (
+        f"Expected capacity eviction (ttl=None), got no evicted tasks"
+    )
 
 
 @requires_durable_eviction
@@ -444,3 +445,25 @@ async def test_restore_idempotency(hatchet: Hatchet) -> None:
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_concurrent_branches_replay_preserves_order(hatchet: Hatchet) -> None:
+    ref = await concurrent_branches.aio_run(wait_for_result=False)
+    await ref.aio_result()
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    result = await ref.aio_result()
+
+    assert result["status"] == "completed"
+    assert result["a"] == {
+        "first": {"label": "a-first"},
+        "second": {"label": "a-second"},
+    }
+    assert result["b"] == {
+        "first": {"label": "b-first"},
+        "second": {"label": "b-second"},
+    }
