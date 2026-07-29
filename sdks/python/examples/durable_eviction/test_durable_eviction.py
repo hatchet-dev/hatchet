@@ -97,9 +97,9 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     await asyncio.sleep(20)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert not _has_evicted_task(details), (
-        f"Non-evictable task should never be evicted, got is_evicted=True"
-    )
+    assert not _has_evicted_task(
+        details
+    ), f"Non-evictable task should never be evicted, got is_evicted=True"
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -135,9 +135,9 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert V1TaskStatus.RUNNING in statuses, (
-        f"Expected RUNNING after restore, got: {statuses}"
-    )
+    assert (
+        V1TaskStatus.RUNNING in statuses
+    ), f"Expected RUNNING after restore, got: {statuses}"
 
 
 @requires_durable_eviction
@@ -223,9 +223,9 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert V1TaskStatus.RUNNING in statuses, (
-        f"Expected RUNNING after restore, got: {statuses}"
-    )
+    assert (
+        V1TaskStatus.RUNNING in statuses
+    ), f"Expected RUNNING after restore, got: {statuses}"
 
 
 @requires_durable_eviction
@@ -392,9 +392,9 @@ async def test_capacity_eviction_fires(
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert _has_evicted_task(details), (
-        f"Expected capacity eviction (ttl=None), got no evicted tasks"
-    )
+    assert _has_evicted_task(
+        details
+    ), f"Expected capacity eviction (ttl=None), got no evicted tasks"
 
 
 @requires_durable_eviction
