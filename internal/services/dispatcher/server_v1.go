@@ -342,6 +342,13 @@ type orderedReleaseKey struct {
 }
 
 type orderedRelease struct {
+	// mu guards every field below and is held across the actual sends in
+	// deliverOrdered (not just the bookkeeping), so that two completions for this
+	// same (task, invocation) can never hit the wire out of the order in which they
+	// were logically released. It is separate from durableTaskInvocation.releasesMu
+	// (which only guards the releases map) so that one task's in-flight send never
+	// blocks bookkeeping or delivery for any other task on the same connection.
+	mu sync.Mutex
 	// maxSatisfiedOrderSentAlready is the highest satisfied_order sent to the worker;
 	// the next release is maxSatisfiedOrderSentAlready+1. Seeded at 0 for a fresh
 	// (task, invocation).
@@ -351,7 +358,7 @@ type orderedRelease struct {
 	// oldestBufferedAt is when bufferedCompletions first became non-empty (zero when
 	// empty), for the gap-timeout backstop.
 	oldestBufferedAt time.Time
-	lastActivityAt time.Time
+	lastActivityAt   time.Time
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -400,7 +407,11 @@ func (s *durableTaskInvocation) pruneIdleReleases(idle time.Duration) {
 	now := time.Now()
 
 	for key, rel := range s.releases {
-		if len(rel.bufferedCompletions) == 0 && now.Sub(rel.lastActivityAt) > idle {
+		rel.mu.Lock()
+		idleEnough := len(rel.bufferedCompletions) == 0 && now.Sub(rel.lastActivityAt) > idle
+		rel.mu.Unlock()
+
+		if idleEnough {
 			delete(s.releases, key)
 		}
 	}
@@ -417,12 +428,16 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 
 	order := *satisfiedOrder
 
-	var toSend []*contracts.DurableTaskResponse
-
 	s.releasesMu.Lock()
-
 	rel := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
+	s.releasesMu.Unlock()
+
+	rel.mu.Lock()
+	defer rel.mu.Unlock()
+
 	rel.lastActivityAt = time.Now()
+
+	var toSend []*contracts.DurableTaskResponse
 
 	switch {
 	case order <= rel.maxSatisfiedOrderSentAlready:
@@ -447,12 +462,16 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 			rel.oldestBufferedAt = time.Time{}
 		}
 	default:
-		if _, exists := rel.bufferedCompletions[order]; exists {
-			s.releasesMu.Unlock()
-			s.l.Error().Msgf(
-				"durable task %s (invocation %d): duplicate satisfied_order %d received while a completion for the same order is already buffered; dropping the newer one",
-				taskExternalId, invocationCount, order,
-			)
+		if buffered, exists := rel.bufferedCompletions[order]; exists {
+			existingRef := buffered.GetEntryCompleted().GetRef()
+			incomingRef := resp.GetEntryCompleted().GetRef()
+			if existingRef.GetNodeId() != incomingRef.GetNodeId() || existingRef.GetBranchId() != incomingRef.GetBranchId() {
+				s.l.Error().Msgf(
+					"durable task %s (invocation %d): satisfied_order %d claimed by two different entries (buffered node %d/branch %d vs incoming node %d/branch %d); dropping the newer one",
+					taskExternalId, invocationCount, order,
+					existingRef.GetNodeId(), existingRef.GetBranchId(), incomingRef.GetNodeId(), incomingRef.GetBranchId(),
+				)
+			}
 			return nil
 		}
 
@@ -461,8 +480,6 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 			rel.oldestBufferedAt = time.Now()
 		}
 	}
-
-	s.releasesMu.Unlock()
 
 	for _, r := range toSend {
 		if err := s.send(r); err != nil {
@@ -485,7 +502,11 @@ func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []order
 	var stale []orderedReleaseKey
 
 	for key, rel := range s.releases {
-		if len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout {
+		rel.mu.Lock()
+		isStale := len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout
+		rel.mu.Unlock()
+
+		if isStale {
 			stale = append(stale, key)
 		}
 	}
