@@ -6,11 +6,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
 )
 
-func TestUseCases(t *testing.T) {
+func TestUseCasesListsDefaultFirstThenDiscovered(t *testing.T) {
 	useCases, err := UseCases(quickstarts.TemplatesFS())
 	if err != nil {
 		t.Fatalf("UseCases returned an error: %v", err)
@@ -49,8 +50,8 @@ func TestLanguagesFor(t *testing.T) {
 		t.Fatalf("LanguagesFor(scheduled) returned an error: %v", err)
 	}
 
-	if !reflect.DeepEqual(scheduled, []string{"go"}) {
-		t.Errorf("expected only go for scheduled, got %v", scheduled)
+	if !reflect.DeepEqual(scheduled, []string{"python", "typescript", "go"}) {
+		t.Errorf("expected all three languages for scheduled, got %v", scheduled)
 	}
 }
 
@@ -60,6 +61,8 @@ func TestValidate(t *testing.T) {
 	valid := []Selection{
 		{UseCase: "simple", Language: "python", PackageManager: "poetry"},
 		{UseCase: "", Language: "typescript", PackageManager: "pnpm"},
+		{UseCase: "scheduled", Language: "python", PackageManager: "pip"},
+		{UseCase: "scheduled", Language: "typescript", PackageManager: "npm"},
 		{UseCase: "scheduled", Language: "go", PackageManager: "go"},
 	}
 
@@ -74,7 +77,6 @@ func TestValidate(t *testing.T) {
 		wantErr string
 	}{
 		{Selection{UseCase: "nonexistent", Language: "go", PackageManager: "go"}, "unknown use case"},
-		{Selection{UseCase: "scheduled", Language: "python", PackageManager: "poetry"}, "does not support language"},
 		{Selection{UseCase: "simple", Language: "rust", PackageManager: "cargo"}, "invalid language"},
 		{Selection{UseCase: "simple", Language: "go", PackageManager: "npm"}, "invalid package manager"},
 	}
@@ -89,6 +91,18 @@ func TestValidate(t *testing.T) {
 		if !strings.Contains(err.Error(), tc.wantErr) {
 			t.Errorf("expected error for %+v to contain %q, got: %v", tc.sel, tc.wantErr, err)
 		}
+	}
+}
+
+func TestValidateUnsupportedLanguageForUseCase(t *testing.T) {
+	fsys := fstest.MapFS{
+		"templates/go/README.md":                   {Data: []byte("simple")},
+		"templates/use-cases/partial/go/README.md": {Data: []byte("go only")},
+	}
+
+	err := Validate(fsys, Selection{UseCase: "partial", Language: "python", PackageManager: "poetry"})
+	if err == nil || !strings.Contains(err.Error(), "does not support language") {
+		t.Errorf("expected a does-not-support error, got: %v", err)
 	}
 }
 
