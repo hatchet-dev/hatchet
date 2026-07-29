@@ -106,7 +106,12 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		}
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version)
+	disableSecurityCheck := func(scf *server.ServerConfigFile) {
+		disabled := false
+		scf.SecurityCheck.Enabled = &disabled
+	}
+
+	_, sc, err := cf.CreateServerFromConfig(version, disableSecurityCheck)
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
@@ -118,13 +123,8 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		return fmt.Errorf("error parsing API URL: %w", err)
 	}
 
-	disableSecurityCheck := func(scf *server.ServerConfigFile) {
-		scf.SecurityCheck.Enabled = false
-	}
-
-	// api process
 	go func() {
-		api.Start(cf, interruptCh, version, disableSecurityCheck) // nolint:errcheck
+		api.Start(cf, interruptCh, version) // nolint:errcheck
 	}()
 
 	// static file server

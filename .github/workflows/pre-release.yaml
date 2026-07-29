@@ -23,6 +23,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
@@ -48,6 +49,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
@@ -322,6 +324,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
@@ -346,6 +349,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
@@ -641,6 +645,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
@@ -699,6 +704,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
@@ -956,6 +962,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
@@ -997,6 +1004,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg GO_BUILD_TAGS=oss \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \

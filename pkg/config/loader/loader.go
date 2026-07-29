@@ -568,7 +568,17 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanupSecurityCheck := func() {}
 
-	if cf.SecurityCheck.Enabled {
+	securityCheckEnabled := server.SecurityCheckDefaultEnabled
+	if cf.SecurityCheck.Enabled != nil {
+		securityCheckEnabled = *cf.SecurityCheck.Enabled
+	}
+
+	securityCheckDistribution := cf.SecurityCheck.Distribution
+	if securityCheckDistribution == "" {
+		securityCheckDistribution = server.SecurityCheckDistribution
+	}
+
+	if securityCheckEnabled {
 		var oauthProviders []string
 		if cf.Auth.Google.Enabled {
 			oauthProviders = append(oauthProviders, "google")
@@ -578,8 +588,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
-			Enabled:        cf.SecurityCheck.Enabled,
+			Enabled:        securityCheckEnabled,
 			Endpoint:       cf.SecurityCheck.Endpoint,
+			Distribution:   securityCheckDistribution,
 			Logger:         &l,
 			Version:        version,
 			MQKind:         cf.MessageQueue.Kind,

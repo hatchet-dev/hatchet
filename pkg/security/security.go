@@ -25,11 +25,12 @@ type SecurityCheck interface {
 }
 
 type DefaultSecurityCheck struct {
-	Enabled  bool
-	Endpoint string
-	Logger   *zerolog.Logger
-	Version  string
-	Repo     v1.SecurityCheckRepository
+	Enabled      bool
+	Endpoint     string
+	Distribution string
+	Logger       *zerolog.Logger
+	Version      string
+	Repo         v1.SecurityCheckRepository
 
 	MQKind         string
 	OAuthProviders []string
@@ -42,6 +43,7 @@ func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepositor
 	return DefaultSecurityCheck{
 		Enabled:        opts.Enabled,
 		Endpoint:       opts.Endpoint,
+		Distribution:   opts.Distribution,
 		Logger:         opts.Logger,
 		Version:        opts.Version,
 		Repo:           repo,
@@ -135,6 +137,9 @@ func (a DefaultSecurityCheck) report(timeout time.Duration) {
 	}
 	if a.AuthDisabled {
 		params.Set("auth_disabled", "true")
+	}
+	if a.Distribution != "" {
+		params.Set("distribution", a.Distribution)
 	}
 
 	reqURL := fmt.Sprintf("%s/check?%s", a.Endpoint, params.Encode())

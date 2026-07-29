@@ -240,7 +240,8 @@ func runCreateWorkerToken() error {
 		scf.MessageQueue.Enabled = false
 
 		// disable security checks since we're not running the server
-		scf.SecurityCheck.Enabled = false
+		disabled := false
+		scf.SecurityCheck.Enabled = &disabled
 	})
 
 	if err != nil {
