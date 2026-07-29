@@ -1,5 +1,15 @@
 -- +goose Up
 -- +goose StatementBegin
+-- Acquire exclusive locks on every pre-existing table this migration alters, up front and in a
+-- fixed order, before making any changes. This avoids a lock-order deadlock with concurrent app
+-- transactions (e.g. task reassignment) that touch v1_task_runtime and v1_task together: without
+-- this, the ALTER TABLE statements below take these locks one at a time, interleaved with DDL,
+-- which lets a concurrent transaction hold one of these tables while waiting on another.
+-- lock_timeout bounds the wait so a stuck/long-running transaction fails the migration fast
+-- (retryable) instead of risking a long block or a deadlock-detector abort.
+SET LOCAL lock_timeout = '5s';
+LOCK TABLE v1_queue_item, v1_rate_limited_queue_items, v1_task, v1_task_runtime IN ACCESS EXCLUSIVE MODE;
+
 -- v0 schema alignment
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
@@ -750,6 +760,11 @@ EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- +goose Down
 -- +goose StatementBegin
+-- Same lock-order-deadlock guard as the Up migration: take exclusive locks on every table
+-- touched below, up front and in a fixed order, before making any changes.
+SET LOCAL lock_timeout = '5s';
+LOCK TABLE v1_queue_item, v1_rate_limited_queue_items, v1_task, v1_task_runtime IN ACCESS EXCLUSIVE MODE;
+
 DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
 DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
