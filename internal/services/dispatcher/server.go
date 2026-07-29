@@ -1848,39 +1848,47 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
+	cacheKey := fmt.Sprintf("refresh-timeout:%s:%s", tenantId, taskExternalId)
 
-	if err != nil {
-		return nil, err
-	}
+	timeoutAt, err, _ := d.refreshTimeoutGroup.Do(cacheKey, func() (interface{}, error) {
+		if cached, ok := d.cache.Get(cacheKey); ok {
+			return cached.(time.Time), nil
+		}
 
-	workerId := taskRuntime.WorkerID
+		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
+		if err != nil {
+			return nil, err
+		}
 
-	// send to the OLAP repository
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskRuntime.TaskID,
-			RetryCount:     taskRuntime.RetryCount,
-			WorkerId:       workerId,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
-		},
-	)
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         taskRuntime.TaskID,
+				RetryCount:     taskRuntime.RetryCount,
+				WorkerId:       taskRuntime.WorkerID,
+				EventTimestamp: time.Now(),
+				EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+				EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
 
-	if err != nil {
-		return nil, err
-	}
+		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return nil, err
+		}
 
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		d.cache.Set(cacheKey, taskRuntime.TimeoutAt.Time)
 
+		return taskRuntime.TimeoutAt.Time, nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.RefreshTimeoutResponse{
-		TimeoutAt: timestamppb.New(taskRuntime.TimeoutAt.Time),
+		TimeoutAt: timestamppb.New(timeoutAt.(time.Time)),
 	}, nil
 }
 

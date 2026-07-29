@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -66,6 +67,7 @@ type DispatcherImpl struct {
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
+	refreshTimeoutGroup                 singleflight.Group
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
