@@ -1,20 +1,5 @@
 -- +goose Up
 -- +goose NO TRANSACTION
--- This migration originally ran as one large implicit transaction, which deadlocked in
--- production against the task-reassignment job: it holds AccessExclusiveLock on
--- v1_task_runtime while later reaching for v1_task (and other tables) in the same
--- transaction, and a concurrent transaction touching those same tables in a different order
--- can end up holding one lock while waiting on the other.
---
--- NO TRANSACTION tells goose not to wrap this file in its own transaction; instead each
--- StatementBegin/StatementEnd block below is its own separate statement that goose sends (and
--- Postgres auto-commits) on its own, so it commits and releases its locks before the next block
--- starts. No block ever needs an exclusive lock on more than one pre-existing table at a time,
--- so the AB-BA lock-order deadlock this migration originally hit can't happen.
---
--- Every statement uses IF NOT EXISTS / IF EXISTS so this is safe to re-run, whether that's a
--- retry after a block partway through failed, or a full re-run against a database that already
--- has this schema from before it was split into separate statements.
 
 -- +goose StatementBegin
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
@@ -120,10 +105,6 @@ ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_FLUSHED';
 -- +goose StatementEnd
 
 -- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql
--- (batch_key propagation). CREATE OR REPLACE FUNCTION only locks the function object itself,
--- not any table, so this can't contend with table-level DML either. Must run after the
--- batch_key columns above exist, since these bodies reference them.
--- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
