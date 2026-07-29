@@ -603,8 +603,7 @@ module Hatchet
         @logger&.debug(
           "durable event listener recv entry_completed: task=#{completed.ref.durable_task_external_id} " \
           "invocation=#{completed.ref.invocation_count} branch_id=#{completed.ref.branch_id} " \
-          "node_id=#{completed.ref.node_id} " \
-          "satisfied_order=#{completed.has_satisfied_order? ? completed.satisfied_order : "nil"}",
+          "node_id=#{completed.ref.node_id}",
         )
         key = callback_key_for(completed.ref)
         result = parse_entry_completed(completed)

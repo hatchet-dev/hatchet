@@ -87,7 +87,6 @@ export interface DurableTaskEventLogEntryCompletedResponse {
   payload: Uint8Array;
   isFailure: boolean;
   errorMessage?: string | undefined;
-  satisfiedOrder?: number | undefined;
 }
 
 export interface DurableTaskEvictInvocationRequest {
@@ -888,13 +887,7 @@ export const DurableTaskEventWaitForAckResponse: MessageFns<DurableTaskEventWait
 };
 
 function createBaseDurableTaskEventLogEntryCompletedResponse(): DurableTaskEventLogEntryCompletedResponse {
-  return {
-    ref: undefined,
-    payload: new Uint8Array(0),
-    isFailure: false,
-    errorMessage: undefined,
-    satisfiedOrder: undefined,
-  };
+  return { ref: undefined, payload: new Uint8Array(0), isFailure: false, errorMessage: undefined };
 }
 
 export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEventLogEntryCompletedResponse> =
@@ -914,9 +907,6 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       }
       if (message.errorMessage !== undefined) {
         writer.uint32(34).string(message.errorMessage);
-      }
-      if (message.satisfiedOrder !== undefined) {
-        writer.uint32(40).int64(message.satisfiedOrder);
       }
       return writer;
     },
@@ -963,14 +953,6 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
             message.errorMessage = reader.string();
             continue;
           }
-          case 5: {
-            if (tag !== 40) {
-              break;
-            }
-
-            message.satisfiedOrder = longToNumber(reader.int64());
-            continue;
-          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -994,11 +976,6 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
           : isSet(object.error_message)
             ? globalThis.String(object.error_message)
             : undefined,
-        satisfiedOrder: isSet(object.satisfiedOrder)
-          ? globalThis.Number(object.satisfiedOrder)
-          : isSet(object.satisfied_order)
-            ? globalThis.Number(object.satisfied_order)
-            : undefined,
       };
     },
 
@@ -1015,9 +992,6 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       }
       if (message.errorMessage !== undefined) {
         obj.errorMessage = message.errorMessage;
-      }
-      if (message.satisfiedOrder !== undefined) {
-        obj.satisfiedOrder = Math.round(message.satisfiedOrder);
       }
       return obj;
     },
@@ -1038,7 +1012,6 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       message.payload = object.payload ?? new Uint8Array(0);
       message.isFailure = object.isFailure ?? false;
       message.errorMessage = object.errorMessage ?? undefined;
-      message.satisfiedOrder = object.satisfiedOrder ?? undefined;
       return message;
     },
   };

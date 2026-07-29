@@ -1235,9 +1235,8 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 		NodeId:                cb.NodeID,
 	}
 	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
-		Ref:            ref,
-		Payload:        cb.Result,
-		SatisfiedOrder: cb.SatisfiedOrder,
+		Ref:     ref,
+		Payload: cb.Result,
 	}
 	if cb.ChildTaskIsFailure {
 		resp.Payload = nil
@@ -1268,9 +1267,8 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 		NodeId:                nodeId,
 	}
 	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
-		Ref:            ref,
-		Payload:        payload,
-		SatisfiedOrder: satisfiedOrder,
+		Ref:     ref,
+		Payload: payload,
 	}
 	if isFailure {
 		resp.Payload = nil
