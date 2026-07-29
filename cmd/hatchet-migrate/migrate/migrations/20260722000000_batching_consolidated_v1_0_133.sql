@@ -4,6 +4,8 @@
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
 -- v1 batching propagation fields
+LOCK TABLE v1_task IN ACCESS EXCLUSIVE MODE;
+
 ALTER TABLE v1_task
     ADD COLUMN batch_key TEXT;
 
