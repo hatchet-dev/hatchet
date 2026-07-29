@@ -1262,8 +1262,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[True],
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1291,8 +1291,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[False] = False,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1319,8 +1319,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: bool = False,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1369,7 +1369,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             backoff_factor=backoff_factor,
             retries=0,
             backoff_max_seconds=backoff_max_seconds,
-            task_defaults=self.config.task_defaults,
+            task_defaults=self._config.task_defaults,
         )
 
         def inner(
@@ -1381,7 +1381,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 | CoroutineLike[R],
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1392,7 +1391,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             )
             task = Task(
                 _fn=cast(
-                    Callable[[TWorkflowInput, Context], R | CoroutineLike[R]], func
+                    "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
                 ),
                 is_durable=False,
                 workflow=self,

@@ -38,6 +38,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
+    normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
@@ -515,7 +516,7 @@ class Hatchet:
 
         :param description: An optional description for the task.
 
-        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to `None`.
 
         :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
@@ -627,8 +628,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -642,11 +643,11 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                Concatenate[dict[BatchMemberId, None], Context, P],
                 R | CoroutineLike[R],
             ]
         ],
-        Standalone[EmptyModel, R],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -659,8 +660,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -674,11 +675,11 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                Concatenate[dict[BatchMemberId, None], Context, P],
                 dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
         ],
-        Standalone[EmptyModel, R],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -691,8 +692,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -723,8 +724,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -757,8 +758,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -838,12 +839,7 @@ class Hatchet:
                 )
                 created_task = broadcast_task_wrapper(
                     cast(
-                        Callable[
-                            Concatenate[
-                                dict[BatchMemberId, TWorkflowInput], Context, P
-                            ],
-                            R | CoroutineLike[R],
-                        ],
+                        "Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], R | CoroutineLike[R]]",
                         func,
                     )
                 )
@@ -865,13 +861,7 @@ class Hatchet:
                 )
                 created_task = dict_task_wrapper(
                     cast(
-                        Callable[
-                            Concatenate[
-                                dict[BatchMemberId, TWorkflowInput], Context, P
-                            ],
-                            dict[BatchMemberId, R]
-                            | CoroutineLike[dict[BatchMemberId, R]],
-                        ],
+                        "Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]]]",
                         func,
                     )
                 )

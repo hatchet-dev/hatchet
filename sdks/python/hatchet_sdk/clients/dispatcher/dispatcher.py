@@ -123,7 +123,7 @@ class DispatcherClient:
         try:
             response = cast(
                 "GetVersionResponse",
-                await aio_client.GetVersion(  # type: ignore[misc]
+                await aio_client.GetVersion(  # type: ignore[attr-defined]
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -260,7 +260,7 @@ class DispatcherClient:
         event = self._build_batch_action_event(action, event_type, items)
 
         return cast(
-            ActionEventResponse,
+            "ActionEventResponse",
             client.SendBatchActionEvent(  # type: ignore[attr-defined]
                 event,
                 metadata=create_authorization_header(self.token),
@@ -304,7 +304,7 @@ class DispatcherClient:
 
         try:
             return cast(
-                ActionEventResponse,
+                "ActionEventResponse",
                 await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
                     event,
                     metadata=create_authorization_header(self.token),

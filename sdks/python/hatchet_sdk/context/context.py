@@ -28,13 +28,12 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import STEP_EVENT_TYPE_CANCELLED
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionPayload, BatchEventItem
+from hatchet_sdk.runnables.action import BatchEventItem
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,

@@ -70,9 +70,9 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
+from hatchet_sdk.utils.typing import STOP_LOOP_TYPE, JSONSerializableMapping
 from hatchet_sdk.worker.action_listener_process import (
+    ActionEvent,
     QueuedBatchActionEvent,
 )
 from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
@@ -452,7 +452,12 @@ class Runner:
             finally:
                 self.cleanup_run_id(action.key)
 
-    def _cast_input(self, task: Task[TWorkflowInput, R], input: Any) -> TWorkflowInput:
+    def _cast_input(
+        self, task: Task[TWorkflowInput, R], input: JSONSerializableMapping
+    ) -> TWorkflowInput:
+        if not task._workflow.input_validator:
+            return None
+
         return task._workflow.input_validator.validate_python(
             input, context=HATCHET_PYDANTIC_SENTINEL
         )
@@ -496,12 +501,12 @@ class Runner:
 
         try:
             if task._is_async_function:
-                outputs = await cast(Any, task._fn)(task_inputs, context)
+                outputs = await cast("Any", task._fn)(task_inputs, context)
             else:
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: cast(Any, task._fn)(task_inputs, context),
+                    lambda: cast("Any", task._fn)(task_inputs, context),
                 )
 
             if context.is_cancelled:
@@ -897,16 +902,14 @@ class Runner:
         # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
         # that will decode to the null char.
         if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
-            raise IllegalTaskOutputError(
-                dedent(f"""
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """)
-            )
+                """))
 
         return serialized_output
 

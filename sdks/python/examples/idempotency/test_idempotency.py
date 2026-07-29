@@ -106,7 +106,7 @@ async def test_idempotency_status_based(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -114,15 +114,15 @@ async def test_idempotency_status_based(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.metadata.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -182,7 +182,7 @@ async def test_idempotency_status_based_failure(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -190,15 +190,15 @@ async def test_idempotency_status_based_failure(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.metadata.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -255,7 +255,7 @@ async def test_idempotency_status_based_cancel(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -263,15 +263,15 @@ async def test_idempotency_status_based_cancel(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.metadata.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -424,7 +424,7 @@ async def _wait_for_retry_count(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if runs.rows and (runs.rows[0].retry_count or 0) >= min_retry_count:
+        if runs and (runs[0].retry_count or 0) >= min_retry_count:
             return
 
         await asyncio.sleep(1)

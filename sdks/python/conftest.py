@@ -64,7 +64,7 @@ async def supports_batching(engine_version: str | None) -> bool:
     return not semver_less_than(engine_version, MinEngineVersion.BATCHING)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _skip_unless_batching(supports_batching: bool) -> None:
     if not supports_batching:
         pytest.skip(

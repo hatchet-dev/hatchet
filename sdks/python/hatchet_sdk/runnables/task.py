@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -412,7 +412,7 @@ class Task(Generic[TWorkflowInput, R]):
         dependencies = dependencies or {}
 
         if is_async_fn(self._fn):  # type: ignore[arg-type, type-var]
-            return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+            return await self._fn(workflow_input, ctx, **dependencies)
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 

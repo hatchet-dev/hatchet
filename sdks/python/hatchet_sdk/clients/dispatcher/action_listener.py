@@ -33,7 +33,6 @@ from hatchet_sdk.runnables.action import (
     BatchItemData,
     BatchStartPayload,
 )
-from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
@@ -41,6 +40,7 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.config import ClientConfig
+    from hatchet_sdk.runnables.types import BatchMemberId
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
