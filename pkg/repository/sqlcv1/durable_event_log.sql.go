@@ -949,7 +949,7 @@ WITH inputs AS (
     )
     ORDER BY durable_task_id, durable_task_inserted_at, branch_id, node_id
     FOR UPDATE
-), to_stamp AS (
+), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
@@ -967,11 +967,11 @@ WITH inputs AS (
     SET
         is_satisfied = true,
         satisfied_at = COALESCE(e.satisfied_at, NOW()),
-        satisfied_order = COALESCE(e.satisfied_order, ts.satisfied_order),
+        satisfied_order = COALESCE(e.satisfied_order, so.satisfied_order),
         child_task_is_failure = inputs.child_task_is_failure,
         child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN NULLIF(inputs.child_task_error_message, '') ELSE NULL END
     FROM inputs
-    LEFT JOIN to_stamp ts USING(durable_task_id, durable_task_inserted_at, branch_id, node_id)
+    LEFT JOIN satisfied_orders_to_apply so USING(durable_task_id, durable_task_inserted_at, branch_id, node_id)
     WHERE e.durable_task_id = inputs.durable_task_id
       AND e.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND e.node_id = inputs.node_id
@@ -979,9 +979,9 @@ WITH inputs AS (
     RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data
 ), log_file_updates AS (
     UPDATE v1_durable_event_log_file lf
-    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.satisfied_order)
-    FROM to_stamp mso
-    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (mso.durable_task_id, mso.durable_task_inserted_at)
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
+    FROM satisfied_orders_to_apply so
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
 SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, lf.latest_invocation_count AS invocation_count
