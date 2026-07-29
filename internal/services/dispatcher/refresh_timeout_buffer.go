@@ -11,57 +11,61 @@ import (
 // refreshes are flushed to Postgres on this engine process.
 const refreshTimeoutFlushInterval = 500 * time.Millisecond
 
+type refreshTimeoutKey struct {
+	tenantId       uuid.UUID
+	taskExternalId uuid.UUID
+}
+
+func (k refreshTimeoutKey) String() string {
+	return k.tenantId.String() + ":" + k.taskExternalId.String()
+}
+
 type refreshTimeoutBuffer struct {
 	mu      sync.Mutex
-	entries map[string]*refreshTimeoutBufEntry
+	entries map[refreshTimeoutKey]*refreshTimeoutBufEntry
 }
 
 type refreshTimeoutBufEntry struct {
-	tenantId       uuid.UUID
-	taskExternalId uuid.UUID
-	pending        time.Duration
-	lastTimeoutAt  time.Time
-	lastFlushAt    time.Time
-	timer          *time.Timer
+	pending       time.Duration
+	lastTimeoutAt time.Time
+	lastFlushAt   time.Time
+	timer         *time.Timer
 }
 
 func newRefreshTimeoutBuffer() *refreshTimeoutBuffer {
 	return &refreshTimeoutBuffer{
-		entries: make(map[string]*refreshTimeoutBufEntry),
+		entries: make(map[refreshTimeoutKey]*refreshTimeoutBufEntry),
 	}
 }
 
-func (b *refreshTimeoutBuffer) add(key string, tenantId, taskExternalId uuid.UUID, increment time.Duration) {
+func (b *refreshTimeoutBuffer) add(key refreshTimeoutKey, increment time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	e := b.entries[key]
 	if e == nil {
-		e = &refreshTimeoutBufEntry{
-			tenantId:       tenantId,
-			taskExternalId: taskExternalId,
-		}
+		e = &refreshTimeoutBufEntry{}
 		b.entries[key] = e
 	}
 
 	e.pending += increment
 }
 
-func (b *refreshTimeoutBuffer) take(key string) (tenantId, taskExternalId uuid.UUID, sum time.Duration, ok bool) {
+func (b *refreshTimeoutBuffer) take(key refreshTimeoutKey) (sum time.Duration, ok bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	e := b.entries[key]
 	if e == nil || e.pending <= 0 {
-		return uuid.Nil, uuid.Nil, 0, false
+		return 0, false
 	}
 
 	sum = e.pending
 	e.pending = 0
-	return e.tenantId, e.taskExternalId, sum, true
+	return sum, true
 }
 
-func (b *refreshTimeoutBuffer) hasPending(key string) bool {
+func (b *refreshTimeoutBuffer) hasPending(key refreshTimeoutKey) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -69,7 +73,7 @@ func (b *refreshTimeoutBuffer) hasPending(key string) bool {
 	return e != nil && e.pending > 0
 }
 
-func (b *refreshTimeoutBuffer) shouldFlush(key string) bool {
+func (b *refreshTimeoutBuffer) shouldFlush(key refreshTimeoutKey) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -88,7 +92,7 @@ func (b *refreshTimeoutBuffer) shouldFlush(key string) bool {
 	return e.lastFlushAt.IsZero() || time.Since(e.lastFlushAt) >= refreshTimeoutFlushInterval
 }
 
-func (b *refreshTimeoutBuffer) markFlushed(key string, timeoutAt time.Time) {
+func (b *refreshTimeoutBuffer) markFlushed(key refreshTimeoutKey, timeoutAt time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -104,7 +108,7 @@ func (b *refreshTimeoutBuffer) markFlushed(key string, timeoutAt time.Time) {
 
 // maybeExpireLocked drops idle entries once they are past the debounce window
 // so the map does not grow without bound.
-func (b *refreshTimeoutBuffer) maybeExpireLocked(key string, e *refreshTimeoutBufEntry) {
+func (b *refreshTimeoutBuffer) maybeExpireLocked(key refreshTimeoutKey, e *refreshTimeoutBufEntry) {
 	if e.pending > 0 || e.timer != nil || e.lastFlushAt.IsZero() {
 		return
 	}
@@ -114,7 +118,7 @@ func (b *refreshTimeoutBuffer) maybeExpireLocked(key string, e *refreshTimeoutBu
 	}
 }
 
-func (b *refreshTimeoutBuffer) lastTimeout(key string) (time.Time, bool) {
+func (b *refreshTimeoutBuffer) lastTimeout(key refreshTimeoutKey) (time.Time, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -128,7 +132,7 @@ func (b *refreshTimeoutBuffer) lastTimeout(key string) (time.Time, bool) {
 
 // scheduleTrailingFlush arms a single timer to flush remaining pending increments
 // after the debounce window. flushKey must re-enter the normal flush path.
-func (b *refreshTimeoutBuffer) scheduleTrailingFlush(key string, flushKey func(string)) {
+func (b *refreshTimeoutBuffer) scheduleTrailingFlush(key refreshTimeoutKey, flushKey func(refreshTimeoutKey)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
