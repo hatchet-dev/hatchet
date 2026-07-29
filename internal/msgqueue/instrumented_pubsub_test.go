@@ -73,23 +73,27 @@ func TestInstrumentedPubSubTransitObservesOnlyStampedMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, inner.handler)
 
+	before := histogramSampleCount(t, prommetrics.PubSubTransit, kind, topicKind)
+
 	require.NoError(t, inner.handler(&Message{ID: "unstamped"}))
-	assert.EqualValues(t, 0, histogramSampleCount(t, prommetrics.PubSubTransit, kind, topicKind))
+	assert.EqualValues(t, before, histogramSampleCount(t, prommetrics.PubSubTransit, kind, topicKind))
 
 	require.NoError(t, inner.handler(&Message{ID: "stamped", PublishedAt: time.Now().Add(-5 * time.Millisecond)}))
-	assert.EqualValues(t, 1, histogramSampleCount(t, prommetrics.PubSubTransit, kind, topicKind))
+	assert.EqualValues(t, before+1, histogramSampleCount(t, prommetrics.PubSubTransit, kind, topicKind))
 	assert.Equal(t, 2, handled)
 }
 
 func TestInstrumentedPubSubPublishDurationResultLabels(t *testing.T) {
 	topicKind := string(TopicKindSchedulerPartition)
 
+	beforeOK := histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-ok", topicKind, "ok")
 	okInner := &capturingPubSub{}
 	err := NewInstrumentedPubSub(okInner, "test-pub-ok").Pub(context.Background(), SchedulerPartitionTopic("p"), &Message{ID: "ok"})
 	require.NoError(t, err)
-	assert.EqualValues(t, 1, histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-ok", topicKind, "ok"))
+	assert.EqualValues(t, beforeOK+1, histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-ok", topicKind, "ok"))
 
+	beforeErr := histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-error", topicKind, "error")
 	err = NewInstrumentedPubSub(&erroringPubSub{}, "test-pub-error").Pub(context.Background(), SchedulerPartitionTopic("p"), &Message{ID: "err"})
 	assert.Error(t, err)
-	assert.EqualValues(t, 1, histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-error", topicKind, "error"))
+	assert.EqualValues(t, beforeErr+1, histogramSampleCount(t, prommetrics.PubSubPublishDuration, "test-pub-error", topicKind, "error"))
 }
