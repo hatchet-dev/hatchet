@@ -110,15 +110,6 @@ WITH inputs AS (
     )
     ORDER BY durable_task_id, durable_task_inserted_at
     FOR UPDATE
-), locked_log_entries AS (
-    SELECT *
-    FROM v1_durable_event_log_entry e
-    WHERE (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) IN (
-        SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
-        FROM inputs
-    )
-    ORDER BY durable_task_id, durable_task_inserted_at, branch_id, node_id
-    FOR UPDATE
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -129,9 +120,14 @@ WITH inputs AS (
             PARTITION BY e.durable_task_id, e.durable_task_inserted_at
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
-    FROM locked_log_entries e
+    FROM v1_durable_event_log_entry e
     JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
-    WHERE e.satisfied_order IS NULL
+    WHERE
+        e.satisfied_order IS NULL
+        AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
+            SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
+            FROM inputs
+        )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
     SET
