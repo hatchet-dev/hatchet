@@ -1,11 +1,11 @@
-name: 'Close PRs without an accepted issue'
+name: "Close PRs without an accepted issue"
 
 on:
   pull_request_target:
     types: [opened, reopened, edited, synchronize]
   schedule:
     # Backstop for PRs missed by the pull_request_target trigger.
-    - cron: '0 9 * * *'
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
   close-unaccepted-prs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const ACCEPTED_LABEL = 'accepted';
