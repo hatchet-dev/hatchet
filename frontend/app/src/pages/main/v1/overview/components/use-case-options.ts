@@ -42,9 +42,19 @@ export type QuickstartSelection = {
   language: WorkflowLanguageKey;
 };
 
+export function escapeForDoubleQuotes(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, '\\$')
+    .replace(/`/g, '\\`');
+}
+
 // The CLI prints this after scaffolding for every language and package
 // manager, so onboarding shows the same command everywhere.
-export const workerDevCommand = 'hatchet worker dev';
+export function workerDevCommand(profile: string): string {
+  return `hatchet worker dev --profile "${escapeForDoubleQuotes(profile)}"`;
+}
 
 export function isLanguageSupported(
   useCase: AvailableUseCaseKey,
@@ -76,6 +86,9 @@ export function scaffoldCommand({
   )}`;
 }
 
-export function triggerCommand(useCase: AvailableUseCaseKey): string {
-  return `hatchet trigger ${availableUseCases[useCase].trigger}`;
+export function triggerCommand(
+  useCase: AvailableUseCaseKey,
+  profile: string,
+): string {
+  return `hatchet trigger ${availableUseCases[useCase].trigger} --profile "${escapeForDoubleQuotes(profile)}"`;
 }

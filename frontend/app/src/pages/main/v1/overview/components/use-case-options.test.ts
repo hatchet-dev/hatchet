@@ -4,6 +4,7 @@ import {
   resolveLanguage,
   scaffoldCommand,
   triggerCommand,
+  workerDevCommand,
 } from './use-case-options';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -36,8 +37,25 @@ test('scaffoldCommand derives the CLI command from the selection', () => {
 });
 
 test('triggerCommand uses the trigger name registered by each template', () => {
-  assert.equal(triggerCommand('simple'), 'hatchet trigger simple');
-  assert.equal(triggerCommand('scheduled'), 'hatchet trigger manual-run');
+  assert.equal(
+    triggerCommand('simple', 'Test'),
+    'hatchet trigger simple --profile "Test"',
+  );
+  assert.equal(
+    triggerCommand('scheduled', 'Test'),
+    'hatchet trigger manual-run --profile "Test"',
+  );
+});
+
+test('worker and trigger commands quote and escape the profile name', () => {
+  assert.equal(
+    workerDevCommand('Acme "prod" $team'),
+    'hatchet worker dev --profile "Acme \\"prod\\" \\$team"',
+  );
+  assert.equal(
+    triggerCommand('simple', 'Acme "prod" $team'),
+    'hatchet trigger simple --profile "Acme \\"prod\\" \\$team"',
+  );
 });
 
 test('language compatibility matches the published templates', () => {
@@ -56,7 +74,7 @@ test('only the shippable use cases are selectable', () => {
   // never executed.
   const rejectedByTypes = () => {
     // @ts-expect-error roadmap use cases are not selectable
-    triggerCommand('pdf');
+    triggerCommand('pdf', 'Test');
     // @ts-expect-error roadmap use cases are not selectable
     scaffoldCommand({ useCase: 'claudeAgent', language: 'go' });
   };

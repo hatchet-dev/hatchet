@@ -10,6 +10,7 @@ import { SectionHeader } from './section-header';
 import {
   availableUseCases,
   isLanguageSupported,
+  escapeForDoubleQuotes,
   scaffoldCommand,
   triggerCommand,
   workerDevCommand,
@@ -98,12 +99,6 @@ export function LearnWorkflowSection({
   authDisabledToken?: string;
 }) {
   const profileName = tenantName?.trim() || 'local';
-  const escapeForDoubleQuotes = (value: string) =>
-    value
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`');
 
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
 
@@ -367,7 +362,7 @@ export function LearnWorkflowSection({
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-            code={workerDevCommand}
+            code={workerDevCommand(profileName)}
             language="shell"
             copy
           />
@@ -413,7 +408,7 @@ export function LearnWorkflowSection({
           <div className="space-y-3">
             <CodeHighlighter
               className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
-              code={triggerCommand(useCase)}
+              code={triggerCommand(useCase, profileName)}
               language="shell"
               copy
             />
