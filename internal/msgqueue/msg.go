@@ -9,6 +9,15 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 )
 
+// MaxMessageSize is the maximum size of a single serialized Message body;
+// publishers recursively split larger multi-payload messages into chunks.
+// This is Hatchet's own contract, shared by every backend rather than read
+// from a broker: 16MiB matches RabbitMQ's server-side default
+// max_message_size (its default since 3.12), and the NATS backend refuses
+// to start unless the server's max_payload is at least this large. If the
+// contract ever changes, this constant moves every backend together.
+const MaxMessageSize = 16 * 1024 * 1024
+
 type Message struct {
 	// ID is the ID of the task.
 	ID string `json:"id"`
