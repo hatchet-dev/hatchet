@@ -149,7 +149,7 @@ WITH inputs AS (
     RETURNING e.*
 ), log_file_updates AS (
     UPDATE v1_durable_event_log_file lf
-    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.latest_satisfied_order)
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.satisfied_order)
     FROM to_stamp mso
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (mso.durable_task_id, mso.durable_task_inserted_at)
 )

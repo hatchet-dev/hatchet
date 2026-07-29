@@ -979,7 +979,7 @@ WITH inputs AS (
     RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data
 ), log_file_updates AS (
     UPDATE v1_durable_event_log_file lf
-    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.latest_satisfied_order)
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, mso.satisfied_order)
     FROM to_stamp mso
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (mso.durable_task_id, mso.durable_task_inserted_at)
 )
