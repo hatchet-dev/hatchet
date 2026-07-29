@@ -58,6 +58,48 @@ func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
 	return string(ns.ConcurrencyLimitStrategy), nil
 }
 
+type IdempotencyMethod string
+
+const (
+	IdempotencyMethodTTL    IdempotencyMethod = "TTL"
+	IdempotencyMethodSTATUS IdempotencyMethod = "STATUS"
+)
+
+func (e *IdempotencyMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = IdempotencyMethod(s)
+	case string:
+		*e = IdempotencyMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for IdempotencyMethod: %T", src)
+	}
+	return nil
+}
+
+type NullIdempotencyMethod struct {
+	IdempotencyMethod IdempotencyMethod `json:"idempotency_method"`
+	Valid             bool              `json:"valid"` // Valid is true if IdempotencyMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullIdempotencyMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.IdempotencyMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.IdempotencyMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullIdempotencyMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.IdempotencyMethod), nil
+}
+
 type InternalQueue string
 
 const (
@@ -241,6 +283,7 @@ const (
 	LeaseKindQUEUE                     LeaseKind = "QUEUE"
 	LeaseKindCONCURRENCYSTRATEGY       LeaseKind = "CONCURRENCY_STRATEGY"
 	LeaseKindTABLEPARTITIONMAINTENANCE LeaseKind = "TABLE_PARTITION_MAINTENANCE"
+	LeaseKindBATCH                     LeaseKind = "BATCH"
 )
 
 func (e *LeaseKind) Scan(src interface{}) error {
@@ -1100,6 +1143,9 @@ const (
 	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
 	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
 	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
+	V1EventTypeOlapBATCHBUFFERED        V1EventTypeOlap = "BATCH_BUFFERED"
+	V1EventTypeOlapWAITINGFORBATCH      V1EventTypeOlap = "WAITING_FOR_BATCH"
+	V1EventTypeOlapBATCHFLUSHED         V1EventTypeOlap = "BATCH_FLUSHED"
 )
 
 func (e *V1EventTypeOlap) Scan(src interface{}) error {
@@ -3087,6 +3133,37 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type V1BatchRuntime struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	StepID    uuid.UUID          `json:"step_id"`
+	ActionID  string             `json:"action_id"`
+	BatchKey  string             `json:"batch_key"`
+	BatchID   uuid.UUID          `json:"batch_id"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1BatchedQueueItem struct {
+	ID                int64              `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        uuid.UUID          `json:"external_id"`
+	ActionID          string             `json:"action_id"`
+	StepID            uuid.UUID          `json:"step_id"`
+	WorkflowID        uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID     uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
+	BatchKey          string             `json:"batch_key"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	PayloadSize       int32              `json:"payload_size"`
+}
+
 type V1CelEvaluationFailuresOlap struct {
 	ID         int64                        `json:"id"`
 	TenantID   uuid.UUID                    `json:"tenant_id"`
@@ -3508,6 +3585,7 @@ type V1QueueItem struct {
 	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
 	RetryCount         int32              `json:"retry_count"`
 	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
+	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
 type V1RateLimitedQueueItems struct {
@@ -3528,6 +3606,7 @@ type V1RateLimitedQueueItems struct {
 	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
 	RetryCount         int32              `json:"retry_count"`
 	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
+	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
 type V1RetryQueueItem struct {
@@ -3559,6 +3638,15 @@ type V1StatusesOlap struct {
 	WorkflowID     uuid.UUID            `json:"workflow_id"`
 	Kind           V1RunKind            `json:"kind"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+}
+
+type V1StepBatchConfig struct {
+	StepID            uuid.UUID   `json:"step_id"`
+	BatchMaxSize      int32       `json:"batch_max_size"`
+	BatchMaxInterval  pgtype.Int4 `json:"batch_max_interval"`
+	BatchGroupKey     pgtype.Text `json:"batch_group_key"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batch_group_max_runs"`
+	BroadcastOutput   bool        `json:"broadcast_output"`
 }
 
 type V1StepConcurrency struct {
@@ -3634,6 +3722,7 @@ type V1Task struct {
 	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
 	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	BatchKey                     pgtype.Text        `json:"batch_key"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 	IsDurable                    pgtype.Bool        `json:"is_durable"`
@@ -3704,6 +3793,10 @@ type V1TaskRuntime struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
 	WorkerID       *uuid.UUID         `json:"worker_id"`
+	BatchID        *uuid.UUID         `json:"batch_id"`
+	BatchSize      pgtype.Int4        `json:"batch_size"`
+	BatchIndex     pgtype.Int4        `json:"batch_index"`
+	BatchKey       pgtype.Text        `json:"batch_key"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
@@ -4004,21 +4097,22 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
-	DeletedAt                 pgtype.Timestamp   `json:"deletedAt"`
-	Version                   pgtype.Text        `json:"version"`
-	Order                     int64              `json:"order"`
-	WorkflowId                uuid.UUID          `json:"workflowId"`
-	Checksum                  string             `json:"checksum"`
-	ScheduleTimeout           string             `json:"scheduleTimeout"`
-	OnFailureJobId            *uuid.UUID         `json:"onFailureJobId"`
-	Sticky                    NullStickyStrategy `json:"sticky"`
-	Kind                      WorkflowKind       `json:"kind"`
-	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
-	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
-	InputJsonSchema           []byte             `json:"inputJsonSchema"`
-	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
+	ID                        uuid.UUID             `json:"id"`
+	CreatedAt                 pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp      `json:"updatedAt"`
+	DeletedAt                 pgtype.Timestamp      `json:"deletedAt"`
+	Version                   pgtype.Text           `json:"version"`
+	Order                     int64                 `json:"order"`
+	WorkflowId                uuid.UUID             `json:"workflowId"`
+	Checksum                  string                `json:"checksum"`
+	ScheduleTimeout           string                `json:"scheduleTimeout"`
+	OnFailureJobId            *uuid.UUID            `json:"onFailureJobId"`
+	Sticky                    NullStickyStrategy    `json:"sticky"`
+	Kind                      WorkflowKind          `json:"kind"`
+	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte                `json:"inputJsonSchema"`
+	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
+	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
 }

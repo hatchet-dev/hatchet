@@ -598,5 +598,76 @@ module HatchetSdkRest
       end
       return data, status_code, headers
     end
+
+    # Restore a task
+    # Restore an evicted durable task
+    # @param task [String] The task id
+    # @param [Hash] opts the optional parameters
+    # @return [V1RestoreTaskResponse]
+    def v1_task_restore(task, opts = {})
+      data, _status_code, _headers = v1_task_restore_with_http_info(task, opts)
+      data
+    end
+
+    # Restore a task
+    # Restore an evicted durable task
+    # @param task [String] The task id
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(V1RestoreTaskResponse, Integer, Hash)>] V1RestoreTaskResponse data, response status code and response headers
+    def v1_task_restore_with_http_info(task, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: TaskApi.v1_task_restore ...'
+      end
+      # verify the required parameter 'task' is set
+      if @api_client.config.client_side_validation && task.nil?
+        fail ArgumentError, "Missing the required parameter 'task' when calling TaskApi.v1_task_restore"
+      end
+      if @api_client.config.client_side_validation && task.to_s.length > 36
+        fail ArgumentError, 'invalid value for "task" when calling TaskApi.v1_task_restore, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && task.to_s.length < 36
+        fail ArgumentError, 'invalid value for "task" when calling TaskApi.v1_task_restore, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/stable/tasks/{task}/restore'.sub('{' + 'task' + '}', CGI.escape(task.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'V1RestoreTaskResponse'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"TaskApi.v1_task_restore",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:POST, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: TaskApi#v1_task_restore\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
   end
 end

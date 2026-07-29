@@ -49,7 +49,9 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 	require.NoError(t, err)
 
 	t.Log("Running database migration...")
-	migrate.RunMigrations(ctx)
+	if err := migrate.RunMigrations(ctx); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
 	t.Log("Migration completed successfully")
 
 	config, err := pgxpool.ParseConfig(connStr)

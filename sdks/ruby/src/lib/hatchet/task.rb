@@ -68,6 +68,9 @@ module Hatchet
     # @return [Hatchet::EvictionPolicy, nil] Eviction policy for durable tasks
     attr_reader :eviction_policy
 
+    # @return [Hatchet::BatchTaskConfig, nil] Batch configuration, if this is a batch task
+    attr_reader :batch
+
     # @return [Proc, nil] The task execution block
     attr_reader :fn
 
@@ -112,6 +115,7 @@ module Hatchet
       skip_if: [],
       durable: false,
       eviction_policy: nil,
+      batch: nil,
       workflow: nil,
       client: nil,
       deps: nil,
@@ -131,6 +135,7 @@ module Hatchet
       @skip_if = skip_if
       @durable = durable
       @eviction_policy = eviction_policy
+      @batch = batch
       @workflow = workflow
       @client = client
       @deps = deps
@@ -190,6 +195,14 @@ module Hatchet
       opts[:conditions] = conditions_proto if conditions_proto
 
       opts[:is_durable] = @durable
+
+      # Batch tasks buffer many concurrent runs into a single execution; per-item retry
+      # semantics don't apply, so retries is always forced to 0, regardless of any retries
+      # the caller may have supplied.
+      if @batch
+        opts[:batch] = @batch.to_proto
+        opts[:retries] = 0
+      end
 
       ::V1::CreateTaskOpts.new(**opts)
     end

@@ -173,7 +173,10 @@ from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
 )
-from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
+from hatchet_sdk.types.idempotency import (
+    StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
+)
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
     WorkerLabel,
@@ -279,6 +282,7 @@ __all__ = [
     "SleepCondition",
     "SleepResult",
     "SlotType",
+    "StatusBasedIdempotencyConfig",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",

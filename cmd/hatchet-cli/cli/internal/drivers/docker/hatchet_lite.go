@@ -440,7 +440,6 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 		"SERVER_GRPC_PORT=" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
 		"SERVER_URL=http://localhost:" + fmt.Sprintf("%d", dashboardPort),
 		"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
-		"SERVER_DEFAULT_ENGINE_VERSION=V1",
 		"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
 	}
 

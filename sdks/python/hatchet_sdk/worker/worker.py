@@ -34,6 +34,7 @@ from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
+    QueuedBatchActionEvent,
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
@@ -115,7 +116,9 @@ class Worker:
         self._ctx = multiprocessing.get_context("spawn")
 
         self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
-        self._event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = self._ctx.Queue()
+        self._event_queue: Queue[
+            ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
+        ] = self._ctx.Queue()
         self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
         self._durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] | None = None
 

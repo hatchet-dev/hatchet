@@ -9,7 +9,9 @@ export function NewVersionAvailable() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const queryParams = new URLSearchParams(location.search);
+  const queryParams = new URLSearchParams(
+    location.search as Record<string, string>,
+  );
 
   if (!queryParams.has('updated')) {
     queryParams.set('updated', 'true');

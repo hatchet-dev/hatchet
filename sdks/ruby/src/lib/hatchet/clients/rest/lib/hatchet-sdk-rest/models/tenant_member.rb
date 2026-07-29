@@ -26,6 +26,9 @@ module HatchetSdkRest
     # The tenant associated with this tenant member.
     attr_accessor :tenant
 
+    # Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
+    attr_accessor :manually_added
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -54,7 +57,8 @@ module HatchetSdkRest
         :'metadata' => :'metadata',
         :'user' => :'user',
         :'role' => :'role',
-        :'tenant' => :'tenant'
+        :'tenant' => :'tenant',
+        :'manually_added' => :'manually_added'
       }
     end
 
@@ -74,7 +78,8 @@ module HatchetSdkRest
         :'metadata' => :'APIResourceMeta',
         :'user' => :'UserTenantPublic',
         :'role' => :'TenantMemberRole',
-        :'tenant' => :'Tenant'
+        :'tenant' => :'Tenant',
+        :'manually_added' => :'Boolean'
       }
     end
 
@@ -120,6 +125,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'tenant')
         self.tenant = attributes[:'tenant']
+      end
+
+      if attributes.key?(:'manually_added')
+        self.manually_added = attributes[:'manually_added']
       end
     end
 
@@ -191,7 +200,8 @@ module HatchetSdkRest
           metadata == o.metadata &&
           user == o.user &&
           role == o.role &&
-          tenant == o.tenant
+          tenant == o.tenant &&
+          manually_added == o.manually_added
     end
 
     # @see the `==` method
@@ -203,7 +213,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, user, role, tenant].hash
+      [metadata, user, role, tenant, manually_added].hash
     end
 
     # Builds the object from hash

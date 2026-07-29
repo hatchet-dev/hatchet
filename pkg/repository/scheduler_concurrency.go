@@ -36,6 +36,12 @@ type TaskWithCancelledReason struct {
 	TaskExternalId uuid.UUID
 
 	WorkflowRunId uuid.UUID
+
+	// WorkerId is the worker running the task at the moment it was cancelled, or uuid.Nil if the task
+	// was not running (queued). It's captured here because the concurrency flush releases the task
+	// runtime in-transaction, so the downstream MsgIDTaskCancelled handler can no longer resolve the
+	// worker; the scheduler uses it to signal the dispatcher directly for in-progress cancellations.
+	WorkerId uuid.UUID
 }
 
 // CancelledSlotInput identifies a concurrency slot to cancel along with the reason it's being
@@ -992,6 +998,10 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlotsTx(
 			CancelledReason: reason,
 			TaskExternalId:  released.ExternalID,
 			WorkflowRunId:   released.WorkflowRunID,
+			// releaseTasks deleted v1_task_runtime here, so the downstream MsgIDTaskCancelled handler
+			// can no longer resolve the worker for an in-progress cancellation. Capture the worker id
+			// now so the scheduler can signal the dispatcher directly (see notifyAfterConcurrency).
+			WorkerId: released.WorkerID,
 		})
 	}
 

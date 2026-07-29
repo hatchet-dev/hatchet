@@ -750,7 +750,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	actions, err := getActionsForTasks(req.Tasks)
 
 	if tenant.SchedulerPartitionId.Valid && err == nil {
-		go func() {
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -760,14 +760,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 				if err != nil {
 					a.l.Err(err).Ctx(ctx).Msg("could not create message for notifying new queue")
 				} else {
-					err = a.mq.SendMessage(
+					err = a.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						a.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
+						a.l.Err(err).Ctx(ctx).Msg("could not publish message to scheduler partition topic")
 					}
 				}
 			}
@@ -913,9 +913,16 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	var idempotency *v1.IdempotencyConfig
 
 	if req.Idempotency != nil {
+		method := sqlcv1.IdempotencyMethodTTL
+
+		if req.Idempotency.Method != nil {
+			method = sqlcv1.IdempotencyMethod(req.Idempotency.Method.String())
+		}
+
 		idempotency = &v1.IdempotencyConfig{
 			Expression: req.Idempotency.Expression,
 			TTLMs:      req.Idempotency.TtlMs,
+			Method:     method,
 		}
 	}
 
@@ -1197,6 +1204,37 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				})
 			}
 		}
+
+		if stepCp.Batch != nil {
+
+			defaultBatchMaxInterval := int32(1000)
+			defaultBatchGroupKey := "'default'"
+			defaultBatchGroupMaxRuns := int32(100)
+
+			steps[j].BatchConfig = &v1.StepBatchConfig{
+				BatchMaxSize:      stepCp.Batch.BatchMaxSize,
+				BatchMaxInterval:  &defaultBatchMaxInterval,
+				BatchGroupKey:     &defaultBatchGroupKey,
+				BatchGroupMaxRuns: &defaultBatchGroupMaxRuns,
+			}
+
+			if stepCp.Batch.BatchMaxIntervalMs != nil {
+				steps[j].BatchConfig.BatchMaxInterval = stepCp.Batch.BatchMaxIntervalMs
+			}
+
+			if stepCp.Batch.BatchGroupKey != nil && *stepCp.Batch.BatchGroupKey != "" {
+				steps[j].BatchConfig.BatchGroupKey = stepCp.Batch.BatchGroupKey
+			}
+
+			if stepCp.Batch.BatchGroupMaxRuns != nil {
+				steps[j].BatchConfig.BatchGroupMaxRuns = stepCp.Batch.BatchGroupMaxRuns
+			}
+
+			if stepCp.Batch.BroadcastOutput != nil {
+				steps[j].BatchConfig.BroadcastOutput = *stepCp.Batch.BroadcastOutput
+			}
+
+		}
 	}
 
 	// Check if parents are in the map
@@ -1258,6 +1296,7 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 		"has_task_durable", hasTaskDurable,
 		"has_task_slot_requests", hasTaskSlotRequests,
 		"has_task_schedule_timeout", hasTaskScheduleTimeout,
+		"has_idempotency_key", req.Idempotency != nil,
 	)
 }
 

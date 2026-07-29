@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -20,7 +21,11 @@ func NewStaticFileServer(staticFilePath string) *chi.Mux {
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 
-		if _, err := os.Stat(staticFilePath + r.RequestURI); os.IsNotExist(err) {
+		// Clean and join under staticFilePath so a crafted "../" in the request path can't be
+		// used to probe file existence outside the static root.
+		requestedPath := filepath.Join(staticFilePath, path.Clean("/"+r.URL.Path))
+
+		if _, err := os.Stat(requestedPath); os.IsNotExist(err) {
 			w.Header().Set("Cache-Control", "no-cache")
 
 			http.StripPrefix(r.URL.Path, fs).ServeHTTP(w, r)

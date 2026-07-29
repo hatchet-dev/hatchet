@@ -68,6 +68,38 @@ ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "alarmValue" = EXCLUDED."alarmValue",
     "updatedAt" = CURRENT_TIMESTAMP;
 
+-- name: InsertTenantResourceLimitsIfNotExists :exec
+-- Insert-only defaults for first-use of a resource. Must not overwrite paid/custom limits.
+WITH input_values AS (
+    SELECT
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "window",
+        "customValueMeter"
+    FROM (
+        SELECT
+            unnest(cast(@resources::text[] AS "LimitResource"[])) AS "resource",
+            unnest(@limitValues::int[]) AS "limitValue",
+            unnest(@alarmValues::int[]) AS "alarmValue",
+            unnest(@windows::text[]) AS "window",
+            unnest(@customValueMeters::boolean[]) AS "customValueMeter"
+    ) AS subquery
+)
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
+SELECT
+    gen_random_uuid(),
+    @tenantId::uuid,
+    iv."resource",
+    0,
+    iv."limitValue",
+    NULLIF(iv."alarmValue", 0),
+    NULLIF(iv."window", ''),
+    iv."customValueMeter",
+    CURRENT_TIMESTAMP
+FROM input_values iv
+ON CONFLICT ("tenantId", "resource") DO NOTHING;
+
 -- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
@@ -86,6 +118,45 @@ SET
 WHERE "tenantId" = @tenantId::uuid
     AND "resource" = sqlc.narg('resource')::"LimitResource"
 RETURNING *;
+
+-- name: BulkMeterTenantResources :many
+WITH input AS (
+    SELECT
+        unnest(@tenantIds::uuid[]) AS tenant_id,
+        unnest(cast(@resources::text[] AS "LimitResource"[])) AS resource,
+        unnest(@numResources::int[]) AS num_resources
+), to_update AS (
+    SELECT
+        trl.*,
+        i.num_resources
+    FROM
+        "TenantResourceLimit" trl
+    JOIN
+        input i ON i.tenant_id = trl."tenantId" AND i.resource = trl."resource"
+    ORDER BY
+        trl."tenantId", trl."resource"
+    FOR UPDATE
+)
+UPDATE "TenantResourceLimit" trl
+SET
+    "value" = CASE
+        WHEN (trl."customValueMeter" = true OR (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL)) THEN
+            0
+        ELSE
+            trl."value" + tu.num_resources
+    END,
+    "lastRefill" = CASE
+        WHEN (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL) THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            trl."lastRefill"
+    END
+FROM
+    to_update tu
+WHERE
+    trl."tenantId" = tu."tenantId"
+    AND trl."resource" = tu."resource"
+RETURNING trl.*;
 
 -- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"

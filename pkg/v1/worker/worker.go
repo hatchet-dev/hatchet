@@ -6,11 +6,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/rs/zerolog"
 )
 
 // Deprecated: Worker is part of the old generics-based v1 Go SDK.

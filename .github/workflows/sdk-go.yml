@@ -34,7 +34,7 @@ jobs:
           for dir in $(find examples -name "go.mod" -exec dirname {} \;); do
             echo "Compiling $dir (has go.mod)"
             cd "$dir"
-            go build .
+            go build ./...
             cd - > /dev/null
           done
 

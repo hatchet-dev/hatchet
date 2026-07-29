@@ -1,6 +1,13 @@
-from hatchet_sdk import Context, Hatchet, TTLBasedIdempotencyConfig
+from hatchet_sdk import (
+    Context,
+    Hatchet,
+    TTLBasedIdempotencyConfig,
+    StatusBasedIdempotencyConfig,
+)
 from datetime import timedelta
 from pydantic import BaseModel
+import asyncio
+from typing import Literal
 
 hatchet = Hatchet()
 
@@ -11,6 +18,7 @@ EVENT_KEY = "idempotency:example"
 
 class IdempotencyInput(BaseModel):
     id: str
+    desired_status: Literal["success", "cancel", "fail"] = "success"
 
 
 @hatchet.task(
@@ -39,10 +47,80 @@ async def idempotent_task_short_window(
     return {"result": f"Hello, world from task {input.id}"}
 
 
+# > status_based_idempotency
+@hatchet.task(
+    idempotency=StatusBasedIdempotencyConfig(
+        key_expression="input.id", fallback_ttl=timedelta(seconds=10)
+    ),
+    input_validator=IdempotencyInput,
+)
+async def idempotent_status_based_task(
+    input: IdempotencyInput,
+    ctx: Context,
+) -> dict[str, str]:
+    if input.desired_status == "success":
+        await asyncio.sleep(2)
+        return {"result": f"Hello, world from task {input.id}"}
+
+    if input.desired_status == "fail":
+        await asyncio.sleep(2)
+        raise Exception(f"Task {input.id} failed as requested.")
+
+    if input.desired_status == "cancel":
+        await asyncio.sleep(1)
+        await ctx.aio_cancel()
+        for _ in range(10):
+            await asyncio.sleep(1)
+
+    raise Exception(f"Task {input.id} should have been cancelled, but was not.")
+
+
+
+
+# > status_based_idempotency_with_retries
+@hatchet.task(
+    idempotency=StatusBasedIdempotencyConfig(
+        key_expression="input.id", fallback_ttl=timedelta(seconds=30)
+    ),
+    input_validator=IdempotencyInput,
+    retries=3,
+)
+async def idempotent_status_based_task_with_retries(
+    input: IdempotencyInput,
+    ctx: Context,
+) -> dict[str, str]:
+    if input.desired_status == "fail":
+        await asyncio.sleep(2)
+        raise Exception(f"Task {input.id} failed as requested.")
+
+    if ctx.retry_count == 0:
+        await asyncio.sleep(2)
+        raise Exception(f"Task {input.id} failed as requested (attempt 1).")
+
+    if input.desired_status == "success":
+        await asyncio.sleep(2)
+        return {"result": f"Hello, world from task {input.id}"}
+
+    if input.desired_status == "cancel":
+        await asyncio.sleep(1)
+        await ctx.aio_cancel()
+        for _ in range(10):
+            await asyncio.sleep(1)
+
+    raise Exception(f"Task {input.id} should have been cancelled, but was not.")
+
+
+
+
 def main() -> None:
     worker = hatchet.worker(
         "test-worker",
-        workflows=[idempotent_task],
+        workflows=[
+            idempotent_task,
+            idempotent_task_short_window,
+            idempotent_status_based_task,
+            idempotent_status_based_task_with_retries,
+        ],
     )
     worker.start()
 

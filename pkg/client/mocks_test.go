@@ -148,6 +148,10 @@ func (m *mockDispatcherClient) SendStepActionEvent(ctx context.Context, in *disp
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
+func (m *mockDispatcherClient) SendBatchActionEvent(ctx context.Context, in *dispatchercontracts.BatchActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
 func (m *mockDispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *dispatchercontracts.GroupKeyActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
@@ -415,6 +419,10 @@ func (m *mockWorkerDispatcherClient) SubscribeToWorkflowRuns(ctx context.Context
 }
 
 func (m *mockWorkerDispatcherClient) SendStepActionEvent(ctx context.Context, in *dispatchercontracts.StepActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockWorkerDispatcherClient) SendBatchActionEvent(ctx context.Context, in *dispatchercontracts.BatchActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
