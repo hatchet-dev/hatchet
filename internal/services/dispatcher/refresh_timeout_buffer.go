@@ -9,7 +9,7 @@ import (
 
 // refreshTimeoutFlushInterval caps how often a given task's buffered timeout
 // refreshes are flushed to Postgres on this engine process.
-const refreshTimeoutFlushInterval = time.Second
+const refreshTimeoutFlushInterval = 500 * time.Millisecond
 
 type refreshTimeoutBuffer struct {
 	mu      sync.Mutex
