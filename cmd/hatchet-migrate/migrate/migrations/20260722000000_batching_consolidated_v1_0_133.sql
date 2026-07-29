@@ -1,36 +1,50 @@
 -- +goose Up
--- +goose StatementBegin
--- Acquire exclusive locks on every pre-existing table this migration alters, up front and in a
--- fixed order, before making any changes. This avoids a lock-order deadlock with concurrent app
--- transactions (e.g. task reassignment) that touch v1_task_runtime and v1_task together: without
--- this, the ALTER TABLE statements below take these locks one at a time, interleaved with DDL,
--- which lets a concurrent transaction hold one of these tables while waiting on another.
--- lock_timeout bounds the wait so a stuck/long-running transaction fails the migration fast
--- (retryable) instead of risking a long block or a deadlock-detector abort.
-SET LOCAL lock_timeout = '5s';
-LOCK TABLE v1_queue_item, v1_rate_limited_queue_items, v1_task, v1_task_runtime IN ACCESS EXCLUSIVE MODE;
+-- +goose NO TRANSACTION
+-- This migration originally ran as one large implicit transaction, which deadlocked in
+-- production against the task-reassignment job: it holds AccessExclusiveLock on
+-- v1_task_runtime while later reaching for v1_task (and other tables) in the same
+-- transaction, and a concurrent transaction touching those same tables in a different order
+-- can end up holding one lock while waiting on the other.
+--
+-- NO TRANSACTION tells goose not to wrap this file in its own transaction; instead each
+-- StatementBegin/StatementEnd block below is its own separate statement that goose sends (and
+-- Postgres auto-commits) on its own, so it commits and releases its locks before the next block
+-- starts. No block ever needs an exclusive lock on more than one pre-existing table at a time,
+-- so the AB-BA lock-order deadlock this migration originally hit can't happen.
+--
+-- Every statement uses IF NOT EXISTS / IF EXISTS so this is safe to re-run, whether that's a
+-- retry after a block partway through failed, or a full re-run against a database that already
+-- has this schema from before it was split into separate statements.
 
--- v0 schema alignment
+-- +goose StatementBegin
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
--- v1 batching propagation fields
 ALTER TABLE v1_task_runtime
-    ADD COLUMN batch_id UUID,
-    ADD COLUMN batch_size INTEGER,
-    ADD COLUMN batch_index INTEGER,
-    ADD COLUMN batch_key TEXT;
+    ADD COLUMN IF NOT EXISTS batch_id UUID,
+    ADD COLUMN IF NOT EXISTS batch_size INTEGER,
+    ADD COLUMN IF NOT EXISTS batch_index INTEGER,
+    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_task
-    ADD COLUMN batch_key TEXT;
+    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_queue_item
-    ADD COLUMN batch_key TEXT;
+    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_rate_limited_queue_items
-    ADD COLUMN batch_key TEXT;
+    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+-- +goose StatementEnd
 
--- Per-step batching configuration
-CREATE TABLE v1_step_batch_config (
+-- Per-step batching configuration. New table, so this can't contend with any concurrent
+-- transaction.
+-- +goose StatementBegin
+CREATE TABLE IF NOT EXISTS v1_step_batch_config (
     step_id UUID NOT NULL,
     batch_max_size INTEGER NOT NULL,
     batch_max_interval INTEGER,
@@ -39,9 +53,12 @@ CREATE TABLE v1_step_batch_config (
     broadcast_output BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT v1_step_batch_config_pkey PRIMARY KEY (step_id)
 );
+-- +goose StatementEnd
 
--- Batched queue items buffer table
-CREATE TABLE v1_batched_queue_item (
+-- Batched queue items buffer table. New table (plus its non-concurrent index, safe since the
+-- table is empty at creation time), so this can't contend with any concurrent transaction.
+-- +goose StatementBegin
+CREATE TABLE IF NOT EXISTS v1_batched_queue_item (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
@@ -74,10 +91,13 @@ ALTER TABLE v1_batched_queue_item SET (
     autovacuum_vacuum_cost_limit = '1000'
 );
 
-CREATE INDEX v1_batched_queue_item_step_batch_id_idx
+CREATE INDEX IF NOT EXISTS v1_batched_queue_item_step_batch_id_idx
     ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, id ASC);
+-- +goose StatementEnd
 
-CREATE TABLE v1_batch_runtime (
+-- New table, so this can't contend with any concurrent transaction.
+-- +goose StatementBegin
+CREATE TABLE IF NOT EXISTS v1_batch_runtime (
     tenant_id UUID NOT NULL,
     step_id UUID NOT NULL,
     action_id TEXT NOT NULL,
@@ -87,15 +107,23 @@ CREATE TABLE v1_batch_runtime (
     CONSTRAINT v1_batch_runtime_pkey PRIMARY KEY (tenant_id, batch_id)
 );
 
-CREATE INDEX v1_batch_runtime_key_idx
+CREATE INDEX IF NOT EXISTS v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
+-- +goose StatementEnd
 
--- OLAP enum additions for batching lifecycle events
+-- OLAP enum additions for batching lifecycle events. ALTER TYPE ... ADD VALUE takes a lock on
+-- the enum type itself, not on any table, so this can't contend with table-level DML.
+-- +goose StatementBegin
 ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_BUFFERED';
 ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WAITING_FOR_BATCH';
 ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_FLUSHED';
+-- +goose StatementEnd
 
--- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql (batch_key propagation)
+-- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql
+-- (batch_key propagation). CREATE OR REPLACE FUNCTION only locks the function object itself,
+-- not any table, so this can't contend with table-level DML either. Must run after the
+-- batch_key columns above exist, since these bodies reference them.
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -710,7 +738,13 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+-- +goose StatementEnd
 
+-- v1_task_runtime again, but only this table: CREATE TRIGGER needs AccessExclusiveLock on the
+-- table it's attached to. Must run after v1_batch_runtime exists, since the function below
+-- references it. CREATE TRIGGER has no IF NOT EXISTS form, so DROP TRIGGER IF EXISTS first
+-- makes this re-runnable.
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
 RETURNS trigger AS $$
 BEGIN
@@ -750,50 +784,61 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
+
 CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
 AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
-
 -- +goose StatementEnd
 
 -- +goose Down
+-- +goose NO TRANSACTION
 -- +goose StatementBegin
--- Same lock-order-deadlock guard as the Up migration: take exclusive locks on every table
--- touched below, up front and in a fixed order, before making any changes.
-SET LOCAL lock_timeout = '5s';
-LOCK TABLE v1_queue_item, v1_rate_limited_queue_items, v1_task, v1_task_runtime IN ACCESS EXCLUSIVE MODE;
+DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
+DROP FUNCTION IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+-- +goose StatementEnd
 
-DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
-DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+-- +goose StatementBegin
+DROP TABLE IF EXISTS v1_batched_queue_item;
+-- +goose StatementEnd
 
--- Drop batch buffer table and indexes
-DROP TABLE v1_batched_queue_item;
+-- +goose StatementBegin
+DROP TABLE IF EXISTS v1_step_batch_config;
+-- +goose StatementEnd
 
--- Drop per-step batching configuration
-DROP TABLE v1_step_batch_config;
+-- +goose StatementBegin
+DROP TABLE IF EXISTS v1_batch_runtime;
+-- +goose StatementEnd
 
--- Drop v1 batch runtime table
-DROP TABLE v1_batch_runtime;
-
--- Drop runtime batch metadata
+-- +goose StatementBegin
 ALTER TABLE v1_task_runtime
-    DROP COLUMN batch_key,
-    DROP COLUMN batch_index,
-    DROP COLUMN batch_size,
-    DROP COLUMN batch_id;
+    DROP COLUMN IF EXISTS batch_key,
+    DROP COLUMN IF EXISTS batch_index,
+    DROP COLUMN IF EXISTS batch_size,
+    DROP COLUMN IF EXISTS batch_id;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_task
-    DROP COLUMN batch_key;
+    DROP COLUMN IF EXISTS batch_key;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_queue_item
-    DROP COLUMN batch_key;
+    DROP COLUMN IF EXISTS batch_key;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 ALTER TABLE v1_rate_limited_queue_items
-    DROP COLUMN batch_key;
+    DROP COLUMN IF EXISTS batch_key;
+-- +goose StatementEnd
 
--- Restore trigger functions to pre-batching versions (from v1_0_106 baseline), so down migrations remain functional.
+-- Restore trigger functions to pre-batching versions (from v1_0_106 baseline), so down
+-- migrations remain functional. Postgres does not support removing a value from an enum type,
+-- so the LeaseKind/v1_event_type_olap values added above are left in place.
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
