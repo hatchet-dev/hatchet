@@ -4,6 +4,12 @@
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
 -- v1 batching propagation fields
+ALTER TABLE v1_task_runtime
+    ADD COLUMN batch_id UUID,
+    ADD COLUMN batch_size INTEGER,
+    ADD COLUMN batch_index INTEGER,
+    ADD COLUMN batch_key TEXT;
+
 ALTER TABLE v1_task
     ADD COLUMN batch_key TEXT;
 
@@ -11,12 +17,6 @@ ALTER TABLE v1_queue_item
     ADD COLUMN batch_key TEXT;
 
 ALTER TABLE v1_rate_limited_queue_items
-    ADD COLUMN batch_key TEXT;
-
-ALTER TABLE v1_task_runtime
-    ADD COLUMN batch_id UUID,
-    ADD COLUMN batch_size INTEGER,
-    ADD COLUMN batch_index INTEGER,
     ADD COLUMN batch_key TEXT;
 
 -- Per-step batching configuration
