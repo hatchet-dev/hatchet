@@ -92,23 +92,6 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id < @nodeId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
-
--- name: LockDurableEventLogFiles :exec
--- Locks the log file rows for the given durable tasks. The ORDER BY makes the row
--- lock acquisition order deterministic across concurrent transactions so they can't
--- deadlock (the planner is otherwise free to lock in any order).
-WITH inputs AS (
-    SELECT
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
-)
-SELECT lf.durable_task_id
-FROM v1_durable_event_log_file lf
-JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
-ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
-FOR UPDATE OF lf
-;
-
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 -- Important: callers must hold the v1_durable_event_log_file row locks for all
 -- affected log files (via LockDurableEventLogFiles) in the same transaction so
@@ -121,44 +104,47 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
+), existing_log_entries AS (
+    SELECT *
+    FROM v1_durable_event_log_entry e
+    WHERE (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
+        FROM inputs
+    )
+    ORDER BY durable_task_id, durable_task_inserted_at, branch_id, node_id
+    FOR UPDATE
+), max_satisfied_orders AS (
+    SELECT durable_task_id, durable_task_inserted_at, COALESCE(MAX(satisfied_order), 0) AS latest_satisfied_order
+    FROM existing_log_entries
+    GROUP BY durable_task_id, durable_task_inserted_at
 ), to_stamp AS (
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
         e.branch_id,
         e.node_id,
-        ROW_NUMBER() OVER (
+        mso.latest_satisfied_order + ROW_NUMBER() OVER (
             PARTITION BY e.durable_task_id, e.durable_task_inserted_at
-            ORDER BY e.node_id, e.branch_id
-        ) AS stamp_offset
-    FROM v1_durable_event_log_entry e
-    JOIN inputs i ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
-    WHERE e.satisfied_order IS NULL
+            ORDER BY e.branch_id ASC, e.node_id ASC
+        ) AS satisfied_order
+    FROM existing_log_entries e
+    JOIN max_satisfied_orders mso USING (durable_task_id, durable_task_inserted_at)
+    WHERE satisfied_order IS NULL
 ), updated AS (
-    UPDATE v1_durable_event_log_entry
+    UPDATE v1_durable_event_log_entry e
     SET
         is_satisfied = true,
-        satisfied_at = COALESCE(v1_durable_event_log_entry.satisfied_at, NOW()),
-        satisfied_order = COALESCE(v1_durable_event_log_entry.satisfied_order, slf.latest_satisfied_order + ts.stamp_offset),
+        satisfied_at = COALESCE(e.satisfied_at, NOW()),
+        satisfied_order = COALESCE(e.satisfied_order, ts.satisfied_order),
         child_task_is_failure = inputs.child_task_is_failure,
         child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN NULLIF(inputs.child_task_error_message, '') ELSE NULL END
     FROM inputs
-    JOIN v1_durable_event_log_file slf ON (slf.durable_task_id, slf.durable_task_inserted_at) = (inputs.durable_task_id, inputs.durable_task_inserted_at)
-    LEFT JOIN to_stamp ts ON (ts.durable_task_id, ts.durable_task_inserted_at, ts.branch_id, ts.node_id) = (inputs.durable_task_id, inputs.durable_task_inserted_at, inputs.branch_id, inputs.node_id)
-    WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
-      AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
-      AND v1_durable_event_log_entry.node_id = inputs.node_id
-      AND v1_durable_event_log_entry.branch_id = inputs.branch_id
-    RETURNING v1_durable_event_log_entry.*
-), bumped AS (
-    UPDATE v1_durable_event_log_file lf
-    SET latest_satisfied_order = lf.latest_satisfied_order + c.stamp_count
-    FROM (
-        SELECT durable_task_id, durable_task_inserted_at, COUNT(*) AS stamp_count
-        FROM to_stamp
-        GROUP BY durable_task_id, durable_task_inserted_at
-    ) c
-    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (c.durable_task_id, c.durable_task_inserted_at)
+    LEFT JOIN to_stamp ts USING(durable_task_id, durable_task_inserted_at, branch_id, node_id)
+    WHERE e.durable_task_id = inputs.durable_task_id
+      AND e.durable_task_inserted_at = inputs.durable_task_inserted_at
+      AND e.node_id = inputs.node_id
+      AND e.branch_id = inputs.branch_id
+    RETURNING e.*
 )
 
 SELECT updated.*, lf.latest_invocation_count AS invocation_count

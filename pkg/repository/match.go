@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -820,33 +819,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	// NOTE: we lock the affected log files (in a stable order, to avoid deadlocks)
-	// before satisfying entries so that satisfied_order stamps are assigned from a
-	// stable per-log counter.
-	if len(durableTaskIds) > 0 {
-		logFileRefs := make([]IdInsertedAt, len(durableTaskIds))
-		for i, taskId := range durableTaskIds {
-			logFileRefs[i] = IdInsertedAt{ID: taskId, InsertedAt: durableTaskInsertedAts[i]}
-		}
-		lockRefs := sortedUniqueLogFileRefs(logFileRefs)
-
-		lockTaskIds := make([]int64, len(lockRefs))
-		lockTaskInsertedAts := make([]pgtype.Timestamptz, len(lockRefs))
-		for i, ref := range lockRefs {
-			lockTaskIds[i] = ref.ID
-			lockTaskInsertedAts[i] = ref.InsertedAt
-		}
-
-		err = m.queries.LockDurableEventLogFiles(ctx, tx, sqlcv1.LockDurableEventLogFilesParams{
-			Durabletaskids:         lockTaskIds,
-			Durabletaskinsertedats: lockTaskInsertedAts,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
-		}
-	}
-
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
 		Branchids:              durableTaskBranchIds,
@@ -1562,29 +1534,4 @@ func (m *sharedRepository) userEventCondition(orGroupId uuid.UUID, readableDataK
 
 func getDurableSleepEventKey(sleepId int64) string {
 	return fmt.Sprintf("sleep-%d", sleepId)
-}
-
-// sortedUniqueLogFileRefs dedupes and sorts (task id, inserted at) pairs so that
-// concurrent transactions acquire the log-file row locks in a consistent order and
-// can't deadlock.
-func sortedUniqueLogFileRefs(refs []IdInsertedAt) []IdInsertedAt {
-	seen := make(map[IdInsertedAt]struct{}, len(refs))
-	unique := make([]IdInsertedAt, 0, len(refs))
-
-	for _, ref := range refs {
-		if _, ok := seen[ref]; ok {
-			continue
-		}
-		seen[ref] = struct{}{}
-		unique = append(unique, ref)
-	}
-
-	slices.SortFunc(unique, func(a, b IdInsertedAt) int {
-		if a.ID != b.ID {
-			return cmp.Compare(a.ID, b.ID)
-		}
-		return a.InsertedAt.Time.Compare(b.InsertedAt.Time)
-	})
-
-	return unique
 }
