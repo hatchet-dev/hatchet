@@ -85,9 +85,7 @@ class HeartbeatWorker {
         this.timeLastHeartbeat = now;
         this.missedHeartbeats = 0;
       } catch (e: unknown) {
-        const code = getGrpcErrorCode(e);
-
-        if (code === Status.UNIMPLEMENTED) {
+        if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
           // break out of interval
           const message = 'Heartbeat not implemented, closing heartbeat';
           this.logger.debug(message);
