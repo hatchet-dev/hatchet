@@ -420,8 +420,14 @@ func (s *OLAPSignaler) celEvaluationFailures(ctx context.Context, tx pgx.Tx, not
 // postCommitSideEffects returns the closure covering the side effects which must not
 // run inside the staging transaction: the scheduler-partition notify for queued tasks
 // and prometheus counters. Errors are logged, not returned — the durable writes have
-// already committed. Depending on the transaction style, repository methods run the
-// closure inline after commit or async via OptimisticTx.AddPostCommit.
+// already committed.
+//
+// The closure acquires pool connections (the tenant lookup in notifyScheduler on a
+// cache miss), so it MUST NOT be invoked while the staging transaction is open —
+// under pool exhaustion that would deadlock against the held connection. Both
+// invocation styles guarantee this: repository methods owning a PrepareTx run the
+// closure inline after their commit, and OptimisticTx.AddPostCommit defers callbacks
+// until after OptimisticTx.Commit succeeds (see optimistic_tx.go).
 func (s *OLAPSignaler) postCommitSideEffects(tenantId uuid.UUID, buckets bucketedTasks) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), postCommitTimeout)

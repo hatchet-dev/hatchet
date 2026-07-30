@@ -106,14 +106,6 @@ type CreateTaskOpts struct {
 	IdempotencyKey *string
 }
 
-type ReplayTasksResult struct {
-	ReplayedTasks []TaskIdInsertedAtRetryCount
-
-	UpsertedTasks []*V1TaskWithPayload
-
-	InternalEventResults *EventMatchResults
-}
-
 type ReplayTaskOpts struct {
 	// (required) the task id
 	TaskId int64
@@ -308,7 +300,7 @@ type TaskRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error)
 
-	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
+	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
@@ -3617,11 +3609,11 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
-func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer rollback()
@@ -3629,11 +3621,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
+		return fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
 	}
 
 	if !acquired {
-		return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
+		return fmt.Errorf("could not acquire advisory lock for replaying tasks")
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -3652,7 +3644,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list tasks for replay: %w", err)
+		return fmt.Errorf("failed to list tasks for replay: %w", err)
 	}
 
 	lockedTaskIds := make([]int64, len(lockedTasks))
@@ -3698,7 +3690,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to lock DAGs for replay: %w", err)
+		return fmt.Errorf("failed to lock DAGs for replay: %w", err)
 	}
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
@@ -3724,7 +3716,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
+		return fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
 	}
 
 	for _, dag := range preflightDAGs {
@@ -3743,7 +3735,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
+		return fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
 
 	for _, task := range failedPreflightChecks {
@@ -3773,7 +3765,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
+		return fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
 	}
 
 	for _, task := range lockedTasks {
@@ -3898,7 +3890,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list all tasks in DAGs: %w", err)
+		return fmt.Errorf("failed to list all tasks in DAGs: %w", err)
 	}
 
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
@@ -3921,7 +3913,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		upsertedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to replay existing tasks: %w", err)
+			return fmt.Errorf("failed to replay existing tasks: %w", err)
 		}
 	}
 
@@ -3986,7 +3978,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to delete matching signal events: %w", err)
+			return fmt.Errorf("failed to delete matching signal events: %w", err)
 		}
 	}
 
@@ -4004,7 +3996,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 
 		if listErr != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
+			return fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
@@ -4125,14 +4117,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	reconstructedMatches, candidateEvents, err := r.reconstructGroupConditions(ctx, tx, tenantId, subtreeExternalIds, eventMatches)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to reconstruct group conditions: %w", err)
+		return fmt.Errorf("failed to reconstruct group conditions: %w", err)
 	}
 
 	// create the event matches
 	err = r.createEventMatches(ctx, tx, tenantId, reconstructedMatches)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create event matches: %w", err)
+		return fmt.Errorf("failed to create event matches: %w", err)
 	}
 
 	// process event matches
@@ -4140,40 +4132,36 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	internalMatchResults, err := r.processEventMatches(ctx, tx, tenantId, candidateEvents, sqlcv1.V1EventTypeINTERNAL)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
+		return fmt.Errorf("failed to process internal event matches: %w", err)
 	}
 
 	// stage the OLAP messages for replayed/upserted/created tasks on the same tx
 	notifier := &pgoutbox.Notifier{}
 
 	if stageErr := r.signaler.tasksReplayed(ctx, tx, notifier, tenantId, replayedTasks); stageErr != nil {
-		return nil, fmt.Errorf("failed to stage replayed task messages: %w", stageErr)
+		return fmt.Errorf("failed to stage replayed task messages: %w", stageErr)
 	}
 
 	postUpdated, err := r.signaler.tasksUpdated(ctx, tx, notifier, tenantId, upsertedTasks)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to stage upserted task messages: %w", err)
+		return fmt.Errorf("failed to stage upserted task messages: %w", err)
 	}
 
 	postCreated, err := r.signaler.tasksCreated(ctx, tx, notifier, tenantId, internalMatchResults.CreatedTasks, nil)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
+		return fmt.Errorf("failed to stage created task messages: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	notifier.Notify(ctx)
 	composePostCommit(postUpdated, postCreated)()
 
-	return &ReplayTasksResult{
-		ReplayedTasks:        replayedTasks,
-		UpsertedTasks:        upsertedTasks,
-		InternalEventResults: internalMatchResults,
-	}, nil
+	return nil
 }
 
 func (r *TaskRepositoryImpl) reconstructGroupConditions(

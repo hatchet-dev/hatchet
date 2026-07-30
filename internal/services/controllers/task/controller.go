@@ -548,19 +548,12 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		return err
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantId, res)
-
-	if err != nil {
-		err = fmt.Errorf("could not process fail tasks response: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not process fail tasks response")
-		return err
-	}
+	tc.processFailTasksResponse(ctx, tenantId, res)
 
 	return nil
 }
 
-func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId uuid.UUID, res *v1.FailTasksResponse) error {
+func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId uuid.UUID, res *v1.FailTasksResponse) {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
@@ -591,8 +584,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
-
-	return nil
 }
 
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -768,9 +759,7 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	// the replay repository stages all OLAP messages on the replay transaction and
 	// runs the non-transactional signaling side effects post-commit
 	for _, tasks := range workflowRunIdToTasks {
-		_, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
-
-		if err != nil {
+		if err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks); err != nil {
 			return fmt.Errorf("failed to replay task: %w", err)
 		}
 	}
@@ -978,6 +967,9 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	}
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
+		// FIXME: this is a stateful side effect which can't be dropped — it must
+		// become transactionally safe (staged in the outbox on the match transaction)
+		// once the task processing queue consumes through the outbox path.
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
 			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}
@@ -1010,6 +1002,9 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	}
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
+		// FIXME: this is a stateful side effect which can't be dropped — it must
+		// become transactionally safe (staged in the outbox on the match transaction)
+		// once the task processing queue consumes through the outbox path.
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
 			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}

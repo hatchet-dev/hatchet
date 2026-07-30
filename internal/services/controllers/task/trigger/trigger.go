@@ -61,7 +61,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 		opts = append(opts, opt)
 	}
 
-	_, err := tw.repo.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	err := tw.repo.Triggers().TriggerFromEvents(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
@@ -91,7 +91,7 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		}
 	}
 
-	_, _, idempotencyKeyCollisions, _, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	idempotencyKeyCollisions, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {

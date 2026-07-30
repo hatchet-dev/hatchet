@@ -28,11 +28,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res)
-
-	if err != nil {
-		return false, fmt.Errorf("could not process fail tasks response: %w", err)
-	}
+	tc.processFailTasksResponse(ctx, tenantIdUUID, res)
 
 	return shouldContinue, nil
 }

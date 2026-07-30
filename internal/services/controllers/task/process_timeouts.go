@@ -27,11 +27,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
 	}
 
-	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res.FailTasksResponse)
-
-	if err != nil {
-		return false, fmt.Errorf("could not process fail tasks response: %w", err)
-	}
+	tc.processFailTasksResponse(ctx, tenantIdUUID, res.FailTasksResponse)
 
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
