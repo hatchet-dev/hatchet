@@ -1,6 +1,7 @@
 import { ErrorPageLayout } from './layout';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMember } from '@/lib/api';
@@ -104,7 +105,8 @@ export function TenantForbidden() {
   const queryClient = useQueryClient();
 
   const { currentUser } = useCurrentUser();
-  const { tenantMemberships, isCloudEnabled } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { tenantMemberships } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
 
@@ -137,16 +139,16 @@ export function TenantForbidden() {
         if (!id || id === tenant) {
           return false;
         }
-        if (isCloudEnabled && isTenantArchivedInOrg(id)) {
+        if (isControlPlaneEnabled && isTenantArchivedInOrg(id)) {
           return false;
         }
         return true;
       }) || [],
-    [tenantMemberships, tenant, isCloudEnabled, isTenantArchivedInOrg],
+    [tenantMemberships, tenant, isControlPlaneEnabled, isTenantArchivedInOrg],
   );
 
   const { orgGroups, standaloneTenants } = useMemo(() => {
-    if (!isCloudEnabled) {
+    if (!isControlPlaneEnabled) {
       return { orgGroups: [], standaloneTenants: availableTenants };
     }
 
@@ -181,7 +183,7 @@ export function TenantForbidden() {
 
     return { orgGroups: groups, standaloneTenants: standalone };
   }, [
-    isCloudEnabled,
+    isControlPlaneEnabled,
     availableTenants,
     organizations,
     getOrganizationForTenant,

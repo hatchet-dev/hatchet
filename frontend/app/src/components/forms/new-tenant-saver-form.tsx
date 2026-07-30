@@ -32,8 +32,7 @@ const useSaveTenant = ({
 }: {
   afterSave: NewTenantSaverFormProps['afterSave'];
 }) => {
-  const { isCloudEnabled, invalidate: invalidateUserUniverse } =
-    useUserUniverse();
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
@@ -52,10 +51,10 @@ const useSaveTenant = ({
       tags?: string[];
     }) => {
       const slug = generateTenantSlug(tenantName);
-      if (isCloudEnabled) {
+      if (isControlPlaneEnabled) {
         invariant(
           organizationId,
-          'Organization ID is required when isCloudEnabled',
+          'Organization ID is required under the control plane',
         );
         const tenant = await orgApi
           .organizationCreateTenantMutation(organizationId)
@@ -100,11 +99,7 @@ export function NewTenantSaverForm({
   allTenantTags,
   afterSave,
 }: NewTenantSaverFormProps) {
-  const {
-    isCloudEnabled,
-    organizations,
-    isLoaded: isUserUniverseLoaded,
-  } = useUserUniverse();
+  const { organizations, isLoaded: isUserUniverseLoaded } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(
     defaultOrganizationId,
@@ -119,7 +114,7 @@ export function NewTenantSaverForm({
     queryFn: async () =>
       (await controlPlaneApi.organizationListAvailableShards(selectedOrgId!))
         .data,
-    enabled: Boolean(isCloudEnabled && isControlPlaneEnabled && selectedOrgId),
+    enabled: Boolean(isControlPlaneEnabled && selectedOrgId),
   });
 
   const saveTenantMutation = useSaveTenant({ afterSave });
@@ -128,24 +123,26 @@ export function NewTenantSaverForm({
     return <></>;
   }
 
-  invariant(!isCloudEnabled || organizations);
+  invariant(!isControlPlaneEnabled || organizations);
 
-  if (!isCloudEnabled) {
+  if (!isControlPlaneEnabled) {
     return (
       <NewTenantInputForm
         defaultTenantName={defaultTenantName}
         isSaving={saveTenantMutation.isPending}
-        isCloudEnabled={false}
+        isControlPlaneEnabled={false}
         onSubmit={saveTenantMutation.mutate}
       />
     );
   }
 
+  invariant(organizations);
+
   return (
     <NewTenantInputForm
       defaultTenantName={defaultTenantName}
       isSaving={saveTenantMutation.isPending}
-      isCloudEnabled={true}
+      isControlPlaneEnabled={true}
       organizations={organizations}
       organizationId={selectedOrgId}
       onOrganizationIdChange={setSelectedOrgId}

@@ -1,3 +1,4 @@
+import useControlPlane from '@/hooks/use-control-plane';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
@@ -25,27 +26,25 @@ export const MAX_INACTIVITY_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000;
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const {
-    organizations: organizationData,
-    isLoaded: isUserUniverseLoaded,
-    isCloudEnabled,
-  } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizations: organizationData, isLoaded: isUserUniverseLoaded } =
+    useUserUniverse();
   const { handleApiError } = useApiError({});
   const orgApi = useOrganizationApi();
 
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
     ...orgApi.organizationListQuery(),
-    enabled: isCloudEnabled,
+    enabled: isControlPlaneEnabled,
   });
 
   const organizations = useMemo(() => {
-    if (isUserUniverseLoaded && isCloudEnabled) {
+    if (isUserUniverseLoaded && isControlPlaneEnabled) {
       invariant(organizationData);
       return organizationData;
     }
     return [];
-  }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
+  }, [isUserUniverseLoaded, organizationData, isControlPlaneEnabled]);
 
   const getOrganizationForTenant = useMemo(() => {
     const tenantIdToOrganization = new Map<string, OrganizationForUser>();
@@ -437,7 +436,6 @@ export function useOrganizations() {
   return {
     organizations,
     organizationData, // From context
-    isCloudEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,
