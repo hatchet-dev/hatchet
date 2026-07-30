@@ -27,9 +27,6 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request imp
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
     ScheduledWorkflowsBulkUpdateResponse,
 )
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
-    ScheduledWorkflowsList,
-)
 from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
     ScheduledWorkflowsOrderByField,
 )
@@ -347,7 +344,7 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
-    ) -> ScheduledWorkflowsList:
+    ) -> list[ScheduledWorkflows]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -384,7 +381,7 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
-    ) -> ScheduledWorkflowsList:
+    ) -> list[ScheduledWorkflows]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -403,7 +400,7 @@ class ScheduledClient(BaseRestClient):
             workflow_scheduled_list = tenacity_retry(
                 self._wa(client).workflow_scheduled_list, self.client_config.tenacity
             )
-            return workflow_scheduled_list(
+            wsl = workflow_scheduled_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -416,6 +413,8 @@ class ScheduledClient(BaseRestClient):
                 parent_workflow_run_id=parent_workflow_run_id,
                 statuses=statuses,
             )
+
+            return wsl.rows or []
 
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
         """

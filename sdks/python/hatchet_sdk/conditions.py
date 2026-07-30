@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -17,8 +17,6 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
-    _warn_if_str_duration,
     timedelta_to_expr,
 )
 
@@ -54,7 +52,7 @@ class BaseCondition(BaseModel):
 
 
 class Condition(ABC):
-    def __init__(self, base: BaseCondition):
+    def __init__(self, base: BaseCondition) -> None:
         self.base = base
 
     @abstractmethod
@@ -66,9 +64,8 @@ class Condition(ABC):
 
 class SleepCondition(Condition):
     def __init__(
-        self, duration: Duration, readable_data_key: str | None = None
+        self, duration: timedelta, readable_data_key: str | None = None
     ) -> None:
-        _warn_if_str_duration(duration, stacklevel=2)
         super().__init__(
             BaseCondition(
                 readable_data_key=readable_data_key
@@ -78,7 +75,7 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def to_proto(self, config: ClientConfig) -> SleepMatchCondition:
+    def to_proto(self, _config: ClientConfig) -> SleepMatchCondition:
         return SleepMatchCondition(
             base=self.base.to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
@@ -137,7 +134,7 @@ class ParentCondition(Condition):
 
         self.parent = parent
 
-    def to_proto(self, config: ClientConfig) -> ParentOverrideMatchCondition:
+    def to_proto(self, _config: ClientConfig) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
             base=self.base.to_proto(),
             parent_readable_id=self.parent.name,

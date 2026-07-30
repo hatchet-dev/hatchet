@@ -114,7 +114,7 @@ class TaskRunError(Exception):
             ):
                 serialized = serialized.replace(metadata, "").strip()
                 return serialized, cast(
-                    dict[str, str | None], parsed[TASK_RUN_ERROR_METADATA_KEY]
+                    "dict[str, str | None]", parsed[TASK_RUN_ERROR_METADATA_KEY]
                 )
 
             return serialized, {}
@@ -183,7 +183,7 @@ class TaskRunError(Exception):
 
 
 class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[TaskRunError]):
+    def __init__(self, message: str, exceptions: list[TaskRunError]) -> None:
         self.message = message
         self.exceptions = exceptions
 

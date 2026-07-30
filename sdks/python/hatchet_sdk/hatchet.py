@@ -1,5 +1,4 @@
 import logging
-import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
@@ -7,10 +6,11 @@ from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
 from pydantic import TypeAdapter
 
 from hatchet_sdk import Context, DurableContext
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
@@ -21,6 +21,7 @@ from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.features.stubs import StubsClient
+from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
@@ -33,7 +34,6 @@ from hatchet_sdk.runnables.eviction import (
 from hatchet_sdk.runnables.types import (
     BatchMemberId,
     DefaultFilter,
-    EmptyModel,
     R,
     TaskDefaults,
     TWorkflowInput,
@@ -47,11 +47,10 @@ from hatchet_sdk.types.idempotency import (
     TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
-from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
@@ -68,101 +67,107 @@ class Hatchet:
 
     def __init__(
         self,
-        debug: bool | None = None,
-        client: Client | None = None,
         config: ClientConfig | None = None,
-    ):
-        if debug is not None:
-            warnings.warn(
-                "The `debug` parameter is deprecated and will be removed in v2.0.0. Please set the debug mode using the HATCHET_CLIENT_DEBUG environment variable instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+    ) -> None:
+        self._config = config or ClientConfig()
 
-        _config = config or ClientConfig()
-        _debug = _config.debug if debug is None else debug
-
-        if _debug:
+        if self._config.debug:
             logger.setLevel(logging.DEBUG)
 
-        if client is not None:
-            warnings.warn(
-                "The `client` parameter is deprecated and will be removed in v2.0.0. The client internal to the broader Hatchet client is not meant to be provided or interacted with directly.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        self._client = client if client else Client(config=_config, debug=_debug)
+        self._dispatcher_client = DispatcherClient(self._config)
+        self._event_client = EventClient(self._config)
+        self._listener_client = RunEventListenerClient(self._config)
+        self._workflow_listener_client = PooledWorkflowRunListener(self._config)
+        self._cel_client = CELClient(self._config)
+        self._cron_client = CronClient(self._config)
+        self._filters_client = FiltersClient(self._config)
+        self._logs_client = LogsClient(self._config)
+        self._metrics_client = MetricsClient(self._config)
+        self._rate_limits_client = RateLimitsClient(self._config)
+        self._admin_client = AdminClient(
+            self._config, self._workflow_listener_client, self.listener
+        )
+        self._runs_client = RunsClient(
+            config=self._config,
+            workflow_run_event_listener=self.listener,
+            workflow_run_listener=self._workflow_listener_client,
+            admin_client=self._admin_client,
+        )
+        self._scheduled_client = ScheduledClient(self._config)
+        self._tenant_client = TenantClient(self._config)
+        self._webhooks_client = WebhooksClient(self._config)
+        self._workers_client = WorkersClient(self._config)
+        self._workflows_client = WorkflowsClient(self._config)
 
     @property
     def cel(self) -> CELClient:
         """
         The CEL client is a client for interacting with Hatchet's CEL API.
         """
-        return self._client.cel
+        return self._cel_client
 
     @property
     def cron(self) -> CronClient:
         """
         The cron client is a client for managing cron workflows within Hatchet.
         """
-        return self._client.cron
+        return self._cron_client
 
     @property
     def filters(self) -> FiltersClient:
         """
         The filters client is a client for interacting with Hatchet's filters API.
         """
-        return self._client.filters
+        return self._filters_client
 
     @property
     def logs(self) -> LogsClient:
         """
         The logs client is a client for interacting with Hatchet's logs API.
         """
-        return self._client.logs
+        return self._logs_client
 
     @property
     def metrics(self) -> MetricsClient:
         """
         The metrics client is a client for reading metrics out of Hatchet's metrics API.
         """
-        return self._client.metrics
+        return self._metrics_client
 
     @property
     def rate_limits(self) -> RateLimitsClient:
         """
         The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
         """
-        return self._client.rate_limits
+        return self._rate_limits_client
 
     @property
     def runs(self) -> RunsClient:
         """
         The runs client is a client for interacting with task and workflow runs within Hatchet.
         """
-        return self._client.runs
+        return self._runs_client
 
     @property
     def scheduled(self) -> ScheduledClient:
         """
         The scheduled client is a client for managing scheduled workflows within Hatchet.
         """
-        return self._client.scheduled
+        return self._scheduled_client
 
     @property
     def webhooks(self) -> WebhooksClient:
         """
         The webhooks client provides methods for managing webhook endpoints in Hatchet.
         """
-        return self._client.webhooks
+        return self._webhooks_client
 
     @property
     def workers(self) -> WorkersClient:
         """
         The workers client is a client for managing workers programmatically within Hatchet.
         """
-        return self._client.workers
+        return self._workers_client
 
     @property
     def workflows(self) -> WorkflowsClient:
@@ -171,22 +176,22 @@ class Hatchet:
 
         Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
         """
-        return self._client.workflows
+        return self._workflows_client
 
     @property
     def dispatcher(self) -> DispatcherClient:
-        return self._client.dispatcher
+        return self._dispatcher_client
 
     @property
     def event(self) -> EventClient:
         """
         The event client, which you can use to push events to Hatchet.
         """
-        return self._client.event
+        return self._event_client
 
     @property
     def listener(self) -> RunEventListenerClient:
-        return self._client.listener
+        return self._listener_client
 
     @property
     def stubs(self) -> StubsClient:
@@ -194,21 +199,21 @@ class Hatchet:
 
     @property
     def config(self) -> ClientConfig:
-        return self._client.config
+        return self._config
 
     @property
     def tenant_id(self) -> str:
         """
         The tenant id you're operating in.
         """
-        return self._client.config.tenant_id
+        return self._config.tenant_id
 
     @property
     def namespace(self) -> str:
         """
         The current namespace you're interacting with.
         """
-        return self._client.config.namespace
+        return self._config.namespace
 
     async def aio_get_engine_version(self) -> str | None:
         """Fetch the engine version via the dispatcher's GetVersion RPC.
@@ -216,7 +221,7 @@ class Hatchet:
         :return: The engine version string, or ``None`` if the engine is too old
             to support GetVersion.
         """
-        return await self._client.dispatcher.get_version()
+        return await self.dispatcher.get_version()
 
     def worker(
         self,
@@ -259,8 +264,7 @@ class Hatchet:
             name=name,
             slot_config=normalize_slot_config(resolved_config),
             labels=labels,
-            config=self._client.config,
-            debug=self._client.debug,
+            config=self._config,
             workflows=workflows,
             lifespan=lifespan,
         )
@@ -287,7 +291,7 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
-    ) -> Workflow[EmptyModel]: ...
+    ) -> Workflow[None]: ...
 
     @overload
     def workflow(
@@ -334,7 +338,7 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
-    ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
+    ) -> Workflow[None] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
 
@@ -342,7 +346,7 @@ class Hatchet:
 
         :param description: A description for the workflow
 
-        :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
+        :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, the task functions will receive `None` as their input.
 
         :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run.
 
@@ -369,8 +373,6 @@ class Hatchet:
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
-        _warn_if_int_priority(default_priority)
-
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
@@ -381,7 +383,11 @@ class Hatchet:
                 cron_input=cron_input,
                 sticky=sticky,
                 concurrency=concurrency,
-                input_validator=TypeAdapter(normalize_validator(input_validator)),
+                input_validator=(
+                    TypeAdapter(input_validator)
+                    if input_validator is not None
+                    else None
+                ),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
                 default_filters=default_filters or [],
@@ -407,8 +413,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -423,8 +429,8 @@ class Hatchet:
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
     ) -> Callable[
-        [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
-        Standalone[EmptyModel, R],
+        [Callable[Concatenate[None, Context, P], R | CoroutineLike[R]]],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -443,8 +449,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -478,8 +484,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -495,8 +501,8 @@ class Hatchet:
         ) = None,
     ) -> (
         Callable[
-            [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
-            Standalone[EmptyModel, R],
+            [Callable[Concatenate[None, Context, P], R | CoroutineLike[R]]],
+            Standalone[None, R],
         ]
         | Callable[
             [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
@@ -510,7 +516,7 @@ class Hatchet:
 
         :param description: An optional description for the task.
 
-        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to `None`.
 
         :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
@@ -551,8 +557,6 @@ class Hatchet:
         :returns: A decorator which creates a `Standalone` task object.
         """
 
-        _warn_if_int_priority(default_priority)
-
         def inner(
             func: Callable[
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
@@ -570,7 +574,11 @@ class Hatchet:
                     cron_input=cron_input,
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=TypeAdapter(normalize_validator(input_validator)),
+                    input_validator=(
+                        TypeAdapter(input_validator)
+                        if input_validator is not None
+                        else None
+                    ),
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
                     idempotency=idempotency,
@@ -620,8 +628,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -635,11 +643,11 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                Concatenate[dict[BatchMemberId, None], Context, P],
                 R | CoroutineLike[R],
             ]
         ],
-        Standalone[EmptyModel, R],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -652,8 +660,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -667,11 +675,11 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                Concatenate[dict[BatchMemberId, None], Context, P],
                 dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
         ],
-        Standalone[EmptyModel, R],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -684,8 +692,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -716,8 +724,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -750,8 +758,8 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -831,12 +839,7 @@ class Hatchet:
                 )
                 created_task = broadcast_task_wrapper(
                     cast(
-                        Callable[
-                            Concatenate[
-                                dict[BatchMemberId, TWorkflowInput], Context, P
-                            ],
-                            R | CoroutineLike[R],
-                        ],
+                        "Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], R | CoroutineLike[R]]",
                         func,
                     )
                 )
@@ -858,13 +861,7 @@ class Hatchet:
                 )
                 created_task = dict_task_wrapper(
                     cast(
-                        Callable[
-                            Concatenate[
-                                dict[BatchMemberId, TWorkflowInput], Context, P
-                            ],
-                            dict[BatchMemberId, R]
-                            | CoroutineLike[dict[BatchMemberId, R]],
-                        ],
+                        "Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]]]",
                         func,
                     )
                 )
@@ -892,8 +889,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -908,8 +905,8 @@ class Hatchet:
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
     ) -> Callable[
-        [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
-        Standalone[EmptyModel, R],
+        [Callable[Concatenate[None, DurableContext, P], R | CoroutineLike[R]]],
+        Standalone[None, R],
     ]: ...
 
     @overload
@@ -928,8 +925,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -967,8 +964,8 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -984,12 +981,8 @@ class Hatchet:
         ) = None,
     ) -> (
         Callable[
-            [
-                Callable[
-                    Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]
-                ]
-            ],
-            Standalone[EmptyModel, R],
+            [Callable[Concatenate[None, DurableContext, P], R | CoroutineLike[R]]],
+            Standalone[None, R],
         ]
         | Callable[
             [
@@ -1007,7 +1000,7 @@ class Hatchet:
 
         :param description: An optional description for the task.
 
-        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, the task function will receive `None` as its input.
 
         :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
@@ -1063,7 +1056,11 @@ class Hatchet:
                     on_crons=on_crons or [],
                     cron_input=cron_input,
                     sticky=sticky,
-                    input_validator=TypeAdapter(normalize_validator(input_validator)),
+                    input_validator=(
+                        TypeAdapter(input_validator)
+                        if input_validator is not None
+                        else None
+                    ),
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
@@ -1101,20 +1098,6 @@ class Hatchet:
             )
 
         return inner
-
-    def get_current_context(self) -> Context | None:
-        """
-        Get the current Hatchet context, if it exists. This is only available within the execution of a task or workflow.
-
-        :returns: The current `Context` object, or `None` if there is no current context (i.e. if this is called outside of the execution of a task or workflow).
-        """
-        warnings.warn(
-            "The `get_current_context` method is deprecated and will be removed in v2.0.0. Please use the `current_context` property instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return ctx_hatchet_context.get()
 
     @property
     def current_context(self) -> Context | None:

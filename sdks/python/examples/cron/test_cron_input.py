@@ -18,9 +18,9 @@ async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
             workflow_id=cron_input_example_send_greeting.id
         )
 
-        assert cron.rows is not None
-        assert len(cron.rows) == 1
-        cron_id = cron.rows[0].metadata.id
+        assert cron is not None
+        assert len(cron) == 1
+        cron_id = cron[0].metadata.id
 
         trigger_res = hatchet.cron._wa(client).workflow_cron_trigger(
             tenant=hatchet.tenant_id,

@@ -126,7 +126,7 @@ class LogRecord:
 
 
 class AsyncLogSender:
-    def __init__(self, event_client: EventClient):
+    def __init__(self, event_client: EventClient) -> None:
         self._event_client = event_client
         self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
         self._thread: threading.Thread | None = None
@@ -162,7 +162,7 @@ class AsyncLogSender:
 
 
 class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
-    def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
+    def __init__(self, log_sender: AsyncLogSender, stream: StringIO) -> None:
         super().__init__(stream)
 
         self.log_sender = log_sender

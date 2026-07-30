@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -10,18 +12,33 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import EmptyModel, Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
+
+
+async def _poll_run_until_tasks(
+    hatchet: Hatchet,
+    run_id: str,
+    predicate: Callable[[list[Any]], bool],
+    timeout: float = 30.0,
+) -> V1WorkflowRunDetails:
+    run = None
+    for _ in range(int(timeout / 0.5)):
+        run = await hatchet.runs.aio_get(run_id)
+        if run.tasks and predicate(run.tasks):
+            return run
+        await asyncio.sleep(0.5)
+    assert run is not None
+    return run
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_payload_replay_bug(hatchet: Hatchet) -> None:
+async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
     """
     Tests the case where a task is initially inserted in a non-queued state (e.g. cancelled),
     but then is replayed. The task should initially have a null payload, but on replay the payload
     should be updated.
     """
-
-    test_run_id = str(uuid4())
 
     ref = await payload_initial_cancel_bug_workflow.aio_run(
         input=Input(random_number=42),
@@ -35,9 +52,14 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
 
     assert step_1_output.should_cancel is True
 
-    await asyncio.sleep(3)
-
-    run = await hatchet.runs.aio_get(ref.workflow_run_id)
+    run = await _poll_run_until_tasks(
+        hatchet,
+        ref.workflow_run_id,
+        lambda tasks: len(tasks) >= 2
+        and all(
+            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED] for t in tasks
+        ),
+    )
 
     tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)
 
@@ -47,7 +69,6 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
     assert tasks[1].status == V1TaskStatus.CANCELLED
 
     await hatchet.runs.aio_replay(run_id=ref.workflow_run_id)
-    await asyncio.sleep(3)
 
     result = await ref.aio_result()
 
@@ -57,9 +78,12 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
     assert step_1_output.should_cancel is False
     assert step_2_output.should_cancel is False
 
-    await asyncio.sleep(3)
-
-    run = await hatchet.runs.aio_get(ref.workflow_run_id)
+    run = await _poll_run_until_tasks(
+        hatchet,
+        ref.workflow_run_id,
+        lambda tasks: len(tasks) >= 2
+        and all(t.status == V1TaskStatus.COMPLETED for t in tasks),
+    )
 
     tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)
 

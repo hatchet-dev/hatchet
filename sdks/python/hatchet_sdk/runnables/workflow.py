@@ -1,6 +1,5 @@
 import asyncio
 import json
-import warnings
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from enum import Enum
@@ -19,7 +18,6 @@ from typing import (
     get_type_hints,
     overload,
 )
-from warnings import warn
 
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
 from typing_extensions import assert_never
@@ -49,7 +47,6 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     BatchMemberId,
     BatchTaskConfig,
-    EmptyModel,
     R,
     StepType,
     TaskDefaults,
@@ -60,10 +57,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.labels import (
-    _warn_if_dict_desired_worker_labels,
-)
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -71,7 +65,6 @@ from hatchet_sdk.types.trigger import (
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, _warn_if_str_duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -106,8 +99,8 @@ def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -
 
 
 class ComputedTaskParameters(BaseModel):
-    schedule_timeout: Duration
-    execution_timeout: Duration
+    schedule_timeout: timedelta
+    execution_timeout: timedelta
     retries: int
     backoff_factor: float | None
     backoff_max_seconds: int | None
@@ -161,28 +154,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._client = client
 
     @property
-    def config(self) -> WorkflowConfig:
-        warn(
-            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._config
-
-    @property
-    def client(self) -> "Hatchet":
-        warn(
-            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._client
-
-    @property
     def service_name(self) -> str:
         return self._client.config.apply_namespace(self._config.name.lower())
 
-    def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
+    def create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
 
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
@@ -237,10 +212,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency = None
             _concurrency_arr = []
 
-        # Hack to not send a JSON schema if the input type is None/EmptyModel
-        input_type = self._config.input_validator.core_schema.get("cls")
-
-        if input_type is None or input_type is EmptyModel:
+        if self._config.input_validator is None:
             json_schema = None
         else:
             try:
@@ -275,8 +247,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
+        if self._config.input_validator is None:
+            return cast("TWorkflowInput", None)
+
         return cast(
-            TWorkflowInput,
+            "TWorkflowInput",
             self._config.input_validator.validate_python(
                 ctx._workflow_input, context=HATCHET_PYDANTIC_SENTINEL
             ),
@@ -292,7 +267,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def _create_trigger_run_options_with_combined_additional_meta(
         self,
-        options: TriggerWorkflowOptions | None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -300,64 +274,42 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> TriggerWorkflowOptions:
-        if options is not None:
-            warn(
-                "Passing options to the run(), schedule(), etc. methods is deprecated and will be removed in v2.0.0. Please pass these parameters directly instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        options = options or TriggerWorkflowOptions(
+        return TriggerWorkflowOptions(
             child_key=child_key,
-            additional_metadata=additional_metadata or {},
+            additional_metadata=self._combine_additional_metadata(
+                additional_metadata or {}
+            ),
             priority=priority,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_label=desired_worker_labels,
         )
-        options_copy = options.model_copy()
-        options_copy.additional_metadata = self._combine_additional_metadata(
-            options.additional_metadata
-        )
-
-        return options_copy
 
     def _create_schedule_options_with_combined_metadata(
         self,
-        options: ScheduleTriggerWorkflowOptions | None,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> ScheduleTriggerWorkflowOptions:
-        if options is not None:
-            warn(
-                "Passing options to the run(), schedule(), etc. methods is deprecated and will be removed in v2.0.0. Please pass these parameters directly instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        options = options or ScheduleTriggerWorkflowOptions(
+        return ScheduleTriggerWorkflowOptions(
             child_key=child_key,
-            additional_metadata=additional_metadata or {},
+            additional_metadata=self._combine_additional_metadata(
+                additional_metadata or {}
+            ),
             priority=priority,
         )
-        options_copy = options.model_copy()
-        options_copy.additional_metadata = self._combine_additional_metadata(
-            options.additional_metadata
-        )
-
-        return options_copy
 
     @property
-    def input_validator(self) -> TypeAdapter[TWorkflowInput]:
-        return cast(TypeAdapter[TWorkflowInput], self._config.input_validator)
+    def input_validator(self) -> TypeAdapter[TWorkflowInput] | None:
+        if self._config.input_validator is None:
+            return None
+        return cast("TypeAdapter[TWorkflowInput]", self._config.input_validator)
 
     @property
-    def input_validator_type(self) -> type[TWorkflowInput]:
-        return cast(type[TWorkflowInput], self._config.input_validator._type)
+    def input_validator_type(self) -> type[TWorkflowInput] | None:
+        if self._config.input_validator is None:
+            return None
+        return cast("type[TWorkflowInput]", self._config.input_validator._type)
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
@@ -380,9 +332,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        key: str | None = None,
-        options: TriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -394,8 +344,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
 
         :param input: The input data for the workflow.
-        :param key: The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication.
-        :param options: Deprecated. Additional options for the workflow run. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the workflow run.
@@ -409,7 +357,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
-                options,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
@@ -417,10 +364,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
             ),
-            key=key,
         )
 
     def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str | None:
+        if self._config.input_validator is None:
+            return None
+
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,
@@ -429,8 +378,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _serialize_input_to_dict(
         self, input: TWorkflowInput | None
     ) -> JSONSerializableMapping:
+        if self._config.input_validator is None:
+            return {}
+
         return cast(
-            JSONSerializableMapping,
+            "JSONSerializableMapping",
             self._config.input_validator.dump_python(
                 input,  # type: ignore[arg-type]
                 mode="json",
@@ -474,10 +426,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         workflows = self._client.workflows.list(workflow_name=self.name)
 
-        if not workflows.rows:
+        if not workflows:
             raise ValueError(f"No id found for {self.name}")
 
-        for workflow in workflows.rows:
+        for workflow in workflows:
             if workflow.name == self.name:
                 return workflow.metadata.id
 
@@ -512,7 +464,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return self._client.runs.list_with_pagination(
+        return self._client.runs.list(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,
@@ -555,7 +507,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return await self._client.runs.aio_list_with_pagination(
+        return await self._client.runs.aio_list(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,
@@ -616,8 +568,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -627,7 +578,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the scheduled workflow run.
@@ -635,13 +585,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
         opts = self._create_schedule_options_with_combined_metadata(
-            options,
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
         )
 
-        return self._client._client.admin.schedule_workflow(
+        return self._client._admin_client.schedule_workflow(
             name=self._config.name,
             schedules=[run_at],
             input=self._serialize_input(input, target="bytes"),
@@ -651,8 +600,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -662,7 +610,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :param run_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
         :param priority: The priority of the scheduled workflow run.
@@ -673,7 +620,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             self.schedule,
             run_at=run_at,
             input=input,
-            options=options,
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -683,7 +629,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -698,8 +644,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        _warn_if_int_priority(priority)
-
         return self._client.cron.create(
             workflow_name=self._config.name,
             cron_name=cron_name,
@@ -713,7 +657,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -757,13 +701,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.CLAUDE],
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> "SdkMcpTool[TWorkflowInput]": ...
     @overload
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.OPENAI],
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> "FunctionTool": ...
     def mcp_tool(
         self,
@@ -789,7 +733,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 "Set description= when defining the workflow or task."
             )
         description = self._config.description
-        if self.input_validator_type is EmptyModel:
+        if self.input_validator is None:
             raise ValueError(
                 f"Runnable '{self._config.name}' has no input validator. "
                 "Set input_validator= when defining the workflow or task."
@@ -864,57 +808,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     and can be arranged into complex dependency patterns.
     """
 
-    def run_no_wait(
-        self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-        child_key: str | None = None,
-        additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-    ) -> WorkflowRunRef:
-        """
-        Synchronously trigger a workflow run without waiting for it to complete.
-        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
-
-        :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
-        :param child_key: An optional key for deduplicating child workflow runs.
-        :param additional_metadata: Additional metadata to attach to the workflow run.
-        :param priority: The priority of the workflow run.
-        :param sticky: Whether to use sticky scheduling for the workflow run.
-        :param desired_worker_id: The ID of the desired worker to run the workflow on.
-        :param desired_worker_labels: A list of desired worker labels for worker affinity.
-
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
-
-        .. deprecated::
-            Use ``run(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.run(
-            input=input,
-            options=options,
-            wait_for_result=False,
-            child_key=child_key,
-            additional_metadata=additional_metadata,
-            priority=priority,
-            sticky=sticky,
-            desired_worker_id=desired_worker_id,
-            desired_worker_labels=desired_worker_labels,
-        )
-
     @overload
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -928,7 +825,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
         child_key: str | None = None,
@@ -941,8 +837,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -957,7 +852,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, blocks until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, block until completion and return the result. If False, return a WorkflowRunRef immediately.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -969,11 +863,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
 
-        ref = self._client._client.admin.run_workflow(
+        ref = self._client._admin_client.run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
-                options,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
@@ -988,57 +881,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return ref.result()
 
-    async def aio_run_no_wait(
-        self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-        child_key: str | None = None,
-        additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-    ) -> WorkflowRunRef:
-        """
-        Asynchronously trigger a workflow run without waiting for it to complete.
-        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
-
-        :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
-        :param child_key: An optional key for deduplicating child workflow runs.
-        :param additional_metadata: Additional metadata to attach to the workflow run.
-        :param priority: The priority of the workflow run.
-        :param sticky: Whether to use sticky scheduling for the workflow run.
-        :param desired_worker_id: The ID of the desired worker to run the workflow on.
-        :param desired_worker_labels: A list of desired worker labels for worker affinity.
-
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
-
-        .. deprecated::
-            Use ``aio_run(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.aio_run(
-            input=input,
-            options=options,
-            wait_for_result=False,
-            child_key=child_key,
-            additional_metadata=additional_metadata,
-            priority=priority,
-            sticky=sticky,
-            desired_worker_id=desired_worker_id,
-            desired_worker_labels=desired_worker_labels,
-        )
-
     @overload
     async def aio_run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1052,7 +898,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
         child_key: str | None = None,
@@ -1065,8 +910,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1081,7 +925,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, awaits until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, await completion and return the result. If False, return a WorkflowRunRef immediately.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -1096,7 +939,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         opts = self._create_trigger_run_options_with_combined_additional_meta(
-            options,
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -1121,7 +963,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             durable_spawn_result = durable_spawn_results[0]
 
             if not wait_for_result:
-                return self._client._client.admin.get_workflow_run(
+                return self._client._admin_client.get_workflow_run(
                     durable_spawn_result.workflow_run_external_id
                 )
 
@@ -1131,7 +973,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow_name=durable_spawn_result.workflow_name,
             )
 
-        ref = await self._client._client.admin.aio_run_workflow(
+        ref = await self._client._admin_client.aio_run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="bytes"),
             options=opts,
@@ -1194,7 +1036,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, block until all runs complete and return results. If False, return a list of WorkflowRunRef immediately.
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
-        refs = self._client._client.admin.run_workflows(
+        refs = self._client._admin_client.run_workflows(
             workflows=workflows,
         )
 
@@ -1252,7 +1094,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
             if not wait_for_result:
                 return [
-                    self._client._client.admin.get_workflow_run(
+                    self._client._admin_client.get_workflow_run(
                         durable_spawn_result.workflow_run_external_id
                     )
                     for durable_spawn_result in durable_spawn_results
@@ -1270,7 +1112,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 return_exceptions=return_exceptions,
             )
 
-        refs = await self._client._client.admin.aio_run_workflows(
+        refs = await self._client._admin_client.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -1290,50 +1132,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             max_concurrency=10,
         )
 
-    def run_many_no_wait(
-        self,
-        workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
-        """
-        Run a workflow in bulk without waiting for all runs to complete.
-
-        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
-
-        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
-
-        .. deprecated::
-            Use ``run_many(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "run_many_no_wait() is deprecated, use run_many(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.run_many(workflows, wait_for_result=False)
-
-    async def aio_run_many_no_wait(
-        self,
-        workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
-        """
-        Run a workflow in bulk without waiting for all runs to complete.
-
-        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
-
-        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
-
-        .. deprecated::
-            Use ``aio_run_many(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "aio_run_many_no_wait() is deprecated, use aio_run_many(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.aio_run_many(workflows, wait_for_result=False)
-
     def _parse_task_name(
         self,
         name: str | None,
@@ -1345,8 +1143,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
@@ -1399,9 +1197,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :raises ValueError: If `slot_cost` is not positive.
         """
-
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
-
         if slot_cost is not None and slot_cost <= 0:
             raise ValueError("slot_cost must be a positive integer")
 
@@ -1421,7 +1216,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1468,8 +1262,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[True],
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1497,8 +1291,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[False] = False,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1525,8 +1319,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: bool = False,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
@@ -1575,7 +1369,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             backoff_factor=backoff_factor,
             retries=0,
             backoff_max_seconds=backoff_max_seconds,
-            task_defaults=self.config.task_defaults,
+            task_defaults=self._config.task_defaults,
         )
 
         def inner(
@@ -1587,7 +1381,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 | CoroutineLike[R],
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1598,7 +1391,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             )
             task = Task(
                 _fn=cast(
-                    Callable[[TWorkflowInput, Context], R | CoroutineLike[R]], func
+                    "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
                 ),
                 is_durable=False,
                 workflow=self,
@@ -1634,8 +1427,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
@@ -1695,8 +1488,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
-
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
@@ -1711,7 +1502,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
             labels: list[DesiredWorkerLabel] = (
                 desired_worker_labels
                 if isinstance(desired_worker_labels, list)
@@ -1751,8 +1541,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
@@ -1783,7 +1573,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a `Task` object.
         """
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1822,8 +1611,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_success_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(seconds=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
+        execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
@@ -1854,7 +1643,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A decorator which creates a Task object.
         """
-        _warn_if_str_duration(schedule_timeout, execution_timeout)
 
         def inner(
             func: Callable[
@@ -1931,7 +1719,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         self,
         standalone: "Standalone[TWorkflowInput, R]",
         workflow_run_ref: WorkflowRunRef,
-    ):
+    ) -> None:
         self._s = standalone
         self._wrr = workflow_run_ref
 
@@ -2001,7 +1789,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         output = result.get(self._task.name) or result or {}
 
         return cast(
-            R,
+            "R",
             self._output_validator.validate_python(
                 output, context=HATCHET_PYDANTIC_SENTINEL
             ),
@@ -2011,7 +1799,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -2025,7 +1812,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
         child_key: str | None = None,
@@ -2038,8 +1824,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -2054,7 +1839,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method triggers a workflow run, blocks until completion, and returns the extracted result.
 
         :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, block until completion and return the result. If False, return a TaskRunRef immediately.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -2068,7 +1852,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if not wait_for_result:
             ref = self._workflow.run(
                 input,
-                options,
                 wait_for_result=False,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
@@ -2082,7 +1865,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         return self._extract_result(
             self._workflow.run(
                 input,
-                options,
                 wait_for_result=True,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
@@ -2097,7 +1879,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -2111,7 +1892,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run(
         self,
         input: TWorkflowInput = ...,
-        options: TriggerWorkflowOptions | None = None,
         *,
         wait_for_result: Literal[False],
         child_key: str | None = None,
@@ -2124,8 +1904,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -2140,7 +1919,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         This method triggers a workflow run, awaits until completion, and returns the extracted result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
         :param wait_for_result: If True, await completion and return the result. If False, return a TaskRunRef immediately.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -2155,7 +1933,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if not wait_for_result:
             ref = await self._workflow.aio_run(
                 input,
-                options,
                 wait_for_result=False,
                 child_key=child_key,
                 additional_metadata=additional_metadata,
@@ -2169,7 +1946,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         res = await self._workflow.aio_run(
             input,
-            options,
             wait_for_result=True,
             child_key=child_key,
             additional_metadata=additional_metadata,
@@ -2179,99 +1955,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             desired_worker_labels=desired_worker_labels,
         )
         return await asyncio.to_thread(self._extract_result, res)
-
-    def run_no_wait(
-        self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-        child_key: str | None = None,
-        additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-    ) -> TaskRunRef[TWorkflowInput, R]:
-        """
-        Trigger a workflow run without waiting for it to complete.
-
-        This method triggers a workflow run and immediately returns a reference to the run without blocking while the workflow runs.
-
-        :param input: The input data for the workflow, must match the workflow's input type.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
-        :param child_key: An optional key for deduplicating child workflow runs.
-        :param additional_metadata: Additional metadata to attach to the workflow run.
-        :param priority: The priority of the workflow run.
-        :param sticky: Whether to use sticky scheduling for the workflow run.
-        :param desired_worker_id: The ID of the desired worker to run the workflow on.
-        :param desired_worker_labels: A list of desired worker labels for worker affinity.
-
-        :returns: A `TaskRunRef` object representing the reference to the workflow run.
-
-        .. deprecated::
-            Use ``run(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "run_no_wait() is deprecated, use run(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.run(
-            input=input,
-            options=options,
-            wait_for_result=False,
-            child_key=child_key,
-            additional_metadata=additional_metadata,
-            priority=priority,
-            sticky=sticky,
-            desired_worker_id=desired_worker_id,
-            desired_worker_labels=desired_worker_labels,
-        )
-
-    async def aio_run_no_wait(
-        self,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: TriggerWorkflowOptions | None = None,
-        child_key: str | None = None,
-        additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-    ) -> TaskRunRef[TWorkflowInput, R]:
-        """
-        Asynchronously trigger a workflow run without waiting for it to complete.
-        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
-
-        :param input: The input data for the workflow.
-        :param options: Deprecated. Additional options for workflow execution. Use the other keyword arguments instead.
-        :param child_key: An optional key for deduplicating child workflow runs.
-        :param additional_metadata: Additional metadata to attach to the workflow run.
-        :param priority: The priority of the workflow run.
-        :param sticky: Whether to use sticky scheduling for the workflow run.
-        :param desired_worker_id: The ID of the desired worker to run the workflow on.
-        :param desired_worker_labels: A list of desired worker labels for worker affinity.
-
-        :returns: A `TaskRunRef` object representing the reference to the workflow run.
-
-        .. deprecated::
-            Use ``aio_run(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "aio_run_no_wait() is deprecated, use aio_run(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.aio_run(
-            input=input,
-            options=options,
-            wait_for_result=False,
-            child_key=child_key,
-            additional_metadata=additional_metadata,
-            priority=priority,
-            sticky=sticky,
-            desired_worker_id=desired_worker_id,
-            desired_worker_labels=desired_worker_labels,
-        )
 
     @overload
     def run_many(
@@ -2377,51 +2060,13 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             )
         ]
 
-    def run_many_no_wait(
-        self, workflows: list[WorkflowRunTriggerConfig]
-    ) -> list[TaskRunRef[TWorkflowInput, R]]:
-        """
-        Run a workflow in bulk without waiting for all runs to complete.
-
-        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-        :returns: A list of `TaskRunRef` objects, each representing a reference to a workflow run.
-
-        .. deprecated::
-            Use ``run_many(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "run_many_no_wait() is deprecated, use run_many(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.run_many(workflows, wait_for_result=False)
-
-    async def aio_run_many_no_wait(
-        self, workflows: list[WorkflowRunTriggerConfig]
-    ) -> list[TaskRunRef[TWorkflowInput, R]]:
-        """
-        Run a workflow in bulk without waiting for all runs to complete.
-
-        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
-        :returns: A list of `TaskRunRef` objects, each representing a reference to a workflow run.
-
-        .. deprecated::
-            Use ``aio_run_many(wait_for_result=False)`` instead.
-        """
-        warnings.warn(
-            "aio_run_many_no_wait() is deprecated, use aio_run_many(wait_for_result=False) instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return await self.aio_run_many(workflows, wait_for_result=False)
-
     def mock_run(
         self,
         input: TWorkflowInput | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -2454,7 +2099,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -2497,7 +2142,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param run_id: The ID of the run to get the reference for.
         :returns: A `TaskRunRef` object representing the reference to the task run.
         """
-        wrr = self._workflow.client._client.runs.get_run_ref(run_id)
+        wrr = self._workflow._client._runs_client.get_run_ref(run_id)
         return TaskRunRef[TWorkflowInput, R](self, wrr)
 
     async def aio_get_result(self, run_id: str) -> R:
@@ -2524,8 +2169,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast(TypeAdapter[R], self._output_validator)
+        return cast("TypeAdapter[R]", self._output_validator)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast(type[R], self._output_validator._type)
+        return cast("type[R]", self._output_validator._type)
