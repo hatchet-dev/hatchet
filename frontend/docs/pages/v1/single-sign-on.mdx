@@ -39,7 +39,11 @@ To allow a user to sign in with SSO, you must also link your organization's emai
 This is done using DNS verification--you must add the `hatchet-sso-verify` to your domain's DNS TXT records with a verification
 token to link the domain. Once the domain is verified, all users who sign in with SSO using that email domain will use your SSO
 configuration to authenticate. There may be a short delay between updating the TXT record and verification, as the records
-need to propagate.
+need to propagate. Here is an example verification record:
+
+| Type | Domain Name |                          Record                           |
+|:----:|:-----------:|:---------------------------------------------------------:|
+| TXT  | hatchet.run | "hatchet-sso-verify=b2b92da1-4314-11f1-a43b-5eff43bccba3" |
 
 ### Forcing SSO
 
