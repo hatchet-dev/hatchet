@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -810,7 +811,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	if err := r.signaler.internalEvents(ctx, tx, tenantId, internalEvents); err != nil {
+	notifier := &pgoutbox.Notifier{}
+
+	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, internalEvents); err != nil {
 		err = fmt.Errorf("failed to stage internal events: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to stage internal events")
@@ -824,6 +827,8 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
+
+	notifier.Notify(ctx)
 
 	return &FinalizedTaskResponse{
 		ReleasedTasks:  releasedTasks,
@@ -846,7 +851,9 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 
 	defer rollback()
 
-	res, err := r.failTasksTx(ctx, tx, tenantId, failureOpts)
+	notifier := &pgoutbox.Notifier{}
+
+	res, err := r.failTasksTx(ctx, tx, notifier, tenantId, failureOpts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to fail tasks: %w", err)
@@ -870,7 +877,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 		})
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, failedPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, failedPayloads...); err != nil {
 		err = fmt.Errorf("failed to stage monitoring events: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to stage monitoring events")
@@ -885,10 +892,12 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, err
 	}
 
+	notifier.Notify(ctx)
+
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -1043,7 +1052,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, tenantI
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, retryPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, retryPayloads...); err != nil {
 		return nil, err
 	}
 
@@ -1057,7 +1066,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, tenantI
 		eventsToSignal = append(eventsToSignal, event)
 	}
 
-	if err := r.signaler.internalEvents(ctx, tx, tenantId, eventsToSignal); err != nil {
+	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, eventsToSignal); err != nil {
 		return nil, err
 	}
 
@@ -1273,8 +1282,10 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
+	notifier := &pgoutbox.Notifier{}
+
 	// release queue items
-	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
+	res, err := r.cancelTasks(ctx, tx, notifier, tenantId, tasks)
 
 	if err != nil {
 		err = fmt.Errorf("failed to cancel tasks: %w", err)
@@ -1291,10 +1302,12 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, err
 	}
 
+	notifier.Notify(ctx)
+
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []CancelTaskOpts) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, opts []CancelTaskOpts) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
 	opts = listutils.UniqBy(opts, func(o CancelTaskOpts) string {
 		return createTaskUniqueKey(*o.TaskIdInsertedAtRetryCount)
@@ -1347,11 +1360,11 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, tenantId 
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, monitoringPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, monitoringPayloads...); err != nil {
 		return nil, err
 	}
 
-	if err := r.signaler.internalEvents(ctx, tx, tenantId, internalEvents); err != nil {
+	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, internalEvents); err != nil {
 		return nil, err
 	}
 
@@ -1617,8 +1630,10 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		})
 	}
 
+	notifier := &pgoutbox.Notifier{}
+
 	// fail the tasks
-	failResp, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
+	failResp, err := r.failTasksTx(ctx, tx, notifier, tenantId, failOpts)
 
 	if err != nil {
 		return nil, false, err
@@ -1637,7 +1652,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, timedOutPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, timedOutPayloads...); err != nil {
 		return nil, false, err
 	}
 
@@ -1645,6 +1660,8 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
+
+	notifier.Notify(ctx)
 
 	return &TimeoutTasksResponse{
 		FailTasksResponse: failResp,
@@ -1700,8 +1717,10 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		})
 	}
 
+	notifier := &pgoutbox.Notifier{}
+
 	// fail the tasks
-	res, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
+	res, err := r.failTasksTx(ctx, tx, notifier, tenantId, failOpts)
 
 	if err != nil {
 		return nil, false, err
@@ -1746,7 +1765,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, reassignedPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, reassignedPayloads...); err != nil {
 		return nil, false, err
 	}
 
@@ -1754,6 +1773,8 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
+
+	notifier.Notify(ctx)
 
 	return res, len(toReassign) == limit, nil
 }
@@ -1794,7 +1815,9 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, queuedPayloads...); err != nil {
+	notifier := &pgoutbox.Notifier{}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, queuedPayloads...); err != nil {
 		return nil, false, err
 	}
 
@@ -1802,6 +1825,8 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
+
+	notifier.Notify(ctx)
 
 	return res, len(res) == limit, nil
 }
@@ -1877,7 +1902,9 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 	}
 
 	// stage the OLAP messages for created tasks on the same tx
-	postCreated, err := r.signaler.tasksCreated(ctx, tx, tenantId, results.CreatedTasks, nil)
+	notifier := &pgoutbox.Notifier{}
+
+	postCreated, err := r.signaler.tasksCreated(ctx, tx, notifier, tenantId, results.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to stage created task messages: %w", err)
@@ -1887,6 +1914,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		return nil, false, err
 	}
 
+	notifier.Notify(ctx)
 	postCreated()
 
 	return results, len(emitted) == limit, nil
@@ -2059,6 +2087,8 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 
 	defer rollback()
 
+	notifier := &pgoutbox.Notifier{}
+
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -2133,7 +2163,7 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 			}
 		}
 
-		if err := r.signaler.monitoringEvents(ctx, tx, tenantId, restoringPayloads...); err != nil {
+		if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, restoringPayloads...); err != nil {
 			return nil, err
 		}
 	}
@@ -2141,6 +2171,8 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
+
+	notifier.Notify(ctx)
 
 	return rows, nil
 }
@@ -4112,17 +4144,19 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	// stage the OLAP messages for replayed/upserted/created tasks on the same tx
-	if stageErr := r.signaler.tasksReplayed(ctx, tx, tenantId, replayedTasks); stageErr != nil {
+	notifier := &pgoutbox.Notifier{}
+
+	if stageErr := r.signaler.tasksReplayed(ctx, tx, notifier, tenantId, replayedTasks); stageErr != nil {
 		return nil, fmt.Errorf("failed to stage replayed task messages: %w", stageErr)
 	}
 
-	postUpdated, err := r.signaler.tasksUpdated(ctx, tx, tenantId, upsertedTasks)
+	postUpdated, err := r.signaler.tasksUpdated(ctx, tx, notifier, tenantId, upsertedTasks)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage upserted task messages: %w", err)
 	}
 
-	postCreated, err := r.signaler.tasksCreated(ctx, tx, tenantId, internalMatchResults.CreatedTasks, nil)
+	postCreated, err := r.signaler.tasksCreated(ctx, tx, notifier, tenantId, internalMatchResults.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
@@ -4132,6 +4166,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	notifier.Notify(ctx)
 	composePostCommit(postUpdated, postCreated)()
 
 	return &ReplayTasksResult{

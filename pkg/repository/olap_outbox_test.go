@@ -23,6 +23,7 @@ var testTenantUUID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 type stagedMessages struct {
 	topic string
 	msgs  []pgoutbox.MessageOpts
+	opts  []pgoutbox.AddOpt
 }
 
 type fakeOutbox struct {
@@ -36,7 +37,7 @@ func (f *fakeOutbox) AddMessages(ctx context.Context, tx pgx.Tx, topic string, m
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.staged = append(f.staged, stagedMessages{topic: topic, msgs: msgs})
+	f.staged = append(f.staged, stagedMessages{topic: topic, msgs: msgs, opts: opts})
 	return nil
 }
 
@@ -123,7 +124,7 @@ func TestOLAPOutboxStagesTypedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, o.stage(ctx, fakeTx{}, olapOutboxTopic, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}), eventTriggerMsg))
+	require.NoError(t, o.stage(ctx, fakeTx{}, &pgoutbox.Notifier{}, olapOutboxTopic, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}), eventTriggerMsg))
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 2)
@@ -131,6 +132,11 @@ func TestOLAPOutboxStagesTypedMessages(t *testing.T) {
 	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[0].msg.ID)
 	assert.Equal(t, msgqueue.MsgIDCreatedEventTrigger, msgs[1].msg.ID)
 	assert.Equal(t, testTenantUUID, msgs[1].msg.TenantID)
+
+	// staging on a caller transaction passes the notifier through, so the caller's
+	// post-commit Notify wakes the outbox subscribers
+	require.Len(t, fake.staged, 1)
+	assert.Len(t, fake.staged[0].opts, 1)
 }
 
 func mustMessage(t *testing.T, id string, payload any) *msgqueue.Message {
@@ -175,7 +181,7 @@ func TestSignalerTasksCreatedStagesMessagesAndEvents(t *testing.T) {
 		{V1Dag: &sqlcv1.V1Dag{TenantID: testTenantUUID}},
 	}
 
-	postCommit, err := s.tasksCreated(context.Background(), fakeTx{}, testTenantUUID, tasks, dags)
+	postCommit, err := s.tasksCreated(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, tasks, dags)
 	require.NoError(t, err)
 	require.NotNil(t, postCommit)
 
@@ -201,7 +207,7 @@ func TestSignalerTasksReplayedStagesMonitoringEvents(t *testing.T) {
 	fake := &fakeOutbox{}
 	s := newTestSignaler(fake)
 
-	err := s.tasksReplayed(context.Background(), fakeTx{}, testTenantUUID, []TaskIdInsertedAtRetryCount{
+	err := s.tasksReplayed(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, []TaskIdInsertedAtRetryCount{
 		{Id: 1, RetryCount: 0},
 		{Id: 2, RetryCount: 1},
 	})
@@ -223,10 +229,10 @@ func TestSignalerInternalEventsStageToTaskProcessingTopic(t *testing.T) {
 	s := newTestSignaler(fake)
 
 	// empty events are a no-op
-	require.NoError(t, s.internalEvents(context.Background(), fakeTx{}, testTenantUUID, nil))
+	require.NoError(t, s.internalEvents(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, nil))
 	assert.Empty(t, fake.staged)
 
-	err := s.internalEvents(context.Background(), fakeTx{}, testTenantUUID, []InternalTaskEvent{
+	err := s.internalEvents(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, []InternalTaskEvent{
 		{TenantID: testTenantUUID, TaskID: 1, EventType: sqlcv1.V1TaskEventTypeFAILED},
 	})
 	require.NoError(t, err)

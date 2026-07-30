@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -322,13 +323,15 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	}
 
 	// stage the OLAP messages for created/replayed tasks on the same tx
-	postCreated, err := m.signaler.tasksCreated(ctx, tx, tenantId, res.CreatedTasks, nil)
+	notifier := &pgoutbox.Notifier{}
+
+	postCreated, err := m.signaler.tasksCreated(ctx, tx, notifier, tenantId, res.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
 	}
 
-	postReplayed, err := m.signaler.tasksUpdated(ctx, tx, tenantId, res.ReplayedTasks)
+	postReplayed, err := m.signaler.tasksUpdated(ctx, tx, notifier, tenantId, res.ReplayedTasks)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage replayed task messages: %w", err)
@@ -338,6 +341,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
+	notifier.Notify(ctx)
 	composePostCommit(postCreated, postReplayed)()
 
 	return res, nil
@@ -382,7 +386,9 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	// stage the OLAP messages for created tasks on the same tx. note the user event
 	// path does not signal replayed tasks (parity with the previous controller-side
 	// signaling)
-	postCreated, err := m.signaler.tasksCreated(ctx, tx, tenantId, res.CreatedTasks, nil)
+	notifier := &pgoutbox.Notifier{}
+
+	postCreated, err := m.signaler.tasksCreated(ctx, tx, notifier, tenantId, res.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
@@ -392,6 +398,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		return nil, err
 	}
 
+	notifier.Notify(ctx)
 	postCreated()
 
 	return res, nil

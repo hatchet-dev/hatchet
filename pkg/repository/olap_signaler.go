@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -93,7 +94,7 @@ func newOLAPSignaler(shared *sharedRepository) *OLAPSignaler {
 
 // internalEvents stages internal task lifecycle events on tx under the task
 // processing queue's topic — the transactional enqueue driving workflow progression.
-func (s *OLAPSignaler) internalEvents(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, events []InternalTaskEvent) error {
+func (s *OLAPSignaler) internalEvents(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, events []InternalTaskEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -104,11 +105,11 @@ func (s *OLAPSignaler) internalEvents(ctx context.Context, tx pgx.Tx, tenantId u
 		return fmt.Errorf("could not create internal event message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, taskProcessingOutboxTopic, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, notifier, taskProcessingOutboxTopic, msg)
 }
 
 // monitoringEvents stages a single batched monitoring event message on tx.
-func (s *OLAPSignaler) monitoringEvents(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
+func (s *OLAPSignaler) monitoringEvents(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -119,7 +120,7 @@ func (s *OLAPSignaler) monitoringEvents(ctx context.Context, tx pgx.Tx, tenantId
 		return fmt.Errorf("could not create monitoring event message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, notifier, olapOutboxTopic, msg)
 }
 
 type bucketedTasks struct {
@@ -247,7 +248,7 @@ func (b bucketedTasks) internalEvents(tenantId uuid.UUID) []InternalTaskEvent {
 // tasksCreated stages created-dag/created-task messages, the initial-state
 // monitoring events, and the terminal-state internal events on tx, and returns the
 // post-commit closure for the non-transactional side effects.
-func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, tasks []*V1TaskWithPayload, dags []*DAGWithData) (func(), error) {
+func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, tasks []*V1TaskWithPayload, dags []*DAGWithData) (func(), error) {
 	msgs := make([]*msgqueue.Message, 0, 3)
 
 	if len(dags) > 0 {
@@ -294,11 +295,11 @@ func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, tenantId uui
 		msgs = append(msgs, msg)
 	}
 
-	if err := s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msgs...); err != nil {
+	if err := s.shared.olapOutbox.stage(ctx, tx, notifier, olapOutboxTopic, msgs...); err != nil {
 		return nil, err
 	}
 
-	if err := s.internalEvents(ctx, tx, tenantId, buckets.internalEvents(tenantId)); err != nil {
+	if err := s.internalEvents(ctx, tx, notifier, tenantId, buckets.internalEvents(tenantId)); err != nil {
 		return nil, err
 	}
 
@@ -308,14 +309,14 @@ func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, tenantId uui
 // tasksUpdated stages the initial-state monitoring events and terminal-state
 // internal events for updated tasks (e.g. replays which reset existing tasks) — no
 // created-task messages — and returns the post-commit closure.
-func (s *OLAPSignaler) tasksUpdated(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (func(), error) {
+func (s *OLAPSignaler) tasksUpdated(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (func(), error) {
 	buckets := bucketTasksByInitialState(tasks)
 
-	if err := s.monitoringEvents(ctx, tx, tenantId, buckets.monitoringEvents()...); err != nil {
+	if err := s.monitoringEvents(ctx, tx, notifier, tenantId, buckets.monitoringEvents()...); err != nil {
 		return nil, err
 	}
 
-	if err := s.internalEvents(ctx, tx, tenantId, buckets.internalEvents(tenantId)); err != nil {
+	if err := s.internalEvents(ctx, tx, notifier, tenantId, buckets.internalEvents(tenantId)); err != nil {
 		return nil, err
 	}
 
@@ -323,7 +324,7 @@ func (s *OLAPSignaler) tasksUpdated(ctx context.Context, tx pgx.Tx, tenantId uui
 }
 
 // tasksReplayed stages RETRIED_BY_USER monitoring events for replayed tasks.
-func (s *OLAPSignaler) tasksReplayed(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+func (s *OLAPSignaler) tasksReplayed(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -340,12 +341,12 @@ func (s *OLAPSignaler) tasksReplayed(ctx context.Context, tx pgx.Tx, tenantId uu
 		}
 	}
 
-	return s.monitoringEvents(ctx, tx, tenantId, events...)
+	return s.monitoringEvents(ctx, tx, notifier, tenantId, events...)
 }
 
 // eventsCreated stages the created-event-trigger message linking user events to the
 // runs they triggered.
-func (s *OLAPSignaler) eventsCreated(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]EventTriggerOpts, eventIdsToRuns map[uuid.UUID][]*Run) error {
+func (s *OLAPSignaler) eventsCreated(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]EventTriggerOpts, eventIdsToRuns map[uuid.UUID][]*Run) error {
 	if len(eventIdsToRuns) == 0 {
 		return nil
 	}
@@ -398,11 +399,11 @@ func (s *OLAPSignaler) eventsCreated(ctx context.Context, tx pgx.Tx, tenantId uu
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, notifier, olapOutboxTopic, msg)
 }
 
 // celEvaluationFailures stages a cel-evaluation-failure message.
-func (s *OLAPSignaler) celEvaluationFailures(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, failures []CELEvaluationFailure) error {
+func (s *OLAPSignaler) celEvaluationFailures(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, failures []CELEvaluationFailure) error {
 	if len(failures) == 0 {
 		return nil
 	}
@@ -413,7 +414,7 @@ func (s *OLAPSignaler) celEvaluationFailures(ctx context.Context, tx pgx.Tx, ten
 		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, notifier, olapOutboxTopic, msg)
 }
 
 // postCommitSideEffects returns the closure covering the side effects which must not
@@ -529,7 +530,9 @@ func composePostCommit(fns ...func()) func() {
 // trigger transaction: created-task/created-dag, the initial-state monitoring events,
 // the created-event-trigger message (for event-triggered workflows), and any CEL
 // evaluation failures. It returns the post-commit closure for the non-transactional
-// side effects.
+// side effects, which also fires the outbox subscriber wake-ups — the trigger commit
+// can happen outside the caller (OptimisticTx), so the notifier rides the closure
+// rather than being fired by the caller directly.
 func (r *sharedRepository) stageTriggerSignals(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -545,7 +548,9 @@ func (r *sharedRepository) stageTriggerSignals(
 		return nil, fmt.Errorf("cannot stage olap messages: tx does not implement pgx.Tx")
 	}
 
-	postSignal, err := r.signaler.tasksCreated(ctx, pgxTx, tenantId, tasks, dags)
+	notifier := &pgoutbox.Notifier{}
+
+	postSignal, err := r.signaler.tasksCreated(ctx, pgxTx, notifier, tenantId, tasks, dags)
 
 	if err != nil {
 		return nil, err
@@ -562,7 +567,7 @@ func (r *sharedRepository) stageTriggerSignals(
 
 		eventIdsToRuns := getEventExternalIdToRuns(coreEvents.opts, coreEvents.externalIdToEventIdAndFilterId, tasks, dags)
 
-		if err := r.signaler.eventsCreated(ctx, pgxTx, tenantId, eventIdToOpts, eventIdsToRuns); err != nil {
+		if err := r.signaler.eventsCreated(ctx, pgxTx, notifier, tenantId, eventIdToOpts, eventIdsToRuns); err != nil {
 			return nil, err
 		}
 
@@ -571,9 +576,16 @@ func (r *sharedRepository) stageTriggerSignals(
 		}
 	}
 
-	if err := r.signaler.celEvaluationFailures(ctx, pgxTx, tenantId, allFailures); err != nil {
+	if err := r.signaler.celEvaluationFailures(ctx, pgxTx, notifier, tenantId, allFailures); err != nil {
 		return nil, err
 	}
 
-	return postSignal, nil
+	notify := func() {
+		notifyCtx, cancel := context.WithTimeout(context.Background(), postCommitTimeout)
+		defer cancel()
+
+		notifier.Notify(notifyCtx)
+	}
+
+	return composePostCommit(notify, postSignal), nil
 }

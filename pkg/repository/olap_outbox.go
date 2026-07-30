@@ -167,7 +167,7 @@ func (o *OLAPOutbox) CreatedTasks(ctx context.Context, tenantId uuid.UUID, paylo
 		return fmt.Errorf("could not create created-task message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedDAGPayload) error {
@@ -181,7 +181,7 @@ func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloa
 		return fmt.Errorf("could not create created-dag message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
@@ -195,7 +195,7 @@ func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, p
 		return fmt.Errorf("could not create monitoring event message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedEventTriggerPayloadSingleton) error {
@@ -209,7 +209,7 @@ func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payl
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures ...CELEvaluationFailure) error {
@@ -223,7 +223,7 @@ func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UU
 		return fmt.Errorf("could not create cel evaluation failure message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uuid.UUID, payloads ...FailedWebhookValidationPayload) error {
@@ -237,13 +237,18 @@ func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uui
 		return fmt.Errorf("could not create failed webhook validation message: %w", err)
 	}
 
-	return o.stage(ctx, nil, olapOutboxTopic, msg)
+	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
 // stage stages messages under the given topic on the given transaction, or on a
 // short transaction of its own when tx is nil. Callers publishing many payloads
 // should batch them into a single method call to amortize the transaction.
-func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, topic string, msgs ...*msgqueue.Message) error {
+//
+// The notifier collects the subscriber wake-ups for the staged topics; the
+// transaction owner must fire it (Notifier.Notify) after commit, or subscribers
+// wait out their poll interval. It is nil on the short-transaction path, where
+// stage commits and notifies itself.
+func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, topic string, msgs ...*msgqueue.Message) error {
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -271,7 +276,7 @@ func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, topic string, msgs ..
 	}
 
 	if tx != nil {
-		return o.outbox.AddMessages(ctx, tx, topic, opts)
+		return o.outbox.AddMessages(ctx, tx, topic, opts, pgoutbox.WithNotifier(notifier))
 	}
 
 	shortTx, err := o.pool.Begin(ctx)
@@ -284,9 +289,17 @@ func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, topic string, msgs ..
 		_ = shortTx.Rollback(ctx)
 	}()
 
-	if err := o.outbox.AddMessages(ctx, shortTx, topic, opts); err != nil {
+	shortTxNotifier := &pgoutbox.Notifier{}
+
+	if err := o.outbox.AddMessages(ctx, shortTx, topic, opts, pgoutbox.WithNotifier(shortTxNotifier)); err != nil {
 		return err
 	}
 
-	return shortTx.Commit(ctx)
+	if err := shortTx.Commit(ctx); err != nil {
+		return err
+	}
+
+	shortTxNotifier.Notify(ctx)
+
+	return nil
 }
