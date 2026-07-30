@@ -1,4 +1,19 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.batch_assign.worker import (
+    batch_keyed,
+    batch_keyed_interval,
+    batch_keyed_failable,
+    batch_large,
+    batch_simple,
+    batch_single,
+    batch_ordered,
+    batch_broadcast,
+    batch_cancel,
+    batch_child_spawn,
+    batch_child_batch_spawn,
+    child_batch,
+    child,
+)
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
 )
@@ -110,7 +125,12 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
-from examples.idempotency.worker import idempotent_task, idempotent_task_short_window
+from examples.idempotency.worker import (
+    idempotent_task,
+    idempotent_task_short_window,
+    idempotent_status_based_task,
+    idempotent_status_based_task_with_retries,
+)
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
@@ -127,6 +147,19 @@ def main() -> None:
         slots=100,
         workflows=[
             affinity_worker_workflow,
+            batch_simple,
+            batch_keyed,
+            batch_keyed_interval,
+            batch_keyed_failable,
+            batch_large,
+            batch_single,
+            batch_ordered,
+            batch_broadcast,
+            batch_child_spawn,
+            batch_child_batch_spawn,
+            child_batch,
+            child,
+            batch_cancel,
             bulk_child_wf,
             bulk_parent_wf,
             concurrency_limit_workflow,
@@ -218,6 +251,8 @@ def main() -> None:
             durable_spawn_many_dags,
             idempotent_task,
             idempotent_task_short_window,
+            idempotent_status_based_task,
+            idempotent_status_based_task_with_retries,
             error_raising_durable_parent,
             error_raising_task,
         ],

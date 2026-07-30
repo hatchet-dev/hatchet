@@ -28,12 +28,12 @@ type ListTickerOpts struct {
 }
 
 type RunScheduledWorkflowV1Opts struct {
-	ID                 uuid.UUID
+	TriggerAt          time.Time
+	Priority           *int32
+	WorkflowName       string
 	Input              []byte
 	AdditionalMetadata []byte
-	Priority           *int32
-	TriggerAt          time.Time
-	WorkflowName       string
+	ID                 uuid.UUID
 }
 
 type TickerRepository interface {

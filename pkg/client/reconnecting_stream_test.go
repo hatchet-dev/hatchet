@@ -189,10 +189,18 @@ func TestRetrySend_HandlesNilClient(t *testing.T) {
 }
 
 func TestRetrySend_ConcurrentSafety(t *testing.T) {
+	var inFlight atomic.Int32
+	var overlapped atomic.Bool
+
 	workingClient := &mockSubscribeClient{
 		sendErr:  nil,
 		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
 		sendFn: func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+			if inFlight.Add(1) > 1 {
+				overlapped.Store(true)
+			}
+			defer inFlight.Add(-1)
+
 			time.Sleep(10 * time.Millisecond)
 			return nil
 		},
@@ -204,11 +212,13 @@ func TestRetrySend_ConcurrentSafety(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
+	start := make(chan struct{})
 
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
+			<-start
 			err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 				return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: fmt.Sprintf("workflow-run-%d", id)})
 			})
@@ -216,8 +226,10 @@ func TestRetrySend_ConcurrentSafety(t *testing.T) {
 		}(i)
 	}
 
+	close(start)
 	wg.Wait()
 	assert.Equal(t, int32(numGoroutines), workingClient.sendCount.Load())
+	assert.False(t, overlapped.Load(), "concurrent retrySend callers must serialize stream sends")
 }
 
 func TestRetrySubscribe_SingleflightCoalescesConcurrentCalls(t *testing.T) {
@@ -310,7 +322,14 @@ func TestRetrySendStaleGenerationSkipsReconnect(t *testing.T) {
 	})
 
 	failingClient.sendFn = func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
-		require.NoError(t, stream.installClient(workingClient))
+		// Advance generation as a concurrent reconnect would. Do not call
+		// installClient here: it CloseSends under sendMu, and this callback
+		// already runs under retrySend's sendMu (non-reentrant).
+		stream.mu.Lock()
+		stream.client = workingClient
+		stream.hasClient = true
+		stream.generation++
+		stream.mu.Unlock()
 		return status.Error(codes.Unavailable, "send failed")
 	}
 

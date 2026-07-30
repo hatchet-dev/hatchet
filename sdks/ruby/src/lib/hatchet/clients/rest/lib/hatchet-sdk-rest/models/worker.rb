@@ -126,7 +126,7 @@ module HatchetSdkRest
         :'registered_workflows' => :'Array<RegisteredWorkflow>',
         :'slots' => :'Array<SemaphoreSlots>',
         :'recent_step_runs' => :'Array<RecentStepRuns>',
-        :'status' => :'String',
+        :'status' => :'WorkerStatus',
         :'slot_config' => :'Hash<String, WorkerSlotConfig>',
         :'dispatcher_id' => :'String',
         :'labels' => :'Array<WorkerLabel>',
@@ -276,8 +276,6 @@ module HatchetSdkRest
       return false if @metadata.nil?
       return false if @name.nil?
       return false if @type.nil?
-      status_validator = EnumAttributeValidator.new('String', ["ACTIVE", "INACTIVE", "PAUSED"])
-      return false unless status_validator.valid?(@status)
       return false if !@dispatcher_id.nil? && @dispatcher_id.to_s.length > 36
       return false if !@dispatcher_id.nil? && @dispatcher_id.to_s.length < 36
       true
@@ -311,16 +309,6 @@ module HatchetSdkRest
       end
 
       @type = type
-    end
-
-    # Custom attribute writer method checking allowed values (enum).
-    # @param [Object] status Object to be assigned
-    def status=(status)
-      validator = EnumAttributeValidator.new('String', ["ACTIVE", "INACTIVE", "PAUSED"])
-      unless validator.valid?(status)
-        fail ArgumentError, "invalid value for \"status\", must be one of #{validator.allowable_values}."
-      end
-      @status = status
     end
 
     # Custom attribute writer method with validation

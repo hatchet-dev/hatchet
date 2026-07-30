@@ -113,7 +113,6 @@ func createConcurrencyTasks(t *testing.T, ctx context.Context, conf *database.La
 		taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 		taskParams.Externalids[i] = uuid.New()
 		taskParams.Displaynames[i] = fmt.Sprintf("task-%d", i)
-		taskParams.Inputs[i] = []byte(`{"my_id": "test-key"}`)
 		taskParams.Additionalmetadatas[i] = []byte(`{}`)
 		taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{{}}
@@ -162,7 +161,6 @@ func newCreateTasksParams(n int) sqlcv1.CreateTasksParams {
 		Desiredworkerids:             make([]*uuid.UUID, n),
 		Externalids:                  make([]uuid.UUID, n),
 		Displaynames:                 make([]string, n),
-		Inputs:                       make([][]byte, n),
 		Retrycounts:                  make([]int32, n),
 		Additionalmetadatas:          make([][]byte, n),
 		InitialStates:                make([]string, n),
@@ -417,7 +415,6 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 			taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 			taskParams.Externalids[i] = uuid.New()
 			taskParams.Displaynames[i] = fmt.Sprintf("task-%d", i)
-			taskParams.Inputs[i] = []byte(`{"my_id": "test-key"}`)
 			taskParams.Additionalmetadatas[i] = []byte(`{}`)
 			taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 			taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{strat1.ParentStrategyID, strat2.ParentStrategyID}
@@ -486,6 +483,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
@@ -647,6 +645,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
@@ -682,7 +681,6 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		taskParams.Stickies[0] = string(sqlcv1.V1StickyStrategyNONE)
 		taskParams.Externalids[0] = uuid.New()
 		taskParams.Displaynames[0] = "cold-task"
-		taskParams.Inputs[0] = []byte(`{"my_id": "thread-1"}`)
 		taskParams.Additionalmetadatas[0] = []byte(`{}`)
 		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[0] = []pgtype.Int8{{}}

@@ -19,7 +19,9 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 }
 
 func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
-	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, fmt.Sprintf("hatchet_internal_%s", opts.ID.String()), opts.TriggerAt.Add(30*time.Second), opts.ID)
+	externalId := uuid.New()
+
+	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, fmt.Sprintf("hatchet_internal_%s", opts.ID.String()), opts.TriggerAt.Add(30*time.Second), externalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
@@ -29,8 +31,6 @@ func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.Me
 		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already claimed, skipping", opts.ID.String())
 		return nil, nil
 	}
-
-	externalId := uuid.New()
 
 	msg, err := tasktypes.TriggerTaskMessage(
 		tenantId,

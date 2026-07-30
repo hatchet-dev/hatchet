@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -34,6 +36,17 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 	return &idempotencyRepository{
 		sharedRepository: shared,
 	}
+}
+
+func NewIdempotencyRepository(pool *pgxpool.Pool) IdempotencyRepository {
+	logger := zerolog.Nop()
+	shared := &sharedRepository{
+		pool:    pool,
+		ddlPool: pool,
+		l:       &logger,
+		queries: sqlcv1.New(),
+	}
+	return newIdempotencyRepository(shared)
 }
 
 func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error {

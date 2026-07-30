@@ -80,6 +80,7 @@ func BenchmarkScheduler_ConcurrentAssignReplenishSnapshot(b *testing.B) {
 				stepRequests,
 				nil,
 				nil,
+				nil,
 			)
 
 			for range ch {

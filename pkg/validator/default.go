@@ -32,7 +32,7 @@ func (a *APIErrors) String() string {
 	sb.WriteString("Validation failed with the following errors:\n")
 
 	for i, err := range a.Errors {
-		sb.WriteString(fmt.Sprintf("%d: %s\n", i, err.Description))
+		fmt.Fprintf(&sb, "%d: %s\n", i, err.Description)
 	}
 
 	return sb.String()
@@ -212,10 +212,10 @@ func (obj *ValidationErrObject) SafeExternalError(suffix string) string {
 
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("validation failed on field '%s': %s", obj.Namespace, suffix))
+	fmt.Fprintf(&sb, "validation failed on field '%s': %s", obj.Namespace, suffix)
 
 	if obj.Param != "" {
-		sb.WriteString(fmt.Sprintf(" [ %s ]: got %s", obj.Param, obj.getActualValueString()))
+		fmt.Fprintf(&sb, " [ %s ]: got %s", obj.Param, obj.getActualValueString())
 	}
 
 	return sb.String()

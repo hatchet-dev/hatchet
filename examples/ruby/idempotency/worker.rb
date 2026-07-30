@@ -21,8 +21,19 @@ IDEMPOTENT_TASK_SHORT_WINDOW = HATCHET.task(
   { 'result' => "Hello from task #{input['id']}" }
 end
 
+# > status-based-idempotency
+IDEMPOTENT_STATUS_BASED_TASK = HATCHET.task(
+  name: 'ruby-e2e-idempotent-status-based-task',
+  idempotency: Hatchet::StatusBasedIdempotencyConfig.new(expression: 'input.id', fallback_ttl_ms: 10_000)
+) do |input, _ctx|
+  { 'result' => "Hello from task #{input['id']}" }
+end
+
 def main
-  worker = HATCHET.worker('idempotency-worker', workflows: [IDEMPOTENT_TASK, IDEMPOTENT_TASK_SHORT_WINDOW])
+  worker = HATCHET.worker(
+    'idempotency-worker',
+    workflows: [IDEMPOTENT_TASK, IDEMPOTENT_TASK_SHORT_WINDOW, IDEMPOTENT_STATUS_BASED_TASK]
+  )
   worker.start
 end
 

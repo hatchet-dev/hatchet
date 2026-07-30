@@ -14,6 +14,16 @@ type CLIConfig struct {
 
 	// Logger is the logging configuration for the CLI
 	Logger CLIConfigLogger `mapstructure:"logger" json:"logger,omitempty"`
+
+	Telemetry CLIConfigTelemetry `mapstructure:"telemetry" json:"telemetry,omitempty"`
+}
+
+type CLIConfigTelemetry struct {
+	Enabled *bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+
+	AnonymousID string `mapstructure:"anonymousId" json:"anonymousId,omitempty"`
+
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
 }
 
 // ProfileFile represents a list of profiles in the profiles config file
@@ -50,4 +60,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("logger.level", "HATCHET_CLI_LOGGER_LEVEL")
 	_ = v.BindEnv("logger.format", "HATCHET_CLI_LOGGER_FORMAT")
 	_ = v.BindEnv("logger.prefix", "HATCHET_CLI_LOGGER_PREFIX")
+
+	// telemetry options
+	_ = v.BindEnv("telemetry.enabled", "HATCHET_CLI_TELEMETRY_ENABLED")
+	_ = v.BindEnv("telemetry.endpoint", "HATCHET_CLI_TELEMETRY_ENDPOINT")
 }

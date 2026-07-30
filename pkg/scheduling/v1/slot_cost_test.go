@@ -106,6 +106,7 @@ func TestSlotCost_OverCapacityWaitsThenSchedulingTimesOut(t *testing.T) {
 		stepRequests,
 		nil,
 		nil,
+		nil,
 	)
 
 	assigned := map[int64]bool{}
@@ -149,7 +150,7 @@ func TestSlotCost_ExplicitDefaultCostBlocksProportionally(t *testing.T) {
 	}
 
 	res, err := s.tryAssignBatch(context.Background(), "A", qis,
-		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, stepRequests, nil, nil)
+		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, stepRequests, nil, nil, nil)
 	require.NoError(t, err)
 
 	assigned, noSlots := 0, 0

@@ -167,6 +167,48 @@ module Hatchet
           @stub.send_step_action_event(request, metadata: @config.auth_metadata)
         end
 
+        # Send a batch action event (completion/failure/started) covering one or more
+        # members of a batch task's execution back to the dispatcher.
+        #
+        # @param action [AssignedAction] The assigned START_BATCH action
+        # @param event_type [Symbol] Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED)
+        # @param items [Array<Hash>] Per-member items, each with :task_run_external_id, and
+        #   optionally :event_payload, :retry_count, :should_not_retry
+        # @return [ActionEventResponse]
+        def send_batch_action_event(action:, event_type:, items:)
+          ensure_connected!
+
+          now = Time.now
+          timestamp = Google::Protobuf::Timestamp.new(
+            seconds: now.to_i,
+            nanos: now.nsec,
+          )
+
+          item_protos = items.map do |item|
+            item_args = {
+              task_run_external_id: item[:task_run_external_id],
+              event_payload: item[:event_payload] || "{}",
+            }
+            item_args[:retry_count] = item[:retry_count] unless item[:retry_count].nil?
+            item_args[:should_not_retry] = item[:should_not_retry] unless item[:should_not_retry].nil?
+
+            ::BatchActionEventItem.new(**item_args)
+          end
+
+          event_args = {
+            worker_id: @worker_id || "",
+            job_id: action.job_id,
+            action_id: action.action_id,
+            event_timestamp: timestamp,
+            event_type: event_type,
+            items: item_protos,
+          }
+          event_args[:batch_id] = action.batchId if action.respond_to?(:batchId) && action.batchId && !action.batchId.empty?
+
+          request = ::BatchActionEvent.new(**event_args)
+          @stub.send_batch_action_event(request, metadata: @config.auth_metadata)
+        end
+
         # Refresh the timeout for a running task.
         #
         # @param step_run_id [String] The task run external ID

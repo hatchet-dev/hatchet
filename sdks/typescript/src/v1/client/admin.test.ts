@@ -11,7 +11,10 @@ function makeBulkTriggerAlreadyExistsError(
 ): Error {
   const collisionProto = BulkTriggerIdempotencyCollisionErrorProto.encode({
     successfulWorkflowRunExternalIds: successfulIds,
-    collisions: collisions.map((c) => ({ existingRunExternalId: c.existingRunExternalId })),
+    collisions: collisions.map((c) => ({
+      existingRunExternalId: c.existingRunExternalId,
+      collidingRunExternalId: '',
+    })),
   }).finish();
 
   const statusBin = RpcStatus.encode({

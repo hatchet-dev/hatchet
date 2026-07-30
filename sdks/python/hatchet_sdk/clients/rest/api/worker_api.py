@@ -322,6 +322,10 @@ class WorkerApi:
         statuses: Annotated[
             Optional[List[WorkerStatus]], Field(description="Filter by worker status")
         ] = None,
+        labels: Annotated[
+            Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
+            Field(description="Filter by worker labels"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -346,6 +350,8 @@ class WorkerApi:
         :type limit: int
         :param statuses: Filter by worker status
         :type statuses: List[WorkerStatus]
+        :param labels: Filter by worker labels
+        :type labels: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -373,6 +379,7 @@ class WorkerApi:
             offset=offset,
             limit=limit,
             statuses=statuses,
+            labels=labels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -411,6 +418,10 @@ class WorkerApi:
         statuses: Annotated[
             Optional[List[WorkerStatus]], Field(description="Filter by worker status")
         ] = None,
+        labels: Annotated[
+            Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
+            Field(description="Filter by worker labels"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -435,6 +446,8 @@ class WorkerApi:
         :type limit: int
         :param statuses: Filter by worker status
         :type statuses: List[WorkerStatus]
+        :param labels: Filter by worker labels
+        :type labels: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -462,6 +475,7 @@ class WorkerApi:
             offset=offset,
             limit=limit,
             statuses=statuses,
+            labels=labels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -500,6 +514,10 @@ class WorkerApi:
         statuses: Annotated[
             Optional[List[WorkerStatus]], Field(description="Filter by worker status")
         ] = None,
+        labels: Annotated[
+            Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
+            Field(description="Filter by worker labels"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -524,6 +542,8 @@ class WorkerApi:
         :type limit: int
         :param statuses: Filter by worker status
         :type statuses: List[WorkerStatus]
+        :param labels: Filter by worker labels
+        :type labels: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -551,6 +571,7 @@ class WorkerApi:
             offset=offset,
             limit=limit,
             statuses=statuses,
+            labels=labels,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -573,6 +594,7 @@ class WorkerApi:
         offset,
         limit,
         statuses,
+        labels,
         _request_auth,
         _content_type,
         _headers,
@@ -583,6 +605,7 @@ class WorkerApi:
 
         _collection_formats: Dict[str, str] = {
             "statuses": "multi",
+            "labels": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -609,6 +632,10 @@ class WorkerApi:
         if statuses is not None:
 
             _query_params.append(("statuses", statuses))
+
+        if labels is not None:
+
+            _query_params.append(("labels", labels))
 
         # process the header parameters
         # process the form parameters

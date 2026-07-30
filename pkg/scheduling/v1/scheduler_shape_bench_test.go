@@ -441,6 +441,7 @@ func BenchmarkScheduler_InventoryShape_TryAssignBatch(b *testing.B) {
 					stepRequests,
 					nil,
 					nil,
+					nil,
 				); err != nil {
 					b.Fatal(err)
 				}

@@ -312,7 +312,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
-	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
@@ -751,7 +751,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 	}
 
 	if retryCount != nil {
-		params.RetryCount = pgtype.Int4{Int32: int32(*retryCount), Valid: true}
+		params.RetryCount = pgtype.Int4{Int32: int32(*retryCount), Valid: true} // #nosec G115 -- retry count is engine-bounded, never near int32 range
 	}
 
 	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.readPool, params)
@@ -868,8 +868,8 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	params := sqlcv1.ListTasksOlapParams{
 		Tenantid:                  tenantId,
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:                 int32(opts.Limit),
-		Taskoffset:                int32(opts.Offset),
+		Tasklimit:                 int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Taskoffset:                int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		WorkerId:                  opts.WorkerId,
 		IdempotencyKeys:           opts.IdempotencyKeys,
@@ -905,9 +905,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 		countParams.WorkflowIds = workflowIdParams
@@ -1234,8 +1232,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	params := sqlcv1.FetchWorkflowRunIdsParams{
 		Tenantid:                  tenantId,
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Listworkflowrunslimit:     int32(opts.Limit),
-		Listworkflowrunsoffset:    int32(opts.Offset),
+		Listworkflowrunslimit:     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Listworkflowrunsoffset:    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
 		ParentTaskExternalId:      opts.ParentTaskExternalId,
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		IdempotencyKeys:           opts.IdempotencyKeys,
@@ -1271,9 +1269,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 		countParams.WorkflowIds = workflowIdParams
@@ -1582,9 +1578,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
 
 		params.WorkflowIds = workflowIdParams
 	}
@@ -1676,9 +1670,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 	if len(opts.WorkflowIds) > 0 {
 		workflowIds = make([]uuid.UUID, 0)
 
-		for _, id := range opts.WorkflowIds {
-			workflowIds = append(workflowIds, id)
-		}
+		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
 	var additionalMetaKeys []string
@@ -1954,7 +1946,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		output := event.Output
 
 		if _, ok := r.eventCache.Get(key); !ok {
-			if !r.payloadStore.OLAPDualWritesEnabled() && event.Output != nil {
+			if event.Output != nil {
 				event.Output = []byte("{}")
 			}
 
@@ -1963,7 +1955,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
 
-		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond) // #nosec G404 -- non-cryptographic jitter, not security-sensitive
 
 		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
@@ -2314,12 +2306,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			payload = task.Input
 		}
 
-		// todo: remove this when we remove dual writes
-		payloadToWriteToTask := payload
-		if !r.payloadStore.OLAPDualWritesEnabled() {
-			payloadToWriteToTask = []byte("{}")
-		}
-
 		params.Tenantids = append(params.Tenantids, task.TenantID)
 		params.Ids = append(params.Ids, task.ID)
 		params.Insertedats = append(params.Insertedats, task.InsertedAt)
@@ -2340,7 +2326,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Daginsertedats = append(params.Daginsertedats, task.DagInsertedAt)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, task.ParentTaskExternalID)
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
-		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
 
@@ -2450,12 +2435,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		// todo: remove this when we remove dual writes
-		input := dag.Input
-		if !r.payloadStore.OLAPDualWritesEnabled() {
-			input = []byte("{}")
-		}
-
 		params.Tenantids = append(params.Tenantids, dag.TenantID)
 		params.Ids = append(params.Ids, dag.ID)
 		params.Insertedats = append(params.Insertedats, dag.InsertedAt)
@@ -2463,7 +2442,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		params.Displaynames = append(params.Displaynames, dag.DisplayName)
 		params.Workflowids = append(params.Workflowids, dag.WorkflowID)
 		params.Workflowversionids = append(params.Workflowversionids, dag.WorkflowVersionID)
-		params.Inputs = append(params.Inputs, input)
 		params.Additionalmetadatas = append(params.Additionalmetadatas, dag.AdditionalMetadata)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, dag.ParentTaskExternalID)
 		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
@@ -2533,15 +2511,9 @@ func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUI
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
-	externalUUIDs := make([]uuid.UUID, 0)
-
-	for _, id := range externalIds {
-		externalUUIDs = append(externalUUIDs, id)
-	}
-
 	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    tenantId,
-		Externalids: externalUUIDs,
+		Externalids: externalIds,
 	})
 }
 
@@ -2650,7 +2622,12 @@ type EventTriggersFromExternalId struct {
 	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
+type BulkCreateEventsAndTriggersParams struct {
+	*sqlcv1.BulkCreateEventsOLAPParams
+	Payloads [][]byte
+}
+
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -2666,18 +2643,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
 	}
 
-	// todo: remove this when we remove dual writes
-	if !r.payloadStore.OLAPDualWritesEnabled() {
-		payloads := make([][]byte, len(eventsToInsert.Payloads))
-
-		for i := range eventsToInsert.Payloads {
-			payloads[i] = []byte("{}")
-		}
-
-		eventsToInsert.Payloads = payloads
-	}
-
-	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, eventsToInsert)
+	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, *eventsToInsert.BulkCreateEventsOLAPParams)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
@@ -3216,9 +3182,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			var retrieveFromExternalOpt RetrieveFromExternalOpts
-
-			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+			retrieveFromExternalOpt := RetrieveFromExternalOpts{
 				Method: RetrieveFromExternalByKey,
 				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}
@@ -3330,7 +3294,7 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-olap-tables"))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("analyze-olap-tables"))
 
 	if err != nil {
 		return fmt.Errorf("error acquiring advisory lock: %v", err)
@@ -3636,7 +3600,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
-				externalId := uuid.UUID(payload.ExternalID)
+				externalId := payload.ExternalID
 
 				if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{

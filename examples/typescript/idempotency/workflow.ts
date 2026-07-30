@@ -31,3 +31,16 @@ export const idempotentTaskShortWindow = hatchet.task<IdempotencyInput, { result
     return { result: `Hello, world from task ${input.id}` };
   },
 });
+
+// > status-based-idempotency
+export const idempotentStatusBasedTask = hatchet.task<IdempotencyInput, { result: string }>({
+  name: 'ts-e2e-idempotent-status-based-task',
+  idempotency: {
+    strategy: 'status',
+    expression: 'input.id',
+    fallbackTtlMs: 10_000,
+  },
+  fn: async (input) => {
+    return { result: `Hello, world from task ${input.id}` };
+  },
+});

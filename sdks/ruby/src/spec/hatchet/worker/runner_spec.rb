@@ -119,4 +119,129 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
   ensure
     durable_runner&.send(:stop_step_action_event_thread)
   end
+
+  describe "batch tasks" do
+    def batch_action(action_id:, payload:, batch_id: "batch-1")
+      double(
+        "action",
+        action_id: action_id,
+        action_type: :START_BATCH,
+        action_payload: JSON.generate(payload),
+        job_id: "job-1",
+        workflow_run_id: "",
+        task_run_external_id: "",
+        get_group_key_run_id: "",
+        retry_count: 0,
+        additional_metadata: nil,
+        batchId: batch_id,
+      )
+    end
+
+    def build_batch_runner(workflow)
+      config = double("config")
+      allow(config).to receive(:apply_namespace) { |s| s }
+      allow(client).to receive(:config).and_return(config)
+
+      described_class.new(
+        workflows: [workflow],
+        slots: 1,
+        dispatcher_client: dispatcher_client,
+        event_client: event_client,
+        logger: logger,
+        client: client,
+      )
+    end
+
+    it "invokes the handler once and reports a per-member completed event for each batch member" do
+      workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
+      workflow.batch_task(
+        "sum_lengths",
+        batch: Hatchet::BatchTaskConfig.new(max_size: 3),
+      ) { |inputs, _ctx| inputs.transform_values { |input| { "len" => input["message"].length } } }
+
+      batch_runner = build_batch_runner(workflow)
+
+      action = batch_action(
+        action_id: "batchworkflow:sum_lengths",
+        payload: {
+          "id-1" => { "payload" => { "input" => { "message" => "alpha" } }, "workflow_run_id" => "wr-1" },
+          "id-2" => { "payload" => { "input" => { "message" => "bravo" } }, "workflow_run_id" => "wr-2" },
+        },
+      )
+
+      events = []
+      allow(dispatcher_client).to receive(:send_batch_action_event) { |**kwargs| events << kwargs }
+
+      batch_runner.send(:execute_batch_task, action)
+
+      started = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_STARTED }
+      completed = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_COMPLETED }
+
+      expect(started[:items].map { |i| i[:task_run_external_id] }).to contain_exactly("id-1", "id-2")
+
+      completed_by_id = completed[:items].to_h { |i| [i[:task_run_external_id], JSON.parse(i[:event_payload])] }
+      expect(completed_by_id).to eq("id-1" => { "len" => 5 }, "id-2" => { "len" => 5 })
+    ensure
+      batch_runner&.send(:stop_step_action_event_thread)
+    end
+
+    it "broadcasts a single result to every batch member when broadcast_output is set" do
+      workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
+      workflow.batch_task(
+        "broadcast_sum",
+        batch: Hatchet::BatchTaskConfig.new(max_size: 3, broadcast_output: true),
+      ) { |inputs, _ctx| { "sum" => inputs.values.sum { |i| i["message"].length } } }
+
+      batch_runner = build_batch_runner(workflow)
+
+      action = batch_action(
+        action_id: "batchworkflow:broadcast_sum",
+        payload: {
+          "id-1" => { "payload" => { "input" => { "message" => "hello" } }, "workflow_run_id" => "wr-1" },
+          "id-2" => { "payload" => { "input" => { "message" => "hi" } }, "workflow_run_id" => "wr-2" },
+        },
+      )
+
+      events = []
+      allow(dispatcher_client).to receive(:send_batch_action_event) { |**kwargs| events << kwargs }
+
+      batch_runner.send(:execute_batch_task, action)
+
+      completed = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_COMPLETED }
+      completed_by_id = completed[:items].to_h { |i| [i[:task_run_external_id], JSON.parse(i[:event_payload])] }
+
+      expect(completed_by_id).to eq("id-1" => { "sum" => 7 }, "id-2" => { "sum" => 7 })
+    ensure
+      batch_runner&.send(:stop_step_action_event_thread)
+    end
+
+    it "fails every member uniformly when the handler raises" do
+      workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
+      workflow.batch_task(
+        "always_fails",
+        batch: Hatchet::BatchTaskConfig.new(max_size: 3),
+      ) { |_inputs, _ctx| raise "boom" }
+
+      batch_runner = build_batch_runner(workflow)
+
+      action = batch_action(
+        action_id: "batchworkflow:always_fails",
+        payload: {
+          "id-1" => { "payload" => { "input" => { "message" => "alpha" } }, "workflow_run_id" => "wr-1" },
+          "id-2" => { "payload" => { "input" => { "message" => "bravo" } }, "workflow_run_id" => "wr-2" },
+        },
+      )
+
+      events = []
+      allow(dispatcher_client).to receive(:send_batch_action_event) { |**kwargs| events << kwargs }
+
+      batch_runner.send(:execute_batch_task, action)
+
+      failed = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_FAILED }
+      expect(failed[:items].map { |i| i[:task_run_external_id] }).to contain_exactly("id-1", "id-2")
+      failed[:items].each { |i| expect(JSON.parse(i[:event_payload])["error"]).to include("boom") }
+    ensure
+      batch_runner&.send(:stop_step_action_event_thread)
+    end
+  end
 end

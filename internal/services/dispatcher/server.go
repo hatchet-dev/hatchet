@@ -134,7 +134,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}
 
 	// Confirm the worker belongs to the auth-tenant before mutating its labels.
-	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil {
+	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil { //nolint
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, status.Errorf(codes.NotFound, "worker not found: %s", request.WorkerId)
 		}
@@ -468,14 +468,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				if err != nil {
 					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
-					err = s.mqv1.SendMessage(
+					err = s.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 					}
 				}
 			}()
@@ -624,6 +624,10 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	return s.sendStepActionEventV1(ctx, request)
+}
+
+func (s *DispatcherImpl) SendBatchActionEvent(ctx context.Context, request *contracts.BatchActionEvent) (*contracts.ActionEventResponse, error) {
+	return s.sendBatchActionEventV1(ctx, request)
 }
 
 func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
@@ -1120,7 +1124,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		wg.Add(1)
 		defer wg.Done()
 
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
+		if matchedWorkflowRunIds, ok := isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
 				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 			}
@@ -1347,7 +1351,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
@@ -1407,7 +1411,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
@@ -1417,6 +1421,409 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
 	}, nil
+}
+
+// sendBatchActionEventV1 reports a single lifecycle event (STARTED, COMPLETED, FAILED, or CANCELLED)
+// for every task in a batch in one call. It resolves all task external ids in bulk and then feeds the
+// same per-kind message payloads/queues that the single-task handlers (handleTaskStarted,
+// handleTaskCompleted, handleTaskFailed, and the CancelTasks flow) already use.
+func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *contracts.BatchActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	if len(request.Items) == 0 {
+		return resp, nil
+	}
+
+	externalIds := make([]uuid.UUID, 0, len(request.Items))
+	itemsByExternalId := make(map[uuid.UUID]*contracts.BatchActionEventItem, len(request.Items))
+
+	for _, item := range request.Items {
+		id, err := uuid.Parse(item.TaskRunExternalId)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", item.TaskRunExternalId, err)
+		}
+
+		externalIds = append(externalIds, id)
+		itemsByExternalId[id] = item
+	}
+
+	tasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, tenantId, externalIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	switch request.EventType {
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
+		return s.handleBatchTaskStarted(ctx, tenantId, tasks, itemsByExternalId, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
+		return s.handleBatchTaskCompleted(ctx, tenantId, tasks, itemsByExternalId, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
+		return s.handleBatchTaskFailed(ctx, tenantId, tasks, itemsByExternalId, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return s.handleBatchTaskCancelled(ctx, tenantId, tasks, request)
+	}
+
+	return nil, status.Errorf(codes.InvalidArgument, "invalid batch action event type %s", request.EventType)
+}
+
+func (s *DispatcherImpl) handleBatchTaskStarted(
+	inputCtx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	itemsByExternalId map[uuid.UUID]*contracts.BatchActionEventItem,
+	request *contracts.BatchActionEvent,
+) (*contracts.ActionEventResponse, error) {
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
+
+	for _, task := range tasks {
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+	}
+
+	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+	if err != nil {
+		durableInvocationCounts = nil
+	}
+
+	var workerId *uuid.UUID
+
+	if parsedId, uuidErr := uuid.Parse(request.WorkerId); uuidErr == nil {
+		workerId = &parsedId
+	}
+
+	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+
+	for _, task := range tasks {
+		item, ok := itemsByExternalId[task.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		retryCount := task.RetryCount
+
+		if item.RetryCount != nil {
+			retryCount = *item.RetryCount
+		}
+
+		var durableInvocationCount int32
+
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			durableInvocationCount = *count
+		}
+
+		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:                 task.ID,
+			RetryCount:             retryCount,
+			DurableInvocationCount: durableInvocationCount,
+			WorkerId:               workerId,
+			EventType:              sqlcv1.V1EventTypeOlapSTARTED,
+			EventTimestamp:         request.EventTimestamp.AsTime(),
+			EventPayload:           item.EventPayload,
+		})
+	}
+
+	if len(payloads) == 0 {
+		return resp, nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCreateMonitoringEvent,
+		false,
+		true,
+		payloads...,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// handleBatchTaskCompleted mirrors handleTaskCompleted for a whole batch: it validates each item's
+// output payload (downgrading individual items to FAILED on invalid JSON, exactly like
+// sendStepActionEventV1 does for a single task), then sends at most one bulk MsgIDTaskCompleted
+// message, at most one bulk MsgIDTaskFailed message for any downgraded items, and one bulk OLAP
+// monitoring event message covering every item.
+func (s *DispatcherImpl) handleBatchTaskCompleted(
+	inputCtx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	itemsByExternalId map[uuid.UUID]*contracts.BatchActionEventItem,
+	request *contracts.BatchActionEvent,
+) (*contracts.ActionEventResponse, error) {
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
+
+	for _, task := range tasks {
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+	}
+
+	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+	if err != nil {
+		durableInvocationCounts = nil
+	}
+
+	var workerId *uuid.UUID
+
+	if parsedId, uuidErr := uuid.Parse(request.WorkerId); uuidErr == nil {
+		workerId = &parsedId
+	}
+
+	completedPayloads := make([]tasktypes.CompletedTaskPayload, 0, len(tasks))
+	failedPayloads := make([]tasktypes.FailedTaskPayload, 0)
+	olapPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+
+	for _, task := range tasks {
+		item, ok := itemsByExternalId[task.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		retryCount := task.RetryCount
+
+		if item.RetryCount != nil {
+			retryCount = *item.RetryCount
+		}
+
+		eventPayload := item.EventPayload
+		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
+
+		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
+			eventPayload = validationErr.Error()
+			olapEventType = sqlcv1.V1EventTypeOlapFAILED
+
+			failedPayloads = append(failedPayloads, tasktypes.FailedTaskPayload{
+				TaskId:        task.ID,
+				InsertedAt:    task.InsertedAt,
+				ExternalId:    task.ExternalID,
+				WorkflowRunId: task.WorkflowRunID,
+				RetryCount:    retryCount,
+				IsAppError:    true,
+				ErrorMsg:      eventPayload,
+			})
+		} else {
+			completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
+				TaskId:        task.ID,
+				InsertedAt:    task.InsertedAt,
+				ExternalId:    task.ExternalID,
+				WorkflowRunId: task.WorkflowRunID,
+				RetryCount:    retryCount,
+				Output:        []byte(item.EventPayload),
+			})
+		}
+
+		var durableInvocationCount int32
+
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			durableInvocationCount = *count
+		}
+
+		olapPayloads = append(olapPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:                 task.ID,
+			RetryCount:             retryCount,
+			DurableInvocationCount: durableInvocationCount,
+			WorkerId:               workerId,
+			EventType:              olapEventType,
+			EventTimestamp:         request.EventTimestamp.AsTime(),
+			EventPayload:           eventPayload,
+		})
+	}
+
+	if len(completedPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDTaskCompleted,
+			false,
+			true,
+			completedPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(failedPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDTaskFailed,
+			false,
+			true,
+			failedPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(olapPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCreateMonitoringEvent,
+			false,
+			true,
+			olapPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
+
+func (s *DispatcherImpl) handleBatchTaskFailed(
+	inputCtx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	itemsByExternalId map[uuid.UUID]*contracts.BatchActionEventItem,
+	request *contracts.BatchActionEvent,
+) (*contracts.ActionEventResponse, error) {
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	payloads := make([]tasktypes.FailedTaskPayload, 0, len(tasks))
+
+	for _, task := range tasks {
+		item, ok := itemsByExternalId[task.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		retryCount := task.RetryCount
+
+		if item.RetryCount != nil {
+			retryCount = *item.RetryCount
+		}
+
+		shouldNotRetry := false
+
+		if item.ShouldNotRetry != nil {
+			shouldNotRetry = *item.ShouldNotRetry
+		}
+
+		payloads = append(payloads, tasktypes.FailedTaskPayload{
+			TaskId:         task.ID,
+			InsertedAt:     task.InsertedAt,
+			ExternalId:     task.ExternalID,
+			WorkflowRunId:  task.WorkflowRunID,
+			RetryCount:     retryCount,
+			IsAppError:     true,
+			ErrorMsg:       item.EventPayload,
+			IsNonRetryable: shouldNotRetry,
+		})
+	}
+
+	if len(payloads) == 0 {
+		return resp, nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskFailed,
+		false,
+		true,
+		payloads...,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (s *DispatcherImpl) handleBatchTaskCancelled(
+	inputCtx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	request *contracts.BatchActionEvent,
+) (*contracts.ActionEventResponse, error) {
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+
+	for _, task := range tasks {
+		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		})
+	}
+
+	if len(tasksToCancel) == 0 {
+		return resp, nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{
+			Tasks: tasksToCancel,
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
@@ -1441,40 +1848,97 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
-
+	increment, err := time.ParseDuration(request.IncrementTimeoutBy)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "invalid increment timeout by %s: %v", request.IncrementTimeoutBy, err)
 	}
 
-	workerId := taskRuntime.WorkerID
-
-	// send to the OLAP repository
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskRuntime.TaskID,
-			RetryCount:     taskRuntime.RetryCount,
-			WorkerId:       workerId,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
-		},
-	)
-
-	if err != nil {
-		return nil, err
+	key := refreshTimeoutKey{
+		tenantId:       tenantId,
+		taskExternalId: taskExternalId,
 	}
+	d.refreshTimeoutBuf.add(key, increment)
 
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
+	timeoutAt, err, _ := d.refreshTimeoutGroup.Do(key.String(), func() (interface{}, error) {
+		return d.flushRefreshTimeout(ctx, key)
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.RefreshTimeoutResponse{
-		TimeoutAt: timestamppb.New(taskRuntime.TimeoutAt.Time),
+		TimeoutAt: timestamppb.New(timeoutAt.(time.Time)),
 	}, nil
+}
+
+func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTimeoutKey) (time.Time, error) {
+	if !d.refreshTimeoutBuf.shouldFlush(key) {
+		if timeoutAt, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
+			d.refreshTimeoutBuf.scheduleTrailingFlush(key, func(k refreshTimeoutKey) {
+				flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
+					return d.flushRefreshTimeout(flushCtx, k)
+				})
+				if err != nil {
+					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
+				}
+			})
+			return timeoutAt, nil
+		}
+	}
+
+	var timeoutAt time.Time
+
+	for {
+		sum, ok := d.refreshTimeoutBuf.take(key)
+		if !ok {
+			if !timeoutAt.IsZero() {
+				return timeoutAt, nil
+			}
+			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
+				return cached, nil
+			}
+			return time.Time{}, fmt.Errorf("no buffered refresh timeout for %s", key)
+		}
+
+		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
+			TaskExternalId:     key.taskExternalId,
+			IncrementTimeoutBy: sum.String(),
+		})
+		if err != nil {
+			// Put the failed sum back so a retry can flush it.
+			d.refreshTimeoutBuf.add(key, sum)
+			return time.Time{}, err
+		}
+
+		timeoutAt = taskRuntime.TimeoutAt.Time
+		d.refreshTimeoutBuf.markFlushed(key, timeoutAt)
+
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			key.tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         taskRuntime.TaskID,
+				RetryCount:     taskRuntime.RetryCount,
+				WorkerId:       taskRuntime.WorkerID,
+				EventTimestamp: time.Now(),
+				EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+				EventMessage:   fmt.Sprintf("Timeout refreshed by %s", sum.String()),
+			},
+		)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return time.Time{}, err
+		}
+
+		if !d.refreshTimeoutBuf.hasPending(key) {
+			return timeoutAt, nil
+		}
+	}
 }
 
 func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
@@ -1642,7 +2106,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		wg.Add(1)
 		defer wg.Done()
 
-		events, err := s.msgsToWorkflowEvent(
+		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
@@ -1768,7 +2232,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 		wg.Add(1)
 		defer wg.Done()
 
-		events, err := s.msgsToWorkflowEvent(
+		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
@@ -1941,165 +2405,4 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 	}
 
 	return res, nil
-}
-
-func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
-	workflowEvents := []*contracts.WorkflowEvent{}
-
-	switch msgId {
-	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunID.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalID.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
-				EventTimestamp: timestamppb.New(payload.InsertedAt.Time),
-				RetryCount:     &payload.RetryCount,
-			})
-		}
-	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-				EventPayload:   string(payload.Output),
-			})
-		}
-	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-				EventPayload:   payload.ErrorMsg,
-			})
-		}
-	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-			})
-		}
-	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.TaskRunId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
-				EventTimestamp: timestamppb.New(payload.CreatedAt),
-				EventPayload:   string(payload.Payload),
-				EventIndex:     payload.EventIndex,
-			})
-		}
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
-
-		for _, payload := range payloads {
-			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-
-			switch payload.Status {
-			case sqlcv1.V1ReadableStatusOlapCANCELLED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
-			case sqlcv1.V1ReadableStatusOlapFAILED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
-			case sqlcv1.V1ReadableStatusOlapCOMPLETED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-			}
-
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.ExternalId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      eventType,
-				EventTimestamp: timestamppb.New(time.Now()),
-			})
-		}
-	}
-
-	matches, err := filter(workflowEvents)
-
-	if err != nil {
-		return nil, err
-	}
-
-	matches, err = hangupFunc(matches)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// order matches
-	slices.SortFunc(matches, func(a, b *contracts.WorkflowEvent) int {
-		// anything with a hangup should be last
-		if a.Hangup && !b.Hangup {
-			return 1
-		} else if !a.Hangup && b.Hangup {
-			return -1
-		}
-
-		return sortByEventIndex(a, b)
-	})
-
-	return matches, nil
-}
-
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]uuid.UUID, bool) {
-	switch msg.ID {
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
-		res := make([]uuid.UUID, 0)
-
-		for _, payload := range payloads {
-			if acks.hasWorkflowRun(payload.ExternalId) {
-				res = append(res, payload.ExternalId)
-			}
-		}
-
-		if len(res) == 0 {
-			return nil, false
-		}
-
-		return res, true
-	case "workflow-run-finished-candidate":
-		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
-		res := make([]uuid.UUID, 0)
-
-		for _, payload := range payloads {
-			if acks.hasWorkflowRun(payload.WorkflowRunId) {
-				res = append(res, payload.WorkflowRunId)
-			}
-		}
-
-		if len(res) == 0 {
-			return nil, false
-		}
-
-		return res, true
-	default:
-		return nil, false
-	}
 }

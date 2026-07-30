@@ -53,13 +53,24 @@ func NewChildWorkflowTriggerRequest(workflowName string, input interface{}, opts
 	childIndex := int32(opts.ChildIndex) // nolint:gosec
 
 	request := &v1contracts.TriggerWorkflowRequest{
-		Name:                    workflowName,
-		Input:                   string(inputBytes),
-		ParentId:                &opts.ParentId,
-		ParentTaskRunExternalId: &opts.ParentTaskRunId,
-		ChildIndex:              &childIndex,
-		ChildKey:                opts.ChildKey,
-		DesiredWorkerId:         opts.DesiredWorkerId,
+		Name:            workflowName,
+		Input:           string(inputBytes),
+		ChildIndex:      &childIndex,
+		ChildKey:        opts.ChildKey,
+		DesiredWorkerId: opts.DesiredWorkerId,
+	}
+
+	// Only set these optional proto fields when a real parent is available. Batch task
+	// handlers share one context across every buffered member and have no single step run
+	// id to act as "the" parent, so opts.ParentId/ParentTaskRunId are "" in that case;
+	// leaving the fields unset (rather than sending an empty string, which the engine
+	// rejects as an invalid UUID) makes the spawned child a parentless/independent run,
+	// matching the Python SDK's behavior in the same scenario.
+	if opts.ParentId != "" {
+		request.ParentId = &opts.ParentId
+	}
+	if opts.ParentTaskRunId != "" {
+		request.ParentTaskRunExternalId = &opts.ParentTaskRunId
 	}
 
 	additionalMetadata := mergeAdditionalMetadata(sharedMeta, opts.AdditionalMetadata)
@@ -580,6 +591,14 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 		putParams.Duration = admincontracts.RateLimitDuration_MINUTE
 	case types.Hour:
 		putParams.Duration = admincontracts.RateLimitDuration_HOUR
+	case types.Day:
+		putParams.Duration = admincontracts.RateLimitDuration_DAY
+	case types.Week:
+		putParams.Duration = admincontracts.RateLimitDuration_WEEK
+	case types.Month:
+		putParams.Duration = admincontracts.RateLimitDuration_MONTH
+	case types.Year:
+		putParams.Duration = admincontracts.RateLimitDuration_YEAR
 	default:
 		putParams.Duration = admincontracts.RateLimitDuration_SECOND
 	}

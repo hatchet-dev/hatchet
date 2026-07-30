@@ -177,7 +177,7 @@ func (d *DebugLogger) GetLogsAsString() string {
 
 	for _, log := range logs {
 		timestamp := log.Timestamp.Format("2006-01-02 15:04:05.000")
-		b.WriteString(fmt.Sprintf("[%s] %s\n", timestamp, log.Message))
+		fmt.Fprintf(&b, "[%s] %s\n", timestamp, log.Message)
 	}
 
 	return b.String()

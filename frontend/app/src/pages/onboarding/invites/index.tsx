@@ -1,5 +1,4 @@
 import { InviteModal } from '@/components/modals/invite-modal';
-import { getCloudMetadataQuery } from '@/hooks/use-cloud';
 import { pendingInvitesQuery } from '@/hooks/use-pending-invites';
 import { fetchControlPlaneStatus } from '@/lib/api/api';
 import queryClient from '@/query-client';
@@ -8,17 +7,10 @@ import { redirect, useNavigate } from '@tanstack/react-router';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
-  const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
-    await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
   const { inviteCount } = await queryClient.fetchQuery(
-    pendingInvitesQuery(
-      isControlPlaneEnabled || isLegacyCloudEnabled,
-      isControlPlaneEnabled,
-    ),
+    pendingInvitesQuery(isControlPlaneEnabled),
   );
 
   if (inviteCount === 0) {

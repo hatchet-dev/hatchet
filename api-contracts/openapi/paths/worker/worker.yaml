@@ -35,6 +35,16 @@ withTenant:
           type: array
           items:
             $ref: "../../components/schemas/_index.yaml#/WorkerStatus"
+      - description: Filter by worker labels
+        in: query
+        name: labels
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            description: The label key-value pairs (delimited by a `:`) to filter by
+            minLength: 1
     responses:
       "200":
         content:
