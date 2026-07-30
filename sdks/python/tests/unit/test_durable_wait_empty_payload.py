@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hatchet_sdk.context.context import DurableContext, _first_wait_match_or_none
+from hatchet_sdk.context.context import DurableContext, _first_wait_match
 
 
 @pytest.mark.parametrize(
@@ -17,16 +17,16 @@ from hatchet_sdk.context.context import DurableContext, _first_wait_match_or_non
         {"CREATE": {"signal_key_1": []}},
     ],
 )
-def test_first_wait_match_or_none_returns_none_for_empty_payloads(
+def test_first_wait_match_returns_empty_dict_for_empty_payloads(
     result: dict[str, Any],
 ) -> None:
-    assert _first_wait_match_or_none(result) is None
+    assert _first_wait_match(result) == {}
 
 
-def test_first_wait_match_or_none_extracts_first_match() -> None:
+def test_first_wait_match_extracts_first_match() -> None:
     result = {"CREATE": {"signal_key_1": [{"id": "abc", "sleep_duration": "5s"}]}}
 
-    assert _first_wait_match_or_none(result) == {"id": "abc", "sleep_duration": "5s"}
+    assert _first_wait_match(result) == {"id": "abc", "sleep_duration": "5s"}
 
 
 def _context_with_wait_for(aio_wait_for_result: dict[str, Any]) -> DurableContext:
