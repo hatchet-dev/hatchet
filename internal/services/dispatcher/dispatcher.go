@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -66,6 +67,8 @@ type DispatcherImpl struct {
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
+	refreshTimeoutGroup                 singleflight.Group
+	refreshTimeoutBuf                   *refreshTimeoutBuffer
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -330,6 +333,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
+		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
@@ -399,6 +403,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		wg.Wait()
 
 		d.pubBuffer.Stop()
+		d.refreshTimeoutBuf.stop()
 
 		// drain the existing connections
 		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
