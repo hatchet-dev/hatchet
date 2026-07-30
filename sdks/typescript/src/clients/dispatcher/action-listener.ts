@@ -1,7 +1,7 @@
 import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
-import { getGrpcErrorCode } from '@util/grpc-error';
+import { getGrpcErrorCode, isHttpMappedStatus } from '@util/grpc-error';
 import { isAbortError } from 'abort-controller-x';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
@@ -10,6 +10,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { DispatcherClient } from './dispatcher-client';
 import { Heartbeat } from './heartbeat/heartbeat-controller';
+import { classifyListenerFailure } from './listener-severity';
 
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
@@ -100,13 +101,20 @@ export class ActionListener {
 
           if (
             (await client.getListenStrategy()) === ListenStrategy.LISTEN_STRATEGY_V2 &&
-            getGrpcErrorCode(e) === Status.UNIMPLEMENTED
+            getGrpcErrorCode(e) === Status.UNIMPLEMENTED &&
+            !isHttpMappedStatus(e)
           ) {
+            // A proxy/load balancer serving a plain HTTP 404 (e.g. while the
+            // engine restarts behind it) also maps to UNIMPLEMENTED, so only
+            // downgrade the listen strategy when the server itself reported it.
             client.setListenStrategy(ListenStrategy.LISTEN_STRATEGY_V1);
           }
 
           client.incrementRetries();
-          client.logger.error(`Listener encountered an error: ${getErrorMessage(e)}`);
+
+          const message = `Listener encountered an error: ${getErrorMessage(e)}`;
+          client.logger[classifyListenerFailure(e, client.retries)](message);
+
           if (client.retries > 1) {
             client.logger.info(`Retrying in ${client.retryInterval}ms...`);
             await sleep(client.retryInterval);
@@ -183,7 +191,9 @@ export class ActionListener {
       return res;
     } catch (e: unknown) {
       this.retries += 1;
-      this.logger.error(`Attempt ${this.retries}: Failed to connect, retrying...`);
+
+      const message = `Attempt ${this.retries}: Failed to connect, retrying...`;
+      this.logger[classifyListenerFailure(e, this.retries)](message);
 
       if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
         // Connection lost, reset heartbeat interval and retry connection
