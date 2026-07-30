@@ -2205,6 +2205,13 @@ WHERE inserted_at::DATE = (NOW() - INTERVAL '1 day')::DATE
 GROUP BY readable_status
 ;
 
+-- name: ListLastHourRunCountsByStatus :many
+SELECT readable_status, COUNT(*)
+FROM v1_runs_olap
+WHERE inserted_at >= NOW() - INTERVAL '1 hour'
+GROUP BY readable_status
+;
+
 -- name: CheckLastAutovacuumForPartitionedTables :many
 SELECT
     s.schemaname,

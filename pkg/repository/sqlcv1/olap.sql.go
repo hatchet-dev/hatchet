@@ -1423,6 +1423,38 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	return items, nil
 }
 
+const listLastHourRunCountsByStatus = `-- name: ListLastHourRunCountsByStatus :many
+SELECT readable_status, COUNT(*)
+FROM v1_runs_olap
+WHERE inserted_at >= NOW() - INTERVAL '1 hour'
+GROUP BY readable_status
+`
+
+type ListLastHourRunCountsByStatusRow struct {
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	Count          int64                `json:"count"`
+}
+
+func (q *Queries) ListLastHourRunCountsByStatus(ctx context.Context, db DBTX) ([]*ListLastHourRunCountsByStatusRow, error) {
+	rows, err := db.Query(ctx, listLastHourRunCountsByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListLastHourRunCountsByStatusRow
+	for rows.Next() {
+		var i ListLastHourRunCountsByStatusRow
+		if err := rows.Scan(&i.ReadableStatus, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $3::date) AS p

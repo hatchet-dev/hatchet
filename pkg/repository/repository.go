@@ -44,6 +44,7 @@ type Repository interface {
 	IntervalSettings() IntervalSettingsRepository
 	PGHealth() PGHealthRepository
 	SecurityCheck() SecurityCheckRepository
+	UsageMetrics() UsageMetricsRepository
 	Slack() SlackRepository
 	SNS() SNSRepository
 	TenantInvite() TenantInviteRepository
@@ -80,6 +81,7 @@ type repositoryImpl struct {
 	intervals         IntervalSettingsRepository
 	pgHealth          PGHealthRepository
 	securityCheck     SecurityCheckRepository
+	usageMetrics      UsageMetricsRepository
 	slack             SlackRepository
 	sns               SNSRepository
 	tenantInvite      TenantInviteRepository
@@ -134,6 +136,7 @@ func NewRepository(
 		intervals:         newIntervalSettingsRepository(shared),
 		pgHealth:          newPGHealthRepository(shared),
 		securityCheck:     newSecurityCheckRepository(shared),
+		usageMetrics:      newUsageMetricsRepository(shared),
 		slack:             newSlackRepository(shared),
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
@@ -260,6 +263,10 @@ func (r *repositoryImpl) PGHealth() PGHealthRepository {
 
 func (r *repositoryImpl) SecurityCheck() SecurityCheckRepository {
 	return r.securityCheck
+}
+
+func (r *repositoryImpl) UsageMetrics() UsageMetricsRepository {
+	return r.usageMetrics
 }
 
 func (r *repositoryImpl) Slack() SlackRepository {

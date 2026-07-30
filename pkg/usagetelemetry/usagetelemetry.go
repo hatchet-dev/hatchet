@@ -30,11 +30,12 @@ type runCountReader interface {
 }
 
 type DefaultUsageTelemetry struct {
-	enabled bool
-	logger  *zerolog.Logger
-	repo    v1.SecurityCheckRepository
-	olap    runCountReader
-	client  posthog.Client
+	enabled       bool
+	logger        *zerolog.Logger
+	securityCheck v1.SecurityCheckRepository
+	usageMetrics  v1.UsageMetricsRepository
+	olap          runCountReader
+	client        posthog.Client
 
 	mqKind    string
 	startTime time.Time
@@ -50,7 +51,7 @@ func KeyConfigured() bool {
 	return DefaultPosthogApiKey != ""
 }
 
-func NewUsageTelemetry(opts *Opts, repo v1.SecurityCheckRepository, olap runCountReader) (UsageTelemetry, error) {
+func NewUsageTelemetry(opts *Opts, securityCheck v1.SecurityCheckRepository, usageMetrics v1.UsageMetricsRepository, olap runCountReader) (UsageTelemetry, error) {
 	if DefaultPosthogApiKey == "" {
 		return &noOpUsageTelemetry{}, nil
 	}
@@ -63,13 +64,14 @@ func NewUsageTelemetry(opts *Opts, repo v1.SecurityCheckRepository, olap runCoun
 	}
 
 	return &DefaultUsageTelemetry{
-		enabled:   opts.Enabled,
-		logger:    opts.Logger,
-		repo:      repo,
-		olap:      olap,
-		client:    client,
-		mqKind:    opts.MQKind,
-		startTime: time.Now(),
+		enabled:       opts.Enabled,
+		logger:        opts.Logger,
+		securityCheck: securityCheck,
+		usageMetrics:  usageMetrics,
+		olap:          olap,
+		client:        client,
+		mqKind:        opts.MQKind,
+		startTime:     time.Now(),
 	}, nil
 }
 
@@ -98,7 +100,7 @@ func (t *DefaultUsageTelemetry) Shutdown() {
 }
 
 func (t *DefaultUsageTelemetry) SendFeedback(ctx context.Context, message, email string) error {
-	ident, err := t.repo.GetIdent()
+	ident, err := t.securityCheck.GetIdent()
 	if err != nil {
 		return err
 	}
@@ -124,13 +126,13 @@ func (t *DefaultUsageTelemetry) report(ctx context.Context) {
 		}
 	}()
 
-	ident, err := t.repo.GetIdent()
+	ident, err := t.securityCheck.GetIdent()
 	if err != nil {
 		t.logger.Debug().Err(err).Msg("usage telemetry: could not read ident, skipping")
 		return
 	}
 
-	metrics, err := t.repo.GetUsageMetrics(ctx)
+	metrics, err := t.usageMetrics.GetUsageMetrics(ctx)
 	if err != nil {
 		t.logger.Debug().Err(err).Msg("usage telemetry: could not gather metrics, skipping")
 		return

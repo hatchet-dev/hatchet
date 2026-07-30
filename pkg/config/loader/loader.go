@@ -602,7 +602,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Enabled: cf.UsageTelemetry.Enabled,
 		Logger:  &l,
 		MQKind:  cf.MessageQueue.Kind,
-	}, dc.V1.SecurityCheck(), dc.V1.OLAP())
+	}, dc.V1.SecurityCheck(), dc.V1.UsageMetrics(), dc.V1.OLAP())
 
 	if utErr != nil {
 		return nil, nil, fmt.Errorf("could not create usage telemetry: %w", utErr)

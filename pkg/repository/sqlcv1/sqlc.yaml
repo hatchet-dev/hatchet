@@ -22,6 +22,7 @@ sql:
       - log_line.sql
       - otel.sql
       - security_check.sql
+      - usage_metrics.sql
       - slack.sql
       - sleep.sql
       - sns.sql

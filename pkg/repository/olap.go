@@ -3437,33 +3437,16 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 }
 
 func (r *OLAPRepositoryImpl) ListLastHourRunCountsByStatus(ctx context.Context) (map[string]int64, error) {
-	rows, err := r.readPool.Query(ctx, `
-		SELECT readable_status::text, COUNT(*)
-		FROM v1_runs_olap
-		WHERE inserted_at >= NOW() - INTERVAL '1 hour'
-		GROUP BY readable_status
-	`)
+	rows, err := r.queries.ListLastHourRunCountsByStatus(ctx, r.readPool)
 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	statusToCount := make(map[string]int64)
 
-	for rows.Next() {
-		var status string
-		var count int64
-
-		if err := rows.Scan(&status, &count); err != nil {
-			return nil, err
-		}
-
-		statusToCount[status] = count
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, row := range rows {
+		statusToCount[string(row.ReadableStatus)] = row.Count
 	}
 
 	return statusToCount, nil
