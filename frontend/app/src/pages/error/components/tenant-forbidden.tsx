@@ -1,6 +1,7 @@
 import { ErrorPageLayout } from './layout';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMember } from '@/lib/api';
@@ -104,7 +105,8 @@ export function TenantForbidden() {
   const queryClient = useQueryClient();
 
   const { currentUser } = useCurrentUser();
-  const { tenantMemberships, isControlPlaneEnabled } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { tenantMemberships } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
 

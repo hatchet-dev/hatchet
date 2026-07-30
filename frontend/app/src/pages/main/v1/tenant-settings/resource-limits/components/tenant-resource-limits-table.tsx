@@ -25,12 +25,12 @@ export function TenantResourceLimitsTable({
   isLoading,
   showDocsOnEmpty = false,
 }: TenantResourceLimitsTableProps) {
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { isControlPlaneEnabled, isSelfHosted } = useControlPlane();
   const resourceLimitColumns = useResourceLimitColumns();
 
   // The SERVER_ENFORCE_LIMITS hint and engine-configuration docs only apply to
   // self-hosted deployments — on cloud, limits come from the billing plan.
-  const showSelfHostDocs = showDocsOnEmpty && !isControlPlaneEnabled;
+  const showSelfHostDocs = showDocsOnEmpty && isSelfHosted;
 
   const billingSyncRefetchInterval = isControlPlaneEnabled
     ? BILLING_SYNC_REFETCH_INTERVAL_MS

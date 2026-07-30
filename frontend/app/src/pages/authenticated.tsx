@@ -159,7 +159,7 @@ function AuthenticatedInner() {
     tenantMemberships,
   } = useUserUniverse();
 
-  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
   const orgApi = useOrganizationApi();
   const orgIdForTenant = organizations?.find((o) =>
     o.tenants?.some((t) => t.id === tenant?.metadata?.id),
@@ -174,8 +174,7 @@ function AuthenticatedInner() {
     : -1;
   const welcomeBillingState = useQuery({
     ...queries.controlPlane.billing(organizationId || ''),
-    enabled:
-      isControlPlaneEnabled && !!controlPlaneMeta?.canBill && !!organizationId,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
     retry: false,
   });
 
@@ -444,7 +443,7 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (!controlPlaneMeta?.canBill) {
+    if (!canBill) {
       return;
     }
 
@@ -496,7 +495,7 @@ function AuthenticatedInner() {
     capture,
     isControlPlaneEnabled,
     isUserUniverseLoaded,
-    controlPlaneMeta?.canBill,
+    canBill,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,

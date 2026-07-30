@@ -17,9 +17,9 @@ import invariant from 'tiny-invariant';
 
 // The user's universe: the tenants they belong to and, under the control plane,
 // the organizations those tenants belong to.
+// Control-plane status comes from useControlPlane — not re-exported here.
 
 type UserUniverse = {
-  isControlPlaneEnabled: boolean;
   isLoaded: boolean;
   isFetching: boolean;
   organizations: OrganizationForUserList['rows'] | null;
@@ -31,42 +31,22 @@ type UserUniverse = {
     void,
     unknown
   >;
+  get: () => Promise<{
+    organizations: OrganizationForUserList['rows'] | null;
+    tenantMemberships: TenantMember[];
+  }>;
 } & (
-  | ({
-      isControlPlaneEnabled: true;
-      get: () => Promise<{
-        organizations: OrganizationForUserList['rows'];
-        tenantMemberships: TenantMember[];
-      }>;
-    } & (
-      | {
-          isLoaded: true;
-          organizations: OrganizationForUserList['rows'];
-          tenantMemberships: TenantMember[];
-        }
-      | {
-          isLoaded: false;
-          organizations: null;
-          tenantMemberships: null;
-        }
-    ))
-  | ({
-      isControlPlaneEnabled: false;
+  | {
+      isLoaded: true;
+      tenantMemberships: TenantMember[];
+      // null when self-hosted; rows (possibly empty) when control plane is on
+      organizations: OrganizationForUserList['rows'] | null;
+    }
+  | {
+      isLoaded: false;
       organizations: null;
-      get: () => Promise<{
-        organizations: null;
-        tenantMemberships: TenantMember[];
-      }>;
-    } & (
-      | {
-          isLoaded: true;
-          tenantMemberships: TenantMember[];
-        }
-      | {
-          isLoaded: false;
-          tenantMemberships: null;
-        }
-    ))
+      tenantMemberships: null;
+    }
 );
 
 const UserUniverseContext = createContext<UserUniverse | null>(null);
@@ -166,7 +146,10 @@ export function UserUniverseProvider({
         })
         .then((result) => {
           if (result.isSuccess) {
-            return result.data;
+            return {
+              organizations: result.data.organizations,
+              tenantMemberships: result.data.tenantMemberships,
+            };
           }
 
           throw result.error;
@@ -175,70 +158,47 @@ export function UserUniverseProvider({
   );
 
   const value = useMemo<UserUniverse>(() => {
-    const tenantMembershipAndOrganizationsAreLoaded =
-      tenantMembershipAndOrganizationsQuery.isSuccess;
+    const isLoaded = tenantMembershipAndOrganizationsQuery.isSuccess;
     const isFetching = tenantMembershipAndOrganizationsQuery.isFetching;
-    if (isControlPlaneEnabled) {
-      const getWithOrganizations = get as () => Promise<{
-        organizations: OrganizationForUserList['rows'];
-        tenantMemberships: TenantMember[];
-      }>;
 
-      if (tenantMembershipAndOrganizationsAreLoaded) {
+    if (isLoaded) {
+      if (isControlPlaneEnabled) {
         invariant(tenantMembershipAndOrganizationsQuery.data.organizations);
 
         return {
-          isControlPlaneEnabled,
-          isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+          isLoaded: true,
           isFetching,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
           tenantMemberships:
             tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
-          get: getWithOrganizations,
+          get,
           invalidate,
           logoutMutation,
         };
       }
 
       return {
-        isControlPlaneEnabled,
-        isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+        isLoaded: true,
         isFetching,
         organizations: null,
-        tenantMemberships: null,
-        get: getWithOrganizations,
+        tenantMemberships:
+          tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
+        get,
         invalidate,
         logoutMutation,
       };
-    } else {
-      const getWithoutOrganizations = get as () => Promise<{
-        organizations: null;
-        tenantMemberships: TenantMember[];
-      }>;
-      return tenantMembershipAndOrganizationsAreLoaded
-        ? {
-            isControlPlaneEnabled,
-            isLoaded: tenantMembershipAndOrganizationsAreLoaded,
-            isFetching,
-            organizations: null,
-            tenantMemberships:
-              tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
-            get: getWithoutOrganizations,
-            invalidate,
-            logoutMutation,
-          }
-        : {
-            isControlPlaneEnabled,
-            isLoaded: tenantMembershipAndOrganizationsAreLoaded,
-            isFetching,
-            organizations: null,
-            tenantMemberships: null,
-            get: getWithoutOrganizations,
-            invalidate,
-            logoutMutation,
-          };
     }
+
+    return {
+      isLoaded: false,
+      isFetching,
+      organizations: null,
+      tenantMemberships: null,
+      get,
+      invalidate,
+      logoutMutation,
+    };
   }, [
     tenantMembershipAndOrganizationsQuery,
     isControlPlaneEnabled,

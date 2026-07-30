@@ -1,3 +1,4 @@
+import useControlPlane from '@/hooks/use-control-plane';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
@@ -25,11 +26,9 @@ export const MAX_INACTIVITY_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000;
  * Gets organization data from context, but keeps all mutation logic here.
  */
 export function useOrganizations() {
-  const {
-    organizations: organizationData,
-    isLoaded: isUserUniverseLoaded,
-    isControlPlaneEnabled,
-  } = useUserUniverse();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizations: organizationData, isLoaded: isUserUniverseLoaded } =
+    useUserUniverse();
   const { handleApiError } = useApiError({});
   const orgApi = useOrganizationApi();
 
@@ -437,7 +436,6 @@ export function useOrganizations() {
   return {
     organizations,
     organizationData, // From context
-    isControlPlaneEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,

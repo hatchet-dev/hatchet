@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { getApiErrorStatus } from '@/lib/api/api';
@@ -131,8 +130,7 @@ function OrganizationBillingContent() {
   const { organization } = useParams({
     from: appRoutes.organizationsRoute.to,
   });
-  const { cloud } = useCloud();
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { isControlPlaneEnabled, canBill } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Capture the sync hints once on mount; the URL is cleaned up immediately so
@@ -174,7 +172,7 @@ function OrganizationBillingContent() {
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
-    enabled: isControlPlaneEnabled && !!cloud?.canBill,
+    enabled: isControlPlaneEnabled && canBill,
     retry: (failureCount, error) => {
       const status = getApiErrorStatus(error);
       return status !== 401 && status !== 403 && failureCount < 3;

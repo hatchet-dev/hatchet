@@ -3,7 +3,6 @@ import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { Loading } from '@/components/v1/ui/loading';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -21,9 +20,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
   const { tenantId, isUserUniverseLoaded } = useTenantDetails();
-  const { cloud, featureFlags } = useCloud(tenantId);
-  const { isControlPlaneEnabled } = useControlPlane();
-  const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
+  const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { getOrganizationIdForTenant } = useOrganizations();
   const queryClient = useQueryClient();
   const orgId = isControlPlaneEnabled
@@ -45,12 +42,11 @@ export function MainShell({ children }: { children?: ReactNode }) {
   const navSections = useMemo(
     () =>
       sideNavItems({
-        canBill: cloud?.canBill,
-        managedWorkerEnabled,
+        canBill,
         isControlPlaneEnabled,
         orgId,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isControlPlaneEnabled, orgId],
+    [canBill, isControlPlaneEnabled, orgId],
   );
 
   const childCtx = useContextFromParent({

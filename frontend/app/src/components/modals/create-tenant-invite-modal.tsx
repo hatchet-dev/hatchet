@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useOrganizations } from '@/hooks/use-organizations';
+import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import {
@@ -359,7 +359,7 @@ export const CreateTenantInviteModal = ({
   onClose: () => void;
   onCreated: (tenantId: string, invite: TenantInvite) => void;
 }) => {
-  const { isControlPlaneEnabled } = useOrganizations();
+  const { isControlPlaneEnabled } = useControlPlane();
   // `fieldErrors` is only for the client-side duplicate-member guard below.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);

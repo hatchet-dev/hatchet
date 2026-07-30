@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -30,7 +31,6 @@ interface UpdateMemberFormProps {
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   member: TenantMember;
-  isControlPlaneEnabled?: boolean;
   canSetOwnerRole?: boolean;
   formErrors?: string[];
 }
@@ -39,6 +39,7 @@ export function UpdateMemberForm({
   className,
   ...props
 }: UpdateMemberFormProps) {
+  const { isControlPlaneEnabled } = useControlPlane();
   const {
     handleSubmit,
     control,
@@ -100,8 +101,7 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(!props.isControlPlaneEnabled ||
-                          props.canSetOwnerRole) && (
+                        {(!isControlPlaneEnabled || props.canSetOwnerRole) && (
                           <SelectItem value="OWNER">Owner</SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>

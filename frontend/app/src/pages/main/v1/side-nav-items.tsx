@@ -18,7 +18,6 @@ import {
 
 export function sideNavItems(opts: {
   canBill?: boolean;
-  managedWorkerEnabled?: boolean;
   isControlPlaneEnabled?: boolean;
   orgId?: string;
 }): SideNavSection[] {
@@ -209,7 +208,7 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        ...(opts.managedWorkerEnabled
+        ...(opts.isControlPlaneEnabled
           ? [
               {
                 key: 'managed-compute',

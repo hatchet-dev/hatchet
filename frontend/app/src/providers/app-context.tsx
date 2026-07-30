@@ -1,4 +1,5 @@
 import { useUserUniverse } from './user-universe';
+import useControlPlane from '@/hooks/use-control-plane';
 import { Tenant, User } from '@/lib/api';
 import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import type { TenantMember } from '@/lib/api/generated/data-contracts';
@@ -102,19 +103,15 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     });
   }, [queryClient, userGetCurrentQuery]);
 
+  const { isControlPlaneEnabled } = useControlPlane();
   const {
     isLoaded: isUserUniverseLoaded,
     organizations,
     tenantMemberships,
-    isControlPlaneEnabled: userUniverseIsControlPlaneEnabled,
   } = useUserUniverse();
 
   const organizationScopedTenantId = useMemo(() => {
-    if (
-      !organizationParamInPath ||
-      !userUniverseIsControlPlaneEnabled ||
-      !organizations
-    ) {
+    if (!organizationParamInPath || !isControlPlaneEnabled || !organizations) {
       return undefined;
     }
 
@@ -137,7 +134,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     return organization.tenants[0]?.id;
   }, [
     organizationParamInPath,
-    userUniverseIsControlPlaneEnabled,
+    isControlPlaneEnabled,
     organizations,
     lastTenant?.metadata.id,
   ]);
@@ -204,7 +201,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       };
     }
 
-    if (userUniverseIsControlPlaneEnabled) {
+    if (isControlPlaneEnabled) {
       return {
         ...baseValue,
         isUserUniverseLoaded: true,
@@ -231,7 +228,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     tenant,
     tenantParamInPath,
     isUserUniverseLoaded,
-    userUniverseIsControlPlaneEnabled,
+    isControlPlaneEnabled,
     validTenantMembership?.role,
     organizations,
   ]);
