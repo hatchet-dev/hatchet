@@ -84,8 +84,8 @@ export default {
     title: "Enterprise",
     type: "separator",
   },
-  'single-sign-on': "SSO",
-  'user-groups': "User Groups",
+  "single-sign-on": "SSO",
+  "user-groups": "User Groups",
   "--evaluate": {
     title: "Evaluating Hatchet?",
     type: "separator",
