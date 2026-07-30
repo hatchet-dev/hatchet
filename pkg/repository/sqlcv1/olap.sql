@@ -1452,32 +1452,67 @@ LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 -- name: GetTaskPointMetrics :many
-SELECT
-    DATE_BIN(
-        COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
-        bucket,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS minute_bucket,
-    SUM(completed_count)::int as completed_count,
-    SUM(failed_count)::int as failed_count
-FROM
-    v1_cagg_task_statuses_minute
-WHERE
-    tenant_id = @tenantId::uuid AND
-    -- timestamptz makes this fast, apparently:
-    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
-    bucket >= DATE_BIN(
-        '1 minute',
-        @createdAfter::timestamptz,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) AND
-    bucket <= DATE_BIN(
-        '1 minute',
-        @createdBefore::timestamptz,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    )
-GROUP BY minute_bucket
-ORDER BY minute_bucket;
+WITH candidates AS (
+    SELECT *
+    FROM v1_cagg_task_statuses_minute
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND bucket >= DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            @createdAfter::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+        AND bucket <= DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            @createdBefore::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+), max_time AS (
+    SELECT MAX(bucket) AS max_time_bucket
+    FROM candidates
+), unioned AS (
+    SELECT
+        DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            bucket,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        ) :: TIMESTAMPTZ AS minute_bucket,
+        SUM(completed_count)::int as completed_count,
+        SUM(failed_count)::int as failed_count
+    FROM candidates
+    GROUP BY minute_bucket
+
+    UNION
+
+    SELECT
+        DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            inserted_at,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        ) AS minute_bucket,
+        COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
+    FROM v1_statuses_olap
+    WHERE
+        inserted_at > (SELECT max_time_bucket FROM max_time)
+        AND tenant_id = @tenantId::UUID
+        AND inserted_at >= DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            @createdAfter::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+        AND inserted_at <= DATE_BIN(
+            COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
+            @createdBefore::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+    GROUP BY minute_bucket
+)
+
+SELECT *
+FROM unioned
+ORDER BY minute_bucket
+;
 
 
 -- name: GetTenantStatusMetrics :one

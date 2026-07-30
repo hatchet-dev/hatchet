@@ -3165,19 +3165,7 @@ type V1BatchedQueueItem struct {
 }
 
 type V1CaggTaskStatusesMinute struct {
-	TimeBucket     pgtype.Timestamptz `json:"time_bucket"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	WorkflowID     uuid.UUID          `json:"workflow_id"`
-	QueuedCount    int64              `json:"queued_count"`
-	RunningCount   int64              `json:"running_count"`
-	CompletedCount int64              `json:"completed_count"`
-	CancelledCount int64              `json:"cancelled_count"`
-	FailedCount    int64              `json:"failed_count"`
-	EvictedCount   int64              `json:"evicted_count"`
-}
-
-type V1CaggTaskStatusesMinuteDoNotUseDirectly struct {
-	TimeBucket     pgtype.Timestamptz `json:"time_bucket"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	WorkflowID     uuid.UUID          `json:"workflow_id"`
 	QueuedCount    int64              `json:"queued_count"`

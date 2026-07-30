@@ -19,7 +19,7 @@ BEGIN
   WHILE chunk_start <= max_time LOOP
     chunk_end := chunk_start + INTERVAL '1 hour';
 
-    INSERT INTO v1_cagg_task_statuses_minute_do_not_use_directly (
+    INSERT INTO v1_cagg_task_statuses_minute (
         bucket,
         tenant_id,
         workflow_id,
@@ -59,5 +59,5 @@ END $$;
 
 -- +goose Down
 -- +goose StatementBegin
-TRUNCATE TABLE v1_cagg_task_statuses_minute_do_not_use_directly;
+TRUNCATE TABLE v1_cagg_task_statuses_minute;
 -- +goose StatementEnd

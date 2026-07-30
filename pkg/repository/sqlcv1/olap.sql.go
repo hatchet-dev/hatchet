@@ -1033,37 +1033,71 @@ func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg Ge
 }
 
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
-SELECT
-    DATE_BIN(
-        COALESCE($1::INTERVAL, '1 minute'),
-        bucket,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS minute_bucket,
-    SUM(completed_count)::int as completed_count,
-    SUM(failed_count)::int as failed_count
-FROM
-    v1_cagg_task_statuses_minute
-WHERE
-    tenant_id = $2::uuid AND
-    -- timestamptz makes this fast, apparently:
-    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
-    bucket >= DATE_BIN(
-        '1 minute',
-        $3::timestamptz,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) AND
-    bucket <= DATE_BIN(
-        '1 minute',
-        $4::timestamptz,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    )
-GROUP BY minute_bucket
+WITH candidates AS (
+    SELECT bucket, tenant_id, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM v1_cagg_task_statuses_minute
+    WHERE
+        tenant_id = $1::UUID
+        AND bucket >= DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            $3::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+        AND bucket <= DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            $4::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+), max_time AS (
+    SELECT MAX(bucket) AS max_time_bucket
+    FROM candidates
+), unioned AS (
+    SELECT
+        DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            bucket,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        ) :: TIMESTAMPTZ AS minute_bucket,
+        SUM(completed_count)::int as completed_count,
+        SUM(failed_count)::int as failed_count
+    FROM candidates
+    GROUP BY minute_bucket
+
+    UNION
+
+    SELECT
+        DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            inserted_at,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        ) AS minute_bucket,
+        COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
+    FROM v1_statuses_olap
+    WHERE
+        inserted_at > (SELECT max_time_bucket FROM max_time)
+        AND tenant_id = $1::UUID
+        AND inserted_at >= DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            $3::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+        AND inserted_at <= DATE_BIN(
+            COALESCE($2::INTERVAL, '1 minute'),
+            $4::timestamptz,
+            TIMESTAMPTZ '1970-01-01 00:00:00+00'
+        )
+    GROUP BY minute_bucket
+)
+
+SELECT minute_bucket, completed_count, failed_count
+FROM unioned
 ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
 	Tenantid      uuid.UUID          `json:"tenantid"`
+	Interval      pgtype.Interval    `json:"interval"`
 	Createdafter  pgtype.Timestamptz `json:"createdafter"`
 	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
 }
@@ -1076,8 +1110,8 @@ type GetTaskPointMetricsRow struct {
 
 func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskPointMetricsParams) ([]*GetTaskPointMetricsRow, error) {
 	rows, err := db.Query(ctx, getTaskPointMetrics,
-		arg.Interval,
 		arg.Tenantid,
+		arg.Interval,
 		arg.Createdafter,
 		arg.Createdbefore,
 	)
