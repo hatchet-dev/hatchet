@@ -93,6 +93,8 @@ paths:
     $ref: "./paths/metadata/metadata.yaml#/cloudMetadata"
   /api/v1/meta/integrations:
     $ref: "./paths/metadata/metadata.yaml#/listIntegrations"
+  /api/v1/feedback:
+    $ref: "./paths/telemetry/telemetry.yaml#/create-feedback"
   /api/v1/users/login:
     $ref: "./paths/user/user.yaml#/login"
   /api/v1/users/google/start:

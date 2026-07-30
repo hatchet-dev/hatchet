@@ -63,6 +63,7 @@ roles:
       - AlertEmailGroupCreate
       - TenantInviteAccept
       - UserUpdatePassword
+      - FeedbackCreate
       - EventDataGetWithTenant
       - WorkflowRunGetMetrics
       - SnsDelete

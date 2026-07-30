@@ -340,6 +340,7 @@ type OLAPRepository interface {
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
 	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
+	ListLastHourRunCountsByStatus(ctx context.Context) (map[string]int64, error)
 
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
@@ -3430,6 +3431,39 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 
 	for _, row := range rows {
 		statusToCount[row.ReadableStatus] = row.Count
+	}
+
+	return statusToCount, nil
+}
+
+func (r *OLAPRepositoryImpl) ListLastHourRunCountsByStatus(ctx context.Context) (map[string]int64, error) {
+	rows, err := r.readPool.Query(ctx, `
+		SELECT readable_status::text, COUNT(*)
+		FROM v1_runs_olap
+		WHERE inserted_at >= NOW() - INTERVAL '1 hour'
+		GROUP BY readable_status
+	`)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	statusToCount := make(map[string]int64)
+
+	for rows.Next() {
+		var status string
+		var count int64
+
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+
+		statusToCount[status] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return statusToCount, nil

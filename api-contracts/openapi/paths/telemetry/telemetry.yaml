@@ -1,0 +1,30 @@
+create-feedback:
+  post:
+    description: Submit product feedback to Hatchet.
+    operationId: feedback:create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateFeedbackRequest"
+    responses:
+      "200":
+        description: Successfully submitted feedback
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+    security:
+      - cookieAuth: []
+    x-enable-rate-limiting: true
+    summary: Submit feedback
+    tags:
+      - Metadata

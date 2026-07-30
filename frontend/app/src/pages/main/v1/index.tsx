@@ -2,6 +2,7 @@ import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
+import { FeedbackDialog } from '@/components/v1/nav/feedback-dialog';
 import { Loading } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -71,6 +72,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       <div className="shadow-[inset_1px_0_0_0_hsl(var(--border)/0.5),inset_0_1px_0_0_hsl(var(--border)/0.5)] md:rounded-tl-xl p-4 h-full dark:bg-[#050A23] bg-background overflow-y-auto [scrollbar-gutter:stable_both-edges]">
         {content}
       </div>
+      <FeedbackDialog />
     </ThreeColumnLayout>
   );
 }

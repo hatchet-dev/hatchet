@@ -66,6 +66,21 @@ APIMetaPosthog:
         description: the PostHog API host
         example: https://posthog.example.com
 
+CreateFeedbackRequest:
+  type: object
+  properties:
+    message:
+      type: string
+      description: the feedback message
+      minLength: 1
+      maxLength: 10000
+      example: I would love a dark mode for the dashboard.
+    email:
+      type: string
+      description: an optional email address so we can follow up
+      example: user@example.com
+  required:
+    - message
 ListAPIMetaIntegration:
   type: array
   items:

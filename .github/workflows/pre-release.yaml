@@ -24,6 +24,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
@@ -49,6 +50,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
@@ -102,6 +104,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             .
@@ -127,6 +130,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             .
@@ -175,6 +179,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
@@ -199,6 +204,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
@@ -250,6 +256,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             .
@@ -275,6 +282,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             .
@@ -323,6 +331,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
@@ -347,6 +356,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
@@ -398,6 +408,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             .
@@ -423,6 +434,7 @@ jobs:
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             .
@@ -470,6 +482,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
@@ -495,6 +508,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
@@ -642,6 +656,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
             . &
@@ -649,6 +664,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
             . &
@@ -656,6 +672,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             -t hatchet-migrate-tmp:amd64 \
             . &
@@ -700,6 +717,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
             . &
@@ -707,6 +725,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
             . &
@@ -714,6 +733,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             -t hatchet-migrate-tmp:arm64 \
             . &
@@ -814,6 +834,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             -t hatchet-lite-dev-tmp:amd64 \
@@ -822,6 +843,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             -t hatchet-admin-dev-tmp:amd64 \
@@ -830,6 +852,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             -t hatchet-migrate-tmp:amd64 \
             . &
@@ -874,6 +897,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             -t hatchet-lite-dev-tmp:arm64 \
@@ -882,6 +906,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             -t hatchet-admin-dev-tmp:arm64 \
@@ -890,6 +915,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             -t hatchet-migrate-tmp:arm64 \
             . &
@@ -957,6 +983,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
             .
@@ -998,6 +1025,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \
             .
@@ -1067,6 +1095,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/amd64 \
             -t hatchet-api-dev-tmp:amd64 \
@@ -1108,6 +1137,7 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg POSTHOG_API_KEY=${{ secrets.USAGE_TELEMETRY_POSTHOG_API_KEY }} \
             --build-arg GO_BUILD_TAGS=authdisabled \
             --platform linux/arm64 \
             -t hatchet-api-dev-tmp:arm64 \
