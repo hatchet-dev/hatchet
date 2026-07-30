@@ -1457,7 +1457,7 @@ SELECT
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
         inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket_2,
+    ) :: TIMESTAMPTZ AS minute_bucket,
     SUM(completed_count)::int as completed_count,
     SUM(failed_count)::int as failed_count
 FROM
@@ -1476,8 +1476,8 @@ WHERE
         @createdBefore::timestamptz,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     )
-GROUP BY bucket_2
-ORDER BY bucket_2;
+GROUP BY minute_bucket
+ORDER BY minute_bucket;
 
 
 -- name: GetTenantStatusMetrics :one

@@ -1038,7 +1038,7 @@ SELECT
         COALESCE($1::INTERVAL, '1 minute'),
         inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket_2,
+    ) :: TIMESTAMPTZ AS minute_bucket,
     SUM(completed_count)::int as completed_count,
     SUM(failed_count)::int as failed_count
 FROM
@@ -1057,8 +1057,8 @@ WHERE
         $4::timestamptz,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     )
-GROUP BY bucket_2
-ORDER BY bucket_2
+GROUP BY minute_bucket
+ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
@@ -1069,7 +1069,7 @@ type GetTaskPointMetricsParams struct {
 }
 
 type GetTaskPointMetricsRow struct {
-	Bucket2        pgtype.Timestamptz `json:"bucket_2"`
+	MinuteBucket   pgtype.Timestamptz `json:"minute_bucket"`
 	CompletedCount int32              `json:"completed_count"`
 	FailedCount    int32              `json:"failed_count"`
 }
@@ -1088,7 +1088,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	var items []*GetTaskPointMetricsRow
 	for rows.Next() {
 		var i GetTaskPointMetricsRow
-		if err := rows.Scan(&i.Bucket2, &i.CompletedCount, &i.FailedCount); err != nil {
+		if err := rows.Scan(&i.MinuteBucket, &i.CompletedCount, &i.FailedCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
