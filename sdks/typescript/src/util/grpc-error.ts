@@ -32,26 +32,3 @@ export function getGrpcErrorDetails(e: unknown): string | undefined {
   }
   return undefined;
 }
-
-/**
- * `@grpc/grpc-js` falls back to mapping a plain HTTP status code onto a gRPC
- * status (e.g. 404 -> UNIMPLEMENTED, 502 -> UNAVAILABLE, other -> UNKNOWN)
- * whenever it receives a non-gRPC-framed HTTP response - typically because a
- * proxy/load balancer served the response instead of the real gRPC server
- * (e.g. while the engine is restarting behind it). It stamps these with a
- * distinctive details string, which lets us tell "the transport made this up"
- * apart from a genuine status returned by the application itself.
- */
-export function isHttpMappedStatus(e: unknown): boolean {
-  const details = getGrpcErrorDetails(e);
-  return details !== undefined && details.startsWith('Received HTTP status code');
-}
-
-/**
- * True for errors that most likely represent the server being transiently
- * unreachable (a real connection-level gRPC code, or a status that grpc-js
- * fabricated from a raw HTTP response) rather than a genuine application error.
- */
-export function isTransientConnectionIssue(e: unknown): boolean {
-  return isConnectionError(getGrpcErrorCode(e)) || isHttpMappedStatus(e);
-}

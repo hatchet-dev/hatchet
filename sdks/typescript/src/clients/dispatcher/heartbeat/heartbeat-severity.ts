@@ -1,19 +1,14 @@
-import { isTransientConnectionIssue } from '@util/grpc-error';
+import { isConnectionError } from '@util/grpc-error';
 
 export const MAX_MISSED_HEARTBEATS = 3;
 
-// Transient connection issues (e.g. brief network blips, or a proxy/load
-// balancer serving a plain HTTP error while the engine restarts behind it)
-// are expected and shouldn't spam logs at error level. A single missed
-// heartbeat isn't worth logging at all; only escalate to warn/error once it
-// persists across multiple consecutive heartbeats. Mirrors the Python SDK's
-// heartbeat logic.
+// determines whether to immediately error log or wait for additional errors
 export function classifyHeartbeatFailure(
-  e: unknown,
+  code: number | undefined,
   missedHeartbeats: number
 ): 'silent' | 'warn' | 'error' {
   console.info(`heartbeat ${missedHeartbeats}`);
-  if (!isTransientConnectionIssue(e)) {
+  if (!isConnectionError(code)) {
     return 'error';
   }
 

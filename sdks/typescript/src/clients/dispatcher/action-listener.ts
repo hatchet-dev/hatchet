@@ -1,7 +1,7 @@
 import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
-import { getGrpcErrorCode, isHttpMappedStatus } from '@util/grpc-error';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { isAbortError } from 'abort-controller-x';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
@@ -101,12 +101,8 @@ export class ActionListener {
 
           if (
             (await client.getListenStrategy()) === ListenStrategy.LISTEN_STRATEGY_V2 &&
-            getGrpcErrorCode(e) === Status.UNIMPLEMENTED &&
-            !isHttpMappedStatus(e)
+            getGrpcErrorCode(e) === Status.UNIMPLEMENTED
           ) {
-            // A proxy/load balancer serving a plain HTTP 404 (e.g. while the
-            // engine restarts behind it) also maps to UNIMPLEMENTED, so only
-            // downgrade the listen strategy when the server itself reported it.
             client.setListenStrategy(ListenStrategy.LISTEN_STRATEGY_V1);
           }
 

@@ -5,11 +5,11 @@ import { DispatcherClient as PbDispatcherClient } from '@hatchet/protoc/dispatch
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { Status, createClientFactory } from 'nice-grpc';
 import { getErrorMessage } from '@util/errors/hatchet-error';
-import { getGrpcErrorCode, isHttpMappedStatus } from '@util/grpc-error';
+import { getGrpcErrorCode } from '@util/grpc-error';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { DispatcherClient } from '../dispatcher-client';
 import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
-import { MAX_MISSED_HEARTBEATS, classifyHeartbeatFailure } from './heartbeat-severity';
+import { classifyHeartbeatFailure } from './heartbeat-severity';
 
 const HEARTBEAT_INTERVAL = 4000;
 
@@ -87,11 +87,7 @@ class HeartbeatWorker {
       } catch (e: unknown) {
         const code = getGrpcErrorCode(e);
 
-        // A proxy/load balancer serving a plain HTTP 404 (e.g. while the
-        // engine is restarting behind it) also maps to UNIMPLEMENTED, so
-        // only treat this as "the server genuinely doesn't support
-        // heartbeat" when it isn't one of those fabricated statuses.
-        if (code === Status.UNIMPLEMENTED && !isHttpMappedStatus(e)) {
+        if (code === Status.UNIMPLEMENTED) {
           // break out of interval
           const message = 'Heartbeat not implemented, closing heartbeat';
           this.logger.debug(message);
@@ -108,7 +104,7 @@ class HeartbeatWorker {
         const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);
 
-        const severity = classifyHeartbeatFailure(e, this.missedHeartbeats);
+        const severity = classifyHeartbeatFailure(code, this.missedHeartbeats);
         if (severity !== 'silent') {
           postMessage({
             type: severity,
