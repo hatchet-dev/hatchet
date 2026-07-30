@@ -20,7 +20,7 @@ BEGIN
     chunk_end := chunk_start + INTERVAL '1 hour';
 
     INSERT INTO v1_cagg_task_statuses_minute_do_not_use_directly (
-        time_bucket,
+        bucket,
         tenant_id,
         workflow_id,
         queued_count,
@@ -31,7 +31,7 @@ BEGIN
         evicted_count
     )
     SELECT
-        date_bin('1 minute', inserted_at, TIMESTAMP '2001-01-01') AS time_bucket,
+        date_bin('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
         tenant_id,
         workflow_id,
         COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS queued_count,
@@ -43,8 +43,8 @@ BEGIN
     FROM v1_statuses_olap
     WHERE inserted_at >= chunk_start
       AND inserted_at < chunk_end
-    GROUP BY time_bucket, tenant_id, workflow_id
-    ON CONFLICT (time_bucket, tenant_id, workflow_id) DO UPDATE SET
+    GROUP BY bucket, tenant_id, workflow_id
+    ON CONFLICT (bucket, tenant_id, workflow_id) DO UPDATE SET
         queued_count = EXCLUDED.queued_count,
         running_count = EXCLUDED.running_count,
         completed_count = EXCLUDED.completed_count,

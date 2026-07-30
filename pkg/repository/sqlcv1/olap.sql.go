@@ -1038,15 +1038,27 @@ SELECT
         COALESCE($1::INTERVAL, '1 minute'),
         inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+    ) :: TIMESTAMPTZ AS bucket_2,
+    SUM(completed_count)::int as completed_count,
+    SUM(failed_count)::int as failed_count
+FROM
+    v1_cagg_task_statuses_minute
 WHERE
-    tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
-GROUP BY minute_bucket
-ORDER BY minute_bucket
+    tenant_id = $2::uuid AND
+    -- timestamptz makes this fast, apparently:
+    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
+    bucket >= DATE_BIN(
+        '1 minute',
+        $3::timestamptz,
+        TIMESTAMPTZ '1970-01-01 00:00:00+00'
+    ) AND
+    bucket <= DATE_BIN(
+        '1 minute',
+        $4::timestamptz,
+        TIMESTAMPTZ '1970-01-01 00:00:00+00'
+    )
+GROUP BY bucket_2
+ORDER BY bucket_2
 `
 
 type GetTaskPointMetricsParams struct {
@@ -1057,9 +1069,9 @@ type GetTaskPointMetricsParams struct {
 }
 
 type GetTaskPointMetricsRow struct {
-	MinuteBucket   pgtype.Timestamptz `json:"minute_bucket"`
-	CompletedCount int64              `json:"completed_count"`
-	FailedCount    int64              `json:"failed_count"`
+	Bucket2        pgtype.Timestamptz `json:"bucket_2"`
+	CompletedCount int32              `json:"completed_count"`
+	FailedCount    int32              `json:"failed_count"`
 }
 
 func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskPointMetricsParams) ([]*GetTaskPointMetricsRow, error) {
@@ -1076,7 +1088,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	var items []*GetTaskPointMetricsRow
 	for rows.Next() {
 		var i GetTaskPointMetricsRow
-		if err := rows.Scan(&i.MinuteBucket, &i.CompletedCount, &i.FailedCount); err != nil {
+		if err := rows.Scan(&i.Bucket2, &i.CompletedCount, &i.FailedCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

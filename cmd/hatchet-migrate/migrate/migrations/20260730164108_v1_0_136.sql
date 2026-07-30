@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE v1_cagg_task_statuses_minute_do_not_use_directly (
-    time_bucket TIMESTAMPTZ NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
     tenant_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
     queued_count BIGINT NOT NULL DEFAULT 0,
@@ -10,12 +10,12 @@ CREATE TABLE v1_cagg_task_statuses_minute_do_not_use_directly (
     cancelled_count BIGINT NOT NULL DEFAULT 0,
     failed_count BIGINT NOT NULL DEFAULT 0,
     evicted_count BIGINT NOT NULL DEFAULT 0,
-    PRIMARY KEY (time_bucket, tenant_id, workflow_id)
+    PRIMARY KEY (bucket, tenant_id, workflow_id)
 );
 
 CREATE VIEW v1_cagg_task_statuses_minute AS
 WITH max_time AS (
-    SELECT MAX(time_bucket) AS max_time_bucket
+    SELECT MAX(bucket) AS max_time_bucket
     FROM v1_cagg_task_statuses_minute_do_not_use_directly
 ), unioned AS (
     SELECT *
@@ -24,7 +24,7 @@ WITH max_time AS (
     UNION
 
     SELECT
-        date_bin('1 minute', inserted_at, TIMESTAMP '2001-01-01') AS time_bucket,
+        date_bin('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
         tenant_id,
         workflow_id,
         COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS queued_count,
@@ -35,12 +35,12 @@ WITH max_time AS (
         COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS evicted_count
     FROM v1_statuses_olap
     WHERE inserted_at > (SELECT max_time_bucket FROM max_time)
-    GROUP BY time_bucket, tenant_id, workflow_id
+    GROUP BY bucket, tenant_id, workflow_id
 )
 
 SELECT *
 FROM unioned
-ORDER BY time_bucket, tenant_id, workflow_id
+ORDER BY bucket, tenant_id, workflow_id
 ;
 -- +goose StatementEnd
 

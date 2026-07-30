@@ -1457,15 +1457,27 @@ SELECT
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
         inserted_at,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+    ) :: TIMESTAMPTZ AS bucket_2,
+    SUM(completed_count)::int as completed_count,
+    SUM(failed_count)::int as failed_count
+FROM
+    v1_cagg_task_statuses_minute
 WHERE
-    tenant_id = @tenantId::UUID
-    AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
-GROUP BY minute_bucket
-ORDER BY minute_bucket;
+    tenant_id = @tenantId::uuid AND
+    -- timestamptz makes this fast, apparently:
+    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
+    bucket >= DATE_BIN(
+        '1 minute',
+        @createdAfter::timestamptz,
+        TIMESTAMPTZ '1970-01-01 00:00:00+00'
+    ) AND
+    bucket <= DATE_BIN(
+        '1 minute',
+        @createdBefore::timestamptz,
+        TIMESTAMPTZ '1970-01-01 00:00:00+00'
+    )
+GROUP BY bucket_2
+ORDER BY bucket_2;
 
 
 -- name: GetTenantStatusMetrics :one
