@@ -53,7 +53,17 @@ type BoxProps = {
   children: React.ReactNode;
 };
 
-function DiagramBox({ kind, title, role, tags, x, y, width, height, children }: BoxProps) {
+function DiagramBox({
+  kind,
+  title,
+  role,
+  tags,
+  x,
+  y,
+  width,
+  height,
+  children,
+}: BoxProps) {
   return (
     <foreignObject x={x} y={y} width={width} height={height}>
       <div
@@ -118,9 +128,30 @@ type Tenant = {
 };
 
 const GROUPS: Group[] = [
-  { id: "everyone", title: "Everyone", tags: ["production", "staging"], role: "ADMIN", member: "a@example.com", row: 1 },
-  { id: "production-team", title: "Production Team", tags: ["production"], role: "MEMBER", member: "c@example.com", row: 2 },
-  { id: "staging-team", title: "Staging Team", tags: ["staging"], role: "MEMBER", member: "b@example.com", row: 3 },
+  {
+    id: "everyone",
+    title: "Everyone",
+    tags: ["production", "staging"],
+    role: "ADMIN",
+    member: "a@example.com",
+    row: 1,
+  },
+  {
+    id: "production-team",
+    title: "Production Team",
+    tags: ["production"],
+    role: "MEMBER",
+    member: "c@example.com",
+    row: 2,
+  },
+  {
+    id: "staging-team",
+    title: "Staging Team",
+    tags: ["staging"],
+    role: "MEMBER",
+    member: "b@example.com",
+    row: 3,
+  },
 ];
 
 const TENANTS: Tenant[] = [
@@ -132,17 +163,21 @@ const TENANTS: Tenant[] = [
 // A tenant automatically syncs a group's member when the tenant's tags are a
 // subset of the group's tags.
 function syncedUsers(tenant: Tenant) {
-  return GROUPS.filter((group) => isSubset(tenant.tags, group.tags)).map((group) => ({
-    email: group.member,
-    role: group.role,
-  }));
+  return GROUPS.filter((group) => isSubset(tenant.tags, group.tags)).map(
+    (group) => ({
+      email: group.member,
+      role: group.role,
+    }),
+  );
 }
 
 const EDGES = GROUPS.flatMap((group) =>
-  TENANTS.filter((tenant) => isSubset(tenant.tags, group.tags)).map((tenant) => ({
-    from: group.row,
-    to: tenant.row,
-  })),
+  TENANTS.filter((tenant) => isSubset(tenant.tags, group.tags)).map(
+    (tenant) => ({
+      from: group.row,
+      to: tenant.row,
+    }),
+  ),
 );
 
 export function UserGroupSyncDiagram() {
@@ -234,9 +269,9 @@ export function UserGroupSyncDiagram() {
         ))}
       </svg>
       <p className="mt-3 text-center text-xs text-[#898781]">
-        Dashed boxes are user groups, solid boxes are tenants. An arrow means the tenant's
-        tags are a subset of the group's tags, so the group's member is added automatically
-        with the group's role.
+        Dashed boxes are user groups, solid boxes are tenants. An arrow means
+        the tenant's tags are a subset of the group's tags, so the group's
+        member is added automatically with the group's role.
       </p>
     </div>
   );

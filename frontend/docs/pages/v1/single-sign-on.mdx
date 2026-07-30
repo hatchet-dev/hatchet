@@ -6,12 +6,13 @@ In addition to Google and Github OAuth, we also provide a custom SSO solution fo
 to use their own Identity Provider.
 
 ## Supported platforms
-* Okta
-* Microsoft Entra
-* OneLogin
-* JumpCloud
-* Google
-* generic OIDC providers
+
+- Okta
+- Microsoft Entra
+- OneLogin
+- JumpCloud
+- Google
+- generic OIDC providers
 
 ## Setting up SSO
 
@@ -20,6 +21,8 @@ to use their own Identity Provider.
 The first step is setting up the SSO configuration. This can be done by clicking on "Set up SSO" in Settings > Organization > SSO
 and filling out the fields provided. The fields vary by platform, but for all platforms you must copy the "Redirect / Callback" URL and set it as the callback
 URL in your IdP.
+
+<img src="/enterprise/sso_1.png" alt="Tenant tags dropdown" width="500" height="300" />
 
 ### Domain Verification
 
@@ -34,6 +37,8 @@ need to propagate.
 By enabling the Force SSO toggle, all users will be forced to sign in with SSO, disabling all other login methods.
 
 <Callout type="warning">
-    Only enable forced SSO after you have confirmed that SSO is working correctly, otherwise you may be locked out of your organization.
-    <a href="mailto:support@hatchet.run">Contact support</a> if you end up in this state.
+  Only enable forced SSO after you have confirmed that SSO is working correctly,
+  otherwise you may be locked out of your organization.
+  <a href="mailto:support@hatchet.run">Contact support</a> if you end up in this
+  state.
 </Callout>
