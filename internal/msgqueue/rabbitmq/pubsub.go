@@ -261,11 +261,12 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		routingKey = ""
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	// never persistent, expire immediately without an active consumer: this is
 	// an at-most-once notification path
+	//
+	// no timeout here on purpose: amqp091-go takes the context as `_` and
+	// clears socket deadlines after the handshake, so a publish is bounded
+	// only by TCP flow control on the pool's shared connection
 	err = pub.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
 		Body:       body,
 		Expiration: "0",
