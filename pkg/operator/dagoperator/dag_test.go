@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
 	internalcel "github.com/hatchet-dev/hatchet/internal/cel"
@@ -378,38 +377,55 @@ func TestDag_ParentReExecutedPropagation(t *testing.T) {
 }
 
 func TestDag_SkipConditionOnParentOutput(t *testing.T) {
-	a := newTestTask("a", "action-a", 0)
-	b := newTestTask("b", "action-b", 1, a)
+	run := func(t *testing.T, shouldSkip bool) *task {
+		a := newTestTask("a", "action-a", 0)
+		b := newTestTask("b", "action-b", 1, a)
 
-	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
-		{
-			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
-			Action:           sqlcv1.V1MatchConditionActionSKIP,
-			OrGroupID:        uuid.New(),
-			Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
-			ParentReadableID: sqlchelpers.TextFromStr("a"),
-		},
-	}
+		b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+			{
+				Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+				Action:           sqlcv1.V1MatchConditionActionSKIP,
+				OrGroupID:        uuid.New(),
+				Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
+				ParentReadableID: sqlchelpers.TextFromStr("a"),
+			},
+		}
 
-	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
-		if actionId == "action-a" {
-			payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": true})
+		triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+			if actionId == "action-a" {
+				payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": shouldSkip})
+				return &operator.DAGStepTriggerResult{
+					NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+					IsSatisfied: true, ResultPayload: payload,
+				}, nil
+			}
+
+			require.Equal(t, shouldSkip, isSkipped, "child's skip state should mirror the parent-override condition")
 			return &operator.DAGStepTriggerResult{
-				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
-				IsSatisfied: true, ResultPayload: payload,
+				NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(), IsSatisfied: true,
 			}, nil
 		}
 
-		require.True(t, isSkipped, "child should be triggered as skipped")
-		return &operator.DAGStepTriggerResult{NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New()}, nil
+		err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+		defer cleanup()
+
+		require.NoError(t, err)
+		require.True(t, a.isCompleted)
+		require.Nil(t, a.output, "parent output should be dropped once its dependents' conditions have been evaluated so we don't hold it in memory for the duration of the dag (to avoid leaking memory)")
+		return b
 	}
 
-	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
-	defer cleanup()
+	t.Run("condition matches -> child skipped", func(t *testing.T) {
+		b := run(t, true)
+		require.True(t, b.isSkipped)
+		require.True(t, b.isCompleted)
+	})
 
-	require.NoError(t, err)
-	require.True(t, b.isSkipped)
-	require.True(t, b.isCompleted)
+	t.Run("condition doesn't match -> child runs", func(t *testing.T) {
+		b := run(t, false)
+		require.False(t, b.isSkipped)
+		require.True(t, b.isCompleted)
+	})
 }
 
 func TestDag_CancelConditionOnParentOutput(t *testing.T) {
@@ -581,40 +597,6 @@ func TestDag_SkipOrGroupAcrossParents(t *testing.T) {
 	require.True(t, g.isCompleted)
 }
 
-func TestDag_ParentOutputFreedAfterConditionsEvaluated(t *testing.T) {
-	a := newTestTask("a", "action-a", 0)
-	b := newTestTask("b", "action-b", 1, a)
-
-	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
-		{
-			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
-			Action:           sqlcv1.V1MatchConditionActionSKIP,
-			OrGroupID:        uuid.New(),
-			Expression:       pgtype.Text{String: "output.shouldSkip == true", Valid: true},
-			ParentReadableID: sqlchelpers.TextFromStr("a"),
-		},
-	}
-
-	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
-		if actionId == "action-a" {
-			payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": false})
-			return &operator.DAGStepTriggerResult{
-				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
-				IsSatisfied: true, ResultPayload: payload,
-			}, nil
-		}
-
-		return &operator.DAGStepTriggerResult{NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(), IsSatisfied: true}, nil
-	}
-
-	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
-	defer cleanup()
-
-	require.NoError(t, err)
-	require.True(t, a.isCompleted)
-	require.Nil(t, a.output, "parent output should be dropped once its dependents' conditions have been evaluated so we don't hold it in memory for the duration of the dag (to avoid leaking memory)")
-}
-
 func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
@@ -670,10 +652,11 @@ func TestDag_AsyncFailureViaEntryCompleted(t *testing.T) {
 
 func TestDag_AsyncCancelViaErrorMessage(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
 
 	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
 
-	h := startDAG(t, []*task{a}, trigger)
+	h := startDAG(t, []*task{a, b}, trigger)
 	defer h.cleanup()
 
 	first := recvTriggered(t, triggered)
@@ -685,6 +668,8 @@ func TestDag_AsyncCancelViaErrorMessage(t *testing.T) {
 	require.True(t, isDagCancelledErr(err))
 	require.True(t, a.isCancelled)
 	require.False(t, a.isFailed)
+	require.True(t, b.isCancelled, "child of a cancelled parent should be triggered as cancelled")
+	require.False(t, b.isFailed)
 }
 
 func TestDag_SleepSkipWatch(t *testing.T) {
@@ -907,6 +892,12 @@ func TestDag_MultipleSkipGroupsAllRequired(t *testing.T) {
 		require.False(t, c.isSkipped)
 		require.True(t, c.isCompleted)
 	})
+
+	t.Run("neither group matches -> runs", func(t *testing.T) {
+		c := run(t, false, false)
+		require.False(t, c.isSkipped)
+		require.True(t, c.isCompleted)
+	})
 }
 
 func TestDag_Diamond(t *testing.T) {
@@ -1015,6 +1006,8 @@ func TestDag_SkippedAndFailedParentChildCancelled(t *testing.T) {
 	require.True(t, a.isSkipped)
 	require.True(t, b.isFailed)
 	require.True(t, c.isCancelled)
+	require.False(t, c.isFailed)
+	require.False(t, c.isSkipped)
 }
 
 func strPtr(s string) *string { return new(s) }
@@ -1092,4 +1085,91 @@ func TestDag_OnFailureNotTriggeredByCancellation(t *testing.T) {
 	require.True(t, a.isCancelled)
 	require.True(t, onFailure.isTriggered)
 	require.True(t, onFailure.isSkipped)
+}
+
+func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "wait-1",
+			EventKey:        sqlchelpers.TextFromStr("go"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "skip-after",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+	}()
+
+	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
+	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
+	// precede it. b registers its skip watch first, then its wait watch (dag.go:300-314).
+	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
+		t.Helper()
+		select {
+		case req := <-requestCh:
+			waitFor := req.GetWaitFor()
+			require.NotNil(t, waitFor)
+			return waitFor
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for a condition registration request")
+			return nil
+		}
+	}
+
+	skipWaitFor := recvWaitFor()
+	_ = recvWaitFor()
+
+	ref := &v1contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
+		InvocationCount:       skipWaitFor.InvocationCount,
+		NodeId:                4242,
+		BranchId:              4242,
+	}
+
+	sendEntryCompleted(t, responseCh, ref, nil)
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_WaitForAck{
+			WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending WaitForAck")
+	}
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
+	}
+
+	require.True(t, b.isSkipped)
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
 }
