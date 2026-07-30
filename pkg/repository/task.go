@@ -289,6 +289,10 @@ type TaskRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error)
 
+	GetQueueSizes(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error)
+
+	GetQueueSizesByMetadata(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error)
+
 	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
 
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
@@ -1686,6 +1690,14 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId uuid.U
 	}
 
 	return res, nil
+}
+
+func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error) {
+	return r.queries.GetQueueSizes(ctx, r.pool, tenantIds)
+}
+
+func (r *TaskRepositoryImpl) GetQueueSizesByMetadata(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error) {
+	return r.queries.GetQueueSizesByMetadata(ctx, r.pool, tenantIds)
 }
 
 func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error) {

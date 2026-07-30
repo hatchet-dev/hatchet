@@ -8,26 +8,30 @@ import (
 type TenantHatchetMetric string
 
 const (
-	TenantWorkflowDurationMilliseconds   TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
-	TenantAssignedTasksTotal             TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
-	TenantSchedulingTimedOutTotal        TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
-	TenantRateLimitedTotal               TenantHatchetMetric = "hatchet_tenant_rate_limited"
-	TenantQueuedToAssignedTotal          TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
-	TenantQueuedToAssignedTimeSeconds    TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
-	TenantQueueInvocationsTotal          TenantHatchetMetric = "hatchet_tenant_queue_invocations"
-	TenantCreatedTasksTotal              TenantHatchetMetric = "hatchet_tenant_created_tasks"
-	TenantRetriedTasksTotal              TenantHatchetMetric = "hatchet_tenant_retried_tasks"
-	TenantSucceededTasksTotal            TenantHatchetMetric = "hatchet_tenant_succeeded_tasks"
-	TenantFailedTasksTotal               TenantHatchetMetric = "hatchet_tenant_failed_tasks"
-	TenantSkippedTasksTotal              TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
-	TenantCancelledTasksTotal            TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
-	TenantReassignedTasksTotal           TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
-	TenantUsedWorkerSlotsTotal           TenantHatchetMetric = "hatchet_tenant_used_worker_slots"
-	TenantAvailableWorkerSlotsTotal      TenantHatchetMetric = "hatchet_tenant_available_worker_slots"
-	TenantWorkerSlotsTotal               TenantHatchetMetric = "hatchet_tenant_worker_slots"
-	TenantUsedWorkerLabelSlotsTotal      TenantHatchetMetric = "hatchet_tenant_used_worker_label_slots"
-	TenantAvailableWorkerLabelSlotsTotal TenantHatchetMetric = "hatchet_tenant_available_worker_label_slots"
-	TenantWorkerLabelSlotsTotal          TenantHatchetMetric = "hatchet_tenant_worker_label_slots"
+	TenantWorkflowDurationMilliseconds          TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
+	TenantAssignedTasksTotal                    TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
+	TenantSchedulingTimedOutTotal               TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
+	TenantRateLimitedTotal                      TenantHatchetMetric = "hatchet_tenant_rate_limited"
+	TenantQueuedToAssignedTotal                 TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
+	TenantQueuedToAssignedTimeSeconds           TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
+	TenantQueuedToAssignedByWorkflow            TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_by_workflow"
+	TenantQueuedToAssignedTimeSecondsByWorkflow TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds_by_workflow"
+	TenantQueueInvocationsTotal                 TenantHatchetMetric = "hatchet_tenant_queue_invocations"
+	TenantCreatedTasksTotal                     TenantHatchetMetric = "hatchet_tenant_created_tasks"
+	TenantRetriedTasksTotal                     TenantHatchetMetric = "hatchet_tenant_retried_tasks"
+	TenantSucceededTasksTotal                   TenantHatchetMetric = "hatchet_tenant_succeeded_tasks"
+	TenantFailedTasksTotal                      TenantHatchetMetric = "hatchet_tenant_failed_tasks"
+	TenantSkippedTasksTotal                     TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
+	TenantCancelledTasksTotal                   TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
+	TenantReassignedTasksTotal                  TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
+	TenantUsedWorkerSlotsTotal                  TenantHatchetMetric = "hatchet_tenant_used_worker_slots"
+	TenantAvailableWorkerSlotsTotal             TenantHatchetMetric = "hatchet_tenant_available_worker_slots"
+	TenantWorkerSlotsTotal                      TenantHatchetMetric = "hatchet_tenant_worker_slots"
+	TenantUsedWorkerLabelSlotsTotal             TenantHatchetMetric = "hatchet_tenant_used_worker_label_slots"
+	TenantAvailableWorkerLabelSlotsTotal        TenantHatchetMetric = "hatchet_tenant_available_worker_label_slots"
+	TenantWorkerLabelSlotsTotal                 TenantHatchetMetric = "hatchet_tenant_worker_label_slots"
+	TenantQueueSizeTotal                        TenantHatchetMetric = "hatchet_tenant_queue_size"
+	TenantAdditionalMetadataQueueSize           TenantHatchetMetric = "hatchet_tenant_additional_metadata_queue_size"
 )
 
 var (
@@ -128,6 +132,17 @@ var (
 		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	}, []string{"tenant_id"})
 
+	TenantQueuedToAssignedByWorkflowCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantQueuedToAssignedByWorkflow),
+		Help: "The total number of unique tasks that were queued and later got assigned to a worker, by workflow name",
+	}, []string{"tenant_id", "workflow_name"})
+
+	TenantQueuedToAssignedTimeByWorkflowBuckets = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    string(TenantQueuedToAssignedTimeSecondsByWorkflow),
+		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker, by workflow name",
+		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
+	}, []string{"tenant_id", "workflow_name"})
+
 	TenantReassignedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: string(TenantReassignedTasksTotal),
 		Help: "The total number of tasks that were reassigned to a worker",
@@ -179,5 +194,21 @@ var (
 			Help: "Number of available slots of the given slot type across workers with the given worker label pair",
 		},
 		[]string{"tenant_id", "label_key", "label_value", "slot_type"},
+	)
+
+	TenantQueueSize = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantQueueSizeTotal),
+			Help: "Number of queued items per queue and workflow",
+		},
+		[]string{"tenant_id", "queue", "workflow_name"},
+	)
+
+	TenantQueueSizeByMetadata = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantAdditionalMetadataQueueSize),
+			Help: "Number of queued items carrying the given additional metadata key-value pair. An item counts towards every metadata key it carries, so series for different keys overlap and should not be summed across keys",
+		},
+		[]string{"tenant_id", "key", "value"},
 	)
 )

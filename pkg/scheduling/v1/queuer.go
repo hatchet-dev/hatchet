@@ -38,6 +38,8 @@ type Queuer struct {
 
 	promGate *prometheus.Gate
 
+	workflowNames *workflowNameCache
+
 	l *zerolog.Logger
 
 	s *Scheduler
@@ -117,6 +119,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		tenantId:      tenantId,
 		queueName:     queueName,
 		promGate:      conf.promGate,
+		workflowNames: conf.workflowNames,
 		l:             &queueLogger,
 		s:             s,
 		limit:         defaultLimit,
@@ -372,6 +375,28 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				if numFlushed > 0 {
 					now := time.Now()
 
+					var workflowNames map[uuid.UUID]string
+
+					if tenantMetricsEnabled {
+						workflowIds := make([]uuid.UUID, 0, len(ar.assigned))
+						seen := make(map[uuid.UUID]struct{}, len(ar.assigned))
+
+						for _, assignedItem := range ar.assigned {
+							qi := assignedItem.QueueItem
+
+							if qi.RetryCount != 0 || !qi.TaskInsertedAt.Valid {
+								continue
+							}
+
+							if _, ok := seen[qi.WorkflowID]; !ok {
+								seen[qi.WorkflowID] = struct{}{}
+								workflowIds = append(workflowIds, qi.WorkflowID)
+							}
+						}
+
+						workflowNames = q.workflowNames.resolve(ctx, workflowIds)
+					}
+
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
 						if tenantMetricsEnabled {
@@ -390,6 +415,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						prometheus.QueuedToAssigned.Inc()
 						if tenantMetricsEnabled {
 							prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+							prometheus.TenantQueuedToAssignedByWorkflowCounter.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Inc()
 						}
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
@@ -398,6 +424,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
 							if tenantMetricsEnabled {
 								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+								prometheus.TenantQueuedToAssignedTimeByWorkflowBuckets.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Observe(timeInQueueSeconds)
 							}
 						}
 					}

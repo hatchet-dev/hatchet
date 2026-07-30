@@ -17,6 +17,8 @@ type SchedulerRepository interface {
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
 	Optimistic() OptimisticSchedulingRepository
+
+	ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 }
 
 type LeaseRepository interface {
@@ -64,6 +66,8 @@ type OptimisticSchedulingRepository interface {
 }
 
 type schedulerRepository struct {
+	*sharedRepository
+
 	concurrency  ConcurrencyRepository
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
@@ -75,14 +79,31 @@ type schedulerRepository struct {
 
 func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 	return &schedulerRepository{
-		concurrency:  newConcurrencyRepository(shared),
-		lease:        newLeaseRepository(shared),
-		queueFactory: newQueueFactoryRepository(shared),
-		rateLimit:    newRateLimitRepository(shared),
-		batchQueue:   newBatchQueueFactoryRepository(shared),
-		assignment:   newAssignmentRepository(shared),
-		optimistic:   newOptimisticSchedulingRepository(shared),
+		sharedRepository: shared,
+		concurrency:      newConcurrencyRepository(shared),
+		lease:            newLeaseRepository(shared),
+		queueFactory:     newQueueFactoryRepository(shared),
+		rateLimit:        newRateLimitRepository(shared),
+		batchQueue:       newBatchQueueFactoryRepository(shared),
+		assignment:       newAssignmentRepository(shared),
+		optimistic:       newOptimisticSchedulingRepository(shared),
 	}
+}
+
+func (d *schedulerRepository) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool, workflowIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowIdToName := make(map[uuid.UUID]string, len(rows))
+
+	for _, row := range rows {
+		workflowIdToName[row.ID] = row.Name
+	}
+
+	return workflowIdToName, nil
 }
 
 func (d *schedulerRepository) Concurrency() ConcurrencyRepository {

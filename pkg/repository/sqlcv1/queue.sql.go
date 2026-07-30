@@ -402,6 +402,123 @@ func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg
 	return minId, err
 }
 
+const getQueueSizes = `-- name: GetQueueSizes :many
+WITH sizes AS MATERIALIZED (
+    SELECT
+        qi.tenant_id,
+        qi.queue,
+        qi.workflow_id,
+        COUNT(*) AS count
+    FROM
+        v1_queue_item qi
+    GROUP BY
+        qi.tenant_id, qi.queue, qi.workflow_id
+)
+SELECT
+    s.tenant_id,
+    s.queue,
+    COALESCE(w."name", '')::text AS workflow_name,
+    SUM(s.count)::bigint AS count
+FROM
+    sizes s
+LEFT JOIN "Workflow" w ON w."id" = s.workflow_id
+WHERE
+    s.tenant_id = ANY($1::uuid[])
+GROUP BY
+    s.tenant_id, s.queue, w."name"
+`
+
+type GetQueueSizesRow struct {
+	TenantID     uuid.UUID `json:"tenant_id"`
+	Queue        string    `json:"queue"`
+	WorkflowName string    `json:"workflow_name"`
+	Count        int64     `json:"count"`
+}
+
+func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*GetQueueSizesRow, error) {
+	rows, err := db.Query(ctx, getQueueSizes, tenantids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetQueueSizesRow
+	for rows.Next() {
+		var i GetQueueSizesRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.Queue,
+			&i.WorkflowName,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getQueueSizesByMetadata = `-- name: GetQueueSizesByMetadata :many
+WITH sizes AS MATERIALIZED (
+    SELECT
+        qi.tenant_id,
+        kv.key AS key,
+        (kv.value #>> '{}') AS value,
+        COUNT(*) AS count
+    FROM
+        v1_queue_item qi
+    JOIN v1_task t ON t.id = qi.task_id AND t.inserted_at = qi.task_inserted_at
+    CROSS JOIN LATERAL jsonb_each(t.additional_metadata) AS kv(key, value)
+    WHERE
+        jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+    GROUP BY
+        qi.tenant_id, kv.key, (kv.value #>> '{}')
+)
+SELECT
+    s.tenant_id,
+    s.key::text AS key,
+    s.value::text AS value,
+    s.count::bigint AS count
+FROM
+    sizes s
+WHERE
+    s.tenant_id = ANY($1::uuid[])
+`
+
+type GetQueueSizesByMetadataRow struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Key      string    `json:"key"`
+	Value    string    `json:"value"`
+	Count    int64     `json:"count"`
+}
+
+func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*GetQueueSizesByMetadataRow, error) {
+	rows, err := db.Query(ctx, getQueueSizesByMetadata, tenantids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetQueueSizesByMetadataRow
+	for rows.Next() {
+		var i GetQueueSizesByMetadataRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.Key,
+			&i.Value,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getQueuedCounts = `-- name: GetQueuedCounts :many
 SELECT
     queue,

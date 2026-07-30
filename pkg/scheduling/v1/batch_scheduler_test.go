@@ -263,6 +263,10 @@ func (f *fakeSchedulerRepository) Optimistic() v1repo.OptimisticSchedulingReposi
 	panic("implement me")
 }
 
+func (f *fakeSchedulerRepository) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	return map[uuid.UUID]string{}, nil
+}
+
 func (f *fakeSchedulerRepository) Concurrency() v1repo.ConcurrencyRepository {
 	return nil
 }

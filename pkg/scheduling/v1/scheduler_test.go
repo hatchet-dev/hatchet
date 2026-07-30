@@ -128,6 +128,10 @@ func (m *mockSchedulerRepo) Optimistic() repo.OptimisticSchedulingRepository {
 	panic("unexpected call: Optimistic")
 }
 
+func (m *mockSchedulerRepo) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	return map[uuid.UUID]string{}, nil
+}
+
 func newTestScheduler(t *testing.T, tenantId uuid.UUID, ar repo.AssignmentRepository) *Scheduler {
 	t.Helper()
 

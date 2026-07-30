@@ -204,3 +204,13 @@ sum by (tenant_id) (avg_over_time(hatchet_tenant_used_worker_slots{tenant_id="<t
 /
 sum by (tenant_id) (avg_over_time(hatchet_tenant_worker_slots{tenant_id="<tenant-id>"}[5m]))
 ```
+
+### Scaling Based on Queue Backlog by Metadata Tag
+
+To scale on queue depth via Prometheus instead of the Task Stats API, Hatchet exposes queue size gauges, including one grouped by the additional metadata `(key, value)` pairs on queued tasks. If each of your products tags its workflow runs with additional metadata (e.g. `product: search`), each product's backlog can drive its own scaler:
+
+```promql
+sum(hatchet_tenant_additional_metadata_queue_size{tenant_id="<tenant-id>", key="product", value="search"}) or vector(0)
+```
+
+The `or vector(0)` matters for scale-to-zero: once a queue drains, its series is removed shortly after reporting zero. There is also `hatchet_tenant_queue_size{tenant_id, queue, workflow_name}` for scaling on a specific queue or workflow's backlog. Both gauges are polled from the database every 15 seconds.
