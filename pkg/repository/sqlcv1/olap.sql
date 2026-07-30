@@ -1455,7 +1455,7 @@ ORDER BY r.inserted_at DESC, r.run_id DESC;
 SELECT
     DATE_BIN(
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
-        inserted_at,
+        bucket,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
     SUM(completed_count)::int as completed_count,
