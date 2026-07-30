@@ -1,11 +1,14 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 
 # Single-Sign-On
+<Callout type="info">
+    Single Sign On is only available through our Cloud Scale plan. See [pricing](https://hatchet.run/pricing) for more details.
+</Callout>
 
 In addition to Google and Github OAuth, we also provide a custom SSO solution for enterprises that wish
-to use their own Identity Provider.
+to use their own Identity Provider (IdP).
 
-## Supported platforms
+## Supported IdPs
 
 - Okta
 - Microsoft Entra
@@ -22,12 +25,13 @@ The first step is setting up the SSO configuration. This can be done by clicking
 and filling out the fields provided. The fields vary by platform, but for all platforms you must copy the "Redirect / Callback" URL and set it as the callback
 URL in your IdP.
 
-<img
-  src="/enterprise/sso_1.png"
-  alt="Tenant tags dropdown"
-  width="500"
-  height="300"
-/>
+<figure style={{ margin: "2rem auto", maxWidth: "100%", textAlign: "center" }}>
+  <img
+    src="/enterprise/sso_1.png"
+    alt="Tenant tags dropdown"
+    style={{ width: "100%", height: "auto", borderRadius: "8px" }}
+  />
+</figure>
 
 ### Domain Verification
 
