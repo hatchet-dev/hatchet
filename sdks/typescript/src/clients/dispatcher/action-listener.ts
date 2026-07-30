@@ -109,7 +109,10 @@ export class ActionListener {
           client.incrementRetries();
 
           const message = `Listener encountered an error: ${getErrorMessage(e)}`;
-          client.logger[classifyListenerFailure(e, client.retries)](message);
+          const severity = classifyListenerFailure(e, client.retries);
+          if (severity !== 'silent') {
+            client.logger[severity](message);
+          }
 
           if (client.retries > 1) {
             client.logger.info(`Retrying in ${client.retryInterval}ms...`);
@@ -189,7 +192,10 @@ export class ActionListener {
       this.retries += 1;
 
       const message = `Attempt ${this.retries}: Failed to connect, retrying...`;
-      this.logger[classifyListenerFailure(e, this.retries)](message);
+      const severity = classifyListenerFailure(e, this.retries);
+      if (severity !== 'silent') {
+        this.logger[severity](message);
+      }
 
       if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
         // Connection lost, reset heartbeat interval and retry connection

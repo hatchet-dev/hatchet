@@ -1,4 +1,5 @@
 import { isConnectionError } from '@util/grpc-error';
+import { FailureSeverity, classifyRepeatedFailure } from '@util/failure-severity';
 
 export const MAX_MISSED_HEARTBEATS = 3;
 
@@ -6,19 +7,6 @@ export const MAX_MISSED_HEARTBEATS = 3;
 export function classifyHeartbeatFailure(
   code: number | undefined,
   missedHeartbeats: number
-): 'silent' | 'warn' | 'error' {
-  console.info(`heartbeat ${missedHeartbeats}`);
-  if (!isConnectionError(code)) {
-    return 'error';
-  }
-
-  if (missedHeartbeats >= MAX_MISSED_HEARTBEATS) {
-    return 'error';
-  }
-
-  if (missedHeartbeats > 1) {
-    return 'warn';
-  }
-
-  return 'silent';
+): FailureSeverity {
+  return classifyRepeatedFailure(isConnectionError(code), missedHeartbeats, MAX_MISSED_HEARTBEATS);
 }
