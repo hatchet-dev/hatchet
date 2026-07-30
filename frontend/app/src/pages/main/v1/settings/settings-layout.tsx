@@ -15,7 +15,7 @@ import { Link, useMatchRoute, useParams } from '@tanstack/react-router';
 export default function SettingsLayout() {
   const { tenantId, organizationId } = useTenantDetails();
   const params = useParams({ strict: false });
-  const { cloud, isCloudEnabled } = useCloud(tenantId);
+  const { cloud } = useCloud(tenantId);
   const { isControlPlaneEnabled } = useControlPlane();
   const { organizations } = useOrganizations();
   const { meta } = useApiMeta();
@@ -35,7 +35,6 @@ export default function SettingsLayout() {
     tenantId,
     orgId,
     canBill: cloud?.canBill,
-    isCloudEnabled,
     isControlPlaneEnabled,
     isOrganizationOwner,
     canManageSso,

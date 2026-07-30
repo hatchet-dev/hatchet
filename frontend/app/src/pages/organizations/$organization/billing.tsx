@@ -131,7 +131,8 @@ function OrganizationBillingContent() {
   const { organization } = useParams({
     from: appRoutes.organizationsRoute.to,
   });
-  const { cloud, isCloudEnabled } = useCloud();
+  const { cloud } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Capture the sync hints once on mount; the URL is cleaned up immediately so
@@ -173,7 +174,7 @@ function OrganizationBillingContent() {
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
-    enabled: isCloudEnabled && !!cloud?.canBill,
+    enabled: isControlPlaneEnabled && !!cloud?.canBill,
     retry: (failureCount, error) => {
       const status = getApiErrorStatus(error);
       return status !== 401 && status !== 403 && failureCount < 3;

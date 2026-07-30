@@ -2,7 +2,7 @@ import { useResourceLimitColumns } from './resource-limit-columns';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Spinner } from '@/components/v1/ui/loading';
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import type { TenantResourceLimit } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -25,14 +25,14 @@ export function TenantResourceLimitsTable({
   isLoading,
   showDocsOnEmpty = false,
 }: TenantResourceLimitsTableProps) {
-  const { isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
   const resourceLimitColumns = useResourceLimitColumns();
 
   // The SERVER_ENFORCE_LIMITS hint and engine-configuration docs only apply to
   // self-hosted deployments — on cloud, limits come from the billing plan.
-  const showSelfHostDocs = showDocsOnEmpty && !isCloudEnabled;
+  const showSelfHostDocs = showDocsOnEmpty && !isControlPlaneEnabled;
 
-  const billingSyncRefetchInterval = isCloudEnabled
+  const billingSyncRefetchInterval = isControlPlaneEnabled
     ? BILLING_SYNC_REFETCH_INTERVAL_MS
     : false;
 

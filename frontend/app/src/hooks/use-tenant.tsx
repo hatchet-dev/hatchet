@@ -1,4 +1,5 @@
 import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import api, {
   UpdateTenantRequest,
   Tenant,
@@ -139,7 +140,8 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { cloud, isCloudEnabled } = useCloud();
+  const { cloud } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const organizationId = useMemo(() => {
     if (!appContext.isUserUniverseLoaded || !appContext.organizations) {
@@ -159,7 +161,7 @@ export function useTenantDetails() {
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organizationId || ''),
-    enabled: !!organizationId && isCloudEnabled && !!cloud?.canBill,
+    enabled: !!organizationId && isControlPlaneEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });

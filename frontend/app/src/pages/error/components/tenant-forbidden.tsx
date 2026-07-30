@@ -104,7 +104,7 @@ export function TenantForbidden() {
   const queryClient = useQueryClient();
 
   const { currentUser } = useCurrentUser();
-  const { tenantMemberships, isCloudEnabled } = useUserUniverse();
+  const { tenantMemberships, isControlPlaneEnabled } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
 
@@ -137,16 +137,16 @@ export function TenantForbidden() {
         if (!id || id === tenant) {
           return false;
         }
-        if (isCloudEnabled && isTenantArchivedInOrg(id)) {
+        if (isControlPlaneEnabled && isTenantArchivedInOrg(id)) {
           return false;
         }
         return true;
       }) || [],
-    [tenantMemberships, tenant, isCloudEnabled, isTenantArchivedInOrg],
+    [tenantMemberships, tenant, isControlPlaneEnabled, isTenantArchivedInOrg],
   );
 
   const { orgGroups, standaloneTenants } = useMemo(() => {
-    if (!isCloudEnabled) {
+    if (!isControlPlaneEnabled) {
       return { orgGroups: [], standaloneTenants: availableTenants };
     }
 
@@ -181,7 +181,7 @@ export function TenantForbidden() {
 
     return { orgGroups: groups, standaloneTenants: standalone };
   }, [
-    isCloudEnabled,
+    isControlPlaneEnabled,
     availableTenants,
     organizations,
     getOrganizationForTenant,
