@@ -12,16 +12,20 @@ type action struct {
 
 	// workerIds is the thin action index into Scheduler.pools.
 	workerIds []uuid.UUID
+
+	// ringOffset rotates the starting worker between assignments so load spreads
+	// across the action's workers.
+	ringOffset int
 }
 
-func (a *action) activeCountFromPools(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) int {
+func (a *action) activeCount(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) int {
 	count := 0
 	for _, workerId := range a.workerIds {
 		for _, pool := range poolsByWorker[workerId] {
 			if pool.staleAt(now) {
 				return 0
 			}
-			count += pool.unusedCount()
+			count += len(pool.free)
 		}
 	}
 	return count

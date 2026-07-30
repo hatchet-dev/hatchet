@@ -3,7 +3,6 @@ package v1
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -22,38 +21,49 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
+//
+// All mutable scheduling state is owned by a single run-loop goroutine: every
+// read and write happens inside an op sent to the loop via do(). There are no
+// locks and no lock-ordering rules. Database reads run outside the loop, so
+// assignment is never blocked on I/O; replenish reconciles its reads against
+// assignments that completed in the meantime (see ackedDuringReplenish).
 type Scheduler struct {
 	repo     v1.AssignmentRepository
 	tenantId uuid.UUID
 
 	l *zerolog.Logger
 
+	rl   *rateLimiter
+	exts *Extensions
+
+	// ops is the run loop's mailbox; runDone is closed when the run loop exits.
+	ops     chan func()
+	runDone chan struct{}
+
+	// ---- state below is owned by the run loop ----
+
 	actions       map[string]*action
 	pools         map[poolKey]*slotPool
 	poolsByWorker map[uuid.UUID]map[string]*slotPool
-	actionsMu     rwMutex
-	replenishMu   mutex
-
-	workersMu mutex
-	workers   map[uuid.UUID]*worker
-
-	assignedCount   int
-	assignedCountMu mutex
+	workers       map[uuid.UUID]*worker
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
-	unackedSlots map[int]*assignedSlots
-	unackedMu    mutex
+	unackedSlots  map[int]*assignedSlots
+	assignedCount int
+
+	// replenishing guards against overlapping replenish cycles. While a cycle is
+	// in flight, ackedDuringReplenish counts acked slots per pool: those flushes
+	// may not be visible to the cycle's availability read, so the rebuild
+	// subtracts them to avoid double-counting capacity.
+	replenishing         bool
+	ackedDuringReplenish map[poolKey]int
 
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
 	// been replenished yet looks identical to a fully saturated one — so utilization is
-	// only derived from capacity once the pair has warmed up. Accessed exclusively from
-	// the snapshot loop goroutine (via getSnapshotInput).
+	// only derived from capacity once the pair has warmed up.
 	warmedSlotTypes map[uuid.UUID]map[string]struct{}
-
-	rl   *rateLimiter
-	exts *Extensions
 }
 
 func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
@@ -63,100 +73,188 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		repo:            cf.repo.Assignment(),
 		tenantId:        tenantId,
 		l:               &l,
+		rl:              rl,
+		exts:            exts,
+		ops:             make(chan func(), 128),
+		runDone:         make(chan struct{}),
 		actions:         make(map[string]*action),
 		pools:           make(map[poolKey]*slotPool),
 		poolsByWorker:   make(map[uuid.UUID]map[string]*slotPool),
+		workers:         make(map[uuid.UUID]*worker),
 		unackedSlots:    make(map[int]*assignedSlots),
 		warmedSlotTypes: make(map[uuid.UUID]map[string]struct{}),
-		rl:              rl,
-		actionsMu:       newRWMu(cf.l),
-		replenishMu:     newMu(cf.l),
-		workers:         map[uuid.UUID]*worker{},
-		workersMu:       newMu(cf.l),
-		assignedCountMu: newMu(cf.l),
-		unackedMu:       newMu(cf.l),
-		exts:            exts,
 	}
 }
 
+func (s *Scheduler) start(ctx context.Context) {
+	go s.run(ctx)
+	go s.loopReplenish(ctx)
+	go s.loopSnapshot(ctx)
+}
+
+// run is the scheduler's event loop. It is the only goroutine that touches the
+// scheduling state, which is what lets the rest of this file be plain
+// single-threaded code.
+func (s *Scheduler) run(ctx context.Context) {
+	defer close(s.runDone)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case op := <-s.ops:
+			op()
+		}
+	}
+}
+
+// do runs fn on the run loop and waits for it to complete. It returns false —
+// and fn is guaranteed not to have run or to ever run — if the caller's context
+// is done before fn could be enqueued, or the run loop has exited. Once fn is
+// enqueued, do waits for it to complete regardless of the caller's context so
+// results written by fn are never read while fn is still running.
+func (s *Scheduler) do(ctx context.Context, fn func()) bool {
+	// fast-path guard: a select with a ready send and a done context picks
+	// randomly, so check cancellation explicitly first
+	if ctx.Err() != nil {
+		return false
+	}
+
+	done := make(chan struct{})
+
+	select {
+	case s.ops <- func() {
+		defer close(done)
+		fn()
+	}:
+	case <-ctx.Done():
+		return false
+	case <-s.runDone:
+		return false
+	}
+
+	select {
+	case <-done:
+		return true
+	case <-s.runDone:
+		// The run loop finishes any op it has dequeued before exiting, so once
+		// runDone is closed the op has either fully completed or will never run.
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// ack marks assignments as flushed to the database. The slots stay used until a
+// later replenish observes the flush in its availability read.
 func (s *Scheduler) ack(ids []int) {
-	s.unackedMu.Lock()
-	defer s.unackedMu.Unlock()
+	var callbacks []func()
 
-	for _, id := range ids {
-		if assigned, ok := s.unackedSlots[id]; ok {
-			assigned.ack()
-			delete(s.unackedSlots, id)
-		}
+	s.do(context.Background(), func() {
+		callbacks = s.handleAck(ids)
+	})
+
+	// rate-limit callbacks run outside the run loop so it never blocks on
+	// another subsystem's locks
+	for _, cb := range callbacks {
+		cb()
 	}
 }
 
+// nack returns assignments which failed to flush to their pools.
 func (s *Scheduler) nack(ids []int) {
-	s.unackedMu.Lock()
-	defer s.unackedMu.Unlock()
+	var callbacks []func()
+
+	s.do(context.Background(), func() {
+		callbacks = s.handleNack(ids)
+	})
+
+	for _, cb := range callbacks {
+		cb()
+	}
+}
+
+func (s *Scheduler) handleAck(ids []int) []func() {
+	var callbacks []func()
 
 	for _, id := range ids {
-		if assigned, ok := s.unackedSlots[id]; ok {
-			assigned.nack()
-			delete(s.unackedSlots, id)
+		assigned, ok := s.unackedSlots[id]
+
+		if !ok {
+			continue
+		}
+
+		delete(s.unackedSlots, id)
+
+		if s.replenishing {
+			for _, sl := range assigned.slots {
+				s.ackedDuringReplenish[poolKey{workerId: sl.getWorkerId(), slotType: sl.slotType}]++
+			}
+		}
+
+		if assigned.rateLimitAck != nil {
+			callbacks = append(callbacks, assigned.rateLimitAck)
 		}
 	}
+
+	return callbacks
+}
+
+func (s *Scheduler) handleNack(ids []int) []func() {
+	var callbacks []func()
+
+	for _, id := range ids {
+		assigned, ok := s.unackedSlots[id]
+
+		if !ok {
+			continue
+		}
+
+		delete(s.unackedSlots, id)
+
+		for _, sl := range assigned.slots {
+			if sl.pool != nil {
+				sl.pool.release(sl)
+			}
+		}
+
+		if assigned.rateLimitNack != nil {
+			callbacks = append(callbacks, assigned.rateLimitNack)
+		}
+	}
+
+	return callbacks
 }
 
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
-	s.workersMu.Lock()
-	defer s.workersMu.Unlock()
+	s.do(context.Background(), func() {
+		newWorkers := make(map[uuid.UUID]*worker, len(workers))
 
-	newWorkers := make(map[uuid.UUID]*worker, len(workers))
-
-	for i := range workers {
-		newWorkers[workers[i].ID] = &worker{
-			ListActiveWorkersResult: workers[i],
+		for i := range workers {
+			newWorkers[workers[i].ID] = &worker{
+				ListActiveWorkersResult: workers[i],
+			}
 		}
-	}
 
-	s.workers = newWorkers
+		s.workers = newWorkers
+	})
 }
 
 func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
-	s.workersMu.Lock()
-	defer s.workersMu.Unlock()
-
-	s.workers[newWorker.ID] = &worker{
-		ListActiveWorkersResult: newWorker,
-	}
+	s.do(context.Background(), func() {
+		s.workers[newWorker.ID] = &worker{
+			ListActiveWorkersResult: newWorker,
+		}
+	})
 }
 
-func (s *Scheduler) copyWorkers() map[uuid.UUID]*worker {
-	s.workersMu.Lock()
-	defer s.workersMu.Unlock()
-
-	copied := make(map[uuid.UUID]*worker, len(s.workers))
-
-	for k, v := range s.workers {
-		copied[k] = v
-	}
-
-	return copied
-}
-
-func (s *Scheduler) workerByID(workerId uuid.UUID) *worker {
-	s.workersMu.Lock()
-	defer s.workersMu.Unlock()
-	return s.workers[workerId]
-}
-
-// replenish loads new slots from the database.
+// replenish loads new slots from the database and swaps them into the worker
+// pools. All database reads run outside the run loop, so assignment continues
+// while they are in flight.
 func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
-	if ok := s.replenishMu.TryLock(); !ok {
-		s.l.Debug().Ctx(ctx).Msg("skipping replenish because another replenish is in progress")
-		return nil
-	}
-
-	defer s.replenishMu.Unlock()
-
-	// NOTE: the span starts before the actionsMu acquisition so that lock wait time is
-	// visible in the trace; the acquire-actions-mu child span isolates that wait.
 	ctx, span := telemetry.NewSpan(ctx, "replenish")
 	defer span.End()
 
@@ -165,37 +263,56 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		telemetry.AttributeKV{Key: "replenish.must_replenish", Value: mustReplenish},
 	)
 
-	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
-	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
-	// on the actionsMu and tries to acquire the unackedMu lock.
-	// additionally, we have to acquire a lock this early (before the database read) to prevent slots
-	// from being assigned while we read slots from the database.
-	_, lockSpan := telemetry.NewSpan(ctx, "replenish-acquire-actions-mu")
+	// Phase 1 (run loop): skip if another cycle is in flight, snapshot the worker
+	// ids, and start counting acks so the availability read below can be
+	// reconciled against assignments that flush while it runs.
+	var workerIds []uuid.UUID
+	skipped := false
 
-	if mustReplenish {
-		s.actionsMu.Lock()
-	} else if ok := s.actionsMu.TryLock(); !ok {
-		lockSpan.End()
-		s.l.Debug().Ctx(ctx).Msg("skipping replenish because we can't acquire the actions mutex")
+	if ok := s.do(ctx, func() {
+		if s.replenishing {
+			skipped = true
+			return
+		}
+
+		s.replenishing = true
+		s.ackedDuringReplenish = make(map[poolKey]int)
+
+		workerIds = make([]uuid.UUID, 0, len(s.workers))
+		for workerId := range s.workers {
+			workerIds = append(workerIds, workerId)
+		}
+	}); !ok {
+		return ctx.Err()
+	}
+
+	if skipped {
+		s.l.Debug().Ctx(ctx).Msg("skipping replenish because another replenish is in progress")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "replenish.skipped_in_progress", Value: true})
 		return nil
 	}
 
-	lockSpan.End()
+	// every exit path below must clear the replenishing flag; the apply op does
+	// it on success
+	applied := false
 
-	defer s.actionsMu.Unlock()
+	defer func() {
+		if applied {
+			return
+		}
+
+		s.do(context.Background(), func() {
+			s.replenishing = false
+			s.ackedDuringReplenish = nil
+		})
+	}()
 
 	s.l.Debug().Ctx(ctx).Msg("replenishing slots")
-
-	workers := s.copyWorkers()
-	workerIds := make([]uuid.UUID, 0)
-
-	for workerId := range workers {
-		workerIds = append(workerIds, workerId)
-	}
 
 	start := time.Now()
 	checkpoint := start
 
+	// Phase 2 (db): load the action registrations for the active workers.
 	listActionsCtx, listActionsSpan := telemetry.NewSpan(ctx, "replenish-list-actions-for-workers")
 	telemetry.WithAttributes(listActionsSpan, telemetry.AttributeKV{Key: "replenish.worker_count", Value: len(workerIds)})
 
@@ -217,8 +334,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	checkpoint = time.Now()
 
-	_, computeActionsSpan := telemetry.NewSpan(ctx, "replenish-compute-actions-to-replenish")
-
 	actionsToWorkerIds := make(map[string][]uuid.UUID)
 
 	for _, workerActionTuple := range workersToActiveActions {
@@ -232,71 +347,66 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 	}
 
-	// FUNCTION 1: determine which actions should be replenished. Logic is the following:
-	// - zero or one slots for an action: replenish all slots
-	// - some slots for an action: replenish if 50% of slots have been used, or have expired
-	// - more workers available for an action than previously: fully replenish
+	// Phase 3 (run loop): determine which actions should be replenished. Logic is
+	// the following:
+	// - action not seen before: replenish
+	// - zero active slots for an action: replenish
+	// - 50% or more of the last replenished slots have been used: replenish
+	// - more workers available for an action than previously: replenish
 	// - otherwise, do not replenish
-	actionsToReplenish := make(map[string]struct{})
+	_, computeActionsSpan := telemetry.NewSpan(ctx, "replenish-compute-actions-to-replenish")
 
-	// Isolate the activeCount scans: on large tenants this dominates replenish wall time
-	// while actionsMu is held, which blocks tryAssignBatch.
-	_, scanActiveSpan := telemetry.NewSpan(ctx, "replenish-scan-active-counts")
+	actionsToReplenish := make(map[string]struct{})
 	actionsScanned := 0
 	activeSlotsTotal := 0
-	scanNow := time.Now()
 
-	for actionId, workers := range actionsToWorkerIds {
-		// if the action is not in the map, it should be replenished
-		if _, ok := s.actions[actionId]; !ok {
-			actionsToReplenish[actionId] = struct{}{}
-			s.actions[actionId] = new(action)
+	if ok := s.do(ctx, func() {
+		scanNow := time.Now()
 
-			continue
+		for actionId, workers := range actionsToWorkerIds {
+			if _, ok := s.actions[actionId]; !ok {
+				actionsToReplenish[actionId] = struct{}{}
+				s.actions[actionId] = new(action)
+
+				continue
+			}
+
+			if mustReplenish {
+				actionsToReplenish[actionId] = struct{}{}
+
+				continue
+			}
+
+			storedAction := s.actions[actionId]
+
+			var replenish bool
+			activeCount := storedAction.activeCount(s.poolsByWorker, scanNow)
+			actionsScanned++
+			activeSlotsTotal += activeCount
+
+			switch {
+			case activeCount == 0:
+				replenish = true
+			case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
+				replenish = true
+			case len(workers) > storedAction.lastReplenishedWorkerCount:
+				replenish = true
+			}
+
+			if replenish {
+				actionsToReplenish[actionId] = struct{}{}
+			}
 		}
-
-		if mustReplenish {
-			actionsToReplenish[actionId] = struct{}{}
-
-			continue
-		}
-
-		storedAction := s.actions[actionId]
-
-		// determine if we match the conditions above
-		var replenish bool
-		activeCount := storedAction.activeCountFromPools(s.poolsByWorker, scanNow)
-		actionsScanned++
-		activeSlotsTotal += activeCount
-
-		switch {
-		case activeCount == 0:
-			s.l.Debug().Ctx(ctx).Msgf("replenishing all slots for action %s because activeCount is 0", actionId)
-			replenish = true
-		case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
-			s.l.Debug().Ctx(ctx).Msgf("replenishing slots for action %s because 50%% of slots have been used", actionId)
-			replenish = true
-		case len(workers) > storedAction.lastReplenishedWorkerCount:
-			s.l.Debug().Ctx(ctx).Msgf("replenishing slots for action %s because more workers are available", actionId)
-			replenish = true
-		}
-
-		if replenish {
-			actionsToReplenish[actionId] = struct{}{}
-		}
+	}); !ok {
+		computeActionsSpan.End()
+		return ctx.Err()
 	}
-
-	telemetry.WithAttributes(scanActiveSpan,
-		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
-		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
-		telemetry.AttributeKV{Key: "replenish.unique_actions", Value: len(actionsToWorkerIds)},
-	)
-	scanActiveSpan.End()
 
 	telemetry.WithAttributes(computeActionsSpan,
 		telemetry.AttributeKV{Key: "replenish.actions_to_replenish", Value: len(actionsToReplenish)},
 		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
 		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
+		telemetry.AttributeKV{Key: "replenish.unique_actions", Value: len(actionsToWorkerIds)},
 	)
 	computeActionsSpan.End()
 
@@ -308,7 +418,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		return nil
 	}
 
-	// FUNCTION 2: load the worker-owned pool configuration and capacity.
+	// Phase 4 (db): load the worker-owned pool configuration and capacity.
 	listConfigsCtx, listConfigsSpan := telemetry.NewSpan(ctx, "replenish-list-worker-slot-configs")
 
 	workerSlotConfigs, err := s.repo.ListWorkerSlotConfigs(listConfigsCtx, s.tenantId, workerIds)
@@ -328,9 +438,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		slotTypeSet[config.SlotType] = struct{}{}
 		workerIdSet[config.WorkerID] = struct{}{}
 	}
-
-	s.unackedMu.Lock()
-	defer s.unackedMu.Unlock()
 
 	slotTypes := make([]string, 0, len(slotTypeSet))
 	for slotType := range slotTypeSet {
@@ -365,124 +472,130 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	s.l.Debug().Ctx(ctx).Msgf("loading available slots took %s", time.Since(checkpoint))
 
-	// FUNCTION 3: retain unacked slots in their worker-owned pools.
-	unackedByPool := make(map[poolKey][]*slot)
-	for _, assignment := range s.unackedSlots {
-		for _, assignedSlot := range assignment.slots {
-			slotType, err := assignedSlot.getSlotType()
-			if err != nil {
-				return fmt.Errorf("could not get slot type for unacked slot: %w", err)
-			}
-
-			key := poolKey{workerId: assignedSlot.getWorkerId(), slotType: slotType}
-			unackedByPool[key] = append(unackedByPool[key], assignedSlot)
-			configuredPools[key] = struct{}{}
-		}
-	}
-
-	// FUNCTION 4: build each (worker, slot type) pool once, then update the
-	// action-to-worker index. Slot objects are no longer copied into actions.
+	// Phase 5 (run loop): build each (worker, slot type) pool once, then update
+	// the action-to-worker index.
 	_, buildSlotsSpan := telemetry.NewSpan(ctx, "replenish-build-slots")
 
-	nextPools := make(map[poolKey]*slotPool, len(configuredPools))
-	nextPoolsByWorker := make(map[uuid.UUID]map[string]*slotPool)
 	totalSlotsBuilt := 0
 	maxSlotsPerPool := 0
+	actionsRemoved := 0
+	actionCount := 0
+	unackedEntries := 0
 
-	for key := range configuredPools {
-		w := workers[key.workerId]
-		if w == nil {
-			continue
+	if ok := s.do(ctx, func() {
+		// retain unacked slots in their worker-owned pools
+		unackedByPool := make(map[poolKey][]*slot)
+		for _, assignment := range s.unackedSlots {
+			for _, assignedSlot := range assignment.slots {
+				key := poolKey{workerId: assignedSlot.getWorkerId(), slotType: assignedSlot.slotType}
+				unackedByPool[key] = append(unackedByPool[key], assignedSlot)
+				configuredPools[key] = struct{}{}
+			}
 		}
+		unackedEntries = len(s.unackedSlots)
 
-		pool := s.pools[key]
-		if pool == nil {
-			pool = &slotPool{worker: w, slotType: key.slotType}
-		} else {
-			pool.worker = w
-			pool.slotType = key.slotType
-		}
-
-		unackedSlots := unackedByPool[key]
-		availableCount := availableByPool[key] - len(unackedSlots)
-		if availableCount < 0 {
-			availableCount = 0
-		}
-
-		// Align pool refreshedAt with every slot's expiresAt so staleAt and
-		// active() flip together. Otherwise unusedCount can still report
-		// capacity after individual slots have expired.
 		refreshedAt := time.Now()
 		expiresAt := refreshedAt.Add(defaultSlotExpiry)
 
-		slots := make([]*slot, 0, availableCount+len(unackedSlots))
-		meta := newSlotMeta(nil, key.slotType)
-		for index := 0; index < availableCount; index++ {
-			slots = append(slots, newSlotWithExpiry(w, meta, expiresAt))
-		}
-		for _, unackedSlot := range unackedSlots {
-			unackedSlot.setExpiry(expiresAt)
-		}
-		slots = append(slots, unackedSlots...)
-		pool.resetSlotsAt(slots, refreshedAt)
+		nextPools := make(map[poolKey]*slotPool, len(configuredPools))
+		nextPoolsByWorker := make(map[uuid.UUID]map[string]*slotPool)
 
-		nextPools[key] = pool
-		if nextPoolsByWorker[key.workerId] == nil {
-			nextPoolsByWorker[key.workerId] = make(map[string]*slotPool)
-		}
-		nextPoolsByWorker[key.workerId][key.slotType] = pool
+		for key := range configuredPools {
+			w := s.workers[key.workerId]
+			if w == nil {
+				continue
+			}
 
-		totalSlotsBuilt += len(slots)
-		if len(slots) > maxSlotsPerPool {
-			maxSlotsPerPool = len(slots)
-		}
-	}
+			pool := s.pools[key]
+			if pool == nil {
+				pool = &slotPool{}
+			}
+			pool.worker = w
+			pool.slotType = key.slotType
 
-	s.pools = nextPools
-	s.poolsByWorker = nextPoolsByWorker
+			unackedSlots := unackedByPool[key]
 
-	actionsRemoved := 0
-	for actionId, storedAction := range s.actions {
-		actionWorkerIds := actionsToWorkerIds[actionId]
-		if len(actionWorkerIds) > 1 {
-			slices.SortFunc(actionWorkerIds, func(left, right uuid.UUID) int {
-				return bytes.Compare(left[:], right[:])
-			})
-			actionWorkerIds = slices.Compact(actionWorkerIds)
-		}
+			// Assignments which acked while the availability read was in flight
+			// are no longer in unackedSlots, but the read may still have counted
+			// their slots as available; subtract them so capacity is not
+			// double-counted. This can briefly under-count (an ack the read did
+			// observe is subtracted again), which self-corrects on the next cycle.
+			availableCount := availableByPool[key] - len(unackedSlots) - s.ackedDuringReplenish[key]
+			if availableCount < 0 {
+				availableCount = 0
+			}
 
-		totalSlots := 0
-		for _, workerId := range actionWorkerIds {
-			for _, pool := range nextPoolsByWorker[workerId] {
-				totalSlots += len(pool.slots)
+			slots := make([]*slot, 0, availableCount+len(unackedSlots))
+			for i := 0; i < availableCount; i++ {
+				slots = append(slots, &slot{worker: w, slotType: key.slotType})
+			}
+			slots = append(slots, unackedSlots...)
+			pool.reset(slots, expiresAt)
+
+			nextPools[key] = pool
+			if nextPoolsByWorker[key.workerId] == nil {
+				nextPoolsByWorker[key.workerId] = make(map[string]*slotPool)
+			}
+			nextPoolsByWorker[key.workerId][key.slotType] = pool
+
+			totalSlotsBuilt += len(slots)
+			if len(slots) > maxSlotsPerPool {
+				maxSlotsPerPool = len(slots)
 			}
 		}
 
-		if totalSlots == 0 {
-			delete(s.actions, actionId)
-			actionsRemoved++
-			continue
+		s.pools = nextPools
+		s.poolsByWorker = nextPoolsByWorker
+
+		for actionId, storedAction := range s.actions {
+			actionWorkerIds := actionsToWorkerIds[actionId]
+			if len(actionWorkerIds) > 1 {
+				slices.SortFunc(actionWorkerIds, func(left, right uuid.UUID) int {
+					return bytes.Compare(left[:], right[:])
+				})
+				actionWorkerIds = slices.Compact(actionWorkerIds)
+			}
+
+			totalSlots := 0
+			for _, workerId := range actionWorkerIds {
+				for _, pool := range nextPoolsByWorker[workerId] {
+					totalSlots += len(pool.slots)
+				}
+			}
+
+			if totalSlots == 0 {
+				delete(s.actions, actionId)
+				actionsRemoved++
+				continue
+			}
+
+			storedAction.workerIds = actionWorkerIds
+			storedAction.lastReplenishedSlotCount = totalSlots
+			storedAction.lastReplenishedWorkerCount = len(actionWorkerIds)
 		}
 
-		storedAction.workerIds = actionWorkerIds
-		storedAction.lastReplenishedSlotCount = totalSlots
-		storedAction.lastReplenishedWorkerCount = len(actionWorkerIds)
+		actionCount = len(s.actions)
+
+		s.replenishing = false
+		s.ackedDuringReplenish = nil
+		applied = true
+	}); !ok {
+		buildSlotsSpan.End()
+		return ctx.Err()
 	}
 
 	telemetry.WithAttributes(buildSlotsSpan,
-		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(s.actions)},
+		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: actionCount},
 		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
 		telemetry.AttributeKV{Key: "replenish.max_slots_per_pool", Value: maxSlotsPerPool},
-		telemetry.AttributeKV{Key: "replenish.pool_count", Value: len(nextPools)},
-		telemetry.AttributeKV{Key: "replenish.unacked_slot_entries", Value: len(s.unackedSlots)},
+		telemetry.AttributeKV{Key: "replenish.unacked_slot_entries", Value: unackedEntries},
 	)
 	buildSlotsSpan.End()
 
 	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(s.actions)},
+		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: actionCount},
 		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
 		telemetry.AttributeKV{Key: "replenish.max_slots_per_pool", Value: maxSlotsPerPool},
-		telemetry.AttributeKV{Key: "replenish.pool_count", Value: len(nextPools)},
 		telemetry.AttributeKV{Key: "replenish.actions_removed", Value: actionsRemoved},
 	)
 
@@ -512,7 +625,6 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 			}
 			cancel()
 		}
-
 	}
 }
 
@@ -520,54 +632,169 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(10*time.Millisecond, 90*time.Millisecond)
 	defer ticker.Stop()
 
-	count := 0
 	for {
-
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// require that 1 out of every 20 snapshots is taken
-			must := count%20 == 0
-
-			// only advance the counter when a snapshot was actually taken, so
-			// the "must" cadence counts real snapshots rather than skipped ticks
-			if s.snapshot(ctx, must) {
-				count++
-			}
+			s.snapshot(ctx)
 		}
 	}
 }
 
 // snapshot builds a point-in-time view of the tenant's slot utilization and
-// reports it to the registered extensions. It returns false when the snapshot
-// was skipped because the scheduler was busy (non-must path).
-func (s *Scheduler) snapshot(ctx context.Context, mustSnapshot bool) bool {
+// reports it to the registered extensions.
+func (s *Scheduler) snapshot(ctx context.Context) {
 	ctx, span := telemetry.NewSpan(ctx, "snapshot")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: s.tenantId.String()},
-		telemetry.AttributeKV{Key: "snapshot.must", Value: mustSnapshot},
 	)
 
-	in, ok := s.getSnapshotInput(ctx, mustSnapshot)
+	in, ok := s.getSnapshotInput(ctx)
 
 	if !ok {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.skipped", Value: true})
-		return false
+		return
 	}
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(in.Workers)})
 
 	s.exts.ReportSnapshot(ctx, s.tenantId, in)
-
-	return true
 }
 
-func (s *Scheduler) start(ctx context.Context) {
-	go s.loopReplenish(ctx)
-	go s.loopSnapshot(ctx)
+func (s *Scheduler) getSnapshotInput(ctx context.Context) (*SnapshotInput, bool) {
+	ctx, span := telemetry.NewSpan(ctx, "get-snapshot-input")
+	defer span.End()
+
+	var res *SnapshotInput
+
+	if ok := s.do(ctx, func() {
+		res = s.buildSnapshotInput()
+	}); !ok {
+		return nil, false
+	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(res.Workers)},
+	)
+
+	return res, true
+}
+
+// buildSnapshotInput runs on the run loop.
+func (s *Scheduler) buildSnapshotInput() *SnapshotInput {
+	res := &SnapshotInput{
+		Workers:                     make(map[uuid.UUID]*WorkerCp, len(s.workers)),
+		WorkerSlotUtilization:       make(map[uuid.UUID]*SlotUtilization, len(s.workers)),
+		WorkerSlotUtilizationByType: make(map[uuid.UUID]map[string]*SlotUtilization, len(s.workers)),
+	}
+
+	for workerId, worker := range s.workers {
+		totalSlots := 0
+
+		for _, units := range worker.TotalSlotsByType {
+			totalSlots += units
+		}
+
+		res.Workers[workerId] = &WorkerCp{
+			WorkerId: workerId,
+			Labels:   worker.Labels,
+			Name:     worker.Name,
+			MaxRuns:  totalSlots,
+		}
+	}
+
+	utilizationByType := make(map[uuid.UUID]map[string]*SlotUtilization, len(s.workers))
+
+	for workerId := range s.workers {
+		utilizationByType[workerId] = make(map[string]*SlotUtilization)
+	}
+
+	for key, pool := range s.pools {
+		byType, active := utilizationByType[key.workerId]
+		if !active {
+			continue
+		}
+
+		utilization := byType[key.slotType]
+		if utilization == nil {
+			utilization = &SlotUtilization{}
+			byType[key.slotType] = utilization
+		}
+
+		utilization.UtilizedSlots += len(pool.slots) - len(pool.free)
+		utilization.NonUtilizedSlots += len(pool.free)
+	}
+
+	// prune warm state for workers which are no longer registered
+	for workerId := range s.warmedSlotTypes {
+		if _, ok := s.workers[workerId]; !ok {
+			delete(s.warmedSlotTypes, workerId)
+		}
+	}
+
+	// The in-memory pool only holds slots which have not been assigned (plus assigned slots
+	// which are not yet flushed to the database), so the used counts walked above miss any
+	// slot consumed by a running task. Derive the true used count per slot type from the
+	// worker's slot capacity instead: everything that is not free is in use.
+	for workerId, byType := range utilizationByType {
+		var capacities map[string]int
+
+		if worker, ok := s.workers[workerId]; ok {
+			capacities = worker.TotalSlotsByType
+		}
+
+		warmed := s.warmedSlotTypes[workerId]
+
+		for slotType, utilization := range byType {
+			if utilization.UtilizedSlots+utilization.NonUtilizedSlots > 0 {
+				if warmed == nil {
+					warmed = make(map[string]struct{})
+					s.warmedSlotTypes[workerId] = warmed
+				}
+
+				warmed[slotType] = struct{}{}
+			}
+		}
+
+		// slot types with capacity but no walked slots still get reported: once the
+		// type has warmed up, an empty in-memory pool means all of its slots are in use
+		for slotType := range capacities {
+			if _, ok := byType[slotType]; !ok {
+				byType[slotType] = &SlotUtilization{}
+			}
+		}
+
+		aggregate := &SlotUtilization{}
+
+		for slotType, utilization := range byType {
+			_, isWarmed := warmed[slotType]
+
+			// Only derive from capacity once the slot type has had slots in the pool:
+			// a never-replenished worker would otherwise report full utilization
+			// between registration and its first replenish. Un-warmed types report
+			// zero slots, which extensions treat as a transient state.
+			if capacity := capacities[slotType]; capacity > 0 && isWarmed {
+				used := capacity - utilization.NonUtilizedSlots
+				if used < 0 {
+					used = 0
+				}
+
+				utilization.UtilizedSlots = used
+			}
+			// no capacity known for this slot type; fall back to the walked counts
+
+			aggregate.UtilizedSlots += utilization.UtilizedSlots
+			aggregate.NonUtilizedSlots += utilization.NonUtilizedSlots
+		}
+
+		res.WorkerSlotUtilizationByType[workerId] = byType
+		res.WorkerSlotUtilization[workerId] = aggregate
+	}
+
+	return res
 }
 
 type scheduleRateLimitResult struct {
@@ -605,21 +832,14 @@ func (s *Scheduler) tryAssignBatch(
 	ctx context.Context,
 	actionId string,
 	qis []*sqlcv1.V1QueueItem,
-	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
-	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
-	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
-	// slots concurrently.
-	ringOffset int,
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) (
-	res []*assignSingleResult, newRingOffset int, err error,
+	res []*assignSingleResult, err error,
 ) {
 	s.l.Debug().Ctx(ctx).Msgf("trying to assign %d queue items", len(qis))
-
-	newRingOffset = ringOffset
 
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
 	defer span.End()
@@ -654,7 +874,8 @@ func (s *Scheduler) tryAssignBatch(
 
 	noop := func() {}
 
-	// first, check rate limits for each of the queue items
+	// rate limits are checked outside the run loop: the rate limiter has its own
+	// synchronization and may not block scheduling for other actions
 	_, rateLimitSpan := telemetry.NewSpan(ctx, "try-assign-batch-rate-limits")
 	for i := range res {
 		r := res[i]
@@ -691,71 +912,60 @@ func (s *Scheduler) tryAssignBatch(
 	}
 	rateLimitSpan.End()
 
-	// Hold the read lock for the entire batch so replenish cannot replace the
-	// action-to-worker index or worker pools while assignment is using them.
-	// Replenish acquires the write lock before unackedMu; assignment preserves
-	// that lock order when it records selected slots.
-	_, actionsMuSpan := telemetry.NewSpan(ctx, "try-assign-batch-acquire-actions-mu")
-	s.actionsMu.RLock()
-	defer s.actionsMu.RUnlock()
+	if ok := s.do(ctx, func() {
+		s.handleAssignBatch(actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
+	}); !ok {
+		// the scheduler is shutting down; treat the batch as unassignable
+		for i := range res {
+			if res[i].rateLimitResult == nil {
+				res[i].noSlots = true
+			}
+		}
+	}
 
+	// release rate-limit reservations for items that did not get assigned
+	for i := range res {
+		if res[i].rateLimitResult == nil && !res[i].succeeded {
+			rlNacks[i]()
+		}
+	}
+
+	return res, nil
+}
+
+// handleAssignBatch runs on the run loop.
+func (s *Scheduler) handleAssignBatch(
+	actionId string,
+	qis []*sqlcv1.V1QueueItem,
+	res []*assignSingleResult,
+	rlAcks []func(),
+	rlNacks []func(),
+	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToRequests map[uuid.UUID]map[string]int32,
+	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
+) {
 	action, ok := s.actions[actionId]
-	actionsMuSpan.End()
 
-	if !ok || action == nil {
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.missing", Value: true})
-		s.l.Debug().Ctx(ctx).Msgf("no action %s", actionId)
+	if !ok || action == nil || len(action.workerIds) == 0 {
+		s.l.Debug().Msgf("no slots for action %s", actionId)
 
-		// Treat missing action as "no slots" for any non-rate-limited queue item.
 		for i := range res {
-			if res[i].rateLimitResult != nil {
-				continue
+			if res[i].rateLimitResult == nil {
+				res[i].noSlots = true
 			}
-			res[i].noSlots = true
-			rlNacks[i]()
 		}
 
-		return res, newRingOffset, nil
+		return
 	}
 
-	workerCount := len(action.workerIds)
-	if workerCount == 0 {
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.worker_count", Value: 0})
-
-		s.l.Debug().Ctx(ctx).Msgf("no slots for action %s", actionId)
-
-		// if the action is not in the map, then we have no slots to assign to
-		for i := range res {
-			if res[i].rateLimitResult != nil {
-				continue
-			}
-			res[i].noSlots = true
-			rlNacks[i]()
-		}
-
-		return res, newRingOffset, nil
-	}
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "action.worker_count", Value: workerCount},
-		telemetry.AttributeKV{Key: "action.slot_count", Value: action.lastReplenishedSlotCount},
-	)
+	now := time.Now()
 
 	for i := range res {
-		if res[i].rateLimitResult != nil {
+		r := res[i]
+
+		if r.rateLimitResult != nil {
 			continue
 		}
-
-		denom := workerCount
-
-		if denom == 0 {
-			res[i].noSlots = true
-			rlNacks[i]()
-
-			continue
-		}
-
-		childRingOffset := newRingOffset % denom
 
 		qi := qis[i]
 
@@ -765,9 +975,7 @@ func (s *Scheduler) tryAssignBatch(
 			labels = stepIdsToLabels[qi.StepID]
 		}
 
-		labelOverrides, ok := taskIdsToLabelOverrides[qi.TaskID]
-
-		if ok {
+		if labelOverrides, ok := taskIdsToLabelOverrides[qi.TaskID]; ok {
 			labels = labelOverrides
 		}
 
@@ -775,107 +983,101 @@ func (s *Scheduler) tryAssignBatch(
 		// assume it needs 1 default slot.
 		requests := map[string]int32{v1.SlotTypeDefault: 1}
 		if stepIdsToRequests != nil {
-			if r, ok := stepIdsToRequests[qi.StepID]; ok && len(r) > 0 {
-				requests = r
+			if req, ok := stepIdsToRequests[qi.StepID]; ok && len(req) > 0 {
+				requests = req
 			}
 		}
 
-		singleRes, err := s.tryAssignSingletonFromPools(
-			ctx,
-			qi,
-			action.workerIds,
-			childRingOffset,
-			labels,
-			requests,
-			rlAcks[i],
-			rlNacks[i],
-		)
-
-		if err != nil {
-			s.l.Error().Ctx(ctx).Err(err).Msg("error assigning queue item")
-		}
-
-		if !singleRes.succeeded {
-			rlNacks[i]()
-		}
-
-		res[i] = &singleRes
-		res[i].qi = qi
-
-		newRingOffset++
+		s.assignSingleton(action, qi, r, labels, requests, rlAcks[i], rlNacks[i], now)
 	}
-
-	return res, newRingOffset, nil
 }
 
-func (s *Scheduler) findAssignableWorkerPools(
-	workerIds []uuid.UUID,
+// assignSingleton runs on the run loop.
+func (s *Scheduler) assignSingleton(
+	a *action,
+	qi *sqlcv1.V1QueueItem,
+	r *assignSingleResult,
+	labels []*sqlcv1.GetDesiredLabelsRow,
 	requests map[string]int32,
 	rateLimitAck func(),
 	rateLimitNack func(),
-) *assignedSlots {
-	for _, workerId := range workerIds {
-		selected, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests)
-		if !ok {
-			continue
-		}
+	now time.Time,
+) {
+	candidates := a.workerIds
+	offset := a.ringOffset
+	a.ringOffset++
 
-		usedSlots, ok := useSelectedSlots(selected)
-		if !ok {
-			continue
-		}
+	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
+		candidates = s.rankWorkerIds(qi, labels, a.workerIds)
+		offset = 0
+	}
 
-		return &assignedSlots{
-			slots:         usedSlots,
-			rateLimitAck:  rateLimitAck,
-			rateLimitNack: rateLimitNack,
+	if len(candidates) == 0 {
+		r.noSlots = true
+		return
+	}
+
+	offset %= len(candidates)
+
+	var selected []*slot
+
+	for i := 0; i < len(candidates); i++ {
+		workerId := candidates[(offset+i)%len(candidates)]
+
+		if sel, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests, now); ok {
+			selected = sel
+			break
 		}
 	}
 
-	return nil
+	if selected == nil {
+		r.noSlots = true
+		return
+	}
+
+	s.assignedCount++
+	r.ackId = s.assignedCount
+
+	s.unackedSlots[r.ackId] = &assignedSlots{
+		slots:         selected,
+		rateLimitAck:  rateLimitAck,
+		rateLimitNack: rateLimitNack,
+	}
+
+	r.workerId = selected[0].getWorkerId()
+	r.succeeded = true
 }
 
-func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]int32) ([]*slot, bool) {
+// selectSlotsFromPools reserves the requested units from a single worker's
+// pools, or nothing at all. Freelist counts are exact, so the reservation can
+// be verified up front and never needs to roll back.
+func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]int32, now time.Time) ([]*slot, bool) {
 	totalNeeded := 0
-	for _, units := range requests {
-		if units > 0 {
-			totalNeeded += int(units)
-		}
-	}
 
-	selected := make([]*slot, 0, totalNeeded)
 	for slotType, units := range requests {
 		if units <= 0 {
 			continue
 		}
 
-		pool := poolsByType[slotType]
-		if pool == nil {
+		if poolsByType[slotType].freeCountAt(now) < int(units) {
 			return nil, false
 		}
 
-		// Do not gate on unusedCount: expiry does not decrement the counter, so it
-		// can drift above (or, after concurrent use/nack, below) the number of
-		// active slots. Selection must follow active() only.
-		found := 0
-		for _, sl := range pool.slots {
-			if !sl.active() {
-				continue
-			}
-			selected = append(selected, sl)
-			found++
-			if found == int(units) {
-				break
-			}
-		}
-		if found < int(units) {
-			return nil, false
+		totalNeeded += int(units)
+	}
+
+	selected := make([]*slot, 0, totalNeeded)
+
+	for slotType, units := range requests {
+		for j := int32(0); j < units; j++ {
+			selected = append(selected, poolsByType[slotType].take())
 		}
 	}
 
 	return selected, true
 }
 
+// rankWorkerIds runs on the run loop (it reads s.workers for label affinity).
 func (s *Scheduler) rankWorkerIds(
 	qi *sqlcv1.V1QueueItem,
 	labels []*sqlcv1.GetDesiredLabelsRow,
@@ -903,7 +1105,7 @@ func (s *Scheduler) rankWorkerIds(
 				// Label affinity reads worker metadata from s.workers. Do not
 				// require a poolsByWorker entry — candidates can be listed on
 				// the action before pools are populated.
-				worker := s.workerByID(workerId)
+				worker := s.workers[workerId]
 				if worker == nil {
 					continue
 				}
@@ -926,82 +1128,6 @@ func (s *Scheduler) rankWorkerIds(
 		result[index] = ranked[index].id
 	}
 	return result
-}
-
-func (s *Scheduler) tryAssignSingletonFromPools(
-	ctx context.Context,
-	qi *sqlcv1.V1QueueItem,
-	workerIds []uuid.UUID,
-	ringOffset int,
-	labels []*sqlcv1.GetDesiredLabelsRow,
-	requests map[string]int32,
-	rateLimitAck func(),
-	rateLimitNack func(),
-) (res assignSingleResult, err error) {
-	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
-	defer span.End()
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()},
-		telemetry.AttributeKV{Key: "queue.name", Value: qi.Queue},
-	)
-
-	candidates := workerIds
-	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
-		candidates = s.rankWorkerIds(qi, labels, workerIds)
-		ringOffset = 0
-	}
-	if len(candidates) == 0 {
-		res.noSlots = true
-		return res, nil
-	}
-
-	ringOffset %= len(candidates)
-	assigned := s.findAssignableWorkerPools(candidates[ringOffset:], requests, rateLimitAck, rateLimitNack)
-	if assigned == nil {
-		assigned = s.findAssignableWorkerPools(candidates[:ringOffset], requests, rateLimitAck, rateLimitNack)
-	}
-	if assigned == nil {
-		res.noSlots = true
-		return res, nil
-	}
-
-	s.assignedCountMu.Lock()
-	s.assignedCount++
-	res.ackId = s.assignedCount
-	s.assignedCountMu.Unlock()
-
-	s.unackedMu.Lock()
-	s.unackedSlots[res.ackId] = assigned
-	s.unackedMu.Unlock()
-
-	res.workerId = assigned.workerId()
-	if res.workerId == uuid.Nil {
-		s.l.Error().Ctx(ctx).Msgf("assigned slot %d has no worker id, skipping assignment", res.ackId)
-		res.noSlots = true
-		return res, nil
-	}
-
-	res.succeeded = true
-	return res, nil
-}
-
-// useSelectedSlots attempts to reserve each slot in order. If any slot cannot be
-// reserved, it rolls back by nacking any slots already reserved in this call.
-func useSelectedSlots(selected []*slot) ([]*slot, bool) {
-	usedSlots := make([]*slot, 0, len(selected))
-
-	for _, sl := range selected {
-		if !sl.use(nil, nil) {
-			for _, used := range usedSlots {
-				used.nack()
-			}
-			return nil, false
-		}
-		usedSlots = append(usedSlots, sl)
-	}
-
-	return usedSlots, true
 }
 
 type assignedQueueItem struct {
@@ -1076,8 +1202,6 @@ func (s *Scheduler) tryAssign(
 			go func(actionId string, qis []*sqlcv1.V1QueueItem) {
 				defer wg.Done()
 
-				ringOffset := 0
-
 				batched := make([]*sqlcv1.V1QueueItem, 0)
 				schedulingTimedOut := make([]*sqlcv1.V1QueueItem, 0, len(qis))
 				for i := range qis {
@@ -1103,13 +1227,11 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, taskIdsToLabelOverrides)
+					results, err := s.tryAssignBatch(ctx, actionId, batchQis, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, taskIdsToLabelOverrides)
 
 					if err != nil {
 						return err
 					}
-
-					ringOffset = newRingOffset
 
 					for _, singleRes := range results {
 						if !singleRes.succeeded {
@@ -1190,164 +1312,9 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput
 	}
 }
 
-func (s *Scheduler) getSnapshotInput(ctx context.Context, mustSnapshot bool) (*SnapshotInput, bool) {
-	ctx, span := telemetry.NewSpan(ctx, "get-snapshot-input")
-	defer span.End()
-
-	// isolate the lock-acquire wait in its own child span; on the non-must path
-	// a contended lock makes us skip the snapshot entirely.
-	_, lockSpan := telemetry.NewSpan(ctx, "get-snapshot-input-acquire-actions-mu")
-	if mustSnapshot {
-		s.actionsMu.RLock()
-	} else {
-		if ok := s.actionsMu.TryRLock(); !ok {
-			lockSpan.End()
-			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.lock_contended", Value: true})
-			return nil, false
-		}
-	}
-	lockSpan.End()
-
-	defer s.actionsMu.RUnlock()
-
-	workers := s.copyWorkers()
-
-	res := &SnapshotInput{
-		Workers:                     make(map[uuid.UUID]*WorkerCp, len(workers)),
-		WorkerSlotUtilization:       make(map[uuid.UUID]*SlotUtilization, len(workers)),
-		WorkerSlotUtilizationByType: make(map[uuid.UUID]map[string]*SlotUtilization, len(workers)),
-	}
-
-	for workerId, worker := range workers {
-		totalSlots := 0
-
-		for _, units := range worker.TotalSlotsByType {
-			totalSlots += units
-		}
-
-		res.Workers[workerId] = &WorkerCp{
-			WorkerId: workerId,
-			Labels:   worker.Labels,
-			Name:     worker.Name,
-			MaxRuns:  totalSlots,
-		}
-	}
-
-	utilizationByType := make(map[uuid.UUID]map[string]*SlotUtilization)
-
-	for workerId := range workers {
-		utilizationByType[workerId] = make(map[string]*SlotUtilization)
-	}
-
-	_, walkSpan := telemetry.NewSpan(ctx, "get-snapshot-input-walk-slots")
-	uniqueSlotCount := 0
-	for key, pool := range s.pools {
-		if _, active := workers[key.workerId]; !active {
-			continue
-		}
-		byType := utilizationByType[key.workerId]
-		if byType == nil {
-			byType = make(map[string]*SlotUtilization)
-			utilizationByType[key.workerId] = byType
-		}
-		utilization := byType[key.slotType]
-		if utilization == nil {
-			utilization = &SlotUtilization{}
-			byType[key.slotType] = utilization
-		}
-
-		for _, slot := range pool.slots {
-			uniqueSlotCount++
-			if slot.isUsed() {
-				utilization.UtilizedSlots++
-			} else {
-				utilization.NonUtilizedSlots++
-			}
-		}
-	}
-	telemetry.WithAttributes(walkSpan,
-		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(s.actions)},
-		telemetry.AttributeKV{Key: "snapshot.unique_slots", Value: uniqueSlotCount},
-	)
-	walkSpan.End()
-
-	// prune warm state for workers which are no longer registered
-	for workerId := range s.warmedSlotTypes {
-		if _, ok := workers[workerId]; !ok {
-			delete(s.warmedSlotTypes, workerId)
-		}
-	}
-
-	// The in-memory pool only holds slots which have not been assigned (plus assigned slots
-	// which are not yet flushed to the database), so the used counts walked above miss any
-	// slot consumed by a running task. Derive the true used count per slot type from the
-	// worker's slot capacity instead: everything that is not free is in use.
-	for workerId, byType := range utilizationByType {
-		var capacities map[string]int
-
-		if worker, ok := workers[workerId]; ok {
-			capacities = worker.TotalSlotsByType
-		}
-
-		warmed := s.warmedSlotTypes[workerId]
-
-		for slotType, utilization := range byType {
-			if utilization.UtilizedSlots+utilization.NonUtilizedSlots > 0 {
-				if warmed == nil {
-					warmed = make(map[string]struct{})
-					s.warmedSlotTypes[workerId] = warmed
-				}
-
-				warmed[slotType] = struct{}{}
-			}
-		}
-
-		// slot types with capacity but no walked slots still get reported: once the
-		// type has warmed up, an empty in-memory pool means all of its slots are in use
-		for slotType := range capacities {
-			if _, ok := byType[slotType]; !ok {
-				byType[slotType] = &SlotUtilization{}
-			}
-		}
-
-		aggregate := &SlotUtilization{}
-
-		for slotType, utilization := range byType {
-			_, isWarmed := warmed[slotType]
-
-			// Only derive from capacity once the slot type has had slots in the pool:
-			// a never-replenished worker would otherwise report full utilization
-			// between registration and its first replenish. Un-warmed types report
-			// zero slots, which extensions treat as a transient state.
-			if capacity := capacities[slotType]; capacity > 0 && isWarmed {
-				used := capacity - utilization.NonUtilizedSlots
-				if used < 0 {
-					used = 0
-				}
-
-				utilization.UtilizedSlots = used
-			}
-			// no capacity known for this slot type; fall back to the walked counts
-
-			aggregate.UtilizedSlots += utilization.UtilizedSlots
-			aggregate.NonUtilizedSlots += utilization.NonUtilizedSlots
-		}
-
-		res.WorkerSlotUtilizationByType[workerId] = byType
-		res.WorkerSlotUtilization[workerId] = aggregate
-	}
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(workers)},
-		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(s.actions)},
-	)
-
-	return res, true
-}
-
 func isTimedOut(qi *sqlcv1.V1QueueItem) bool {
 	// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-	now := time.Now().UTC().UTC()
+	now := time.Now().UTC()
 	scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time
 
 	// timed out if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt

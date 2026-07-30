@@ -20,44 +20,60 @@ import (
 func defaultSlots(w *worker, n int) []*slot {
 	slots := make([]*slot, n)
 	for i := range slots {
-		slots[i] = newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+		slots[i] = newSlot(w, repo.SlotTypeDefault)
 	}
 	return slots
 }
 
 func TestSlotCost_MixedHeavyAndLightShareDefaultPool(t *testing.T) {
-	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{})
+	tenantId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
 	a := seedActionPools(t, s, "A", defaultSlots(w, 6)...)
 
-	heavy := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
-	require.NotNil(t, heavy)
-	require.Len(t, heavy.slots, 5)
+	heavy := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	require.True(t, heavy.succeeded)
 
-	light := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
-	require.NotNil(t, light)
-	require.Len(t, light.slots, 1)
+	light := assignOne(t, s, a, testQI(tenantId, "A", 2), nil, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	require.True(t, light.succeeded)
 
-	none := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
-	require.Nil(t, none)
+	none := assignOne(t, s, a, testQI(tenantId, "A", 3), nil, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	require.False(t, none.succeeded)
+	require.True(t, none.noSlots)
+
+	onLoop(t, s, func() {
+		require.Len(t, s.unackedSlots[heavy.ackId].slots, 5)
+		require.Len(t, s.unackedSlots[light.ackId].slots, 1)
+	})
 }
 
 func TestSlotCost_ReservationMustFitOnOneWorker(t *testing.T) {
-	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{})
+	tenantId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	w1 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
 	w2 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
 
 	all := append(defaultSlots(w1, 4), defaultSlots(w2, 4)...)
 	a := seedActionPools(t, s, "A", all...)
 
-	none := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
-	require.Nil(t, none)
+	none := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	require.False(t, none.succeeded)
+	require.True(t, none.noSlots)
 
-	fits := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
-	require.NotNil(t, fits)
-	require.Len(t, fits.slots, 4)
+	fits := assignOne(t, s, a, testQI(tenantId, "A", 2), nil, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
+	require.True(t, fits.succeeded)
+
+	onLoop(t, s, func() {
+		assigned := s.unackedSlots[fits.ackId]
+		require.Len(t, assigned.slots, 4)
+
+		// all four slots come from the same worker
+		for _, sl := range assigned.slots {
+			require.Equal(t, assigned.workerId(), sl.getWorkerId())
+		}
+	})
 }
 
 // An over-capacity task is unassigned only while inside its schedule timeout. Past the timeout the
@@ -132,7 +148,7 @@ func TestSlotCost_ExplicitDefaultCostBlocksProportionally(t *testing.T) {
 		qi2.StepID: {repo.SlotTypeDefault: 2},
 	}
 
-	res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0,
+	res, err := s.tryAssignBatch(context.Background(), "A", qis,
 		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, stepRequests, nil, nil)
 	require.NoError(t, err)
 

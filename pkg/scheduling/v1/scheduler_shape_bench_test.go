@@ -56,6 +56,9 @@ type inventoryFixture struct {
 	actionRows    []*sqlcv1.ListActionsForWorkersRow
 	scheduler     *Scheduler
 	uniqueSlots   int
+
+	// stop tears down the scheduler's run loop.
+	stop func()
 }
 
 func baselineShapes() []inventoryShape {
@@ -240,6 +243,10 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 	}
 
 	s := newShapeScheduler(tenantId, ar)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go s.run(ctx)
+
 	s.setWorkers(activeWorkers)
 
 	return &inventoryFixture{
@@ -250,32 +257,41 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 		actionIds:     actionIds,
 		actionRows:    actionRows,
 		scheduler:     s,
+		stop:          cancel,
 	}
 }
 
 func (f *inventoryFixture) measureInventory() {
-	slots := 0
-	for _, pool := range f.scheduler.pools {
-		slots += len(pool.slots)
-	}
-	f.uniqueSlots = slots
+	f.scheduler.do(context.Background(), func() {
+		slots := 0
+		for _, pool := range f.scheduler.pools {
+			slots += len(pool.slots)
+		}
+		f.uniqueSlots = slots
+	})
 }
 
 func (f *inventoryFixture) scanActiveCounts() (total int) {
-	now := time.Now()
-	for _, a := range f.scheduler.actions {
-		total += a.activeCountFromPools(f.scheduler.poolsByWorker, now)
-	}
+	f.scheduler.do(context.Background(), func() {
+		now := time.Now()
+		for _, a := range f.scheduler.actions {
+			total += a.activeCount(f.scheduler.poolsByWorker, now)
+		}
+	})
 	return total
 }
 
 func (f *inventoryFixture) firstAssignableAction() string {
-	for _, aid := range f.actionIds {
-		if a := f.scheduler.actions[aid]; a != nil && len(a.workerIds) > 0 {
-			return aid
+	var found string
+	f.scheduler.do(context.Background(), func() {
+		for _, aid := range f.actionIds {
+			if a := f.scheduler.actions[aid]; a != nil && len(a.workerIds) > 0 {
+				found = aid
+				return
+			}
 		}
-	}
-	return ""
+	})
+	return found
 }
 
 // reportShapeMetrics attaches inventory columns to the go-benchmarks / benchstat
@@ -304,6 +320,7 @@ func BenchmarkScheduler_InventoryShape_SlotTypeCardinality(b *testing.B) {
 
 		b.Run(shape.Name, func(b *testing.B) {
 			f := newInventoryFixture(shape)
+			b.Cleanup(f.stop)
 			if err := f.scheduler.replenish(context.Background(), true); err != nil {
 				b.Fatal(err)
 			}
@@ -329,6 +346,7 @@ func TestScheduler_InventoryShape_DenseUniqueSlots(t *testing.T) {
 		SlotsPerWorker: 4,
 		Topology:       topologyDense,
 	})
+	t.Cleanup(f.stop)
 	require.NoError(t, f.scheduler.replenish(context.Background(), true))
 	f.measureInventory()
 
@@ -363,6 +381,7 @@ func BenchmarkScheduler_InventoryShape_ActiveCountScan(b *testing.B) {
 		shape := shape
 		b.Run(shape.Name, func(b *testing.B) {
 			f := newInventoryFixture(shape)
+			b.Cleanup(f.stop)
 			if err := f.scheduler.replenish(context.Background(), true); err != nil {
 				b.Fatal(err)
 			}
@@ -385,6 +404,7 @@ func BenchmarkScheduler_InventoryShape_TryAssignBatch(b *testing.B) {
 		shape := shape
 		b.Run(shape.Name, func(b *testing.B) {
 			f := newInventoryFixture(shape)
+			b.Cleanup(f.stop)
 			if err := f.scheduler.replenish(context.Background(), true); err != nil {
 				b.Fatal(err)
 			}
@@ -413,11 +433,10 @@ func BenchmarkScheduler_InventoryShape_TryAssignBatch(b *testing.B) {
 				}
 				b.StartTimer()
 
-				if _, _, err := f.scheduler.tryAssignBatch(
+				if _, err := f.scheduler.tryAssignBatch(
 					context.Background(),
 					assignAction,
 					qis,
-					0,
 					map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{},
 					stepRequests,
 					nil,
