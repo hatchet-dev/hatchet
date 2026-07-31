@@ -117,8 +117,9 @@ jobs:
           SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED: ${{ matrix.concurrency-in-memory-index }}
           SERVER_OBSERVABILITY_ENABLED: "true"
         run: |
-          go run ./cmd/hatchet-embedded --env-file "$GITHUB_WORKSPACE/.hatchet-embed.env" --pg-version 18 > engine.log 2>&1 &
-          for _ in $(seq 1 60); do
+          go build -o /tmp/hatchet-embedded ./cmd/hatchet-embedded
+          /tmp/hatchet-embedded --env-file "$GITHUB_WORKSPACE/.hatchet-embed.env" --pg-version 18 > engine.log 2>&1 &
+          for _ in $(seq 1 90); do
             [ -f "$GITHUB_WORKSPACE/.hatchet-embed.env" ] && break
             sleep 2
           done
