@@ -3208,7 +3208,7 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL::uuid AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
