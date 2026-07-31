@@ -891,25 +891,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			if row.ChildTaskExternalID == nil {
 				continue
 			}
-			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
-				TenantID:                row.TenantID,
-				ExternalID:              row.ExternalID,
-				ChildTaskExternalID:     row.ChildTaskExternalID,
-				ResultPayloadExternalID: row.ResultPayloadExternalID,
-				InsertedAt:              row.InsertedAt,
-				ID:                      row.ID,
-				DurableTaskID:           row.DurableTaskID,
-				DurableTaskInsertedAt:   row.DurableTaskInsertedAt,
-				Kind:                    row.Kind,
-				NodeID:                  row.NodeID,
-				BranchID:                row.BranchID,
-				IdempotencyKey:          row.IdempotencyKey,
-				IsSatisfied:             row.IsSatisfied,
-				SatisfiedAt:             row.SatisfiedAt,
-				UserMessage:             row.UserMessage,
-				WaitData:                row.WaitData,
-				InvocationCount:         row.InvocationCount,
-			}
+			// Convert the full row rather than re-listing fields by hand: the two
+			// sqlc row types are field-for-field identical, and a direct conversion
+			// keeps every column (notably ChildTaskIsFailure / ChildTaskErrorMessage)
+			// in sync automatically, turning future schema drift into a compile error
+			// instead of a silently dropped field.
+			converted := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
+			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &converted
 		}
 
 		for _, o := range skipOpts {
