@@ -185,7 +185,13 @@ tasks:
       - task: generate-proto
       - task: generate-sqlc
       - task: generate-docs
+      - task: generate-sdks
       - task: pre-commit-run
+  generate-sdks:
+    cmds:
+      - (cd sdks/python && ./generate.sh)
+      - (cd sdks/typescript && ./generate-protoc.sh && pnpm run generate)
+      - (cd sdks/ruby && ./generate.sh)
   install-dependencies:
     deps: [venv]
     cmds:

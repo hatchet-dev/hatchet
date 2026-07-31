@@ -2090,6 +2090,87 @@ export interface ConcurrencySetting {
   scope: ConcurrencyScope;
 }
 
+export interface WorkflowVersionIdempotency {
+  /** The CEL expression used to compute the idempotency key. */
+  expression: string;
+  /**
+   * The time-to-live of the idempotency key, in milliseconds.
+   * @format int64
+   */
+  ttlMs: number;
+}
+
+export interface WorkflowVersionTaskRateLimit {
+  /** The static rate limit key. */
+  key?: string;
+  /** A CEL expression that computes the rate limit key. */
+  keyExpression?: string;
+  /**
+   * The static number of units to consume.
+   * @format int32
+   */
+  units?: number;
+  /** A CEL expression that computes the number of units to consume. */
+  unitsExpression?: string;
+  /** A CEL expression that computes a dynamic limit value. */
+  limitExpression?: string;
+  /** The rate limit window duration. */
+  duration?: string;
+}
+
+export interface WorkflowVersionTaskDesiredWorkerLabel {
+  /** The worker label key. */
+  key: string;
+  /** The string value of the label. */
+  strValue?: string;
+  /**
+   * The integer value of the label.
+   * @format int32
+   */
+  intValue?: number;
+  /** Whether the label is required for scheduling. */
+  required?: boolean;
+  /**
+   * The scheduling weight of the label.
+   * @format int32
+   */
+  weight?: number;
+  /** The comparator used when matching the label. */
+  comparator?: string;
+}
+
+export interface WorkflowVersionTask {
+  /** The readable id of the task. */
+  readableId: string;
+  /** The action id of the task. */
+  action: string;
+  /** The readable ids of the tasks that this task depends on (its DAG parents). */
+  parents: string[];
+  /** The execution timeout of the task. */
+  timeout?: string;
+  /** The scheduling timeout of the task. */
+  scheduleTimeout?: string;
+  /**
+   * The number of retries for the task.
+   * @format int32
+   */
+  retries: number;
+  /**
+   * The retry backoff factor for the task.
+   * @format double
+   */
+  retryBackoffFactor?: number;
+  /**
+   * The maximum retry backoff, in seconds.
+   * @format int32
+   */
+  retryBackoffMaxSeconds?: number;
+  /** Whether the task is durable. */
+  isDurable?: boolean;
+  rateLimits?: WorkflowVersionTaskRateLimit[];
+  desiredWorkerLabels?: WorkflowVersionTaskDesiredWorkerLabel[];
+}
+
 export interface WorkflowVersion {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
@@ -2111,6 +2192,11 @@ export interface WorkflowVersion {
   jobs?: Job[];
   workflowConfig?: object;
   v1Concurrency?: ConcurrencySetting[];
+  /** The workflow description (may contain markdown). */
+  description?: string;
+  idempotency?: WorkflowVersionIdempotency;
+  /** The tasks in the workflow, including their DAG dependencies and per-task configuration. */
+  tasks?: WorkflowVersionTask[];
   /** The JSON schema for the workflow input. */
   inputJsonSchema?: object;
 }
