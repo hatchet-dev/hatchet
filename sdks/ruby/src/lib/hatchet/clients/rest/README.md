@@ -482,7 +482,11 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::WorkflowUpdateRequest](docs/WorkflowUpdateRequest.md)
  - [HatchetSdkRest::WorkflowVersion](docs/WorkflowVersion.md)
  - [HatchetSdkRest::WorkflowVersionDefinition](docs/WorkflowVersionDefinition.md)
+ - [HatchetSdkRest::WorkflowVersionIdempotency](docs/WorkflowVersionIdempotency.md)
  - [HatchetSdkRest::WorkflowVersionMeta](docs/WorkflowVersionMeta.md)
+ - [HatchetSdkRest::WorkflowVersionTask](docs/WorkflowVersionTask.md)
+ - [HatchetSdkRest::WorkflowVersionTaskDesiredWorkerLabel](docs/WorkflowVersionTaskDesiredWorkerLabel.md)
+ - [HatchetSdkRest::WorkflowVersionTaskRateLimit](docs/WorkflowVersionTaskRateLimit.md)
  - [HatchetSdkRest::WorkflowWorkersCount](docs/WorkflowWorkersCount.md)
 
 

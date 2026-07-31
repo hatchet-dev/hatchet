@@ -81,7 +81,7 @@ export default function WorkflowGeneralSettings({
       )}
 
       {hasMisc && (
-        <Section title="Misc">
+        <Section title="Other">
           <MiscSettings workflow={workflow} />
         </Section>
       )}
