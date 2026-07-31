@@ -41,9 +41,9 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
 	pubBuffer := msgqueue.NewMQPubBuffer(mq)
-	tw := trigger.NewTriggerWriter(mq, repo, l, pubBuffer, 0, promGate)
+	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
 
 	return &DispatcherServiceImpl{
 		repo:          repo,

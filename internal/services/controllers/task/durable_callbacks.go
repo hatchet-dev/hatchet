@@ -143,7 +143,7 @@ func (tc *TasksControllerImpl) notifySchedulerQueues(ctx context.Context, tenant
 		return fmt.Errorf("failed to build check-tenant-queue message for queues %v: %w", queueNames, err)
 	}
 
-	if err := tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler), msg); err != nil {
+	if err := tc.pubsub.Pub(ctx, msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String), msg); err != nil {
 		return fmt.Errorf("failed to notify scheduler for queues %v: %w", queueNames, err)
 	}
 

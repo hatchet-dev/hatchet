@@ -689,31 +689,53 @@ WHERE (task_id, task_inserted_at) IN (
 );
 
 -- name: ListBatchedQueueItemsForStep :many
+-- The inner CTE only has sargable predicates (tenant_id/step_id equality) plus an ORDER BY/LIMIT
+-- matching the v1_batched_queue_item_step_priority_idx index, so it's guaranteed a plain bounded
+-- index scan regardless of how the exclude-id filter below gets planned. The inner LIMIT is
+-- oversized by exactly the exclude count so that even in the worst case -- every excluded id
+-- sits at the front of the priority/id ordering -- there's still room for a full page of
+-- genuinely new rows after filtering, without having to scan past the entire backlog.
+WITH candidates AS (
+    SELECT
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at,
+        payload_size
+    FROM
+        v1_batched_queue_item
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND step_id = @stepId::uuid
+    ORDER BY
+        priority DESC,
+        id ASC
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 1000) + COALESCE(array_length(@excludeIds::bigint[], 1), 0)
+)
+-- sqlc.embed() only resolves against a real catalog relation, not a CTE alias, so "candidates" is
+-- re-aliased to the table's own name here purely so embed() matches it back to the existing
+-- V1BatchedQueueItem model instead of sqlc minting a new, structurally-identical row type.
 SELECT
-    id,
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    batch_key,
-    inserted_at,
-    payload_size
+    sqlc.embed(v1_batched_queue_item)
 FROM
-    v1_batched_queue_item
+    candidates AS v1_batched_queue_item
 WHERE
-    tenant_id = @tenantId::uuid
-    AND step_id = @stepId::uuid
+    id != ALL(@excludeIds::bigint[])
 ORDER BY
     priority DESC,
     id ASC
@@ -721,26 +743,22 @@ LIMIT
     COALESCE(sqlc.narg('limit')::integer, 1000);
 
 -- name: ListDistinctBatchResources :many
+-- short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
+-- batched queue item rows
 SELECT
-    b.step_id,
+    sbc.step_id,
     b.batch_key,
-    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
-    COUNT(*) AS pending_count,
     sbc.batch_max_size AS batch_max_size,
     sbc.batch_max_interval AS batch_max_interval,
     sbc.batch_group_max_runs AS batch_group_max_runs
 FROM
-    v1_batched_queue_item b
-JOIN
-    v1_step_batch_config sbc ON sbc.step_id = b.step_id
-WHERE
-    b.tenant_id = @tenantId::uuid
-GROUP BY
-    b.step_id,
-    b.batch_key,
-    sbc.step_id
-ORDER BY
-    oldest_item_at ASC;
+    v1_step_batch_config sbc
+JOIN LATERAL (
+    SELECT batch_key
+    FROM v1_batched_queue_item
+    WHERE tenant_id = @tenantId::uuid AND step_id = sbc.step_id
+    LIMIT 1
+) b ON true;
 
 -- name: MoveQueueItemsToBatchedQueue :many
 WITH locked_qis AS (

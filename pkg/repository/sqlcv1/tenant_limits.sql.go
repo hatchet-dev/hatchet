@@ -163,6 +163,60 @@ func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTe
 	return &i, err
 }
 
+const insertTenantResourceLimitsIfNotExists = `-- name: InsertTenantResourceLimitsIfNotExists :exec
+WITH input_values AS (
+    SELECT
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "window",
+        "customValueMeter"
+    FROM (
+        SELECT
+            unnest(cast($2::text[] AS "LimitResource"[])) AS "resource",
+            unnest($3::int[]) AS "limitValue",
+            unnest($4::int[]) AS "alarmValue",
+            unnest($5::text[]) AS "window",
+            unnest($6::boolean[]) AS "customValueMeter"
+    ) AS subquery
+)
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
+SELECT
+    gen_random_uuid(),
+    $1::uuid,
+    iv."resource",
+    0,
+    iv."limitValue",
+    NULLIF(iv."alarmValue", 0),
+    NULLIF(iv."window", ''),
+    iv."customValueMeter",
+    CURRENT_TIMESTAMP
+FROM input_values iv
+ON CONFLICT ("tenantId", "resource") DO NOTHING
+`
+
+type InsertTenantResourceLimitsIfNotExistsParams struct {
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Resources         []string  `json:"resources"`
+	Limitvalues       []int32   `json:"limitvalues"`
+	Alarmvalues       []int32   `json:"alarmvalues"`
+	Windows           []string  `json:"windows"`
+	Customvaluemeters []bool    `json:"customvaluemeters"`
+}
+
+// Insert-only defaults for first-use of a resource. Must not overwrite paid/custom limits.
+func (q *Queries) InsertTenantResourceLimitsIfNotExists(ctx context.Context, db DBTX, arg InsertTenantResourceLimitsIfNotExistsParams) error {
+	_, err := db.Exec(ctx, insertTenantResourceLimitsIfNotExists,
+		arg.Tenantid,
+		arg.Resources,
+		arg.Limitvalues,
+		arg.Alarmvalues,
+		arg.Windows,
+		arg.Customvaluemeters,
+	)
+	return err
+}
+
 const listTenantResourceLimits = `-- name: ListTenantResourceLimits :many
 SELECT id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter" FROM "TenantResourceLimit"
 WHERE "tenantId" = $1::uuid

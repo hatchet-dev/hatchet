@@ -68,6 +68,38 @@ ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "alarmValue" = EXCLUDED."alarmValue",
     "updatedAt" = CURRENT_TIMESTAMP;
 
+-- name: InsertTenantResourceLimitsIfNotExists :exec
+-- Insert-only defaults for first-use of a resource. Must not overwrite paid/custom limits.
+WITH input_values AS (
+    SELECT
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "window",
+        "customValueMeter"
+    FROM (
+        SELECT
+            unnest(cast(@resources::text[] AS "LimitResource"[])) AS "resource",
+            unnest(@limitValues::int[]) AS "limitValue",
+            unnest(@alarmValues::int[]) AS "alarmValue",
+            unnest(@windows::text[]) AS "window",
+            unnest(@customValueMeters::boolean[]) AS "customValueMeter"
+    ) AS subquery
+)
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "customValueMeter", "lastRefill")
+SELECT
+    gen_random_uuid(),
+    @tenantId::uuid,
+    iv."resource",
+    0,
+    iv."limitValue",
+    NULLIF(iv."alarmValue", 0),
+    NULLIF(iv."window", ''),
+    iv."customValueMeter",
+    CURRENT_TIMESTAMP
+FROM input_values iv
+ON CONFLICT ("tenantId", "resource") DO NOTHING;
+
 -- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET

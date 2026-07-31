@@ -20,15 +20,17 @@ import (
 
 type OLAPSignaler struct {
 	mq        msgqueue.MessageQueue
+	pubsub    msgqueue.PubSub
 	repo      v1.Repository
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
 	promGate  *prometheus.Gate
 }
 
-func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, promGate *prometheus.Gate) *OLAPSignaler {
+func NewOLAPSignaler(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, promGate *prometheus.Gate) *OLAPSignaler {
 	return &OLAPSignaler{
 		mq:        mq,
+		pubsub:    pubsub,
 		l:         l,
 		repo:      repo,
 		pubBuffer: pubBuffer,
@@ -118,6 +120,12 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not add message to olap queue")
 			continue
+		}
+
+		// the durable write went through the pub buffer above; this publishes the
+		// stream copy the dispatcher's workflow event subscriptions consume
+		if err := msgqueue.PubTenantMessage(ctx, s.l, nil, s.pubsub, nil, msg); err != nil {
+			s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish created-task to tenant stream")
 		}
 	}
 
@@ -267,14 +275,14 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
-			err = s.mq.SendMessage(
+			err = s.pubsub.Pub(
 				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+				msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 				msg,
 			)
 
 			if err != nil {
-				s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+				s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 			}
 		}
 	}
