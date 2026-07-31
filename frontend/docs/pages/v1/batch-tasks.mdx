@@ -13,7 +13,7 @@ to automatically accumulate tasks and execute them in a single batch. The input
 to a batch task is a map that associates the ID of the originating task with
 it's input. The output *must* be the same shape, using the same keys, to send
 outputs back to the original call site (unless output broadcasting is used, see
-[Broadcasting outputs](#broadcasting-outputs). For the caller of a batch task,
+[Broadcasting outputs](#broadcasting-outputs)). For the caller of a batch task,
 the batched execution is hidden. It is called, and receives outputs, in the same
 manner as a normal task.
 
