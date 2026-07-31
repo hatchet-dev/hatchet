@@ -25,7 +25,7 @@ import {
   WorkflowVersionTaskDesiredWorkerLabel,
   WorkflowVersionTaskRateLimit,
 } from '@/lib/api';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function topologicalSort(tasks: WorkflowVersionTask[]): WorkflowVersionTask[] {
   const byId = new Map(tasks.map((t) => [t.readableId, t]));
@@ -100,6 +100,12 @@ export default function WorkflowTasksCard({
   const [selectedTaskId, setSelectedTaskId] = useState(
     tasks[0]?.readableId ?? '',
   );
+
+  useEffect(() => {
+    if (!selectedTaskId && tasks.length > 0) {
+      setSelectedTaskId(tasks[0].readableId);
+    }
+  }, [tasks, selectedTaskId]);
 
   const selectedTask = tasks.find((t) => t.readableId === selectedTaskId);
   const selectedTaskConcurrency = (workflow.v1Concurrency ?? []).filter(

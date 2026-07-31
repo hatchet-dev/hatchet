@@ -52,6 +52,7 @@ export function MarkdownRenderer({
     >
       <Markdown
         options={{
+          disableParsingRawHTML: true,
           overrides: {
             h1: {
               props: {
@@ -75,7 +76,7 @@ export function MarkdownRenderer({
               props: {
                 className: 'text-indigo-500 hover:underline',
                 target: '_blank',
-                rel: 'noreferrer',
+                rel: 'noreferrer noopener',
               },
             },
             code: {

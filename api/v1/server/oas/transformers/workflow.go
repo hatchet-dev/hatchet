@@ -80,9 +80,13 @@ func ToWorkflowVersion(
 		WorkflowId:      version.WorkflowId.String(),
 		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
-		ScheduleTimeout: &version.ScheduleTimeout,
 		DefaultPriority: &version.DefaultPriority.Int32,
 		WorkflowConfig:  &wfConfig,
+	}
+
+	if version.ScheduleTimeout != "" {
+		scheduleTimeout := version.ScheduleTimeout
+		res.ScheduleTimeout = &scheduleTimeout
 	}
 
 	if workflow.Description.Valid && workflow.Description.String != "" {
@@ -265,7 +269,10 @@ func ToWorkflowVersionTaskRateLimits(
 	}
 
 	for _, key := range keyOrder {
-		genRl := gen.WorkflowVersionTaskRateLimit{}
+		keyCp := key
+		genRl := gen.WorkflowVersionTaskRateLimit{
+			Key: &keyCp,
+		}
 
 		for _, expr := range dynamicByKey[key] {
 			expression := expr.Expression
