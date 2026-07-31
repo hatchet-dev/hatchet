@@ -40,6 +40,7 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   idempotency: "Idempotency",
+  "batch-tasks": "Batched Tasks",
   "--durable-workflows-section": {
     title: "Durable Execution",
     type: "separator",
