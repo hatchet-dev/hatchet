@@ -48,15 +48,15 @@ type DAGStepTriggerRequest struct {
 	InvocationCount      int32
 	WorkflowName         string
 	// WorkflowVersionId pins triggering to the DAG's original version.
-	WorkflowVersionId uuid.UUID
-	ActionId          string
-	ChildIndex           int32
-	Input                string
-	AdditionalMetadata   []byte
-	DagParentTaskRunIds  []uuid.UUID
-	IsSkipped            bool
-	IsCancelled          bool
-	DesiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
+	WorkflowVersionId   uuid.UUID
+	ActionId            string
+	ChildIndex          int32
+	Input               string
+	AdditionalMetadata  []byte
+	DagParentTaskRunIds []uuid.UUID
+	IsSkipped           bool
+	IsCancelled         bool
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 
 	// ParentReExecuted forces the step to re-run during a replay when any of its parents
 	// re-executed this invocation.
