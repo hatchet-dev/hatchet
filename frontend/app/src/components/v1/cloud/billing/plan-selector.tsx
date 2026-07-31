@@ -69,11 +69,11 @@ export function PlanSelector({
   selectLabel,
   coupons,
 }: PlanSelectorProps) {
-  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
-    enabled: isControlPlaneEnabled && !!controlPlaneMeta?.canBill,
+    enabled: isControlPlaneEnabled && canBill,
   });
 
   const plans = plansQuery.data?.plans;
