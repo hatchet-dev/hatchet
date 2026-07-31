@@ -3,13 +3,11 @@
 package client
 
 // Invariant tests for the reconnect handoff, driven through the public
-// listener API and the constructor seam only — no hooks into the stream's
-// internal synchronization — so they hold for any correct handoff
-// implementation. The property under test:
+// listener API (the internals are a blackbox)
 //
-//	Every AddWorkflowRun that returns nil has its run ID sent on the stream
-//	that is current once the system quiesces — either directly, or via
-//	replay onto a replacement stream.
+// The property under test:
+//
+//	Every AddWorkflowRun that returns no error has its run ID sent to the server.
 
 import (
 	"context"
