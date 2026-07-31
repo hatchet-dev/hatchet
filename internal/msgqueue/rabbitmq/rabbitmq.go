@@ -29,10 +29,6 @@ const MAX_RETRY_COUNT = 15
 const RETRY_INTERVAL = 2 * time.Second
 const RETRY_RESET_INTERVAL = 30 * time.Second
 
-// maxPayloadSize is the maximum size of a single published AMQP message body;
-// larger messages are recursively split into payload chunks.
-const maxPayloadSize = 16 * 1024 * 1024 // 16 MB
-
 // consumerTimeout is the x-consumer-timeout applied to declared queues: the
 // broker requeues a delivery if it isn't acked within this window.
 const consumerTimeout = 5 * time.Minute
@@ -359,9 +355,9 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	bodySize := len(body)
 
-	if bodySize > maxPayloadSize {
+	if bodySize > msgqueue.MaxMessageSize {
 		if len(msg.Payloads) == 1 {
-			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, maxPayloadSize)
+			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, msgqueue.MaxMessageSize)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
 			return err
@@ -407,9 +403,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			Msg("sending a very large message, this may impact performance")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	t.l.Debug().Msgf("publishing msg to queue %s", q.Name())
 
 	pubMsg := amqp.Publishing{
@@ -444,6 +437,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.SetAttributes(spanAttrs...)
 
+	// no timeout here on purpose: amqp091-go takes the context as `_` and
+	// clears socket deadlines after the handshake, so a publish is bounded
+	// only by TCP flow control. confirms are off, so a nil error means the
+	// frames were written, not that the broker accepted them
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
 	// retry failed delivery on the next session
