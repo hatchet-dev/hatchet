@@ -123,7 +123,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     with open(filename) as f:
         content = f.read()
 
-    code_path = f"examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
+    code_path = f"examples/{ctx.name.lower()}{filename.replace(os.sep, '/').replace('\\', '/').replace(base_path.replace(os.sep, '/'), '')}"
 
     github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/{code_path}"
 
@@ -159,7 +159,7 @@ def process_example(ctx: SDKParsingContext, filename: str) -> ProcessedExample:
         return ProcessedExample(
             context=ctx,
             filepath=filename,
-            output_path=f"examples/{ctx.name.lower()}{filename.replace(ROOT + ctx.value.example_path, '')}",
+            output_path=f"examples/{ctx.name.lower()}{filename.replace(os.sep, '/').replace('\\', '/').replace((ROOT + ctx.value.example_path).replace(os.sep, '/'), '')}",
             snippets=parse_snippets(ctx, filename),
             raw_content=content,
         )
@@ -337,7 +337,8 @@ def write_doc_index_to_app() -> None:
             )
 
             keys = (
-                filename.replace(pages_dir, "")
+                filename.replace(os.sep, "/").replace("\\", "/")
+                .replace(pages_dir.replace(os.sep, "/"), "")
                 .replace("_meta.js", "")
                 .rstrip("/")
                 .split("/")
