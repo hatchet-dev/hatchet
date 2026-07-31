@@ -46,8 +46,9 @@ type reconnectingStream[C any] struct {
 	mu         sync.Mutex
 	// sendMu serializes SendMsg and CloseSend on published clients: grpc-go
 	// allows only one concurrent sender, and CloseSend must not run
-	// concurrently with SendMsg. Held only around those calls, never across
-	// reconnect or backoff. Lock order is sendMu → mu, never reverse.
+	// concurrently with SendMsg. It also makes replay, publication, and
+	// retirement one atomic handoff. Never held during construction or
+	// backoff. Lock order is sendMu → mu, never reverse.
 	sendMu    sync.Mutex
 	hasClient bool
 	closed    bool
@@ -103,7 +104,9 @@ func (s *reconnectingStream[C]) setInitialClient(client C) {
 	s.hasClient = true
 }
 
-func (s *reconnectingStream[C]) installClient(client C) error {
+// installClientLocked publishes client and retires the previous client. The
+// caller must hold sendMu.
+func (s *reconnectingStream[C]) installClientLocked(client C) error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -118,9 +121,7 @@ func (s *reconnectingStream[C]) installClient(client C) error {
 	s.mu.Unlock()
 
 	if hadOldClient && s.closeSend != nil {
-		s.sendMu.Lock()
 		err := s.closeSend(oldClient)
-		s.sendMu.Unlock()
 		if err != nil {
 			s.l.Warn().Err(err).Str("stream", s.name).Msg("failed to close replaced stream client")
 		}
@@ -153,6 +154,9 @@ func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
 			return nil, err
 		}
 
+		s.sendMu.Lock()
+		defer s.sendMu.Unlock()
+
 		if s.replay != nil {
 			if err := s.replay(ctx, client); err != nil {
 				if s.closeSend != nil {
@@ -162,7 +166,7 @@ func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
 			}
 		}
 
-		if err := s.installClient(client); err != nil {
+		if err := s.installClientLocked(client); err != nil {
 			if s.closeSend != nil {
 				_ = s.closeSend(client)
 			}
