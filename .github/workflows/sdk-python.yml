@@ -104,34 +104,29 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Start Docker dependencies
-        working-directory: .
-        run: docker compose up -d
+      - name: Cache embedded Postgres binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/hatchet-embedded-postgres
+          key: embedded-postgres-${{ runner.os }}-1.34.0
 
-      - name: Generate
+      - name: Start embedded Hatchet
         working-directory: .
+        env:
+          SERVER_OPTIMISTIC_SCHEDULING_ENABLED: ${{ matrix.optimistic-scheduling }}
+          SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED: ${{ matrix.concurrency-in-memory-index }}
+          SERVER_OBSERVABILITY_ENABLED: "true"
         run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
+          go run ./cmd/hatchet-embedded --env-file "$GITHUB_WORKSPACE/.hatchet-embed.env" --pg-version 18 > engine.log 2>&1 &
+          for _ in $(seq 1 60); do
+            [ -f "$GITHUB_WORKSPACE/.hatchet-embed.env" ] && break
+            sleep 2
+          done
+          if [ ! -f "$GITHUB_WORKSPACE/.hatchet-embed.env" ]; then
+            echo "embedded Hatchet did not become ready"; cat engine.log; exit 1
+          fi
+          cat "$GITHUB_WORKSPACE/.hatchet-embed.env" >> "$GITHUB_ENV"
 
-      - name: Setup
-        working-directory: .
-        run: |
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-          export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
-          export SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=${{ matrix.concurrency-in-memory-index }}
-          export SERVER_OBSERVABILITY_ENABLED=true
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
-
-          sleep 30
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -153,8 +148,6 @@ jobs:
       - name: Generate Env File
         working-directory: .
         run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True" >> $GITHUB_ENV
 
       - name: Set HATCHET_CLIENT_NAMESPACE
@@ -166,7 +159,6 @@ jobs:
       - name: Run pytest
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          export HATCHET_CLIENT_SERVER_URL=http://localhost:8080
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8
 
       - name: Test with wheel
@@ -182,13 +174,6 @@ jobs:
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-engine-logs
           path: engine.log
-
-      - name: Upload API logs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-api-logs
-          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4

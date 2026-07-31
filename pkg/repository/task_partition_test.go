@@ -15,34 +15,21 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/embed/embeddedpg"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
-	postgresContainer, err := postgres.Run(ctx,
-		"postgres:15.6",
-		postgres.WithDatabase("hatchet"),
-		postgres.WithUsername("hatchet"),
-		postgres.WithPassword("hatchet"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-	)
+	pg, err := embeddedpg.Start("hatchet", "hatchet", "hatchet", 0, "18")
 	require.NoError(t, err)
 
-	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
+	connStr := pg.ConnStr
 
-	t.Logf("PostgreSQL container started with connection string: %s", connStr)
+	t.Logf("PostgreSQL started with connection string: %s", connStr)
 
 	originalDatabaseURL := os.Getenv("DATABASE_URL")
 	err = os.Setenv("DATABASE_URL", connStr)
@@ -71,7 +58,7 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 
 	cleanup := func() {
 		pool.Close()
-		postgresContainer.Terminate(ctx)
+		_ = pg.Stop()
 		if originalDatabaseURL != "" {
 			os.Setenv("DATABASE_URL", originalDatabaseURL)
 		} else {

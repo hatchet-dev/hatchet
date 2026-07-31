@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/embed"
+	"github.com/hatchet-dev/hatchet/embed/embeddedpg"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -27,15 +29,26 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	client, err := hatchet.NewClient()
+	ctx := context.Background()
+
+	pg, err := embeddedpg.Start("hatchet", "hatchet", "hatchet", 0, "18")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create hatchet client: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to start embedded postgres: %v\n", err)
 		os.Exit(1)
 	}
-	sharedClient = client
 
-	worker, cleanup, err := startTestWorker(client)
+	inst, err := embed.Start(ctx, embed.WithPostgres(pg.ConnStr))
 	if err != nil {
+		_ = pg.Stop()
+		fmt.Fprintf(os.Stderr, "failed to start embedded hatchet: %v\n", err)
+		os.Exit(1)
+	}
+	sharedClient = inst.Client()
+
+	worker, cleanup, err := startTestWorker(sharedClient)
+	if err != nil {
+		_ = inst.Shutdown(context.Background())
+		_ = pg.Stop()
 		fmt.Fprintf(os.Stderr, "failed to start test worker: %v\n", err)
 		os.Exit(1)
 	}
@@ -47,6 +60,8 @@ func TestMain(m *testing.M) {
 	if sharedCleanup != nil {
 		_ = sharedCleanup()
 	}
+	_ = inst.Shutdown(context.Background())
+	_ = pg.Stop()
 
 	os.Exit(code)
 }
