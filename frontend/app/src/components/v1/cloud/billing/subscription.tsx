@@ -132,14 +132,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const [submittedPlanCode, setSubmittedPlanCode] = useState<string>();
 
   const { tenantId, tenant, billing, organizationId } = useTenantDetails();
-  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { handleApiError } = useApiError({});
   const pylon = usePylon();
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
     ...queries.controlPlane.creditBalance(organizationId || ''),
-    enabled:
-      isControlPlaneEnabled && !!controlPlaneMeta?.canBill && !!organizationId,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
 
   const creditBalance = useMemo(() => {
