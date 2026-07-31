@@ -436,7 +436,7 @@ export function SearchBarWithFilters<
               }}
               placeholder={placeholder}
               className={cn(
-                'pl-9 pr-8',
+                'h-8 pl-9 pr-8',
                 hasColoredFilters && 'text-transparent',
               )}
               style={
