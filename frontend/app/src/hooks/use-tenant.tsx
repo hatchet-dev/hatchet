@@ -1,4 +1,4 @@
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import api, {
   UpdateTenantRequest,
   Tenant,
@@ -139,7 +139,7 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const { cloud, isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled, canBill } = useControlPlane();
 
   const organizationId = useMemo(() => {
     if (!appContext.isUserUniverseLoaded || !appContext.organizations) {
@@ -159,14 +159,14 @@ export function useTenantDetails() {
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organizationId || ''),
-    enabled: !!organizationId && isCloudEnabled && !!cloud?.canBill,
+    enabled: !!organizationId && isControlPlaneEnabled && canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
     ...queries.controlPlane.paymentMethods(organizationId || ''),
-    enabled: !!organizationId && !!cloud?.canBill,
+    enabled: !!organizationId && canBill,
     retry: false,
   });
 
@@ -179,7 +179,7 @@ export function useTenantDetails() {
   }, [billingState.data?.currentSubscription?.plan]);
 
   const billingContext: BillingContext | undefined = useMemo(() => {
-    if (!cloud?.canBill) {
+    if (!canBill) {
       return;
     }
 
@@ -194,7 +194,7 @@ export function useTenantDetails() {
       isLoading,
     };
   }, [
-    cloud?.canBill,
+    canBill,
     billingState.data,
     paymentMethodsQuery.data,
     paymentMethodsQuery.isLoading,
@@ -207,10 +207,9 @@ export function useTenantDetails() {
       return evalFn({
         tenant,
         billing: billingContext,
-        meta: cloud ?? undefined,
       });
     },
-    [billingContext, cloud, tenant],
+    [billingContext, tenant],
   );
 
   return {

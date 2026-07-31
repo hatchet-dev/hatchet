@@ -40,7 +40,6 @@ import {
   ManagedWorkerList,
   ManagementTokenList,
   Matrix,
-  MonthlyComputeCost,
   Organization,
   OrganizationForUserList,
   OrganizationInviteList,
@@ -337,24 +336,6 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Get the total compute costs for the tenant
-   *
-   * @tags Cost
-   * @name ComputeCostGet
-   * @summary Get Managed Worker Cost
-   * @request GET:/api/v1/cloud/tenants/{tenant}/managed-worker/cost
-   * @secure
-   */
-  computeCostGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<MonthlyComputeCost, APIErrors>({
-      path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
-      method: "GET",
-      secure: true,
       format: "json",
       ...params,
       xResources: ["tenant"],

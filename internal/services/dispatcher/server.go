@@ -1848,40 +1848,97 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
-
+	increment, err := time.ParseDuration(request.IncrementTimeoutBy)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "invalid increment timeout by %s: %v", request.IncrementTimeoutBy, err)
 	}
 
-	workerId := taskRuntime.WorkerID
-
-	// send to the OLAP repository
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskRuntime.TaskID,
-			RetryCount:     taskRuntime.RetryCount,
-			WorkerId:       workerId,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
-		},
-	)
-
-	if err != nil {
-		return nil, err
+	key := refreshTimeoutKey{
+		tenantId:       tenantId,
+		taskExternalId: taskExternalId,
 	}
+	d.refreshTimeoutBuf.add(key, increment)
 
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
+	timeoutAt, err, _ := d.refreshTimeoutGroup.Do(key.String(), func() (interface{}, error) {
+		return d.flushRefreshTimeout(ctx, key)
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.RefreshTimeoutResponse{
-		TimeoutAt: timestamppb.New(taskRuntime.TimeoutAt.Time),
+		TimeoutAt: timestamppb.New(timeoutAt.(time.Time)),
 	}, nil
+}
+
+func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTimeoutKey) (time.Time, error) {
+	if !d.refreshTimeoutBuf.shouldFlush(key) {
+		if timeoutAt, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
+			d.refreshTimeoutBuf.scheduleTrailingFlush(key, func(k refreshTimeoutKey) {
+				flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
+					return d.flushRefreshTimeout(flushCtx, k)
+				})
+				if err != nil {
+					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
+				}
+			})
+			return timeoutAt, nil
+		}
+	}
+
+	var timeoutAt time.Time
+
+	for {
+		sum, ok := d.refreshTimeoutBuf.take(key)
+		if !ok {
+			if !timeoutAt.IsZero() {
+				return timeoutAt, nil
+			}
+			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
+				return cached, nil
+			}
+			return time.Time{}, fmt.Errorf("no buffered refresh timeout for %s", key)
+		}
+
+		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
+			TaskExternalId:     key.taskExternalId,
+			IncrementTimeoutBy: sum.String(),
+		})
+		if err != nil {
+			// Put the failed sum back so a retry can flush it.
+			d.refreshTimeoutBuf.add(key, sum)
+			return time.Time{}, err
+		}
+
+		timeoutAt = taskRuntime.TimeoutAt.Time
+		d.refreshTimeoutBuf.markFlushed(key, timeoutAt)
+
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			key.tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         taskRuntime.TaskID,
+				RetryCount:     taskRuntime.RetryCount,
+				WorkerId:       taskRuntime.WorkerID,
+				EventTimestamp: time.Now(),
+				EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+				EventMessage:   fmt.Sprintf("Timeout refreshed by %s", sum.String()),
+			},
+		)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return time.Time{}, err
+		}
+
+		if !d.refreshTimeoutBuf.hasPending(key) {
+			return timeoutAt, nil
+		}
+	}
 }
 
 func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
