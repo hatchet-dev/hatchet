@@ -104,12 +104,6 @@ func (s *reconnectingStream[C]) setInitialClient(client C) {
 	s.hasClient = true
 }
 
-func (s *reconnectingStream[C]) installClient(client C) error {
-	s.sendMu.Lock()
-	defer s.sendMu.Unlock()
-	return s.installClientLocked(client)
-}
-
 // installClientLocked publishes client and retires the previous client. The
 // caller must hold sendMu.
 func (s *reconnectingStream[C]) installClientLocked(client C) error {
