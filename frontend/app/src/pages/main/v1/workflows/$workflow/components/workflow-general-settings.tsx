@@ -1,44 +1,24 @@
-import { EmptyState, FieldLabel } from './settings-primitives';
+import {
+  EmptyState,
+  FieldLabel,
+  formatLimitStrategy,
+} from './settings-primitives';
 import { Badge } from '@/components/v1/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { MarkdownRenderer } from '@/components/v1/ui/markdown';
 import {
-  ConcurrencyLimitStrategy,
   ConcurrencyScope,
   ConcurrencySetting,
   WorkflowVersion,
 } from '@/lib/api';
 import { formatCron } from '@/lib/cron';
-
-function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
-  switch (strategy) {
-    case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
-      return 'Cancel In Progress';
-    case ConcurrencyLimitStrategy.DROP_NEWEST:
-      return 'Drop Newest';
-    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
-      return 'Queue Newest';
-    case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
-      return 'Group Round Robin';
-    default: {
-      const exhaustiveCheck: never = strategy;
-      return exhaustiveCheck;
-    }
-  }
-}
-
-function formatScope(scope: ConcurrencyScope): string {
-  switch (scope) {
-    case ConcurrencyScope.WORKFLOW:
-      return 'Workflow';
-    case ConcurrencyScope.TASK:
-      return 'Task';
-    default: {
-      const exhaustiveCheck: never = scope;
-      return exhaustiveCheck;
-    }
-  }
-}
+import { cn } from '@/lib/utils';
 
 export default function WorkflowGeneralSettings({
   workflow,
@@ -50,57 +30,61 @@ export default function WorkflowGeneralSettings({
   const hasCrons =
     !!workflow.triggers?.crons && workflow.triggers.crons.length > 0;
   const hasTriggers = hasEvents || hasCrons;
-  const concurrency = workflow.v1Concurrency ?? [];
-  const hasExecution =
-    !!workflow.idempotency ||
-    !!workflow.sticky ||
-    !!workflow.defaultPriority ||
-    !!workflow.scheduleTimeout;
+  const concurrency = (workflow.v1Concurrency ?? []).filter(
+    (c) => c.scope === ConcurrencyScope.WORKFLOW,
+  );
+  const hasIdempotency = !!workflow.idempotency;
+  const hasMisc = !!workflow.sticky || workflow.defaultPriority != null;
+  const hasExecution = hasIdempotency || hasMisc;
 
   return (
-    <div className="flex flex-col gap-6 px-1">
-      <div className="flex flex-wrap items-start gap-x-10 gap-y-8">
-        {workflow.description && (
-          <Section
-            title="Description"
-            className="min-w-[320px] flex-[2] text-sm leading-relaxed"
-          >
-            <MarkdownRenderer content={workflow.description} />
-          </Section>
-        )}
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {workflow.description && (
+        <Section
+          title="Description"
+          className="text-sm leading-relaxed"
+          cardClassName="md:col-span-2"
+        >
+          <MarkdownRenderer content={workflow.description} />
+        </Section>
+      )}
 
-        {hasTriggers && (
-          <Section title="Triggers" className="min-w-[240px] flex-1">
-            <TriggerSettings workflow={workflow} />
-          </Section>
-        )}
+      {hasTriggers && (
+        <Section title="Triggers">
+          <TriggerSettings workflow={workflow} />
+        </Section>
+      )}
 
+      {concurrency.length > 0 && (
         <Section
           title="Concurrency"
-          className="min-w-[280px] flex-1"
           titleRight={
-            concurrency.length > 0 ? (
-              <span className="text-xs text-muted-foreground">
-                {concurrency.length} limit{concurrency.length === 1 ? '' : 's'}
-              </span>
-            ) : undefined
+            <span className="text-xs text-muted-foreground">
+              {concurrency.length} limit{concurrency.length === 1 ? '' : 's'}
+            </span>
           }
         >
-          {concurrency.length > 0 ? (
-            <ConcurrencySettings concurrency={concurrency} />
-          ) : (
-            <EmptyState message="No concurrency limits configured for this workflow." />
-          )}
+          <ConcurrencySettings concurrency={concurrency} />
         </Section>
+      )}
 
-        <Section title="Execution" className="min-w-[280px] flex-1">
-          {hasExecution ? (
-            <ExecutionSettings workflow={workflow} />
-          ) : (
-            <EmptyState message="No additional execution configuration set for this workflow." />
-          )}
+      {!hasExecution && (
+        <Section title="Execution">
+          <EmptyState message="No additional execution configuration set for this workflow." />
         </Section>
-      </div>
+      )}
+
+      {hasIdempotency && (
+        <Section title="Idempotency">
+          <IdempotencySettings workflow={workflow} />
+        </Section>
+      )}
+
+      {hasMisc && (
+        <Section title="Misc">
+          <MiscSettings workflow={workflow} />
+        </Section>
+      )}
     </div>
   );
 }
@@ -109,21 +93,25 @@ function Section({
   title,
   titleRight,
   className,
+  cardClassName,
   children,
 }: {
   title: string;
   titleRight?: React.ReactNode;
   className?: string;
+  cardClassName?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className={className}>
-      <div className="mb-3 flex items-baseline justify-between gap-2 border-b border-border pb-2">
-        <h3 className="text-[15px] font-semibold text-foreground">{title}</h3>
+    <Card className={cn('bg-muted/30', cardClassName)}>
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base">{title}</CardTitle>
         {titleRight}
-      </div>
-      {children}
-    </div>
+      </CardHeader>
+      <CardContent className={cn('max-h-80 overflow-y-auto', className)}>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -191,14 +179,10 @@ function ConcurrencySettings({
     <div className="text-xs">
       {concurrency.map((c, i) => (
         <div
-          key={`${c.scope}-${c.stepReadableId ?? 'workflow'}-${i}`}
+          key={i}
           className="space-y-1.5 border-border py-2.5 first:pt-0 last:pb-0 [&:not(:last-child)]:border-b"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono font-semibold text-foreground">
-              {c.stepReadableId || formatScope(c.scope)}
-            </span>
-            <span className="text-muted-foreground">·</span>
             <span className="text-foreground">Max {c.maxRuns}</span>
             <span className="text-muted-foreground">·</span>
             <Badge variant="secondary" className="font-normal">
@@ -212,23 +196,30 @@ function ConcurrencySettings({
   );
 }
 
-function ExecutionSettings({ workflow }: { workflow: WorkflowVersion }) {
+function IdempotencySettings({ workflow }: { workflow: WorkflowVersion }) {
+  if (!workflow.idempotency) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-3 text-xs">
+      <div>
+        <FieldLabel>Idempotency Expression</FieldLabel>
+        <ExpressionBlock code={workflow.idempotency.expression} />
+      </div>
+      <div>
+        <FieldLabel>Idempotency TTL</FieldLabel>
+        <div className="text-foreground">
+          {workflow.idempotency.ttlMs.toLocaleString()} ms
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiscSettings({ workflow }: { workflow: WorkflowVersion }) {
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-      {workflow.idempotency && (
-        <div className="col-span-2">
-          <FieldLabel>Idempotency Expression</FieldLabel>
-          <ExpressionBlock code={workflow.idempotency.expression} />
-        </div>
-      )}
-      {workflow.idempotency && (
-        <div>
-          <FieldLabel>Idempotency TTL</FieldLabel>
-          <div className="text-foreground">
-            {workflow.idempotency.ttlMs.toLocaleString()} ms
-          </div>
-        </div>
-      )}
       {workflow.sticky && (
         <div>
           <FieldLabel>Sticky Strategy</FieldLabel>
@@ -239,14 +230,6 @@ function ExecutionSettings({ workflow }: { workflow: WorkflowVersion }) {
         <div>
           <FieldLabel>Default Priority</FieldLabel>
           <div className="text-foreground">{workflow.defaultPriority}</div>
-        </div>
-      )}
-      {workflow.scheduleTimeout && (
-        <div>
-          <FieldLabel>Schedule Timeout</FieldLabel>
-          <div className="font-mono text-foreground">
-            {workflow.scheduleTimeout}
-          </div>
         </div>
       )}
     </div>

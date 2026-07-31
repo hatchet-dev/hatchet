@@ -4,7 +4,7 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { WorkflowTags } from '../components/workflow-tags';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
-import WorkflowShapeTab from './components/workflow-shape-tab';
+import WorkflowTasksCard from './components/workflow-tasks-card';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -115,7 +115,7 @@ export default function ExpandedWorkflow() {
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   const activeTab = tab ?? 'runs';
-  const setTab = (value: 'runs' | 'shape' | 'settings') =>
+  const setTab = (value: 'runs' | 'settings') =>
     navigate({
       to: appRoutes.tenantWorkflowRoute.to,
       params: { tenant: tenantId, workflow: params.workflow },
@@ -126,8 +126,8 @@ export default function ExpandedWorkflow() {
   return (
     <Tabs
       value={activeTab}
-      onValueChange={(value) => setTab(value as 'runs' | 'shape' | 'settings')}
-      className="flex h-full w-full flex-grow flex-col gap-y-4 overflow-hidden"
+      onValueChange={(value) => setTab(value as 'runs' | 'settings')}
+      className="flex h-full w-full flex-grow flex-col overflow-hidden"
     >
       <div className="flex-shrink-0 p-4">
         <div className="flex flex-row items-center justify-between">
@@ -202,27 +202,14 @@ export default function ExpandedWorkflow() {
           <TabsTrigger variant="underlined" value="runs">
             Runs
           </TabsTrigger>
-          <TabsTrigger variant="underlined" value="shape">
-            Shape
-          </TabsTrigger>
           <TabsTrigger variant="underlined" value="settings">
             Settings
           </TabsTrigger>
         </TabsList>
       </div>
-      <div className="min-h-0 flex-1 px-4 sm:px-6 lg:px-8">
-        <TabsContent value="runs" className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col px-6">
+        <TabsContent value="runs" className="min-h-0 flex-1 overflow-hidden">
           <RecentRunsList />
-        </TabsContent>
-        <TabsContent
-          value="shape"
-          className="min-h-0 flex-1 overflow-y-auto pt-4 pb-8"
-        >
-          {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
-            <Loading />
-          ) : (
-            <WorkflowShapeTab workflow={workflowVersionQuery.data} />
-          )}
         </TabsContent>
         <TabsContent
           value="settings"
@@ -231,7 +218,10 @@ export default function ExpandedWorkflow() {
           {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
             <Loading />
           ) : (
-            <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
+            <div className="flex flex-col gap-4">
+              <WorkflowTasksCard workflow={workflowVersionQuery.data} />
+              <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
+            </div>
           )}
 
           <ConfirmDialog
