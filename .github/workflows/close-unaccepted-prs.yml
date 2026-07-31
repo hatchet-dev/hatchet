@@ -27,6 +27,8 @@ jobs:
             const ACCEPTED_LABEL = 'accepted';
             const MARKER = '<!-- close-unaccepted-prs -->';
             const EXEMPT_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+            // Only PRs opened on or after this instant are eligible to be closed.
+            const CUTOFF = Date.parse('2026-08-01T00:00:00Z');
 
             const message = [
               MARKER,
@@ -45,7 +47,7 @@ jobs:
               "2. Once the issue is accepted, link it from this PR using a closing keyword " +
                 "(e.g. `Closes #123`) in the description and reopen the PR.",
               "",
-              "Thanks again for contributing to Hatchet! :rocket:",
+              "Thanks again for contributing to Hatchet! :axe:",
             ].join('\n');
 
             async function linkedAcceptedIssue(number) {
@@ -86,6 +88,10 @@ jobs:
             async function processPR(pr) {
               const number = pr.number;
 
+              if (Date.parse(pr.created_at) < CUTOFF) {
+                core.info(`#${number}: opened before cutoff, skipping`);
+                return;
+              }
               if (pr.draft) {
                 core.info(`#${number}: draft, skipping`);
                 return;
