@@ -33,12 +33,11 @@ type reconnectingStream[C any] struct {
 	// no-op; production uses retry.SleepStreamBackoff.
 	sleep func(ctx context.Context, attempt int) error
 
-	constructor        func(context.Context) (C, error)
-	lifecycleCancel    context.CancelFunc
-	replay             func(context.Context, C) error
-	closeSend          func(C) error
-	onSendMuContention func()
-	l                  *zerolog.Logger
+	constructor     func(context.Context) (C, error)
+	lifecycleCancel context.CancelFunc
+	replay          func(context.Context, C) error
+	closeSend       func(C) error
+	l               *zerolog.Logger
 
 	// name identifies the stream in log messages ("workflow run listener", …).
 	name string
@@ -240,12 +239,7 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
 		var gen uint64
 		err := func() error {
-			if !s.sendMu.TryLock() {
-				if s.onSendMuContention != nil {
-					s.onSendMuContention()
-				}
-				s.sendMu.Lock()
-			}
+			s.sendMu.Lock()
 			defer s.sendMu.Unlock()
 
 			client, g, ok := s.snapshot()
