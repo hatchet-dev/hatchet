@@ -181,6 +181,7 @@ func newCreateTasksParams(n int) sqlcv1.CreateTasksParams {
 		RetryMaxBackoff:              make([]pgtype.Int4, n),
 		WorkflowVersionIds:           make([]uuid.UUID, n),
 		WorkflowRunIds:               make([]uuid.UUID, n),
+		IsDagOrchestrators:           make([]bool, n),
 	}
 }
 
