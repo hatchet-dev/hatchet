@@ -44,14 +44,6 @@ module HatchetSdkRest
 
     attr_accessor :v1_concurrency
 
-    # The workflow description (may contain markdown).
-    attr_accessor :description
-
-    attr_accessor :idempotency
-
-    # The tasks in the workflow, including their DAG dependencies and per-task configuration.
-    attr_accessor :tasks
-
     # The JSON schema for the workflow input.
     attr_accessor :input_json_schema
 
@@ -71,9 +63,6 @@ module HatchetSdkRest
         :'jobs' => :'jobs',
         :'workflow_config' => :'workflowConfig',
         :'v1_concurrency' => :'v1Concurrency',
-        :'description' => :'description',
-        :'idempotency' => :'idempotency',
-        :'tasks' => :'tasks',
         :'input_json_schema' => :'inputJsonSchema'
       }
     end
@@ -104,9 +93,6 @@ module HatchetSdkRest
         :'jobs' => :'Array<Job>',
         :'workflow_config' => :'Object',
         :'v1_concurrency' => :'Array<ConcurrencySetting>',
-        :'description' => :'String',
-        :'idempotency' => :'WorkflowVersionIdempotency',
-        :'tasks' => :'Array<WorkflowVersionTask>',
         :'input_json_schema' => :'Object'
       }
     end
@@ -194,20 +180,6 @@ module HatchetSdkRest
       if attributes.key?(:'v1_concurrency')
         if (value = attributes[:'v1_concurrency']).is_a?(Array)
           self.v1_concurrency = value
-        end
-      end
-
-      if attributes.key?(:'description')
-        self.description = attributes[:'description']
-      end
-
-      if attributes.key?(:'idempotency')
-        self.idempotency = attributes[:'idempotency']
-      end
-
-      if attributes.key?(:'tasks')
-        if (value = attributes[:'tasks']).is_a?(Array)
-          self.tasks = value
         end
       end
 
@@ -309,9 +281,6 @@ module HatchetSdkRest
           jobs == o.jobs &&
           workflow_config == o.workflow_config &&
           v1_concurrency == o.v1_concurrency &&
-          description == o.description &&
-          idempotency == o.idempotency &&
-          tasks == o.tasks &&
           input_json_schema == o.input_json_schema
     end
 
@@ -324,7 +293,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, version, order, workflow_id, sticky, default_priority, workflow, concurrency, triggers, schedule_timeout, jobs, workflow_config, v1_concurrency, description, idempotency, tasks, input_json_schema].hash
+      [metadata, version, order, workflow_id, sticky, default_priority, workflow, concurrency, triggers, schedule_timeout, jobs, workflow_config, v1_concurrency, input_json_schema].hash
     end
 
     # Builds the object from hash
