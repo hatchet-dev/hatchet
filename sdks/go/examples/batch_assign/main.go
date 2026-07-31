@@ -55,6 +55,7 @@ func main() {
 			MaxInterval: durationPtr(200 * time.Millisecond),
 		},
 	)
+	// !!
 
 	// > Declaring a keyed batch task
 	batchKeyed := client.NewStandaloneBatchTask("batch-keyed",
@@ -81,6 +82,7 @@ func main() {
 			GroupKey:    stringPtr("input.group"),
 		},
 	)
+	// !!
 
 	// > Declaring a broadcast batch task
 	batchBroadcast := client.NewStandaloneBatchTask("batch-broadcast",
@@ -97,6 +99,7 @@ func main() {
 			BroadcastOutput: true,
 		},
 	)
+	// !!
 
 	worker, err := client.NewWorker("batch-assign-worker",
 		hatchet.WithWorkflows(batchSimple, batchKeyed, batchBroadcast),
