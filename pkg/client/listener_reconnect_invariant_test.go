@@ -2,16 +2,14 @@
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
-// Invariant tests for the reconnect handoff, driven entirely through the
-// public listener API and the constructor seam. The property under test:
+// Invariant tests for the reconnect handoff, driven through the public
+// listener API and the constructor seam only — no hooks into the stream's
+// internal synchronization — so they hold for any correct handoff
+// implementation. The property under test:
 //
 //	Every AddWorkflowRun that returns nil has its run ID sent on the stream
 //	that is current once the system quiesces — either directly, or via
 //	replay onto a replacement stream.
-//
-// These tests deliberately avoid internal synchronization hooks so they hold
-// for any correct implementation of the handoff, not just the current
-// lock-based one.
 
 import (
 	"context"
@@ -36,11 +34,10 @@ import (
 
 // recordingStream is a mock subscribe stream that records every run ID it
 // accepts, so tests can assert which subscriptions each stream instance
-// actually received. It models the two ways a real stream dies:
+// received. It models the two ways a real stream dies:
 //
-//   - breakRecv: the server hangs up. Recv fails, but local Sends still
-//     succeed — the shape of the original lost-subscription bug, where a
-//     registration was written to a retiring stream without error.
+//   - breakRecv: server hangup. Recv fails, but the half-dead stream still
+//     accepts local Sends without error.
 //   - breakAll: full transport failure. Sends fail too.
 type recordingStream struct {
 	onSend   func(s *recordingStream, runID string)
@@ -151,10 +148,9 @@ func waitOrFatal(t *testing.T, ch <-chan struct{}, what string) {
 
 // TestAddWorkflowRunDuringReconnectLandsOnReplacement holds a reconnect open
 // mid-replay (at the stream boundary: the replacement's first Send blocks)
-// and registers a run while the handoff window is open. Regardless of how
-// the registration interleaves with the handoff, it must end up on the
-// replacement stream. Before the atomic-handoff fix, the registration was
-// written to the retiring stream and lost.
+// and registers a run while the handoff window is open. However the
+// registration interleaves with the handoff, it must end up on the
+// replacement stream.
 func TestAddWorkflowRunDuringReconnectLandsOnReplacement(t *testing.T) {
 	logger := zerolog.Nop()
 	replayStarted := make(chan struct{})
@@ -162,8 +158,8 @@ func TestAddWorkflowRunDuringReconnectLandsOnReplacement(t *testing.T) {
 	var replayOnce sync.Once
 
 	factory := &recordingStreamFactory{
-		// Applies to streams created by the factory; stream 1 is the
-		// replacement whose replay we hold open.
+		// Stream 1 is the replacement; park its first send (the replay)
+		// until releaseReplay closes.
 		onSend: func(s *recordingStream, runID string) {
 			if s.id == 1 {
 				replayOnce.Do(func() { close(replayStarted) })
@@ -179,20 +175,19 @@ func TestAddWorkflowRunDuringReconnectLandsOnReplacement(t *testing.T) {
 	require.True(t, factory.get(0).saw("existing-run"))
 
 	// Server hangup on stream 0: the run loop reconnects and replays onto
-	// stream 1, where the first Send parks until releaseReplay. Local sends
-	// on stream 0 still succeed, as they do on a real half-dead stream.
+	// stream 1, where the first Send parks. Sends on stream 0 still succeed.
 	factory.get(0).breakRecv()
 	waitOrFatal(t, replayStarted, "replay to reach the replacement stream")
 
-	// The handoff window is provably open; register a run inside it.
+	// The handoff is now provably mid-replay; register a run inside it.
 	addErr := make(chan error, 1)
 	go func() {
 		addErr <- listener.AddWorkflowRun("late-run", "late-session", nopWorkflowRunHandler)
 	}()
 
-	// Give the add time to reach the window. If it misses, it sends on the
-	// installed replacement and the invariant below still legitimately holds,
-	// so this can never cause a false failure.
+	// Give the registration time to reach the window. If it misses, it
+	// sends on the installed replacement and the assertions below still
+	// legitimately hold, so this can never cause a false failure.
 	time.Sleep(20 * time.Millisecond)
 	close(releaseReplay)
 
@@ -240,10 +235,9 @@ func TestWorkflowRunsListenerReconnectChaosPreservesRegistrations(t *testing.T) 
 
 	logger := zerolog.Nop()
 
-	// Every send pays a seeded random latency, as it would on a real
-	// network. This widens the reconnect handoff (replay is a sequence of
-	// sends), so registration/handoff interleavings actually occur instead
-	// of the handoff completing in a few microseconds.
+	// Every send pays a seeded random latency, as on a real network. This
+	// widens the handoff window (replay is a sequence of sends) enough for
+	// registrations to actually interleave with it.
 	latencyRng := rand.New(rand.NewSource(seed + 2000)) // nolint: gosec // deterministic schedule exploration, not crypto
 	var latencyMu sync.Mutex
 	factory := &recordingStreamFactory{
