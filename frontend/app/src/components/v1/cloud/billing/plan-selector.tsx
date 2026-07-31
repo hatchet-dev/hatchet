@@ -69,11 +69,11 @@ export function PlanSelector({
   selectLabel,
   coupons,
 }: PlanSelectorProps) {
-  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
-    enabled: isControlPlaneEnabled && !!controlPlaneMeta?.canBill,
+    enabled: isControlPlaneEnabled && canBill,
   });
 
   const plans = plansQuery.data?.plans;
@@ -161,7 +161,7 @@ export function PlanSelector({
           '100M+ runs per month',
           'Custom SLAs & uptime guarantees',
           'Dedicated support & onboarding',
-          'SSO / SAML & audit logging',
+          'SSO & audit logging',
           'Bring your own cloud',
         ]}
         onSelect={() => window.open(enterpriseContactUrl, '_blank')}

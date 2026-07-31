@@ -1,7 +1,6 @@
 import { BillingRequired } from './components/billing-required';
 import { ManagedWorkersGate } from './components/managed-workers-gate';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -31,10 +30,6 @@ function ManagedWorkersImpl() {
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
-  const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenantId),
-  });
 
   const listManagedWorkersQuery = useQuery({
     ...queries.cloud.listManagedWorkers(tenantId),
@@ -161,12 +156,6 @@ function ManagedWorkersImpl() {
         ) : (
           <ManagedWorkersTable />
         )}
-        <div className="mb-6 mt-6">
-          <MonthlyUsageCard
-            computeCost={computeCostQuery.data}
-            isLoading={computeCostQuery.isLoading}
-          />
-        </div>
       </div>
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="max-w-md">

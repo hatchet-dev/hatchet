@@ -2,8 +2,8 @@ package webhooksv1
 
 import (
 	"crypto/hmac"
-	"crypto/md5"
-	"crypto/sha1"
+	"crypto/md5"  // #nosec G501 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-MD5; HMAC remains sound even with MD5
+	"crypto/sha1" // #nosec G505 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-SHA1; HMAC remains sound even with SHA1
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -471,7 +471,10 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
+			usernameMatch := hmac.Equal([]byte(username), []byte(webhook.AuthBasicUsername.String))
+			passwordMatch := hmac.Equal([]byte(password), decryptedPassword)
+
+			if !usernameMatch || !passwordMatch {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: "invalid basic auth credentials",
@@ -496,7 +499,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if apiKey != string(decryptedApiKey) {
+			if !hmac.Equal([]byte(apiKey), decryptedApiKey) {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),

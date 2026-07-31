@@ -15,11 +15,12 @@ import (
 )
 
 type SlackSender struct {
-	s3Client *s3.Client
-	s3Bucket string
-	Token    string
-	Channel  string
-	Thread   string
+	s3Client    *s3.Client
+	s3Bucket    string
+	Token       string
+	Channel     string
+	Thread      string
+	Environment string
 }
 
 func NewS3Client(ctx context.Context) (*s3.Client, error) {
@@ -45,17 +46,24 @@ func ShouldSendSlack() bool {
 func NewSlackSender(s3Bucket string) *SlackSender {
 	s3Client, _ := NewS3Client(context.Background())
 	return &SlackSender{
-		s3Client: s3Client,
-		s3Bucket: s3Bucket,
-		Token:    os.Getenv("SLACK_BOT_TOKEN"),
-		Thread:   os.Getenv("SLACK_THREAD_TS"),
-		Channel:  os.Getenv("SLACK_CHANNEL_ID"),
+		s3Client:    s3Client,
+		s3Bucket:    s3Bucket,
+		Token:       os.Getenv("SLACK_BOT_TOKEN"),
+		Thread:      os.Getenv("SLACK_THREAD_TS"),
+		Channel:     os.Getenv("SLACK_CHANNEL_ID"),
+		Environment: os.Getenv("HATCHET_LOADTEST_ENVIRONMENT"),
 	}
 }
 
 func (s *SlackSender) SendMessage(durationPlotUrl string, schedulingPlotUrl string, avgDuration time.Duration, avgScheduling time.Duration) error {
+	header := ":star:Load test results:star:"
+	if s.Environment != "" {
+		header = fmt.Sprintf(":star:Load test results (%s):star:", s.Environment)
+	}
+
 	text := fmt.Sprintf(
-		":star:Load test results:star:\nAverage task duration: %s\nAverage task scheduling: %s",
+		"%s\nAverage task duration: %s\nAverage task scheduling: %s",
+		header,
 		avgDuration.String(),
 		avgScheduling.String(),
 	)

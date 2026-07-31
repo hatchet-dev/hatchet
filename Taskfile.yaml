@@ -134,11 +134,11 @@ tasks:
   seed-dev:
     dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed
+      - go run ./cmd/hatchet-admin seed
   seed-cypress:
     dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed-cypress
+      - go run ./cmd/hatchet-admin seed-cypress
   start-dev:
     deps:
       - task: goose-migrate
@@ -356,6 +356,7 @@ tasks:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         patch=$((patch + 1))
@@ -368,6 +369,7 @@ tasks:
     desc: Bump minor version (e.g. v0.83.16 → v0.84.0) and push the tag
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         minor=$((minor + 1))
@@ -380,6 +382,7 @@ tasks:
     desc: Bump to next alpha pre-release (e.g. v0.83.16 → v0.83.16-alpha.0, or v0.83.16-alpha.0 → v0.83.16-alpha.1)
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         base="${current%%-alpha.*}"
         if [[ "${current}" == *-alpha.* ]]; then

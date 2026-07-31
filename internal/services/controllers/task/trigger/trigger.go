@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -31,8 +32,8 @@ var ErrNoTriggerSlots = errors.New("no trigger slots available")
 
 // NewTriggerWriter creates a new TriggerWriter with the given number of slots for concurrency control.
 // If the number of slots is 0, there is no limit to concurrency.
-func NewTriggerWriter(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, slots int, promGate *prometheus.Gate) *TriggerWriter {
-	s := signal.NewOLAPSignaler(mq, repo, l, pubBuffer, promGate)
+func NewTriggerWriter(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, slots int, promGate *prometheus.Gate) *TriggerWriter {
+	s := signal.NewOLAPSignaler(mq, pubsub, repo, l, pubBuffer, promGate)
 
 	var sem chan struct{}
 

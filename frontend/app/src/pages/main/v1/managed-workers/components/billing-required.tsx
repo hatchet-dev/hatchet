@@ -1,7 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
-import { queries } from '@/lib/api/queries';
 import { BillingContext } from '@/lib/atoms';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { appRoutes } from '@/router';
@@ -10,7 +9,6 @@ import {
   CpuChipIcon,
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
@@ -21,20 +19,10 @@ interface BillingRequiredProps {
 }
 
 export function BillingRequired({
-  tenant,
   manageClicked,
   portalLoading,
 }: BillingRequiredProps) {
   const { tenantId } = useCurrentTenantId();
-  // Query for compute cost information to show available credits
-  const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant?.metadata.id || ''),
-    enabled: !!tenant?.metadata.id,
-  });
-
-  const hasCredits =
-    computeCostQuery.data?.hasCreditsRemaining &&
-    computeCostQuery.data?.creditsRemaining !== undefined;
 
   return (
     <div className="h-full w-full flex-grow">
@@ -73,20 +61,6 @@ export function BillingRequired({
                       <span className="text-muted-foreground">Memory:</span>
                       <span className="font-medium">$0.01/hour/GB RAM</span>
                     </div>
-                    {hasCredits &&
-                      computeCostQuery.data?.creditsRemaining !== undefined && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Monthly Free Credits:
-                          </span>
-                          <span className="font-medium text-green-500">
-                            {new Intl.NumberFormat('en-US', {
-                              style: 'currency',
-                              currency: 'USD',
-                            }).format(computeCostQuery.data.creditsRemaining)}
-                          </span>
-                        </div>
-                      )}
                   </div>
                 </div>
               </div>

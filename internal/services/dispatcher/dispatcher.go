@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -45,6 +48,7 @@ type DispatcherImpl struct {
 	v                                   validator.Validator
 	s                                   gocron.Scheduler
 	mqv1                                msgqueue.MessageQueue
+	pubsub                              msgqueue.PubSub
 	analytics                           analytics.Analytics
 	cache                               cache.Cacheable
 	repov1                              v1.Repository
@@ -63,6 +67,8 @@ type DispatcherImpl struct {
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
+	refreshTimeoutGroup                 singleflight.Group
+	refreshTimeoutBuf                   *refreshTimeoutBuffer
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -148,6 +154,7 @@ type DispatcherOpts struct {
 	repov1                              v1.Repository
 	alerter                             hatcheterrors.Alerter
 	mqv1                                msgqueue.MessageQueue
+	pubsub                              msgqueue.PubSub
 	analytics                           analytics.Analytics
 	l                                   *zerolog.Logger
 	version                             string
@@ -179,6 +186,12 @@ func defaultDispatcherOpts() *DispatcherOpts {
 func WithMessageQueueV1(mqv1 msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.mqv1 = mqv1
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -271,6 +284,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
 	}
@@ -298,6 +315,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	return &DispatcherImpl{
 		mqv1:                                opts.mqv1,
+		pubsub:                              opts.pubsub,
 		pubBuffer:                           pubBuffer,
 		l:                                   opts.l,
 		dv:                                  opts.dv,
@@ -315,14 +333,15 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
+		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.mqv1)
-	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.mqv1)
+	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.pubsub)
+	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.pubsub)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
@@ -384,6 +403,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		wg.Wait()
 
 		d.pubBuffer.Stop()
+		d.refreshTimeoutBuf.stop()
 
 		// drain the existing connections
 		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
@@ -433,12 +453,14 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 	}()
 
 	switch task.ID {
-	case "task-assigned-bulk":
+	case msgqueue.MsgIDTaskAssignedBulk:
 		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
 	case msgqueue.MsgIDDurableCallbackCompleted:
 		err = d.a.WrapErr(d.handleDurableCallbackCompleted(ctx, task), map[string]interface{}{})
+	case msgqueue.MsgIDBatchStart:
+		err = d.a.WrapErr(d.handleBatchStartTask(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
@@ -782,6 +804,13 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
+	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
+
+	if err != nil {
+		d.l.Warn().Ctx(ctx).Err(err).Msgf("could not bulk fetch runtimes for %d tasks", len(bulkDatas))
+		runtimes = make(map[int64]*sqlcv1.V1TaskRuntime)
+	}
+
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
@@ -807,6 +836,7 @@ func (d *DispatcherImpl) populateTaskData(
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
 			&v1.V1TaskWithPayload{
 				V1Task:  task,
+				Runtime: runtimes[task.ID],
 				Payload: input,
 			},
 			invocationCount,
@@ -944,7 +974,7 @@ func (d *DispatcherImpl) handleRetries(
 
 			queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
 
-			err = d.mqv1.SendMessage(retryCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+			err = msgqueue.PubTenantMessage(retryCtx, d.l, d.mqv1, d.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 			if err != nil {
 				return fmt.Errorf("could not send failed task message: %w", err)
@@ -955,6 +985,126 @@ func (d *DispatcherImpl) handleRetries(
 	}
 
 	return retryGroup.Wait()
+}
+
+type batchItemPayload struct {
+	WorkflowRunID uuid.UUID       `json:"workflow_run_id"`
+	Payload       json.RawMessage `json:"payload"`
+}
+
+func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
+	if payload == nil {
+		return nil
+	}
+
+	if payload.BatchId == "" {
+		return fmt.Errorf("batch start payload missing batch id")
+	}
+
+	if payload.ActionId == "" {
+		return fmt.Errorf("batch start payload missing action id for batch %s", payload.BatchId)
+	}
+
+	workers, err := d.workers.Get(payload.WorkerId)
+	if err != nil {
+		if errors.Is(err, ErrWorkerNotFound) {
+			// If the worker isn't connected, ignore (the tasks will be retried separately).
+			return nil
+		}
+		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
+	}
+
+	// Fetch all task payloads and embed them in the action payload.
+	var actionPayload string
+	if len(payload.Items) > 0 {
+		taskIds := make([]int64, 0, len(payload.Items))
+		externalIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
+		workflowRunIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
+
+		for _, item := range payload.Items {
+			taskIds = append(taskIds, item.TaskID)
+			externalIDByTaskID[item.TaskID] = item.ExternalID
+			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
+		}
+
+		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIds)
+		if populateErr != nil {
+			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)
+		}
+
+		batchItems := make(map[uuid.UUID]batchItemPayload, len(payload.Items))
+		for taskID, data := range taskIdToData {
+			extID, ok := externalIDByTaskID[taskID]
+			if !ok {
+				continue
+			}
+			payloadBytes := data.Payload
+			if payloadBytes == nil {
+				payloadBytes = []byte("{}")
+			}
+			batchItems[extID] = batchItemPayload{
+				Payload:       json.RawMessage(payloadBytes),
+				WorkflowRunID: workflowRunIDByTaskID[taskID],
+			}
+		}
+
+		payloadJSON, err := json.Marshal(batchItems)
+		if err != nil {
+			return fmt.Errorf("could not marshal batch items payload for batch %s: %w", payload.BatchId, err)
+		}
+		actionPayload = string(payloadJSON)
+	}
+
+	triggerTime := payload.TriggerTime
+	if triggerTime.IsZero() {
+		triggerTime = time.Now().UTC()
+	}
+
+	expectedSize := payload.ExpectedSize
+	if expectedSize < 0 {
+		return fmt.Errorf("batch item payload has negative expected size %s", payload.BatchId)
+	}
+
+	batchID := payload.BatchId
+	batchStart := &contracts.BatchStartPayload{
+		TriggerTime:  timestamppb.New(triggerTime),
+		ExpectedSize: int32(expectedSize),
+	}
+
+	if payload.TriggerReason != "" {
+		batchStart.TriggerReason = payload.TriggerReason
+	}
+
+	action := &contracts.AssignedAction{
+		TenantId:          payload.TenantId.String(),
+		ActionType:        contracts.ActionType_START_BATCH,
+		ActionId:          payload.ActionId,
+		ActionPayload:     actionPayload,
+		BatchStartPayload: batchStart,
+		BatchId:           &batchID,
+	}
+	key := strings.TrimSpace(payload.BatchKey)
+	if strings.TrimSpace(key) != "" {
+		action.BatchKey = &key
+	}
+
+	var sendErr error
+	var success bool
+
+	for i, w := range workers {
+		if err := w.StartBatch(ctx, action); err != nil {
+			sendErr = multierror.Append(sendErr, fmt.Errorf("could not send batch start to worker %s (%d): %w", payload.WorkerId, i, err))
+		} else {
+			success = true
+			break
+		}
+	}
+
+	if !success {
+		return sendErr
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
@@ -1044,4 +1194,24 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 	}
 
 	return multiErr
+}
+
+func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "batch-start", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypesv1.StartBatchTaskPayload](msg.Payloads)
+
+	var result error
+
+	for _, payload := range payloads {
+		if err := d.sendBatchStartFromPayload(ctx, payload); err != nil {
+			if errors.Is(err, ErrWorkerNotFound) {
+				continue
+			}
+			result = multierror.Append(result, err)
+		}
+	}
+
+	return result
 }

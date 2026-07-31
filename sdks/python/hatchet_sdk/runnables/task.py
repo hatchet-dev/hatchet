@@ -44,10 +44,15 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
 )
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    TaskBatchConfig as TaskBatchConfigProto,
+)
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
+    BatchTaskConfig,
     R,
     StepType,
     TaskIOValidator,
@@ -138,6 +143,10 @@ class Task(Generic[TWorkflowInput, R]):
         _fn: (
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
+            | Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+            ]
             | (
                 Callable[
                     Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
@@ -163,10 +172,12 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        batch: BatchTaskConfig | None = None,
         slot_requests: dict[str, int] | None = None,
         eviction_policy: EvictionPolicy | None = None,
     ) -> None:
         self._is_durable = is_durable
+        self.batch = batch
         self.eviction_policy = eviction_policy
 
         if slot_requests is None:
@@ -205,6 +216,14 @@ class Task(Generic[TWorkflowInput, R]):
         self.cancel_if = flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
+
+        # For batch tasks, the handler returns a dict of per-item outputs. We validate the item type,
+        # unless broadcast_output is true
+        if self.batch and not self.batch.broadcast_output:
+            origin = get_origin(return_type)
+            args = get_args(return_type)
+            if origin is dict and len(args) == 2:
+                return_type = args[1]
 
         self._validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow._config.input_validator,
@@ -458,7 +477,7 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self._fn):  # type: ignore
+        if is_async_fn(self._fn):  # type: ignore[arg-type, type-var]
             return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
@@ -473,7 +492,7 @@ class Task(Generic[TWorkflowInput, R]):
             d.key: d.to_proto() for d in self.desired_worker_labels if d.key is not None
         }
 
-        return CreateTaskOpts(
+        proto = CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
             timeout=timedelta_to_expr(self.execution_timeout),
@@ -490,6 +509,30 @@ class Task(Generic[TWorkflowInput, R]):
             is_durable=self._is_durable,
             slot_requests=self._slot_requests,
         )
+
+        if self.batch is not None:
+            batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
+
+            if self.batch.batch_max_interval is not None:
+                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
+                if interval_ms <= 0:
+                    raise ValueError(
+                        "batch_max_interval must be positive when provided"
+                    )
+                batch_proto.batch_max_interval_ms = interval_ms
+
+            if self.batch.batch_group_key is not None:
+                batch_proto.batch_group_key = self.batch.batch_group_key
+
+            if self.batch.batch_group_max_runs is not None:
+                batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
+
+            if self.batch.broadcast_output:
+                batch_proto.broadcast_output = True
+
+            proto.batch.CopyFrom(batch_proto)
+
+        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action

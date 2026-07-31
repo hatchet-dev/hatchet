@@ -25,6 +25,7 @@ func upV10126(ctx context.Context, db *sql.DB) error {
 		}
 
 		for _, partition := range partitions {
+			// #nosec G201 -- identifiers are quoted and derived from internal migration logic, not user input
 			stmt := fmt.Sprintf(
 				`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;`,
 				quoteIdent(v10126IndexName(partition)),
@@ -36,6 +37,7 @@ func upV10126(ctx context.Context, db *sql.DB) error {
 			}
 		}
 
+		// #nosec G201 -- identifiers are quoted and derived from internal migration logic, not user input
 		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;", quoteIdent(v10126IndexName(table)), quoteIdent(table))
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

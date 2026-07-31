@@ -44,6 +44,23 @@ export default defineConfig({
       '/api/v1/control-plane': {
         target: controlPlaneApiProxyTarget,
         changeOrigin: true,
+        // With no control plane running (OSS dev/e2e), a dead upstream would
+        // surface as a 500, which the frontend treats as a transient error
+        // and retries. Production OSS returns 404 for unregistered
+        // control-plane routes, so mimic that: unreachable upstream means
+        // "no control plane".
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if ('writeHead' in res && !res.headersSent) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(
+                JSON.stringify({
+                  errors: [{ description: 'control plane not available' }],
+                }),
+              );
+            }
+          });
+        },
       },
       // The frontend uses relative `/api/v1/...` paths, so proxy `/api` to the API server.
       '/api': {

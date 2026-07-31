@@ -15,7 +15,6 @@ class CronInput(BaseModel):
 
 
 @hatchet.task(
-    name="CronInputWorkflow",
     input_validator=CronInput,
     on_crons=["* * * * *"],
     cron_input=CronInput(name="Hatchet"),

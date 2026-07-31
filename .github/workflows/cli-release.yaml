@@ -136,7 +136,7 @@ jobs:
         run: git fetch --force origin tag "$GITHUB_TAG"
 
       - name: Generate release section
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
           config: cliff.toml
           args: ${{ env.PREV_TAG }}..${{ env.GITHUB_TAG }}
