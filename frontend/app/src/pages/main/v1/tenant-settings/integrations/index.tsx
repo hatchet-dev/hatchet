@@ -34,7 +34,6 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
@@ -55,13 +54,11 @@ import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
-  const { cloud, featureFlags } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
   const integrations = useApiMetaIntegrations();
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
-  const hasGithubIntegration = cloud?.canLinkGithub;
-  const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
   return (
     <div className="h-full w-full flex-grow">
@@ -82,7 +79,7 @@ export default function Integrations() {
             <TabsTrigger value="metrics" variant="underlined">
               Metrics
             </TabsTrigger>
-            {hasGithubIntegration && managedWorkerEnabled && (
+            {isControlPlaneEnabled && (
               <TabsTrigger value="github" variant="underlined">
                 GitHub
               </TabsTrigger>
@@ -105,7 +102,7 @@ export default function Integrations() {
             <PrometheusMetricsSettings />
           </TabsContent>
 
-          {hasGithubIntegration && (
+          {isControlPlaneEnabled && (
             <TabsContent value="github">
               <GithubInstallationsList />
             </TabsContent>

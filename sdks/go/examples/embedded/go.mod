@@ -52,7 +52,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/hatchet-dev/pgoutbox v0.3.0 // indirect
+	github.com/hatchet-dev/pgoutbox v0.4.0 // indirect
 	github.com/hatchet-dev/timediff v0.0.4 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

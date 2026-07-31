@@ -956,8 +956,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 // DisableTenantPubs gate.
 func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.Logger) (cleanup func() error, ps msgqueue.PubSub, err error) {
 	pubsubKind, pubsubURL := resolvePubSubKindAndURL(cf)
+	kind := strings.ToLower(pubsubKind)
 
-	switch strings.ToLower(pubsubKind) {
+	switch kind {
 	case "postgres":
 		// never dc.Pool and never the pgbouncer URL: the pub/sub owns its pool,
 		// and LISTEN does not survive transaction pooling
@@ -1054,7 +1055,7 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 		return nil, nil, fmt.Errorf("invalid pubsub kind %q, must be 'rabbitmq', 'postgres', or 'nats'", pubsubKind)
 	}
 
-	return cleanup, msgqueue.NewGatedPubSub(ps, cf.Runtime.DisableTenantPubs), nil
+	return cleanup, msgqueue.NewGatedPubSub(msgqueue.NewInstrumentedPubSub(ps, kind), cf.Runtime.DisableTenantPubs), nil
 }
 
 // resolvePubSubKindAndURL resolves the pub/sub kind and rabbit URL, inheriting
