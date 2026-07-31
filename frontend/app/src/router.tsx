@@ -565,7 +565,7 @@ const tenantWorkflowsRoute = createRoute({
 });
 
 const workflowSearchSchema = z.object({
-  tab: z.enum(['runs', 'settings']).optional(),
+  tab: z.enum(['runs', 'shape', 'settings']).optional(),
 });
 
 const tenantWorkflowRoute = createRoute({
