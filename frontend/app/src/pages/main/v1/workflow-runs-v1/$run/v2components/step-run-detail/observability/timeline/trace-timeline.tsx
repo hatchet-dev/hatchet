@@ -170,7 +170,7 @@ export function TraceTimeline({
 
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
-      <div className="flex shrink-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-col overflow-hidden max-w-[720px]">
         <TimelineLabels
           flatRows={flatRows}
           selectedSpan={selectedSpan}
