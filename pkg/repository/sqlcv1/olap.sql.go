@@ -1041,7 +1041,7 @@ SELECT
     ) :: TIMESTAMPTZ AS minute_bucket,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
+FROM v1_tasks_olap -- todo: probably need indexing?
 WHERE
     tenant_id = $2::UUID
     AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
@@ -1195,7 +1195,7 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
     COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_statuses_olap
+FROM v1_tasks_olap
 WHERE
     tenant_id = $1::UUID
     AND inserted_at >= $2::TIMESTAMPTZ
@@ -1206,6 +1206,7 @@ WHERE
         $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
     )
     AND external_id IN (
+        -- todo: indexing - go through the lookup table
         SELECT external_id
         FROM task_external_ids
     )

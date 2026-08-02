@@ -1798,48 +1798,6 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 	return string(ns.V1RunKind), nil
 }
 
-type V1StatusKind string
-
-const (
-	V1StatusKindTASK V1StatusKind = "TASK"
-	V1StatusKindDAG  V1StatusKind = "DAG"
-)
-
-func (e *V1StatusKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1StatusKind(s)
-	case string:
-		*e = V1StatusKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1StatusKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1StatusKind struct {
-	V1StatusKind V1StatusKind `json:"v1_status_kind"`
-	Valid        bool         `json:"valid"` // Valid is true if V1StatusKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1StatusKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1StatusKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1StatusKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1StatusKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1StatusKind), nil
-}
-
 type V1StepMatchConditionKind string
 
 const (
@@ -3629,15 +3587,6 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
-}
-
-type V1StatusesOlap struct {
-	ExternalID     uuid.UUID            `json:"external_id"`
-	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID       uuid.UUID            `json:"tenant_id"`
-	WorkflowID     uuid.UUID            `json:"workflow_id"`
-	Kind           V1RunKind            `json:"kind"`
-	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 }
 
 type V1StepBatchConfig struct {

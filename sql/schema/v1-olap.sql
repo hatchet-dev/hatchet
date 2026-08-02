@@ -301,18 +301,19 @@ CREATE TABLE v1_dag_to_task_olap (
 );
 
 -- STATUS DEFINITION --
-CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
+-- these are basically unused
+-- CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
 
-CREATE TABLE v1_statuses_olap (
-    external_id UUID NOT NULL,
-    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    tenant_id UUID NOT NULL,
-    workflow_id UUID NOT NULL,
-    kind v1_run_kind NOT NULL,
-    readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+-- CREATE TABLE v1_statuses_olap (
+--     external_id UUID NOT NULL,
+--     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     tenant_id UUID NOT NULL,
+--     workflow_id UUID NOT NULL,
+--     kind v1_run_kind NOT NULL,
+--     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
 
-    PRIMARY KEY (external_id, inserted_at)
-);
+--     PRIMARY KEY (external_id, inserted_at)
+-- );
 
 
 -- EVENT DEFINITIONS --
@@ -836,81 +837,83 @@ REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_dags_olap_status_update_function();
 
-CREATE OR REPLACE FUNCTION v1_runs_olap_insert_function()
-RETURNS TRIGGER AS
-$$
-BEGIN
-    INSERT INTO v1_statuses_olap (
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    )
-    SELECT
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    FROM new_rows
-    ON CONFLICT (external_id, inserted_at) DO NOTHING;
+-- basically unused if we use `v1_runs_olap` instead of `v1_statuses_olap`
+-- CREATE OR REPLACE FUNCTION v1_runs_olap_insert_function()
+-- RETURNS TRIGGER AS
+-- $$
+-- BEGIN
+--     INSERT INTO v1_statuses_olap (
+--         external_id,
+--         inserted_at,
+--         tenant_id,
+--         workflow_id,
+--         kind,
+--         readable_status
+--     )
+--     SELECT
+--         external_id,
+--         inserted_at,
+--         tenant_id,
+--         workflow_id,
+--         kind,
+--         readable_status
+--     FROM new_rows
+--     ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
+--     RETURN NULL;
+-- END;
+-- $$
+-- LANGUAGE plpgsql;
 
-CREATE TRIGGER v1_runs_olap_status_insert_trigger
-AFTER INSERT ON v1_runs_olap
-REFERENCING NEW TABLE AS new_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION v1_runs_olap_insert_function();
+-- CREATE TRIGGER v1_runs_olap_status_insert_trigger
+-- AFTER INSERT ON v1_runs_olap
+-- REFERENCING NEW TABLE AS new_rows
+-- FOR EACH STATEMENT
+-- EXECUTE FUNCTION v1_runs_olap_insert_function();
 
+-- basically unused
 -- We use INSERT INTO rather than UPDATE for ensuring this query is fast on TimescaleDB,
 -- which does not have effective runtime partition pruning on UPDATE and would involve scanning
 -- every partition in v1_statuses_olap.
-CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
-RETURNS TRIGGER AS
-$$
-BEGIN
-    INSERT INTO v1_statuses_olap (
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    )
-    -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
-    -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
-    -- statement affects the same row twice. On duplicates, keep the
-    -- highest-priority status.
-    SELECT DISTINCT ON (external_id, inserted_at)
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    FROM new_rows
-    ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
-    ON CONFLICT (external_id, inserted_at) DO UPDATE
-    SET readable_status = EXCLUDED.readable_status
-    WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
+-- CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
+-- RETURNS TRIGGER AS
+-- $$
+-- BEGIN
+--     INSERT INTO v1_statuses_olap (
+--         external_id,
+--         inserted_at,
+--         tenant_id,
+--         workflow_id,
+--         kind,
+--         readable_status
+--     )
+--     -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
+--     -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
+--     -- statement affects the same row twice. On duplicates, keep the
+--     -- highest-priority status.
+--     SELECT DISTINCT ON (external_id, inserted_at)
+--         external_id,
+--         inserted_at,
+--         tenant_id,
+--         workflow_id,
+--         kind,
+--         readable_status
+--     FROM new_rows
+--     ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
+--     ON CONFLICT (external_id, inserted_at) DO UPDATE
+--     SET readable_status = EXCLUDED.readable_status
+--     WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
 
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
+--     RETURN NULL;
+-- END;
+-- $$
+-- LANGUAGE plpgsql;
 
-CREATE TRIGGER v1_runs_olap_status_update_trigger
-AFTER UPDATE ON v1_runs_olap
-REFERENCING NEW TABLE AS new_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION v1_runs_olap_status_update_function();
+-- CREATE TRIGGER v1_runs_olap_status_update_trigger
+-- AFTER UPDATE ON v1_runs_olap
+-- REFERENCING NEW TABLE AS new_rows
+-- FOR EACH STATEMENT
+-- EXECUTE FUNCTION v1_runs_olap_status_update_function();
 
 CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
 RETURNS TRIGGER AS
