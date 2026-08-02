@@ -894,6 +894,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				TenantID:                row.TenantID,
 				ExternalID:              row.ExternalID,
 				ChildTaskExternalID:     row.ChildTaskExternalID,
+				ChildTaskIsFailure:      row.ChildTaskIsFailure,
+				ChildTaskErrorMessage:   row.ChildTaskErrorMessage,
 				ResultPayloadExternalID: row.ResultPayloadExternalID,
 				InsertedAt:              row.InsertedAt,
 				ID:                      row.ID,

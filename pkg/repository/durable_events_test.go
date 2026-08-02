@@ -3,15 +3,70 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGetOrCreateEventLogEntriesCachedChildPreservesFailure(t *testing.T) {
+	ctx := context.Background()
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	tenantID := uuid.New()
+	childTaskExternalID := uuid.New()
+	insertedAt := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	const durableTaskID int64 = 1
+	const errorMessage = "failed durable child"
+
+	_, err := pool.Exec(ctx, `
+		INSERT INTO v1_durable_event_log_file
+			(tenant_id, durable_task_id, durable_task_inserted_at,
+			 latest_inserted_at, latest_invocation_count, latest_node_id,
+			 latest_branch_id)
+		VALUES ($1, $2, $3, $3, 1, 1, 1)`, tenantID, durableTaskID, insertedAt)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `
+		INSERT INTO v1_durable_event_log_entry
+			(tenant_id, external_id, inserted_at, child_task_external_id,
+			 durable_task_id, durable_task_inserted_at, kind, node_id, branch_id,
+			 idempotency_key, is_satisfied, child_task_is_failure,
+			 child_task_error_message)
+		VALUES ($1, gen_random_uuid(), $3, $4, $2, $3, 'RUN', 1, 1,
+			''::bytea, true, true, $5)`,
+		tenantID, durableTaskID, insertedAt, childTaskExternalID, errorMessage,
+	)
+	require.NoError(t, err)
+
+	logger := zerolog.Nop()
+	queries := sqlcv1.New()
+	repository := &durableEventsRepository{sharedRepository: &sharedRepository{
+		pool:         pool,
+		queries:      queries,
+		payloadStore: NewPayloadStoreRepository(pool, &logger, queries, PayloadStoreRepositoryOpts{}),
+	}}
+	entries, err := repository.getOrCreateEventLogEntries(ctx, pool, GetOrCreateLogEntryOpts{
+		TenantId: tenantID, DurableTaskId: durableTaskID,
+		DurableTaskInsertedAt: insertedAt,
+		Entries: []GetOrCreateLogEntryOpt{{ChildTaskExternalId: childTaskExternalID, ShouldSkip: true}},
+	})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.True(t, entries[0].AlreadyExisted)
+	assert.True(t, entries[0].Entry.IsSatisfied)
+	assert.True(t, entries[0].Entry.ChildTaskIsFailure)
+	assert.Equal(t, pgtype.Text{String: errorMessage, Valid: true}, entries[0].Entry.ChildTaskErrorMessage)
+}
 
 func TestStaleInvocationError_ImplementsError(t *testing.T) {
 	id := uuid.New()
