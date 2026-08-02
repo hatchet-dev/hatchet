@@ -4,7 +4,6 @@ on:
   pull_request_target:
     types: [opened, reopened, edited, synchronize]
   schedule:
-    # Backstop for PRs missed by the pull_request_target trigger.
     - cron: "0 9 * * *"
   workflow_dispatch:
 
@@ -26,9 +25,23 @@ jobs:
           script: |
             const ACCEPTED_LABEL = 'accepted';
             const MARKER = '<!-- close-unaccepted-prs -->';
-            const EXEMPT_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-            // Only PRs opened on or after this instant are eligible to be closed.
             const CUTOFF = Date.parse('2026-08-01T00:00:00Z');
+
+            async function isMaintainer(login) {
+              if (!login) return false;
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: login,
+                });
+                return ['admin', 'maintain', 'write'].includes(data.role_name)
+                  || ['admin', 'write'].includes(data.permission);
+              } catch (err) {
+                core.info(`could not resolve permission for ${login}: ${err.message}`);
+                return false;
+              }
+            }
 
             const message = [
               MARKER,
@@ -100,8 +113,8 @@ jobs:
                 core.info(`#${number}: bot author, skipping`);
                 return;
               }
-              if (EXEMPT_ASSOCIATIONS.has(pr.author_association)) {
-                core.info(`#${number}: author is ${pr.author_association}, skipping`);
+              if (await isMaintainer(pr.user && pr.user.login)) {
+                core.info(`#${number}: author is a maintainer, skipping`);
                 return;
               }
               if ((pr.labels || []).some(l => l.name.toLowerCase() === ACCEPTED_LABEL)) {
