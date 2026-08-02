@@ -1,9 +1,6 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
-import { TraceMinimap } from './minimap/trace-minimap';
-import { TimeTickLabels } from './timeline/time-tick-labels';
 import { TraceTimeline, type VisibleRange } from './timeline/trace-timeline';
 import {
-  computeTimeTicks,
   groupSiblings,
   type SpanGroupInfo,
 } from './timeline/trace-timeline-utils';
@@ -11,37 +8,11 @@ import { getStableKey } from './utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import type { FilteredSpanTree } from '@/components/v1/cloud/observability/trace-search';
 import { Button } from '@/components/v1/ui/button';
-import { useIsFeatureEnabled, FeatureFlagId } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { ChevronsDownUp, ChevronsUpDown, XIcon } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const CONTEXT_EXPAND_SENTINEL = '__context_expand_done__';
-
-const findTimeRange = (
-  spanTrees: OtelSpanTree[],
-): { minStart: number; maxEnd: number } => {
-  let minStart = Infinity;
-  let maxEnd = -Infinity;
-
-  const traverse = (node: OtelSpanTree) => {
-    const start = new Date(node.createdAt).getTime();
-    const end = start + node.durationNs / 1_000_000;
-    minStart = Math.min(minStart, start);
-    maxEnd = Math.max(maxEnd, end);
-    if (node.queuedPhase) {
-      const qStart = new Date(node.queuedPhase.createdAt).getTime();
-      const qEnd = qStart + node.queuedPhase.durationNs / 1_000_000;
-      minStart = Math.min(minStart, qStart);
-      maxEnd = Math.max(maxEnd, qEnd);
-    }
-    node.children?.forEach(traverse);
-  };
-
-  spanTrees.forEach(traverse);
-
-  return { minStart, maxEnd };
-};
 
 function findSpanInTrees(
   nodes: OtelSpanTree[],
@@ -188,11 +159,6 @@ export function TaskRunTrace({
     setSelectedGroupId,
   } = useRunDetailSearch();
 
-  const { minStart, maxEnd } = useMemo(
-    () => findTimeRange(spanTrees),
-    [spanTrees],
-  );
-
   const [expandedSpansIds, setExpandedSpansIds] = useState<Set<string>>(() => {
     const set = new Set(collectKeysUpToDepth(spanTrees, 2));
     if (selectedSpanId) {
@@ -240,23 +206,6 @@ export function TaskRunTrace({
     startPct: 0,
     endPct: 1,
   });
-
-  const isZoomed = visibleRange.startPct > 0.001 || visibleRange.endPct < 0.999;
-
-  const zoomedTicks = useMemo(() => {
-    if (!isZoomed) {
-      return null;
-    }
-    const totalMs = maxEnd - minStart;
-    const visStartMs = totalMs * visibleRange.startPct;
-    const visDurationMs =
-      totalMs * (visibleRange.endPct - visibleRange.startPct);
-    const { ticks } = computeTimeTicks(visDurationMs);
-    return { ticks, visDurationMs, visOffsetMs: visStartMs };
-  }, [isZoomed, minStart, maxEnd, visibleRange]);
-
-  const [minimapHoverPct, setMinimapHoverPct] = useState<number | null>(null);
-  const [timelineHoverPct, setTimelineHoverPct] = useState<number | null>(null);
 
   const prevFocusedRef = useRef(focusedTaskRunId);
   if (focusedTaskRunId && focusedTaskRunId !== prevFocusedRef.current) {
@@ -382,14 +331,6 @@ export function TaskRunTrace({
     ],
   );
 
-  const handleMinimapSpanSelect = useCallback(
-    (span: OtelSpanTree, _ancestorSpanIds: string[]) => {
-      expandAncestors(span);
-      setSelectedSpanId(span.spanId);
-    },
-    [expandAncestors, setSelectedSpanId],
-  );
-
   const handleGroupSelect = useCallback(
     (group: SpanGroupInfo) => {
       const isDeselecting = selectedGroupId === group.groupId;
@@ -512,8 +453,6 @@ export function TaskRunTrace({
           onGroupSelect={handleGroupSelect}
           visibleRange={visibleRange}
           onRangeChange={setVisibleRange}
-          externalCursorPct={minimapHoverPct}
-          onCursorPctChange={setTimelineHoverPct}
         />
       </div>
     </div>

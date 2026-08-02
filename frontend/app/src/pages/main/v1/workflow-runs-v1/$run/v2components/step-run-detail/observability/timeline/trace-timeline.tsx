@@ -28,8 +28,6 @@ interface TraceTimelineProps {
   onGroupSelect?: (group: SpanGroupInfo) => void;
   visibleRange?: VisibleRange;
   onRangeChange?: (range: VisibleRange) => void;
-  externalCursorPct?: number | null;
-  onCursorPctChange?: (pct: number | null) => void;
 }
 
 export function TraceTimeline({
@@ -45,8 +43,6 @@ export function TraceTimeline({
   onGroupSelect,
   visibleRange,
   onRangeChange,
-  externalCursorPct,
-  onCursorPctChange,
 }: TraceTimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -170,7 +166,8 @@ export function TraceTimeline({
 
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
-      <div className="flex shrink-0 flex-col overflow-hidden max-w-[720px]">
+      {/* the min(720px,45cqw) will set the max-w to the min of 720px (plenty large) or 45% of the available space on the main panel */}
+      <div className="flex shrink-0 flex-col overflow-hidden max-w-[min(720px,45cqw)]">
         <TimelineLabels
           flatRows={flatRows}
           selectedSpan={selectedSpan}
@@ -208,8 +205,6 @@ export function TraceTimeline({
         onGroupSelect={onGroupSelect}
         expandOnly={expandOnly}
         onRangeChange={onRangeChange}
-        externalCursorPct={externalCursorPct}
-        onCursorPctChange={onCursorPctChange}
       />
     </div>
   );
