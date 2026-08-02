@@ -1,11 +1,7 @@
 import { useRunDetailSearch } from '../../../../hooks/use-run-detail-search';
 import { TraceMinimap } from './minimap/trace-minimap';
 import { TimeTickLabels } from './timeline/time-tick-labels';
-import {
-  TraceTimeline,
-  LABEL_WIDTH,
-  type VisibleRange,
-} from './timeline/trace-timeline';
+import { TraceTimeline, type VisibleRange } from './timeline/trace-timeline';
 import {
   computeTimeTicks,
   groupSiblings,
@@ -490,7 +486,7 @@ export function TaskRunTrace({
     <div className="my-4 flex min-w-0 select-none flex-col gap-y-2">
       <div className="shrink-0">
         <div className="flex min-w-0">
-          <div style={{ width: LABEL_WIDTH }}>
+          <div>
             <Button
               variant="ghost"
               size="xs"
@@ -536,7 +532,7 @@ export function TaskRunTrace({
         </div>
         {minimapEnabled && isZoomed && (
           <div className="flex min-w-0">
-            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="shrink-0" />
             <div className="min-w-0 flex-1 pr-10">
               <svg
                 className="h-5 w-full"
@@ -567,7 +563,7 @@ export function TaskRunTrace({
         )}
         {minimapEnabled && zoomedTicks && (
           <div className="flex min-w-0">
-            <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
+            <div className="shrink-0" />
             <div className="min-w-0 flex-1 pr-10">
               <TimeTickLabels
                 ticks={zoomedTicks.ticks}

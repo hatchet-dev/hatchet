@@ -13,8 +13,6 @@ import {
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
-export const LABEL_WIDTH = 320;
-
 export type { VisibleRange } from './trace-timeline-utils';
 
 interface TraceTimelineProps {
@@ -172,10 +170,7 @@ export function TraceTimeline({
 
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
-      <div
-        className="flex shrink-0 flex-col overflow-hidden"
-        style={{ width: LABEL_WIDTH }}
-      >
+      <div className="flex shrink-0 flex-col overflow-hidden">
         <TimelineLabels
           flatRows={flatRows}
           selectedSpan={selectedSpan}
