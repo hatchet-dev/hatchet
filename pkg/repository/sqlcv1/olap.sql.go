@@ -1041,7 +1041,7 @@ SELECT
     ) :: TIMESTAMPTZ AS minute_bucket,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_tasks_olap -- todo: probably need indexing?
+FROM v1_runs_olap
 WHERE
     tenant_id = $2::UUID
     AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
@@ -1149,44 +1149,6 @@ func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg Get
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        $5::UUID IS NULL OR parent_task_external_id = $5::UUID
-    ) AND (
-        $6::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = $1::uuid
-                AND lt.external_id = $6::UUID
-        )
-    )
-    AND (
-        $7::text[] IS NULL
-        OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-)
-
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
@@ -1195,33 +1157,52 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
     COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_tasks_olap
-WHERE
-    tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
+FROM v1_runs_olap
+WHERE (
+    $1::UUID IS NULL OR parent_task_external_id = $1::UUID
+) AND (
+    $2::UUID IS NULL
+    OR (id, inserted_at) IN (
+        SELECT etr.run_id, etr.run_inserted_at
+        FROM v1_event_lookup_table_olap lt
+        JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+        JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+        WHERE
+            lt.tenant_id = $3::uuid
+            AND lt.external_id = $2::UUID
     )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
+)
+AND (
+    $4::text[] IS NULL
+    OR $5::text[] IS NULL
+    OR EXISTS (
+        SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+        JOIN LATERAL (
+            SELECT unnest($4::text[]) AS k,
+                unnest($5::text[]) AS v
+        ) AS u ON kv.key = u.k AND kv.value = u.v
     )
-    AND external_id IN (
-        -- todo: indexing - go through the lookup table
-        SELECT external_id
-        FROM task_external_ids
-    )
+)
+AND tenant_id = $3::UUID
+AND inserted_at >= $6::TIMESTAMPTZ
+AND (
+    $7::TIMESTAMPTZ IS NULL OR inserted_at <= $7::TIMESTAMPTZ
+)
+AND (
+    $8::UUID[] IS NULL OR workflow_id = ANY($8::UUID[])
+)
 GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
+	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
 	Tenantid                  uuid.UUID          `json:"tenantid"`
+	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
+	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 	Createdafter              pgtype.Timestamptz `json:"createdafter"`
 	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
-	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -1236,14 +1217,14 @@ type GetTenantStatusMetricsRow struct {
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
 	row := db.QueryRow(ctx, getTenantStatusMetrics,
+		arg.ParentTaskExternalId,
+		arg.TriggeringEventExternalId,
 		arg.Tenantid,
+		arg.AdditionalMetaKeys,
+		arg.AdditionalMetaValues,
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
-		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
-		arg.AdditionalMetaKeys,
-		arg.AdditionalMetaValues,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

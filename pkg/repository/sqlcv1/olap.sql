@@ -1460,7 +1460,7 @@ SELECT
     ) :: TIMESTAMPTZ AS minute_bucket,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_tasks_olap -- todo: probably need indexing?
+FROM v1_runs_olap
 WHERE
     tenant_id = @tenantId::UUID
     AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
@@ -1469,44 +1469,6 @@ ORDER BY minute_bucket;
 
 
 -- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
-    ) AND (
-        sqlc.narg('triggeringEventExternalId')::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = @tenantId::uuid
-                AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
-        )
-    )
-    AND (
-        sqlc.narg('additionalMetaKeys')::text[] IS NULL
-        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
-                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = @tenantId::UUID
-    AND inserted_at >= @createdAfter::TIMESTAMPTZ
-    AND (
-        sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
-    )
-    AND (
-        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
-    )
-)
-
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
@@ -1515,21 +1477,40 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
     COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_tasks_olap
-WHERE
-    tenant_id = @tenantId::UUID
-    AND inserted_at >= @createdAfter::TIMESTAMPTZ
-    AND (
-        sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
+FROM v1_runs_olap
+WHERE (
+    sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+) AND (
+    sqlc.narg('triggeringEventExternalId')::UUID IS NULL
+    OR (id, inserted_at) IN (
+        SELECT etr.run_id, etr.run_inserted_at
+        FROM v1_event_lookup_table_olap lt
+        JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+        JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+        WHERE
+            lt.tenant_id = @tenantId::uuid
+            AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
     )
-    AND (
-        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+)
+AND (
+    sqlc.narg('additionalMetaKeys')::text[] IS NULL
+    OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+    OR EXISTS (
+        SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+        JOIN LATERAL (
+            SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+        ) AS u ON kv.key = u.k AND kv.value = u.v
     )
-    AND external_id IN (
-        -- todo: indexing - go through the lookup table
-        SELECT external_id
-        FROM task_external_ids
-    )
+)
+AND tenant_id = @tenantId::UUID
+AND inserted_at >= @createdAfter::TIMESTAMPTZ
+AND (
+    sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
+)
+AND (
+    sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+)
 GROUP BY tenant_id
 ;
 
