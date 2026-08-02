@@ -27,9 +27,6 @@ jobs:
             const MARKER = '<!-- close-unaccepted-prs -->';
             const CUTOFF = Date.parse('2026-08-01T00:00:00Z');
 
-            // author_association in the webhook payload only reflects PUBLIC org
-            // membership, so private members show up as CONTRIBUTOR/NONE. Query the
-            // user's actual repo permission instead, which is visibility-independent.
             async function isMaintainer(login) {
               if (!login) return false;
               try {
