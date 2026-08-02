@@ -1,5 +1,5 @@
 <div align="center">
-<a href ="https://hatchet.run?utm_source=github&utm_campaign=readme">
+<a href ="https://hatchet.run">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/hatchet_logo_dark.svg">
   <img width="200" alt="Hatchet Logo" src="./assets/hatchet_logo_light.svg">
