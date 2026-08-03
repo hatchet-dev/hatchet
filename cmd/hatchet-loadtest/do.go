@@ -326,8 +326,8 @@ func do(config LoadTestConfig) error {
 
 	if config.ExternalWorker {
 		log.Printf(
-			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, config.Events, phases.queued.count, phases.scheduling.count, phases.execution.count,
+			"ℹ️ pushed %d %q events, using %d events/s (externalWorker: engine-observed samples for the benchmarked workflow — queued n=%d, scheduling n=%d, execution n=%d)",
+			emitted, eventkeys.EventKeyDefault, config.Events, phases.queued.count, phases.scheduling.count, phases.execution.count,
 		)
 
 		if phases.execution.count == 0 {
