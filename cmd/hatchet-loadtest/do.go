@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -289,7 +290,12 @@ func do(config LoadTestConfig) error {
 	pushedByKey := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers, config.EventKeys)
 	close(scheduled)
 
-	log.Printf("ℹ️ pushed per event key: %v", pushedByKey)
+	pbkj, err := json.MarshalIndent(pushedByKey, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal pushedByKey: %w", err)
+	}
+
+	log.Printf("ℹ️ pushed per event key: %v", string(pbkj))
 
 	emitted := pushedByKey[eventkeys.EventKeyDefault]
 
