@@ -72,17 +72,17 @@ func run() error {
 		return fmt.Errorf("failed to create hatchet client: %w", err)
 	}
 
-	taskName := envOr("HATCHET_LOADTEST_WORKFLOW_NAME", "load-test-0")
+	taskName := envOr("HATCHET_LOADTEST_WORKFLOW_NAME", eventkeys.WorkflowStandardName(0))
 	eventKey := envOr("HATCHET_LOADTEST_EVENT_KEY", eventkeys.EventKeyDefault.String())
 	batchTaskEventKey := envOr("HATCHET_LOADTEST_BATCH_EVENT_KEY", eventkeys.EventKeyBatch.String())
 	durableTaskEventKey := envOr("HATCHET_LOADTEST_DURABLE_EVENT_KEY", eventkeys.EventKeyDurable.String())
 	delayMs := envInt("HATCHET_LOADTEST_DELAY_MS", 0)
 	failureRate := envFloat("HATCHET_LOADTEST_FAILURE_RATE", 0)
-	workerName := envOr("HATCHET_LOADTEST_WORKER_NAME", "load-test-worker")
-	batchTaskName := envOr("HATCHET_LOADTEST_BATCH_WORKFLOW_NAME", "load-test-batch")
+	workerName := envOr("HATCHET_LOADTEST_WORKER_NAME", eventkeys.WorkerName)
+	batchTaskName := envOr("HATCHET_LOADTEST_BATCH_WORKFLOW_NAME", eventkeys.WorkflowBatchName)
 
-	durableTaskName := envOr("HATCHET_LOADTEST_DURABLE_TASK_NAME", "load-test-durable")
-	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", "load-test-durable-child")
+	durableTaskName := envOr("HATCHET_LOADTEST_DURABLE_TASK_NAME", eventkeys.WorkflowDurableName)
+	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", eventkeys.WorkflowDurableChildName)
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 1000)
 	durableSleepMs := envInt("HATCHET_LOADTEST_DURABLE_SLEEP_MS", 1000)

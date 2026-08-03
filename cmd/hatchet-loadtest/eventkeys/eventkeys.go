@@ -1,6 +1,9 @@
 package eventkeys
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 type EventKey string
 
@@ -9,6 +12,20 @@ const (
 	EventKeyBatch   EventKey = "load-test:batch-event"
 	EventKeyDurable EventKey = "load-test:durable-event"
 )
+
+const workflowNamePrefix = "load-test-"
+
+const (
+	WorkerName = workflowNamePrefix + "worker"
+
+	WorkflowBatchName        = workflowNamePrefix + "batch"
+	WorkflowDurableName      = workflowNamePrefix + "durable"
+	WorkflowDurableChildName = workflowNamePrefix + "durable-child"
+)
+
+func WorkflowStandardName(i int) string {
+	return fmt.Sprintf("%s%d", workflowNamePrefix, i)
+}
 
 var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable}
 

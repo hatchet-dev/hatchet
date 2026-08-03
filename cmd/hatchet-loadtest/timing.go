@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
@@ -24,6 +25,7 @@ const timingPageLimit int64 = 100
 // PhaseSample is one observation of the three latency phases for a single
 // completed task, as derived from the engine's V1TaskTiming timestamps.
 type PhaseSample struct {
+	EventKey   eventkeys.EventKey
 	Queued     time.Duration
 	Scheduling time.Duration
 	Execution  time.Duration
@@ -106,17 +108,19 @@ type TimingCollector struct {
 	api          *rest.ClientWithResponses
 	seen         map[uuid.UUID]time.Time
 	workflowIds  []uuid.UUID
+	workflowKeys map[uuid.UUID]eventkeys.EventKey
 	pollInterval time.Duration
 	mu           sync.Mutex
 	tenantId     uuid.UUID
 }
 
 // NewTimingCollector builds a collector for already-resolved workflow ids.
-func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollInterval time.Duration) *TimingCollector { //nolint:staticcheck // SA1019
+func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, workflowKeys map[uuid.UUID]eventkeys.EventKey, pollInterval time.Duration) *TimingCollector { //nolint:staticcheck // SA1019
 	return &TimingCollector{
 		api:          hatchet.V0().API(),
 		tenantId:     uuid.MustParse(hatchet.V0().TenantId()),
 		workflowIds:  workflowIds,
+		workflowKeys: workflowKeys,
 		pollInterval: pollInterval,
 		// Start the window slightly in the past so the first sweep can pick
 		// up runs that finished just before the collector started.
@@ -196,7 +200,7 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 				continue
 			}
 
-			c.fetchTimings(ctx, runId, out)
+			c.fetchTimings(ctx, runId, c.workflowKeys[row.WorkflowId], out)
 		}
 
 		if int64(len(rows)) < timingPageLimit {
@@ -216,7 +220,7 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	c.mu.Unlock()
 }
 
-func (c *TimingCollector) fetchTimings(ctx context.Context, runId uuid.UUID, out chan<- PhaseSample) {
+func (c *TimingCollector) fetchTimings(ctx context.Context, runId uuid.UUID, key eventkeys.EventKey, out chan<- PhaseSample) {
 	var depth int64
 
 	resp, err := c.api.V1WorkflowRunGetTimingsWithResponse(ctx, runId, &rest.V1WorkflowRunGetTimingsParams{Depth: &depth})
@@ -237,6 +241,7 @@ func (c *TimingCollector) fetchTimings(ctx context.Context, runId uuid.UUID, out
 		}
 
 		sample := PhaseSample{
+			EventKey:   key,
 			Queued:     row.QueuedAt.Sub(row.TaskInsertedAt),
 			Scheduling: row.StartedAt.Sub(*row.QueuedAt),
 			Execution:  row.FinishedAt.Sub(*row.StartedAt),

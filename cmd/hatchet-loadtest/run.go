@@ -118,7 +118,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 		loadtest := factory.NewWorkflow[Event, stepOneOutput](
 			create.WorkflowCreateOpts[Event]{
-				Name: fmt.Sprintf("load-test-%d", i),
+				Name: eventkeys.WorkflowStandardName(i),
 				OnEvents: []string{
 					eventkeys.EventKeyDefault.String(),
 				},
@@ -167,7 +167,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 	worker, err := hatchet.Worker(
 		worker.WorkerOpts{
-			Name:      "load-test-worker",
+			Name:      eventkeys.WorkerName,
 			Workflows: workflows,
 			Slots:     config.Slots,
 			Logger:    &l,
