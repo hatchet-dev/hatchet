@@ -20,9 +20,6 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 	fs := http.FileServer(http.Dir(staticFilePath))
 	index := indexHandler(staticFilePath, basePath)
 
-	// content serves the single-page app: an on-disk static file when one exists,
-	// otherwise the templated index.html (SPA fallback). Paths are relative to the
-	// app root here — any base-path prefix is stripped before reaching this.
 	content := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" || r.URL.Path == "" {
 			index(w, r)
@@ -36,10 +33,6 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 		requestedPath := filepath.Join(staticFilePath, path.Clean("/"+r.URL.Path))
 
 		if _, err := os.Stat(requestedPath); os.IsNotExist(err) {
-			// SPA fallback: render index.html through the template so the base
-			// path is injected on deep links and refreshes, not just the exact
-			// root. Serving the file raw here would leak the unrendered
-			// {{ .BasePath }} directive to the browser.
 			index(w, r)
 			return
 		}
@@ -53,14 +46,7 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 		fs.ServeHTTP(w, r)
 	})
 
-	// Mount the app under its base path so the server is self-contained: it both
-	// injects the base path into index.html AND serves the app's assets and SPA
-	// routes under that prefix. No external prefix-stripping proxy is required to
-	// host the dashboard under a subpath.
 	if prefix := routePrefix(basePath); prefix != "" {
-		// Redirect the bare prefix and the host root to the trailing-slash form
-		// so the browser resolves the app's relative asset URLs under the subpath.
-		r.Get("/", http.RedirectHandler(prefix+"/", http.StatusFound).ServeHTTP)
 		r.Get(prefix, http.RedirectHandler(prefix+"/", http.StatusFound).ServeHTTP)
 		r.Handle(prefix+"/*", http.StripPrefix(prefix, content))
 	} else {
@@ -70,8 +56,6 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 	return r
 }
 
-// routePrefix normalizes a base path to a leading-slash, no-trailing-slash prefix
-// suitable for routing (e.g. "hatchet/" -> "/hatchet"). The root ("", "/") yields "".
 func routePrefix(basePath string) string {
 	trimmed := strings.Trim(basePath, "/")
 	if trimmed == "" {
@@ -81,10 +65,6 @@ func routePrefix(basePath string) string {
 }
 
 func indexHandler(staticFilePath, basePath string) http.HandlerFunc {
-	// Normalize to a leading and trailing slash so the browser resolves the
-	// app's relative asset URLs (./assets/...) under the subpath rather than the
-	// host root, regardless of whether BASE_PATH was written as "hatchet",
-	// "/hatchet", or "/hatchet/".
 	if basePath == "" {
 		basePath = "/"
 	}

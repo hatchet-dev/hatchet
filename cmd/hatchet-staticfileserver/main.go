@@ -14,7 +14,7 @@ import (
 func main() {
 	port := flag.String("port", "80", "port to listen on")
 	staticAssetDir := flag.String("static-asset-dir", ".", "directory to serve static assets from")
-	basePath := flag.String("base-path", "/", "base path the app is served under (e.g. /hatchet)")
+	basePath := flag.String("base-path", envOrDefault("BASE_PATH", "/"), "base path the app is served under (e.g. /hatchet); defaults to $BASE_PATH")
 	flag.Parse()
 
 	c := staticfileserver.NewStaticFileServer(*staticAssetDir, *basePath)
@@ -29,4 +29,11 @@ func main() {
 		log.Printf("static file server failure: %s", err.Error())
 		os.Exit(1)
 	}
+}
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }

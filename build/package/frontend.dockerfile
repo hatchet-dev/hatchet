@@ -35,4 +35,4 @@ COPY --from=staticfileserver /app/hatchet-staticfileserver ./hatchet-staticfiles
 
 EXPOSE 80
 
-CMD ["/bin/sh", "-c", "/app/hatchet-staticfileserver -static-asset-dir /app/dist -base-path ${BASE_PATH}"]
+CMD ["/app/hatchet-staticfileserver", "-static-asset-dir", "/app/dist"]
