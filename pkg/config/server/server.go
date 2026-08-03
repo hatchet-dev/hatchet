@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/usagetelemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -71,6 +72,8 @@ type ServerConfigFile struct {
 	Observability shared.ObservabilityConfigFile `mapstructure:"observability" json:"observability,omitempty"`
 
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
+
+	UsageTelemetry UsageTelemetryConfigFile `mapstructure:"usageTelemetry" json:"usageTelemetry,omitempty"`
 
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
@@ -336,6 +339,10 @@ type InternalClientTLSConfigFile struct {
 type SecurityCheckConfigFile struct {
 	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
+}
+
+type UsageTelemetryConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 }
 
 // Alerting options
@@ -674,6 +681,8 @@ type ServerConfig struct {
 
 	Analytics analytics.Analytics
 
+	UsageTelemetry usagetelemetry.UsageTelemetry
+
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
@@ -809,6 +818,9 @@ func BindAllEnv(v *viper.Viper) {
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
 	_ = v.BindEnv("securityCheck.endpoint", "SERVER_SECURITY_CHECK_ENDPOINT")
+
+	// usage telemetry options
+	_ = v.BindEnv("usageTelemetry.enabled", "SERVER_USAGE_TELEMETRY_ENABLED")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")

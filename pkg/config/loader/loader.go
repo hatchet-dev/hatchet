@@ -49,6 +49,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
+	"github.com/hatchet-dev/hatchet/pkg/usagetelemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -597,6 +598,36 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		go securityCheck.Start(securityCheckCtx)
 	}
 
+	usageTel, utErr := usagetelemetry.NewUsageTelemetry(&usagetelemetry.Opts{
+		Enabled: cf.UsageTelemetry.Enabled,
+		Logger:  &l,
+	}, dc.V1.SecurityCheck(), dc.V1.UsageMetrics(), dc.V1.OLAP())
+
+	if utErr != nil {
+		return nil, nil, fmt.Errorf("could not create usage telemetry: %w", utErr)
+	}
+
+	cleanupUsageTelemetry := func() {
+		usageTel.Shutdown()
+	}
+
+	switch {
+	case !usagetelemetry.KeyConfigured():
+		l.Info().Msg("anonymized usage telemetry is disabled (no telemetry key in this build)")
+	case cf.UsageTelemetry.Enabled:
+		l.Info().Msg("anonymized usage telemetry is enabled — thank you for helping improve Hatchet; disable it with SERVER_USAGE_TELEMETRY_ENABLED=false")
+
+		usageTelemetryCtx, cancel := context.WithCancel(context.Background())
+		cleanupUsageTelemetry = func() {
+			cancel()
+			usageTel.Shutdown()
+		}
+
+		go usageTel.Start(usageTelemetryCtx)
+	default:
+		l.Info().Msg("anonymized usage telemetry is disabled")
+	}
+
 	var analyticsEmitter analytics.Analytics
 	var feAnalyticsConfig *server.FePosthogConfig
 
@@ -857,6 +888,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		cleanupSecurityCheck()
 
+		cleanupUsageTelemetry()
+
 		cleanupConcurrencyOutbox()
 
 		if err := cleanupSchedulingPoolV1(); err != nil {
@@ -914,6 +947,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
+		UsageTelemetry:         usageTel,
 		FePosthog:              feAnalyticsConfig,
 		Pylon:                  &pylon,
 		Runtime:                cf.Runtime,

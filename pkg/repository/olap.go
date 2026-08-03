@@ -340,6 +340,7 @@ type OLAPRepository interface {
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
 	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
+	ListLastHourRunCountsByStatus(ctx context.Context) (map[string]int64, error)
 
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
@@ -3430,6 +3431,22 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 
 	for _, row := range rows {
 		statusToCount[row.ReadableStatus] = row.Count
+	}
+
+	return statusToCount, nil
+}
+
+func (r *OLAPRepositoryImpl) ListLastHourRunCountsByStatus(ctx context.Context) (map[string]int64, error) {
+	rows, err := r.queries.ListLastHourRunCountsByStatus(ctx, r.readPool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	statusToCount := make(map[string]int64)
+
+	for _, row := range rows {
+		statusToCount[string(row.ReadableStatus)] = row.Count
 	}
 
 	return statusToCount, nil

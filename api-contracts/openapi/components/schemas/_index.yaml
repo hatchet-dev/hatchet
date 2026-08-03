@@ -4,6 +4,8 @@ APIMetaAuth:
   $ref: "./metadata.yaml#/APIMetaAuth"
 APIMetaPosthog:
   $ref: "./metadata.yaml#/APIMetaPosthog"
+CreateFeedbackRequest:
+  $ref: "./metadata.yaml#/CreateFeedbackRequest"
 ListAPIMetaIntegration:
   $ref: "./metadata.yaml#/ListAPIMetaIntegration"
 APIMetaIntegration:

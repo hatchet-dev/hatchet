@@ -21,6 +21,7 @@ import {
   CreateAPITokenResponse,
   CreateCronWorkflowTriggerRequest,
   CreateEventRequest,
+  CreateFeedbackRequest,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
@@ -1400,6 +1401,25 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
+   * @description Submit product feedback to Hatchet.
+   *
+   * @tags Metadata
+   * @name FeedbackCreate
+   * @summary Submit feedback
+   * @request POST:/api/v1/feedback
+   * @secure
+   */
+  feedbackCreate = Object.assign((data: CreateFeedbackRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/feedback`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
       xResources: [],
     }), { resources: new Set<string>([]) });

@@ -216,6 +216,16 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_SECURITY_CHECK_ENABLED`  | Enable security check   | `true`                         |
 | `SERVER_SECURITY_CHECK_ENDPOINT` | Security check endpoint | `https://security.hatchet.run` |
 
+## Usage Telemetry Configuration
+
+Hatchet collects anonymized aggregate usage telemetry (counts of tenants, users, workflows, and workers, worker SDK languages, and hourly task-run counts) to help prioritize improvements. No workflow inputs, outputs, payloads, logs, or personally identifiable information is collected, and events are tied only to a random instance identifier. Telemetry is only sent from official release images (which ship with a telemetry key); builds without a key never send anything regardless of this setting.
+
+| Variable                         | Description                       | Default Value |
+| -------------------------------- | --------------------------------- | ------------- |
+| `SERVER_USAGE_TELEMETRY_ENABLED` | Enable anonymized usage telemetry | `true`        |
+
+To opt out, set `SERVER_USAGE_TELEMETRY_ENABLED=false`.
+
 ## Limit Configuration
 
 | Variable                                        | Description                     | Default Value  |

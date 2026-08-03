@@ -436,6 +436,9 @@ type APIMeta struct {
 	// AuthDisabledToken the embedded worker API token, only set on authdisabled builds
 	AuthDisabledToken *string `json:"authDisabledToken,omitempty"`
 
+	// FeedbackEnabled whether in-app feedback submission is available on this instance
+	FeedbackEnabled *bool `json:"feedbackEnabled,omitempty"`
+
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
@@ -575,6 +578,12 @@ type CreateEventRequest struct {
 
 	// Scope The scope for event filtering.
 	Scope *string `json:"scope,omitempty"`
+}
+
+// CreateFeedbackRequest defines model for CreateFeedbackRequest.
+type CreateFeedbackRequest struct {
+	// Message the feedback message
+	Message string `json:"message"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
@@ -3265,6 +3274,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// FeedbackCreateJSONRequestBody defines body for FeedbackCreate for application/json ContentType.
+type FeedbackCreateJSONRequestBody = CreateFeedbackRequest
+
 // V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
 type V1CelDebugJSONRequestBody = V1CELDebugRequest
 
@@ -3568,6 +3580,11 @@ type ClientInterface interface {
 
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FeedbackCreateWithBody request with any body
+	FeedbackCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	FeedbackCreate(ctx context.Context, body FeedbackCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// MetadataGet request
 	MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4151,6 +4168,30 @@ func (c *Client) EventGet(ctx context.Context, event openapi_types.UUID, reqEdit
 
 func (c *Client) EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventDataGetRequest(c.Server, event)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) FeedbackCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFeedbackCreateRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) FeedbackCreate(ctx context.Context, body FeedbackCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFeedbackCreateRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6509,6 +6550,46 @@ func NewEventDataGetRequest(server string, event openapi_types.UUID) (*http.Requ
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewFeedbackCreateRequest calls the generic FeedbackCreate builder with application/json body
+func NewFeedbackCreateRequest(server string, body FeedbackCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewFeedbackCreateRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewFeedbackCreateRequestWithBody generates requests for FeedbackCreate with any type of body
+func NewFeedbackCreateRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/feedback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -14534,6 +14615,11 @@ type ClientWithResponsesInterface interface {
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
+	// FeedbackCreateWithBodyWithResponse request with any body
+	FeedbackCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FeedbackCreateResponse, error)
+
+	FeedbackCreateWithResponse(ctx context.Context, body FeedbackCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*FeedbackCreateResponse, error)
+
 	// MetadataGetWithResponse request
 	MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error)
 
@@ -15197,6 +15283,29 @@ func (r EventDataGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventDataGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type FeedbackCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r FeedbackCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FeedbackCreateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -18576,6 +18685,23 @@ func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, even
 	return ParseEventDataGetResponse(rsp)
 }
 
+// FeedbackCreateWithBodyWithResponse request with arbitrary body returning *FeedbackCreateResponse
+func (c *ClientWithResponses) FeedbackCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FeedbackCreateResponse, error) {
+	rsp, err := c.FeedbackCreateWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFeedbackCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) FeedbackCreateWithResponse(ctx context.Context, body FeedbackCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*FeedbackCreateResponse, error) {
+	rsp, err := c.FeedbackCreate(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFeedbackCreateResponse(rsp)
+}
+
 // MetadataGetWithResponse request returning *MetadataGetResponse
 func (c *ClientWithResponses) MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error) {
 	rsp, err := c.MetadataGet(ctx, reqEditors...)
@@ -20368,6 +20494,39 @@ func ParseEventDataGetResponse(rsp *http.Response) (*EventDataGetResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFeedbackCreateResponse parses an HTTP response from a FeedbackCreateWithResponse call
+func ParseFeedbackCreateResponse(rsp *http.Response) (*FeedbackCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FeedbackCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 

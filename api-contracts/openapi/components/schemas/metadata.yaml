@@ -41,6 +41,10 @@ APIMeta:
       type: string
       description: the embedded worker API token, only set on authdisabled builds
       example: eyJhbGciOiJFUzI1NiIs...
+    feedbackEnabled:
+      type: boolean
+      description: whether in-app feedback submission is available on this instance
+      example: true
 
 APIMetaAuth:
   type: object
@@ -66,6 +70,17 @@ APIMetaPosthog:
         description: the PostHog API host
         example: https://posthog.example.com
 
+CreateFeedbackRequest:
+  type: object
+  properties:
+    message:
+      type: string
+      description: the feedback message
+      minLength: 1
+      maxLength: 10000
+      example: I would love a dark mode for the dashboard.
+  required:
+    - message
 ListAPIMetaIntegration:
   type: array
   items:

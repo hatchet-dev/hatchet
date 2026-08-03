@@ -1324,6 +1324,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether in-app feedback submission is available on this instance
+   * @example true
+   */
+  feedbackEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -1337,6 +1342,16 @@ export interface APIMetaIntegration {
 }
 
 export type ListAPIMetaIntegration = APIMetaIntegration[];
+
+export interface CreateFeedbackRequest {
+  /**
+   * the feedback message
+   * @minLength 1
+   * @maxLength 10000
+   * @example "I would love a dark mode for the dashboard."
+   */
+  message: string;
+}
 
 export interface UserLoginRequest {
   /**
