@@ -459,22 +459,28 @@ func do(config LoadTestConfig) error {
 	}
 
 	if config.ExternalWorker {
-		// engine-observed timing replaces the client-side duration/scheduling
-		// averages above (which are meaningless here - durations was closed
-		// with zero samples and there's no in-process step handler), rather
-		// than reporting alongside them.
-		log.Printf("ℹ️ overall engine timing — queued=%s scheduling=%s execution=%s (n=%d)", phases.overall.queued.avg, phases.overall.scheduling.avg, phases.overall.execution.avg, phases.overall.execution.count)
+		// The engine-observed phase results are what we report on; there's no
+		// in-process step handler feeding client-side duration/scheduling here.
+		log.Printf("ℹ️ overall engine timing (n=%d):", phases.overall.execution.count)
+		log.Printf("ℹ️   final average queued time per event: %s", phases.overall.queued.avg)
+		log.Printf("ℹ️   final average scheduling time per event: %s", phases.overall.scheduling.avg)
+		log.Printf("ℹ️   final average duration per executed event: %s", phases.overall.execution.avg)
+
 		for _, k := range config.EventKeys {
 			p := phases.byKey[k]
-			log.Printf("ℹ️ engine timing for %s — queued=%s scheduling=%s execution=%s (n=%d)", k, p.queued.avg, p.scheduling.avg, p.execution.avg, p.execution.count)
+			log.Printf("ℹ️ engine timing for %s (n=%d):", k, p.execution.count)
+			log.Printf("ℹ️   queued=%s scheduling=%s execution=%s", p.queued.avg, p.scheduling.avg, p.execution.avg)
+			if r, ok := finalScheduledByKey[k]; ok {
+				log.Printf("ℹ️   scheduling (push) latency: avg=%s n=%d", r.avg, r.count)
+			}
 		}
 	} else {
 		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-	}
-	for _, k := range config.EventKeys {
-		if r, ok := finalScheduledByKey[k]; ok {
-			log.Printf("ℹ️ scheduling (push) latency for %s: avg=%s n=%d", k, r.avg, r.count)
+		for _, k := range config.EventKeys {
+			if r, ok := finalScheduledByKey[k]; ok {
+				log.Printf("ℹ️ scheduling (push) latency for %s: avg=%s n=%d", k, r.avg, r.count)
+			}
 		}
 	}
 	// In externalWorker mode, finalDurationResult/finalScheduledResult have no
