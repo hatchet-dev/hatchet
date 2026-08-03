@@ -107,7 +107,6 @@ func run() error {
 		hatchet.WithWorkflowEvents(eventKey),
 	)
 
-	// Preview: batch tasks are in beta and may change in future releases.
 	batchTask := client.NewStandaloneBatchTask(batchTaskName, func(ctx hatchet.Context, tasks map[string]LoadTestInput) (map[string]LoadTestOutput, error) {
 		out := make(map[string]LoadTestOutput, len(tasks))
 		for id := range tasks {
