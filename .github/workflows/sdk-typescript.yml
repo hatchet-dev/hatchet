@@ -256,6 +256,7 @@ jobs:
           export SERVER_LOGGER_FORMAT=console
           export DATABASE_LOGGER_LEVEL=warn
           export DATABASE_LOGGER_FORMAT=console
+          export SERVER_SECURITY_CHECK_ENABLED=false
 
           go run ./cmd/hatchet-admin quickstart
 
