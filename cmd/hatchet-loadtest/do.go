@@ -389,10 +389,13 @@ func do(config LoadTestConfig) error {
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
 	if config.ExternalWorker {
-		log.Printf(
-			"ℹ️ pushed %d %q events, using %d events/s (externalWorker: engine-observed samples for the benchmarked workflow — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, eventkeys.EventKeyDefault, config.Events, benchPhases.queued.count, benchPhases.scheduling.count, benchPhases.execution.count,
-		)
+		for _, k := range config.EventKeys {
+			p := phases.byKey[k]
+			log.Printf(
+				"ℹ️ pushed %d %q events, using %d events/s (externalWorker: engine-observed samples — queued n=%d, scheduling n=%d, execution n=%d)",
+				pushedByKey[k], k, config.Events, p.queued.count, p.scheduling.count, p.execution.count,
+			)
+		}
 	} else {
 		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
 		// so `emitted` here is effectively "pushed".
