@@ -115,6 +115,7 @@ jobs:
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
           export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
+          export SERVER_SECURITY_CHECK_ENABLED=false
 
           go run ./cmd/hatchet-admin quickstart
 

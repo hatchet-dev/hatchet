@@ -3,6 +3,7 @@ package msgqueue
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -44,6 +45,11 @@ type Message struct {
 
 	// Compressed indicates whether the payloads are gzip compressed
 	Compressed bool `json:"compressed,omitempty"`
+
+	// PublishedAt is stamped by the instrumented pub/sub at publish time and is
+	// used to observe transit latency on delivery. Zero for durable-queue
+	// messages and messages from engines that predate the field.
+	PublishedAt time.Time `json:"published_at,omitzero"`
 }
 
 func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {
