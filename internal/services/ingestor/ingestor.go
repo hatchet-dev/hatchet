@@ -36,6 +36,7 @@ type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
 	mqv1                  msgqueue.MessageQueue
+	pubsub                msgqueue.PubSub
 	repov1                v1.Repository
 	analytics             analytics.Analytics
 	isLogIngestionEnabled bool
@@ -54,6 +55,12 @@ type IngestorOpts struct {
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.mqv1 = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -133,6 +140,7 @@ type IngestorImpl struct {
 	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mqv1   msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
 	v      validator.Validator
 	repov1 v1.Repository
 
@@ -158,6 +166,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
@@ -175,7 +187,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	if opts.grpcTriggersEnabled {
 		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
 
-		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}
 
 	var localScheduler *scheduler.Scheduler
@@ -187,6 +199,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	return &IngestorImpl{
 		steprunTenantLookupCache: stepRunCache,
 		mqv1:                     opts.mqv1,
+		pubsub:                   opts.pubsub,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		analytics:                opts.analytics,

@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -54,6 +56,18 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 			m.cancel()
 			return nil
 		}
+}
+
+// NewMessageQueueRepositoryWithPool constructs a standalone MessageQueueRepository
+// over a dedicated pool, with its own multiplexed listener whose LISTEN
+// connection is hijacked from that pool. It is used by the best-effort PubSub,
+// which must never share pooled resources with the repository layer.
+func NewMessageQueueRepositoryWithPool(l *zerolog.Logger, pool *pgxpool.Pool) (MessageQueueRepository, func() error) {
+	return newMessageQueueRepository(&sharedRepository{
+		pool:    pool,
+		l:       l,
+		queries: sqlcv1.New(),
+	})
 }
 
 func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error {

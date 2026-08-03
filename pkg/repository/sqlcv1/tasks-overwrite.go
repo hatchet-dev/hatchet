@@ -683,52 +683,11 @@ WITH input AS (
                 unnest($2::timestamptz[]) AS task_inserted_at,
                 unnest($3::integer[]) AS retry_count
         ) AS subquery
-), batched_items_to_delete AS (
-    SELECT
-        tenant_id, step_id, batch_key, task_id, task_inserted_at, retry_count
-    FROM
-        v1_batched_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_batched_items AS (
-    DELETE FROM
-        v1_batched_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_items_to_delete)
-    RETURNING
-        tenant_id,
-        step_id,
-        batch_key
-), orphaned_batch_runs AS (
-    SELECT
-        br.tenant_id,
-        br.batch_id
-    FROM
-        v1_batch_runtime br
-    JOIN
-        deleted_batched_items dbi ON
-            dbi.tenant_id = br.tenant_id
-            AND dbi.step_id = br.step_id
-            AND dbi.batch_key = br.batch_key
-    WHERE NOT EXISTS (
-        SELECT
-            1
-        FROM
-            v1_batched_queue_item bqi
-        WHERE
-            bqi.tenant_id = br.tenant_id
-            AND bqi.step_id = br.step_id
-            AND bqi.batch_key = br.batch_key
-    )
-    FOR UPDATE
 )
 DELETE FROM
-    v1_batch_runtime br
+    v1_batched_queue_item
 WHERE
-    (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM orphaned_batch_runs)
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 `
 
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a `displayName` option to the workflow and task **definitions** for naming runs with a [CEL](https://github.com/google/cel-spec) expression evaluated against each run's input at trigger time. Set it on `hatchet.workflow({ displayName })` to name the run, and/or on `.task({ displayName })` to name individual DAG steps; on a single-task workflow the task-level expression takes precedence over the workflow-level one. Because the expression lives in the definition, it applies to every trigger source (manual, `run`/`runMany`, child spawn, event, and cron) with no per-trigger configuration. A malformed expression is rejected at registration; any run-time evaluation error (missing key, non-string result, empty result) silently falls back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated rather than rejected. This replaces the previous trigger-time `displayName` run option, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
 
+## [1.28.1] - 2026-07-30
+
+### Fixed
+
+- Fixed heartbeat worker logging to ignore Node watch-mode worker reload messages that don’t match the heartbeat message protocol.
+- Improved heartbeat worker and action listener logging to ignore first network error, warn log on second error, and only error log past 3
+  errors to reduce false alarms due to transient network errors.
+
 ## [1.28.0] - 2026-07-23
 
 ### Changed

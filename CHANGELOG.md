@@ -1,4 +1,6 @@
-## [Unreleased]
+## [0.98.9] - 2026-07-28
+
+Hatchet v0.98.9 is a feature release. It adds idempotency keys for tasks and workflows, task batching, and an embedded engine the Go SDK can run in-process, alongside a new default for concurrency scheduling and a batch of dashboard and hardening fixes.
 
 ### Added
 - Runs and individual DAG steps can now be given a human-readable display name via a CEL expression declared on the workflow/task **definition** (`display_name`), evaluated against the run input at trigger time — so fanned-out child runs are identifiable at a glance in the dashboard instead of sharing a generated `<readableId>-<timestamp>` label. Because the expression lives in the definition, every trigger source (manual, event, and cron) gets meaningful names automatically, and each step of a DAG can be named independently. A workflow-level expression names the run (the DAG row, or the single task for a one-step workflow, falling back to the workflow-level expression when the step has none); a per-task expression names an individual step. Malformed expressions are rejected at registration; any runtime evaluation error (missing key, non-string, empty) silently falls back to the generated name and never fails the run; results are truncated to 255 runes rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
@@ -8,6 +10,14 @@
 - Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
 - Engine rows in the run trace view now carry a badge with their workflow, task, or event name, and the retry number on retried tasks, so repeated spans such as `hatchet.engine.workflow_run` are distinguishable at a glance.
 - CLI commands that take `--profile` now use the configured default or only profile without prompting, and `hatchet server start` sets its new profile as the default when none is configured. In sessions without a terminal, such as CI, a selection that would still need a prompt fails with an error that explains how to proceed.
+- Tasks and workflows can declare an idempotency key, so duplicate triggers no longer produce duplicate runs. Keys are held for a TTL or until the claiming run reaches a terminal status, in all four SDKs. Note, that idempotency is currently in beta and may be subject to change. See [Idempotency Key Expression](https://docs.hatchet.run/v1/idempotency#the-idempotency-key-expression) for more information.
+- The Go SDK can run a full engine in-process given only a Postgres connection string, via `hatchet.WithEmbeddedPostgres(databaseURL)`.
+- Concurrency strategies are now evaluated against the in-memory index by default rather than querying Postgres on every scheduling pass, where `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED` now defaults to `true`.
+- Best-effort pub/sub is now configured independently of the durable queue and can run on Postgres while durable messages stay on RabbitMQ. Existing deployments need no new configuration, see [Task Queue Configuration](https://docs.hatchet.run/self-hosting/configuration-options#task-queue-configuration) for full list of options.
+- Rate limits can be managed from the CLI with `hatchet rate-limits`, and interactively from the TUI.
+- The CLI now reports anonymized usage data on invocation. See [Anonymous Telemetry](https://docs.hatchet.run/reference/cli#anonymous-telemetry) for more information.
+- Added worker label filters, and reverted Monaco editor bundle to once again be fetched from a CDN.
+- Sensitive request data and RabbitMQ credentials are now kept out of logs, and rate limiting is re-enabled on incoming webhook requests.
 
 ## [0.94.10] - 2026-07-14
 

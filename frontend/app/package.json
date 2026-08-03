@@ -69,7 +69,6 @@
     "js-confetti": "^0.13.1",
     "lodash": "^4.18.1",
     "lucide-react": "^1.8.0",
-    "monaco-editor": "^0.55.1",
     "monaco-themes": "^0.4.8",
     "ms": "^2.1.3",
     "posthog-js": "^1.369.2",
@@ -95,6 +94,7 @@
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^20.19.43",
     "@types/qs": "^6.15.1",
     "@types/react": "^18.3.20",
@@ -103,7 +103,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.5.2",
+    "autoprefixer": "^10.5.4",
     "cypress": "^13.17.0",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-typescript": "^18.0.0",
@@ -114,8 +114,9 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.5.3",
     "eslint-plugin-unused-imports": "^3.2.0",
-    "postcss": "^8.5.16",
-    "prettier": "^3.9.5",
+    "postcss": "^8.5.22",
+    "prettier": "^3.9.6",
+    "jsdom": "^29.1.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.1",
@@ -128,14 +129,14 @@
       "prismjs": "^1.30.0",
       "qs": ">=6.14.2",
       "js-yaml": "^4.2.0",
-      "seroval": "1.4.1",
+      "seroval": "^1.5.3",
       "lodash": "^4.18.1",
       "lodash-es": "^4.18.1",
       "tar": "^7.5.8",
       "axios": "^1.18.0",
       "follow-redirects": "^1.16.0",
       "brace-expansion@1": "^1.1.13",
-      "brace-expansion@2": "^2.1.2",
+      "brace-expansion@2": "^2.1.3",
       "flatted": "^3.4.2",
       "@opentelemetry/core": "^2.8.0",
       "protobufjs": "^7.6.3",
@@ -144,7 +145,8 @@
       "tmp": "^0.2.6",
       "uuid@8": "^11.1.1",
       "dompurify": "^3.4.12",
-      "immutable": "^5.1.8"
+      "immutable": "^5.1.8",
+      "postcss": "^8.5.18"
     }
   }
 }

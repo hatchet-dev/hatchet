@@ -230,6 +230,78 @@ describe('DurableListenerClient reconnection', () => {
     });
   });
 
+  // ── log severity escalation ──
+
+  describe('log severity escalation', () => {
+    it('is silent on the 1st EOF, warns on the 2nd, then escalates to error', async () => {
+      const h = tracked(hangingStream());
+      let call = 0;
+      // MAX_TRANSIENT_LISTENER_RETRIES is 3: 1st EOF silent, 2nd warn, 3rd+ error.
+      grpcClient.durableTask.mockImplementation(() => (++call <= 4 ? emptyStream() : h.stream));
+
+      await listener.start('w1');
+      await settle(150);
+
+      const { warn, error } = listener.logger as unknown as {
+        warn: jest.Mock;
+        error: jest.Mock;
+      };
+      const warnMessages = warn.mock.calls
+        .map((c) => c[0])
+        .filter((m) => /disconnected \(EOF\)/.test(m));
+      const errorMessages = error.mock.calls
+        .map((c) => c[0])
+        .filter((m) => /disconnected \(EOF\)/.test(m));
+
+      expect(warnMessages.length).toBe(1);
+      expect(errorMessages.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('is silent on the 1st connection error, warns on the 2nd, then escalates to error', async () => {
+      const h = tracked(hangingStream());
+      let call = 0;
+      const connErr = () => Object.assign(new Error('unavailable'), { code: 14 }); // Status.UNAVAILABLE
+      grpcClient.durableTask.mockImplementation(() =>
+        ++call <= 4 ? errorStream(connErr()) : h.stream
+      );
+
+      await listener.start('w1');
+      await settle(150);
+
+      const { warn, error } = listener.logger as unknown as {
+        warn: jest.Mock;
+        error: jest.Mock;
+      };
+      const warnMessages = warn.mock.calls
+        .map((c) => c[0])
+        .filter((m) => /durable event listener/.test(m));
+      const errorMessages = error.mock.calls
+        .map((c) => c[0])
+        .filter((m) => /durable event listener/.test(m));
+
+      expect(warnMessages.length).toBe(1);
+      expect(errorMessages.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('logs a genuine application error as error immediately, even on the first failure', async () => {
+      const h = tracked(hangingStream());
+      let call = 0;
+      grpcClient.durableTask.mockImplementation(() =>
+        ++call === 1 ? errorStream(new Error('boom')) : h.stream
+      );
+
+      await listener.start('w1');
+      await settle();
+
+      const { error } = listener.logger as unknown as { error: jest.Mock };
+      const errorMessages = error.mock.calls
+        .map((c) => c[0])
+        .filter((m) => /durable event listener/.test(m));
+
+      expect(errorMessages.length).toBe(1);
+    });
+  });
+
   // ── worker re-registration ──
 
   describe('worker re-registration on reconnect', () => {
