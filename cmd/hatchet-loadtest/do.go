@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -229,27 +230,36 @@ func do(config LoadTestConfig) error {
 
 	time.Sleep(after)
 
-	scheduled := make(chan time.Duration, config.Events)
+	scheduled := make(chan scheduledSample, config.Events)
 
-	// Compute running average for scheduled times using a rolling average.
-	scheduledResult := make(chan avgResult)
+	// Compute a running average of scheduling (push) latency per event key.
+	scheduledResult := make(chan map[eventkeys.EventKey]avgResult, 1)
 	go func() {
-		var count int64
-		var avg time.Duration
-		var snapshots []LatencySnapshot
-		for d := range scheduled {
-			count++
-			if count == 1 {
-				avg = d
-			} else {
-				avg += (d - avg) / time.Duration(count)
-			}
-			snapshots = append(snapshots, LatencySnapshot{
-				t:       time.Now(),
-				latency: d,
-			})
+		type acc struct {
+			count     int64
+			avg       time.Duration
+			snapshots []LatencySnapshot
 		}
-		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
+		accs := make(map[eventkeys.EventKey]*acc)
+		for s := range scheduled {
+			a := accs[s.eventKey]
+			if a == nil {
+				a = &acc{}
+				accs[s.eventKey] = a
+			}
+			a.count++
+			if a.count == 1 {
+				a.avg = s.latency
+			} else {
+				a.avg += (s.latency - a.avg) / time.Duration(a.count)
+			}
+			a.snapshots = append(a.snapshots, LatencySnapshot{t: time.Now(), latency: s.latency})
+		}
+		out := make(map[eventkeys.EventKey]avgResult, len(accs))
+		for k, a := range accs {
+			out[k] = avgResult{count: a.count, avg: a.avg, latencyResult: LatencyResult{snapshots: a.snapshots}}
+		}
+		scheduledResult <- out
 	}()
 
 	// externalWorker mode: start sweeping the engine's own timing data for
@@ -287,7 +297,8 @@ func do(config LoadTestConfig) error {
 	uniques := <-ch
 
 	finalDurationResult := <-durationsResult
-	finalScheduledResult := <-scheduledResult
+	finalScheduledByKey := <-scheduledResult
+	finalScheduledResult := finalScheduledByKey[eventkeys.EventKeyDefault]
 
 	var phases phaseAccumulator
 	if config.ExternalWorker {
@@ -351,6 +362,11 @@ func do(config LoadTestConfig) error {
 		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 	}
+	for _, k := range config.EventKeys {
+		if r, ok := finalScheduledByKey[k]; ok {
+			log.Printf("ℹ️ scheduling (push) latency for %s: avg=%s n=%d", k, r.avg, r.count)
+		}
+	}
 	// In externalWorker mode, finalDurationResult/finalScheduledResult have no
 	// snapshots (durations was closed with zero samples up front, and there's
 	// no in-process step handler to feed scheduled) - use the engine-observed
@@ -388,6 +404,16 @@ func do(config LoadTestConfig) error {
 		err = durationForReport.latencyResult.GeneratePlot(config.PlotDir, "duration")
 		if err != nil {
 			return err
+		}
+		for _, k := range config.EventKeys {
+			r, ok := finalScheduledByKey[k]
+			if !ok || len(r.latencyResult.snapshots) == 0 {
+				continue
+			}
+			plotName := "scheduling-" + strings.ReplaceAll(k.String(), ":", "-")
+			if err := r.latencyResult.GeneratePlot(config.PlotDir, plotName); err != nil {
+				return err
+			}
 		}
 		log.Printf("ℹ️ exported scheduling/duration snapshot data")
 	}

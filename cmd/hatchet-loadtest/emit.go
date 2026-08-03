@@ -141,7 +141,12 @@ type pushJob struct {
 	eventKey eventkeys.EventKey
 }
 
-func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string, emitWorkers int, eventKeys []eventkeys.EventKey) map[eventkeys.EventKey]int64 {
+type scheduledSample struct {
+	eventKey eventkeys.EventKey
+	latency  time.Duration
+}
+
+func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- scheduledSample, payloadArg string, emitWorkers int, eventKeys []eventkeys.EventKey) map[eventkeys.EventKey]int64 {
 	c, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: namespace,
@@ -207,7 +212,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 					pushedMu.Unlock()
 					took := time.Since(job.event.CreatedAt)
 					l.Info().Msgf("pushed event %d to %s took %s", job.event.ID, job.eventKey, took)
-					scheduled <- took
+					scheduled <- scheduledSample{eventKey: job.eventKey, latency: took}
 				}
 			}
 		}()
