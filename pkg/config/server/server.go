@@ -250,6 +250,12 @@ type ConfigFileRuntime struct {
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
 
+	// Comma-separated CIDR ranges whose forwarding headers are trusted when deriving the client IP for rate limiting
+	APITrustedProxies []string `mapstructure:"apiTrustedProxies" json:"apiTrustedProxies,omitempty"`
+
+	// Trust forwarding headers from loopback/link-local/private peers by default; set false to trust only APITrustedProxies
+	APITrustPrivateProxies bool `mapstructure:"apiTrustPrivateProxies" json:"apiTrustPrivateProxies,omitempty" default:"true"`
+
 	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
 	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
 
@@ -800,6 +806,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
 	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
+	_ = v.BindEnv("runtime.apiTrustedProxies", "SERVER_API_TRUSTED_PROXIES")
+	_ = v.BindEnv("runtime.apiTrustPrivateProxies", "SERVER_API_TRUST_PRIVATE_PROXIES")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
