@@ -327,15 +327,15 @@ func do(config LoadTestConfig) error {
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
 	if config.ExternalWorker {
-		sampleRate := int64(config.TimingSampleRate)
-		if sampleRate < 1 {
+		sampleRate := config.TimingSampleRate
+		if sampleRate <= 0 || sampleRate > 1 {
 			sampleRate = 1
 		}
-		expectedSampled := expected / sampleRate
+		expectedSampled := int64(float64(expected) * sampleRate)
 
 		log.Printf(
-			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples, 1-in-%d sampled — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, config.Events, sampleRate, phases.queued.count, phases.scheduling.count, phases.execution.count,
+			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
+			emitted, config.Events, sampleRate*100, phases.queued.count, phases.scheduling.count, phases.execution.count,
 		)
 
 		if phases.execution.count == 0 {
@@ -345,7 +345,7 @@ func do(config LoadTestConfig) error {
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
 			if phases.execution.count < lower || phases.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (1-in-%d sample of %d pushed) got=%d", expectedSampled, sampleRate, expected, phases.execution.count)
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.execution.count)
 			}
 		}
 	} else {

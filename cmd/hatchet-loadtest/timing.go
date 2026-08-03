@@ -58,6 +58,7 @@ func ResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, tena
 
 	for {
 		ids, missing, err := tryResolveWorkflowIDs(ctx, api, tenantId, names)
+		fmt.Println(ids, missing, err, names)
 		if err != nil {
 			return nil, err
 		}
@@ -125,19 +126,22 @@ type TimingCollector struct {
 	pending      map[uuid.UUID]time.Time // sampled-in and awaiting a successful fetch; value is first-discovered time
 	workflowIds  []uuid.UUID
 	pollInterval time.Duration
-	sampleRate   int   // fetch full timings for 1 out of every sampleRate discovered runs; 1 = every run
-	discovered   int64 // count of runs discovered so far, used to pick the 1-in-sampleRate subset
+	sampleRate   float64 // proportion (0, 1] of discovered runs to fetch full timings for; 1 = every run
+	sampleAcc    float64 // accumulator for deterministic proportional sampling, see sweep()
+	discovered   int64   // count of runs discovered so far
 	mu           sync.Mutex
 	tenantId     uuid.UUID
 }
 
 // NewTimingCollector builds a collector for already-resolved workflow ids.
-// sampleRate < 2 fetches full timings for every discovered run; sampleRate
-// of N fetches roughly 1 out of every N - an average over a uniform sample
-// converges to the same value much faster than one over every run, at a
-// fraction of the REST load on the engine.
-func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollInterval time.Duration, sampleRate int) *TimingCollector { //nolint:staticcheck // SA1019
-	if sampleRate < 1 {
+// sampleRate is the proportion of discovered runs to fetch full timings for
+// - e.g. 0.3 fetches roughly 30% of runs, chosen deterministically so the
+// long-run proportion converges to sampleRate exactly. sampleRate <= 0 or >
+// 1 is invalid and clamps to 1 (every run), the safe direction since it
+// never drops data. Sampling only a proportion of runs still lets the
+// average converge, at a fraction of the REST load on the engine.
+func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollInterval time.Duration, sampleRate float64) *TimingCollector { //nolint:staticcheck // SA1019
+	if sampleRate <= 0 || sampleRate > 1 {
 		sampleRate = 1
 	}
 
@@ -239,13 +243,26 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 
 			c.discovered++
 
-			// Keep 1 out of every sampleRate discovered runs - always
-			// including the first, so a short test still gets at least one
-			// sample instead of a spurious "no timing samples observed"
-			// error. Runs that aren't selected are marked seen immediately
-			// (not fetched, never retried) so they don't keep costing a
-			// List-window reconsideration every sweep.
-			if (c.discovered-1)%int64(c.sampleRate) == 0 {
+			// Deterministic proportional sampling: accumulate sampleRate per
+			// discovered run and select one whenever the accumulator crosses
+			// 1, then subtract 1 - like a Bresenham line, this keeps the
+			// selected fraction converging to sampleRate exactly rather than
+			// drifting with random variance. The first run is always
+			// selected (regardless of sampleRate) so a short test still
+			// gets at least one sample instead of a spurious "no timing
+			// samples observed" error. Runs that aren't selected are marked
+			// seen immediately (not fetched, never retried) so they don't
+			// keep costing a List-window reconsideration every sweep.
+			c.sampleAcc += c.sampleRate
+			selected := c.sampleAcc >= 1
+			if selected {
+				c.sampleAcc--
+			}
+			if c.discovered == 1 {
+				selected = true
+			}
+
+			if selected {
 				c.pending[runId] = now
 			} else {
 				c.seen[runId] = now
