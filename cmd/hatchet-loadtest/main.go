@@ -39,11 +39,10 @@ type LoadTestConfig struct {
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
 
-	// ExternalWorker, if set, skips registering a workflow and starting an
-	// in-process worker altogether - it assumes a separately-running SDK
-	// worker (e.g. cmd/hatchet-loadtest/go) has already registered a
-	// compatible workflow named "load-test-0" (or "load-test-{i}" for
-	// i<EventFanout).
+	// ExternalWorker is retained for downstream compatibility but is now a
+	// no-op: the load test always drives a separately-running SDK worker
+	// (e.g. cmd/hatchet-loadtest/go) that has registered a compatible
+	// workflow named "load-test-0" (or "load-test-{i}" for i<EventFanout).
 	ExternalWorker bool
 
 	// TimingSampleRate, in --externalWorker mode, is the proportion (0, 1]

@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries against the external worker
 )
 
 type LatencySnapshot struct {
@@ -77,7 +77,7 @@ type avgResult struct {
 	latencyResult LatencyResult
 }
 
-// expectedWorkflowNames returns the (namespaced) workflow names an external
+// expectedWorkflowNames returns the (namespaced) workflow names the external
 // worker is expected to have registered, matching the exact naming scheme
 // run.go itself would use for the same config (see run.go's EventFanout
 // loop: "load-test-0", "load-test-1", ...).
@@ -95,9 +95,8 @@ func expectedWorkflowNames(namespace string, fanout int) []string {
 }
 
 // phaseAccumulator computes a simple running mean per phase from a stream of
-// PhaseSample values - the externalWorker equivalent of the avgResult
-// goroutines above, just fed from the engine's REST timing data instead of
-// an in-process step handler.
+// PhaseSample values, fed from the engine's REST timing data for the external
+// worker.
 type phaseAccumulator struct {
 	queued     avgResult
 	scheduling avgResult
@@ -154,73 +153,34 @@ func do(config LoadTestConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	ch := make(chan int64, 2)
-	durations := make(chan executionEvent, config.Events)
-
-	// Compute running average for executed durations using a rolling average.
-	durationsResult := make(chan avgResult, 1)
-	go func() {
-		var count int64
-		var avg time.Duration
-		var snapshots []LatencySnapshot
-
-		for d := range durations {
-			count++
-			if count == 1 {
-				avg = d.duration
-			} else {
-				avg += (d.duration - avg) / time.Duration(count)
-			}
-			snapshots = append(snapshots, LatencySnapshot{
-				t:       d.startedAt,
-				latency: d.duration,
-			})
-		}
-		durationsResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
-	}()
-
 	registered := make(chan error, 1)
 
-	// Only populated when config.ExternalWorker is set - see below.
 	var timingClient v1.HatchetClient //nolint:staticcheck // SA1019
 	resolvedWorkflowIDs := make(chan []uuid.UUID, 1)
 
-	if config.ExternalWorker {
-		close(durations)
-		ch <- 0
-		ch <- 0
+	go func() {
+		hc, err := v1.NewHatchetClient(v1.Config{Namespace: config.Namespace, Logger: &l}) //nolint:staticcheck // SA1019
+		if err != nil {
+			registered <- fmt.Errorf("error creating hatchet client: %w", err)
+			return
+		}
+		timingClient = hc
 
-		go func() {
-			hc, err := v1.NewHatchetClient(v1.Config{Namespace: config.Namespace, Logger: &l}) //nolint:staticcheck // SA1019
-			if err != nil {
-				registered <- fmt.Errorf("externalWorker: error creating hatchet client: %w", err)
-				return
-			}
-			timingClient = hc
+		names := expectedWorkflowNames(hc.V0().Namespace(), config.EventFanout)
 
-			names := expectedWorkflowNames(hc.V0().Namespace(), config.EventFanout)
+		l.Info().Msgf("resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
 
-			l.Info().Msgf("externalWorker: resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
+		ids, err := ResolveWorkflowIDs(ctx, hc.V0().API(), uuid.MustParse(hc.V0().TenantId()), names, registrationTimeout)
+		if err != nil {
+			registered <- err
+			return
+		}
 
-			ids, err := ResolveWorkflowIDs(ctx, hc.V0().API(), uuid.MustParse(hc.V0().TenantId()), names, registrationTimeout)
-			if err != nil {
-				registered <- fmt.Errorf("externalWorker: %w", err)
-				return
-			}
+		l.Info().Msgf("resolved workflow(s) %v to ids %v", names, ids)
 
-			l.Info().Msgf("externalWorker: resolved workflow(s) %v to ids %v", names, ids)
-
-			resolvedWorkflowIDs <- ids
-			registered <- nil
-		}()
-	} else {
-		go func() {
-			count, uniques := run(ctx, config, durations, registered)
-			close(durations)
-			ch <- count
-			ch <- uniques
-		}()
-	}
+		resolvedWorkflowIDs <- ids
+		registered <- nil
+	}()
 
 	if err := waitForRegistration(registered, registrationTimeout); err != nil {
 		return fmt.Errorf("❌ workflow registration failed within %s — engine must accept PutWorkflow on the current (pre-migration) schema: %w", registrationTimeout, err)
@@ -228,165 +188,98 @@ func do(config LoadTestConfig) error {
 
 	time.Sleep(after)
 
+	// emit() reports its own per-push latency here; the engine-observed timing
+	// data below is what we actually report on, so these samples are drained
+	// and discarded.
 	scheduled := make(chan time.Duration, config.Events)
-
-	// Compute running average for scheduled times using a rolling average.
-	scheduledResult := make(chan avgResult)
 	go func() {
-		var count int64
-		var avg time.Duration
-		var snapshots []LatencySnapshot
-		for d := range scheduled {
-			count++
-			if count == 1 {
-				avg = d
-			} else {
-				avg += (d - avg) / time.Duration(count)
-			}
-			snapshots = append(snapshots, LatencySnapshot{
-				t:       time.Now(),
-				latency: d,
-			})
+		for range scheduled { //nolint:revive // draining
 		}
-		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
-	// externalWorker mode: start sweeping the engine's own timing data for
-	// the resolved workflow(s), in parallel with emission below.
-	var phaseSamples chan PhaseSample
-	var phaseResultCh <-chan phaseAccumulator
-	var cancelTiming context.CancelFunc
-	var collector *TimingCollector
+	workflowIDs := <-resolvedWorkflowIDs
 
-	if config.ExternalWorker {
-		workflowIDs := <-resolvedWorkflowIDs
+	// new context so that the timing drain is independent.
+	timingCtx, cancelTiming := context.WithCancel(context.Background())
+	defer cancelTiming() // safe to call more than once; guards every return path below
 
-		// new context so that the timing drain is independent.
-		var timingCtx context.Context
-		timingCtx, cancelTiming = context.WithCancel(context.Background())
-		defer cancelTiming() // safe to call more than once; guards every return path below
+	collector := NewTimingCollector(timingClient, workflowIDs, timingPollInterval, config.TimingSampleRate)
 
-		collector = NewTimingCollector(timingClient, workflowIDs, timingPollInterval, config.TimingSampleRate)
+	phaseSamples := make(chan PhaseSample, 256)
+	phaseResultCh := accumulatePhases(phaseSamples)
 
-		phaseSamples = make(chan PhaseSample, 256)
-		phaseResultCh = accumulatePhases(phaseSamples)
-
-		go func() {
-			collector.Run(timingCtx, phaseSamples)
-			close(phaseSamples)
-		}()
-	}
+	go func() {
+		collector.Run(timingCtx, phaseSamples)
+		close(phaseSamples)
+	}()
 
 	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers)
 	close(scheduled)
 
-	executed := <-ch
-	uniques := <-ch
-
-	finalDurationResult := <-durationsResult
-	finalScheduledResult := <-scheduledResult
-
-	var phases phaseAccumulator
-	if config.ExternalWorker {
-		// Give the engine config.Wait to finish runs that were still in flight
-		// when emission stopped.
-		if config.Wait > 0 {
-			l.Info().Msgf("externalWorker: waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
-			time.Sleep(config.Wait)
-		}
-
-		// keep the collector running to make sure we don't miss any runs on the tail end
-		l.Info().Msg("externalWorker: waiting for timing collector to fetch all discovered runs...")
-		logTicker := time.NewTicker(5 * time.Second)
-		var zeroSince time.Time
-		for {
-			pending := collector.Pending()
-
-			if pending == 0 {
-				if zeroSince.IsZero() {
-					zeroSince = time.Now()
-				} else if time.Since(zeroSince) >= 2*timingPollInterval {
-					break
-				}
-			} else {
-				zeroSince = time.Time{}
-			}
-
-			select {
-			case <-logTicker.C:
-				l.Info().Msgf("externalWorker: still waiting on %d run(s)...", pending)
-			case <-time.After(200 * time.Millisecond):
-			}
-		}
-		logTicker.Stop()
-
-		cancelTiming()
-		phases = <-phaseResultCh
+	// Give the engine config.Wait to finish runs that were still in flight
+	// when emission stopped.
+	if config.Wait > 0 {
+		l.Info().Msgf("waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
+		time.Sleep(config.Wait)
 	}
+
+	// keep the collector running to make sure we don't miss any runs on the tail end
+	l.Info().Msg("waiting for timing collector to fetch all discovered runs...")
+	logTicker := time.NewTicker(5 * time.Second)
+	var zeroSince time.Time
+	for {
+		pending := collector.Pending()
+
+		if pending == 0 {
+			if zeroSince.IsZero() {
+				zeroSince = time.Now()
+			} else if time.Since(zeroSince) >= 2*timingPollInterval {
+				break
+			}
+		} else {
+			zeroSince = time.Time{}
+		}
+
+		select {
+		case <-logTicker.C:
+			l.Info().Msgf("still waiting on %d run(s)...", pending)
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	logTicker.Stop()
+
+	cancelTiming()
+	phases := <-phaseResultCh
 
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
-	if config.ExternalWorker {
-		sampleRate := config.TimingSampleRate
-		if sampleRate <= 0 || sampleRate > 1 {
-			sampleRate = 1
-		}
-		expectedSampled := int64(float64(expected) * sampleRate)
+	sampleRate := config.TimingSampleRate
+	if sampleRate <= 0 || sampleRate > 1 {
+		sampleRate = 1
+	}
+	expectedSampled := int64(float64(expected) * sampleRate)
 
-		log.Printf(
-			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, config.Events, sampleRate*100, phases.queued.count, phases.scheduling.count, phases.execution.count,
-		)
+	log.Printf(
+		"ℹ️ pushed %d, using %d events/s (engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
+		emitted, config.Events, sampleRate*100, phases.queued.count, phases.scheduling.count, phases.execution.count,
+	)
 
-		if phases.execution.count == 0 {
-			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
-		}
+	if phases.execution.count == 0 {
+		return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
+	}
 
-		if expectedSampled > 0 {
-			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
-			if phases.execution.count < lower || phases.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.execution.count)
-			}
-		}
-	} else {
-		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
-		// so `emitted` here is effectively "pushed".
-		log.Printf(
-			"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
-			emitted,
-			executed,
-			uniques,
-			config.Events,
-			config.EventFanout,
-			config.DagSteps,
-			expected,
-		)
-
-		if executed == 0 {
-			return fmt.Errorf("❌ no events executed")
+	if expectedSampled > 0 {
+		lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
+		if phases.execution.count < lower || phases.execution.count > upper {
+			log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.execution.count)
 		}
 	}
 
-	if config.ExternalWorker {
-		// engine-observed timing replaces the client-side duration/scheduling
-		// averages above (which are meaningless here - durations was closed
-		// with zero samples and there's no in-process step handler), rather
-		// than reporting alongside them.
-		log.Printf("ℹ️ final average queued time per event: %s", phases.queued.avg)
-		log.Printf("ℹ️ final average scheduling time per event: %s", phases.scheduling.avg)
-		log.Printf("ℹ️ final average duration per executed event: %s", phases.execution.avg)
-	} else {
-		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
-		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
-	}
-	// In externalWorker mode, finalDurationResult/finalScheduledResult have no
-	// snapshots (durations was closed with zero samples up front, and there's
-	// no in-process step handler to feed scheduled) - use the engine-observed
-	// phase results instead, same as the "final average" log lines above.
-	durationForReport, schedulingForReport := finalDurationResult, finalScheduledResult
-	if config.ExternalWorker {
-		durationForReport, schedulingForReport = phases.execution, phases.scheduling
-	}
+	log.Printf("ℹ️ final average queued time per event: %s", phases.queued.avg)
+	log.Printf("ℹ️ final average scheduling time per event: %s", phases.scheduling.avg)
+	log.Printf("ℹ️ final average duration per executed event: %s", phases.execution.avg)
+
+	durationForReport, schedulingForReport := phases.execution, phases.scheduling
 
 	if ShouldSendSlack() {
 		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
@@ -427,22 +320,8 @@ func do(config LoadTestConfig) error {
 	}
 	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
 
-	if config.ExternalWorker {
-		if phases.execution.avg > thresholdWithTolerance {
-			return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", phases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
-		}
-	} else {
-		if expected != executed {
-			log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
-		}
-
-		if expected != uniques {
-			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
-		}
-
-		if finalDurationResult.avg > thresholdWithTolerance {
-			return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
-		}
+	if phases.execution.avg > thresholdWithTolerance {
+		return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", phases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
 	}
 
 	log.Printf("✅ success")
