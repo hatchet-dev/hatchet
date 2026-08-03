@@ -17,7 +17,7 @@ var pubSubBuckets = []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.0
 var (
 	PubSubPublishDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    string(PubSubPublishDurationSeconds),
-		Help:    "Time for the pub/sub backend's Pub call to return; this is publisher-side blocking cost, not broker delivery latency, and is not comparable across backends that differ in whether the write is synchronous.",
+		Help:    "Time for the pub/sub backend's Pub call to return; this is publisher-side blocking cost, not broker delivery latency, and is not comparable across backends, which block at different depths before returning.",
 		Buckets: pubSubBuckets,
 	}, []string{"kind", "topic_kind", "result"})
 

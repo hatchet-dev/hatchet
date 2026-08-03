@@ -61,10 +61,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   cloud: {
-    getComputeCost: (tenant: string) => ({
-      queryKey: ['compute-cost:get', tenant],
-      queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
-    }),
     createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
       queryKey: ['compute-demo-template:create', tenant, template],
       queryFn: async () =>
