@@ -582,9 +582,6 @@ type CreateEventRequest struct {
 
 // CreateFeedbackRequest defines model for CreateFeedbackRequest.
 type CreateFeedbackRequest struct {
-	// Email an optional email address so we can follow up
-	Email *string `json:"email,omitempty"`
-
 	// Message the feedback message
 	Message string `json:"message"`
 }

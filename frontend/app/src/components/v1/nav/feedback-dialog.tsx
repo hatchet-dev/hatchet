@@ -15,7 +15,6 @@ import {
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Textarea } from '@/components/v1/ui/textarea';
-import { useCurrentUser } from '@/hooks/use-current-user';
 import api from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -25,7 +24,6 @@ export function FeedbackDialog() {
   const open = useFeedbackDialogOpen();
   const { toast } = useToast();
   const { handleApiError } = useApiError({});
-  const { currentUser } = useCurrentUser();
   const [message, setMessage] = useState('');
 
   const submitMutation = useMutation({
@@ -33,7 +31,6 @@ export function FeedbackDialog() {
     mutationFn: async () => {
       await api.feedbackCreate({
         message: message.trim(),
-        ...(currentUser?.email ? { email: currentUser.email } : {}),
       });
     },
     onSuccess: () => {

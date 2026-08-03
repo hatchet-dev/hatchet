@@ -1351,11 +1351,6 @@ export interface CreateFeedbackRequest {
    * @example "I would love a dark mode for the dashboard."
    */
   message: string;
-  /**
-   * an optional email address so we can follow up
-   * @example "user@example.com"
-   */
-  email?: string;
 }
 
 export interface UserLoginRequest {

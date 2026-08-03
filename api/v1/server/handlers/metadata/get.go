@@ -39,7 +39,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	authDisabled := authmode.IsDisabled
 
-	feedbackEnabled := u.config.UsageTelemetry != nil && u.config.UsageTelemetry.Active()
+	feedbackEnabled := u.config.UsageTelemetry.Active()
 
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
