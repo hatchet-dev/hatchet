@@ -152,16 +152,16 @@ func run() error {
 
 			if _, err = ctx.WaitFor(condition.Or(
 				condition.SleepCondition(time.Duration(durableSleepMs)*time.Millisecond),
-				condition.UserEventCondition("test-event-key", "'true'"),
+				condition.UserEventCondition(durableTaskEventKey, ""),
 			)); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable sleep before fan-out failed: %w", err)
+				return DurableLoadTestOutput{}, fmt.Errorf("durable wait before fan-out failed: %w", err)
 			}
 
 			inputs := make([]hatchet.RunManyOpt, durableChildren)
 
 			for i := range inputs {
 				inputs[i] = hatchet.RunManyOpt{
-					Input: DurableChildInput{Index: i + 2}, // offset by 2 because we already ran 2 children above
+					Input: DurableChildInput{Index: i + 3}, // children 1 and 2 already ran above; fan-out continues at 3
 				}
 			}
 

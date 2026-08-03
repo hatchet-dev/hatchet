@@ -62,6 +62,9 @@ func resolveEventKeys(selected, excluded []string, available []eventkeys.EventKe
 				kept = append(kept, k)
 			}
 		}
+		if len(kept) == 0 {
+			return nil, fmt.Errorf("--exclude removed all available event keys (%s); nothing would be published", strings.Join(eventkeys.Strings(available), ", "))
+		}
 		return kept, nil
 	}
 
@@ -77,6 +80,9 @@ func parseEventKeys(raw []string, available []eventkeys.EventKey) ([]eventkeys.E
 		}
 		if !slices.Contains(available, k) {
 			return nil, fmt.Errorf("event key %q has no consumer in this run mode (available: %s); the batch/durable keys require --externalWorker with cmd/hatchet-loadtest/go running", s, strings.Join(eventkeys.Strings(available), ", "))
+		}
+		if slices.Contains(out, k) {
+			continue
 		}
 		out = append(out, k)
 	}

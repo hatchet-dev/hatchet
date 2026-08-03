@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -385,6 +386,7 @@ func do(config LoadTestConfig) error {
 	}
 
 	benchPhases := phases.byKey[eventkeys.EventKeyDefault]
+	standardSelected := slices.Contains(config.EventKeys, eventkeys.EventKeyDefault)
 
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
@@ -422,10 +424,7 @@ func do(config LoadTestConfig) error {
 		// than reporting alongside them.
 		log.Printf("ℹ️ overall engine timing — queued=%s scheduling=%s execution=%s (n=%d)", phases.overall.queued.avg, phases.overall.scheduling.avg, phases.overall.execution.avg, phases.overall.execution.count)
 		for _, k := range config.EventKeys {
-			p, ok := phases.byKey[k]
-			if !ok {
-				continue
-			}
+			p := phases.byKey[k]
 			log.Printf("ℹ️ engine timing for %s — queued=%s scheduling=%s execution=%s (n=%d)", k, p.queued.avg, p.scheduling.avg, p.execution.avg, p.execution.count)
 		}
 	} else {
@@ -496,16 +495,20 @@ func do(config LoadTestConfig) error {
 	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
 
 	if config.ExternalWorker {
-		if benchPhases.execution.count == 0 {
-			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
-		}
+		if standardSelected {
+			if benchPhases.execution.count == 0 {
+				return fmt.Errorf("❌ no timing samples observed for %q - check that the external SDK worker actually executed tasks for workflow(s) %v", eventkeys.EventKeyDefault, expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
+			}
 
-		if expected != benchPhases.execution.count {
-			log.Printf("⚠️ warning: pushed and executed-timing-sample counts do not match: expected=%d got=%d", expected, benchPhases.execution.count)
-		}
+			if expected != benchPhases.execution.count {
+				log.Printf("⚠️ warning: pushed and executed-timing-sample counts do not match: expected=%d got=%d", expected, benchPhases.execution.count)
+			}
 
-		if benchPhases.execution.avg > thresholdWithTolerance {
-			return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", benchPhases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+			if benchPhases.execution.avg > thresholdWithTolerance {
+				return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", benchPhases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+			}
+		} else if phases.overall.execution.count == 0 {
+			return fmt.Errorf("❌ no timing samples observed for selected event key(s) %v - check that the external SDK worker executed the corresponding workflow(s)", eventkeys.Strings(config.EventKeys))
 		}
 	} else {
 		if expected != executed {
