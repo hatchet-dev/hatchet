@@ -1,10 +1,12 @@
 import { Button } from '@/components/v1/ui/button';
 import { Icons } from '@/components/v1/ui/icons';
 import useControlPlane from '@/hooks/use-control-plane.ts';
-import { ArrowLeft, LockOpen } from 'lucide-react';
+import { ArrowLeft, LockOpen, LockKeyhole } from 'lucide-react';
 import React, { useState } from 'react';
 
-export type SocialAuthProvider = 'google' | 'github' | 'sso';
+// 'sso' is the cloud/control-plane SSO flow (email-first); 'oidc' is the
+// self-hosted OIDC provider (PR hatchet-dev#3607) — a direct redirect.
+export type SocialAuthProvider = 'google' | 'github' | 'sso' | 'oidc';
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
@@ -24,6 +26,11 @@ const PROVIDER_CONFIG: Record<
     href: 'users/sso/start',
     label: 'SSO',
     icon: <LockOpen className="size-4" />,
+  },
+  oidc: {
+    href: 'users/oidc/start',
+    label: 'OIDC',
+    icon: <LockKeyhole className="size-4" />,
   },
 };
 

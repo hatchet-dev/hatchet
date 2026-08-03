@@ -3862,6 +3862,12 @@ type ServerInterface interface {
 	// List tenant memberships
 	// (GET /api/v1/users/memberships)
 	TenantMembershipsList(ctx echo.Context) error
+	// Complete OIDC OAuth flow
+	// (GET /api/v1/users/oidc/callback)
+	UserUpdateOidcOauthCallback(ctx echo.Context) error
+	// Start OIDC OAuth flow
+	// (GET /api/v1/users/oidc/start)
+	UserUpdateOidcOauthStart(ctx echo.Context) error
 	// Change user password
 	// (POST /api/v1/users/password)
 	UserUpdatePassword(ctx echo.Context) error
@@ -7748,6 +7754,24 @@ func (w *ServerInterfaceWrapper) TenantMembershipsList(ctx echo.Context) error {
 	return err
 }
 
+// UserUpdateOidcOauthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateOidcOauthCallback(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateOidcOauthCallback(ctx)
+	return err
+}
+
+// UserUpdateOidcOauthStart converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateOidcOauthStart(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateOidcOauthStart(ctx)
+	return err
+}
+
 // UserUpdatePassword converts echo context to params.
 func (w *ServerInterfaceWrapper) UserUpdatePassword(ctx echo.Context) error {
 	var err error
@@ -8179,6 +8203,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/users/login", wrapper.UserUpdateLogin)
 	router.POST(baseURL+"/api/v1/users/logout", wrapper.UserUpdateLogout)
 	router.GET(baseURL+"/api/v1/users/memberships", wrapper.TenantMembershipsList)
+	router.GET(baseURL+"/api/v1/users/oidc/callback", wrapper.UserUpdateOidcOauthCallback)
+	router.GET(baseURL+"/api/v1/users/oidc/start", wrapper.UserUpdateOidcOauthStart)
 	router.POST(baseURL+"/api/v1/users/password", wrapper.UserUpdatePassword)
 	router.POST(baseURL+"/api/v1/users/register", wrapper.UserCreate)
 	router.GET(baseURL+"/api/v1/users/slack/callback", wrapper.UserUpdateSlackOauthCallback)
@@ -13314,6 +13340,48 @@ func (response TenantMembershipsList403JSONResponse) VisitTenantMembershipsListR
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UserUpdateOidcOauthCallbackRequestObject struct {
+}
+
+type UserUpdateOidcOauthCallbackResponseObject interface {
+	VisitUserUpdateOidcOauthCallbackResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateOidcOauthCallback302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateOidcOauthCallback302Response struct {
+	Headers UserUpdateOidcOauthCallback302ResponseHeaders
+}
+
+func (response UserUpdateOidcOauthCallback302Response) VisitUserUpdateOidcOauthCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type UserUpdateOidcOauthStartRequestObject struct {
+}
+
+type UserUpdateOidcOauthStartResponseObject interface {
+	VisitUserUpdateOidcOauthStartResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateOidcOauthStart302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateOidcOauthStart302Response struct {
+	Headers UserUpdateOidcOauthStart302ResponseHeaders
+}
+
+func (response UserUpdateOidcOauthStart302Response) VisitUserUpdateOidcOauthStartResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
 type UserUpdatePasswordRequestObject struct {
 	Body *UserUpdatePasswordJSONRequestBody
 }
@@ -14143,6 +14211,10 @@ type StrictServerInterface interface {
 	UserUpdateLogout(ctx echo.Context, request UserUpdateLogoutRequestObject) (UserUpdateLogoutResponseObject, error)
 
 	TenantMembershipsList(ctx echo.Context, request TenantMembershipsListRequestObject) (TenantMembershipsListResponseObject, error)
+
+	UserUpdateOidcOauthCallback(ctx echo.Context, request UserUpdateOidcOauthCallbackRequestObject) (UserUpdateOidcOauthCallbackResponseObject, error)
+
+	UserUpdateOidcOauthStart(ctx echo.Context, request UserUpdateOidcOauthStartRequestObject) (UserUpdateOidcOauthStartResponseObject, error)
 
 	UserUpdatePassword(ctx echo.Context, request UserUpdatePasswordRequestObject) (UserUpdatePasswordResponseObject, error)
 
@@ -17262,6 +17334,46 @@ func (sh *strictHandler) TenantMembershipsList(ctx echo.Context) error {
 	return nil
 }
 
+// UserUpdateOidcOauthCallback operation
+func (sh *strictHandler) UserUpdateOidcOauthCallback(ctx echo.Context) error {
+	var request UserUpdateOidcOauthCallbackRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateOidcOauthCallback(ctx, request.(UserUpdateOidcOauthCallbackRequestObject))
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateOidcOauthCallbackResponseObject); ok {
+		return validResponse.VisitUserUpdateOidcOauthCallbackResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateOidcOauthStart operation
+func (sh *strictHandler) UserUpdateOidcOauthStart(ctx echo.Context) error {
+	var request UserUpdateOidcOauthStartRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateOidcOauthStart(ctx, request.(UserUpdateOidcOauthStartRequestObject))
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateOidcOauthStartResponseObject); ok {
+		return validResponse.VisitUserUpdateOidcOauthStartResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // UserUpdatePassword operation
 func (sh *strictHandler) UserUpdatePassword(ctx echo.Context) error {
 	var request UserUpdatePasswordRequestObject
@@ -17952,20 +18064,21 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
+	"+f7l+/8XAAD//4a9Lnw1jwMA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
