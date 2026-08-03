@@ -80,44 +80,11 @@ func diffStaleSeries[K comparable](known map[K]bool, current map[K]struct{}) (ze
 }
 
 func (p *queueMetricsPoller) poll(ctx context.Context, tenantIds []uuid.UUID) {
-	var sizes []*sqlcv1.GetQueueSizesRow
-	var metadata []*sqlcv1.GetQueueSizesByMetadataRow
-
-	if len(tenantIds) > 0 {
-		var err error
-
-		sizes, err = p.tasks.GetQueueSizes(ctx, tenantIds)
-
-		if err != nil {
-			// keep previously-reported values rather than reporting false zeroes
-			p.l.Warn().Err(err).Msg("could not poll queue sizes")
-			return
-		}
-
-		metadata, err = p.tasks.GetQueueSizesByMetadata(ctx, tenantIds)
-
-		if err != nil {
-			p.l.Warn().Err(err).Msg("could not poll queue sizes by additional metadata")
-			return
-		}
-	}
-
-	sizesByTenant := make(map[uuid.UUID][]*sqlcv1.GetQueueSizesRow)
-	for _, row := range sizes {
-		sizesByTenant[row.TenantID] = append(sizesByTenant[row.TenantID], row)
-	}
-
-	metadataByTenant := make(map[uuid.UUID][]*sqlcv1.GetQueueSizesByMetadataRow)
-	for _, row := range metadata {
-		metadataByTenant[row.TenantID] = append(metadataByTenant[row.TenantID], row)
-	}
-
 	active := make(map[uuid.UUID]struct{}, len(tenantIds))
 
 	for _, tenantId := range tenantIds {
 		active[tenantId] = struct{}{}
-		p.applyQueueSizes(tenantId, sizesByTenant[tenantId])
-		p.applyMetadataSizes(tenantId, metadataByTenant[tenantId])
+		p.pollTenant(ctx, tenantId)
 	}
 
 	// tenants which left the partition or lost metrics entitlement drain to zero and are
@@ -133,6 +100,28 @@ func (p *queueMetricsPoller) poll(ctx context.Context, tenantIds []uuid.UUID) {
 			p.applyMetadataSizes(tenantId, nil)
 		}
 	}
+}
+
+// pollTenant queries and reports both queue size gauges for one tenant. On a query error
+// the tenant's previously-reported values are kept rather than reporting false zeroes.
+func (p *queueMetricsPoller) pollTenant(ctx context.Context, tenantId uuid.UUID) {
+	sizes, err := p.tasks.GetQueueSizes(ctx, tenantId)
+
+	if err != nil {
+		p.l.Warn().Err(err).Str("tenant_id", tenantId.String()).Msg("could not poll queue sizes")
+		return
+	}
+
+	p.applyQueueSizes(tenantId, sizes)
+
+	metadata, err := p.tasks.GetQueueSizesByMetadata(ctx, tenantId)
+
+	if err != nil {
+		p.l.Warn().Err(err).Str("tenant_id", tenantId.String()).Msg("could not poll queue sizes by additional metadata")
+		return
+	}
+
+	p.applyMetadataSizes(tenantId, metadata)
 }
 
 func (p *queueMetricsPoller) applyQueueSizes(tenantId uuid.UUID, rows []*sqlcv1.GetQueueSizesRow) {

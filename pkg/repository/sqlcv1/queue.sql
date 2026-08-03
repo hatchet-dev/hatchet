@@ -418,55 +418,50 @@ GROUP BY
     qi.queue;
 
 -- name: GetQueueSizes :many
-WITH sizes AS MATERIALIZED (
+WITH sizes AS (
     SELECT
-        qi.tenant_id,
-        qi.queue,
-        qi.workflow_id,
+        queue,
+        workflow_id,
         COUNT(*) AS count
     FROM
-        v1_queue_item qi
+        v1_queue_item
+    WHERE
+        tenant_id = @tenantId::uuid
     GROUP BY
-        qi.tenant_id, qi.queue, qi.workflow_id
+        queue, workflow_id
 )
 SELECT
-    s.tenant_id,
     s.queue,
     COALESCE(w."name", '')::text AS workflow_name,
     SUM(s.count)::bigint AS count
 FROM
     sizes s
 LEFT JOIN "Workflow" w ON w."id" = s.workflow_id
-WHERE
-    s.tenant_id = ANY(@tenantIds::uuid[])
 GROUP BY
-    s.tenant_id, s.queue, w."name";
+    s.queue, w."name";
 
 -- name: GetQueueSizesByMetadata :many
-WITH sizes AS MATERIALIZED (
+WITH working_set AS MATERIALIZED (
     SELECT
-        qi.tenant_id,
-        kv.key AS key,
-        (kv.value #>> '{}') AS value,
-        COUNT(*) AS count
+        t.additional_metadata
     FROM
         v1_queue_item qi
     JOIN v1_task t ON t.id = qi.task_id AND t.inserted_at = qi.task_inserted_at
-    CROSS JOIN LATERAL jsonb_each(t.additional_metadata) AS kv(key, value)
     WHERE
-        jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
-    GROUP BY
-        qi.tenant_id, kv.key, (kv.value #>> '{}')
+        qi.tenant_id = @tenantId::uuid
+        AND t.additional_metadata IS NOT NULL
 )
 SELECT
-    s.tenant_id,
-    s.key::text AS key,
-    s.value::text AS value,
-    s.count::bigint AS count
+    kv.key::text AS key,
+    (kv.value #>> '{}')::text AS value,
+    COUNT(*) AS count
 FROM
-    sizes s
+    working_set ws
+CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
-    s.tenant_id = ANY(@tenantIds::uuid[]);
+    jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+GROUP BY
+    kv.key, (kv.value #>> '{}');
 
 -- name: DeleteTasksFromQueue :exec
 WITH input AS (

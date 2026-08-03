@@ -403,40 +403,37 @@ func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg
 }
 
 const getQueueSizes = `-- name: GetQueueSizes :many
-WITH sizes AS MATERIALIZED (
+WITH sizes AS (
     SELECT
-        qi.tenant_id,
-        qi.queue,
-        qi.workflow_id,
+        queue,
+        workflow_id,
         COUNT(*) AS count
     FROM
-        v1_queue_item qi
+        v1_queue_item
+    WHERE
+        tenant_id = $1::uuid
     GROUP BY
-        qi.tenant_id, qi.queue, qi.workflow_id
+        queue, workflow_id
 )
 SELECT
-    s.tenant_id,
     s.queue,
     COALESCE(w."name", '')::text AS workflow_name,
     SUM(s.count)::bigint AS count
 FROM
     sizes s
 LEFT JOIN "Workflow" w ON w."id" = s.workflow_id
-WHERE
-    s.tenant_id = ANY($1::uuid[])
 GROUP BY
-    s.tenant_id, s.queue, w."name"
+    s.queue, w."name"
 `
 
 type GetQueueSizesRow struct {
-	TenantID     uuid.UUID `json:"tenant_id"`
-	Queue        string    `json:"queue"`
-	WorkflowName string    `json:"workflow_name"`
-	Count        int64     `json:"count"`
+	Queue        string `json:"queue"`
+	WorkflowName string `json:"workflow_name"`
+	Count        int64  `json:"count"`
 }
 
-func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*GetQueueSizesRow, error) {
-	rows, err := db.Query(ctx, getQueueSizes, tenantids)
+func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueueSizesRow, error) {
+	rows, err := db.Query(ctx, getQueueSizes, tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -444,12 +441,7 @@ func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantids []uuid.U
 	var items []*GetQueueSizesRow
 	for rows.Next() {
 		var i GetQueueSizesRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.Queue,
-			&i.WorkflowName,
-			&i.Count,
-		); err != nil {
+		if err := rows.Scan(&i.Queue, &i.WorkflowName, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -461,41 +453,37 @@ func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantids []uuid.U
 }
 
 const getQueueSizesByMetadata = `-- name: GetQueueSizesByMetadata :many
-WITH sizes AS MATERIALIZED (
+WITH working_set AS MATERIALIZED (
     SELECT
-        qi.tenant_id,
-        kv.key AS key,
-        (kv.value #>> '{}') AS value,
-        COUNT(*) AS count
+        t.additional_metadata
     FROM
         v1_queue_item qi
     JOIN v1_task t ON t.id = qi.task_id AND t.inserted_at = qi.task_inserted_at
-    CROSS JOIN LATERAL jsonb_each(t.additional_metadata) AS kv(key, value)
     WHERE
-        jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
-    GROUP BY
-        qi.tenant_id, kv.key, (kv.value #>> '{}')
+        qi.tenant_id = $1::uuid
+        AND t.additional_metadata IS NOT NULL
 )
 SELECT
-    s.tenant_id,
-    s.key::text AS key,
-    s.value::text AS value,
-    s.count::bigint AS count
+    kv.key::text AS key,
+    (kv.value #>> '{}')::text AS value,
+    COUNT(*) AS count
 FROM
-    sizes s
+    working_set ws
+CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
-    s.tenant_id = ANY($1::uuid[])
+    jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+GROUP BY
+    kv.key, (kv.value #>> '{}')
 `
 
 type GetQueueSizesByMetadataRow struct {
-	TenantID uuid.UUID `json:"tenant_id"`
-	Key      string    `json:"key"`
-	Value    string    `json:"value"`
-	Count    int64     `json:"count"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
+	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*GetQueueSizesByMetadataRow, error) {
-	rows, err := db.Query(ctx, getQueueSizesByMetadata, tenantids)
+func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueueSizesByMetadataRow, error) {
+	rows, err := db.Query(ctx, getQueueSizesByMetadata, tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -503,12 +491,7 @@ func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantid
 	var items []*GetQueueSizesByMetadataRow
 	for rows.Next() {
 		var i GetQueueSizesByMetadataRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.Key,
-			&i.Value,
-			&i.Count,
-		); err != nil {
+		if err := rows.Scan(&i.Key, &i.Value, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

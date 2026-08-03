@@ -235,7 +235,9 @@ The `slot_type` label separates the worker's slot pools (e.g. `default` and `dur
 
 The `hatchet_tenant_queued_to_assigned_by_workflow` counter and the `hatchet_tenant_queued_to_assigned_time_seconds_by_workflow` histogram are per-workflow variants of the queued-to-assigned metrics, carrying a `workflow_name` label so queue latency can be attributed to individual workflows.
 
-The queue size gauges are polled from the database every 15 seconds, so they reflect the backlog with up to that much delay. `hatchet_tenant_queue_size` reports the number of queued items per `queue` and `workflow_name`, and is safe to sum. `hatchet_tenant_additional_metadata_queue_size` reports the number of queued items carrying each additional metadata `(key, value)` pair, using the `key` and `value` Prometheus labels; only scalar metadata values (strings, numbers, booleans) are reported. Like the worker label slot metrics, an item counts towards every metadata key it carries, so do not sum this gauge across different `key` values. Items queued behind a concurrency strategy are not counted until they enter the queue.
+The queue size gauges are polled from the database every 15 seconds, so they reflect the backlog with up to that much delay. `hatchet_tenant_queue_size` reports the number of queued items per `queue` and `workflow_name`, and is safe to sum. Items queued behind a concurrency strategy are not counted until they enter the queue.
+
+`hatchet_tenant_additional_metadata_queue_size` reports queued items grouped by additional metadata `(key, value)` pairs, using the `key` and `value` Prometheus labels; only scalar metadata values (strings, numbers, booleans) are reported. Like the worker label slot metrics, an item counts towards every metadata key it carries, so do not sum this gauge across different `key` values.
 
 <Callout type="warning">
   Every distinct additional metadata `(key, value)` pair on a queued task
