@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -26,7 +27,6 @@ type LoadTestOutput struct {
 	Message string `json:"message"`
 }
 
-// DurableChildInput/Output are exercised by the durable load-test task's child fan-out.
 type DurableChildInput struct {
 	Index int `json:"index"`
 }
@@ -36,7 +36,6 @@ type DurableChildOutput struct {
 	Message string `json:"message"`
 }
 
-// DurableLoadTestOutput summarizes a single durable task run.
 type DurableLoadTestOutput struct {
 	Children int    `json:"children"`
 	Message  string `json:"message"`
@@ -67,10 +66,6 @@ func envFloat(key string, fallback float64) float64 {
 	return fallback
 }
 
-func durationPtr(d time.Duration) *time.Duration {
-	return &d
-}
-
 func run() error {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -78,8 +73,9 @@ func run() error {
 	}
 
 	taskName := envOr("HATCHET_LOADTEST_WORKFLOW_NAME", "load-test-0")
-	eventKey := envOr("HATCHET_LOADTEST_EVENT_KEY", "load-test:event")
-	durableTaskEventKey := envOr("HATCHET_LOADTEST_DURABLE_EVENT_KEY", "load-test:durable-event")
+	eventKey := envOr("HATCHET_LOADTEST_EVENT_KEY", eventkeys.EventKeyDefault.String())
+	batchTaskEventKey := envOr("HATCHET_LOADTEST_BATCH_EVENT_KEY", eventkeys.EventKeyBatch.String())
+	durableTaskEventKey := envOr("HATCHET_LOADTEST_DURABLE_EVENT_KEY", eventkeys.EventKeyDurable.String())
 	delayMs := envInt("HATCHET_LOADTEST_DELAY_MS", 0)
 	failureRate := envFloat("HATCHET_LOADTEST_FAILURE_RATE", 0)
 	workerName := envOr("HATCHET_LOADTEST_WORKER_NAME", "load-test-worker")
@@ -112,13 +108,6 @@ func run() error {
 	)
 
 	// Preview: batch tasks are in beta and may change in future releases.
-	//
-	// batchTask subscribes to the same event as the standalone task above, so every load
-	// test run also exercises the batch scheduler side by side with normal task scheduling
-	// - a canary for scheduling interference, not a benchmarked workflow. Its name
-	// deliberately doesn't match the "load-test-%d" pattern that cmd/hatchet-loadtest's
-	// expectedWorkflowNames() (do.go) resolves, so the benchmark's TimingCollector never
-	// discovers or polls it and its timings never affect the pass/fail thresholds.
 	batchTask := client.NewStandaloneBatchTask(batchTaskName, func(ctx hatchet.Context, tasks map[string]LoadTestInput) (map[string]LoadTestOutput, error) {
 		out := make(map[string]LoadTestOutput, len(tasks))
 		for id := range tasks {
@@ -130,9 +119,9 @@ func run() error {
 	},
 		hatchet.BatchConfig{
 			MaxSize:     10,
-			MaxInterval: durationPtr(500 * time.Millisecond),
+			MaxInterval: new(500 * time.Millisecond),
 		},
-		hatchet.WithWorkflowEvents(eventKey),
+		hatchet.WithWorkflowEvents(batchTaskEventKey),
 	)
 
 	durableChildTask := client.NewStandaloneTask(durableChildTaskName, func(ctx hatchet.Context, input DurableChildInput) (DurableChildOutput, error) {
@@ -144,11 +133,6 @@ func run() error {
 		}, nil
 	})
 
-	// durableTask exercises durable execution under load: it durably sleeps, fans out to a
-	// batch of child tasks (waiting on their results), durably sleeps again, then returns.
-	// It deliberately does NOT match the "load-test-%d" pattern that cmd/hatchet-loadtest's
-	// expectedWorkflowNames() resolves, so it never affects the benchmark's pass/fail
-	// thresholds - it's a companion durable-execution stressor, not a benchmarked workflow.
 	durableTask := client.NewStandaloneDurableTask(
 		durableTaskName,
 		func(ctx hatchet.DurableContext, input LoadTestInput) (DurableLoadTestOutput, error) {

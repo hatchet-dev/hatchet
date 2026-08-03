@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
@@ -119,7 +120,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 			create.WorkflowCreateOpts[Event]{
 				Name: fmt.Sprintf("load-test-%d", i),
 				OnEvents: []string{
-					"load-test:event",
+					eventkeys.EventKeyDefault.String(),
 				},
 				Concurrency: concurrencyOpt,
 			},
