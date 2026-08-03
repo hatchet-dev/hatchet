@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +33,6 @@ type DefaultSecurityCheck struct {
 	MQKind         string
 	OAuthProviders []string
 	AuthDisabled   bool
-
-	startTime time.Time
 }
 
 func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepository) SecurityCheck {
@@ -48,7 +45,6 @@ func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepositor
 		MQKind:         opts.MQKind,
 		OAuthProviders: opts.OAuthProviders,
 		AuthDisabled:   opts.AuthDisabled,
-		startTime:      time.Now(),
 	}
 }
 
@@ -125,7 +121,6 @@ func (a DefaultSecurityCheck) report(timeout time.Duration) {
 	params := url.Values{}
 	params.Set("version", a.Version)
 	params.Set("tag", ident)
-	params.Set("uptime_seconds", strconv.FormatInt(int64(time.Since(a.startTime).Seconds()), 10))
 	params.Set("environment", detectEnvironment())
 	if a.MQKind != "" {
 		params.Set("mq_kind", a.MQKind)

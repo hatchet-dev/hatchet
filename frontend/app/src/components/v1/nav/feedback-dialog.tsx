@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Textarea } from '@/components/v1/ui/textarea';
@@ -20,7 +19,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import api from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export function FeedbackDialog() {
   const open = useFeedbackDialogOpen();
@@ -28,21 +27,13 @@ export function FeedbackDialog() {
   const { handleApiError } = useApiError({});
   const { currentUser } = useCurrentUser();
   const [message, setMessage] = useState('');
-  const [email, setEmail] = useState('');
-
-  // Prefill the email from the logged-in user each time the dialog opens.
-  useEffect(() => {
-    if (open) {
-      setEmail(currentUser?.email ?? '');
-    }
-  }, [open, currentUser?.email]);
 
   const submitMutation = useMutation({
     mutationKey: ['feedback:create'],
     mutationFn: async () => {
       await api.feedbackCreate({
         message: message.trim(),
-        ...(email.trim() ? { email: email.trim() } : {}),
+        ...(currentUser?.email ? { email: currentUser.email } : {}),
       });
     },
     onSuccess: () => {
@@ -75,16 +66,6 @@ export function FeedbackDialog() {
               placeholder="What's on your mind?"
               rows={5}
               autoFocus
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="feedback-email">Email (optional)</Label>
-            <Input
-              id="feedback-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
             />
           </div>
         </div>

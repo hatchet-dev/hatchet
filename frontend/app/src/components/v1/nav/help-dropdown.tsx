@@ -1,5 +1,4 @@
 import { usePylon } from '@/components/support-chat';
-import { openFeedbackDialog } from '@/components/v1/nav/feedback-dialog-store';
 import { SidebarButtonPrimaryAction } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -20,7 +19,6 @@ import {
   BiCalendar,
   BiChat,
   BiLogoDiscordAlt,
-  BiMessageDetail,
 } from 'react-icons/bi';
 
 function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
@@ -34,13 +32,6 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
           Chat with Support
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem
-        variant="interactive"
-        onSelect={() => openFeedbackDialog()}
-      >
-        <BiMessageDetail className="mr-2" />
-        Send Feedback
-      </DropdownMenuItem>
       <DropdownMenuItem variant="interactive" asChild>
         <a
           href="https://docs.hatchet.run"

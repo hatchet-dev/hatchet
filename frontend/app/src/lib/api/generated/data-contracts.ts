@@ -1324,6 +1324,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether in-app feedback submission is available on this instance
+   * @example true
+   */
+  feedbackEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {

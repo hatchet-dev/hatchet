@@ -1,8 +1,8 @@
 import { SideNav } from '../../../components/v1/nav/side-nav';
 import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
-import { SidePanel } from '@/components/v1/nav/side-panel';
 import { FeedbackDialog } from '@/components/v1/nav/feedback-dialog';
+import { SidePanel } from '@/components/v1/nav/side-panel';
 import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';

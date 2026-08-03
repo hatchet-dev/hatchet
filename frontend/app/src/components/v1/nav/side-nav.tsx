@@ -7,6 +7,7 @@ import {
   RESIZE_DRAG_THRESHOLD_PX,
   useSidebar,
 } from '@/components/hooks/use-sidebar';
+import { openFeedbackDialog } from '@/components/v1/nav/feedback-dialog-store';
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import {
   SidebarButtonPrimary,
@@ -22,7 +23,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { APIMeta } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { ChevronLeftIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router';
 import React, {
@@ -33,6 +36,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from 'react';
+import { BiPhoneCall } from 'react-icons/bi';
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
@@ -85,6 +89,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setExpandedWidth: setStoredExpandedWidth,
   } = useSidebar();
   const { tenantId } = useTenantDetails();
+  const { meta } = useApiMeta();
+  const feedbackEnabled =
+    (meta as APIMeta | undefined)?.feedbackEnabled ?? false;
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
 
@@ -466,6 +473,19 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             {/* Fixed footer */}
             <div className="w-full shrink-0 py-2">
               <div className="flex w-full flex-col items-center gap-1">
+                {feedbackEnabled && (
+                  <Button
+                    variant="icon"
+                    size="icon"
+                    aria-label="Send Feedback"
+                    hoverText="Send Feedback"
+                    hoverTextSide="right"
+                    className="w-10"
+                    onClick={() => openFeedbackDialog()}
+                  >
+                    <BiPhoneCall className="h-6 w-6 cursor-pointer text-foreground" />
+                  </Button>
+                )}
                 <HelpDropdown
                   variant="sidebar"
                   triggerVariant="icon"
@@ -551,6 +571,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               data-cy="v1-sidebar-footer"
               className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
             >
+              {feedbackEnabled && (
+                <SidebarButtonPrimaryAction
+                  name="Send Feedback"
+                  icon={<BiPhoneCall className="size-4 mr-2" />}
+                  onClick={() => openFeedbackDialog()}
+                  className="w-full"
+                />
+              )}
               <HelpDropdown
                 variant="sidebar"
                 triggerVariant="split"

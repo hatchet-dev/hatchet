@@ -436,6 +436,9 @@ type APIMeta struct {
 	// AuthDisabledToken the embedded worker API token, only set on authdisabled builds
 	AuthDisabledToken *string `json:"authDisabledToken,omitempty"`
 
+	// FeedbackEnabled whether in-app feedback submission is available on this instance
+	FeedbackEnabled *bool `json:"feedbackEnabled,omitempty"`
+
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`

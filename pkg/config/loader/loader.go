@@ -601,7 +601,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	usageTel, utErr := usagetelemetry.NewUsageTelemetry(&usagetelemetry.Opts{
 		Enabled: cf.UsageTelemetry.Enabled,
 		Logger:  &l,
-		MQKind:  cf.MessageQueue.Kind,
 	}, dc.V1.SecurityCheck(), dc.V1.UsageMetrics(), dc.V1.OLAP())
 
 	if utErr != nil {

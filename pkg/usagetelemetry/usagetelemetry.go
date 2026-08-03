@@ -3,6 +3,7 @@ package usagetelemetry
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/posthog/posthog-go"
@@ -22,6 +23,7 @@ const eventName = "oss_instance_telemetry"
 type UsageTelemetry interface {
 	Start(ctx context.Context)
 	Shutdown()
+	Active() bool
 	SendFeedback(ctx context.Context, message, email string) error
 }
 
@@ -36,15 +38,12 @@ type DefaultUsageTelemetry struct {
 	usageMetrics  v1.UsageMetricsRepository
 	olap          runCountReader
 	client        posthog.Client
-
-	mqKind    string
-	startTime time.Time
+	shutdownOnce  sync.Once
 }
 
 type Opts struct {
 	Enabled bool
 	Logger  *zerolog.Logger
-	MQKind  string
 }
 
 func KeyConfigured() bool {
@@ -70,8 +69,6 @@ func NewUsageTelemetry(opts *Opts, securityCheck v1.SecurityCheckRepository, usa
 		usageMetrics:  usageMetrics,
 		olap:          olap,
 		client:        client,
-		mqKind:        opts.MQKind,
-		startTime:     time.Now(),
 	}, nil
 }
 
@@ -95,8 +92,14 @@ func (t *DefaultUsageTelemetry) Start(ctx context.Context) {
 	}
 }
 
+func (t *DefaultUsageTelemetry) Active() bool {
+	return t.enabled && KeyConfigured()
+}
+
 func (t *DefaultUsageTelemetry) Shutdown() {
-	_ = t.client.Close()
+	t.shutdownOnce.Do(func() {
+		_ = t.client.Close()
+	})
 }
 
 func (t *DefaultUsageTelemetry) SendFeedback(ctx context.Context, message, email string) error {
@@ -139,15 +142,10 @@ func (t *DefaultUsageTelemetry) report(ctx context.Context) {
 	}
 
 	props := posthog.NewProperties().
-		Set("uptime_seconds", int64(time.Since(t.startTime).Seconds())).
 		Set("tenant_count", metrics.TenantCount).
 		Set("user_count", metrics.UserCount).
 		Set("workflow_count", metrics.WorkflowCount).
 		Set("worker_count", metrics.WorkerCount)
-
-	if t.mqKind != "" {
-		props.Set("mq_kind", t.mqKind)
-	}
 
 	for lang, count := range metrics.WorkersByLanguage {
 		props.Set("workers_"+lang, count)
@@ -179,6 +177,7 @@ type noOpUsageTelemetry struct{}
 
 func (n *noOpUsageTelemetry) Start(ctx context.Context) {}
 func (n *noOpUsageTelemetry) Shutdown()                 {}
+func (n *noOpUsageTelemetry) Active() bool              { return false }
 func (n *noOpUsageTelemetry) SendFeedback(ctx context.Context, message, email string) error {
 	return nil
 }

@@ -14,7 +14,7 @@ func (u *MetadataService) FeedbackCreate(ctx echo.Context, request gen.FeedbackC
 		return gen.FeedbackCreate400JSONResponse(apierrors.NewAPIErrors("feedback message is required")), nil
 	}
 
-	if u.config.UsageTelemetry == nil {
+	if u.config.UsageTelemetry == nil || !u.config.UsageTelemetry.Active() {
 		return gen.FeedbackCreate400JSONResponse(apierrors.NewAPIErrors("feedback is not available on this instance")), nil
 	}
 

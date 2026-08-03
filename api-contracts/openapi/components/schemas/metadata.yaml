@@ -41,6 +41,10 @@ APIMeta:
       type: string
       description: the embedded worker API token, only set on authdisabled builds
       example: eyJhbGciOiJFUzI1NiIs...
+    feedbackEnabled:
+      type: boolean
+      description: whether in-app feedback submission is available on this instance
+      example: true
 
 APIMetaAuth:
   type: object
