@@ -81,6 +81,33 @@ example.com {
 
 With `frontend.env.BASE_PATH` set to `/hatchet`, the dashboard is reachable at `https://example.com/hatchet/` and API calls continue to hit `https://example.com/api/...`. For single-service deployments such as `hatchet-lite`, setting the base path is all that is needed — lite serves the dashboard under the subpath directly, no separate proxy required.
 
+The same setup with a standalone **nginx** reverse proxy — again, neither location rewrites the path:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location /api/ {
+        proxy_pass http://hatchet-stack-api:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /hatchet {
+        return 301 /hatchet/;
+    }
+
+    location /hatchet/ {
+        proxy_pass http://hatchet-stack-frontend:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
 ## Example: `nginx-ingress`
 
 Let's walk through an example of exposing Hatchet over `hatchet.example.com` (for the API and frontend) and `engine.hatchet.example.com` (for the engine).
