@@ -84,7 +84,7 @@ export function NewOrganizationSaverForm({
   defaultTenantName,
   afterSave,
 }: NewOrganizationSaverFormProps) {
-  const { isLoaded: isUserUniverseLoaded, isCloudEnabled } = useUserUniverse();
+  const { isLoaded: isUserUniverseLoaded } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
   const orgApi = useOrganizationApi();
 
@@ -100,8 +100,8 @@ export function NewOrganizationSaverForm({
   }
 
   invariant(
-    isCloudEnabled,
-    'Organizations only exist in the cloud environment, thus the NewOrganizationSaverForm should never be rendered except in the cloud environment.  If this throws, a UI dev made a mistake.',
+    isControlPlaneEnabled,
+    'NewOrganizationSaverForm requires the control plane',
   );
 
   return (

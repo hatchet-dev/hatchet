@@ -291,18 +291,48 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Task Queue Configuration
 
-| Variable                                            | Description                                                    | Default Value |
-| --------------------------------------------------- | -------------------------------------------------------------- | ------------- |
-| `SERVER_MSGQUEUE_KIND`                              | Message queue kind (`rabbitmq` or `postgres`)                  | `rabbitmq`    |
-| `SERVER_MSGQUEUE_RABBITMQ_URL`                      | RabbitMQ URL                                                   |               |
-| `SERVER_MSGQUEUE_RABBITMQ_QOS`                      | RabbitMQ QoS (prefetch count)                                  | `100`         |
-| `SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS`            | Max RabbitMQ publish channels                                  | `20`          |
-| `SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS`            | Max RabbitMQ subscribe channels                                | `100`         |
-| `SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED`      | Enable gzip compression of messages                            | `false`       |
-| `SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD`    | Byte size above which messages are compressed                  | `5120`        |
-| `SERVER_MSGQUEUE_RABBITMQ_ENABLE_MESSAGE_REJECTION` | Reject (rather than requeue) messages past the max death count | `false`       |
-| `SERVER_MSGQUEUE_RABBITMQ_MAX_DEATH_COUNT`          | Max redeliveries before a message is dead-lettered             | `1000`        |
-| `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                             | `100`         |
+| Variable                                            | Description                                                                                                | Default Value    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
+| `SERVER_MSGQUEUE_KIND`                              | Message queue kind (`rabbitmq` or `postgres`)                                                              | `rabbitmq`       |
+| `SERVER_MSGQUEUE_RABBITMQ_URL`                      | RabbitMQ URL                                                                                               |                  |
+| `SERVER_MSGQUEUE_RABBITMQ_QOS`                      | RabbitMQ QoS (prefetch count)                                                                              | `100`            |
+| `SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS`            | Max RabbitMQ publish channels                                                                              | `20`             |
+| `SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS`            | Max RabbitMQ subscribe channels                                                                            | `100`            |
+| `SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED`      | Enable gzip compression of messages                                                                        | `false`          |
+| `SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD`    | Byte size above which messages are compressed                                                              | `5120`           |
+| `SERVER_MSGQUEUE_RABBITMQ_ENABLE_MESSAGE_REJECTION` | Reject (rather than requeue) messages past the max death count                                             | `false`          |
+| `SERVER_MSGQUEUE_RABBITMQ_MAX_DEATH_COUNT`          | Max redeliveries before a message is dead-lettered                                                         | `1000`           |
+| `SERVER_MSGQUEUE_PUBSUB_KIND`                       | Pub/sub kind: `rabbitmq`, `postgres`, or `nats` (inherits `SERVER_MSGQUEUE_KIND` when unset)               |                  |
+| `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_URL`               | Pub/sub RabbitMQ URL (inherits `SERVER_MSGQUEUE_RABBITMQ_URL` when unset; always uses its own connections) |                  |
+| `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_PUB_CHANS`     | Pub/sub RabbitMQ max publish channels                                                                      | `10`             |
+| `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS`     | Pub/sub RabbitMQ max subscribe channels                                                                    | `20`             |
+| `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS`         | Pub/sub Postgres pool max connections (pool is built from the direct `DATABASE_URL`)                       | `5`              |
+| `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS`         | Pub/sub Postgres pool min connections                                                                      | `1`              |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_URL`                   | Pub/sub NATS seed URL(s), comma-separated for a cluster                                                    |                  |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME`              | Pub/sub NATS username (sent as a connect option, so reconnects also authenticate)                          |                  |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD`              | Pub/sub NATS password (see username)                                                                       |                  |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX`        | Pub/sub NATS subject prefix, joined to topic names with `.`                                                | `hatchet.pubsub` |
+| `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                                                                         | `100`            |
+
+### NATS Pub/Sub
+
+NATS is available for the best-effort pub/sub only; durable task queues stay on
+RabbitMQ or Postgres. It uses core NATS (no JetStream), so delivery is
+at-most-once.
+
+The NATS server must be configured with `max_payload: 16777216` (16MiB). Task
+stream events routinely exceed the NATS default of 1MiB, and Hatchet refuses to
+start against a server advertising a smaller limit rather than failing later on
+an oversized publish.
+
+Prefer bare hosts in `SERVER_MSGQUEUE_PUBSUB_NATS_URL` and set the username and
+password separately. Credentials embedded in the URL are not reapplied when the
+client reconnects to a cluster peer it learned about through gossip.
+
+Unlike the other backends, which isolate installations at the connection level
+(a RabbitMQ vhost, a Postgres database), NATS isolates by subject. Set
+`SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX` to keep installations that share a
+NATS server from seeing each other's messages.
 
 ### Message Queue Buffers
 

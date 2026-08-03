@@ -26,28 +26,57 @@ type templateTestCase struct {
 	trigger string
 }
 
-// Test matrix of all use case, language, and package manager combinations
-var templateTests = []templateTestCase{
-	// Python
-	{"simple", "python", "poetry", "simple"},
-	{"simple", "python", "uv", "simple"},
-	{"simple", "python", "pip", "simple"},
+// This suite proves the released CLI end to end against the embedded
+// quickstarts module, from an accepted selection through generation,
+// worker startup, and a completed trigger. The quickstarts repository
+// tests template content but cannot test this CLI integration. Content
+// edits inside a template do not touch this file; adding or removing a
+// supported combination is an intentional contract change made in the two
+// lists below.
 
-	// TypeScript
-	{"simple", "typescript", "npm", "simple"},
-	{"simple", "typescript", "pnpm", "simple"},
-	{"simple", "typescript", "yarn", "simple"},
-	{"simple", "typescript", "bun", "simple"},
+// languagePackageManagers is the supported matrix, shared by every use
+// case the CLI currently ships.
+var languagePackageManagers = []struct {
+	language       string
+	packageManager string
+}{
+	{"python", "poetry"},
+	{"python", "uv"},
+	{"python", "pip"},
+	{"typescript", "npm"},
+	{"typescript", "pnpm"},
+	{"typescript", "yarn"},
+	{"typescript", "bun"},
+	{"go", "go"},
+}
 
-	// Go
-	{"simple", "go", "go", "simple"},
+// useCaseTriggers pairs each use case with the trigger its templates
+// register.
+var useCaseTriggers = []struct {
+	useCase string
+	trigger string
+}{
+	{"simple", "simple"},
+	{"scheduled", "manual-run"},
+}
 
-	// Use cases
-	{"scheduled", "go", "go", "manual-run"},
+func templateTests() []templateTestCase {
+	var tests []templateTestCase
+	for _, uc := range useCaseTriggers {
+		for _, lp := range languagePackageManagers {
+			tests = append(tests, templateTestCase{
+				useCase:        uc.useCase,
+				language:       lp.language,
+				packageManager: lp.packageManager,
+				trigger:        uc.trigger,
+			})
+		}
+	}
+	return tests
 }
 
 func TestQuickstartTemplates(t *testing.T) {
-	for _, tt := range templateTests {
+	for _, tt := range templateTests() {
 		t.Run(fmt.Sprintf("%s_%s_%s", tt.useCase, tt.language, tt.packageManager), func(t *testing.T) {
 			testTemplate(t, tt)
 		})
@@ -232,11 +261,16 @@ func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase
 	// Language-specific files
 	switch tt.language {
 	case "python":
+		pythonWorkflowFile := "src/workflows/first_workflow.py"
+		if tt.useCase == "scheduled" {
+			pythonWorkflowFile = "src/workflows/scheduled_workflow.py"
+		}
+
 		pythonFiles := []string{
 			"src/hatchet_client.py",
 			"src/run.py",
 			"src/worker.py",
-			"src/workflows/first_workflow.py",
+			pythonWorkflowFile,
 		}
 		for _, file := range pythonFiles {
 			path := filepath.Join(projectDir, file)
@@ -262,11 +296,16 @@ func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase
 		}
 
 	case "typescript":
+		tsWorkflowFile := "src/workflows/first-workflow.ts"
+		if tt.useCase == "scheduled" {
+			tsWorkflowFile = "src/workflows/scheduled-workflow.ts"
+		}
+
 		tsFiles := []string{
 			"src/hatchet-client.ts",
 			"src/run.ts",
 			"src/worker.ts",
-			"src/workflows/first-workflow.ts",
+			tsWorkflowFile,
 			"tsconfig.json",
 			"package.json",
 		}

@@ -52,6 +52,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	natsmq "github.com/hatchet-dev/hatchet/internal/msgqueue/nats"
 	pgmq "github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
@@ -415,10 +416,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:    pool,
-		DDLPool: ddlPool,
-		V1:      v1,
-		Seed:    cf.Seed,
+		Pool:              pool,
+		DirectDatabaseURL: databaseUrl,
+		DDLPool:           ddlPool,
+		V1:                v1,
+		Seed:              cf.Seed,
 	}, nil
 }
 
@@ -475,7 +477,11 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	var mqv1 msgqueue.MessageQueue
+	var pubsubv1 msgqueue.PubSub
 	cleanup1 := func() error {
+		return nil
+	}
+	cleanupPubSub := func() error {
 		return nil
 	}
 
@@ -510,7 +516,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 				rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
 				rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
 				rabbitmq.WithGzipCompression(
@@ -529,8 +534,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 		}
 
+		cleanupPubSub, pubsubv1, err = createPubSubV1(dc, cf, &l)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(mqv1),
+			ingestor.WithPubSub(pubsubv1),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
 
@@ -855,6 +867,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
 
+		if err := cleanupPubSub(); err != nil {
+			return fmt.Errorf("error cleaning up pubsub: %w", err)
+		}
+
 		if closeErr := analyticsEmitter.Close(); closeErr != nil {
 			l.Error().Err(closeErr).Msg("error closing analytics emitter")
 		}
@@ -905,6 +921,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
 		MessageQueueV1:         mqv1,
+		PubSubV1:               pubsubv1,
 		Services:               services,
 		PausedControllers:      pausedControllers,
 		InternalClientFactory:  internalClientFactory,
@@ -931,6 +948,135 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
 		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
+}
+
+// createPubSubV1 constructs the best-effort pub/sub with strictly disjoint
+// pooled resources: its own AMQP connections/channel pools, or its own small
+// pgx pool on the direct database URL. The result is wrapped in the
+// DisableTenantPubs gate.
+func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.Logger) (cleanup func() error, ps msgqueue.PubSub, err error) {
+	pubsubKind, pubsubURL := resolvePubSubKindAndURL(cf)
+	kind := strings.ToLower(pubsubKind)
+
+	switch kind {
+	case "postgres":
+		// never dc.Pool and never the pgbouncer URL: the pub/sub owns its pool,
+		// and LISTEN does not survive transaction pooling
+		pubsubPoolConfig, err := pgxpool.ParseConfig(dc.DirectDatabaseURL)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not parse direct database url for pubsub: %w", err)
+		}
+
+		setPgxApplicationName(pubsubPoolConfig, cf.OpenTelemetry.ServiceName+":pubsub")
+
+		pubsubPoolConfig.MaxConns = cf.MessageQueue.PubSub.Postgres.MaxConns
+		pubsubPoolConfig.MinConns = cf.MessageQueue.PubSub.Postgres.MinConns
+		pubsubPoolConfig.ConnConfig.Tracer = newOTelPgxTracer()
+
+		pubsubPool, err := pgxpool.NewWithConfig(context.Background(), pubsubPoolConfig)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create pubsub pool: %w", err)
+		}
+
+		pubsubRepo, cleanupPubSubRepo := repov1.NewMessageQueueRepositoryWithPool(l, pubsubPool)
+
+		cleanupPg, pgps, err := pgmq.NewPubSub(
+			pubsubRepo,
+			pgmq.WithPubSubLogger(l),
+			pgmq.WithPubSubPool(pubsubPool),
+		)
+
+		if err != nil {
+			pubsubPool.Close()
+			return nil, nil, fmt.Errorf("could not init postgres pubsub: %w", err)
+		}
+
+		ps = pgps
+		cleanup = func() error {
+			if err := cleanupPg(); err != nil {
+				return err
+			}
+
+			if err := cleanupPubSubRepo(); err != nil {
+				return err
+			}
+
+			pubsubPool.Close()
+			return nil
+		}
+	case "rabbitmq":
+		if pubsubURL == "" {
+			return nil, nil, fmt.Errorf("using RabbitMQ as pubsub requires a URL to be set")
+		}
+
+		cleanupRmq, rmqps, err := rabbitmq.NewPubSub(
+			rabbitmq.WithPubSubURL(pubsubURL),
+			rabbitmq.WithPubSubLogger(l),
+			rabbitmq.WithPubSubMaxPubChannels(cf.MessageQueue.PubSub.RabbitMQ.MaxPubChans),
+			rabbitmq.WithPubSubMaxSubChannels(cf.MessageQueue.PubSub.RabbitMQ.MaxSubChans),
+			// compression settings inherit from the durable queue: both sides
+			// publish to the same tenant exchanges, so they must agree
+			rabbitmq.WithPubSubGzip(
+				cf.MessageQueue.RabbitMQ.CompressionEnabled,
+				cf.MessageQueue.RabbitMQ.CompressionThreshold,
+			),
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not init rabbitmq pubsub: %w", err)
+		}
+
+		ps = rmqps
+		cleanup = cleanupRmq
+	case "nats":
+		natsURL := cf.MessageQueue.PubSub.NATS.URL
+
+		if natsURL == "" {
+			return nil, nil, fmt.Errorf("using NATS as pubsub requires a URL to be set")
+		}
+
+		cleanupNats, natsps, err := natsmq.NewPubSub(
+			natsmq.WithPubSubURL(natsURL),
+			natsmq.WithPubSubUsername(cf.MessageQueue.PubSub.NATS.Username),
+			natsmq.WithPubSubPassword(cf.MessageQueue.PubSub.NATS.Password),
+			natsmq.WithPubSubSubjectPrefix(cf.MessageQueue.PubSub.NATS.SubjectPrefix),
+			natsmq.WithPubSubLogger(l),
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not init nats pubsub: %w", err)
+		}
+
+		ps = natsps
+		cleanup = cleanupNats
+	default:
+		return nil, nil, fmt.Errorf("invalid pubsub kind %q, must be 'rabbitmq', 'postgres', or 'nats'", pubsubKind)
+	}
+
+	return cleanup, msgqueue.NewGatedPubSub(msgqueue.NewInstrumentedPubSub(ps, kind), cf.Runtime.DisableTenantPubs), nil
+}
+
+// resolvePubSubKindAndURL resolves the pub/sub kind and rabbit URL, inheriting
+// from the resolved durable msgQueue settings when unset. This is the config
+// backwards-compatibility invariant: a deployment configured only with today's
+// durable variables (including the legacy SERVER_TASKQUEUE_* aliases) gets a
+// fully working pub/sub path with zero new configuration.
+func resolvePubSubKindAndURL(cf *server.ServerConfigFile) (kind string, rabbitURL string) {
+	kind = cf.MessageQueue.PubSub.Kind
+
+	if kind == "" {
+		kind = cf.MessageQueue.Kind
+	}
+
+	rabbitURL = cf.MessageQueue.PubSub.RabbitMQ.URL
+
+	if rabbitURL == "" {
+		rabbitURL = cf.MessageQueue.RabbitMQ.URL
+	}
+
+	return kind, rabbitURL
 }
 
 func getStrArr(v string) []string {

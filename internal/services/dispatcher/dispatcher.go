@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -47,6 +48,7 @@ type DispatcherImpl struct {
 	v                                   validator.Validator
 	s                                   gocron.Scheduler
 	mqv1                                msgqueue.MessageQueue
+	pubsub                              msgqueue.PubSub
 	analytics                           analytics.Analytics
 	cache                               cache.Cacheable
 	repov1                              v1.Repository
@@ -65,6 +67,8 @@ type DispatcherImpl struct {
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
+	refreshTimeoutGroup                 singleflight.Group
+	refreshTimeoutBuf                   *refreshTimeoutBuffer
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -150,6 +154,7 @@ type DispatcherOpts struct {
 	repov1                              v1.Repository
 	alerter                             hatcheterrors.Alerter
 	mqv1                                msgqueue.MessageQueue
+	pubsub                              msgqueue.PubSub
 	analytics                           analytics.Analytics
 	l                                   *zerolog.Logger
 	version                             string
@@ -181,6 +186,12 @@ func defaultDispatcherOpts() *DispatcherOpts {
 func WithMessageQueueV1(mqv1 msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.mqv1 = mqv1
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -273,6 +284,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
 	}
@@ -300,6 +315,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	return &DispatcherImpl{
 		mqv1:                                opts.mqv1,
+		pubsub:                              opts.pubsub,
 		pubBuffer:                           pubBuffer,
 		l:                                   opts.l,
 		dv:                                  opts.dv,
@@ -317,14 +333,15 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
+		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.mqv1)
-	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.mqv1)
+	d.sharedNonBufferedReaderv1 = msgqueue.NewSharedTenantReader(d.pubsub)
+	d.sharedBufferedReaderv1 = msgqueue.NewSharedBufferedTenantReader(d.pubsub)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
@@ -386,6 +403,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		wg.Wait()
 
 		d.pubBuffer.Stop()
+		d.refreshTimeoutBuf.stop()
 
 		// drain the existing connections
 		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
@@ -956,7 +974,7 @@ func (d *DispatcherImpl) handleRetries(
 
 			queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
 
-			err = d.mqv1.SendMessage(retryCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+			err = msgqueue.PubTenantMessage(retryCtx, d.l, d.mqv1, d.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 			if err != nil {
 				return fmt.Errorf("could not send failed task message: %w", err)

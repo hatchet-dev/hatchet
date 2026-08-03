@@ -115,7 +115,8 @@ type BatchQueueFactoryRepository interface {
 
 type BatchQueueRepository interface {
 	ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
-	ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
+
+	ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, excludeIds []int64, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
 	ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error)
 	GetBatchedQueueItemsByIds(ctx context.Context, ids []int64) ([]*sqlcv1.V1BatchedQueueItem, error)
 	DeleteBatchedQueueItems(ctx context.Context, ids []int64) error
