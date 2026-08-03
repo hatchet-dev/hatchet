@@ -15,13 +15,10 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 
-// timingSeenTTL bounds the memory used by TimingCollector.seen and
-// TimingCollector.pending: successful entries are pruned since a run id is
-// only needed long enough to avoid re-fetching its (already-terminal)
-// timings, and pending entries are given up on (with a warning) after this
-// long of repeated fetch failures, so a permanently-broken run id doesn't
-// retry forever.
-const timingSeenTTL = 5 * time.Minute
+// timingPendingTTL bounds how long a run stays in TimingCollector.pending:
+// a pending run is given up on (with a warning) after this long of repeated
+// fetch failures, so a permanently-broken run id doesn't retry forever.
+const timingPendingTTL = 5 * time.Minute
 
 // timingFetchConcurrency bounds how many V1WorkflowRunGetTimings calls the
 // collector has in flight at once. Fetching one run's timings per REST
@@ -122,7 +119,14 @@ func tryResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, t
 // V1WorkflowRunGetTimings) - language agnostic, since discovery never
 // touches the worker process at all.
 type TimingCollector struct {
-	lastSeen     time.Time
+	// windowStart anchors the lower bound of every List query. It is fixed at
+	// collector creation and never advanced: the engine filters the run list
+	// by insert/created time, not finish time, so a forward-sliding window
+	// drops runs that were created early but finish late (after a scheduling
+	// backlog) - by the time they're terminal, a sliding window has already
+	// moved past their created time. Anchoring at the start keeps every run in
+	// range for the whole test; the seen/pending maps dedupe re-listed runs.
+	windowStart  time.Time
 	api          *rest.ClientWithResponses
 	seen         map[uuid.UUID]time.Time          // successfully fetched, or deliberately skipped by sampling; value is decision time
 	pending      map[uuid.UUID]time.Time          // sampled-in and awaiting a successful fetch; value is first-discovered time
@@ -157,8 +161,8 @@ func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, workf
 		pollInterval: pollInterval,
 		sampleRate:   sampleRate,
 		// Start the window slightly in the past so the first sweep can pick
-		// up runs that finished just before the collector started.
-		lastSeen:    time.Now().Add(-pollInterval),
+		// up runs that were created just before the collector started.
+		windowStart: time.Now().Add(-pollInterval),
 		seen:        make(map[uuid.UUID]time.Time),
 		pending:     make(map[uuid.UUID]time.Time),
 		pendingKeys: make(map[uuid.UUID]eventkeys.EventKey),
@@ -199,10 +203,10 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	now := time.Now()
 
 	c.mu.Lock()
-	// Overlap the window slightly backwards to tolerate clock skew /
-	// commit-visibility lag between the engine marking a run terminal and it
-	// showing up in a List query.
-	since := c.lastSeen.Add(-2 * c.pollInterval)
+	// Anchored at the collector's start (see windowStart) so late-finishing
+	// runs stay in range for the whole test rather than sliding out of a
+	// trailing window before they go terminal.
+	since := c.windowStart
 	c.mu.Unlock()
 
 	statuses := []rest.V1TaskStatus{rest.V1TaskStatusCOMPLETED, rest.V1TaskStatusFAILED}
@@ -327,14 +331,12 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	_ = wg.Wait() // fetchTimings never returns a non-nil error to the group; failures are handled (and logged) above
 
 	c.mu.Lock()
-	c.lastSeen = now
-	for id, seenAt := range c.seen {
-		if now.Sub(seenAt) > timingSeenTTL {
-			delete(c.seen, id)
-		}
-	}
+	// seen is intentionally not pruned: the List window is anchored at the
+	// collector's start, so every run stays in every sweep's results for the
+	// whole test - dropping a seen id would re-discover and double-count it.
+	// One id+timestamp per run is cheap for a load test's run count.
 	for id, firstSeen := range c.pending {
-		if now.Sub(firstSeen) > timingSeenTTL {
+		if now.Sub(firstSeen) > timingPendingTTL {
 			l.Warn().Str("workflow_run_id", id.String()).Msg("timing collector: giving up on workflow run after repeated fetch failures")
 			delete(c.pending, id)
 			delete(c.pendingKeys, id)
