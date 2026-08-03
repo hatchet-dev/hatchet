@@ -58,7 +58,7 @@ func ResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, tena
 
 	for {
 		ids, missing, err := tryResolveWorkflowIDs(ctx, api, tenantId, names)
-		fmt.Println(ids, missing, err, names)
+
 		if err != nil {
 			return nil, err
 		}
