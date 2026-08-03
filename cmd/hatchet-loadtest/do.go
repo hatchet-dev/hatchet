@@ -261,12 +261,7 @@ func do(config LoadTestConfig) error {
 	if config.ExternalWorker {
 		workflowIDs := <-resolvedWorkflowIDs
 
-		// Deliberately not derived from `ctx`: `ctx`'s deadline is sized for
-		// registration + emission + config.Wait, with no slack for however
-		// long the collector needs to drain its backlog below. Tying the
-		// collector to it would silently truncate that drain once the
-		// overall test deadline hit, which is exactly the kind of premature
-		// cutoff we're trying to avoid.
+		// new context so that the timing drain is independent.
 		var timingCtx context.Context
 		timingCtx, cancelTiming = context.WithCancel(context.Background())
 		defer cancelTiming() // safe to call more than once; guards every return path below
@@ -300,19 +295,7 @@ func do(config LoadTestConfig) error {
 			time.Sleep(config.Wait)
 		}
 
-		// Then keep the collector running until it has actually fetched
-		// every run it has discovered - cancelling on a fixed timer instead
-		// aborts whatever's still queued (however much that is) and
-		// permanently drops those samples. A run only ever leaves the
-		// collector's backlog by being successfully fetched or by aging out
-		// after timingSeenTTL (logged when that happens), so this loop is
-		// guaranteed to terminate on its own.
-		//
-		// Pending() hitting 0 isn't enough by itself: it can be a brief gap
-		// between sweeps, right before the next list pass turns up more
-		// newly-completed runs. Require it to stay at 0 across a full poll
-		// cycle (long enough for at least one more list pass to confirm
-		// there's really nothing left) before calling it drained.
+		// keep the collector running to make sure we don't miss any runs on the tail end
 		l.Info().Msg("externalWorker: waiting for timing collector to fetch all discovered runs...")
 		logTicker := time.NewTicker(5 * time.Second)
 		var zeroSince time.Time
@@ -359,10 +342,6 @@ func do(config LoadTestConfig) error {
 			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
 		}
 
-		// Sampling only targets 1-in-sampleRate, not an exact count, and the
-		// collector already waits for a full drain (see the Pending() loop
-		// above) - so this is a sanity check that the sample landed in the
-		// right ballpark, not a completeness check.
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
 			if phases.execution.count < lower || phases.execution.count > upper {

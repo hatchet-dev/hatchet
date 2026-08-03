@@ -47,10 +47,8 @@ type LoadTestConfig struct {
 	ExternalWorker bool
 
 	// TimingSampleRate, in --externalWorker mode, only fetches full task
-	// timings for 1 out of every TimingSampleRate completed runs, rather
-	// than every one - the reported average converges from a uniform sample
-	// just as well as from the full set, at a fraction of the REST load on
-	// the engine. 1 (or less) fetches every run.
+	// timings for 1 out of every TimingSampleRate completed runs so that there are
+	// fewer REST calls necessary
 	TimingSampleRate int
 }
 
