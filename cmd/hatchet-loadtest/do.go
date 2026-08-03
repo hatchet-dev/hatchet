@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 
@@ -275,8 +276,12 @@ func do(config LoadTestConfig) error {
 		}()
 	}
 
-	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers)
+	pushedByKey := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers, config.EventKeys)
 	close(scheduled)
+
+	log.Printf("ℹ️ pushed per event key: %v", pushedByKey)
+
+	emitted := pushedByKey[eventkeys.EventKeyDefault]
 
 	executed := <-ch
 	uniques := <-ch

@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 )
@@ -17,6 +19,78 @@ type Event struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Payload   string    `json:"payload"`
+}
+
+func availableEventKeys(externalWorker bool) []eventkeys.EventKey {
+	if externalWorker {
+		return slices.Clone(eventkeys.All)
+	}
+
+	return []eventkeys.EventKey{eventkeys.EventKeyDefault}
+}
+
+func resolveEventKeys(selected, excluded []string, available []eventkeys.EventKey) ([]eventkeys.EventKey, error) {
+	selected = trimEmpty(selected)
+	excluded = trimEmpty(excluded)
+
+	if len(selected) > 0 && len(excluded) > 0 {
+		return nil, fmt.Errorf("cannot pass both --select and --exclude")
+	}
+
+	if len(selected) == 0 && len(excluded) == 0 {
+		return []eventkeys.EventKey{eventkeys.EventKeyDefault}, nil
+	}
+
+	selectedKeys, err := parseEventKeys(selected, available)
+	if err != nil {
+		return nil, err
+	}
+
+	excludedKeys, err := parseEventKeys(excluded, available)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(selectedKeys) > 0 {
+		return selectedKeys, nil
+	}
+
+	if len(excludedKeys) > 0 {
+		kept := make([]eventkeys.EventKey, 0, len(available))
+		for _, k := range available {
+			if !slices.Contains(excludedKeys, k) {
+				kept = append(kept, k)
+			}
+		}
+		return kept, nil
+	}
+
+	panic("unreachable: both selectedKeys and excludedKeys are empty but selected/excluded were not")
+}
+
+func parseEventKeys(raw []string, available []eventkeys.EventKey) ([]eventkeys.EventKey, error) {
+	out := make([]eventkeys.EventKey, 0, len(raw))
+	for _, s := range raw {
+		k := eventkeys.EventKey(s)
+		if !eventkeys.IsKnown(k) {
+			return nil, fmt.Errorf("unknown event key %q (known keys: %s)", s, strings.Join(eventkeys.Strings(eventkeys.All), ", "))
+		}
+		if !slices.Contains(available, k) {
+			return nil, fmt.Errorf("event key %q has no consumer in this run mode (available: %s); the batch/durable keys require --externalWorker with cmd/hatchet-loadtest/go running", s, strings.Join(eventkeys.Strings(available), ", "))
+		}
+		out = append(out, k)
+	}
+	return out, nil
+}
+
+func trimEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func parseSize(s string) int {
@@ -62,7 +136,12 @@ func defaultEmitWorkers(amountPerSecond int) int {
 	return n
 }
 
-func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string, emitWorkers int) int64 {
+type pushJob struct {
+	event    Event
+	eventKey eventkeys.EventKey
+}
+
+func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string, emitWorkers int, eventKeys []eventkeys.EventKey) map[eventkeys.EventKey]int64 {
 	c, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: namespace,
@@ -75,14 +154,19 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 	}
 
 	var id int64
-	var pushed int64
+
+	pushed := make(map[eventkeys.EventKey]int64, len(eventKeys))
+	var pushedMu sync.Mutex
+	for _, k := range eventKeys {
+		pushed[k] = 0
+	}
 
 	// Precompute payload data.
 	payloadSize := parseSize(payloadArg)
 	payloadData := strings.Repeat("a", payloadSize)
 
 	// Create a buffered channel for events.
-	jobCh := make(chan Event, amountPerSecond*2)
+	jobCh := make(chan pushJob, amountPerSecond*2*len(eventKeys))
 
 	// Worker pool to handle event pushes.
 	numWorkers := emitWorkers
@@ -100,15 +184,15 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 				case <-ctx.Done():
 					// Stop promptly on cancellation. Remaining buffered events (if any) are intentionally dropped.
 					return
-				case ev, ok := <-jobCh:
+				case job, ok := <-jobCh:
 					if !ok {
 						return
 					}
 
-					l.Info().Msgf("pushing event %d", ev.ID)
+					l.Info().Msgf("pushing event %d to %s", job.event.ID, job.eventKey)
 
-					err := c.Events().Push(ctx, "load-test:event", ev, client.WithEventMetadata(map[string]string{
-						"event_id": fmt.Sprintf("%d", ev.ID),
+					err := c.Events().Push(ctx, string(job.eventKey), job.event, client.WithEventMetadata(map[string]string{
+						"event_id": fmt.Sprintf("%d", job.event.ID),
 					}))
 					if err != nil {
 						// If the test is shutting down, treat this as a clean stop rather than a correctness failure.
@@ -118,9 +202,11 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 						panic(fmt.Errorf("error pushing event after exhausting gRPC retries — engine unreachable, check engine logs: %w", err))
 					}
 
-					atomic.AddInt64(&pushed, 1)
-					took := time.Since(ev.CreatedAt)
-					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
+					pushedMu.Lock()
+					pushed[job.eventKey]++
+					pushedMu.Unlock()
+					took := time.Since(job.event.CreatedAt)
+					l.Info().Msgf("pushed event %d to %s took %s", job.event.ID, job.eventKey, took)
 					scheduled <- took
 				}
 			}
@@ -148,15 +234,17 @@ loop:
 				CreatedAt: time.Now(),
 				Payload:   payloadData,
 			}
-			select {
-			case jobCh <- ev:
-			case <-ctx.Done():
-				break loop
+			for _, key := range eventKeys {
+				select {
+				case jobCh <- pushJob{event: ev, eventKey: key}:
+				case <-ctx.Done():
+					break loop
+				}
 			}
 		}
 	}
 
 	close(jobCh)
 	wg.Wait()
-	return atomic.LoadInt64(&pushed)
+	return pushed
 }
