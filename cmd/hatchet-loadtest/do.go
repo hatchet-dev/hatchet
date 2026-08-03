@@ -256,15 +256,17 @@ func do(config LoadTestConfig) error {
 	var phaseSamples chan PhaseSample
 	var phaseResultCh <-chan phaseAccumulator
 	var cancelTiming context.CancelFunc
+	var collector *TimingCollector
 
 	if config.ExternalWorker {
 		workflowIDs := <-resolvedWorkflowIDs
 
+		// new context so that the timing drain is independent.
 		var timingCtx context.Context
-		timingCtx, cancelTiming = context.WithCancel(ctx)
+		timingCtx, cancelTiming = context.WithCancel(context.Background())
 		defer cancelTiming() // safe to call more than once; guards every return path below
 
-		collector := NewTimingCollector(timingClient, workflowIDs, 2*time.Second)
+		collector = NewTimingCollector(timingClient, workflowIDs, timingPollInterval, config.TimingSampleRate)
 
 		phaseSamples = make(chan PhaseSample, 256)
 		phaseResultCh = accumulatePhases(phaseSamples)
@@ -286,15 +288,37 @@ func do(config LoadTestConfig) error {
 
 	var phases phaseAccumulator
 	if config.ExternalWorker {
-		// Give the engine config.Wait to finish (and the collector to observe) runs that
-		// were still in flight when emission stopped, before tearing down collection -
-		// cancelling immediately here would abort the collector mid-sweep for any run that
-		// completes right around this instant, silently dropping its timing sample instead
-		// of just not counting it (see the "context canceled" warnings this produces).
+		// Give the engine config.Wait to finish runs that were still in flight
+		// when emission stopped.
 		if config.Wait > 0 {
 			l.Info().Msgf("externalWorker: waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
 			time.Sleep(config.Wait)
 		}
+
+		// keep the collector running to make sure we don't miss any runs on the tail end
+		l.Info().Msg("externalWorker: waiting for timing collector to fetch all discovered runs...")
+		logTicker := time.NewTicker(5 * time.Second)
+		var zeroSince time.Time
+		for {
+			pending := collector.Pending()
+
+			if pending == 0 {
+				if zeroSince.IsZero() {
+					zeroSince = time.Now()
+				} else if time.Since(zeroSince) >= 2*timingPollInterval {
+					break
+				}
+			} else {
+				zeroSince = time.Time{}
+			}
+
+			select {
+			case <-logTicker.C:
+				l.Info().Msgf("externalWorker: still waiting on %d run(s)...", pending)
+			case <-time.After(200 * time.Millisecond):
+			}
+		}
+		logTicker.Stop()
 
 		cancelTiming()
 		phases = <-phaseResultCh
@@ -303,17 +327,26 @@ func do(config LoadTestConfig) error {
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
 	if config.ExternalWorker {
+		sampleRate := config.TimingSampleRate
+		if sampleRate <= 0 || sampleRate > 1 {
+			sampleRate = 1
+		}
+		expectedSampled := int64(float64(expected) * sampleRate)
+
 		log.Printf(
-			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, config.Events, phases.queued.count, phases.scheduling.count, phases.execution.count,
+			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
+			emitted, config.Events, sampleRate*100, phases.queued.count, phases.scheduling.count, phases.execution.count,
 		)
 
 		if phases.execution.count == 0 {
 			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
 		}
 
-		if expected != phases.execution.count {
-			log.Printf("⚠️ warning: pushed and executed-timing-sample counts do not match: expected=%d got=%d", expected, phases.execution.count)
+		if expectedSampled > 0 {
+			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
+			if phases.execution.count < lower || phases.execution.count > upper {
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.execution.count)
+			}
 		}
 	} else {
 		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
