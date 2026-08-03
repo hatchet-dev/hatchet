@@ -1,4 +1,5 @@
 import { HeroPanel } from './hero-panel';
+import { ThemeToggle } from '@/components/v1/ui/theme-toggle';
 import { CSSProperties, PropsWithChildren } from 'react';
 
 export function AuthLayout({ children }: PropsWithChildren) {
@@ -31,7 +32,10 @@ export function AuthLayout({ children }: PropsWithChildren) {
         <HeroPanel />
       </div>
 
-      <div className="w-full overflow-y-auto">
+      <div className="relative w-full overflow-y-auto">
+        <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+          <ThemeToggle />
+        </div>
         <div className="flex min-h-screen w-full items-center justify-center px-4 py-10 lg:justify-start lg:px-12 lg:py-12">
           <div className="w-full max-w-lg">
             <div className="flex w-full flex-col justify-center space-y-6">

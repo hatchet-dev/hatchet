@@ -11,7 +11,7 @@ import { PropsWithChildren } from 'react';
 
 function Root({ children }: PropsWithChildren) {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+    <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
       <UserUniverseProvider>
         <AppContextProvider>
           <SidePanelProvider>

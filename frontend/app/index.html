@@ -15,6 +15,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hatchet</title>
+    <!-- Apply theme before paint: default system (prefers-color-scheme), or stored choice -->
+    <script>
+      (function () {
+        try {
+          var key = 'vite-ui-theme';
+          var stored = localStorage.getItem(key);
+          var theme =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : 'system';
+          var resolved =
+            theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : theme;
+          document.documentElement.classList.add(resolved);
+          document.documentElement.style.colorScheme = resolved;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
