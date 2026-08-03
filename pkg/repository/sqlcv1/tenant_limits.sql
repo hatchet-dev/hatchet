@@ -66,6 +66,10 @@ FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "alarmValue" = EXCLUDED."alarmValue",
+    -- Keep an existing window when the input omits one (NULL after NULLIF), so
+    -- partial entitlement syncs cannot clear the meter window and break alert dedupe.
+    "window" = COALESCE(EXCLUDED."window", "TenantResourceLimit"."window"),
+    "customValueMeter" = EXCLUDED."customValueMeter",
     "updatedAt" = CURRENT_TIMESTAMP;
 
 -- name: InsertTenantResourceLimitsIfNotExists :exec
