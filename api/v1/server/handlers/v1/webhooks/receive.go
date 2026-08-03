@@ -2,8 +2,8 @@ package webhooksv1
 
 import (
 	"crypto/hmac"
-	"crypto/md5"
-	"crypto/sha1"
+	"crypto/md5"  // #nosec G501 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-MD5; HMAC remains sound even with MD5
+	"crypto/sha1" // #nosec G505 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-SHA1; HMAC remains sound even with SHA1
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -144,12 +144,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 					/* url.ParseQuery automatically URL-decodes the payload parameter value */
 					err := json.Unmarshal([]byte(payloadValue), &payloadMap)
 					if err != nil {
-						payloadPreview := payloadValue
-						if len(payloadPreview) > 200 {
-							payloadPreview = payloadPreview[:200] + "..."
-						}
 						errorMsg := "Failed to unmarshal payload parameter as JSON"
-						w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Int("payload_length", len(payloadValue)).Str("payload_preview", payloadPreview).Msg(errorMsg)
+						w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Int("payload_length", len(payloadValue)).Msg(errorMsg)
 						return gen.V1WebhookReceive400JSONResponse{
 							Errors: []gen.APIError{
 								{
@@ -186,12 +182,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		} else {
 			err := json.Unmarshal(rawBody, &payloadMap)
 			if err != nil {
-				bodyPreview := string(rawBody)
-				if len(bodyPreview) > 200 {
-					bodyPreview = bodyPreview[:200] + "..."
-				}
 				errorMsg := "Failed to unmarshal request body as JSON"
-				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("content_type", contentType).Int("body_length", len(rawBody)).Str("body_preview", bodyPreview).Msg(errorMsg)
+				w.config.Logger.Info().Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Str("content_type", contentType).Int("body_length", len(rawBody)).Msg(errorMsg)
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
 						{
@@ -329,6 +321,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		if errors.Is(err, repository.ErrResourceExhausted) {
+			return gen.V1WebhookReceive429JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: "resource limit exceeded: task run or event limit reached for tenant",
+					},
+				},
+			}, nil
+		}
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
@@ -469,7 +471,10 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
+			usernameMatch := hmac.Equal([]byte(username), []byte(webhook.AuthBasicUsername.String))
+			passwordMatch := hmac.Equal([]byte(password), decryptedPassword)
+
+			if !usernameMatch || !passwordMatch {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: "invalid basic auth credentials",
@@ -494,7 +499,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if apiKey != string(decryptedApiKey) {
+			if !hmac.Equal([]byte(apiKey), decryptedApiKey) {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),

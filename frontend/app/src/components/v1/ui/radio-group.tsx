@@ -38,4 +38,27 @@ const RadioGroupItem = React.forwardRef<
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;
 
-export { RadioGroup, RadioGroupItem };
+// A radio item rendered as a selectable card. Unlike RadioGroupItem it
+// renders its children and marks selection on the card itself instead of a
+// dot indicator. Selection is a border and fill; keyboard focus is an
+// offset ring, so the two states stay distinguishable when combined.
+const RadioGroupCardItem = React.forwardRef<
+  React.ElementRef<typeof RadioGroupPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>
+>(({ className, children, ...props }, ref) => {
+  return (
+    <RadioGroupPrimitive.Item
+      ref={ref}
+      className={cn(
+        'rounded-lg border border-border/50 bg-muted/20 p-4 text-left ring-offset-background focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:border-border data-[state=checked]:border-primary data-[state=checked]:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </RadioGroupPrimitive.Item>
+  );
+});
+RadioGroupCardItem.displayName = 'RadioGroupCardItem';
+
+export { RadioGroup, RadioGroupItem, RadioGroupCardItem };

@@ -35,7 +35,10 @@ var rootCmd = &cobra.Command{
 			if upToPenultimate {
 				opts = append(opts, migrate.WithUpToPenultimate())
 			}
-			migrate.RunMigrations(ctx, opts...)
+			if err := migrate.RunMigrations(ctx, opts...); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		}
 	},
 }

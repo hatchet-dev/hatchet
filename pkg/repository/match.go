@@ -1025,7 +1025,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &inputData)
 
 				if err != nil {
-					m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
+					m.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal user event data. id: %s, key: %s", event.ID, event.Key)
 					continue
 				}
 			}

@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,7 +48,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the invite belongs to the user
-	if invite.InviteeEmail != user.Email {
+	if !strings.EqualFold(invite.InviteeEmail, user.Email) {
 		return gen.TenantInviteAccept400JSONResponse(apierrors.NewAPIErrors("wrong email for invite")), nil
 	}
 
@@ -67,7 +68,14 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	} else if err == nil {
-		return gen.TenantInviteAccept400JSONResponse(apierrors.NewAPIErrors("user is already a member of the tenant")), nil
+		// User is already a member — mark invite accepted and return success
+		_, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, &v1.UpdateTenantInviteOpts{
+			Status: v1.StringPtr(string(sqlcv1.InviteLinkStatusACCEPTED)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	// construct the database query

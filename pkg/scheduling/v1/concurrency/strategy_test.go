@@ -86,7 +86,7 @@ func newTestStrategyKind(repo repository.ConcurrencyRepository, maxConcurrency i
 		strategy:  &sqlcv1.V1StepConcurrency{MaxConcurrency: maxConcurrency, Strategy: kind},
 		repo:      repo,
 		l:         &l,
-		compare:   priorityCompare,
+		compare:   comparatorForStrategy(kind),
 		built:     make(chan struct{}),
 	}
 }

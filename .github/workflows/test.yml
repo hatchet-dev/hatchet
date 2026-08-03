@@ -17,7 +17,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
@@ -26,12 +26,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -59,9 +59,9 @@ jobs:
   unit:
     runs-on: ubicloud-standard-8
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -80,14 +80,14 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -126,15 +126,15 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -185,6 +185,7 @@ jobs:
           SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
           SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
           SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
+          SERVER_SECURITY_CHECK_ENABLED=false
           EOF
 
       - name: Generate
@@ -258,15 +259,15 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -319,6 +320,7 @@ jobs:
           SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
           SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
           SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
+          SERVER_SECURITY_CHECK_ENABLED=false
           EOF
 
       - name: Generate
@@ -396,15 +398,15 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -440,6 +442,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
       SERVER_GRPC_PORT: "7077"
       SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_SECURITY_CHECK_ENABLED: "false"
       SERVER_GRPC_INSECURE: "true"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "true"
@@ -450,10 +453,10 @@ jobs:
       DATABASE_LOGGER_FORMAT: console
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -605,15 +608,15 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
@@ -709,15 +712,15 @@ jobs:
         pg-version: ["17-alpine"]
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 

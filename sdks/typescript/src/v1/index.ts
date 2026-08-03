@@ -12,6 +12,8 @@ export * from './slot-types';
 export * from '../legacy/legacy-transformer';
 export { NonDeterminismError } from '../util/errors/non-determinism-error';
 export { EvictionNotSupportedError } from '../util/errors/eviction-not-supported-error';
+export { IdempotencyCollisionError } from '../util/errors/idempotency-collision-error';
+export { BulkTriggerIdempotencyCollisionError } from '../util/errors/bulk-trigger-idempotency-collision-error';
 export {
   EvictionPolicy,
   DEFAULT_DURABLE_TASK_EVICTION_POLICY,

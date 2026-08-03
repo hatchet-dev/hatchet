@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
+	"golang.org/x/time/rate"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -184,6 +186,48 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	return cleanup, nil
 }
 
+func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logger *zerolog.Logger) echo.IPExtractor {
+	trustOpts := []echo.TrustOption{}
+
+	if trustPrivateProxies {
+		trustOpts = append(trustOpts,
+			echo.TrustLoopback(true),
+			echo.TrustLinkLocal(true),
+			echo.TrustPrivateNet(true),
+		)
+	}
+
+	for _, cidr := range trustedProxies {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			logger.Warn().Msgf("ignoring invalid apiTrustedProxies CIDR %q: %v", cidr, err)
+			continue
+		}
+
+		trustOpts = append(trustOpts, echo.TrustIPRange(ipNet))
+	}
+
+	if !trustPrivateProxies && len(trustOpts) == 0 {
+		return echo.ExtractIPDirect()
+	}
+
+	xffExtractor := echo.ExtractIPFromXFFHeader(trustOpts...)
+	realIPExtractor := echo.ExtractIPFromRealIPHeader(trustOpts...)
+
+	return func(r *http.Request) string {
+		if r.Header.Get(echo.HeaderXForwardedFor) != "" {
+			return xffExtractor(r)
+		}
+
+		return realIPExtractor(r)
+	}
+}
+
 func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
 
@@ -197,29 +241,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	e.HideBanner = true
 	e.HidePort = true
-	e.IPExtractor = func(r *http.Request) string {
-		// Cloudflare sets CF-Connecting-IP header with the original client IP
-		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
-			return ip
-		}
-
-		// Fallback to X-Forwarded-For
-		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-			// X-Forwarded-For can contain multiple IPs, we only want the first one
-			ips := strings.Split(ip, ",")
-			if len(ips) > 0 {
-				return ips[0]
-			}
-		}
-
-		// Additional fallback to X-Real-IP used by certain proxies
-		if ip := r.Header.Get("X-Real-IP"); ip != "" {
-			return ip
-		}
-
-		// Final fallback to remote address
-		return r.RemoteAddr
-	}
+	e.IPExtractor = hatchetIPExtractor(t.config.Runtime.APITrustPrivateProxies, t.config.Runtime.APITrustedProxies, t.config.Logger)
 
 	g := e.Group("")
 
@@ -397,7 +419,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -450,7 +472,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -546,7 +568,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -708,7 +730,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogURI:       true,
 		LogStatus:    true,
 		LogError:     true,
 		LogLatency:   true,
@@ -741,7 +762,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 				Dur("latency", v.Latency).
 				Int("status", statusCode).
 				Str("method", v.Method).
-				Str("uri", v.URI).
+				Str("uri", v.URIPath).
 				Str("user_agent", v.UserAgent).
 				Str("remote_ip", v.RemoteIP).
 				Str("host", v.Host).
@@ -752,6 +773,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+	webhookRateLimitMW := hatchetmiddleware.WebhookRateLimitMiddleware(
+		rate.Limit(t.config.Runtime.WebhookRateLimit),
+		t.config.Runtime.WebhookRateLimitBurst,
+		t.config.Logger,
+	)
 	otelMW := telemetry.NewOTelMiddleware(t.config)
 
 	// register echo middleware
@@ -759,6 +785,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		rateLimitMW.Middleware(),
+		webhookRateLimitMW,
 		otelMW.Middleware(),
 		otelMW.ErrorStatusMiddleware(),
 		allHatchetMiddleware,

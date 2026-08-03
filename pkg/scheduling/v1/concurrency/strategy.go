@@ -105,7 +105,7 @@ func NewConcurrencyStrategy(
 		strategy:  strategy,
 		repo:      repo,
 		l:         l,
-		compare:   priorityCompare,
+		compare:   comparatorForStrategy(strategy.Strategy),
 		outbox:    outbox,
 		topic:     getTopic(strategy),
 		built:     make(chan struct{}),
@@ -125,29 +125,33 @@ func NewNoOpFlusher(
 	l *zerolog.Logger,
 ) {
 	topic := getTopic(strategy)
-	f := pgoutbox.NewNopFlusher()
 
-	outbox.AddFlusher(topic, f)
+	outbox.AddFlusher(topic, pgoutbox.NewNopFlusher())
 
 	go func() {
-		err := outbox.AcquireTopic(ctx, topic)
-
-		if err != nil {
-			l.Error().Err(err).Msgf("failed to acquire topic %s", topic)
-		}
-
 		for {
 			if ctx.Err() != nil {
 				return
 			}
 
-			_, err = outbox.ProcessMessages(ctx, topic)
+			// Subscribe owns the exclusive lease for the duration of the call: it blocks
+			// acquiring it, re-acquires it if it is ever lost mid-subscribe, and releases it
+			// on return so the topic's next consumer can take over immediately. It only
+			// returns early if the initial acquisition fails (e.g. a transient database
+			// error), so retry rather than leaving the topic undrained.
+			err := outbox.Subscribe(ctx, topic, pgoutbox.WithExclusive())
 
-			if err != nil {
-				l.Error().Err(err).Msgf("failed to process messages for topic %s", topic)
+			if err != nil && ctx.Err() == nil {
+				l.Error().Err(err).Msgf("failed to subscribe to topic %s, retrying", topic)
 			}
 
-			time.Sleep(5 * time.Second)
+			// context-aware sleep so this goroutine exits promptly on shutdown rather than
+			// lingering in a fixed sleep (which otherwise trips goleak and delays teardown).
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
 		}
 	}()
 }
@@ -494,11 +498,22 @@ func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx,
 // Timed-out queued slots are handled by the shared pipeline and are not passed here.
 type decideFn func(sq *subQueue) (toFill, toCancel []slot)
 
+// comparatorForStrategy selects the slot ordering for a strategy kind. GROUP_ROUND_ROBIN and
+// CANCEL_NEWEST keep the oldest among equal-priority slots (priorityCompare); CANCEL_IN_PROGRESS
+// keeps the newest (cancelInProgressCompare), so a newer arrival preempts an older run. "Smaller"
+// under the chosen comparator always means "should run".
+func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) int {
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
+		return cancelInProgressCompare
+	}
+	return priorityCompare
+}
+
 // decide selects the per-sub-queue decision function for this strategy's kind. All three fill free
-// capacity from the queued backlog in priorityCompare order; they differ in what happens to the
-// slots that don't fit: GROUP_ROUND_ROBIN leaves them queued, CANCEL_NEWEST cancels them (reject the
+// capacity from the queued backlog in comparator order; they differ in what happens to the slots
+// that don't fit: GROUP_ROUND_ROBIN leaves them queued, CANCEL_NEWEST cancels them (reject the
 // newest arrivals, never touch running work), and CANCEL_IN_PROGRESS cancels them too but may also
-// preempt a running slot when a higher-priority slot is waiting.
+// preempt a running slot when a higher-priority-or-newer slot is waiting.
 func (c *ConcurrencyStrategy) decide() decideFn {
 	switch c.strategy.Strategy {
 	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:

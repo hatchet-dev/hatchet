@@ -113,7 +113,6 @@ func createConcurrencyTasks(t *testing.T, ctx context.Context, conf *database.La
 		taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 		taskParams.Externalids[i] = uuid.New()
 		taskParams.Displaynames[i] = fmt.Sprintf("task-%d", i)
-		taskParams.Inputs[i] = []byte(`{"my_id": "test-key"}`)
 		taskParams.Additionalmetadatas[i] = []byte(`{}`)
 		taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{{}}
@@ -162,7 +161,6 @@ func newCreateTasksParams(n int) sqlcv1.CreateTasksParams {
 		Desiredworkerids:             make([]*uuid.UUID, n),
 		Externalids:                  make([]uuid.UUID, n),
 		Displaynames:                 make([]string, n),
-		Inputs:                       make([][]byte, n),
 		Retrycounts:                  make([]int32, n),
 		Additionalmetadatas:          make([][]byte, n),
 		InitialStates:                make([]string, n),
@@ -245,9 +243,10 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 }
 
 // TestConcurrency_CancelInProgress_InMemory exercises the new outbox-backed in-memory index for
-// CANCEL_IN_PROGRESS: it keeps the best maxRuns slots under the comparator (priority, then
-// inserted_at, then taskId) running and cancels the rest with CONCURRENCY_LIMIT. With equal-priority
-// tasks this comes down to maxRuns running and the remainder cancelled.
+// CANCEL_IN_PROGRESS: it keeps the newest maxRuns slots (highest priority, then latest) running and
+// cancels the older ones with CONCURRENCY_LIMIT. With equal-priority tasks this comes down to the
+// newest maxRuns running and the older remainder cancelled. (Recency direction is pinned by the unit
+// tests in cancel_in_progress_test.go; this asserts the end-to-end counts.)
 func TestConcurrency_CancelInProgress_InMemory(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -416,7 +415,6 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 			taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 			taskParams.Externalids[i] = uuid.New()
 			taskParams.Displaynames[i] = fmt.Sprintf("task-%d", i)
-			taskParams.Inputs[i] = []byte(`{"my_id": "test-key"}`)
 			taskParams.Additionalmetadatas[i] = []byte(`{}`)
 			taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 			taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{strat1.ParentStrategyID, strat2.ParentStrategyID}
@@ -485,6 +483,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
@@ -646,6 +645,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
@@ -681,7 +681,6 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		taskParams.Stickies[0] = string(sqlcv1.V1StickyStrategyNONE)
 		taskParams.Externalids[0] = uuid.New()
 		taskParams.Displaynames[0] = "cold-task"
-		taskParams.Inputs[0] = []byte(`{"my_id": "thread-1"}`)
 		taskParams.Additionalmetadatas[0] = []byte(`{}`)
 		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[0] = []pgtype.Int8{{}}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -148,6 +149,35 @@ func (w *Workflow) GetName() string {
 // WorkflowOption configures a workflow instance.
 type WorkflowOption func(*workflowConfig)
 
+// IdempotencyMethod determines how the lifetime of an idempotency key is managed.
+type IdempotencyMethod = create.IdempotencyMethod
+
+const (
+	// IdempotencyMethodTTL evicts the idempotency key after a fixed time-to-live window.
+	IdempotencyMethodTTL = create.IdempotencyMethodTTL
+
+	// IdempotencyMethodStatus keeps the idempotency key alive until the associated run
+	// reaches a terminal status. TTL acts as a fallback that caps how long the key can live.
+	IdempotencyMethodStatus = create.IdempotencyMethodStatus
+)
+
+// IdempotencyConfig configures idempotency behavior for a workflow or standalone task.
+// When set, runs triggered with the same computed key return an IdempotencyCollisionError
+// instead of creating a new run. The Method controls how long the key lives: TTL evicts
+// after a fixed window, while STATUS keeps the key until the run reaches a terminal status
+// (using TTL as a fallback cap).
+type IdempotencyConfig struct {
+	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
+	Expression string
+
+	// TTL is the duration during which duplicate runs with the same key are rejected.
+	// When Method is STATUS, this acts as a fallback: the longest the key can live before it's evicted.
+	TTL time.Duration
+
+	// Method determines how the idempotency key's lifetime is managed. Defaults to TTL.
+	Method IdempotencyMethod
+}
+
 type workflowConfig struct {
 	onCron          []string
 	onEvents        []string
@@ -159,6 +189,7 @@ type workflowConfig struct {
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
 	defaultFilters  []types.DefaultFilter
+	idempotency     *IdempotencyConfig
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -236,6 +267,15 @@ func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOpt
 	}
 }
 
+// WithWorkflowIdempotency configures idempotency for the workflow.
+// When set, runs triggered with the same computed key within the TTL window return an
+// IdempotencyCollisionError instead of creating a new run.
+func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption {
+	return func(c *workflowConfig) {
+		c.idempotency = &config
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -267,6 +307,14 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		createOpts.DefaultPriority = &priority
 	}
 
+	if config.idempotency != nil {
+		createOpts.Idempotency = &create.IdempotencyConfig{
+			Expression: config.idempotency.Expression,
+			TTL:        config.idempotency.TTL,
+			Method:     config.idempotency.Method,
+		}
+	}
+
 	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
@@ -294,12 +342,13 @@ type taskConfig struct {
 	skipIf                 condition.Condition
 	description            string
 	evictionPolicy         *EvictionPolicy
+	slotCost               *int32
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
 func WithRetries(retries int) TaskOption {
 	return func(config *taskConfig) {
-		config.retries = int32(retries)
+		config.retries = int32(retries) // #nosec G115 -- developer-configured retry count, not attacker-controlled
 	}
 }
 
@@ -307,7 +356,23 @@ func WithRetries(retries int) TaskOption {
 func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	return func(config *taskConfig) {
 		config.retryBackoffFactor = factor
-		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds)
+		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds) // #nosec G115 -- developer-configured backoff, not attacker-controlled
+	}
+}
+
+// WithSlotCost sets the number of default worker slots this task consumes. A normal task consumes
+// one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at
+// once. A single worker must have that many free slots to run it. Durable tasks ignore it. Panics
+// if cost is not positive.
+func WithSlotCost(cost int) TaskOption {
+	if cost <= 0 || cost > math.MaxInt32 {
+		panic("slot cost must be a positive integer")
+	}
+
+	c := int32(cost)
+
+	return func(config *taskConfig) {
+		config.slotCost = &c
 	}
 }
 
@@ -511,6 +576,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
 		SkipIf:                 config.skipIf,
+		SlotCost:               config.slotCost,
 	}
 
 	if config.isDurable {
@@ -532,6 +598,165 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	return &Task{name: name}
 }
 
+// NewBatchTask transforms a function into a Hatchet batch task that runs as part of a
+// workflow. Batch tasks buffer concurrent runs until Hatchet flushes the batch (size
+// reached or flush interval), then invoke the handler once with all buffered inputs keyed
+// by each run's external id (BatchMemberId). retries is always forced to 0 for batch tasks.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.Context, input map[string]T) (map[string]R, error)
+//
+// or, when batch.BroadcastOutput is true (the same result is returned to every caller):
+//
+//	func(ctx hatchet.Context, input map[string]T) (R, error)
+//
+// Function signatures are validated at runtime using reflection. Batch tasks cannot be
+// durable.
+//
+// Preview: batch tasks are in beta and may change in future releases.
+func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options ...TaskOption) *Task {
+	if name == "" {
+		panic("task name cannot be empty")
+	}
+
+	if fn == nil {
+		panic("task '" + name + "' has a nil input function")
+	}
+
+	if batch.MaxSize <= 0 {
+		panic("batch task '" + name + "' must have a positive MaxSize")
+	}
+
+	if batch.MaxInterval != nil && *batch.MaxInterval <= 0 {
+		panic("batch task '" + name + "' MaxInterval must be positive when provided")
+	}
+
+	if batch.GroupMaxRuns != nil && *batch.GroupMaxRuns <= 0 {
+		panic("batch task '" + name + "' GroupMaxRuns must be positive when provided")
+	}
+
+	config := &taskConfig{}
+
+	for _, opt := range options {
+		opt(config)
+	}
+
+	if config.isDurable {
+		panic("batch task '" + name + "' cannot be durable")
+	}
+
+	fnValue := reflect.ValueOf(fn)
+	fnType := fnValue.Type()
+
+	if fnType.Kind() != reflect.Func {
+		panic("fn must be a function")
+	}
+
+	if fnType.NumIn() != 2 {
+		panic("fn must have exactly 2 parameters: (ctx hatchet.Context, input map[string]T)")
+	}
+
+	if fnType.NumOut() != 2 {
+		panic("fn must return exactly 2 values: (output T, err error)")
+	}
+
+	contextType := reflect.TypeOf((*Context)(nil)).Elem()
+	if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
+		panic("first parameter must be hatchet.Context")
+	}
+
+	if fnType.In(1).Kind() != reflect.Map || fnType.In(1).Key().Kind() != reflect.String {
+		panic("second parameter must be a map[string]T keyed by batch member id")
+	}
+
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !fnType.Out(1).Implements(errorType) {
+		panic("second return value must be error")
+	}
+
+	if !batch.BroadcastOutput && (fnType.Out(0).Kind() != reflect.Map || fnType.Out(0).Key().Kind() != reflect.String) {
+		panic("batch task '" + name + "' handler must return a map[string]T keyed by batch member id unless BroadcastOutput is set")
+	}
+
+	elemType := fnType.In(1).Elem()
+
+	wrapper := func(ctx Context, input any) (any, error) {
+		inputMap, ok := input.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("batch task '%s' input must be a map keyed by batch member id", name)
+		}
+
+		convertedMap := reflect.MakeMapWithSize(fnType.In(1), len(inputMap))
+		for id, raw := range inputMap {
+			convertedMap.SetMapIndex(reflect.ValueOf(id), convertInputToType(raw, elemType))
+		}
+
+		args := []reflect.Value{
+			reflect.ValueOf(ctx),
+			convertedMap,
+		}
+
+		results := fnValue.Call(args)
+
+		var err error
+		if !results[1].IsNil() {
+			err = results[1].Interface().(error)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		output := results[0].Interface()
+
+		if batch.BroadcastOutput {
+			out := make(map[string]interface{}, len(inputMap))
+			for id := range inputMap {
+				out[id] = output
+			}
+			return out, nil
+		}
+
+		outVal := reflect.ValueOf(output)
+		out := make(map[string]interface{}, outVal.Len())
+		for _, k := range outVal.MapKeys() {
+			out[fmt.Sprintf("%v", k.Interface())] = outVal.MapIndex(k).Interface()
+		}
+
+		if len(out) != len(inputMap) {
+			return nil, fmt.Errorf("batch task '%s' handler returned %d results but batch has %d items", name, len(out), len(inputMap))
+		}
+
+		for id := range inputMap {
+			if _, ok := out[id]; !ok {
+				return nil, fmt.Errorf("batch task '%s' handler result missing entry for batch member %s", name, id)
+			}
+		}
+
+		return out, nil
+	}
+
+	taskOpts := create.WorkflowTask[any, any]{
+		Name:                   name,
+		RetryBackoffFactor:     config.retryBackoffFactor,
+		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
+		ExecutionTimeout:       config.executionTimeout,
+		ScheduleTimeout:        config.scheduleTimeout,
+		Concurrency:            config.concurrency,
+		RateLimits:             config.rateLimits,
+		Parents:                config.parents,
+		WaitFor:                config.waitFor,
+		SkipIf:                 config.skipIf,
+		SlotCost:               config.slotCost,
+	}
+
+	batchCopy := batch
+	w.declaration.BatchTask(taskOpts, &batchCopy, wrapper)
+
+	return &Task{name: name}
+}
+
 // NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
 //
 // The function parameter must have the signature:
@@ -540,7 +765,9 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
-	durableOptions := append(options, withDurable())
+	durableOptions := make([]TaskOption, len(options), len(options)+1)
+	copy(durableOptions, options)
+	durableOptions = append(durableOptions, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
 }
 
@@ -726,6 +953,14 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 	}
 
 	if err != nil {
+		var idempViolation *v0Client.IdempotencyViolationErr
+		if errors.As(err, &idempViolation) {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			return nil, &IdempotencyCollisionError{
+				ExistingRunExternalId: idempViolation.ExistingRunExternalId,
+			}
+		}
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
@@ -767,7 +1002,8 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
-	var errs []error
+	var otherErrs []error
+	var collisions []*IdempotencyCollisionError
 	var errsMutex sync.Mutex
 	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
@@ -779,7 +1015,11 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
 			if err != nil {
 				errsMutex.Lock()
-				errs = append(errs, err)
+				if collision, ok := IsIdempotencyCollisionError(err); ok {
+					collisions = append(collisions, collision)
+				} else {
+					otherErrs = append(otherErrs, err)
+				}
 				errsMutex.Unlock()
 				return
 			}
@@ -791,9 +1031,22 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 
 	wg.Wait()
 
-	if err := errors.Join(errs...); err != nil {
+	if err := errors.Join(otherErrs...); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
+	}
+
+	if len(collisions) > 0 {
+		successfulIds := make([]string, 0, len(workflowRefs))
+		for _, ref := range workflowRefs {
+			successfulIds = append(successfulIds, ref.RunId)
+		}
+		bulkErr := &BulkTriggerIdempotencyCollisionError{
+			SuccessfulRunExternalIds: successfulIds,
+			Collisions:               collisions,
+		}
+		span.SetStatus(codes.Error, bulkErr.Error())
+		return workflowRefs, bulkErr
 	}
 
 	span.SetStatus(codes.Ok, "")

@@ -40,6 +40,7 @@ import {
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationMember,
   OrganizationPaymentMethodList,
   OrganizationTenant,
   OrganizationTenantResourceLimitsList,
@@ -56,6 +57,7 @@ import {
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  UpdateOrganizationMemberRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationSubscriptionRequest,
   UpdateOrganizationSubscriptionResponse,
@@ -586,6 +588,29 @@ export class Api<
       path: `/api/v1/control-plane/organization-tenants/${tenant}/api-tokens/${apiToken}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update an organization member's role
+   *
+   * @tags Management
+   * @name OrganizationMemberUpdate
+   * @summary Update Organization Member Role
+   * @request PATCH:/api/v1/control-plane/organization-members/{organization-member}
+   * @secure
+   */
+  organizationMemberUpdate = (
+    organizationMember: string,
+    data: UpdateOrganizationMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationMember, APIError>({
+      path: `/api/v1/control-plane/organization-members/${organizationMember}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**

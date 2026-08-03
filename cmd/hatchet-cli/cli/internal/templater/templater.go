@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -71,20 +72,24 @@ func Process(fsys fs.FS, srcDir, dstDir string, data Data) error {
 
 // ProcessMultiSource processes templates from multiple source directories (shared + package-manager-specific).
 // It first processes files from the shared directory, then overlays package-manager-specific files.
-// For languages that support multiple package managers (python, typescript), this function expects:
-//   - shared directory: templates/LANG/shared/
-//   - package manager directory: templates/LANG/PACKAGE_MANAGER/
+// The selection's use case picks the template root. The default use case reads
+// from templates/; any other use case reads from templates/use-cases/USE_CASE/.
+// Under that root, languages that support multiple package managers (python, typescript) expect:
+//   - shared directory: ROOT/LANG/shared/
+//   - package manager directory: ROOT/LANG/PACKAGE_MANAGER/
 //
 // For languages with a single package manager (go), it falls back to the language root directory.
-func ProcessMultiSource(fsys fs.FS, language, packageManager, dstDir string, data Data) error {
+func ProcessMultiSource(fsys fs.FS, sel Selection, dstDir string, data Data) error {
+	root := sel.templateRoot()
+
 	// For Go, use the old behavior (no shared directory)
-	if language == "go" {
-		return Process(fsys, "templates/go", dstDir, data)
+	if sel.Language == "go" {
+		return Process(fsys, path.Join(root, "go"), dstDir, data)
 	}
 
 	// For Python and TypeScript, process shared + package-manager-specific
-	sharedDir := filepath.Join("templates", language, "shared")
-	pkgMgrDir := filepath.Join("templates", language, packageManager)
+	sharedDir := path.Join(root, sel.Language, "shared")
+	pkgMgrDir := path.Join(root, sel.Language, sel.PackageManager)
 
 	// Process shared files first
 	if err := Process(fsys, sharedDir, dstDir, data); err != nil {
@@ -133,15 +138,18 @@ func ProcessPostQuickstart(fsys fs.FS, srcDir string, data Data) (string, error)
 }
 
 // ProcessPostQuickstartMultiSource reads and processes the POST_QUICKSTART.md file from the package-manager-specific directory.
-// For languages with multiple package managers, it looks in templates/LANG/PACKAGE_MANAGER/.
-// For Go, it looks in the templates/go/ directory.
+// The selection's use case picks the template root, as in ProcessMultiSource.
+// For languages with multiple package managers, it looks in ROOT/LANG/PACKAGE_MANAGER/.
+// For Go, it looks in the ROOT/go/ directory.
 // Returns the processed content as a string, or empty string if the file doesn't exist.
-func ProcessPostQuickstartMultiSource(fsys fs.FS, language, packageManager string, data Data) (string, error) {
+func ProcessPostQuickstartMultiSource(fsys fs.FS, sel Selection, data Data) (string, error) {
+	root := sel.templateRoot()
+
 	var srcDir string
-	if language == "go" {
-		srcDir = "templates/go"
+	if sel.Language == "go" {
+		srcDir = path.Join(root, "go")
 	} else {
-		srcDir = filepath.Join("templates", language, packageManager)
+		srcDir = path.Join(root, sel.Language, sel.PackageManager)
 	}
 
 	return ProcessPostQuickstart(fsys, srcDir, data)

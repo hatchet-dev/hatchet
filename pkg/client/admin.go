@@ -53,13 +53,24 @@ func NewChildWorkflowTriggerRequest(workflowName string, input interface{}, opts
 	childIndex := int32(opts.ChildIndex) // nolint:gosec
 
 	request := &v1contracts.TriggerWorkflowRequest{
-		Name:                    workflowName,
-		Input:                   string(inputBytes),
-		ParentId:                &opts.ParentId,
-		ParentTaskRunExternalId: &opts.ParentTaskRunId,
-		ChildIndex:              &childIndex,
-		ChildKey:                opts.ChildKey,
-		DesiredWorkerId:         opts.DesiredWorkerId,
+		Name:            workflowName,
+		Input:           string(inputBytes),
+		ChildIndex:      &childIndex,
+		ChildKey:        opts.ChildKey,
+		DesiredWorkerId: opts.DesiredWorkerId,
+	}
+
+	// Only set these optional proto fields when a real parent is available. Batch task
+	// handlers share one context across every buffered member and have no single step run
+	// id to act as "the" parent, so opts.ParentId/ParentTaskRunId are "" in that case;
+	// leaving the fields unset (rather than sending an empty string, which the engine
+	// rejects as an invalid UUID) makes the spawned child a parentless/independent run,
+	// matching the Python SDK's behavior in the same scenario.
+	if opts.ParentId != "" {
+		request.ParentId = &opts.ParentId
+	}
+	if opts.ParentTaskRunId != "" {
+		request.ParentTaskRunExternalId = &opts.ParentTaskRunId
 	}
 
 	additionalMetadata := mergeAdditionalMetadata(sharedMeta, opts.AdditionalMetadata)
@@ -172,6 +183,14 @@ type DedupeViolationErr struct {
 
 func (d *DedupeViolationErr) Error() string {
 	return fmt.Sprintf("DedupeViolationErr: %s", d.details)
+}
+
+type IdempotencyViolationErr struct {
+	ExistingRunExternalId string
+}
+
+func (e *IdempotencyViolationErr) Error() string {
+	return fmt.Sprintf("idempotency key collision: existing run %s", e.ExistingRunExternalId)
 }
 
 type adminClientImpl struct {
@@ -421,6 +440,15 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
+			if st, ok := status.FromError(err); ok {
+				for _, detail := range st.Details() {
+					if idempotencyErr, ok := detail.(*v1contracts.IdempotencyCollisionError); ok {
+						return nil, &IdempotencyViolationErr{
+							ExistingRunExternalId: idempotencyErr.GetExistingRunExternalId(),
+						}
+					}
+				}
+			}
 			return nil, &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
 			}
@@ -491,6 +519,15 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
+			if st, ok := status.FromError(err); ok {
+				for _, detail := range st.Details() {
+					if idempotencyErr, ok := detail.(*v1contracts.IdempotencyCollisionError); ok {
+						return "", &IdempotencyViolationErr{
+							ExistingRunExternalId: idempotencyErr.GetExistingRunExternalId(),
+						}
+					}
+				}
+			}
 			return "", &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
 			}
@@ -554,6 +591,14 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 		putParams.Duration = admincontracts.RateLimitDuration_MINUTE
 	case types.Hour:
 		putParams.Duration = admincontracts.RateLimitDuration_HOUR
+	case types.Day:
+		putParams.Duration = admincontracts.RateLimitDuration_DAY
+	case types.Week:
+		putParams.Duration = admincontracts.RateLimitDuration_WEEK
+	case types.Month:
+		putParams.Duration = admincontracts.RateLimitDuration_MONTH
+	case types.Year:
+		putParams.Duration = admincontracts.RateLimitDuration_YEAR
 	default:
 		putParams.Duration = admincontracts.RateLimitDuration_SECOND
 	}

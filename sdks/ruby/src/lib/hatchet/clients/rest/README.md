@@ -108,6 +108,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::DefaultApi* | [**webhook_delete**](docs/DefaultApi.md#webhook_delete) | **DELETE** /api/v1/webhook-workers/{webhook} | Delete a webhook
 *HatchetSdkRest::DefaultApi* | [**webhook_list**](docs/DefaultApi.md#webhook_list) | **GET** /api/v1/tenants/{tenant}/webhook-workers | List webhooks
 *HatchetSdkRest::DefaultApi* | [**webhook_requests_list**](docs/DefaultApi.md#webhook_requests_list) | **GET** /api/v1/webhook-workers/{webhook}/requests | List webhook requests
+*HatchetSdkRest::DurableTasksApi* | [**v1_durable_task_event_log_list**](docs/DurableTasksApi.md#v1_durable_task_event_log_list) | **GET** /api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task} | List durable event log
 *HatchetSdkRest::EventApi* | [**event_create**](docs/EventApi.md#event_create) | **POST** /api/v1/tenants/{tenant}/events | Create event
 *HatchetSdkRest::EventApi* | [**event_create_bulk**](docs/EventApi.md#event_create_bulk) | **POST** /api/v1/tenants/{tenant}/events/bulk | Bulk Create events
 *HatchetSdkRest::EventApi* | [**event_data_get**](docs/EventApi.md#event_data_get) | **GET** /api/v1/events/{event}/data | Get event data
@@ -120,6 +121,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::EventApi* | [**v1_event_get**](docs/EventApi.md#v1_event_get) | **GET** /api/v1/stable/tenants/{tenant}/events/{v1-event} | Get events
 *HatchetSdkRest::EventApi* | [**v1_event_key_list**](docs/EventApi.md#v1_event_key_list) | **GET** /api/v1/stable/tenants/{tenant}/events/keys | List event keys
 *HatchetSdkRest::EventApi* | [**v1_event_list**](docs/EventApi.md#v1_event_list) | **GET** /api/v1/stable/tenants/{tenant}/events | List events
+*HatchetSdkRest::FeatureFlagsApi* | [**tenant_feature_flag_evaluate**](docs/FeatureFlagsApi.md#tenant_feature_flag_evaluate) | **GET** /api/v1/tenants/{tenant}/feature-flags | Evaluate a feature flag for a tenant
 *HatchetSdkRest::FilterApi* | [**v1_filter_create**](docs/FilterApi.md#v1_filter_create) | **POST** /api/v1/stable/tenants/{tenant}/filters | Create a filter
 *HatchetSdkRest::FilterApi* | [**v1_filter_delete**](docs/FilterApi.md#v1_filter_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} |
 *HatchetSdkRest::FilterApi* | [**v1_filter_get**](docs/FilterApi.md#v1_filter_get) | **GET** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | Get a filter
@@ -128,11 +130,14 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::GithubApi* | [**sns_update**](docs/GithubApi.md#sns_update) | **POST** /api/v1/sns/{tenant}/{event} | Github app tenant webhook
 *HatchetSdkRest::HealthcheckApi* | [**liveness_get**](docs/HealthcheckApi.md#liveness_get) | **GET** /api/live | Get liveness
 *HatchetSdkRest::HealthcheckApi* | [**readiness_get**](docs/HealthcheckApi.md#readiness_get) | **GET** /api/ready | Get readiness
-*HatchetSdkRest::LogApi* | [**log_line_list**](docs/LogApi.md#log_line_list) | **GET** /api/v1/step-runs/{step-run}/logs | List log lines
 *HatchetSdkRest::LogApi* | [**v1_log_line_list**](docs/LogApi.md#v1_log_line_list) | **GET** /api/v1/stable/tasks/{task}/logs | List log lines
+*HatchetSdkRest::LogApi* | [**v1_tenant_log_line_get_point_metrics**](docs/LogApi.md#v1_tenant_log_line_get_point_metrics) | **GET** /api/v1/stable/tenants/{tenant}/log-point-metrics | Get log point metrics
+*HatchetSdkRest::LogApi* | [**v1_tenant_log_line_list**](docs/LogApi.md#v1_tenant_log_line_list) | **GET** /api/v1/stable/tenants/{tenant}/logs | List log lines
 *HatchetSdkRest::MetadataApi* | [**cloud_metadata_get**](docs/MetadataApi.md#cloud_metadata_get) | **GET** /api/v1/cloud/metadata | Get cloud metadata
 *HatchetSdkRest::MetadataApi* | [**metadata_get**](docs/MetadataApi.md#metadata_get) | **GET** /api/v1/meta | Get metadata
 *HatchetSdkRest::MetadataApi* | [**metadata_list_integrations**](docs/MetadataApi.md#metadata_list_integrations) | **GET** /api/v1/meta/integrations | List integrations
+*HatchetSdkRest::ObservabilityApi* | [**v1_observability_get_trace**](docs/ObservabilityApi.md#v1_observability_get_trace) | **GET** /api/v1/stable/tenants/{tenant}/traces | Get OTel trace
+*HatchetSdkRest::RateLimitsApi* | [**rate_limit_delete**](docs/RateLimitsApi.md#rate_limit_delete) | **DELETE** /api/v1/tenants/{tenant}/rate-limits | Delete rate limit
 *HatchetSdkRest::RateLimitsApi* | [**rate_limit_list**](docs/RateLimitsApi.md#rate_limit_list) | **GET** /api/v1/tenants/{tenant}/rate-limits | List rate limits
 *HatchetSdkRest::SNSApi* | [**sns_create**](docs/SNSApi.md#sns_create) | **POST** /api/v1/tenants/{tenant}/sns | Create SNS integration
 *HatchetSdkRest::SNSApi* | [**sns_delete**](docs/SNSApi.md#sns_delete) | **DELETE** /api/v1/sns/{sns} | Delete SNS integration
@@ -153,6 +158,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::TaskApi* | [**v1_task_get_point_metrics**](docs/TaskApi.md#v1_task_get_point_metrics) | **GET** /api/v1/stable/tenants/{tenant}/task-point-metrics | Get task point metrics
 *HatchetSdkRest::TaskApi* | [**v1_task_list_status_metrics**](docs/TaskApi.md#v1_task_list_status_metrics) | **GET** /api/v1/stable/tenants/{tenant}/task-metrics | Get task metrics
 *HatchetSdkRest::TaskApi* | [**v1_task_replay**](docs/TaskApi.md#v1_task_replay) | **POST** /api/v1/stable/tenants/{tenant}/tasks/replay | Replay tasks
+*HatchetSdkRest::TaskApi* | [**v1_task_restore**](docs/TaskApi.md#v1_task_restore) | **POST** /api/v1/stable/tasks/{task}/restore | Restore a task
 *HatchetSdkRest::TenantApi* | [**alert_email_group_create**](docs/TenantApi.md#alert_email_group_create) | **POST** /api/v1/tenants/{tenant}/alerting-email-groups | Create tenant alert email group
 *HatchetSdkRest::TenantApi* | [**alert_email_group_delete**](docs/TenantApi.md#alert_email_group_delete) | **DELETE** /api/v1/alerting-email-groups/{alert-email-group} | Delete tenant alert email group
 *HatchetSdkRest::TenantApi* | [**alert_email_group_list**](docs/TenantApi.md#alert_email_group_list) | **GET** /api/v1/tenants/{tenant}/alerting-email-groups | List tenant alert email groups
@@ -198,6 +204,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowApi* | [**tenant_get_queue_metrics**](docs/WorkflowApi.md#tenant_get_queue_metrics) | **GET** /api/v1/tenants/{tenant}/queue-metrics | Get workflow metrics
 *HatchetSdkRest::WorkflowApi* | [**workflow_cron_delete**](docs/WorkflowApi.md#workflow_cron_delete) | **DELETE** /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow} | Delete cron job workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_cron_get**](docs/WorkflowApi.md#workflow_cron_get) | **GET** /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow} | Get cron job workflow run
+*HatchetSdkRest::WorkflowApi* | [**workflow_cron_trigger**](docs/WorkflowApi.md#workflow_cron_trigger) | **POST** /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow} | Trigger cron job workflow run immediately
 *HatchetSdkRest::WorkflowApi* | [**workflow_cron_update**](docs/WorkflowApi.md#workflow_cron_update) | **PATCH** /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow} | Update cron job workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_delete**](docs/WorkflowApi.md#workflow_delete) | **DELETE** /api/v1/workflows/{workflow} | Delete workflow
 *HatchetSdkRest::WorkflowApi* | [**workflow_get**](docs/WorkflowApi.md#workflow_get) | **GET** /api/v1/workflows/{workflow} | Get workflow
@@ -213,6 +220,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowApi* | [**workflow_scheduled_delete**](docs/WorkflowApi.md#workflow_scheduled_delete) | **DELETE** /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run} | Delete scheduled workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_scheduled_get**](docs/WorkflowApi.md#workflow_scheduled_get) | **GET** /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run} | Get scheduled workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_scheduled_list**](docs/WorkflowApi.md#workflow_scheduled_list) | **GET** /api/v1/tenants/{tenant}/workflows/scheduled | Get scheduled workflow runs
+*HatchetSdkRest::WorkflowApi* | [**workflow_scheduled_trigger**](docs/WorkflowApi.md#workflow_scheduled_trigger) | **POST** /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run} | Trigger scheduled workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_scheduled_update**](docs/WorkflowApi.md#workflow_scheduled_update) | **PATCH** /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run} | Update scheduled workflow run
 *HatchetSdkRest::WorkflowApi* | [**workflow_update**](docs/WorkflowApi.md#workflow_update) | **PATCH** /api/v1/workflows/{workflow} | Update workflow
 *HatchetSdkRest::WorkflowApi* | [**workflow_version_get**](docs/WorkflowApi.md#workflow_version_get) | **GET** /api/v1/workflows/{workflow}/versions | Get workflow version
@@ -222,6 +230,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_create**](docs/WorkflowRunApi.md#workflow_run_create) | **POST** /api/v1/workflows/{workflow}/trigger | Trigger workflow run
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_get_input**](docs/WorkflowRunApi.md#workflow_run_get_input) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input | Get workflow run input
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_update_replay**](docs/WorkflowRunApi.md#workflow_run_update_replay) | **POST** /api/v1/tenants/{tenant}/workflow-runs/replay | Replay workflow runs
+*HatchetSdkRest::WorkflowRunsApi* | [**v1_durable_task_branch**](docs/WorkflowRunsApi.md#v1_durable_task_branch) | **POST** /api/v1/stable/tenants/{tenant}/durable-tasks/branch | Branch durable task
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_create**](docs/WorkflowRunsApi.md#v1_workflow_run_create) | **POST** /api/v1/stable/tenants/{tenant}/workflow-runs/trigger | Create workflow run
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_display_names_list**](docs/WorkflowRunsApi.md#v1_workflow_run_display_names_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/display-names | List workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_external_ids_list**](docs/WorkflowRunsApi.md#v1_workflow_run_external_ids_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/external-ids | List workflow run external ids
@@ -271,6 +280,8 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::EventUpdateCancel200Response](docs/EventUpdateCancel200Response.md)
  - [HatchetSdkRest::EventWorkflowRunSummary](docs/EventWorkflowRunSummary.md)
  - [HatchetSdkRest::Events](docs/Events.md)
+ - [HatchetSdkRest::FeatureFlagEvaluationResult](docs/FeatureFlagEvaluationResult.md)
+ - [HatchetSdkRest::FeatureFlagId](docs/FeatureFlagId.md)
  - [HatchetSdkRest::GetStepRunDiffResponse](docs/GetStepRunDiffResponse.md)
  - [HatchetSdkRest::InfoGetVersion200Response](docs/InfoGetVersion200Response.md)
  - [HatchetSdkRest::Job](docs/Job.md)
@@ -285,6 +296,10 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::LogLineList](docs/LogLineList.md)
  - [HatchetSdkRest::LogLineOrderByDirection](docs/LogLineOrderByDirection.md)
  - [HatchetSdkRest::LogLineOrderByField](docs/LogLineOrderByField.md)
+ - [HatchetSdkRest::OtelSpan](docs/OtelSpan.md)
+ - [HatchetSdkRest::OtelSpanKind](docs/OtelSpanKind.md)
+ - [HatchetSdkRest::OtelSpanList](docs/OtelSpanList.md)
+ - [HatchetSdkRest::OtelStatusCode](docs/OtelStatusCode.md)
  - [HatchetSdkRest::PaginationResponse](docs/PaginationResponse.md)
  - [HatchetSdkRest::PullRequest](docs/PullRequest.md)
  - [HatchetSdkRest::PullRequestState](docs/PullRequestState.md)
@@ -345,6 +360,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::TenantResourcePolicy](docs/TenantResourcePolicy.md)
  - [HatchetSdkRest::TenantStepRunQueueMetrics](docs/TenantStepRunQueueMetrics.md)
  - [HatchetSdkRest::TenantVersion](docs/TenantVersion.md)
+ - [HatchetSdkRest::TriggerRunResult](docs/TriggerRunResult.md)
  - [HatchetSdkRest::TriggerWorkflowRunRequest](docs/TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::UpdateCronWorkflowTriggerRequest](docs/UpdateCronWorkflowTriggerRequest.md)
  - [HatchetSdkRest::UpdateScheduledWorkflowRunRequest](docs/UpdateScheduledWorkflowRunRequest.md)
@@ -359,6 +375,9 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::UserRegisterRequest](docs/UserRegisterRequest.md)
  - [HatchetSdkRest::UserTenantMembershipsList](docs/UserTenantMembershipsList.md)
  - [HatchetSdkRest::UserTenantPublic](docs/UserTenantPublic.md)
+ - [HatchetSdkRest::V1AdditionalMetadataOperator](docs/V1AdditionalMetadataOperator.md)
+ - [HatchetSdkRest::V1BranchDurableTaskRequest](docs/V1BranchDurableTaskRequest.md)
+ - [HatchetSdkRest::V1BranchDurableTaskResponse](docs/V1BranchDurableTaskResponse.md)
  - [HatchetSdkRest::V1CELDebugRequest](docs/V1CELDebugRequest.md)
  - [HatchetSdkRest::V1CELDebugResponse](docs/V1CELDebugResponse.md)
  - [HatchetSdkRest::V1CELDebugResponseStatus](docs/V1CELDebugResponseStatus.md)
@@ -371,6 +390,10 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1CreateWebhookRequestBasicAuth](docs/V1CreateWebhookRequestBasicAuth.md)
  - [HatchetSdkRest::V1CreateWebhookRequestHMAC](docs/V1CreateWebhookRequestHMAC.md)
  - [HatchetSdkRest::V1DagChildren](docs/V1DagChildren.md)
+ - [HatchetSdkRest::V1DurableEventLogEntry](docs/V1DurableEventLogEntry.md)
+ - [HatchetSdkRest::V1DurableEventLogKind](docs/V1DurableEventLogKind.md)
+ - [HatchetSdkRest::V1DurableWaitCondition](docs/V1DurableWaitCondition.md)
+ - [HatchetSdkRest::V1DurableWaitConditionKind](docs/V1DurableWaitConditionKind.md)
  - [HatchetSdkRest::V1Event](docs/V1Event.md)
  - [HatchetSdkRest::V1EventList](docs/V1EventList.md)
  - [HatchetSdkRest::V1EventTriggeredRun](docs/V1EventTriggeredRun.md)
@@ -381,8 +404,13 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1LogLineLevel](docs/V1LogLineLevel.md)
  - [HatchetSdkRest::V1LogLineList](docs/V1LogLineList.md)
  - [HatchetSdkRest::V1LogLineOrderByDirection](docs/V1LogLineOrderByDirection.md)
+ - [HatchetSdkRest::V1LogsPointMetric](docs/V1LogsPointMetric.md)
+ - [HatchetSdkRest::V1LogsPointMetrics](docs/V1LogsPointMetrics.md)
  - [HatchetSdkRest::V1ReplayTaskRequest](docs/V1ReplayTaskRequest.md)
  - [HatchetSdkRest::V1ReplayedTasks](docs/V1ReplayedTasks.md)
+ - [HatchetSdkRest::V1RestoreTaskResponse](docs/V1RestoreTaskResponse.md)
+ - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
+ - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)
@@ -399,6 +427,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1TriggerWorkflowRunRequest](docs/V1TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::V1UpdateFilterRequest](docs/V1UpdateFilterRequest.md)
  - [HatchetSdkRest::V1UpdateWebhookRequest](docs/V1UpdateWebhookRequest.md)
+ - [HatchetSdkRest::V1WaitItem](docs/V1WaitItem.md)
  - [HatchetSdkRest::V1Webhook](docs/V1Webhook.md)
  - [HatchetSdkRest::V1WebhookAPIKeyAuth](docs/V1WebhookAPIKeyAuth.md)
  - [HatchetSdkRest::V1WebhookAuthType](docs/V1WebhookAuthType.md)
@@ -428,6 +457,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::WorkerRuntimeInfo](docs/WorkerRuntimeInfo.md)
  - [HatchetSdkRest::WorkerRuntimeSDKs](docs/WorkerRuntimeSDKs.md)
  - [HatchetSdkRest::WorkerSlotConfig](docs/WorkerSlotConfig.md)
+ - [HatchetSdkRest::WorkerStatus](docs/WorkerStatus.md)
  - [HatchetSdkRest::WorkerType](docs/WorkerType.md)
  - [HatchetSdkRest::Workflow](docs/Workflow.md)
  - [HatchetSdkRest::WorkflowConcurrency](docs/WorkflowConcurrency.md)

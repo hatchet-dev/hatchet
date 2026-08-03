@@ -90,12 +90,19 @@ func (v *SingleTaskView) Update(msg tea.Msg) (View, tea.Cmd) {
 	// If a viewer is active, delegate to it first
 	if v.viewerActive {
 		var activeViewer *ContentViewer
-		if v.activeTab == SingleTaskTabOutput && v.outputViewer != nil {
-			activeViewer = v.outputViewer
-		} else if v.activeTab == SingleTaskTabInput && v.inputViewer != nil {
-			activeViewer = v.inputViewer
-		} else if v.activeTab == SingleTaskTabEvents && v.eventsViewer != nil {
-			activeViewer = v.eventsViewer
+		switch v.activeTab {
+		case SingleTaskTabOutput:
+			if v.outputViewer != nil {
+				activeViewer = v.outputViewer
+			}
+		case SingleTaskTabInput:
+			if v.inputViewer != nil {
+				activeViewer = v.inputViewer
+			}
+		case SingleTaskTabEvents:
+			if v.eventsViewer != nil {
+				activeViewer = v.eventsViewer
+			}
 		}
 
 		if activeViewer != nil && activeViewer.IsActive() {
@@ -125,12 +132,19 @@ func (v *SingleTaskView) Update(msg tea.Msg) (View, tea.Cmd) {
 	case tea.MouseMsg:
 		// Handle mouse events for content viewers in preview mode
 		if !v.viewerActive {
-			if v.activeTab == SingleTaskTabOutput && v.outputViewer != nil {
-				v.outputViewer.HandleMouse(msg)
-			} else if v.activeTab == SingleTaskTabInput && v.inputViewer != nil {
-				v.inputViewer.HandleMouse(msg)
-			} else if v.activeTab == SingleTaskTabEvents && v.eventsViewer != nil {
-				v.eventsViewer.HandleMouse(msg)
+			switch v.activeTab {
+			case SingleTaskTabOutput:
+				if v.outputViewer != nil {
+					v.outputViewer.HandleMouse(msg)
+				}
+			case SingleTaskTabInput:
+				if v.inputViewer != nil {
+					v.inputViewer.HandleMouse(msg)
+				}
+			case SingleTaskTabEvents:
+				if v.eventsViewer != nil {
+					v.eventsViewer.HandleMouse(msg)
+				}
 			}
 		}
 		return v, nil
@@ -155,21 +169,25 @@ func (v *SingleTaskView) Update(msg tea.Msg) (View, tea.Cmd) {
 			return v, NewNavigateBackMsg()
 		case "enter":
 			// Activate content viewer for current tab
-			if v.activeTab == SingleTaskTabOutput && v.outputViewer != nil {
-				v.outputViewer.Activate()
-				v.viewerActive = true
-				v.debugLogger.Log("Activated output viewer")
-				return v, nil
-			} else if v.activeTab == SingleTaskTabInput && v.inputViewer != nil {
-				v.inputViewer.Activate()
-				v.viewerActive = true
-				v.debugLogger.Log("Activated input viewer")
-				return v, nil
-			} else if v.activeTab == SingleTaskTabEvents && v.eventsViewer != nil {
-				v.eventsViewer.Activate()
-				v.viewerActive = true
-				v.debugLogger.Log("Activated events viewer")
-				return v, nil
+			switch v.activeTab {
+			case SingleTaskTabOutput:
+				if v.outputViewer != nil {
+					v.outputViewer.Activate()
+					v.viewerActive = true
+					v.debugLogger.Log("Activated output viewer")
+				}
+			case SingleTaskTabInput:
+				if v.inputViewer != nil {
+					v.inputViewer.Activate()
+					v.viewerActive = true
+					v.debugLogger.Log("Activated input viewer")
+				}
+			case SingleTaskTabEvents:
+				if v.eventsViewer != nil {
+					v.eventsViewer.Activate()
+					v.viewerActive = true
+					v.debugLogger.Log("Activated events viewer")
+				}
 			}
 			return v, nil
 		case "r":

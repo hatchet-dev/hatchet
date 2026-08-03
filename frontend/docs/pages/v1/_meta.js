@@ -39,6 +39,8 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
+  idempotency: "Idempotency",
+  "batch-tasks": "Batch Tasks",
   "--durable-workflows-section": {
     title: "Durable Execution",
     type: "separator",
@@ -79,6 +81,12 @@ export default {
     title: "Troubleshooting",
     theme: { collapsed: true },
   },
+  "--enterprise": {
+    title: "Enterprise",
+    type: "separator",
+  },
+  "single-sign-on": "SSO",
+  "user-groups": "User Groups",
   "--evaluate": {
     title: "Evaluating Hatchet?",
     type: "separator",
@@ -102,9 +110,6 @@ export default {
     type: "separator",
   },
   faq: "Frequently Asked Questions",
-  _setup: {
-    display: "hidden",
-  },
   compute: {
     title: "Managed Compute",
     type: "page",

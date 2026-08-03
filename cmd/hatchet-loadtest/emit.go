@@ -40,7 +40,29 @@ func parseSize(s string) int {
 	return num * multiplier
 }
 
-func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
+// assumedPushLatency estimates the round-trip time of a single blocking Events().Push call to a
+// remote engine (observed ~17ms against staging-chonky). defaultEmitWorkers uses it to size the
+// pusher pool when the caller doesn't pin one explicitly via --emitWorkers.
+const assumedPushLatency = 20 * time.Millisecond
+
+// defaultEmitWorkers picks a pusher-pool size for amountPerSecond when emitWorkers isn't set
+// explicitly. Each pusher goroutine blocks on a synchronous network call per event, so
+// sustaining amountPerSecond requires roughly amountPerSecond*assumedPushLatency pushers in
+// flight at once - a fixed pool (the previous hardcoded 10) caps throughput at
+// numWorkers/pushLatency regardless of the requested rate. Clamped so a low rate doesn't spin
+// up an unnecessary number of goroutines and a typo'd huge rate doesn't ask for millions.
+func defaultEmitWorkers(amountPerSecond int) int {
+	n := int(float64(amountPerSecond) * assumedPushLatency.Seconds())
+	if n < 10 {
+		n = 10
+	}
+	if n > 1000 {
+		n = 1000
+	}
+	return n
+}
+
+func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string, emitWorkers int) int64 {
 	c, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: namespace,
@@ -63,7 +85,11 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 	jobCh := make(chan Event, amountPerSecond*2)
 
 	// Worker pool to handle event pushes.
-	numWorkers := 10
+	numWorkers := emitWorkers
+	if numWorkers <= 0 {
+		numWorkers = defaultEmitWorkers(amountPerSecond)
+	}
+	l.Info().Msgf("emitting with %d concurrent push workers (amountPerSecond=%d)", numWorkers, amountPerSecond)
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)

@@ -672,7 +672,7 @@ func getStructFields(t reflect.Type) map[string]reflect.Type {
 		return nil
 	}
 
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -713,14 +713,18 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	cronTriggerOpts.Priority = runOpts.Priority
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMeta := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta); err != nil {
+			return nil, err
+		}
 		cronTriggerOpts.AdditionalMetadata = additionalMeta
 	}
 
@@ -755,12 +759,16 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata); err != nil {
+			return nil, err
+		}
 
 		triggerOpts.AdditionalMetadata = additionalMetadata
 	}
@@ -793,7 +801,9 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		durableOpts[i] = task.Dump(w.Name, w.TaskDefaults)
 	}
 
-	tasksToRegister := append(taskOpts, durableOpts...)
+	tasksToRegister := make([]*contracts.CreateTaskOpts, 0, len(taskOpts)+len(durableOpts))
+	tasksToRegister = append(tasksToRegister, taskOpts...)
+	tasksToRegister = append(tasksToRegister, durableOpts...)
 
 	filters := make([]*contracts.DefaultFilter, 0, len(w.DefaultFilters))
 	for _, filter := range w.DefaultFilters {
@@ -1063,14 +1073,18 @@ func RunChildWorkflow[I any, O any](
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	spawnOpts.Priority = runOpts.Priority
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata); err != nil {
+			return nil, err
+		}
 
 		metadataStr := make(map[string]string)
 		for k, v := range additionalMetadata {

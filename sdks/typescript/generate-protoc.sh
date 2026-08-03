@@ -4,8 +4,10 @@ OUT_DIR="./src/protoc"
 
 if [ -d "./hatchet" ]; then
     IN_DIR="./hatchet/api-contracts"
+    VENDOR_DIR="./hatchet/hack/proto/vendor"
 else
     IN_DIR="../../api-contracts"
+    VENDOR_DIR="../../hack/proto/vendor"
 fi
 
 # Generate code
@@ -14,6 +16,8 @@ fi
   --ts_proto_out=$OUT_DIR \
   --ts_proto_opt=outputServices=nice-grpc,outputServices=generic-definitions,useExactTypes=false \
   --proto_path=$IN_DIR \
-  $IN_DIR/**/*.proto
+  --proto_path=$VENDOR_DIR \
+  $IN_DIR/**/*.proto \
+  $VENDOR_DIR/google/rpc/status.proto
 
 pnpm lint:fix

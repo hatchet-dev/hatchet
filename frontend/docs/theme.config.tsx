@@ -17,6 +17,16 @@ function safeBase64Encode(str: string): string {
   return "";
 }
 
+// TODO(gregfurman): While it's unlikely these items will change, ensuring they're aligned
+// with the actual paths/slugs would be prudent.
+const RSS_FEED_PATHS = [
+  "reference/changelog/platform",
+  "reference/changelog/python",
+  "reference/changelog/typescript",
+  "reference/changelog/ruby",
+  "cookbooks",
+];
+
 const CursorIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z" />
@@ -36,6 +46,14 @@ const MarkdownIcon = () => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const RssIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 11a9 9 0 0 1 9 9" />
+    <path d="M4 4a16 16 0 0 1 16 16" />
+    <circle cx="5" cy="19" r="1" />
   </svg>
 );
 
@@ -124,7 +142,7 @@ const config = {
       width="120"
       height="35"
       fill="none"
-      // preserveAspectRatio="xMidYMid meet"
+    // preserveAspectRatio="xMidYMid meet"
     >
       <path
         fill="var(--brand)"
@@ -143,6 +161,9 @@ const config = {
     const base = router.basePath ? router.basePath.replace(/\/$/, "") : "";
     const llmsMarkdownHref = `${base}/llms/${pathname}.md`;
 
+    const hasRssFeed = RSS_FEED_PATHS.includes(pathname);
+    const rssFeedHref = hasRssFeed ? `${base}/${pathname}/feed.xml` : "";
+
     return (
       <>
         <title>{title ? `${title} - ${fallbackTitle}` : fallbackTitle}</title>
@@ -150,6 +171,7 @@ const config = {
         <link rel="icon" type="image/png" href="/favicon.ico" />
         <link rel="alternate" type="text/markdown" href={llmsMarkdownHref} />
         <link rel="prefetch" href={router.basePath ? `${router.basePath}/llms-search-index.json` : "/llms-search-index.json"} />
+        {hasRssFeed && <link rel="alternate" type="application/rss+xml" href={rssFeedHref}/>}
       </>
     );
   },
@@ -173,6 +195,9 @@ const config = {
     const base = router.basePath ? router.basePath.replace(/\/$/, "") : "";
     const llmsMarkdownHref = `${base}/llms/${pathname}.md`;
 
+    const hasRssFeed = RSS_FEED_PATHS.includes(pathname);
+    const rssFeedHref = hasRssFeed ? `${base}/${pathname}/feed.xml` : "";
+
     const mcpUrl = `${origin}/api/mcp`;
     const cursorConfig = JSON.stringify({
       command: "npx",
@@ -195,6 +220,12 @@ const config = {
             <MarkdownIcon />
             <span className="page-action-label">View as MD</span>
           </a>
+          {hasRssFeed && (
+            <a href={rssFeedHref} target="_blank" rel="noopener noreferrer" style={pageLinkStyle} onClick={() => posthog.capture("docs_rss_click", { feed: rssFeedHref, page: pathname })} title="Subscribe via RSS">
+              <RssIcon />
+              <span className="page-action-label">RSS</span>
+            </a>
+          )}
           <LanguageSelectorButton />
         </div>
         {children}

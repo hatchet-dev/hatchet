@@ -118,7 +118,7 @@ function SsoFormHeader() {
   return (
     <DialogHeader>
       <DialogTitle>
-        Set up Enterprise SSO
+        Set up Single Sign-On
         {step === SsoSetupStep.Configuration &&
           ` - ${PROVIDER_CONFIG[provider].displayName}`}
       </DialogTitle>

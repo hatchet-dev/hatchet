@@ -337,7 +337,10 @@ func TestListenReconnectingStreamGenerationChangeFastPath(t *testing.T) {
 		return constructorCalls.Load() == 1
 	}, time.Second, 10*time.Millisecond)
 
-	require.NoError(t, stream.installClient(replacementClient))
+	stream.sendMu.Lock()
+	installErr := stream.installClientLocked(replacementClient)
+	stream.sendMu.Unlock()
+	require.NoError(t, installErr)
 	close(releaseReconnect)
 
 	require.NoError(t, <-listenErr)

@@ -26,13 +26,8 @@ const replicaLimits = {
 
 export const managedCompute: PermissionSet = {
   create: () => (context) => {
-    const requireBillingForManagedCompute =
-      context.meta?.requireBillingForManagedCompute;
-
-    if (
-      requireBillingForManagedCompute &&
-      !context.billing?.hasPaymentMethods
-    ) {
+    // On cloud, billing context is present — require a payment method.
+    if (context.billing && !context.billing.hasPaymentMethods) {
       return [false, RejectReason.BILLING_REQUIRED];
     }
 

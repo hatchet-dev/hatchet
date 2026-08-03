@@ -34,6 +34,18 @@ module HatchetSdkRest
     # whether or not users can change their password
     attr_accessor :allow_change_password
 
+    # whether or not observability (trace collection) is enabled on this instance
+    attr_accessor :observability_enabled
+
+    # whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+    attr_accessor :prometheus_server_enabled
+
+    # whether or not authentication is disabled (authdisabled build) on this instance
+    attr_accessor :auth_disabled
+
+    # the embedded worker API token, only set on authdisabled builds
+    attr_accessor :auth_disabled_token
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -43,7 +55,11 @@ module HatchetSdkRest
         :'allow_signup' => :'allowSignup',
         :'allow_invites' => :'allowInvites',
         :'allow_create_tenant' => :'allowCreateTenant',
-        :'allow_change_password' => :'allowChangePassword'
+        :'allow_change_password' => :'allowChangePassword',
+        :'observability_enabled' => :'observabilityEnabled',
+        :'prometheus_server_enabled' => :'prometheusServerEnabled',
+        :'auth_disabled' => :'authDisabled',
+        :'auth_disabled_token' => :'authDisabledToken'
       }
     end
 
@@ -66,7 +82,11 @@ module HatchetSdkRest
         :'allow_signup' => :'Boolean',
         :'allow_invites' => :'Boolean',
         :'allow_create_tenant' => :'Boolean',
-        :'allow_change_password' => :'Boolean'
+        :'allow_change_password' => :'Boolean',
+        :'observability_enabled' => :'Boolean',
+        :'prometheus_server_enabled' => :'Boolean',
+        :'auth_disabled' => :'Boolean',
+        :'auth_disabled_token' => :'String'
       }
     end
 
@@ -119,6 +139,22 @@ module HatchetSdkRest
       if attributes.key?(:'allow_change_password')
         self.allow_change_password = attributes[:'allow_change_password']
       end
+
+      if attributes.key?(:'observability_enabled')
+        self.observability_enabled = attributes[:'observability_enabled']
+      end
+
+      if attributes.key?(:'prometheus_server_enabled')
+        self.prometheus_server_enabled = attributes[:'prometheus_server_enabled']
+      end
+
+      if attributes.key?(:'auth_disabled')
+        self.auth_disabled = attributes[:'auth_disabled']
+      end
+
+      if attributes.key?(:'auth_disabled_token')
+        self.auth_disabled_token = attributes[:'auth_disabled_token']
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -147,7 +183,11 @@ module HatchetSdkRest
           allow_signup == o.allow_signup &&
           allow_invites == o.allow_invites &&
           allow_create_tenant == o.allow_create_tenant &&
-          allow_change_password == o.allow_change_password
+          allow_change_password == o.allow_change_password &&
+          observability_enabled == o.observability_enabled &&
+          prometheus_server_enabled == o.prometheus_server_enabled &&
+          auth_disabled == o.auth_disabled &&
+          auth_disabled_token == o.auth_disabled_token
     end
 
     # @see the `==` method
@@ -159,7 +199,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [auth, pylon_app_id, posthog, allow_signup, allow_invites, allow_create_tenant, allow_change_password].hash
+      [auth, pylon_app_id, posthog, allow_signup, allow_invites, allow_create_tenant, allow_change_password, observability_enabled, prometheus_server_enabled, auth_disabled, auth_disabled_token].hash
     end
 
     # Builds the object from hash

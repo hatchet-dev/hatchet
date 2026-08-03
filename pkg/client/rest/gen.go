@@ -203,6 +203,12 @@ const (
 	V1 TenantVersion = "V1"
 )
 
+// Defines values for V1AdditionalMetadataOperator.
+const (
+	AND V1AdditionalMetadataOperator = "AND"
+	OR  V1AdditionalMetadataOperator = "OR"
+)
+
 // Defines values for V1CELDebugResponseStatus.
 const (
 	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
@@ -263,6 +269,7 @@ const (
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
 	V1TaskEventTypeASSIGNED             V1TaskEventType = "ASSIGNED"
+	V1TaskEventTypeBATCHFLUSHED         V1TaskEventType = "BATCH_FLUSHED"
 	V1TaskEventTypeCANCELLED            V1TaskEventType = "CANCELLED"
 	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
 	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
@@ -284,6 +291,7 @@ const (
 	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
 	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
 	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
+	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
 )
 
 // Defines values for V1TaskStatus.
@@ -1449,6 +1457,9 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1AdditionalMetadataOperator defines model for V1AdditionalMetadataOperator.
+type V1AdditionalMetadataOperator string
+
 // V1BranchDurableTaskRequest defines model for V1BranchDurableTaskRequest.
 type V1BranchDurableTaskRequest struct {
 	// BranchId The branch id to replay from.
@@ -1949,6 +1960,9 @@ type V1TaskSummary struct {
 
 	// FinishedAt The timestamp the task run finished.
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// IdempotencyKey The idempotency key that was claimed by the task run
+	IdempotencyKey *string `json:"idempotencyKey,omitempty"`
 
 	// Input The input of the task run.
 	Input openapi.NonNullableJSON `json:"input"`
@@ -2896,6 +2910,9 @@ type V1WorkflowRunListParams struct {
 	// AdditionalMetadata Additional metadata k-v pairs to filter by
 	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
 
+	// AdditionalMetadataOperator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+	AdditionalMetadataOperator *V1AdditionalMetadataOperator `form:"additional_metadata_operator,omitempty" json:"additional_metadata_operator,omitempty"`
+
 	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
 
@@ -2916,6 +2933,9 @@ type V1WorkflowRunListParams struct {
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// IdempotencyKeys The idempotency key(s) to filter for
+	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -3069,6 +3089,9 @@ type WorkerListParams struct {
 
 	// Statuses Filter by worker status
 	Statuses *[]WorkerStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Labels Filter by worker labels
+	Labels *[]string `form:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -8978,6 +9001,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
+		if params.AdditionalMetadataOperator != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata_operator", runtime.ParamLocationQuery, *params.AdditionalMetadataOperator); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.WorkflowIds != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
@@ -9073,6 +9112,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.RunningFilter != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IdempotencyKeys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -11690,6 +11745,22 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *Work
 		if params.Statuses != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Labels != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labels", runtime.ParamLocationQuery, *params.Labels); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -15971,6 +16042,7 @@ type V1WebhookReceiveResponse struct {
 	JSON200      *V1WebhookResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -21815,6 +21887,13 @@ func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
