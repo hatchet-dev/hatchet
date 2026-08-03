@@ -8,10 +8,15 @@ import (
 
 const hatchetModulePath = "github.com/hatchet-dev/hatchet"
 
+const devVersion = "v0.0.0-dev"
+
 func resolveVersion() (string, error) {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		if info.Main.Path == hatchetModulePath && isUsableVersion(info.Main.Version) {
-			return info.Main.Version, nil
+		if info.Main.Path == hatchetModulePath {
+			if isUsableVersion(info.Main.Version) {
+				return info.Main.Version, nil
+			}
+			return devVersion, nil
 		}
 		for _, d := range info.Deps {
 			if d.Path != hatchetModulePath {
