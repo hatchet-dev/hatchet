@@ -125,6 +125,7 @@ jobs:
           export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
           export SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=${{ matrix.concurrency-in-memory-index }}
           export SERVER_OBSERVABILITY_ENABLED=true
+          export SERVER_SECURITY_CHECK_ENABLED=false
 
           go run ./cmd/hatchet-admin quickstart
 
