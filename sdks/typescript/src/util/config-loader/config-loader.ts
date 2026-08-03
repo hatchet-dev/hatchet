@@ -215,11 +215,15 @@ export class ConfigLoader {
   }
 
   static loadYamlConfig(path?: string): ClientConfig | undefined {
+    // Resolve relative to the caller's current working directory, not this
+    // module's own install directory (which, when the SDK is consumed as a
+    // dependency, would be somewhere inside node_modules). `default_yaml_config_path`
+    // is already an absolute path rooted at process.cwd(), and p.resolve leaves an
+    // already-absolute `path` untouched, so this correctly handles both cases.
+    const resolvedPath = path ? p.resolve(process.cwd(), path) : this.default_yaml_config_path;
+
     try {
-      const configFile = readFileSync(
-        p.join(__dirname, path ?? this.default_yaml_config_path),
-        'utf8'
-      );
+      const configFile = readFileSync(resolvedPath, 'utf8');
 
       const config = parse(configFile);
 

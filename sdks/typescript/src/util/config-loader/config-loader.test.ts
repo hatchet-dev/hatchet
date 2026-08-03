@@ -1,6 +1,13 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { ChannelCredentials } from 'nice-grpc';
 import { ConfigLoader } from './config-loader';
 import { HatchetClient } from '@hatchet/v1';
+
+// Fixtures live alongside this test file. Tests are allowed to know their own
+// location via __dirname; the library code under test must not rely on that
+// (see config-loader.ts) since it may be installed inside node_modules.
+const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
 describe('ConfigLoader', () => {
   beforeEach(() => {
@@ -72,7 +79,7 @@ describe('ConfigLoader', () => {
       ConfigLoader.loadClientConfig(
         {},
         {
-          path: './fixtures/not-found.yaml',
+          path: path.join(FIXTURES_DIR, 'not-found.yaml'),
         }
       )
     ).toThrow();
@@ -84,7 +91,7 @@ describe('ConfigLoader', () => {
       ConfigLoader.loadClientConfig(
         {},
         {
-          path: './fixtures/.hatchet-invalid.yaml',
+          path: path.join(FIXTURES_DIR, '.hatchet-invalid.yaml'),
         }
       )
     ).toThrow();
@@ -94,7 +101,7 @@ describe('ConfigLoader', () => {
     const config = ConfigLoader.loadClientConfig(
       {},
       {
-        path: './fixtures/.hatchet.yaml',
+        path: path.join(FIXTURES_DIR, '.hatchet.yaml'),
       }
     );
     expect(config).toEqual({
@@ -140,29 +147,43 @@ describe('ConfigLoader', () => {
     expect(client.config.cancellation_warning_threshold).toEqual(300);
   });
 
-  xit('should attempt to load the root .hatchet.yaml config', () => {
-    //  i'm not sure the best way to test this, maybe spy on readFileSync called with
+  describe('default path resolution (process.cwd())', () => {
+    const cwdConfigPath = path.join(process.cwd(), '.hatchet.yaml');
+
+    afterEach(() => {
+      if (fs.existsSync(cwdConfigPath)) {
+        fs.unlinkSync(cwdConfigPath);
+      }
+    });
+
+    it('should load a .hatchet.yaml that actually exists at the caller cwd', () => {
+      fs.writeFileSync(cwdConfigPath, "namespace: from-cwd-yaml\n");
+
+      const config = ConfigLoader.loadYamlConfig();
+
+      expect(config).toEqual({ namespace: 'from-cwd-yaml' });
+    });
+
+    it('should return undefined when no .hatchet.yaml exists at the caller cwd', () => {
+      expect(fs.existsSync(cwdConfigPath)).toBe(false);
+      expect(ConfigLoader.loadYamlConfig()).toBeUndefined();
+    });
+  });
+
+  it('should resolve an explicit relative config path against process.cwd(), not this module\'s own directory', () => {
+    // Regression test for a bug where an explicit relative `path` was resolved via
+    // path.join(__dirname, path) -- i.e. relative to config-loader.ts's own location
+    // (which, when the SDK is installed as a dependency, is inside node_modules) --
+    // instead of the caller's working directory.
+    const relativeDir = path.relative(process.cwd(), FIXTURES_DIR);
+
     const config = ConfigLoader.loadClientConfig(
       {},
       {
-        path: './fixtures/.hatchet.yaml',
+        path: path.join(relativeDir, '.hatchet.yaml'),
       }
     );
-    expect(config).toEqual({
-      token:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-      host_port: 'HOST_PORT_YAML',
-      tls_config: {
-        tls_strategy: 'tls',
-        cert_file: 'TLS_CERT_FILE_YAML',
-        key_file: 'TLS_KEY_FILE_YAML',
-        ca_file: 'TLS_ROOT_CA_FILE_YAML',
-        server_name: 'TLS_SERVER_NAME_YAML',
-      },
-      healthcheck: {
-        enabled: true,
-        port: 8002,
-      },
-    });
+
+    expect(config?.host_port).toEqual('HOST_PORT_YAML');
   });
 });
