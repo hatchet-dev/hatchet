@@ -29,7 +29,7 @@ async def test_log_forwarding_handler_enqueues_correct_record() -> None:
     previous_level = target_logger.level
     target_logger.setLevel(logging.INFO)
 
-    handler = LogForwardingHandler(log_sender, StringIO())
+    handler = LogForwardingHandler(log_sender)
     target_logger.addHandler(handler)
 
     step_token = ctx_step_run_id.set("step-run-id")

@@ -86,14 +86,6 @@ func run() error {
 		hatchet.WithWorkflowEvents(eventKey),
 	)
 
-	// Preview: batch tasks are in beta and may change in future releases.
-	//
-	// batchTask subscribes to the same event as the standalone task above, so every load
-	// test run also exercises the batch scheduler side by side with normal task scheduling
-	// - a canary for scheduling interference, not a benchmarked workflow. Its name
-	// deliberately doesn't match the "load-test-%d" pattern that cmd/hatchet-loadtest's
-	// expectedWorkflowNames() (do.go) resolves, so the benchmark's TimingCollector never
-	// discovers or polls it and its timings never affect the pass/fail thresholds.
 	batchTask := client.NewStandaloneBatchTask(batchTaskName, func(ctx hatchet.Context, tasks map[string]LoadTestInput) (map[string]LoadTestOutput, error) {
 		out := make(map[string]LoadTestOutput, len(tasks))
 		for id := range tasks {

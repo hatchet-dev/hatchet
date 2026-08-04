@@ -180,6 +180,7 @@ oauth-start-google:
             schema:
               type: string
     security: []
+    x-enable-rate-limiting: true
     summary: Start OAuth flow
     tags:
       - User
@@ -195,6 +196,7 @@ oauth-callback-google:
             schema:
               type: string
     security: []
+    x-enable-rate-limiting: true
     summary: Complete OAuth flow
     tags:
       - User
@@ -210,6 +212,7 @@ oauth-start-github:
             schema:
               type: string
     security: []
+    x-enable-rate-limiting: true
     summary: Start OAuth flow
     tags:
       - User
@@ -225,6 +228,7 @@ oauth-callback-github:
             schema:
               type: string
     security: []
+    x-enable-rate-limiting: true
     summary: Complete OAuth flow
     tags:
       - User
@@ -254,6 +258,7 @@ oauth-start-slack:
     # a Slack account to an existing user account.
     security:
       - cookieAuth: []
+    x-enable-rate-limiting: true
     summary: Start OAuth flow
     tags:
       - User
@@ -272,6 +277,7 @@ oauth-callback-slack:
     # a Slack account to an existing user account.
     security:
       - cookieAuth: []
+    x-enable-rate-limiting: true
     summary: Complete OAuth flow
     tags:
       - User
@@ -306,6 +312,7 @@ logout:
         description: Method not allowed
     security:
       - cookieAuth: []
+    x-enable-rate-limiting: true
     summary: Logout user
     tags:
       - User
