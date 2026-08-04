@@ -133,7 +133,7 @@ func TestRateLimiter_Nack(t *testing.T) {
 
 	// Verify unacked is empty and unflushed doesn't contain step1 rate limits
 	assert.Empty(t, rateLimiter.unacked)
-	assert.NotContains(t, rateLimiter.unflushed, 1)
+	assert.NotContains(t, rateLimiter.unflushed, "key1")
 }
 
 func TestRateLimiter_Concurrency(t *testing.T) {
@@ -263,4 +263,22 @@ func BenchmarkRateLimiter(b *testing.B) {
 			count++
 		}
 	})
+}
+
+func TestRateLimiter_ShouldRefill(t *testing.T) {
+	l := zerolog.Nop()
+	r := &rateLimiter{l: &l}
+
+	// no refill deadline known yet
+	assert.False(t, r.shouldRefill())
+
+	// deadline still in the future: the cached window is current
+	future := time.Now().UTC().Add(time.Minute)
+	r.nextRefillAt = &future
+	assert.False(t, r.shouldRefill())
+
+	// deadline reached: limits have refilled in the database and must be re-read
+	past := time.Now().UTC().Add(-time.Millisecond)
+	r.nextRefillAt = &past
+	assert.True(t, r.shouldRefill())
 }
