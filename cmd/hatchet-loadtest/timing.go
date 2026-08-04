@@ -85,9 +85,11 @@ func tryResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, t
 	for _, name := range names {
 		name := name
 
-		resp, err := api.WorkflowListWithResponse(ctx, tenantId, &rest.WorkflowListParams{Name: &name})
-		if err != nil {
-			return nil, nil, fmt.Errorf("error listing workflows for %q: %w", name, err)
+		resp, reqErr := api.WorkflowListWithResponse(ctx, tenantId, &rest.WorkflowListParams{Name: &name})
+		if reqErr != nil {
+			l.Info().Msgf("error listing workflows for %q, will retry: %v", name, reqErr)
+			missing = append(missing, name)
+			continue
 		}
 
 		found := false
