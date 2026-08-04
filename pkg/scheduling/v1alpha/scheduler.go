@@ -19,6 +19,12 @@ import (
 
 const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
+// parkedAssignRetryTimeout bounds how long an assignment that raced an
+// in-flight replenish waits for the cycle to end before reporting its miss. A
+// healthy replenish applies within a few milliseconds; a degraded one (slow
+// database reads) must not hold assignment results hostage.
+const parkedAssignRetryTimeout = 100 * time.Millisecond
+
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
 //
@@ -58,6 +64,13 @@ type Scheduler struct {
 	// subtracts them to avoid double-counting capacity.
 	replenishing         bool
 	ackedDuringReplenish map[poolKey]int
+
+	// afterReplenish holds assignment retries parked while a replenish cycle is
+	// in flight; they run on the loop as soon as the cycle ends. This preserves
+	// the v1 scheduler's behavior where an assignment racing a replenish waited
+	// on the actions write lock and woke to fresh capacity, instead of missing
+	// and paying a full queue poll interval.
+	afterReplenish []func()
 
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
@@ -276,6 +289,21 @@ func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 	})
 }
 
+// endReplenishCycle runs on the run loop when an in-flight replenish cycle
+// finishes (applied, skipped as empty, or failed).
+func (s *Scheduler) endReplenishCycle() {
+	s.replenishing = false
+	s.ackedDuringReplenish = nil
+
+	// retry assignments that missed capacity while the cycle was in flight
+	pending := s.afterReplenish
+	s.afterReplenish = nil
+
+	for _, retry := range pending {
+		retry()
+	}
+}
+
 // replenish loads new slots from the database and swaps them into the worker
 // pools. All database reads run outside the run loop, so assignment continues
 // while they are in flight.
@@ -327,8 +355,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		s.mustDo(func() {
-			s.replenishing = false
-			s.ackedDuringReplenish = nil
+			s.endReplenishCycle()
 		})
 	}()
 
@@ -474,6 +501,16 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		workerUUIDs = append(workerUUIDs, workerId)
 	}
 
+	// Acks that landed before this point are visible to the availability read
+	// below, so only acks from here on need to be reconciled against it. This
+	// keeps the conservative double-subtract window to the single read that
+	// actually matters.
+	if ok := s.do(ctx, func() {
+		s.ackedDuringReplenish = make(map[poolKey]int)
+	}); !ok {
+		return ctx.Err()
+	}
+
 	availableByPool := make(map[poolKey]int, len(configuredPools))
 	if len(slotTypes) > 0 && len(workerUUIDs) > 0 {
 		listSlotsCtx, listSlotsSpan := telemetry.NewSpan(ctx, "replenish-list-available-slots")
@@ -601,8 +638,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		actionCount = len(s.actions)
 
-		s.replenishing = false
-		s.ackedDuringReplenish = nil
+		s.endReplenishCycle()
 		applied = true
 	}); !ok {
 		buildSlotsSpan.End()
@@ -805,12 +841,71 @@ func (s *Scheduler) tryAssignBatch(
 	}
 	rateLimitSpan.End()
 
-	if ok := s.do(ctx, func() {
+	assignDone := make(chan struct{})
+
+	// finished is only touched on the run loop; once true, res belongs to the
+	// caller again and no parked retry or timeout may touch it.
+	finished := false
+	finish := func() {
+		if finished {
+			return
+		}
+		finished = true
+		close(assignDone)
+	}
+
+	var attempt func(isRetry bool)
+	attempt = func(isRetry bool) {
 		s.handleAssignBatch(actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
-	}); !ok {
+
+		// If a replenish cycle is in flight, capacity may be milliseconds away:
+		// park the missed items and retry once when the cycle ends, instead of
+		// reporting noSlots and paying a full queue poll interval. This mirrors
+		// the v1 scheduler, where an assignment racing a replenish blocked on
+		// the actions write lock and woke to fresh capacity — but unlike v1 the
+		// wait is bounded by parkedAssignRetryTimeout, so a slow replenish
+		// (e.g. degraded database reads) cannot stall assignment results.
+		if !isRetry && s.replenishing && batchHasMisses(res) {
+			s.afterReplenish = append(s.afterReplenish, func() {
+				if finished {
+					return
+				}
+
+				// clear the miss markers from the first attempt before retrying
+				for i := range res {
+					if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
+						res[i].noSlots = false
+					}
+				}
+
+				attempt(true)
+			})
+
+			time.AfterFunc(parkedAssignRetryTimeout, func() {
+				s.mustDo(finish)
+			})
+
+			return
+		}
+
+		finish()
+	}
+
+	enqueued := ctx.Err() == nil
+	if enqueued {
+		select {
+		case s.ops <- func() { attempt(false) }:
+		case <-ctx.Done():
+			enqueued = false
+		case <-s.runDone:
+			enqueued = false
+		}
+	}
+
+	if !enqueued || !s.wait(assignDone) {
 		// the scheduler is shutting down; treat the batch as unassignable
 		for i := range res {
-			if res[i].rateLimitResult == nil && !res[i].toBatch {
+			if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
 				res[i].noSlots = true
 			}
 		}
@@ -824,6 +919,16 @@ func (s *Scheduler) tryAssignBatch(
 	}
 
 	return res, nil
+}
+
+// batchHasMisses runs on the run loop.
+func batchHasMisses(res []*assignSingleResult) bool {
+	for i := range res {
+		if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
+			return true
+		}
+	}
+	return false
 }
 
 // handleAssignBatch runs on the run loop.
@@ -868,6 +973,11 @@ func (s *Scheduler) handleAssignBatch(
 		}
 
 		if r.rateLimitResult != nil {
+			continue
+		}
+
+		// already assigned by a previous attempt (parked-retry path)
+		if r.succeeded {
 			continue
 		}
 

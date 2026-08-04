@@ -1726,3 +1726,96 @@ func TestScheduler_Replenish_UpdatesAllActionIndexes(t *testing.T) {
 		require.Len(t, s.pools[poolKey{workerId: workerId, slotType: repo.SlotTypeDefault}].slots, 2)
 	})
 }
+
+func TestScheduler_TryAssignBatch_ParkedRetryAfterReplenish(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	// action exists but its only slot is taken, and a replenish cycle is in flight
+	sl := newSlot(w, repo.SlotTypeDefault)
+	sl.used = true
+	seedActionPools(t, s, "A", sl)
+	onLoop(t, s, func() { s.replenishing = true })
+
+	type batchResult struct {
+		res []*assignSingleResult
+		err error
+	}
+	resultCh := make(chan batchResult, 1)
+
+	go func() {
+		res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}, nil, nil, nil, nil, nil)
+		resultCh <- batchResult{res, err}
+	}()
+
+	// the batch misses and parks behind the in-flight cycle
+	require.Eventually(t, func() bool {
+		parked := false
+		onLoop(t, s, func() { parked = len(s.afterReplenish) == 1 })
+		return parked
+	}, time.Second, time.Millisecond)
+
+	select {
+	case <-resultCh:
+		t.Fatal("batch completed while parked")
+	default:
+	}
+
+	// the cycle ends and capacity arrives: the parked retry must assign
+	onLoop(t, s, func() {
+		sl.pool.release(sl)
+		s.endReplenishCycle()
+	})
+
+	select {
+	case r := <-resultCh:
+		require.NoError(t, r.err)
+		require.Len(t, r.res, 1)
+		require.True(t, r.res[0].succeeded, "parked retry should assign once capacity lands")
+		require.False(t, r.res[0].noSlots)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for parked batch to complete")
+	}
+}
+
+func TestScheduler_TryAssignBatch_ParkedRetryTimesOut(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	sl := newSlot(w, repo.SlotTypeDefault)
+	sl.used = true
+	seedActionPools(t, s, "A", sl)
+	onLoop(t, s, func() { s.replenishing = true })
+
+	start := time.Now()
+	res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}, nil, nil, nil, nil, nil)
+	waited := time.Since(start)
+
+	// the cycle never ends: the park must give up after its bounded wait and
+	// report the miss rather than blocking behind a stalled replenish
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.False(t, res[0].succeeded)
+	require.True(t, res[0].noSlots)
+	require.GreaterOrEqual(t, waited, parkedAssignRetryTimeout)
+	require.Less(t, waited, 10*parkedAssignRetryTimeout)
+
+	// the cycle eventually ends with capacity available; the timed-out retry
+	// must be a no-op — the result already belongs to the caller
+	onLoop(t, s, func() {
+		sl.pool.release(sl)
+		s.endReplenishCycle()
+	})
+
+	onLoop(t, s, func() {
+		require.Empty(t, s.unackedSlots, "timed-out parked retry must not assign")
+		require.Equal(t, 1, len(sl.pool.free))
+	})
+	require.True(t, res[0].noSlots)
+}
