@@ -23,7 +23,34 @@ shutdown() {
 HATCHET_API_PID=$!
 
 : "${BASE_PATH:=/}"
+case "$BASE_PATH" in /*) ;; *) BASE_PATH="/$BASE_PATH" ;; esac
+case "$BASE_PATH" in */) ;; *) BASE_PATH="$BASE_PATH/" ;; esac
+
 sed -i "s|{{ .BasePath }}|${BASE_PATH}|g" /usr/share/nginx/html/index.html
+
+if [ "$BASE_PATH" = "/" ]; then
+  cat > /etc/nginx/conf.d/hatchet-app.conf <<EOF
+location / {
+    try_files \$uri /index.html;
+}
+EOF
+else
+  cat > /etc/nginx/conf.d/hatchet-app.conf <<EOF
+location = ${BASE_PATH%/} {
+    return 302 ${BASE_PATH};
+}
+location ${BASE_PATH} {
+    rewrite ^${BASE_PATH}(.*)\$ /\$1 break;
+    try_files \$uri /index.html;
+}
+location = /index.html {
+    internal;
+}
+location / {
+    return 404;
+}
+EOF
+fi
 
 # Start NGINX in the foreground
 nginx -g "daemon off;"

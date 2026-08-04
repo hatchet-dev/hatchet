@@ -44,12 +44,12 @@ The base path is injected into the served `index.html` at request time and the s
 
 Set the base path via the environment variable for your deployment mode. It defaults to `/`, which preserves the root-hosted behavior.
 
-| Deployment                        | Variable                  | Notes                                                       |
-| --------------------------------- | ------------------------- | ----------------------------------------------------------- |
-| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server. |
-| Combined `dashboard` image        | `BASE_PATH`               | Substituted into `index.html` by the container entrypoint.  |
-| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                             |
-| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                             |
+| Deployment                        | Variable                  | Notes                                                           |
+| --------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server.     |
+| Combined `dashboard` image        | `BASE_PATH`               | Injected into `index.html` and nginx routing by the entrypoint. |
+| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                                 |
+| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                                 |
 
 <Callout type="info">
   The base path is normalized automatically, so `hatchet`, `/hatchet`, and
@@ -106,6 +106,35 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+```
+
+On Kubernetes with the `ingress-nginx` controller, the same routing is two `Prefix` paths on one Ingress — and notably **no `nginx.ingress.kubernetes.io/rewrite-target` annotation is needed**, since the frontend serves the subpath itself:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hatchet
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hatchet-stack-api
+                port:
+                  number: 8080
+          - path: /hatchet
+            pathType: Prefix
+            backend:
+              service:
+                name: hatchet-stack-frontend
+                port:
+                  number: 8080
 ```
 
 ## Example: `nginx-ingress`
