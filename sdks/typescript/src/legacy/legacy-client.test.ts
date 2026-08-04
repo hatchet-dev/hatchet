@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { ChannelCredentials, createChannel, createClientFactory } from 'nice-grpc';
 import { LegacyHatchetClient } from './legacy-client';
 
@@ -106,7 +107,7 @@ describe('Client', () => {
         },
       },
       {
-        config_path: './fixtures/.hatchet.yaml',
+        config_path: path.join(__dirname, '../util/config-loader/fixtures/.hatchet.yaml'),
         credentials: ChannelCredentials.createInsecure(),
       }
     );
