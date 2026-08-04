@@ -201,6 +201,10 @@ func accumulatePhases(samples <-chan PhaseSample) <-chan phasesByKey {
 }
 
 func do(config LoadTestConfig) error {
+	if len(config.EventKeys) == 0 {
+		config.EventKeys = []eventkeys.EventKey{eventkeys.EventKeyDefault}
+	}
+
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
 	after := 10 * time.Second
