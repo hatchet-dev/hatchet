@@ -84,9 +84,9 @@ func run() error {
 	durableTaskName := envOr("HATCHET_LOADTEST_DURABLE_TASK_NAME", eventkeys.WorkflowDurableName)
 	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", eventkeys.WorkflowDurableChildName)
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
-	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 1000)
-	durableSleepMs := envInt("HATCHET_LOADTEST_DURABLE_SLEEP_MS", 1000)
-	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 10)
+	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
+	durableSleepMs := envInt("HATCHET_LOADTEST_DURABLE_SLEEP_MS", 100)
+	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
@@ -178,6 +178,8 @@ func run() error {
 			}, nil
 		},
 		hatchet.WithWorkflowEvents(durableTaskEventKey),
+		hatchet.WithScheduleTimeout(60*time.Minute),
+		hatchet.WithExecutionTimeout(5*time.Minute),
 	)
 
 	worker, err := client.NewWorker(
