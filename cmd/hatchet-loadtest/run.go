@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
@@ -117,9 +118,9 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 		loadtest := factory.NewWorkflow[Event, stepOneOutput](
 			create.WorkflowCreateOpts[Event]{
-				Name: fmt.Sprintf("load-test-%d", i),
+				Name: eventkeys.WorkflowStandardName(i),
 				OnEvents: []string{
-					"load-test:event",
+					eventkeys.EventKeyDefault.String(),
 				},
 				Concurrency: concurrencyOpt,
 			},
@@ -166,7 +167,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 	worker, err := hatchet.Worker(
 		worker.WorkerOpts{
-			Name:      "load-test-worker",
+			Name:      eventkeys.WorkerName,
 			Workflows: workflows,
 			Slots:     config.Slots,
 			Logger:    &l,
