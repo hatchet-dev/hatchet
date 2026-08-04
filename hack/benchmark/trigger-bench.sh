@@ -15,6 +15,14 @@
 #   BENCH_TRIGGERS=1000 BENCH_CONCURRENCY=8 hack/benchmark/trigger-bench.sh
 #   BENCH_REFS="origin/main mybranch" hack/benchmark/trigger-bench.sh
 #   BENCH_PAYLOAD_BYTES=102400 hack/benchmark/trigger-bench.sh   # 100KiB inputs
+#   BENCH_OTEL=1 hack/benchmark/trigger-bench.sh          # export traces to hyperdx
+#
+# With BENCH_OTEL=1, the repo's hyperdx service (docker-compose.infra.yml) is
+# started if needed and each ref's engine exports full traces — including
+# per-SQL-statement spans via the otelpgx pool tracer — under the service name
+# trigger-bench-<ref>, so the two implementations can be compared side by side
+# in the HyperDX UI (http://localhost:8081). The hyperdx container is left
+# running after the benchmark so the traces can be explored.
 #
 # Requirements: docker, go, python3. Uncommitted changes are NOT benchmarked —
 # each ref is benchmarked at its committed state.
@@ -26,6 +34,9 @@ BENCH_TRIGGERS=${BENCH_TRIGGERS:-300}
 BENCH_CONCURRENCY=${BENCH_CONCURRENCY:-4}
 BENCH_WARMUP=${BENCH_WARMUP:-50}
 BENCH_PAYLOAD_BYTES=${BENCH_PAYLOAD_BYTES:-1024}
+BENCH_OTEL=${BENCH_OTEL:-}
+BENCH_OTEL_COLLECTOR=${BENCH_OTEL_COLLECTOR:-localhost:4317}
+BENCH_OTEL_AUTH=${BENCH_OTEL_AUTH:-}
 POSTGRES_IMAGE=${POSTGRES_IMAGE:-postgres:15.6}
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -53,6 +64,35 @@ s.bind(("127.0.0.1", 0))
 print(s.getsockname()[1])
 s.close()
 EOF
+}
+
+ensure_hyperdx() {
+    if docker ps --format '{{.Names}}' | grep -q '^hatchet-hyperdx$'; then
+        echo "==> hyperdx already running (http://localhost:8081)"
+    else
+        echo "==> starting hyperdx (docker-compose.infra.yml)"
+        docker compose -f "$REPO_ROOT/docker-compose.infra.yml" up -d hyperdx >/dev/null
+
+        # wait for the OTLP gRPC port to accept connections
+        until python3 -c "import socket; socket.create_connection(('localhost', 4317), timeout=1).close()" 2>/dev/null; do
+            sleep 1
+        done
+        echo "==> hyperdx up: UI http://localhost:8081, OTLP grpc localhost:4317"
+    fi
+
+    # hyperdx's OTLP endpoint rejects spans without the team's ingestion API key
+    # in the authorization header; the key is created at signup and lives in the
+    # container's mongo
+    if [ -z "$BENCH_OTEL_AUTH" ]; then
+        BENCH_OTEL_AUTH=$(docker exec hatchet-hyperdx mongo --quiet --eval \
+            'var t = db.getSiblingDB("hyperdx").teams.findOne(); if (t) print(t.apiKey)' 2>/dev/null | tail -1)
+    fi
+
+    if [ -z "$BENCH_OTEL_AUTH" ]; then
+        echo "!! no hyperdx ingestion key found: sign up at http://localhost:8081 first" >&2
+        echo "   (or pass BENCH_OTEL_AUTH=<ingestion api key> explicitly)" >&2
+        exit 1
+    fi
 }
 
 write_driver() {
@@ -291,9 +331,24 @@ bench_ref() {
         sleep 0.5
     done
 
+    # BENCH_NOOP=1 keeps the env array non-empty: expanding an empty array under
+    # `set -u` errors on bash 3.2 (the macOS default)
+    local otel_env=("BENCH_NOOP=1")
+    if [ -n "$BENCH_OTEL" ]; then
+        otel_env=(
+            "SERVER_OTEL_COLLECTOR_URL=$BENCH_OTEL_COLLECTOR"
+            "SERVER_OTEL_INSECURE=true"
+            "SERVER_OTEL_SERVICE_NAME=trigger-bench-$name"
+            "SERVER_OTEL_TRACE_ID_RATIO=1"
+            "SERVER_OTEL_COLLECTOR_AUTH=$BENCH_OTEL_AUTH"
+        )
+        echo "==> [$name] tracing to $BENCH_OTEL_COLLECTOR as service trigger-bench-$name"
+    fi
+
     echo "==> [$name] running benchmark (${BENCH_TRIGGERS} triggers, concurrency ${BENCH_CONCURRENCY}, ${BENCH_PAYLOAD_BYTES}B payloads; first run includes migrations)"
     (
         cd "$driver"
+        env "${otel_env[@]}" \
         DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:${port}/hatchet?sslmode=disable" \
         RESULT_PATH="$WORKDIR/result-$name.json" \
         BENCH_TRIGGERS="$BENCH_TRIGGERS" \
@@ -311,6 +366,10 @@ bench_ref() {
 
     echo "==> [$name] done"
 }
+
+if [ -n "$BENCH_OTEL" ]; then
+    ensure_hyperdx
+fi
 
 names=()
 i=0
@@ -361,3 +420,8 @@ for key, label in fields:
 meta = results[base]
 print(f"\n({meta['triggers']} triggers, concurrency {meta['concurrency']}, {meta['payload_bytes']}B payloads)")
 EOF
+
+if [ -n "$BENCH_OTEL" ]; then
+    echo
+    echo "traces: http://localhost:8081 — compare services $(for n in "${names[@]}"; do printf 'trigger-bench-%s ' "$n"; done)"
+fi
