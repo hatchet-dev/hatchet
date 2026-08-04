@@ -310,7 +310,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, nil, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
@@ -847,7 +847,7 @@ func (q *Queuer) runOptimisticQueue(
 		}
 
 	}
-	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, tx, stepIds)
 	if err != nil {
 		return nil, nil, err
 	}

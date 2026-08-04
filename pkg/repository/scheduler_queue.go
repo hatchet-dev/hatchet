@@ -894,24 +894,49 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	return stepIdToRequests, nil
 }
 
-func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, stepIds []uuid.UUID) (map[string]bool, error) {
+func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string]bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
 	defer span.End()
 
 	uniqueStepIds := listutils.Uniq(stepIds)
 	res := make(map[string]bool, len(uniqueStepIds))
 
-	for _, stepID := range uniqueStepIds {
-		res[stepID.String()] = false
+	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
+
+	for _, stepId := range uniqueStepIds {
+		if value, found := d.stepIdHasBatchConfigCache.Get(stepId); found {
+			res[stepId.String()] = value
+		} else {
+			res[stepId.String()] = false
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+		}
 	}
 
-	steps, err := d.queries.ListStepsWithBatchConfig(ctx, d.pool, uniqueStepIds)
+	if len(stepIdsToLookup) == 0 {
+		return res, nil
+	}
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
+
+	steps, err := d.queries.ListStepsWithBatchConfig(ctx, queryTx, stepIdsToLookup)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, step := range steps {
 		res[step.String()] = true
+	}
+
+	// cache the outcome for every looked-up step — steps without a batch config
+	// cache false, so the common case also skips the DB lookup
+	for _, stepId := range stepIdsToLookup {
+		d.stepIdHasBatchConfigCache.Add(stepId, res[stepId.String()])
 	}
 
 	return res, nil
