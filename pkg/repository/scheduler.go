@@ -43,6 +43,7 @@ type QueueRepository interface {
 	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error)
 	GetStepSlotRequests(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
 	GetStepBatchConfigs(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string]bool, error)
+	ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	Cleanup()
 }
 

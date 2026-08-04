@@ -942,6 +942,39 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *Optimisti
 	return res, nil
 }
 
+// ListWorkflowNamesByIds resolves workflow ids to names through the shared
+// workflowIdNameCache, fetching only uncached ids from the database. Ids which cannot be
+// resolved are absent from the result.
+func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	workflowIdToName := make(map[uuid.UUID]string, len(workflowIds))
+	misses := make([]uuid.UUID, 0)
+
+	for _, id := range workflowIds {
+		if name, ok := d.workflowIdNameCache.Get(id); ok {
+			workflowIdToName[id] = name
+		} else {
+			misses = append(misses, id)
+		}
+	}
+
+	if len(misses) == 0 {
+		return workflowIdToName, nil
+	}
+
+	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool, misses)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		d.workflowIdNameCache.Add(row.ID, row.Name)
+		workflowIdToName[row.ID] = row.Name
+	}
+
+	return workflowIdToName, nil
+}
+
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
