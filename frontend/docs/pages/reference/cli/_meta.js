@@ -17,7 +17,7 @@ export default {
     title: "Dashboard",
     type: "separator",
   },
-  ui: "Serving the Dashboard UI",
+  "embed-ui": "Serving the Dashboard UI",
   "--tui": {
     title: "TUI",
     type: "separator",

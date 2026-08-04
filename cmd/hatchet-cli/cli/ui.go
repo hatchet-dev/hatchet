@@ -2,7 +2,11 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"crypto/tls"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
@@ -22,24 +26,20 @@ import (
 )
 
 var uiCmd = &cobra.Command{
-	Use:     "ui",
-	Aliases: []string{"web", "dashboard"},
-	Short:   "Serve the Hatchet dashboard UI locally",
-	Long: `Serve the Hatchet dashboard UI from the CLI, pointed at an existing Hatchet
-instance. The UI is bundled into the CLI binary and proxied to the API server of
-your selected profile, so you can browse a self-hosted deployment without
-deploying the frontend separately.`,
-	Example: `  # Serve the UI for your default profile
-  hatchet ui
+	Use:   "embed-ui",
+	Short: "Serve the dashboard UI for an embedded Hatchet instance",
+	Long: `Serve the Hatchet dashboard UI for an embedded Hatchet instance. Embedded
+instances run inside your application and do not ship a frontend; this command
+serves the UI bundled in the CLI binary and proxies API requests to the
+instance's API server. Access is protected by a one-time token in the opened URL.`,
+	Example: `  # Serve the UI for an embedded instance's API server
+  hatchet embed-ui --api-url http://localhost:8080
 
-  # Serve the UI for a specific profile
-  hatchet ui --profile production
-
-  # Point the UI at an explicit API server (skips profile resolution)
-  hatchet ui --api-url http://localhost:8080
+  # Serve the UI for a configured profile
+  hatchet embed-ui --profile local
 
   # Serve on a fixed port without opening a browser
-  hatchet ui --port 9000 --no-open`,
+  hatchet embed-ui --api-url http://localhost:8080 --port 9000 --no-open`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runUI(cmd)
 	},
@@ -58,6 +58,10 @@ func runUI(cmd *cobra.Command) {
 
 	target, insecureSkipVerify, profileName := resolveUITarget(apiURLFlag, profileFlag)
 
+	if err := checkEmbedded(target, insecureSkipVerify); err != nil {
+		configcli.Logger.Fatalf("%v", err)
+	}
+
 	handler, err := newUIHandler(target, insecureSkipVerify)
 	if err != nil {
 		configcli.Logger.Fatalf("could not build UI server: %v", err)
@@ -68,10 +72,16 @@ func runUI(cmd *cobra.Command) {
 		configcli.Logger.Fatalf("%v", err)
 	}
 
+	token, err := randomToken()
+	if err != nil {
+		configcli.Logger.Fatalf("could not generate access token: %v", err)
+	}
+
 	localURL := fmt.Sprintf("http://%s:%d", browserHost(host), listener.Addr().(*net.TCPAddr).Port)
+	tokenURL := localURL + "/?ui_token=" + token
 
 	server := &http.Server{
-		Handler:           handler,
+		Handler:           tokenGate(token, handler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -82,10 +92,10 @@ func runUI(cmd *cobra.Command) {
 		}
 	}()
 
-	fmt.Println(uiStartedView(localURL, target.String(), profileName))
+	fmt.Println(uiStartedView(tokenURL, target.String(), profileName))
 
 	if !noOpen {
-		openBrowser(localURL)
+		openBrowser(tokenURL)
 	}
 
 	interruptCh := cmdutils.InterruptChan()
@@ -102,7 +112,7 @@ func runUI(cmd *cobra.Command) {
 
 func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureSkipVerify bool, profileName string) {
 	if apiURLFlag != "" {
-		parsed, err := url.Parse(apiURLFlag)
+		parsed, err := parseTargetURL(apiURLFlag)
 		if err != nil {
 			configcli.Logger.Fatalf("invalid --api-url '%s': %v", apiURLFlag, err)
 		}
@@ -128,12 +138,104 @@ func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureS
 		configcli.Logger.Fatalf("profile '%s' has no API server URL configured", selectedProfile)
 	}
 
-	parsed, err := url.Parse(profile.ApiServerURL)
+	parsed, err := parseTargetURL(profile.ApiServerURL)
 	if err != nil {
 		configcli.Logger.Fatalf("profile '%s' has an invalid API server URL '%s': %v", selectedProfile, profile.ApiServerURL, err)
 	}
 
 	return parsed, profile.TLSStrategy == "none", selectedProfile
+}
+
+const uiTokenCookie = "hatchet-ui-token"
+
+func randomToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(b), nil
+}
+
+func tokenGate(token string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if q := r.URL.Query().Get("ui_token"); q != "" {
+			if subtle.ConstantTimeCompare([]byte(q), []byte(token)) != 1 {
+				http.Error(w, "invalid token", http.StatusForbidden)
+				return
+			}
+
+			http.SetCookie(w, &http.Cookie{ // nolint:gosec // served over plain HTTP on loopback; Secure would drop the cookie
+				Name:     uiTokenCookie,
+				Value:    token,
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		c, err := r.Cookie(uiTokenCookie)
+		if err != nil || subtle.ConstantTimeCompare([]byte(c.Value), []byte(token)) != 1 {
+			http.Error(w, "access denied: open the URL printed by 'hatchet embed-ui'", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func checkEmbedded(target *url.URL, insecureSkipVerify bool) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	if insecureSkipVerify {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
+		}
+	}
+
+	resp, err := client.Get(target.JoinPath("/api/v1/meta").String())
+	if err != nil {
+		return fmt.Errorf("could not reach %s: %w", target, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s does not look like a Hatchet API server (GET /api/v1/meta returned %d)", target, resp.StatusCode)
+	}
+
+	var meta struct {
+		Embedded bool `json:"embedded"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return fmt.Errorf("could not parse /api/v1/meta response from %s: %w", target, err)
+	}
+
+	if !meta.Embedded {
+		return fmt.Errorf("%s is not an embedded Hatchet instance; 'hatchet embed-ui' only serves the UI for embedded instances", target)
+	}
+
+	return nil
+}
+
+func parseTargetURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("must be an http:// or https:// URL")
+	}
+
+	if u.Host == "" {
+		return nil, fmt.Errorf("missing host")
+	}
+
+	return u, nil
 }
 
 func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error) {
@@ -173,6 +275,7 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 	}
 
 	mux := http.NewServeMux()
+	mux.Handle("/api", proxy)
 	mux.Handle("/api/", proxy)
 	mux.Handle("/", spa)
 
@@ -241,6 +344,13 @@ func serveIndex(w http.ResponseWriter, assets fs.FS) {
 }
 
 func listenUI(host string, port int) (net.Listener, error) {
+	// Bind the concrete IPv4 loopback: "localhost" may bind only [::1] while
+	// another process holds 127.0.0.1 on the same port, making the probe pass
+	// on a port the browser cannot reach us on.
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+
 	if port != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
 		if err != nil {
@@ -264,8 +374,8 @@ func listenUI(host string, port int) (net.Listener, error) {
 
 func browserHost(host string) string {
 	switch host {
-	case "", "0.0.0.0", "::", "[::]":
-		return "localhost"
+	case "", "0.0.0.0", "::", "[::]", "localhost":
+		return "127.0.0.1"
 	default:
 		return host
 	}
