@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -139,6 +140,32 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	}
 
 	return eg.Wait()
+}
+
+// PubInTx publishes msg on the caller's transaction: the NOTIFY is queued in the
+// transaction and delivered exactly at commit, never for a rolled-back
+// transaction. Unlike Pub there is no >8KB durable fallback — this path carries
+// small wake-up notifications and oversized payloads are dropped (see
+// MessageQueueRepository.NotifyInTx) — so it must not be used for messages whose
+// delivery matters beyond waking a poller.
+func (p *PubSub) PubInTx(ctx context.Context, tx pgx.Tx, topic msgqueue.Topic, msg *msgqueue.Message) error {
+	for _, payload := range msg.Payloads {
+		msgCp := *msg
+		msgCp.Payloads = [][]byte{payload}
+
+		msgBytes, err := json.Marshal(&msgCp)
+
+		if err != nil {
+			p.l.Error().Ctx(ctx).Err(err).Msg("error marshalling message")
+			continue
+		}
+
+		if err := p.repo.NotifyInTx(ctx, tx, topic.Name(), string(msgBytes)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Sub subscribes to a topic. Inline NOTIFY payloads are handled directly;

@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 )
 
@@ -95,6 +96,35 @@ type PubSub interface {
 	IsReady() bool
 }
 
+// TxPublisher is an optional interface a PubSub implementation can provide to
+// publish a message within a caller's postgres transaction: the notification is
+// queued in the transaction and delivered exactly when it commits — and never for
+// a transaction that rolls back. Only postgres-backed pub/subs can implement it.
+type TxPublisher interface {
+	PubInTx(ctx context.Context, tx pgx.Tx, topic Topic, msg *Message) error
+}
+
+// AsTxPublisher returns the TxPublisher behind ps, unwrapping decorators (the
+// instrumented and gated wrappers) via Unwrap. It returns false when the
+// underlying transport cannot publish within a transaction (e.g. rabbitmq).
+func AsTxPublisher(ps PubSub) (TxPublisher, bool) {
+	for ps != nil {
+		if txPub, ok := ps.(TxPublisher); ok {
+			return txPub, true
+		}
+
+		wrapper, ok := ps.(interface{ Unwrap() PubSub })
+
+		if !ok {
+			return nil, false
+		}
+
+		ps = wrapper.Unwrap()
+	}
+
+	return nil, false
+}
+
 // tenantStreamMsgIDs enumerates the message IDs the dispatcher's gRPC streams
 // consume from tenant topics (see workflowEventConverters and
 // workflowRunMatchers in the dispatcher). Publishing any other ID to a
@@ -181,6 +211,12 @@ func (g *gatedPubSub) Pub(ctx context.Context, topic Topic, msg *Message) error 
 
 func (g *gatedPubSub) Sub(topic Topic, handler MsgHandler) (func() error, error) {
 	return g.inner.Sub(topic, handler)
+}
+
+// Unwrap exposes the wrapped PubSub for optional-interface discovery (see
+// AsTxPublisher).
+func (g *gatedPubSub) Unwrap() PubSub {
+	return g.inner
 }
 
 func (g *gatedPubSub) IsReady() bool {
