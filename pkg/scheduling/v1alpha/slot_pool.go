@@ -1,4 +1,4 @@
-package v1
+package v1alpha
 
 import (
 	"time"
@@ -17,6 +17,11 @@ type poolKey struct {
 
 // slotPool is the single owner of scheduling capacity for one worker and slot
 // type. Actions index workers; they do not copy these slot slices.
+//
+// NOTE: slotPool is not concurrency-safe on its own. It is only ever read or
+// written from the Scheduler's run loop goroutine (via ops sent through do /
+// mustDo), which is what makes the lock-free freelist sound. Do not touch a
+// pool from any other goroutine.
 //
 // Expiry is pool-level: every slot in a pool is built from the same replenish
 // read, so the whole pool goes stale together. The freelist is exact — only the

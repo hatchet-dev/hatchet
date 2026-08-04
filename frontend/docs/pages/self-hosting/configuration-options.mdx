@@ -157,6 +157,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_GRPC_TRIGGER_WRITE_SLOTS`              | Number of slots for gRPC writes                                                               | `5`                     |
 | `SERVER_OPTIMISTIC_SCHEDULING_ENABLED`         | Enable optimistic scheduling                                                                  | `true`                  |
 | `SERVER_OPTIMISTIC_SCHEDULING_SLOTS`           | Slots to allocate for optimistic scheduling                                                   | `5`                     |
+| `SERVER_V1ALPHA_SCHEDULER_ENABLED`             | Run the v1alpha (event loop) scheduler on this shard instead of the v1 scheduler              | `false`                 |
 | `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED`   | Use the in-memory index + outbox approach for concurrency strategies                          | `false`                 |
 | `SERVER_API_RATE_LIMIT`                        | API rate limit per IP                                                                         | `10`                    |
 | `SERVER_API_RATE_LIMIT_WINDOW`                 | API rate limit window                                                                         | `300s`                  |

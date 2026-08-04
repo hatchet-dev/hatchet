@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -47,7 +48,7 @@ type SchedulerOpts struct {
 	alerter     hatcheterrors.Alerter
 	p           *partition.Partition
 	queueLogger *zerolog.Logger
-	pool        *v1.SchedulingPool
+	pool        scheduling.Pool
 	promGate    *prometheus.Gate
 }
 
@@ -114,7 +115,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) SchedulerOpt {
 	}
 }
 
-func WithSchedulerPool(s *v1.SchedulingPool) SchedulerOpt {
+func WithSchedulerPool(s scheduling.Pool) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.pool = s
 	}
@@ -140,7 +141,7 @@ type Scheduler struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	pool *v1.SchedulingPool
+	pool scheduling.Pool
 
 	signaler *signal.OLAPSignaler
 
