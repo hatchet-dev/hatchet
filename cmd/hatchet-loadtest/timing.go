@@ -121,13 +121,6 @@ func tryResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, t
 // V1WorkflowRunGetTimings) - language agnostic, since discovery never
 // touches the worker process at all.
 type TimingCollector struct {
-	// windowStart anchors the lower bound of every List query. It is fixed at
-	// collector creation and never advanced: the engine filters the run list
-	// by insert/created time, not finish time, so a forward-sliding window
-	// drops runs that were created early but finish late (after a scheduling
-	// backlog) - by the time they're terminal, a sliding window has already
-	// moved past their created time. Anchoring at the start keeps every run in
-	// range for the whole test; the seen/pending maps dedupe re-listed runs.
 	windowStart  time.Time
 	api          *rest.ClientWithResponses
 	seen         map[uuid.UUID]time.Time          // successfully fetched, or deliberately skipped by sampling; value is decision time
@@ -333,10 +326,6 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	_ = wg.Wait() // fetchTimings never returns a non-nil error to the group; failures are handled (and logged) above
 
 	c.mu.Lock()
-	// seen is intentionally not pruned: the List window is anchored at the
-	// collector's start, so every run stays in every sweep's results for the
-	// whole test - dropping a seen id would re-discover and double-count it.
-	// One id+timestamp per run is cheap for a load test's run count.
 	for id, firstSeen := range c.pending {
 		if now.Sub(firstSeen) > timingPendingTTL {
 			l.Warn().Str("workflow_run_id", id.String()).Msg("timing collector: giving up on workflow run after repeated fetch failures")
