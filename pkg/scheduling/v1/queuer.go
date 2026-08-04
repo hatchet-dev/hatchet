@@ -38,8 +38,6 @@ type Queuer struct {
 
 	promGate *prometheus.Gate
 
-	workflowNames *workflowNameCache
-
 	l *zerolog.Logger
 
 	s *Scheduler
@@ -119,7 +117,6 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		tenantId:      tenantId,
 		queueName:     queueName,
 		promGate:      conf.promGate,
-		workflowNames: conf.workflowNames,
 		l:             &queueLogger,
 		s:             s,
 		limit:         defaultLimit,
@@ -394,7 +391,24 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 							}
 						}
 
-						workflowNames = q.workflowNames.resolve(ctx, workflowIds)
+						var err error
+						workflowNames, err = q.repo.ListWorkflowNamesByIds(ctx, workflowIds)
+
+						if err != nil {
+							q.l.Warn().Err(err).Msg("could not list workflow names for metric labels")
+						}
+
+						if workflowNames == nil {
+							workflowNames = make(map[uuid.UUID]string, len(workflowIds))
+						}
+
+						// an unresolved workflow id (deleted workflow, failed lookup) gets an
+						// explicit label rather than merging into an empty workflow_name
+						for _, id := range workflowIds {
+							if _, ok := workflowNames[id]; !ok {
+								workflowNames[id] = "unknown"
+							}
+						}
 					}
 
 					for _, assignedItem := range ar.assigned {

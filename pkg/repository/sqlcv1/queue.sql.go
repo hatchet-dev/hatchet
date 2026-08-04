@@ -417,11 +417,11 @@ WITH sizes AS (
 )
 SELECT
     s.queue,
-    COALESCE(w."name", '')::text AS workflow_name,
+    w."name" AS workflow_name,
     SUM(s.count)::bigint AS count
 FROM
     sizes s
-LEFT JOIN "Workflow" w ON w."id" = s.workflow_id
+JOIN "Workflow" w ON w."id" = s.workflow_id
 GROUP BY
     s.queue, w."name"
 `

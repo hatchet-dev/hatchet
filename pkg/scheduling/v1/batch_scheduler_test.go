@@ -216,6 +216,10 @@ func (f *fakeQueueFactory) NewQueue(uuid.UUID, string) v1repo.QueueRepository {
 
 type fakeQueueRepository struct{}
 
+func (f *fakeQueueRepository) ListWorkflowNamesByIds(context.Context, []uuid.UUID) (map[uuid.UUID]string, error) {
+	return map[uuid.UUID]string{}, nil
+}
+
 func (f *fakeQueueRepository) ListQueueItems(context.Context, int) ([]*sqlcv1.V1QueueItem, error) {
 	return nil, nil
 }
@@ -261,10 +265,6 @@ type fakeSchedulerRepository struct {
 func (f *fakeSchedulerRepository) Optimistic() v1repo.OptimisticSchedulingRepository {
 	//TODO implement me
 	panic("implement me")
-}
-
-func (f *fakeSchedulerRepository) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
-	return map[uuid.UUID]string{}, nil
 }
 
 func (f *fakeSchedulerRepository) Concurrency() v1repo.ConcurrencyRepository {

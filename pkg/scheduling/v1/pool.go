@@ -26,8 +26,6 @@ type sharedConfig struct {
 
 	promGate *prometheus.Gate
 
-	workflowNames *workflowNameCache
-
 	singleQueueLimit int
 
 	schedulerConcurrencyRateLimit int
@@ -90,7 +88,6 @@ func NewSchedulingPool(
 			outbox:                                 outbox,
 			l:                                      l,
 			promGate:                               promGate,
-			workflowNames:                          newWorkflowNameCache(repo, l),
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,

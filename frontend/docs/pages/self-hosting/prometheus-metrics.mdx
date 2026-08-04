@@ -219,8 +219,8 @@ rate(hatchet_reassigned_tasks[5m])
 | `hatchet_tenant_used_worker_label_slots`                     | Gauge     | The current number of worker slots being used, by worker label pair and slot type                      |
 | `hatchet_tenant_available_worker_label_slots`                | Gauge     | The current number of free worker slots, by worker label pair and slot type                            |
 | `hatchet_tenant_worker_label_slots`                          | Gauge     | The total number of worker slots (free + used), by worker label pair and slot type                     |
-| `hatchet_tenant_queue_size`                                  | Gauge     | The current number of queued items, by queue and workflow name                                         |
-| `hatchet_tenant_additional_metadata_queue_size`              | Gauge     | The current number of queued items, by queue and additional metadata key-value pair                    |
+| `hatchet_tenant_queue_size`                                  | Gauge     | The current number of queued items, by queue and workflow name. Polled from the database every 15 seconds; items queued behind a concurrency strategy are not counted. Safe to sum |
+| `hatchet_tenant_additional_metadata_queue_size`              | Gauge     | The current number of queued items, by queue and additional metadata key-value pair (scalar values only). Polled from the database every 15 seconds; an item counts towards every metadata key it carries, so do not sum across `key` values |
 
 The `hatchet_tenant_*_worker_label_slots` metrics expose gauges for each unique worker label `(key, value)` pair and slot type, using the `label_key`, `label_value`, and `slot_type` Prometheus labels. A worker's slots count towards every label pair the worker carries, so a worker labeled `pool=gpu, region=us-east` contributes its slots to both the `{label_key="pool", label_value="gpu"}` and `{label_key="region", label_value="us-east"}` series.
 
@@ -233,20 +233,12 @@ The `slot_type` label separates the worker's slot pools (e.g. `default` and `dur
   querying.
 </Callout>
 
-The `hatchet_tenant_queued_to_assigned_by_workflow` counter and the `hatchet_tenant_queued_to_assigned_time_seconds_by_workflow` histogram are per-workflow variants of the queued-to-assigned metrics, carrying a `workflow_name` label so queue latency can be attributed to individual workflows.
-
-The queue size gauges are polled from the database every 15 seconds, so they reflect the backlog with up to that much delay. `hatchet_tenant_queue_size` reports the number of queued items per `queue` and `workflow_name`, and is safe to sum. Items queued behind a concurrency strategy are not counted until they enter the queue.
-
-`hatchet_tenant_additional_metadata_queue_size` reports queued items per queue, grouped by additional metadata `(key, value)` pairs, using the `queue`, `key`, and `value` Prometheus labels; only scalar metadata values (strings, numbers, booleans) are reported. Summing across `queue` values is safe (an item is in exactly one queue), but like the worker label slot metrics, an item counts towards every metadata key it carries, so do not sum this gauge across different `key` values.
-
 <Callout type="warning">
   Every distinct additional metadata `(key, value)` pair on a queued task
   creates its own Prometheus series. Avoid high-cardinality metadata values
   (e.g. per-run identifiers) on workflows you run at volume, or your metrics
   storage will pay for it.
 </Callout>
-
-When a queue drains, its series report `0` on the next poll and are removed shortly after, so autoscalers observe the drop to zero. Guard queries against the series being absent (e.g. `sum(...) or vector(0)`) if you scale to zero.
 
 #### Example PromQL Queries
 
@@ -341,7 +333,7 @@ hatchet_tenant_worker_label_slots{label_key="pool", label_value="gpu", slot_type
 ##### 13. Queue Backlog by Additional Metadata Tag
 
 ```promql
-sum(hatchet_tenant_additional_metadata_queue_size{key="product", value="search"}) or vector(0)
+sum(hatchet_tenant_additional_metadata_queue_size{key="pool", value="gpu"}) or vector(0)
 ```
 
 ##### 14. Queue Latency (p95) by Workflow

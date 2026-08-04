@@ -81,23 +81,23 @@ func diffStaleSeries[K comparable](known map[K]bool, current map[K]struct{}) (ze
 }
 
 func (p *queueMetricsPoller) poll(ctx context.Context, tenantIds []uuid.UUID) {
-	active := make(map[uuid.UUID]struct{}, len(tenantIds))
+	activeTenants := make(map[uuid.UUID]struct{}, len(tenantIds))
 
 	for _, tenantId := range tenantIds {
-		active[tenantId] = struct{}{}
+		activeTenants[tenantId] = struct{}{}
 		p.pollTenant(ctx, tenantId)
 	}
 
 	// tenants which left the partition or lost metrics entitlement drain to zero and are
 	// then deleted, like any other disappeared series
 	for tenantId := range p.knownQueueSizes {
-		if _, ok := active[tenantId]; !ok {
+		if _, ok := activeTenants[tenantId]; !ok {
 			p.applyQueueSizes(tenantId, nil)
 		}
 	}
 
 	for tenantId := range p.knownMetadataSizes {
-		if _, ok := active[tenantId]; !ok {
+		if _, ok := activeTenants[tenantId]; !ok {
 			p.applyMetadataSizes(tenantId, nil)
 		}
 	}

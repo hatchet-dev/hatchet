@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -72,16 +74,15 @@ func TestDiffStaleSeries(t *testing.T) {
 }
 
 // collectGaugeSeries gathers a gauge vec and returns the series for the given tenant,
-// keyed by the remaining label values in alphabetical label-name order (padded with
-// empty strings for gauges with fewer than three non-tenant labels).
-func collectGaugeSeries(t *testing.T, vec *promclient.GaugeVec, tenantId string) map[[3]string]float64 {
+// keyed by the non-tenant labels rendered as "name=value" pairs sorted by label name.
+func collectGaugeSeries(t *testing.T, vec *promclient.GaugeVec, tenantId string) map[string]float64 {
 	t.Helper()
 
 	ch := make(chan promclient.Metric, 1024)
 	vec.Collect(ch)
 	close(ch)
 
-	series := make(map[[3]string]float64)
+	series := make(map[string]float64)
 
 	for metric := range ch {
 		m := &dto.Metric{}
@@ -96,17 +97,20 @@ func collectGaugeSeries(t *testing.T, vec *promclient.GaugeVec, tenantId string)
 			continue
 		}
 
-		var key [3]string
-		i := 0
-		for _, pair := range m.Label {
-			if pair.GetName() == "tenant_id" {
-				continue
-			}
-			key[i] = pair.GetValue()
-			i++
+		delete(labels, "tenant_id")
+
+		names := make([]string, 0, len(labels))
+		for name := range labels {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+
+		pairs := make([]string, 0, len(names))
+		for _, name := range names {
+			pairs = append(pairs, name+"="+labels[name])
 		}
 
-		series[key] = m.GetGauge().GetValue()
+		series[strings.Join(pairs, ",")] = m.GetGauge().GetValue()
 	}
 
 	return series
@@ -127,15 +131,15 @@ func TestQueueMetricsPollerLifecycle(t *testing.T) {
 		{Queue: "default", Key: "product", Value: "search", Count: 3},
 	})
 
-	assert.Equal(t, map[[3]string]float64{{"default", "my-workflow", ""}: 5}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[[3]string]float64{{"product", "default", "search"}: 3}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 5}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 3}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	// a drained queue reports zero for one poll
 	p.applyQueueSizes(tenantId, nil)
 	p.applyMetadataSizes(tenantId, nil)
 
-	assert.Equal(t, map[[3]string]float64{{"default", "my-workflow", ""}: 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[[3]string]float64{{"product", "default", "search"}: 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	// and is deleted on the poll after
 	p.applyQueueSizes(tenantId, nil)
@@ -165,8 +169,8 @@ func TestQueueMetricsPollerDrainsRemovedTenants(t *testing.T) {
 	// polling no tenants never touches the task repository (which is nil here).
 	p.poll(context.Background(), nil)
 
-	assert.Equal(t, map[[3]string]float64{{"default", "my-workflow", ""}: 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[[3]string]float64{{"product", "default", "search"}: 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	p.poll(context.Background(), nil)
 

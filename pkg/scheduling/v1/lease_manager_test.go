@@ -149,10 +149,6 @@ func (f *fakeSchedulerRepo) Optimistic() v1repo.OptimisticSchedulingRepository {
 	return nil
 }
 
-func (f *fakeSchedulerRepo) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
-	return map[uuid.UUID]string{}, nil
-}
-
 func (f *fakeSchedulerRepo) Concurrency() v1repo.ConcurrencyRepository {
 	return nil
 }
