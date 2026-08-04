@@ -963,64 +963,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workerIds = append(workerIds, uuid.Nil)
 		}
 
-		switch msg.EventType {
-		case sqlcv1.V1EventTypeOlapRETRYING:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapREASSIGNED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapRETRIEDBYUSER:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapCREATED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapQUEUED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapASSIGNED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapACKNOWLEDGED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapSENTTOWORKER:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapSLOTRELEASED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapSTARTED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
-		case sqlcv1.V1EventTypeOlapFINISHED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
-		case sqlcv1.V1EventTypeOlapFAILED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
-		case sqlcv1.V1EventTypeOlapCANCELLED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCANCELLED)
-		case sqlcv1.V1EventTypeOlapTIMEDOUT:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
-		case sqlcv1.V1EventTypeOlapRATELIMITERROR:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
-		case sqlcv1.V1EventTypeOlapSKIPPED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapCOMPLETED)
-		case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapFAILED)
-		case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapEVICTED)
-		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		case sqlcv1.V1EventTypeOlapBATCHBUFFERED:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		case sqlcv1.V1EventTypeOlapBATCHFLUSHED:
-			// Running until the individual tasks are completed
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-		default:
-			// Treat unknown or informational events as queued to keep array lengths aligned.
-			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
-		}
+		readableStatuses = append(readableStatuses, v1.ReadableStatusForOlapEvent(msg.EventType))
 	}
 
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)

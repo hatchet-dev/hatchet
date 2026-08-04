@@ -857,6 +857,9 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 	innerEg := errgroup.Group{}
 
+	sentPayloads := make([]tasktypesv1.CreateMonitoringEventPayload, 0, len(taskIds))
+	sentPayloadsMu := sync.Mutex{}
+
 	for _, taskId := range taskIds {
 		task, ok := tasks[taskId]
 
@@ -905,11 +908,9 @@ func (d *DispatcherImpl) sendTasksToWorker(
 					EventMessage:           "Sent task run to the assigned worker",
 				}
 
-				defer func() {
-					if err := d.repov1.OLAPOutbox().MonitoringEvents(ctx, task.TenantID, payload); err != nil {
-						d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
-					}
-				}()
+				sentPayloadsMu.Lock()
+				sentPayloads = append(sentPayloads, payload)
+				sentPayloadsMu.Unlock()
 
 				return nil
 			}
@@ -920,7 +921,23 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		})
 	}
 
-	return innerEg.Wait()
+	err = innerEg.Wait()
+
+	if len(sentPayloads) > 0 {
+		// SENT_TO_WORKER events are informational: write them straight to the OLAP
+		// database off the dispatch path, so sends (which can run inside the trigger
+		// RPC on the optimistic path) don't wait on the write
+		go func() { // #nosec G118 -- intentionally decoupled from the request context so the write survives the response, bounded by its own timeout
+			writeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if writeErr := d.repov1.OLAP().WriteMonitoringEventsBestEffort(writeCtx, tenantId, sentPayloads...); writeErr != nil {
+				d.l.Error().Err(writeErr).Msg("could not write sent-to-worker monitoring events")
+			}
+		}()
+	}
+
+	return err
 }
 
 func (d *DispatcherImpl) handleRetries(

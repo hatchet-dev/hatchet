@@ -297,6 +297,14 @@ type OLAPRepository interface {
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
+
+	// WriteMonitoringEventsBestEffort writes monitoring events straight to the OLAP
+	// tables, bypassing the outbox and message queue. It is for informational events
+	// on hot paths (e.g. SENT_TO_WORKER) where losing an event is acceptable: events
+	// for runs whose locks cannot be acquired are dropped rather than retried, and no
+	// status-update notifications are published — the next durable event carries the
+	// status forward.
+	WriteMonitoringEventsBestEffort(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
