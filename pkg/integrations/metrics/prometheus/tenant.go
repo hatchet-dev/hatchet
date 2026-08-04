@@ -207,8 +207,8 @@ var (
 	TenantQueueSizeByMetadata = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: string(TenantAdditionalMetadataQueueSize),
-			Help: "Number of queued items carrying the given additional metadata key-value pair. An item counts towards every metadata key it carries, so series for different keys overlap and should not be summed across keys",
+			Help: "Number of queued items per queue carrying the given additional metadata key-value pair. An item counts towards every metadata key it carries, so series for different keys overlap and should not be summed across keys",
 		},
-		[]string{"tenant_id", "key", "value"},
+		[]string{"tenant_id", "queue", "key", "value"},
 	)
 )

@@ -443,6 +443,7 @@ GROUP BY
 -- name: GetQueueSizesByMetadata :many
 WITH working_set AS MATERIALIZED (
     SELECT
+        qi.queue,
         t.additional_metadata
     FROM
         v1_queue_item qi
@@ -452,6 +453,7 @@ WITH working_set AS MATERIALIZED (
         AND t.additional_metadata IS NOT NULL
 )
 SELECT
+    ws.queue,
     kv.key::text AS key,
     (kv.value #>> '{}')::text AS value,
     COUNT(*) AS count
@@ -461,7 +463,7 @@ CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
     jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
 GROUP BY
-    kv.key, (kv.value #>> '{}');
+    ws.queue, kv.key, (kv.value #>> '{}');
 
 -- name: DeleteTasksFromQueue :exec
 WITH input AS (

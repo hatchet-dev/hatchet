@@ -455,6 +455,7 @@ func (q *Queries) GetQueueSizes(ctx context.Context, db DBTX, tenantid uuid.UUID
 const getQueueSizesByMetadata = `-- name: GetQueueSizesByMetadata :many
 WITH working_set AS MATERIALIZED (
     SELECT
+        qi.queue,
         t.additional_metadata
     FROM
         v1_queue_item qi
@@ -464,6 +465,7 @@ WITH working_set AS MATERIALIZED (
         AND t.additional_metadata IS NOT NULL
 )
 SELECT
+    ws.queue,
     kv.key::text AS key,
     (kv.value #>> '{}')::text AS value,
     COUNT(*) AS count
@@ -473,10 +475,11 @@ CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
     jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
 GROUP BY
-    kv.key, (kv.value #>> '{}')
+    ws.queue, kv.key, (kv.value #>> '{}')
 `
 
 type GetQueueSizesByMetadataRow struct {
+	Queue string `json:"queue"`
 	Key   string `json:"key"`
 	Value string `json:"value"`
 	Count int64  `json:"count"`
@@ -491,7 +494,12 @@ func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantid
 	var items []*GetQueueSizesByMetadataRow
 	for rows.Next() {
 		var i GetQueueSizesByMetadataRow
-		if err := rows.Scan(&i.Key, &i.Value, &i.Count); err != nil {
+		if err := rows.Scan(
+			&i.Queue,
+			&i.Key,
+			&i.Value,
+			&i.Count,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -27,6 +27,7 @@ type queueSizeKey struct {
 }
 
 type metadataQueueSizeKey struct {
+	queue string
 	key   string
 	value string
 }
@@ -156,19 +157,19 @@ func (p *queueMetricsPoller) applyMetadataSizes(tenantId uuid.UUID, rows []*sqlc
 	current := make(map[metadataQueueSizeKey]struct{}, len(rows))
 
 	for _, row := range rows {
-		k := metadataQueueSizeKey{key: row.Key, value: row.Value}
+		k := metadataQueueSizeKey{queue: row.Queue, key: row.Key, value: row.Value}
 		current[k] = struct{}{}
-		prometheus.TenantQueueSizeByMetadata.WithLabelValues(tenantIdStr, k.key, k.value).Set(float64(row.Count))
+		prometheus.TenantQueueSizeByMetadata.WithLabelValues(tenantIdStr, k.queue, k.key, k.value).Set(float64(row.Count))
 	}
 
 	zeroed, deleted, next := diffStaleSeries(p.knownMetadataSizes[tenantId], current)
 
 	for _, k := range zeroed {
-		prometheus.TenantQueueSizeByMetadata.WithLabelValues(tenantIdStr, k.key, k.value).Set(0)
+		prometheus.TenantQueueSizeByMetadata.WithLabelValues(tenantIdStr, k.queue, k.key, k.value).Set(0)
 	}
 
 	for _, k := range deleted {
-		prometheus.TenantQueueSizeByMetadata.DeleteLabelValues(tenantIdStr, k.key, k.value)
+		prometheus.TenantQueueSizeByMetadata.DeleteLabelValues(tenantIdStr, k.queue, k.key, k.value)
 	}
 
 	if len(next) == 0 {
