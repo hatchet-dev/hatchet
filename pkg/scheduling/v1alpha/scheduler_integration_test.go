@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1_test
+package v1alpha_test
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	schedv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	schedv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1alpha"
 )
 
 type snapshotEvent struct {

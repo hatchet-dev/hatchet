@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1_test
+package v1alpha_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1alpha"
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
