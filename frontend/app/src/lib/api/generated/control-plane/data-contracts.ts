@@ -434,6 +434,28 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
+export interface MoveTenantRequest {
+  /**
+   * The organization to move this tenant to. The caller must be an OWNER of this organization (in addition to being an OWNER of the tenant's current organization).
+   * @format uuid
+   */
+  destinationOrganizationId: string;
+}
+
+export interface TenantMoveMemberPreview {
+  /** @format uuid */
+  userId: string;
+  /** @format email */
+  email: string;
+  name?: string;
+  /** The user's current role on the tenant, which is preserved by the move */
+  tenantRole: TenantMemberRoleType;
+}
+
+export interface TenantMoveMemberPreviewList {
+  rows: TenantMoveMemberPreview[];
+}
+
 import type { TenantMemberRole } from '@/lib/api/generated/data-contracts';
 
 import type { UserTenantPublic } from '@/lib/api/generated/data-contracts';

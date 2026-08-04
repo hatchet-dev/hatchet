@@ -76,11 +76,13 @@ import { DeleteTenantModal } from '@/pages/organizations/$organization/component
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
 import { EditMemberRoleModal } from '@/pages/organizations/$organization/components/edit-member-role-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
+import { MoveTenantModal } from '@/pages/organizations/$organization/components/move-tenant-modal';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
   ArrowRightIcon,
+  ArrowsRightLeftIcon,
   CheckIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
@@ -271,6 +273,8 @@ export function CloudOrganizationSettings({
   const [memberToEditRole, setMemberToEditRole] =
     useState<OrganizationMember | null>(null);
   const [tenantToEditTags, setTenantToEditTags] =
+    useState<OrganizationTenantWithRegion | null>(null);
+  const [tenantToMove, setTenantToMove] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
   const [tokenToDelete, setTokenToDelete] = useState<ManagementToken | null>(
@@ -942,6 +946,11 @@ export function CloudOrganizationSettings({
                   ? setTenantToEditTags
                   : undefined
               }
+              onMove={
+                isControlPlaneEnabled && isOrganizationOwner
+                  ? setTenantToMove
+                  : undefined
+              }
               defaultOrganizationId={orgId}
               canManageOrganization={isOrganizationOwner}
             />
@@ -1366,6 +1375,25 @@ export function CloudOrganizationSettings({
           }
         />
       )}
+
+      {isOrganizationOwner && isControlPlaneEnabled && tenantToMove && (
+        <MoveTenantModal
+          open={!!tenantToMove}
+          onOpenChange={(open) => !open && setTenantToMove(null)}
+          organizationId={orgId}
+          organizationName={organizationName}
+          tenantId={tenantToMove.id}
+          tenantName={tenantToMove.name || tenantToMove.id}
+          ownedDestinationOrganizations={organizations.filter(
+            (o) => o.isOwner && o.metadata.id !== orgId,
+          )}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ['organization:get', orgId],
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1448,12 +1476,14 @@ function TenantsSection({
   tenants,
   onArchive,
   onEditTags,
+  onMove,
   defaultOrganizationId,
   canManageOrganization,
 }: {
   tenants: OrganizationTenantWithRegion[];
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
+  onMove?: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
@@ -1570,6 +1600,7 @@ function TenantsSection({
           row={{ ...tenant, metadata: { id: tenant.id } }}
           onArchive={onArchive}
           onEditTags={onEditTags}
+          onMove={onMove}
           canManageOrganization={canManageOrganization}
         />
       ),
@@ -1665,11 +1696,13 @@ function TenantActions({
   row,
   onArchive,
   onEditTags,
+  onMove,
   canManageOrganization,
 }: {
   row: OrganizationTenantWithRegion & { metadata: { id: string } };
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
+  onMove?: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const navigate = useNavigate();
@@ -1697,6 +1730,12 @@ function TenantActions({
           <DropdownMenuItem onClick={() => onEditTags(row)}>
             <PencilSquareIcon className="mr-2 size-4" />
             Edit Tags
+          </DropdownMenuItem>
+        )}
+        {canManageOrganization && onMove && (
+          <DropdownMenuItem onClick={() => onMove(row)}>
+            <ArrowsRightLeftIcon className="mr-2 size-4" />
+            Move to another Organization
           </DropdownMenuItem>
         )}
         {canManageOrganization && (

@@ -33,6 +33,7 @@ import {
   CreateUserGroupRequest,
   ListAPIMetaIntegration,
   ManagementTokenList,
+  MoveTenantRequest,
   Organization,
   OrganizationAvailableShardList,
   OrganizationBillingState,
@@ -57,6 +58,7 @@ import {
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantMoveMemberPreviewList,
   UpdateOrganizationMemberRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationSubscriptionRequest,
@@ -523,6 +525,61 @@ export class Api<
     this.request<OrganizationTenant, APIError>({
       path: `/api/v1/control-plane/organization-tenants/${tenant}`,
       method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Move a tenant to a different organization. Requires organization OWNER permissions on both source and destination organizations. Every user who is currently a member of the tenant is automatically added to the destination organization as a MEMBER (their existing tenant-level role is preserved).
+   *
+   * @tags Management
+   * @name OrganizationTenantMove
+   * @summary Move Tenant to Another Organization
+   * @request POST:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/move
+   * @secure
+   */
+  organizationTenantMove = (
+    organization: string,
+    tenant: string,
+    data: MoveTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenant, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/move`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Preview which of this tenant's current members would be newly added to destinationOrganizationId if the tenant were moved there right now (members who already belong to the destination org are omitted, since they wouldn't actually change). Requires the same OWNER-of-both-orgs permission as the move itself.
+   *
+   * @tags Management
+   * @name OrganizationTenantMovePreview
+   * @summary Preview Tenant Move
+   * @request GET:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/move-preview
+   * @secure
+   */
+  organizationTenantMovePreview = (
+    organization: string,
+    tenant: string,
+    query: {
+      /**
+       * The organization the tenant would move to
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      destinationOrganizationId: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantMoveMemberPreviewList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/move-preview`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
