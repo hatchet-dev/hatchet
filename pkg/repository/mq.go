@@ -27,7 +27,6 @@ type MessageQueueRepository interface {
 	// PubSub
 	Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error
 	Notify(ctx context.Context, name string, payload string) error
-	NotifyInTx(ctx context.Context, tx pgx.Tx, name string, payload string) error
 
 	// Queues
 	BindQueue(ctx context.Context, queue string, durable, autoDeleted, exclusive bool, exclusiveConsumer *string) error
@@ -89,29 +88,6 @@ func (m *messageQueueRepository) Notify(ctx context.Context, name string, payloa
 	}
 
 	return m.m.notify(ctx, wrappedPayload)
-}
-
-// NotifyInTx queues the notification on the caller's transaction, so it is
-// delivered exactly at commit and never for a rolled-back transaction. Unlike
-// Notify there is no durable fallback for oversized payloads — this path carries
-// small wake-up notifications, and subscribers poll as the fallback — so payloads
-// over pg_notify's limit are dropped with a warning rather than failing the
-// caller's transaction.
-func (m *messageQueueRepository) NotifyInTx(ctx context.Context, tx pgx.Tx, name string, payload string) error {
-	wrappedPayload, err := m.m.wrapMessage(name, payload)
-	if err != nil {
-		m.l.Error().Ctx(ctx).Err(err).Msg("error wrapping message")
-		return err
-	}
-
-	if len(wrappedPayload) > 8000 {
-		m.l.Warn().Ctx(ctx).Msgf("dropping oversized in-tx notification for %s (%d bytes)", name, len(wrappedPayload))
-		return nil
-	}
-
-	_, err = tx.Exec(ctx, "select pg_notify($1,$2)", multiplexChannel, string(wrappedPayload))
-
-	return err
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {

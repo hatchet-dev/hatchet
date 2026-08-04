@@ -39,12 +39,6 @@ func (i *instrumentedPubSub) Pub(ctx context.Context, topic Topic, msg *Message)
 	return err
 }
 
-// Unwrap exposes the wrapped PubSub for optional-interface discovery (see
-// AsTxPublisher).
-func (i *instrumentedPubSub) Unwrap() PubSub {
-	return i.inner
-}
-
 func (i *instrumentedPubSub) Sub(topic Topic, handler MsgHandler) (func() error, error) {
 	return i.inner.Sub(topic, func(msg *Message) error {
 		if !msg.PublishedAt.IsZero() {
