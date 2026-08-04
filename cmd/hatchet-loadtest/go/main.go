@@ -12,7 +12,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
-	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -85,7 +84,6 @@ func run() error {
 	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", eventkeys.WorkflowDurableChildName)
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
-	durableSleepMs := envInt("HATCHET_LOADTEST_DURABLE_SLEEP_MS", 100)
 	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
@@ -137,43 +135,21 @@ func run() error {
 		func(ctx hatchet.DurableContext, input LoadTestInput) (DurableLoadTestOutput, error) {
 			log.Printf("durable task %d starting", input.ID)
 
-			if _, err := durableChildTask.Run(ctx, DurableChildInput{Index: 1}); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child %d failed: %w", 1, err)
-			}
+			for i := range durableChildren {
+				_, err = durableChildTask.Run(
+					ctx,
+					hatchet.RunManyOpt{
+						Input: DurableChildInput{Index: i},
+					},
+				)
 
-			if _, err = ctx.SleepFor(time.Duration(durableSleepMs) * time.Millisecond); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable sleep before fan-out failed: %w", err)
-			}
-
-			if _, err = durableChildTask.Run(ctx, DurableChildInput{Index: 2}); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child %d failed: %w", 2, err)
-			}
-
-			if _, err = ctx.WaitFor(condition.Or(
-				condition.SleepCondition(time.Duration(durableSleepMs)*time.Millisecond),
-				condition.UserEventCondition(durableTaskEventKey, ""),
-			)); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable wait before fan-out failed: %w", err)
-			}
-
-			inputs := make([]hatchet.RunManyOpt, durableChildren)
-
-			for i := range inputs {
-				inputs[i] = hatchet.RunManyOpt{
-					Input: DurableChildInput{Index: i + 3}, // children 1 and 2 already ran above; fan-out continues at 3
+				if err != nil {
+					return DurableLoadTestOutput{}, fmt.Errorf("durable child fan-out failed: %w", err)
 				}
 			}
 
-			if _, err = durableChildTask.RunMany(ctx, inputs); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child fan-out failed: %w", err)
-			}
-
-			if _, err = ctx.SleepFor(time.Duration(durableSleepMs) * time.Millisecond); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable sleep after fan-out failed: %w", err)
-			}
-
 			return DurableLoadTestOutput{
-				Children: durableChildren + 2, // +2 because we already ran 2 children manually at the start
+				Children: durableChildren,
 				Message:  "durable task ran at: " + time.Now().Format(time.RFC3339Nano),
 			}, nil
 		},
