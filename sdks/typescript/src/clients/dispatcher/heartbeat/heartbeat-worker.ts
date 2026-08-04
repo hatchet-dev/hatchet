@@ -9,6 +9,7 @@ import { getGrpcErrorCode } from '@util/grpc-error';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { DispatcherClient } from '../dispatcher-client';
 import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
+import { classifyHeartbeatFailure } from './heartbeat-severity';
 
 const HEARTBEAT_INTERVAL = 4000;
 
@@ -22,6 +23,7 @@ class HeartbeatWorker {
   client: PbDispatcherClient;
   workerId: string;
   timeLastHeartbeat = new Date().getTime();
+  missedHeartbeats = 0;
 
   constructor(config: ClientConfig, workerId: string) {
     this.workerId = workerId;
@@ -81,6 +83,7 @@ class HeartbeatWorker {
           message: `Heartbeat sent ${actualInterval}ms ago`,
         });
         this.timeLastHeartbeat = now;
+        this.missedHeartbeats = 0;
       } catch (e: unknown) {
         if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
           // break out of interval
@@ -94,12 +97,18 @@ class HeartbeatWorker {
           return;
         }
 
+        this.missedHeartbeats += 1;
+
         const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);
-        postMessage({
-          type: 'error',
-          message,
-        });
+
+        const severity = classifyHeartbeatFailure(getGrpcErrorCode(e), this.missedHeartbeats);
+        if (severity !== 'silent') {
+          postMessage({
+            type: severity,
+            message,
+          });
+        }
       }
     };
 

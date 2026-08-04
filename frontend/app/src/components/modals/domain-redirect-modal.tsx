@@ -6,8 +6,8 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { getCloudMetadataQuery } from '@/hooks/use-cloud';
-import type { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
+import useControlPlane from '@/hooks/use-control-plane';
+import { cloudApi } from '@/lib/api/api';
 import {
   buildRedirectFrontendHref,
   parseRedirectFrontendOrigin,
@@ -15,31 +15,38 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
-type CloudMetadataQueryData = APICloudMetadata & {
-  isLegacyCloudEnabled?: boolean;
+// Probe legacy cloud metadata only for the domain-move redirect host. This is
+// intentionally not used as a deployment-mode flag — control plane status is.
+const redirectFrontendHostQuery = {
+  queryKey: ['cloud-metadata:redirect-frontend-host'] as const,
+  queryFn: async (): Promise<string | null> => {
+    try {
+      const res = await cloudApi.metadataGet();
+      return res.data?.redirectFrontendHost?.trim() || null;
+    } catch {
+      return null;
+    }
+  },
+  retry: false as const,
+  staleTime: 60_000,
 };
 
-function isCloudEnabledMetadata(data: unknown): data is CloudMetadataQueryData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    (data as CloudMetadataQueryData).isLegacyCloudEnabled === true
-  );
-}
-
 export function DomainRedirectModal() {
-  const { data } = useQuery(getCloudMetadataQuery);
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+
+  const { data: redirectFrontendHost } = useQuery({
+    ...redirectFrontendHostQuery,
+    // Already on control plane → never show / probe. Legacy cloud hosts (no
+    // control plane) are the only deployments that need this modal.
+    enabled: !isControlPlaneLoading && !isControlPlaneEnabled,
+  });
 
   const targetOrigin = useMemo(() => {
-    if (!isCloudEnabledMetadata(data)) {
+    if (!redirectFrontendHost) {
       return null;
     }
-    const raw = data.redirectFrontendHost?.trim();
-    if (!raw) {
-      return null;
-    }
-    return parseRedirectFrontendOrigin(raw);
-  }, [data]);
+    return parseRedirectFrontendOrigin(redirectFrontendHost);
+  }, [redirectFrontendHost]);
 
   const targetDomain = targetOrigin?.host ?? 'a new domain';
   const targetHref =

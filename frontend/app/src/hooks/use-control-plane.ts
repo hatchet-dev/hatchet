@@ -14,9 +14,13 @@ export default function useControlPlane() {
     [result.data?.data],
   );
 
+  const controlPlaneMeta = result.data?.data;
+
   return {
     isControlPlaneEnabled,
+    isSelfHosted: !isControlPlaneEnabled,
+    canBill: !!controlPlaneMeta?.canBill,
     isControlPlaneLoading: result.isLoading,
-    controlPlaneMeta: result.data?.data,
+    controlPlaneMeta,
   };
 }
