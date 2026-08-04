@@ -111,6 +111,13 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 	}
 }
 
+func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
+	if key == eventkeys.EventKeyDefault {
+		return int64(fanout) * int64(dagSteps)
+	}
+	return 1
+}
+
 // phaseAccumulator computes a simple running mean per phase from a stream of
 // PhaseSample values - the externalWorker equivalent of the avgResult
 // goroutines above, just fed from the engine's REST timing data instead of
@@ -419,7 +426,12 @@ func do(config LoadTestConfig) error {
 		if sampleRate <= 0 || sampleRate > 1 {
 			sampleRate = 1
 		}
-		expectedSampled := int64(float64(expected) * sampleRate)
+
+		var expectedAllKeys int64
+		for _, k := range config.EventKeys {
+			expectedAllKeys += int64(pushedByKey[k]) * executionsPerPush(k, config.EventFanout, config.DagSteps)
+		}
+		expectedSampled := int64(float64(expectedAllKeys) * sampleRate)
 
 		for _, k := range config.EventKeys {
 			p := phases.byKey[k]
@@ -436,7 +448,7 @@ func do(config LoadTestConfig) error {
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
 			if phases.overall.execution.count < lower || phases.overall.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.overall.execution.count)
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, len(config.EventKeys), phases.overall.execution.count)
 			}
 		}
 	} else {
