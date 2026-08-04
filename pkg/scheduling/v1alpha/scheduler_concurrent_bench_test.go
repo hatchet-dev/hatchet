@@ -72,6 +72,8 @@ func BenchmarkScheduler_ConcurrentAssignReplenishSnapshot(b *testing.B) {
 			stepRequests[qi.StepID] = map[string]int32{repo.SlotTypeDefault: 1}
 		}
 
+		ackIds := make([]int, 0, batchSize)
+
 		for pb.Next() {
 			ch := f.scheduler.tryAssign(
 				context.Background(),
@@ -83,8 +85,15 @@ func BenchmarkScheduler_ConcurrentAssignReplenishSnapshot(b *testing.B) {
 				nil,
 			)
 
-			for range ch {
+			// ack assignments the way a queuer flush would, so unacked slots
+			// don't accumulate across iterations and skew replenish churn
+			ackIds = ackIds[:0]
+			for r := range ch {
+				for _, a := range r.assigned {
+					ackIds = append(ackIds, a.AckId)
+				}
 			}
+			f.scheduler.ack(ackIds)
 		}
 	})
 	b.StopTimer()

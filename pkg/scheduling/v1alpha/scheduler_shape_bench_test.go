@@ -423,17 +423,39 @@ func BenchmarkScheduler_InventoryShape_TryAssignBatch(b *testing.B) {
 				stepRequests[qi.StepID] = map[string]int32{repo.SlotTypeDefault: 1}
 			}
 
+			// capacity actually reachable from the benched action (partitioned
+			// topologies only reach a subset of the pools)
+			reachable := 0
+			f.scheduler.do(context.Background(), func() {
+				a := f.scheduler.actions[assignAction]
+				for _, workerId := range a.workerIds {
+					for _, pool := range f.scheduler.poolsByWorker[workerId] {
+						reachable += len(pool.slots)
+					}
+				}
+			})
+
+			// Ack every assignment and replenish (off-timer) only when capacity
+			// runs low: per-iteration replenish would dominate wall time at high
+			// b.N, and without acks the fixture runs out of slots and later
+			// iterations measure the noSlots path instead of assignment. Shapes
+			// smaller than a batch (e.g. small_dense) replenish every iteration
+			// and assign partially, as the previous version of this bench did.
+			remaining := 0
+			ackIds := make([]int, 0, batchSize)
+
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				// Replenish between iterations so the batch always has capacity;
-				// exclude that cost from ns/op.
-				b.StopTimer()
-				if err := f.scheduler.replenish(context.Background(), true); err != nil {
-					b.Fatal(err)
+				if remaining < batchSize {
+					b.StopTimer()
+					if err := f.scheduler.replenish(context.Background(), true); err != nil {
+						b.Fatal(err)
+					}
+					remaining = reachable
+					b.StartTimer()
 				}
-				b.StartTimer()
 
-				if _, err := f.scheduler.tryAssignBatch(
+				res, err := f.scheduler.tryAssignBatch(
 					context.Background(),
 					assignAction,
 					qis,
@@ -442,8 +464,28 @@ func BenchmarkScheduler_InventoryShape_TryAssignBatch(b *testing.B) {
 					nil,
 					nil,
 					nil,
-				); err != nil {
+				)
+				if err != nil {
 					b.Fatal(err)
+				}
+
+				ackIds = ackIds[:0]
+				for _, r := range res {
+					if r.succeeded {
+						ackIds = append(ackIds, r.ackId)
+					}
+				}
+
+				if len(ackIds) == 0 {
+					b.Fatal("no items assigned immediately after a replenish")
+				}
+
+				f.scheduler.ack(ackIds)
+				remaining -= len(ackIds)
+
+				if len(ackIds) < batchSize {
+					// partial batch: force a replenish before the next iteration
+					remaining = 0
 				}
 			}
 			b.StopTimer()
