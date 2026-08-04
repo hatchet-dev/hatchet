@@ -10,8 +10,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"net/http"

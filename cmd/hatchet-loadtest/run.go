@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"

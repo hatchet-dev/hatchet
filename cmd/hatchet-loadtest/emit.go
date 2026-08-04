@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 )
 

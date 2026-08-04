@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 

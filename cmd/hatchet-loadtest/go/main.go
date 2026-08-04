@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
