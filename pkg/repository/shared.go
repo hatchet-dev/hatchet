@@ -41,6 +41,7 @@ type sharedRepository struct {
 	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
+	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
@@ -72,6 +73,7 @@ func newSharedRepository(
 	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
+	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 
@@ -110,6 +112,7 @@ func newSharedRepository(
 		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
 		stepIdLabelsCache:           stepIdLabelsCache,
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
+		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
 		celParser:                   celParser,
 		env:                         env,
 		celProgramCache:             celProgramCache,

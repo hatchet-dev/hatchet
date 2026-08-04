@@ -232,7 +232,7 @@ func (f *fakeQueueRepository) GetTaskRateLimits(context.Context, *v1repo.Optimis
 	return nil, nil
 }
 
-func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, []uuid.UUID) (map[string]bool, error) {
+func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, *v1repo.OptimisticTx, []uuid.UUID) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
 
