@@ -63,7 +63,7 @@ func resolveEventKeys(selected, excluded []string, available []eventkeys.EventKe
 			}
 		}
 		if len(kept) == 0 {
-			return nil, fmt.Errorf("--exclude removed all available event keys (%s); nothing would be published", strings.Join(eventkeys.Strings(available), ", "))
+			return nil, fmt.Errorf("--exclude removed all available event keys (%s); nothing would be published", strings.Join(eventkeys.Names(available), ", "))
 		}
 		return kept, nil
 	}
@@ -74,12 +74,12 @@ func resolveEventKeys(selected, excluded []string, available []eventkeys.EventKe
 func parseEventKeys(raw []string, available []eventkeys.EventKey) ([]eventkeys.EventKey, error) {
 	out := make([]eventkeys.EventKey, 0, len(raw))
 	for _, s := range raw {
-		k := eventkeys.EventKey(s)
-		if !eventkeys.IsKnown(k) {
-			return nil, fmt.Errorf("unknown event key %q (known keys: %s)", s, strings.Join(eventkeys.Strings(eventkeys.All), ", "))
+		k, ok := eventkeys.ByName(s)
+		if !ok {
+			return nil, fmt.Errorf("unknown event key %q (known keys: %s)", s, strings.Join(eventkeys.Names(eventkeys.All), ", "))
 		}
 		if !slices.Contains(available, k) {
-			return nil, fmt.Errorf("event key %q has no consumer in this run mode (available: %s); the batch/durable keys require --externalWorker with cmd/hatchet-loadtest/go running", s, strings.Join(eventkeys.Strings(available), ", "))
+			return nil, fmt.Errorf("event key %q has no consumer in this run mode (available: %s)", s, strings.Join(eventkeys.Names(available), ", "))
 		}
 		if slices.Contains(out, k) {
 			continue

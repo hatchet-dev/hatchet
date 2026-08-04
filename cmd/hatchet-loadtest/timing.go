@@ -84,9 +84,11 @@ func tryResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, t
 	for _, name := range names {
 		name := name
 
-		resp, err := api.WorkflowListWithResponse(ctx, tenantId, &rest.WorkflowListParams{Name: &name})
-		if err != nil {
-			return nil, nil, fmt.Errorf("error listing workflows for %q: %w", name, err)
+		resp, reqErr := api.WorkflowListWithResponse(ctx, tenantId, &rest.WorkflowListParams{Name: &name})
+		if reqErr != nil {
+			l.Info().Msgf("error listing workflows for %q, will retry: %v", name, reqErr)
+			missing = append(missing, name)
+			continue
 		}
 
 		found := false
@@ -130,7 +132,7 @@ type TimingCollector struct {
 	api          *rest.ClientWithResponses
 	seen         map[uuid.UUID]time.Time          // successfully fetched, or deliberately skipped by sampling; value is decision time
 	pending      map[uuid.UUID]time.Time          // sampled-in and awaiting a successful fetch; value is first-discovered time
-	pendingKeys  map[uuid.UUID]eventkeys.EventKey // event key for each pending run, needed by fetchTimings once dequeued
+	pendingKeys  map[uuid.UUID]eventkeys.EventKey // event key per pending run, so the concurrent fetch can attribute its samples
 	workflowIds  []uuid.UUID
 	workflowKeys map[uuid.UUID]eventkeys.EventKey
 	pollInterval time.Duration

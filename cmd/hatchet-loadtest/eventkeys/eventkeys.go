@@ -33,14 +33,36 @@ func IsKnown(key EventKey) bool {
 	return slices.Contains(All, key)
 }
 
-func (k EventKey) String() string {
-	return string(k)
+func (k EventKey) Name() string {
+	switch k {
+	case EventKeyDefault:
+		return "default"
+	case EventKeyBatch:
+		return "batch"
+	case EventKeyDurable:
+		return "durable"
+	default:
+		return string(k)
+	}
 }
 
-func Strings(keys []EventKey) []string {
+func ByName(name string) (EventKey, bool) {
+	for _, k := range All {
+		if k.Name() == name {
+			return k, true
+		}
+	}
+	return "", false
+}
+
+func Names(keys []EventKey) []string {
 	out := make([]string, len(keys))
 	for i, k := range keys {
-		out[i] = string(k)
+		out[i] = k.Name()
 	}
 	return out
+}
+
+func (k EventKey) String() string {
+	return string(k)
 }

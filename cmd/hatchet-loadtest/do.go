@@ -555,7 +555,7 @@ func do(config LoadTestConfig) error {
 				return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", benchPhases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
 			}
 		} else if phases.overall.execution.count == 0 {
-			return fmt.Errorf("❌ no timing samples observed for selected event key(s) %v - check that the external SDK worker executed the corresponding workflow(s)", eventkeys.Strings(config.EventKeys))
+			return fmt.Errorf("❌ no timing samples observed for selected event key(s) %v - check that the external SDK worker executed the corresponding workflow(s)", eventkeys.Names(config.EventKeys))
 		}
 	} else {
 		if expected != executed {

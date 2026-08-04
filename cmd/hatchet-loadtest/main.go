@@ -97,7 +97,7 @@ func main() {
 		},
 	}
 
-	eventKeyStrings := eventkeys.Strings(eventkeys.All)
+	eventKeyNames := eventkeys.Names(eventkeys.All)
 
 	loadtest.Flags().IntVarP(&config.Events, "events", "e", 10, "events per second")
 	loadtest.Flags().IntVar(&config.EmitWorkers, "emitWorkers", 0, "emitWorkers specifies how many concurrent goroutines push events to the engine; each push is a blocking call, so this bounds sustained throughput regardless of --events. 0 auto-scales from --events (see emit.go's defaultEmitWorkers)")
@@ -119,7 +119,7 @@ func main() {
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
-	loadtest.Flags().StringSliceVar(&config.SelectEventKeys, "select", nil, fmt.Sprintf("select specifies which event keys to publish (comma-separated or repeated), e.g. --select %s. Known keys: %s. Mutually exclusive with --exclude; passing neither publishes only the standard key %q (batch/durable canaries are opt-in)", strings.Join(eventKeyStrings, ","), strings.Join(eventKeyStrings, ", "), eventkeys.EventKeyDefault))
+	loadtest.Flags().StringSliceVar(&config.SelectEventKeys, "select", nil, fmt.Sprintf("select specifies which event keys to publish (comma-separated or repeated), e.g. --select %s. Known keys: %s. Mutually exclusive with --exclude; passing neither publishes only the standard key %q (batch/durable canaries are opt-in)", strings.Join(eventKeyNames, ","), strings.Join(eventKeyNames, ", "), eventkeys.EventKeyDefault.Name()))
 	loadtest.Flags().StringSliceVar(&config.ExcludeEventKeys, "exclude", nil, "exclude specifies which event keys to skip (comma-separated or repeated); all other available keys are published. Mutually exclusive with --select")
 	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
 	loadtest.Flags().Float64Var(&config.TimingSampleRate, "timingSampleRate", 1, "fetch full task timings for this proportion (0, 1] of completed runs instead of every one - e.g. 0.3 samples 30% of runs. The average still converges, at a fraction of the REST load on the engine; 1 (the default) fetches every run")
