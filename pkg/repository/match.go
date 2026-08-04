@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/pgoutbox"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -323,25 +322,29 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	}
 
 	// stage the OLAP messages for created/replayed tasks on the same tx
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	postCreated, err := m.signaler.tasksCreated(ctx, tx, notifier, tenantId, res.CreatedTasks, nil)
+	postCreated, err := m.signaler.tasksCreated(batch, tenantId, res.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
 	}
 
-	postReplayed, err := m.signaler.tasksUpdated(ctx, tx, notifier, tenantId, res.ReplayedTasks)
+	postReplayed, err := m.signaler.tasksUpdated(batch, tenantId, res.ReplayedTasks)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage replayed task messages: %w", err)
+	}
+
+	if err := m.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 	composePostCommit(postCreated, postReplayed)()
 
 	return res, nil
@@ -386,19 +389,23 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	// stage the OLAP messages for created tasks on the same tx. note the user event
 	// path does not signal replayed tasks (parity with the previous controller-side
 	// signaling)
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	postCreated, err := m.signaler.tasksCreated(ctx, tx, notifier, tenantId, res.CreatedTasks, nil)
+	postCreated, err := m.signaler.tasksCreated(batch, tenantId, res.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
+	}
+
+	if err := m.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 	postCreated()
 
 	return res, nil

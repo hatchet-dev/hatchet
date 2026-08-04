@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -803,13 +802,17 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, internalEvents); err != nil {
+	if err := r.signaler.internalEvents(batch, tenantId, internalEvents); err != nil {
 		err = fmt.Errorf("failed to stage internal events: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to stage internal events")
 		return nil, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -820,7 +823,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return &FinalizedTaskResponse{
 		ReleasedTasks:  releasedTasks,
@@ -843,9 +846,9 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 
 	defer rollback()
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	res, err := r.failTasksTx(ctx, tx, notifier, tenantId, failureOpts)
+	res, err := r.failTasksTx(ctx, tx, batch, tenantId, failureOpts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to fail tasks: %w", err)
@@ -869,11 +872,15 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 		})
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, failedPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, failedPayloads...); err != nil {
 		err = fmt.Errorf("failed to stage monitoring events: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to stage monitoring events")
 		return nil, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -884,12 +891,12 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, batch *outboxBatch, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -1044,7 +1051,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, notifie
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, retryPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, retryPayloads...); err != nil {
 		return nil, err
 	}
 
@@ -1058,7 +1065,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, notifie
 		eventsToSignal = append(eventsToSignal, event)
 	}
 
-	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, eventsToSignal); err != nil {
+	if err := r.signaler.internalEvents(batch, tenantId, eventsToSignal); err != nil {
 		return nil, err
 	}
 
@@ -1274,16 +1281,20 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
 	// release queue items
-	res, err := r.cancelTasks(ctx, tx, notifier, tenantId, tasks)
+	res, err := r.cancelTasks(ctx, tx, batch, tenantId, tasks)
 
 	if err != nil {
 		err = fmt.Errorf("failed to cancel tasks: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to cancel tasks")
 		return nil, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -1294,12 +1305,12 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, tenantId uuid.UUID, opts []CancelTaskOpts) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, batch *outboxBatch, tenantId uuid.UUID, opts []CancelTaskOpts) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
 	opts = listutils.UniqBy(opts, func(o CancelTaskOpts) string {
 		return createTaskUniqueKey(*o.TaskIdInsertedAtRetryCount)
@@ -1352,11 +1363,11 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, notifier 
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, monitoringPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, monitoringPayloads...); err != nil {
 		return nil, err
 	}
 
-	if err := r.signaler.internalEvents(ctx, tx, notifier, tenantId, internalEvents); err != nil {
+	if err := r.signaler.internalEvents(batch, tenantId, internalEvents); err != nil {
 		return nil, err
 	}
 
@@ -1622,10 +1633,10 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		})
 	}
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
 	// fail the tasks
-	failResp, err := r.failTasksTx(ctx, tx, notifier, tenantId, failOpts)
+	failResp, err := r.failTasksTx(ctx, tx, batch, tenantId, failOpts)
 
 	if err != nil {
 		return nil, false, err
@@ -1644,8 +1655,12 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, timedOutPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, timedOutPayloads...); err != nil {
 		return nil, false, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, false, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -1653,7 +1668,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		return nil, false, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return &TimeoutTasksResponse{
 		FailTasksResponse: failResp,
@@ -1709,10 +1724,10 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		})
 	}
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
 	// fail the tasks
-	res, err := r.failTasksTx(ctx, tx, notifier, tenantId, failOpts)
+	res, err := r.failTasksTx(ctx, tx, batch, tenantId, failOpts)
 
 	if err != nil {
 		return nil, false, err
@@ -1757,8 +1772,12 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		}
 	}
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, reassignedPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, reassignedPayloads...); err != nil {
 		return nil, false, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, false, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -1766,7 +1785,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return res, len(toReassign) == limit, nil
 }
@@ -1807,10 +1826,14 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 		}
 	}
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, queuedPayloads...); err != nil {
+	if err := r.signaler.monitoringEvents(batch, tenantId, queuedPayloads...); err != nil {
 		return nil, false, err
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, false, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	// commit the transaction
@@ -1818,7 +1841,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 		return nil, false, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return res, len(res) == limit, nil
 }
@@ -1894,19 +1917,23 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 	}
 
 	// stage the OLAP messages for created tasks on the same tx
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	postCreated, err := r.signaler.tasksCreated(ctx, tx, notifier, tenantId, results.CreatedTasks, nil)
+	postCreated, err := r.signaler.tasksCreated(batch, tenantId, results.CreatedTasks, nil)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to stage created task messages: %w", err)
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, false, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 	postCreated()
 
 	return results, len(emitted) == limit, nil
@@ -2079,7 +2106,7 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 
 	defer rollback()
 
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
@@ -2155,16 +2182,20 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 			}
 		}
 
-		if err := r.signaler.monitoringEvents(ctx, tx, notifier, tenantId, restoringPayloads...); err != nil {
+		if err := r.signaler.monitoringEvents(batch, tenantId, restoringPayloads...); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return nil, fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 
 	return rows, nil
 }
@@ -4136,29 +4167,33 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	// stage the OLAP messages for replayed/upserted/created tasks on the same tx
-	notifier := &pgoutbox.Notifier{}
+	batch := newOutboxBatch()
 
-	if stageErr := r.signaler.tasksReplayed(ctx, tx, notifier, tenantId, replayedTasks); stageErr != nil {
+	if stageErr := r.signaler.tasksReplayed(batch, tenantId, replayedTasks); stageErr != nil {
 		return fmt.Errorf("failed to stage replayed task messages: %w", stageErr)
 	}
 
-	postUpdated, err := r.signaler.tasksUpdated(ctx, tx, notifier, tenantId, upsertedTasks)
+	postUpdated, err := r.signaler.tasksUpdated(batch, tenantId, upsertedTasks)
 
 	if err != nil {
 		return fmt.Errorf("failed to stage upserted task messages: %w", err)
 	}
 
-	postCreated, err := r.signaler.tasksCreated(ctx, tx, notifier, tenantId, internalMatchResults.CreatedTasks, nil)
+	postCreated, err := r.signaler.tasksCreated(batch, tenantId, internalMatchResults.CreatedTasks, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to stage created task messages: %w", err)
+	}
+
+	if err := r.olapOutbox.flush(ctx, tx, batch); err != nil {
+		return fmt.Errorf("failed to flush outbox batch: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	notifier.Notify(ctx)
+	batch.notify(ctx)
 	composePostCommit(postUpdated, postCreated)()
 
 	return nil

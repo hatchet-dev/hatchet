@@ -240,6 +240,50 @@ func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uui
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
+// outboxBatch accumulates the messages a transaction stages, so they land in the
+// outbox with one batched write per topic (OLAPOutbox.flush) instead of a write per
+// staging call, and carries the subscriber wake-ups to fire after commit.
+type outboxBatch struct {
+	topics   []string
+	byTopic  map[string][]*msgqueue.Message
+	notifier pgoutbox.Notifier
+}
+
+func newOutboxBatch() *outboxBatch {
+	return &outboxBatch{byTopic: make(map[string][]*msgqueue.Message)}
+}
+
+func (b *outboxBatch) add(topic string, msgs ...*msgqueue.Message) {
+	if len(msgs) == 0 {
+		return
+	}
+
+	if _, ok := b.byTopic[topic]; !ok {
+		b.topics = append(b.topics, topic)
+	}
+
+	b.byTopic[topic] = append(b.byTopic[topic], msgs...)
+}
+
+// notify fires the accumulated subscriber wake-ups. The transaction owner calls it
+// once after a successful commit; after a rollback the batch is simply discarded.
+func (b *outboxBatch) notify(ctx context.Context) {
+	b.notifier.Notify(ctx)
+}
+
+// flush writes the batch to the outbox on tx — one write per topic — collecting the
+// subscriber wake-ups into the batch's notifier. The transaction owner calls it once
+// before commit, then fires batch.notify after.
+func (o *OLAPOutbox) flush(ctx context.Context, tx pgx.Tx, batch *outboxBatch) error {
+	for _, topic := range batch.topics {
+		if err := o.stage(ctx, tx, &batch.notifier, topic, batch.byTopic[topic]...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // stage stages messages under the given topic on the given transaction, or on a
 // short transaction of its own when tx is nil. Callers publishing many payloads
 // should batch them into a single method call to amortize the transaction.

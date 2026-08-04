@@ -113,7 +113,7 @@ func TestOLAPOutboxEmptyPayloadsAreNoOps(t *testing.T) {
 	assert.Empty(t, fake.staged)
 }
 
-func TestOLAPOutboxStagesTypedMessages(t *testing.T) {
+func TestOLAPOutboxFlushBatchesPerTopic(t *testing.T) {
 	fake := &fakeOutbox{}
 	o := newTestOLAPOutbox(fake)
 
@@ -124,19 +124,28 @@ func TestOLAPOutboxStagesTypedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, o.stage(ctx, fakeTx{}, &pgoutbox.Notifier{}, olapOutboxTopic, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}), eventTriggerMsg))
+	batch := newOutboxBatch()
+	batch.add(olapOutboxTopic, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}))
+	batch.add(olapOutboxTopic, eventTriggerMsg)
+	batch.add(taskProcessingOutboxTopic, mustMessage(t, msgqueue.MsgIDInternalEvent, InternalTaskEvent{TenantID: testTenantUUID}))
+
+	require.NoError(t, o.flush(ctx, fakeTx{}, batch))
 
 	msgs := fake.stagedMessages(t)
-	require.Len(t, msgs, 2)
+	require.Len(t, msgs, 3)
 	assert.Equal(t, "mq.olap_queue_v2", msgs[0].topic)
 	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[0].msg.ID)
 	assert.Equal(t, msgqueue.MsgIDCreatedEventTrigger, msgs[1].msg.ID)
 	assert.Equal(t, testTenantUUID, msgs[1].msg.TenantID)
+	assert.Equal(t, "mq.task_processing_queue_v2", msgs[2].topic)
 
-	// staging on a caller transaction passes the notifier through, so the caller's
-	// post-commit Notify wakes the outbox subscribers
-	require.Len(t, fake.staged, 1)
+	// the flush is the performance contract: exactly one outbox write per staged
+	// topic, each carrying the notifier for the post-commit wake-ups
+	require.Len(t, fake.staged, 2)
+	assert.Len(t, fake.staged[0].msgs, 2)
 	assert.Len(t, fake.staged[0].opts, 1)
+	assert.Len(t, fake.staged[1].msgs, 1)
+	assert.Len(t, fake.staged[1].opts, 1)
 }
 
 func mustMessage(t *testing.T, id string, payload any) *msgqueue.Message {
@@ -181,9 +190,13 @@ func TestSignalerTasksCreatedStagesMessagesAndEvents(t *testing.T) {
 		{V1Dag: &sqlcv1.V1Dag{TenantID: testTenantUUID}},
 	}
 
-	postCommit, err := s.tasksCreated(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, tasks, dags)
+	batch := newOutboxBatch()
+
+	postCommit, err := s.tasksCreated(batch, testTenantUUID, tasks, dags)
 	require.NoError(t, err)
 	require.NotNil(t, postCommit)
+
+	require.NoError(t, s.shared.olapOutbox.flush(context.Background(), fakeTx{}, batch))
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 4)
@@ -199,6 +212,9 @@ func TestSignalerTasksCreatedStagesMessagesAndEvents(t *testing.T) {
 	assert.Equal(t, "mq.task_processing_queue_v2", msgs[3].topic)
 	require.Len(t, msgs[3].msg.Payloads, 1)
 
+	// one outbox write per topic, regardless of how many messages were staged
+	require.Len(t, fake.staged, 2)
+
 	// the closure runs without a wired pubsub/promGate (side effects skipped/logged)
 	postCommit()
 }
@@ -207,11 +223,15 @@ func TestSignalerTasksReplayedStagesMonitoringEvents(t *testing.T) {
 	fake := &fakeOutbox{}
 	s := newTestSignaler(fake)
 
-	err := s.tasksReplayed(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, []TaskIdInsertedAtRetryCount{
+	batch := newOutboxBatch()
+
+	err := s.tasksReplayed(batch, testTenantUUID, []TaskIdInsertedAtRetryCount{
 		{Id: 1, RetryCount: 0},
 		{Id: 2, RetryCount: 1},
 	})
 	require.NoError(t, err)
+
+	require.NoError(t, s.shared.olapOutbox.flush(context.Background(), fakeTx{}, batch))
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 1)
@@ -228,14 +248,19 @@ func TestSignalerInternalEventsStageToTaskProcessingTopic(t *testing.T) {
 	fake := &fakeOutbox{}
 	s := newTestSignaler(fake)
 
+	batch := newOutboxBatch()
+
 	// empty events are a no-op
-	require.NoError(t, s.internalEvents(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, nil))
+	require.NoError(t, s.internalEvents(batch, testTenantUUID, nil))
+	require.NoError(t, s.shared.olapOutbox.flush(context.Background(), fakeTx{}, batch))
 	assert.Empty(t, fake.staged)
 
-	err := s.internalEvents(context.Background(), fakeTx{}, &pgoutbox.Notifier{}, testTenantUUID, []InternalTaskEvent{
+	err := s.internalEvents(batch, testTenantUUID, []InternalTaskEvent{
 		{TenantID: testTenantUUID, TaskID: 1, EventType: sqlcv1.V1TaskEventTypeFAILED},
 	})
 	require.NoError(t, err)
+
+	require.NoError(t, s.shared.olapOutbox.flush(context.Background(), fakeTx{}, batch))
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 1)
