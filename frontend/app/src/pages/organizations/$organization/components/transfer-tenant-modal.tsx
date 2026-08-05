@@ -22,7 +22,7 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-interface MoveTenantModalProps {
+interface TransferTenantModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
@@ -38,7 +38,7 @@ interface MoveTenantModalProps {
   onSuccess: () => void;
 }
 
-export function MoveTenantModal({
+export function TransferTenantModal({
   open,
   onOpenChange,
   organizationId,
@@ -47,7 +47,7 @@ export function MoveTenantModal({
   tenantName,
   ownedDestinationOrganizations,
   onSuccess,
-}: MoveTenantModalProps) {
+}: TransferTenantModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -68,14 +68,14 @@ export function MoveTenantModal({
     (org) => org.metadata.id === destinationOrganizationId,
   )?.name;
 
-  const previewQueryDescriptor = orgApi.tenantMovePreviewQuery(
+  const previewQueryDescriptor = orgApi.tenantTransferPreviewQuery(
     organizationId,
     tenantId,
     destinationOrganizationId,
   );
 
-  const moveTenantMutation = useMutation({
-    ...orgApi.tenantMoveMutation(organizationId, tenantId),
+  const transferTenantMutation = useMutation({
+    ...orgApi.tenantTransferMutation(organizationId, tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['organization:get', organizationId],
@@ -87,22 +87,23 @@ export function MoveTenantModal({
     onError: handleApiError,
   });
 
-  // Once the move has actually been kicked off, the tenant may already be
+  // Once the transfer has actually been kicked off, the tenant may already be
   // reparented to the destination org by the time this resolves (or retries),
   // which makes the preview's own organization/tenant path params stale and
   // the request 404 server-side. Stop asking the instant we submit.
   const previewQuery = useQuery({
     ...previewQueryDescriptor,
-    enabled: open && !!destinationOrganizationId && moveTenantMutation.isIdle,
+    enabled:
+      open && !!destinationOrganizationId && transferTenantMutation.isIdle,
   });
 
   const isNameMatch = typedName === tenantName;
-  const isPending = moveTenantMutation.isPending;
+  const isPending = transferTenantMutation.isPending;
 
   const handleSubmit = () => {
     if (isNameMatch && destinationOrganizationId) {
       queryClient.cancelQueries({ queryKey: previewQueryDescriptor.queryKey });
-      moveTenantMutation.mutate({ destinationOrganizationId });
+      transferTenantMutation.mutate({ destinationOrganizationId });
     }
   };
 

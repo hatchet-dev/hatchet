@@ -338,19 +338,19 @@ export function useOrganizationApi() {
           ).data,
       }),
 
-      // Control-plane-only: moving a tenant between organizations has no
+      // Control-plane-only: transferring a tenant between organizations has no
       // legacy-cloud-API equivalent. The caller must be an OWNER of both the
-      // source and destination organizations -- the move happens immediately,
-      // there is no separate acceptance step.
-      tenantMoveMutation: (organization: string, tenant: string) => ({
+      // source and destination organizations -- the transfer happens
+      // immediately, there is no separate acceptance step.
+      tenantTransferMutation: (organization: string, tenant: string) => ({
         mutationKey: [
-          'organization-tenant:move',
+          'organization-tenant:transfer',
           organization,
           tenant,
         ] as const,
         mutationFn: async (data: { destinationOrganizationId: string }) =>
           (
-            await controlPlaneApi.organizationTenantMove(
+            await controlPlaneApi.organizationTenantTransfer(
               organization,
               tenant,
               data,
@@ -359,22 +359,22 @@ export function useOrganizationApi() {
       }),
 
       // Lists which of the tenant's current members would be newly added to
-      // destinationOrganizationId if the move were confirmed right now, so
+      // destinationOrganizationId if the transfer were confirmed right now, so
       // the modal can show that list before the user commits.
-      tenantMovePreviewQuery: (
+      tenantTransferPreviewQuery: (
         organization: string,
         tenant: string,
         destinationOrganizationId: string,
       ) => ({
         queryKey: [
-          'organization-tenant:move-preview',
+          'organization-tenant:transfer-preview',
           organization,
           tenant,
           destinationOrganizationId,
         ] as const,
         queryFn: async () =>
           (
-            await controlPlaneApi.organizationTenantMovePreview(
+            await controlPlaneApi.organizationTenantTransferPreview(
               organization,
               tenant,
               { destinationOrganizationId },
