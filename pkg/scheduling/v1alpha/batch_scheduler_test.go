@@ -216,6 +216,10 @@ func (f *fakeQueueFactory) NewQueue(uuid.UUID, string) v1repo.QueueRepository {
 
 type fakeQueueRepository struct{}
 
+func (f *fakeQueueRepository) ListWorkflowNamesByIds(context.Context, []uuid.UUID) (map[uuid.UUID]string, error) {
+	return map[uuid.UUID]string{}, nil
+}
+
 func (f *fakeQueueRepository) ListQueueItems(context.Context, int) ([]*sqlcv1.V1QueueItem, error) {
 	return nil, nil
 }
@@ -228,7 +232,7 @@ func (f *fakeQueueRepository) GetTaskRateLimits(context.Context, *v1repo.Optimis
 	return nil, nil
 }
 
-func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, []uuid.UUID) (map[string]bool, error) {
+func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, *v1repo.OptimisticTx, []uuid.UUID) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
 

@@ -239,7 +239,9 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	tenantId := uuid.UUID{}
-	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
+	// buffered so the non-blocking send in sendWorkerIds cannot race the
+	// receiver and drop the message
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult], 1)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
@@ -249,7 +251,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 		{ID: uuid.New(), Labels: nil},
 	}
 
-	go leaseManager.sendWorkerIds(mockWorkers, false)
+	leaseManager.sendWorkerIds(mockWorkers, false)
 
 	result := <-workersCh
 	assert.Equal(t, mockWorkers, result.items)
@@ -257,7 +259,9 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 
 func TestLeaseManager_SendQueues(t *testing.T) {
 	tenantId := uuid.UUID{}
-	queuesCh := make(notifierCh[string])
+	// buffered so the non-blocking send in sendQueues cannot race the
+	// receiver and drop the message
+	queuesCh := make(notifierCh[string], 1)
 	leaseManager := &LeaseManager{
 		tenantId: tenantId,
 		queuesCh: queuesCh,
@@ -265,7 +269,7 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 
 	mockQueues := []string{"queue-1", "queue-2"}
 
-	go leaseManager.sendQueues(mockQueues, false)
+	leaseManager.sendQueues(mockQueues, false)
 
 	result := <-queuesCh
 	assert.Equal(t, mockQueues, result.items)
