@@ -1,6 +1,6 @@
 ---
 name: embedded-hatchet
-description: Test Hatchet features against an in-process (embedded mode) Hatchet instance built from this checkout, with its own throwaway embedded Postgres, optionally registering and running workflows. Use when asked to try out, verify, or demo engine/SDK changes without docker compose.
+description: Run and test Hatchet locally via an in-process (embedded mode) instance built from this checkout, backed by a throwaway embedded Postgres, optionally registering workers and running workflows. Use whenever asked to test Hatchet locally, run or verify a workflow locally, try out an engine/SDK change, or demo a feature — prefer this over docker compose or searching for running containers; no docker is needed.
 ---
 
 **📝 SELF-UPDATING DOCUMENT**: This skill automatically updates itself when inaccuracies are discovered or new patterns are learned. Always verify information against the actual codebase and update this file when needed.
@@ -8,9 +8,13 @@ description: Test Hatchet features against an in-process (embedded mode) Hatchet
 # embedded-hatchet
 
 Run a full Hatchet instance (engine + API + migrations) inside a single Go
-process built from this repo checkout, backed by a throwaway
+process built from the local hatchet checkout, backed by a throwaway
 embedded Postgres that the same process spins up and tears down. Then
 optionally register a worker and run workflows against it.
+
+First locate the hatchet repo root: when working inside the hatchet repo
+itself it is the repo root; when working from hatchet-workstation it is
+`repos/hatchet`. All repo paths below are relative to it.
 
 ## How embedded mode works
 
@@ -29,7 +33,7 @@ optionally register a worker and run workflows against it.
 
 1. **Write the test program** in a temp directory (not inside the repo).
    `go mod init embedtest`, then in `go.mod` add
-   `replace github.com/hatchet-dev/hatchet => <absolute path to this repo>`
+   `replace github.com/hatchet-dev/hatchet => <absolute path to the hatchet repo root>`
    so the run exercises the local checkout, including any uncommitted
    changes being tested. Run `go mod tidy` after writing the code.
 
