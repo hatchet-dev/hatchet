@@ -571,11 +571,6 @@ func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	}
 }
 
-type AssignedItemWithTask struct {
-	AssignedItem *v1.AssignedItem
-	Task         *v1.V1TaskWithPayload
-}
-
 func (t *tenantManager) runOptimisticScheduling(
 	ctx context.Context,
 	opts []*v1.WorkflowNameTriggerOpts,

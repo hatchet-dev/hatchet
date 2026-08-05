@@ -5,11 +5,17 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.37.1] - 2026-07-29
+## [1.37.2] - 2026-07-29
 
 ### Fixed
 
 - Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries and delivers completions to the worker strictly in that order, so replays deterministically reproduce the original wake order. The listener consumes completions in receive order, requiring no client-side reordering.
+
+## [1.37.1] - 2026-08-03
+
+### Fixed
+
+- Fixes a memory leak in the log sender where we'd indefinitely buffer log messages, causing memory to pile up over time.
 
 ## [1.37.0] - 2026-07-23
 

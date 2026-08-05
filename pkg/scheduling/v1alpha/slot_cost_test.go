@@ -1,0 +1,167 @@
+//go:build !e2e && !load && !rampup && !integration
+
+package v1alpha
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	repo "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+// These tests use the scheduler's internal slot request map ({default: N}) directly, not the
+// public SDK parameter.
+
+func defaultSlots(w *worker, n int) []*slot {
+	slots := make([]*slot, n)
+	for i := range slots {
+		slots[i] = newSlot(w, repo.SlotTypeDefault)
+	}
+	return slots
+}
+
+func TestSlotCost_MixedHeavyAndLightShareDefaultPool(t *testing.T) {
+	tenantId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	workerId := uuid.New()
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	a := seedActionPools(t, s, "A", defaultSlots(w, 6)...)
+
+	heavy := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	require.True(t, heavy.succeeded)
+
+	light := assignOne(t, s, a, testQI(tenantId, "A", 2), nil, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	require.True(t, light.succeeded)
+
+	none := assignOne(t, s, a, testQI(tenantId, "A", 3), nil, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	require.False(t, none.succeeded)
+	require.True(t, none.noSlots)
+
+	onLoop(t, s, func() {
+		require.Len(t, s.unackedSlots[heavy.ackId].slots, 5)
+		require.Len(t, s.unackedSlots[light.ackId].slots, 1)
+	})
+}
+
+func TestSlotCost_ReservationMustFitOnOneWorker(t *testing.T) {
+	tenantId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w1 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
+	w2 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
+
+	all := append(defaultSlots(w1, 4), defaultSlots(w2, 4)...)
+	a := seedActionPools(t, s, "A", all...)
+
+	none := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	require.False(t, none.succeeded)
+	require.True(t, none.noSlots)
+
+	fits := assignOne(t, s, a, testQI(tenantId, "A", 2), nil, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
+	require.True(t, fits.succeeded)
+
+	onLoop(t, s, func() {
+		assigned := s.unackedSlots[fits.ackId]
+		require.Len(t, assigned.slots, 4)
+
+		// all four slots come from the same worker
+		for _, sl := range assigned.slots {
+			require.Equal(t, assigned.workerId(), sl.getWorkerId())
+		}
+	})
+}
+
+// An over-capacity task is unassigned only while inside its schedule timeout. Past the timeout the
+// scheduler routes it to schedulingTimedOut, which the engine cancels with reason
+// SCHEDULING_TIMED_OUT, so the wait is bounded.
+func TestSlotCost_OverCapacityWaitsThenSchedulingTimesOut(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	seedActionPools(t, s, "A", defaultSlots(w, 4)...)
+
+	waiting := testQI(tenantId, "A", 1)
+	waiting.ScheduleTimeoutAt = ts(time.Now().UTC().Add(5 * time.Minute))
+
+	expired := testQI(tenantId, "A", 2)
+	expired.ScheduleTimeoutAt = ts(time.Now().UTC().Add(-1 * time.Second))
+
+	stepRequests := map[uuid.UUID]map[string]int32{
+		waiting.StepID: {repo.SlotTypeDefault: 5},
+		expired.StepID: {repo.SlotTypeDefault: 5},
+	}
+
+	ch := s.tryAssign(
+		context.Background(),
+		[]*sqlcv1.V1QueueItem{waiting, expired},
+		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{},
+		stepRequests,
+		nil,
+		nil,
+		nil,
+	)
+
+	assigned := map[int64]bool{}
+	unassigned := map[int64]bool{}
+	timedOut := map[int64]bool{}
+
+	for r := range ch {
+		for _, as := range r.assigned {
+			assigned[as.QueueItem.TaskID] = true
+		}
+		for _, u := range r.unassigned {
+			unassigned[u.TaskID] = true
+		}
+		for _, to := range r.schedulingTimedOut {
+			timedOut[to.TaskID] = true
+		}
+	}
+
+	require.Empty(t, assigned)
+	require.True(t, unassigned[waiting.TaskID])
+	require.False(t, timedOut[waiting.TaskID])
+	require.True(t, timedOut[expired.TaskID])
+}
+
+func TestSlotCost_ExplicitDefaultCostBlocksProportionally(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	seedActionPools(t, s, "A", defaultSlots(w, 2)...)
+
+	qi1 := testQI(tenantId, "A", 1)
+	qi2 := testQI(tenantId, "A", 2)
+	qis := []*sqlcv1.V1QueueItem{qi1, qi2}
+
+	stepRequests := map[uuid.UUID]map[string]int32{
+		qi1.StepID: {repo.SlotTypeDefault: 2},
+		qi2.StepID: {repo.SlotTypeDefault: 2},
+	}
+
+	res, err := s.tryAssignBatch(context.Background(), "A", qis,
+		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, stepRequests, nil, nil, nil)
+	require.NoError(t, err)
+
+	assigned, noSlots := 0, 0
+	for _, r := range res {
+		if r.succeeded {
+			assigned++
+		}
+		if r.noSlots {
+			noSlots++
+		}
+	}
+	require.Equal(t, 1, assigned)
+	require.Equal(t, 1, noSlots)
+}

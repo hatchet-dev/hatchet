@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Kubernetes Networking
 
 ## Overview
@@ -30,6 +32,109 @@ engine:
     SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
     SERVER_GRPC_INSECURE: "false"
     SERVER_GRPC_BROADCAST_ADDRESS: "engine.hatchet.example.com:443" # example.com should be replaced with your domain
+```
+
+## Serving Hatchet under a URL subpath
+
+By default the dashboard assumes it is served from the root of a host (for example `https://hatchet.example.com/`). If you need to host it behind a reverse proxy under a subpath (for example `https://example.com/hatchet/`), set the frontend base path so the dashboard renders links, assets, and client-side routes relative to that subpath.
+
+The base path is injected into the served `index.html` at request time and the static file server serves the app (assets and client-side routes) under that subpath, so a single image works for any subpath without rebuilding the frontend — and no prefix-rewriting proxy is required.
+
+### Configuring the base path
+
+Set the base path via the environment variable for your deployment mode. It defaults to `/`, which preserves the root-hosted behavior.
+
+| Deployment                        | Variable                  | Notes                                                           |
+| --------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server.     |
+| Combined `dashboard` image        | `BASE_PATH`               | Injected into `index.html` and nginx routing by the entrypoint. |
+| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                                 |
+| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                                 |
+
+<Callout type="info">
+  The base path is normalized automatically, so `hatchet`, `/hatchet`, and
+  `/hatchet/` are all equivalent — the dashboard's relative asset URLs always
+  resolve under the subpath.
+</Callout>
+
+### Reverse proxy requirements
+
+The static file server serves the app under the base path itself, so the proxy just forwards requests through **without rewriting the path**. Two routing rules are needed when the frontend and API sit behind a shared host:
+
+1. **Forward the subpath to the frontend as-is.** The frontend already serves its assets and SPA routes under `/hatchet`, so no `rewrite-target` / `handle_path` prefix stripping is required — a plain reverse proxy is enough.
+2. **Keep `/api` at the host root.** The dashboard issues API requests to absolute `/api/...` paths, which are unaffected by the base path. Do not move the API under the subpath — route `/api/*` straight to the API service.
+
+Using the chart's built-in Caddy proxy, the `Caddyfile` becomes:
+
+```caddyfile
+example.com {
+    handle /api/* {
+        reverse_proxy hatchet-stack-api:8080
+    }
+
+    # No prefix stripping — the frontend serves the app under /hatchet itself
+    handle /hatchet/* {
+        reverse_proxy hatchet-stack-frontend:8080
+    }
+}
+```
+
+With `frontend.env.BASE_PATH` set to `/hatchet`, the dashboard is reachable at `https://example.com/hatchet/` and API calls continue to hit `https://example.com/api/...`. For single-service deployments such as `hatchet-lite`, setting the base path is all that is needed — lite serves the dashboard under the subpath directly, no separate proxy required.
+
+The same setup with a standalone **nginx** reverse proxy — again, neither location rewrites the path:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location /api/ {
+        proxy_pass http://hatchet-stack-api:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /hatchet {
+        return 301 /hatchet/;
+    }
+
+    location /hatchet/ {
+        proxy_pass http://hatchet-stack-frontend:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+On Kubernetes with the `ingress-nginx` controller, the same routing is two `Prefix` paths on one Ingress — and notably **no `nginx.ingress.kubernetes.io/rewrite-target` annotation is needed**, since the frontend serves the subpath itself:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hatchet
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hatchet-stack-api
+                port:
+                  number: 8080
+          - path: /hatchet
+            pathType: Prefix
+            backend:
+              service:
+                name: hatchet-stack-frontend
+                port:
+                  number: 8080
 ```
 
 ## Example: `nginx-ingress`

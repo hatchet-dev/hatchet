@@ -72,6 +72,7 @@ class ChildOutput(BaseModel):
     message_len: int
 
 
+# > Declaring a batch task
 @hatchet.batch_task(
     batch_max_size=3,
     batch_max_interval=timedelta(milliseconds=200),
@@ -86,6 +87,10 @@ async def batch_simple(
     }
 
 
+# !!
+
+
+# > Declaring a keyed batch task
 @hatchet.batch_task(
     batch_max_size=2,
     batch_max_interval=timedelta(milliseconds=200),
@@ -105,6 +110,9 @@ async def batch_keyed(
         )
         for id, inp in tasks.items()
     }
+
+
+# !!
 
 
 @hatchet.batch_task(
@@ -186,6 +194,7 @@ async def batch_ordered(
     return {id: OrderedOutput(index=inp.index) for id, inp in tasks.items()}
 
 
+# > Declaring a broadcast batch task
 @hatchet.batch_task(
     batch_max_size=10,
     batch_max_interval=timedelta(seconds=2),
@@ -196,6 +205,9 @@ async def batch_broadcast(
     tasks: dict[BatchMemberId, SimpleInput], context: Context
 ) -> BroadcastOutput:
     return BroadcastOutput(sum=sum(len(i.message) for _, i in tasks.items()))
+
+
+# !!
 
 
 @hatchet.batch_task(
