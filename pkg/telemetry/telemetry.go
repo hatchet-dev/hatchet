@@ -203,6 +203,17 @@ func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return ctx, span
 }
 
+// NewRootSpan starts a span with a fresh TraceId, discarding any parent span
+// carried by ctx. Use this at the entry point of per-request work that hangs
+// off a long-lived shared context (e.g. a stream's context, reused across
+// many requests), so each request gets its own trace instead of piling
+// thousands of unrelated requests onto one shared TraceId.
+func NewRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))
+	return ctx, span
+}
+
 func NewSpanWithCarrier(ctx context.Context, name string, carrier map[string]string) (context.Context, trace.Span) {
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 

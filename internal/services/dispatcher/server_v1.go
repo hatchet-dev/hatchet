@@ -473,7 +473,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
 ) error {
-	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-durable-task-request")
+	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
