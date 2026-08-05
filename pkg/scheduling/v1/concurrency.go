@@ -19,12 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-type ConcurrencyResults struct {
-	*v1.RunConcurrencyResult
-
-	TenantId uuid.UUID
-}
-
 type ConcurrencyManager struct {
 	l *zerolog.Logger
 

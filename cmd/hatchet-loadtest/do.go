@@ -433,7 +433,7 @@ func do(config LoadTestConfig) error {
 
 		var expectedAllKeys int64
 		for _, k := range config.EventKeys {
-			expectedAllKeys += int64(pushedByKey[k]) * executionsPerPush(k, config.EventFanout, config.DagSteps)
+			expectedAllKeys += pushedByKey[k] * executionsPerPush(k, config.EventFanout, config.DagSteps)
 		}
 		expectedSampled := int64(float64(expectedAllKeys) * sampleRate)
 
