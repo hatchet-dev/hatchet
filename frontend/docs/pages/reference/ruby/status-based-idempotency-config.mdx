@@ -1,0 +1,48 @@
+# Class Hatchet::StatusBasedIdempotencyConfig
+
+**Inherits:** `Object`
+
+Status-based idempotency: keeps the idempotency key alive until the associated
+run reaches a terminal status. `fallback_ttl_ms` caps how long the key can
+live before it's evicted, even if the run has not reached a terminal status.
+
+**Example**
+
+```ruby
+Hatchet::StatusBasedIdempotencyConfig.new(expression: "input.id", fallback_ttl_ms: 10_000)
+```
+
+## Attributes
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String] CEL expression evaluated against workflow input
+
+## `fallback_ttl_ms`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Fallback TTL in milliseconds; the longest the key can live
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(expression:, fallback_ttl_ms:)`
+
+**Parameters:**
+
+| Name              | Type      | Description                                          |
+| ----------------- | --------- | ---------------------------------------------------- |
+| `expression`      | `String`  | CEL expression to derive the idempotency key         |
+| `fallback_ttl_ms` | `Integer` | Fallback TTL for the idempotency key in milliseconds |
+
+- **Returns** [StatusBasedIdempotencyConfig] a new instance of StatusBasedIdempotencyConfig
+
+## `to_proto`
+
+`to_proto()`
+
+- **Returns** [V1::IdempotencyConfig]

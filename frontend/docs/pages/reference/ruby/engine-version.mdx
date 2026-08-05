@@ -1,0 +1,34 @@
+# Module Hatchet::EngineVersion
+
+Semver parsing + comparison helpers used to gate features by engine version.
+
+## Public Class Methods
+
+## `parse_semver`
+
+`parse_semver(version)`
+
+Parse a semver string like `"v0.78.23"` into `[major, minor, patch]`.
+
+Returns `[0, 0, 0]` if parsing fails, matching the Python helper.
+
+**Parameters:**
+
+| Name      | Type          | Description                                                               |
+| --------- | ------------- | ------------------------------------------------------------------------- |
+| `version` | `String, nil` | The version string (with or without a `v` prefix, optional `-pre` suffix) |
+
+- **Returns** [Array(Integer, Integer, Integer)]
+
+## `semver_less_than?`
+
+`semver_less_than?(left_version, right_version)`
+
+**Parameters:**
+
+| Name            | Type          | Description |
+| --------------- | ------------- | ----------- |
+| `left_version`  | `String, nil` |             |
+| `right_version` | `String, nil` |             |
+
+- **Returns** [Boolean] true if semver `left_version` is strictly less than `right_version`

@@ -33,7 +33,7 @@ module Hatchet
       # from the cache, asks the server to evict it, and then interrupts the
       # local task thread.
       #
-      # Mirrors :class:`hatchet_sdk.worker.durable_eviction.manager.DurableEvictionManager`.
+      # Mirrors `hatchet_sdk.worker.durable_eviction.manager.DurableEvictionManager`.
       class DurableEvictionManager
         # @return [DurableEvictionCache]
         attr_reader :cache

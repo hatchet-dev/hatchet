@@ -1,0 +1,50 @@
+# Class Hatchet::Features::Tenant
+
+**Inherits:** `Object`
+
+Tenant client for interacting with the current Hatchet tenant
+
+This class provides a high-level interface for retrieving tenant information
+from the Hatchet system.
+
+- **Since** 0.1.0
+
+**Example: Getting the current tenant**
+
+```ruby
+tenant_info = tenant_client.get
+```
+
+## Public Instance Methods
+
+## `get`
+
+`get()`
+
+Get the current tenant
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The tenant details
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+tenant = tenant_client.get
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Tenant client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0

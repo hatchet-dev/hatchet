@@ -1,0 +1,211 @@
+# Class Hatchet::Clients::Grpc::Dispatcher
+
+**Inherits:** `Object`
+
+gRPC client for the Hatchet Dispatcher service.
+
+Handles worker registration, action listening, result reporting, heartbeats,
+and other dispatcher interactions.
+
+Uses the generated Dispatcher::Stub from dispatcher.proto for v0 RPCs, and
+shares a gRPC channel provided by Hatchet::Connection.
+
+**Example**
+
+```ruby
+dispatcher = Dispatcher.new(config: hatchet_config, channel: channel)
+response = dispatcher.register(name: "my-worker", ...)
+dispatcher.listen(worker_id: response.worker_id) { |action| ... }
+```
+
+## Attributes
+
+## `worker_id`
+
+_Read-only attribute_
+
+**Parameters:**
+
+| Name      | Type                  | Description               |
+| --------- | --------------------- | ------------------------- |
+| `config`  | `Hatchet::Config`     | The Hatchet configuration |
+| `channel` | `GRPC::Core::Channel` | Shared gRPC channel       |
+
+- **Returns** [String, nil] Worker ID assigned after registration
+
+## Public Instance Methods
+
+## `close`
+
+`close()`
+
+Close the gRPC channel.
+
+## `get_version`
+
+`get_version()`
+
+Fetch the engine version via the dispatcher's `GetVersion` RPC.
+
+Returns the engine's semantic version string (e.g. `"v0.80.0"`), or `nil` if
+the engine is too old to support `GetVersion` (i.e. the call comes back
+`UNIMPLEMENTED`).
+
+- **Returns** [String, nil] The engine semantic version, or nil when unsupported
+
+## `heartbeat`
+
+`heartbeat(worker_id:)`
+
+Send a heartbeat to keep the worker registration alive.
+
+**Parameters:**
+
+| Name        | Type     | Description   |
+| ----------- | -------- | ------------- |
+| `worker_id` | `String` | The worker ID |
+
+- **Returns** [HeartbeatResponse]
+
+## `initialize`
+
+`initialize(config:, channel:)`
+
+- **Returns** [Dispatcher] a new instance of Dispatcher
+
+## `listen`
+
+`listen(worker_id:)`
+
+Listen for action assignments via gRPC server-streaming (ListenV2).
+
+Returns an Enumerator of AssignedAction messages. The caller is responsible
+for iterating and handling reconnection.
+
+**Parameters:**
+
+| Name        | Type     | Description              |
+| ----------- | -------- | ------------------------ |
+| `worker_id` | `String` | The registered worker ID |
+
+- **Returns** [Enumerator] Stream of AssignedAction messages
+
+## `refresh_timeout`
+
+`refresh_timeout(step_run_id:, timeout_seconds:)`
+
+Refresh the timeout for a running task.
+
+**Parameters:**
+
+| Name              | Type              | Description                                                |
+| ----------------- | ----------------- | ---------------------------------------------------------- |
+| `step_run_id`     | `String`          | The task run external ID                                   |
+| `timeout_seconds` | `Integer, String` | New timeout increment (in seconds or as a duration string) |
+
+- **Returns** [RefreshTimeoutResponse]
+
+## `register`
+
+`register(name:, actions:, slots:, slot_config: = nil, labels: = {})`
+
+Register a worker with the dispatcher.
+
+**Parameters:**
+
+| Name          | Type                           | Description                                           |
+| ------------- | ------------------------------ | ----------------------------------------------------- |
+| `name`        | `String`                       | Worker name                                           |
+| `actions`     | `Array<String>`                | List of action IDs this worker handles                |
+| `slots`       | `Integer`                      | Number of concurrent task slots                       |
+| `slot_config` | `Hash{String => Integer}, nil` | Slot counts by slot type                              |
+| `labels`      | `Hash`                         | Worker labels (String keys, String or Integer values) |
+
+- **Returns** [WorkerRegisterResponse] Registration response with worker_id
+
+## `release_slot`
+
+`release_slot(step_run_id:)`
+
+Release a worker slot for a task.
+
+**Parameters:**
+
+| Name          | Type     | Description              |
+| ------------- | -------- | ------------------------ |
+| `step_run_id` | `String` | The task run external ID |
+
+- **Returns** [ReleaseSlotResponse]
+
+## `send_batch_action_event`
+
+`send_batch_action_event(action:, event_type:, items:)`
+
+Send a batch action event (completion/failure/started) covering one or more
+members of a batch task's execution back to the dispatcher.
+
+**Parameters:**
+
+| Name         | Type             | Description                                            |
+| ------------ | ---------------- | ------------------------------------------------------ |
+| `action`     | `AssignedAction` | The assigned START_BATCH action                        |
+| `event_type` | `Symbol`         | Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED) |
+| `items`      | `Array<Hash>`    | Per-member items, each with :task_run_external_id, and |
+
+optionally :event_payload, :retry_count, :should_not_retry
+
+- **Returns** [ActionEventResponse]
+
+## `send_step_action_event`
+
+`send_step_action_event(action:, event_type:, payload: = "{}", retry_count: = nil, should_not_retry: = nil)`
+
+Send a step action event (completion/failure/started) back to the dispatcher.
+
+Accepts the full action object (AssignedAction) so all StepActionEvent fields
+can be populated.
+
+**Parameters:**
+
+| Name               | Type             | Description                                            |
+| ------------------ | ---------------- | ------------------------------------------------------ |
+| `action`           | `AssignedAction` | The assigned action object                             |
+| `event_type`       | `Symbol`         | Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED) |
+| `payload`          | `String`         | JSON-serialized event payload                          |
+| `retry_count`      | `Integer, nil`   | Current retry count                                    |
+| `should_not_retry` | `Boolean, nil`   | Whether to suppress further retries                    |
+
+- **Returns** [ActionEventResponse]
+
+## `subscribe_to_workflow_runs`
+
+`subscribe_to_workflow_runs(request_enum)`
+
+Open a bidirectional streaming subscription for workflow run events.
+
+The caller provides an Enumerable (typically an Enumerator backed by a Queue)
+of SubscribeToWorkflowRunsRequest messages. The server streams back
+WorkflowRunEvent messages as workflow runs complete.
+
+**Parameters:**
+
+| Name           | Type                                         | Description             |
+| -------------- | -------------------------------------------- | ----------------------- |
+| `request_enum` | `Enumerable<SubscribeToWorkflowRunsRequest>` | Outgoing request stream |
+
+- **Returns** [Enumerator\<WorkflowRunEvent>] Incoming response stream
+
+## `upsert_worker_labels`
+
+`upsert_worker_labels(worker_id:, labels:)`
+
+Update worker labels.
+
+**Parameters:**
+
+| Name        | Type     | Description                                               |
+| ----------- | -------- | --------------------------------------------------------- |
+| `worker_id` | `String` | The worker ID                                             |
+| `labels`    | `Hash`   | New labels to upsert (String keys, String/Integer values) |
+
+- **Returns** [UpsertWorkerLabelsResponse]

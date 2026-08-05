@@ -5,7 +5,7 @@ require "monitor"
 module Hatchet
   module WorkerRuntime
     module DurableEviction
-      # Eviction causes produced by :class:`DurableEvictionCache`.
+      # Eviction causes produced by {DurableEvictionCache}.
       module EvictionCause
         TTL_EXCEEDED = :ttl_exceeded
         CAPACITY_PRESSURE = :capacity_pressure
@@ -46,7 +46,7 @@ module Hatchet
 
       # Thread-safe in-memory cache of waiting durable task invocations.
       #
-      # Mirrors :class:`hatchet_sdk.worker.durable_eviction.cache.DurableEvictionCache`
+      # Mirrors `hatchet_sdk.worker.durable_eviction.cache.DurableEvictionCache`
       # from the Python SDK. All public methods lock an internal monitor.
       class DurableEvictionCache
         def initialize

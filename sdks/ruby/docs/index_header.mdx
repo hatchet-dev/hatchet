@@ -1,0 +1,43 @@
+import { Cards } from "nextra/components";
+
+# Hatchet Ruby SDK Reference
+
+This is the Ruby SDK reference, documenting classes and methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction for getting your first tasks running.
+
+## Installation
+
+```bash
+gem install hatchet-sdk
+```
+
+Or add it to your Gemfile:
+
+```ruby
+gem "hatchet-sdk"
+```
+
+## Quick Start
+
+```ruby
+require "hatchet-sdk"
+
+hatchet = Hatchet::Client.new
+
+simple = hatchet.task(name: "simple") do |input, ctx|
+  { "result" => "Hello, world!" }
+end
+
+worker = hatchet.worker("test-worker", workflows: [simple])
+worker.start
+```
+
+## Core Classes
+
+<Cards>
+  <Cards.Card title="Workflow" href="/reference/ruby/workflow" />
+  <Cards.Card title="Task" href="/reference/ruby/task" />
+  <Cards.Card title="Worker" href="/reference/ruby/worker" />
+  <Cards.Card title="Context" href="/reference/ruby/context" />
+  <Cards.Card title="DurableContext" href="/reference/ruby/durable-context" />
+  <Cards.Card title="Feature Clients" href="/reference/ruby/features" />
+</Cards>

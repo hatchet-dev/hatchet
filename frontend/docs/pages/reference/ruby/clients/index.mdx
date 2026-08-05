@@ -1,0 +1,44 @@
+# Module Hatchet::Clients
+
+Client implementations for different protocols
+
+## Public Class Methods
+
+## `available_clients`
+
+`available_clients()`
+
+List available client types
+
+- **Returns** [Array\<Symbol>] List of available client types
+
+## `rest_available?`
+
+`rest_available?()`
+
+Check if REST client is available
+
+- **Returns** [Boolean] true if REST client has been generated and is available
+
+## `rest_client`
+
+`rest_client(config)`
+
+Create a REST API client using the provided Hatchet configuration
+
+**Parameters:**
+
+| Name     | Type              | Description                    |
+| -------- | ----------------- | ------------------------------ |
+| `config` | `Hatchet::Config` | The main Hatchet configuration |
+
+- **Raises** [LoadError] if REST client hasn't been generated yet
+- **Returns** [Hatchet::Clients::Rest::ApiClient] Configured REST API client
+
+**Example: Create a REST client**
+
+```ruby
+config = Hatchet::Config.new(token: "your-jwt-token")
+rest_client = Hatchet::Clients.rest_client(config)
+workflows_api = Hatchet::Clients::Rest::WorkflowApi.new(rest_client)
+```

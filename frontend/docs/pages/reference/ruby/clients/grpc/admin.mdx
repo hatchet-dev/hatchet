@@ -1,0 +1,156 @@
+# Class Hatchet::Clients::Grpc::Admin
+
+**Inherits:** `Object`
+
+gRPC client for the Hatchet Admin service (workflow registration &
+triggering).
+
+Uses two stubs on the shared channel:
+
+- V1::AdminService::Stub (v1) for: PutWorkflow, GetRunDetails, CancelTasks,
+  ReplayTasks
+- WorkflowService::Stub (v0) for: TriggerWorkflow, BulkTriggerWorkflow,
+  ScheduleWorkflow, PutRateLimit
+
+The v0 WorkflowService is retained for triggering because it supports
+parent-child linking fields that the v1 TriggerWorkflowRun does not expose.
+
+**Example**
+
+```ruby
+admin = Admin.new(config: hatchet_config, channel: channel)
+admin.put_workflow(workflow.to_proto(config))
+ref = admin.trigger_workflow("MyWorkflow", input: { "key" => "value" })
+```
+
+## Constants
+
+## `BULK_TRIGGER_BATCH_SIZE`
+
+## `COMPARATOR_MAP`
+
+## Public Instance Methods
+
+## `bulk_trigger_workflow`
+
+`bulk_trigger_workflow(workflow_name, items)`
+
+Trigger multiple workflow runs in bulk via v0 WorkflowService.
+
+Automatically batches requests in groups of 1000.
+
+**Parameters:**
+
+| Name            | Type          | Description                            |
+| --------------- | ------------- | -------------------------------------- |
+| `workflow_name` | `String`      | The workflow name (will be namespaced) |
+| `items`         | `Array<Hash>` | Array of \{ input:, options: \} items  |
+
+- **Raises** [BulkTriggerIdempotencyCollisionError] If any runs collide on idempotency keys
+- **Returns** [Array\<String>] Array of workflow run IDs
+
+## `close`
+
+`close()`
+
+Close the connection.
+
+## `get_run_details`
+
+`get_run_details(external_id:)`
+
+Get run details via v1 AdminService.
+
+**Parameters:**
+
+| Name          | Type     | Description                  |
+| ------------- | -------- | ---------------------------- |
+| `external_id` | `String` | The workflow run external ID |
+
+- **Returns** [V1::GetRunDetailsResponse]
+
+## `initialize`
+
+`initialize(config:, channel:)`
+
+**Parameters:**
+
+| Name      | Type                  | Description               |
+| --------- | --------------------- | ------------------------- |
+| `config`  | `Hatchet::Config`     | The Hatchet configuration |
+| `channel` | `GRPC::Core::Channel` | Shared gRPC channel       |
+
+- **Returns** [Admin] a new instance of Admin
+
+## `put_rate_limit`
+
+`put_rate_limit(key:, limit:, duration:)`
+
+Put a rate limit via v0 WorkflowService.
+
+**Parameters:**
+
+| Name       | Type      | Description              |
+| ---------- | --------- | ------------------------ |
+| `key`      | `String`  | Rate limit key           |
+| `limit`    | `Integer` | Rate limit value         |
+| `duration` | `Symbol`  | Rate limit duration enum |
+
+- **Returns** [PutRateLimitResponse]
+
+## `put_workflow`
+
+`put_workflow(workflow_proto)`
+
+Register a workflow definition with the server via v1 AdminService.
+
+**Parameters:**
+
+| Name             | Type                               | Description        |
+| ---------------- | ---------------------------------- | ------------------ |
+| `workflow_proto` | `V1::CreateWorkflowVersionRequest` | The workflow proto |
+
+- **Returns** [V1::CreateWorkflowVersionResponse] Registration response
+
+## `schedule_workflow`
+
+`schedule_workflow(workflow_name, run_at:, input: = {}, options: = {})`
+
+Schedule a workflow for future execution via v0 WorkflowService.
+
+**Parameters:**
+
+| Name            | Type     | Description                            |
+| --------------- | -------- | -------------------------------------- |
+| `workflow_name` | `String` | The workflow name (will be namespaced) |
+| `run_at`        | `Time`   | When to run                            |
+| `input`         | `Hash`   | Workflow input                         |
+| `options`       | `Hash`   | Trigger options                        |
+
+- **Raises** [DedupeViolationError] If a deduplication violation occurs
+- **Returns** [WorkflowVersion] Schedule response
+
+## `trigger_workflow`
+
+`trigger_workflow(workflow_name, input: = {}, options: = {})`
+
+Trigger a workflow run via v0 WorkflowService.
+
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+
+**Parameters:**
+
+| Name            | Type     | Description                            |
+| --------------- | -------- | -------------------------------------- |
+| `workflow_name` | `String` | The workflow name (will be namespaced) |
+| `input`         | `Hash`   | Workflow input                         |
+| `options`       | `Hash`   | Trigger options                        |
+
+- **Raises** [DedupeViolationError] If a deduplication violation occurs
+- **Returns** [String] The workflow run ID

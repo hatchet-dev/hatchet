@@ -1,0 +1,75 @@
+# Class Hatchet::WorkerRuntime::ActionListener
+
+**Inherits:** `Object`
+
+Listens for action assignments from the Hatchet dispatcher via gRPC streaming.
+
+The action listener establishes a server-streaming gRPC connection (ListenV2),
+receives action assignments (task executions), and forwards them to the runner
+for execution.
+
+Includes retry/reconnect logic with exponential backoff and a heartbeat
+thread.
+
+**Example**
+
+```ruby
+listener = ActionListener.new(dispatcher_client: client, worker_id: id, logger: logger)
+listener.start do |action|
+  runner.execute(action)
+end
+```
+
+## Constants
+
+## `BASE_BACKOFF_SECONDS`
+
+## `HEALTHY_CONNECTION_THRESHOLD`
+
+seconds
+
+## `HEARTBEAT_INTERVAL`
+
+seconds
+
+## `MAX_BACKOFF_SECONDS`
+
+## `MAX_MISSED_HEARTBEATS`
+
+## `MAX_RETRIES`
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(dispatcher_client:, worker_id:, logger:)`
+
+**Parameters:**
+
+| Name                | Type                                 | Description                |
+| ------------------- | ------------------------------------ | -------------------------- |
+| `dispatcher_client` | `Hatchet::Clients::Grpc::Dispatcher` | The gRPC dispatcher client |
+| `worker_id`         | `String`                             | The registered worker ID   |
+| `logger`            | `Logger`                             | Logger instance            |
+
+- **Returns** [ActionListener] a new instance of ActionListener
+
+## `start`
+
+`start(&block)`
+
+Start listening for actions. Blocks until stopped.
+
+Implements retry logic with exponential backoff:
+
+- Max 15 retries
+- Reset retry counter if connection was alive > 30 seconds
+- Handles GRPC::Unavailable, GRPC::DeadlineExceeded, and EOF
+
+* **Yields** [action] Called for each action received from the dispatcher
+
+## `stop`
+
+`stop()`
+
+Stop listening for actions.

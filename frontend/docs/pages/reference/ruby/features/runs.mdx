@@ -1,0 +1,440 @@
+# Class Hatchet::Features::Runs
+
+**Inherits:** `Object`
+
+Runs client for interacting with Hatchet workflow run management API
+
+This class provides a high-level interface for creating and managing workflow
+runs in the Hatchet system. It wraps the generated REST API client with a more
+convenient Ruby interface.
+
+- **Since** 0.1.0
+
+**Example: Creating a workflow run**
+
+```ruby
+runs = Features::Runs.new(rest_client, config)
+response = runs.create(
+  name: "my-workflow",
+  input: { key: "value" },
+  additional_metadata: { source: "api" }
+)
+```
+
+## Constants
+
+## `DEFAULT_SINCE_DAYS`
+
+- **Since** 0.1.0
+
+## `LARGE_DATE_RANGE_WARNING_DAYS`
+
+- **Since** 0.1.0
+
+## `TaskStatus`
+
+- **Since** 0.1.0
+
+## `TaskSummary`
+
+- **Since** 0.1.0
+
+## `TaskSummaryList`
+
+- **Since** 0.1.0
+
+## `TriggerWorkflowRunRequest`
+
+Re-export commonly used workflow run classes for convenience
+
+- **Since** 0.1.0
+
+## `WorkflowRunDetails`
+
+- **Since** 0.1.0
+
+## Public Instance Methods
+
+## `bulk_cancel`
+
+`bulk_cancel(opts = nil, ids: = nil, filters: = nil)`
+
+Cancel task or workflow runs in bulk, according to a set of filters
+
+**Parameters:**
+
+| Name      | Type                        | Description                                                                          |
+| --------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| `opts`    | `BulkCancelReplayOpts, nil` | Options for bulk cancel, including filters and IDs                                   |
+| `ids`     | `Array<String>, nil`        | List of run IDs to cancel                                                            |
+| `filters` | `Hash, nil`                 | Filter hash with :workflow_ids, :additional_metadata, :since, :until_time, :statuses |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `bulk_cancel_by_filters_with_pagination`
+
+`bulk_cancel_by_filters_with_pagination(sleep_time: = 3, chunk_size: = 500, since: = nil, until_time: = nil, statuses: = nil, additional_metadata: = nil, workflow_ids: = nil)`
+
+Cancel runs matching the specified filters in chunks
+
+This method provides an easy way to perform bulk cancel operations by filters
+over a larger number of runs than the API would normally handle, with
+automatic pagination and chunking to limit pressure on the API.
+
+**Parameters:**
+
+| Name                  | Type                 | Description                                                           |
+| --------------------- | -------------------- | --------------------------------------------------------------------- |
+| `sleep_time`          | `Integer`            | The time to sleep between processing chunks, in seconds (default: 3)  |
+| `chunk_size`          | `Integer`            | The maximum number of run IDs to process in each chunk (default: 500) |
+| `since`               | `Time, nil`          | The start time for filtering runs                                     |
+| `until_time`          | `Time, nil`          | The end time for filtering runs                                       |
+| `statuses`            | `Array, nil`         | The statuses to filter runs by (default: RUNNING, QUEUED)             |
+| `additional_metadata` | `Hash, nil`          | Additional metadata to filter runs by                                 |
+| `workflow_ids`        | `Array<String>, nil` | The workflow IDs to filter runs by                                    |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `bulk_replay`
+
+`bulk_replay(opts = nil, ids: = nil, filters: = nil)`
+
+Replay task or workflow runs in bulk, according to a set of filters
+
+**Parameters:**
+
+| Name      | Type                        | Description                                                                          |
+| --------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| `opts`    | `BulkCancelReplayOpts, nil` | Options for bulk replay, including filters and IDs                                   |
+| `ids`     | `Array<String>, nil`        | List of run IDs to replay                                                            |
+| `filters` | `Hash, nil`                 | Filter hash with :workflow_ids, :additional_metadata, :since, :until_time, :statuses |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `bulk_replay_by_filters_with_pagination`
+
+`bulk_replay_by_filters_with_pagination(sleep_time: = 3, chunk_size: = 500, since: = nil, until_time: = nil, statuses: = nil, additional_metadata: = nil, workflow_ids: = nil)`
+
+Replay runs matching the specified filters in chunks
+
+This method provides an easy way to perform bulk replay operations by filters
+over a larger number of runs than the API would normally handle, with
+automatic pagination and chunking to limit pressure on the API.
+
+**Parameters:**
+
+| Name                  | Type                 | Description                                                           |
+| --------------------- | -------------------- | --------------------------------------------------------------------- |
+| `sleep_time`          | `Integer`            | The time to sleep between processing chunks, in seconds (default: 3)  |
+| `chunk_size`          | `Integer`            | The maximum number of run IDs to process in each chunk (default: 500) |
+| `since`               | `Time, nil`          | The start time for filtering runs                                     |
+| `until_time`          | `Time, nil`          | The end time for filtering runs                                       |
+| `statuses`            | `Array, nil`         | The statuses to filter runs by (default: FAILED, CANCELLED)           |
+| `additional_metadata` | `Hash, nil`          | Additional metadata to filter runs by                                 |
+| `workflow_ids`        | `Array<String>, nil` | The workflow IDs to filter runs by                                    |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `cancel`
+
+`cancel(run_id)`
+
+Cancel a task or workflow run
+
+**Parameters:**
+
+| Name     | Type     | Description                                           |
+| -------- | -------- | ----------------------------------------------------- |
+| `run_id` | `String` | The external ID of the task or workflow run to cancel |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `create`
+
+`create(name:, input:, additional_metadata: = nil, priority: = nil)`
+
+Creates a new workflow run in the Hatchet system
+
+This method triggers a new workflow or task run for the specified workflow
+using the provided input data. The workflow run will be queued according to
+the workflow definition on an available worker.
+
+IMPORTANT: It's preferable to use \<code>Workflow.run\</code> (and similar) to
+trigger workflows if possible. This method is intended to be an escape hatch.
+
+**Parameters:**
+
+| Name                  | Type           | Description                                          |
+| --------------------- | -------------- | ---------------------------------------------------- |
+| `name`                | `String`       | The name of the workflow to trigger                  |
+| `input`               | `Hash`         | The input data for the workflow run                  |
+| `additional_metadata` | `Hash, nil`    | Additional metadata associated with the workflow run |
+| `priority`            | `Integer, nil` | The priority of the workflow run                     |
+
+- **Raises** [ArgumentError] If the workflow_name or input parameters are nil or invalid
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1WorkflowRunDetails] The details of the triggered workflow run
+- **Since** 0.1.0
+
+**Example: Creating a workflow run**
+
+```ruby
+response = runs.create(
+  name: "simple-workflow",
+  input: { user_id: 123, action: "process_data" },
+  additional_metadata: { source: "api", priority: "high" }
+)
+```
+
+## `get`
+
+`get(workflow_run_id)`
+
+Get a workflow run by its ID
+
+Returns the unwrapped V1WorkflowRun object directly (with status, output,
+etc.) Use `#get_details` if you need the full details wrapper (task_events,
+shape, tasks, etc.)
+
+**Parameters:**
+
+| Name              | Type     | Description                            |
+| ----------------- | -------- | -------------------------------------- |
+| `workflow_run_id` | `String` | The ID of the workflow run to retrieve |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1WorkflowRun] The workflow run
+- **Since** 0.1.0
+
+## `get_details`
+
+`get_details(workflow_run_id)`
+
+Get full workflow run details for a given workflow run ID
+
+Returns the full V1WorkflowRunDetails including task_events, shape, tasks, and
+workflow_config.
+
+**Parameters:**
+
+| Name              | Type     | Description                                        |
+| ----------------- | -------- | -------------------------------------------------- |
+| `workflow_run_id` | `String` | The ID of the workflow run to retrieve details for |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1WorkflowRunDetails] Full workflow run details
+- **Since** 0.1.0
+
+## `get_result`
+
+`get_result(run_id)`
+
+Get the result of a workflow run by its external ID
+
+**Parameters:**
+
+| Name     | Type     | Description                                                    |
+| -------- | -------- | -------------------------------------------------------------- |
+| `run_id` | `String` | The external ID of the workflow run to retrieve the result for |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Hash] The result of the workflow run
+- **Since** 0.1.0
+
+## `get_run_ref`
+
+`get_run_ref(workflow_run_id)`
+
+Get a reference to a workflow run
+
+**Parameters:**
+
+| Name              | Type     | Description                                      |
+| ----------------- | -------- | ------------------------------------------------ |
+| `workflow_run_id` | `String` | The ID of the workflow run to get a reference to |
+
+- **Returns** [Hatchet::WorkflowRunRef] A reference to the specified workflow run
+- **Since** 0.1.0
+
+## `get_status`
+
+`get_status(workflow_run_id)`
+
+Get workflow run status for a given workflow run ID
+
+**Parameters:**
+
+| Name              | Type     | Description                                       |
+| ----------------- | -------- | ------------------------------------------------- |
+| `workflow_run_id` | `String` | The ID of the workflow run to retrieve status for |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1TaskStatus] The task status
+- **Since** 0.1.0
+
+## `get_task_run`
+
+`get_task_run(task_run_id)`
+
+Get task run details for a given task run ID
+
+**Parameters:**
+
+| Name          | Type     | Description                                    |
+| ------------- | -------- | ---------------------------------------------- |
+| `task_run_id` | `String` | The ID of the task run to retrieve details for |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1TaskSummary] Task run details for the specified task run ID
+- **Since** 0.1.0
+
+## `initialize`
+
+`initialize(rest_client, config, client: = nil)`
+
+Initializes a new Runs client instance
+
+**Parameters:**
+
+| Name          | Type                   | Description                                                       |
+| ------------- | ---------------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`               | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config`      | The Hatchet configuration containing tenant_id and other settings |
+| `client`      | `Hatchet::Client, nil` | The parent Hatchet client (used for get_run_ref)                  |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(since: = nil, only_tasks: = false, offset: = nil, limit: = nil, statuses: = nil, until_time: = nil, additional_metadata: = nil, workflow_ids: = nil, worker_id: = nil, parent_task_external_id: = nil, triggering_event_external_id: = nil, include_payloads: = true)`
+
+List task runs according to a set of filters
+
+**Parameters:**
+
+| Name                           | Type                                       | Description                                                 |
+| ------------------------------ | ------------------------------------------ | ----------------------------------------------------------- |
+| `since`                        | `Time, nil`                                | The start time for filtering task runs                      |
+| `only_tasks`                   | `Boolean`                                  | Whether to only list task runs                              |
+| `offset`                       | `Integer, nil`                             | The offset for pagination                                   |
+| `limit`                        | `Integer, nil`                             | The maximum number of task runs to return                   |
+| `statuses`                     | `Array<HatchetSdkRest::V1TaskStatus>, nil` | The statuses to filter task runs by                         |
+| `until_time`                   | `Time, nil`                                | The end time for filtering task runs                        |
+| `additional_metadata`          | `Hash<String, String>, nil`                | Additional metadata to filter task runs by                  |
+| `workflow_ids`                 | `Array<String>, nil`                       | The workflow IDs to filter task runs by                     |
+| `worker_id`                    | `String, nil`                              | The worker ID to filter task runs by                        |
+| `parent_task_external_id`      | `String, nil`                              | The parent task external ID to filter task runs by          |
+| `triggering_event_external_id` | `String, nil`                              | The event id that triggered the task run                    |
+| `include_payloads`             | `Boolean`                                  | Whether to include payloads in the response (default: true) |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1TaskSummaryList] A list of task runs matching the specified filters
+- **Since** 0.1.0
+
+## `list_with_pagination`
+
+`list_with_pagination(since: = nil, only_tasks: = false, offset: = nil, limit: = nil, statuses: = nil, until_time: = nil, additional_metadata: = nil, workflow_ids: = nil, worker_id: = nil, parent_task_external_id: = nil, triggering_event_external_id: = nil, include_payloads: = true)`
+
+List task runs according to a set of filters, paginating through days
+
+**Parameters:**
+
+| Name                           | Type                                       | Description                                                 |
+| ------------------------------ | ------------------------------------------ | ----------------------------------------------------------- |
+| `since`                        | `Time, nil`                                | The start time for filtering task runs                      |
+| `only_tasks`                   | `Boolean`                                  | Whether to only list task runs                              |
+| `offset`                       | `Integer, nil`                             | The offset for pagination                                   |
+| `limit`                        | `Integer, nil`                             | The maximum number of task runs to return                   |
+| `statuses`                     | `Array<HatchetSdkRest::V1TaskStatus>, nil` | The statuses to filter task runs by                         |
+| `until_time`                   | `Time, nil`                                | The end time for filtering task runs                        |
+| `additional_metadata`          | `Hash<String, String>, nil`                | Additional metadata to filter task runs by                  |
+| `workflow_ids`                 | `Array<String>, nil`                       | The workflow IDs to filter task runs by                     |
+| `worker_id`                    | `String, nil`                              | The worker ID to filter task runs by                        |
+| `parent_task_external_id`      | `String, nil`                              | The parent task external ID to filter task runs by          |
+| `triggering_event_external_id` | `String, nil`                              | The event id that triggered the task run                    |
+| `include_payloads`             | `Boolean`                                  | Whether to include payloads in the response (default: true) |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Array\<HatchetSdkRest::V1TaskSummary>] A list of task runs matching the specified filters
+- **Since** 0.1.0
+
+## `poll`
+
+`poll(workflow_run_id, interval: = 1.0, timeout: = nil)`
+
+Poll for workflow run completion with configurable interval and timeout
+
+This method repeatedly calls `get` until the workflow run reaches a terminal
+state (succeeded, failed, or cancelled) or the timeout is reached.
+
+**Parameters:**
+
+| Name              | Type           | Description                                               |
+| ----------------- | -------------- | --------------------------------------------------------- |
+| `workflow_run_id` | `String`       | The ID of the workflow run to poll                        |
+| `interval`        | `Numeric`      | The polling interval in seconds (default: 1.0)            |
+| `timeout`         | `Numeric, nil` | The maximum time to poll in seconds (default: no timeout) |
+
+- **Raises** [Timeout::Error] If the timeout is reached before completion
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1WorkflowRunDetails] The final workflow run details
+- **Since** 0.1.0
+
+**Example: Poll with default settings (1s interval, no timeout)**
+
+```ruby
+result = runs.poll("workflow-run-123")
+```
+
+**Example: Poll with custom interval and timeout**
+
+```ruby
+result = runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
+```
+
+## `replay`
+
+`replay(run_id)`
+
+Replay a task or workflow run
+
+**Parameters:**
+
+| Name     | Type     | Description                                           |
+| -------- | -------- | ----------------------------------------------------- |
+| `run_id` | `String` | The external ID of the task or workflow run to replay |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `subscribe_to_stream`
+
+`subscribe_to_stream(workflow_run_id)`
+
+Subscribe to stream events for a workflow run.
+
+Opens a gRPC server-streaming subscription to `SubscribeToWorkflowEvents` and
+yields each stream chunk payload to the given block.
+
+**Parameters:**
+
+| Name              | Type     | Description                         |
+| ----------------- | -------- | ----------------------------------- |
+| `workflow_run_id` | `String` | The workflow run ID to subscribe to |
+
+- **Raises** [Hatchet::Error] If the subscription fails
+- **Returns** [void]
+- **Since** 0.1.0
+- **Yields** [String] Each stream chunk payload

@@ -1,0 +1,43 @@
+# Class Hatchet::OrCondition
+
+**Inherits:** `Object`
+
+Represents an OR group of conditions. The task proceeds when ANY condition is
+met.
+
+**Example: Wait for either a sleep or event**
+
+```ruby
+Hatchet.or_(
+  Hatchet::SleepCondition.new(60),
+  Hatchet::UserEventCondition.new(event_key: "start")
+)
+```
+
+## Attributes
+
+## `conditions`
+
+_Read-only attribute_
+
+- **Returns** [Array] The conditions in this OR group
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(*conditions)`
+
+**Parameters:**
+
+| Name         | Type    | Description               |
+| ------------ | ------- | ------------------------- |
+| `conditions` | `Array` | Conditions to OR together |
+
+- **Returns** [OrCondition] a new instance of OrCondition
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

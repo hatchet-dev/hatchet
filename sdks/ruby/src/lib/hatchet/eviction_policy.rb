@@ -15,8 +15,8 @@ module Hatchet
   class EvictionPolicy
     # @return [Numeric, nil] Maximum continuous waiting duration in seconds before
     #   TTL-eligible eviction. Applies to time spent in SDK-instrumented
-    #   "waiting" states (e.g. :meth:`DurableContext#sleep_for`,
-    #   :meth:`DurableContext#wait_for`). ``nil`` disables TTL eviction.
+    #   "waiting" states (e.g. {DurableContext#sleep_for},
+    #   {DurableContext#wait_for}). ``nil`` disables TTL eviction.
     attr_reader :ttl
 
     # @return [Boolean] Whether this task may be evicted under durable-slot pressure.
@@ -48,13 +48,13 @@ module Hatchet
     end
   end
 
-  # Shared sensible defaults.
-  #
-  # NOTE: When changing these values, update the :param eviction_policy: docstrings
-  # in :meth:`Workflow#durable_task` and :meth:`Client#durable_task` to match.
+  # Shared sensible defaults for durable task eviction: 15-minute TTL,
+  # capacity eviction enabled, priority 0.
   DEFAULT_DURABLE_TASK_EVICTION_POLICY = EvictionPolicy.new(
     ttl: 15 * 60, # 15 minutes
     allow_capacity_eviction: true,
     priority: 0,
   )
+  # NOTE: When changing the values above, update the eviction_policy param docs
+  # in {Workflow#durable_task} and {Client#durable_task} to match.
 end

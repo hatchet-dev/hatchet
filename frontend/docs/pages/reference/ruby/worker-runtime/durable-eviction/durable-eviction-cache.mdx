@@ -1,0 +1,86 @@
+# Class Hatchet::WorkerRuntime::DurableEviction::DurableEvictionCache
+
+**Inherits:** `Object`
+
+Thread-safe in-memory cache of waiting durable task invocations.
+
+Mirrors
+\<code>hatchet_sdk.worker.durable_eviction.cache.DurableEvictionCache\</code>
+from the Python SDK. All public methods lock an internal monitor.
+
+## Public Class Methods
+
+## `build_eviction_reason`
+
+`build_eviction_reason(cause, rec, ttl: = nil)`
+
+Build a human-readable eviction reason string.
+
+## Public Instance Methods
+
+## `all_waiting`
+
+`all_waiting()`
+
+- **Returns** [Array\<DurableRunRecord>]
+
+## `find_key_by_step_run_id`
+
+`find_key_by_step_run_id(step_run_id)`
+
+**Parameters:**
+
+| Name          | Type     | Description |
+| ------------- | -------- | ----------- |
+| `step_run_id` | `String` |             |
+
+- **Returns** [String, nil] the action key for the matching record
+
+## `get`
+
+`get(key)`
+
+Fetch the record for a given key.
+
+- **Returns** [DurableRunRecord, nil]
+
+## `initialize`
+
+`initialize()`
+
+- **Returns** [DurableEvictionCache] a new instance of DurableEvictionCache
+
+## `mark_active`
+
+`mark_active(key, now:)`
+
+Mark the run as active (decrement the wait counter). Floors at zero so
+unmatched `mark_active` calls never underflow.
+
+## `mark_waiting`
+
+`mark_waiting(key, now:, wait_kind:, resource_id:)`
+
+Mark the run as waiting (ref-counted). Increments the wait counter and stores
+the wait metadata on the record.
+
+## `register_run`
+
+`register_run(key, step_run_id:, invocation_count:, now:, eviction_policy:)`
+
+Register a new durable run invocation.
+
+## `select_eviction_candidate`
+
+`select_eviction_candidate(now:, durable_slots:, reserve_slots:, min_wait_for_capacity_eviction:)`
+
+Select an eviction candidate, preferring TTL-eligible candidates first, then
+capacity-pressure candidates (only when above the waiting capacity threshold).
+
+- **Returns** [String, nil] The action key of the chosen candidate, or nil
+
+## `unregister_run`
+
+`unregister_run(key)`
+
+Unregister a durable run invocation.

@@ -1,0 +1,144 @@
+# Class Hatchet::WorkerRuntime::DurableEventListener
+
+**Inherits:** `Object`
+
+Thread-safe multiplexer over the \<code>V1Dispatcher.DurableTask\</code>
+bidirectional gRPC stream.
+
+A single stream is shared across all durable task invocations running on the
+worker; callers send `send_event` / `wait_for_callback` /
+`send_evict_invocation` requests and block on per-call Queues until the
+response-dispatch thread routes the matching `DurableTaskResponse` back.
+
+**Example**
+
+```ruby
+listener = DurableEventListener.new(config: config, channel: channel, logger: logger)
+listener.start("worker-id-123")
+ack = listener.send_event(task_id, invocation_count, wait_for_event)
+result = listener.wait_for_callback(task_id, invocation_count, branch_id, node_id)
+```
+
+## Constants
+
+## `DEFAULT_RECONNECT_INTERVAL`
+
+seconds
+
+## `EVICTION_ACK_TIMEOUT_SECONDS`
+
+## `REGISTER_WORKER_ACK_TIMEOUT_SECONDS`
+
+## Attributes
+
+## `worker_id`
+
+_Read-only attribute_
+
+- **Returns** [String, nil]
+
+## Public Instance Methods
+
+## `cleanup_task_state`
+
+`cleanup_task_state(durable_task_external_id, invocation_count)`
+
+Drop pending callbacks / acks / buffered completions whose invocation count is
+`\<= invocation_count` for the given task id.
+
+## `ensure_started`
+
+`ensure_started(worker_id)`
+
+Start the listener if not already running.
+
+## `handle_response_for_test`
+
+`handle_response_for_test(response)`
+
+Hook for tests: handle a single response message (bypassing the network).
+
+## `initialize`
+
+`initialize(config:, channel:, logger:, on_server_evict: = nil)`
+
+**Parameters:**
+
+| Name              | Type                  | Description                                              |
+| ----------------- | --------------------- | -------------------------------------------------------- |
+| `config`          | `Hatchet::Config`     |                                                          |
+| `channel`         | `GRPC::Core::Channel` |                                                          |
+| `logger`          | `Logger`              |                                                          |
+| `on_server_evict` | `Proc, nil`           | Called with (durable_task_external_id, invocation_count) |
+
+when the server notifies about a stale invocation.
+
+- **Returns** [DurableEventListener] a new instance of DurableEventListener
+
+## `send_event`
+
+`send_event(durable_task_external_id, invocation_count, event)`
+
+Send a `DurableTask` message and block for its ack.
+
+**Parameters:**
+
+| Name                       | Type                      | Description       |
+| -------------------------- | ------------------------- | ----------------- |
+| `durable_task_external_id` | `String`                  |                   |
+| `invocation_count`         | `Integer`                 |                   |
+| `event`                    | `WaitForEvent, MemoEvent` | The event to send |
+
+- **Raises** [Hatchet::Error] on server-reported errors or listener disconnection
+- **Returns** [Object] The parsed ack body (a simple Hash describing the ack)
+
+## `send_evict_invocation`
+
+`send_evict_invocation(durable_task_external_id, invocation_count, reason: = nil)`
+
+Request eviction of a stale invocation from the server and block until ack.
+
+**Parameters:**
+
+| Name                       | Type          | Description                     |
+| -------------------------- | ------------- | ------------------------------- |
+| `durable_task_external_id` | `String`      |                                 |
+| `invocation_count`         | `Integer`     |                                 |
+| `reason`                   | `String, nil` | Optional human-readable reason. |
+
+- **Raises** [Hatchet::Error] on timeout or listener disconnection
+
+## `send_memo_completed_notification`
+
+`send_memo_completed_notification(durable_task_external_id:, node_id:, branch_id:, invocation_count:, memo_key:, memo_result_payload:)`
+
+Fire-and-forget `complete_memo` notification.
+
+- **Raises** [Hatchet::Error]
+
+## `start`
+
+`start(worker_id)`
+
+Start the listener if not already running. Idempotent.
+
+**Parameters:**
+
+| Name        | Type     | Description |
+| ----------- | -------- | ----------- |
+| `worker_id` | `String` |             |
+
+## `stop`
+
+`stop()`
+
+Stop the listener and release resources.
+
+## `wait_for_callback`
+
+`wait_for_callback(durable_task_external_id, invocation_count, branch_id, node_id)`
+
+Block until the server delivers an `entry_completed` (or error) for this
+durable task / invocation / branch / node id tuple.
+
+- **Returns** [Hash] `\{ durable_task_external_id:, node_id:, payload: \}`

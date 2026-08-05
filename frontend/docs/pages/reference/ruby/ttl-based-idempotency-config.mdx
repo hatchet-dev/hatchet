@@ -1,0 +1,46 @@
+# Class Hatchet::TTLBasedIdempotencyConfig
+
+**Inherits:** `Object`
+
+TTL-based idempotency: prevents duplicate runs within a sliding time window.
+
+**Example**
+
+```ruby
+Hatchet::TTLBasedIdempotencyConfig.new(expression: "input.id", ttl_ms: 60_000)
+```
+
+## Attributes
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String] CEL expression evaluated against workflow input
+
+## `ttl_ms`
+
+_Read-only attribute_
+
+- **Returns** [Integer] How long the idempotency key lives, in milliseconds
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(expression:, ttl_ms:)`
+
+**Parameters:**
+
+| Name         | Type      | Description                                  |
+| ------------ | --------- | -------------------------------------------- |
+| `expression` | `String`  | CEL expression to derive the idempotency key |
+| `ttl_ms`     | `Integer` | TTL for the idempotency key in milliseconds  |
+
+- **Returns** [TTLBasedIdempotencyConfig] a new instance of TTLBasedIdempotencyConfig
+
+## `to_proto`
+
+`to_proto()`
+
+- **Returns** [V1::IdempotencyConfig]

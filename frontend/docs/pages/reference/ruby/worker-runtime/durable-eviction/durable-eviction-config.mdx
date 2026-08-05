@@ -1,0 +1,34 @@
+# Class Hatchet::WorkerRuntime::DurableEviction::DurableEvictionConfig
+
+**Inherits:** `Object`
+
+Configuration for the background eviction loop.
+
+## Attributes
+
+## `check_interval`
+
+_Read-only attribute_
+
+- **Returns** [Float] Seconds between eviction checks.
+
+## `min_wait_for_capacity_eviction`
+
+_Read-only attribute_
+
+- **Returns** [Float] Minimum seconds a run must have been waiting before it
+  becomes eligible for capacity-based eviction.
+
+## `reserve_slots`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Slots to reserve from capacity-eviction decisions.
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(check_interval: = 1.0, reserve_slots: = 0, min_wait_for_capacity_eviction: = 10.0)`
+
+- **Returns** [DurableEvictionConfig] a new instance of DurableEvictionConfig

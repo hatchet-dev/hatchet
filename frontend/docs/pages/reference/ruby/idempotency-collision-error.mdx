@@ -1,0 +1,22 @@
+# Class Hatchet::IdempotencyCollisionError
+
+**Inherits:** `Error`
+
+Raised when an idempotency key collision occurs. Contains the ID of the
+existing run that claimed the key.
+
+## Attributes
+
+## `existing_run_external_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The external ID of the existing workflow run
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(existing_run_external_id)`
+
+- **Returns** [IdempotencyCollisionError] a new instance of IdempotencyCollisionError

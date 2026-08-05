@@ -1,0 +1,77 @@
+# Class Hatchet::BatchTaskConfig
+
+**Inherits:** `Object`
+
+Configures a task as a batch task: concurrent runs are buffered and dispatched
+together as a single execution once max_size is reached, max_interval_ms
+elapses, or (if group_key is set) once group_max_runs concurrent batches per
+group are exceeded.
+
+When batch is set on a task, the task's block receives a single Hash argument
+mapping each buffered run's task-run external id to that run's input, instead
+of a single input value. Unless broadcast_output is true, the block must
+return a Hash with the exact same key set, mapping each id to that run's
+output.
+
+**Example**
+
+```ruby
+Hatchet::BatchTaskConfig.new(max_size: 3, max_interval_ms: 200, group_key: "input.group")
+```
+
+## Attributes
+
+## `broadcast_output`
+
+_Read-only attribute_
+
+- **Returns** [Boolean] When true, the block returns a single value broadcast to every member of the batch
+
+## `group_key`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] CEL expression evaluated against each item's input to partition items into independent batches
+
+## `group_max_runs`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Maximum number of concurrent batches per group
+
+## `max_interval_ms`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Maximum time to wait before flushing a partially-filled batch, in milliseconds
+
+## `max_size`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Maximum number of items buffered before the batch is flushed
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(max_size:, max_interval_ms: = nil, group_key: = nil, group_max_runs: = nil, broadcast_output: = false)`
+
+**Parameters:**
+
+| Name               | Type           | Description                                                                 |
+| ------------------ | -------------- | --------------------------------------------------------------------------- |
+| `max_size`         | `Integer`      | Maximum items per batch. Must be positive.                                  |
+| `max_interval_ms`  | `Integer, nil` | Time before batch flushes, in milliseconds. Must be positive when provided. |
+| `group_key`        | `String, nil`  | CEL expression to partition batches, e.g. "input.group"                     |
+| `group_max_runs`   | `Integer, nil` | Concurrent batches per group. Must be positive when provided.               |
+| `broadcast_output` | `Boolean`      | Whether the block's return value is broadcast to every batch member         |
+
+- **Raises** [ArgumentError]
+- **Returns** [BatchTaskConfig] a new instance of BatchTaskConfig
+
+## `to_proto`
+
+`to_proto()`
+
+- **Returns** [V1::TaskBatchConfig]

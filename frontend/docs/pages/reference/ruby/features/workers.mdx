@@ -1,0 +1,101 @@
+# Class Hatchet::Features::Workers
+
+**Inherits:** `Object`
+
+Workers client for managing workers programmatically within Hatchet
+
+This class provides a high-level interface for retrieving, listing, and
+updating workers in the Hatchet system.
+
+- **Since** 0.1.0
+
+**Example: Getting a worker**
+
+```ruby
+worker = workers_client.get("worker-id")
+```
+
+**Example: Listing all workers**
+
+```ruby
+workers = workers_client.list
+```
+
+## Public Instance Methods
+
+## `get`
+
+`get(worker_id)`
+
+Get a worker by its ID
+
+**Parameters:**
+
+| Name        | Type     | Description                      |
+| ----------- | -------- | -------------------------------- |
+| `worker_id` | `String` | The ID of the worker to retrieve |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The worker details
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+worker = workers_client.get("worker-123")
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Workers client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list()`
+
+List all workers in the tenant
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] A list of workers
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+workers = workers_client.list
+```
+
+## `update`
+
+`update(worker_id, opts)`
+
+Update a worker by its ID
+
+**Parameters:**
+
+| Name        | Type     | Description                    |
+| ----------- | -------- | ------------------------------ |
+| `worker_id` | `String` | The ID of the worker to update |
+| `opts`      | `Hash`   | The update options             |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The updated worker
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+updated = workers_client.update("worker-123", { is_paused: true })
+```

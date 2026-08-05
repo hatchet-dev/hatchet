@@ -1,0 +1,104 @@
+# Class Hatchet::Clients::Grpc::EventClient
+
+**Inherits:** `Object`
+
+gRPC client for the Hatchet Events service.
+
+Handles pushing events, bulk events, logs, and stream events via gRPC. Uses
+the generated EventsService::Stub from events.proto on the shared channel.
+
+**Example**
+
+```ruby
+event_client = EventClient.new(config: hatchet_config, channel: channel)
+event_client.push(key: "user:create", payload: { "name" => "Alice" })
+```
+
+## Constants
+
+## `MAX_LOG_MESSAGE_LENGTH`
+
+## Public Instance Methods
+
+## `bulk_push`
+
+`bulk_push(events, namespace: = nil)`
+
+Push multiple events via gRPC.
+
+**Parameters:**
+
+| Name        | Type          | Description                                                                        |
+| ----------- | ------------- | ---------------------------------------------------------------------------------- |
+| `events`    | `Array<Hash>` | Array of event hashes with :key, :payload, :additional_metadata, :priority, :scope |
+| `namespace` | `String, nil` | Optional namespace override applied to all events                                  |
+
+- **Returns** [Events] Bulk push response
+
+## `close`
+
+`close()`
+
+Close the connection.
+
+## `initialize`
+
+`initialize(config:, channel:)`
+
+**Parameters:**
+
+| Name      | Type                  | Description               |
+| --------- | --------------------- | ------------------------- |
+| `config`  | `Hatchet::Config`     | The Hatchet configuration |
+| `channel` | `GRPC::Core::Channel` | Shared gRPC channel       |
+
+- **Returns** [EventClient] a new instance of EventClient
+
+## `push`
+
+`push(key:, payload:, additional_metadata: = nil, priority: = nil, scope: = nil, namespace: = nil)`
+
+Push an event via gRPC.
+
+**Parameters:**
+
+| Name                  | Type           | Description                    |
+| --------------------- | -------------- | ------------------------------ |
+| `key`                 | `String`       | Event key (will be namespaced) |
+| `payload`             | `Hash`         | Event payload                  |
+| `additional_metadata` | `Hash, nil`    | Additional metadata            |
+| `priority`            | `Integer, nil` | Event priority                 |
+| `scope`               | `String, nil`  | Event scope                    |
+| `namespace`           | `String, nil`  | Optional namespace override    |
+
+- **Returns** [Event] Push response
+
+## `put_log`
+
+`put_log(step_run_id:, message:)`
+
+Put a log message for a task run.
+
+**Parameters:**
+
+| Name          | Type     | Description                          |
+| ------------- | -------- | ------------------------------------ |
+| `step_run_id` | `String` | The task run external ID             |
+| `message`     | `String` | Log message (truncated to 10K chars) |
+
+- **Returns** [PutLogResponse]
+
+## `put_stream`
+
+`put_stream(step_run_id:, data:)`
+
+Put a stream event for real-time streaming.
+
+**Parameters:**
+
+| Name          | Type     | Description                       |
+| ------------- | -------- | --------------------------------- |
+| `step_run_id` | `String` | The task run external ID          |
+| `data`        | `String` | Stream data chunk (sent as bytes) |
+
+- **Returns** [PutStreamEventResponse]

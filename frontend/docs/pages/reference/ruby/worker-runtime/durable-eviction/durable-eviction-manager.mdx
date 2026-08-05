@@ -1,0 +1,106 @@
+# Class Hatchet::WorkerRuntime::DurableEviction::DurableEvictionManager
+
+**Inherits:** `Object`
+
+Orchestrates durable-task eviction.
+
+Runs a background thread that periodically selects an eviction candidate from
+the cache, asks the server to evict it, and then interrupts the local task
+thread.
+
+Mirrors
+\<code>hatchet_sdk.worker.durable_eviction.manager.DurableEvictionManager\</code
+
+> .
+
+## Attributes
+
+## `cache`
+
+_Read-only attribute_
+
+- **Returns** [DurableEvictionCache]
+
+## Public Instance Methods
+
+## `evict_all_waiting`
+
+`evict_all_waiting()`
+
+Evict every currently-waiting durable run. Used during graceful shutdown.
+
+- **Returns** [Integer] number of runs evicted
+
+## `handle_server_eviction`
+
+`handle_server_eviction(step_run_id, invocation_count)`
+
+Handle a server-initiated eviction notification for a stale invocation.
+
+## `initialize`
+
+`initialize(durable_slots:, cancel_local:, request_eviction_with_ack:, config: = DEFAULT_DURABLE_EVICTION_CONFIG, cache: = nil, logger: = nil)`
+
+**Parameters:**
+
+| Name            | Type      | Description                                 |
+| --------------- | --------- | ------------------------------------------- |
+| `durable_slots` | `Integer` |                                             |
+| `cancel_local`  | `Proc`    | Called with the action key when the manager |
+
+decides to evict a local run (invoked after the server ACK).
+
+**Parameters:**
+
+| Name                        | Type   | Description                                |
+| --------------------------- | ------ | ------------------------------------------ |
+| `request_eviction_with_ack` | `Proc` | Called with (action_key, DurableRunRecord) |
+
+to send the eviction RPC to the server and block until acknowledged.
+
+**Parameters:**
+
+| Name     | Type                        | Description |
+| -------- | --------------------------- | ----------- |
+| `config` | `DurableEvictionConfig`     |             |
+| `cache`  | `DurableEvictionCache, nil` |             |
+| `logger` | `Logger, nil`               |             |
+
+- **Returns** [DurableEvictionManager] a new instance of DurableEvictionManager
+
+## `mark_active`
+
+`mark_active(key)`
+
+Mark the run as active (decrements the wait counter).
+
+## `mark_waiting`
+
+`mark_waiting(key, wait_kind:, resource_id:)`
+
+Mark the run as waiting (increments the wait counter).
+
+## `register_run`
+
+`register_run(key, step_run_id:, invocation_count:, eviction_policy:)`
+
+Register a new durable run invocation. Takes the current time from the system
+clock.
+
+## `start`
+
+`start()`
+
+Start the background eviction ticker. Idempotent.
+
+## `stop`
+
+`stop()`
+
+Signal the background thread to stop. Does not join.
+
+## `unregister_run`
+
+`unregister_run(key)`
+
+Unregister a durable run invocation.

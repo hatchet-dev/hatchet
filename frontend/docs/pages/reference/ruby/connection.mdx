@@ -1,0 +1,41 @@
+# Module Hatchet::Connection
+
+Connection management for gRPC channels.
+
+Creates a shared gRPC channel with proper TLS/mTLS configuration and keepalive
+settings. The channel is shared across all gRPC stubs (dispatcher, admin,
+events) for connection reuse and thread safety.
+
+## Constants
+
+## `DEFAULT_CHANNEL_OPTIONS`
+
+## Public Class Methods
+
+## `build_credentials`
+
+`build_credentials(tls_config)`
+
+Build gRPC channel credentials from TLS configuration.
+
+**Parameters:**
+
+| Name         | Type                 | Description       |
+| ------------ | -------------------- | ----------------- |
+| `tls_config` | `Hatchet::TLSConfig` | TLS configuration |
+
+- **Returns** [GRPC::Core::ChannelCredentials, Symbol] Credentials or :this_channel_is_insecure
+
+## `new_channel`
+
+`new_channel(config)`
+
+Create a new gRPC channel for the given configuration.
+
+**Parameters:**
+
+| Name     | Type              | Description               |
+| -------- | ----------------- | ------------------------- |
+| `config` | `Hatchet::Config` | The Hatchet configuration |
+
+- **Returns** [GRPC::Core::Channel] A configured gRPC channel

@@ -1,0 +1,14 @@
+# Class Hatchet::DurableTaskEvictedError
+
+**Inherits:** `Error`
+
+Raised inside a durable task thread when the eviction manager decides to evict
+that invocation (e.g. TTL expired, capacity pressure, worker shutdown).
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(message = "Durable task evicted")`
+
+- **Returns** [DurableTaskEvictedError] a new instance of DurableTaskEvictedError

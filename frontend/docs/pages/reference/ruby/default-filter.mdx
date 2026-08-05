@@ -1,0 +1,65 @@
+# Class Hatchet::DefaultFilter
+
+**Inherits:** `Object`
+
+Defines a default filter for event-triggered workflows
+
+**Example: Filter with scope and payload**
+
+```ruby
+Hatchet::DefaultFilter.new(
+  expression: "true",
+  scope: "example-scope",
+  payload: { "main_character" => "Anna" }
+)
+```
+
+## Attributes
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String] CEL expression to evaluate
+
+## `payload`
+
+_Read-only attribute_
+
+- **Returns** [Hash] Static payload for the filter
+
+## `scope`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Scope for filter matching
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(expression:, scope: = nil, payload: = {})`
+
+**Parameters:**
+
+| Name         | Type          | Description                    |
+| ------------ | ------------- | ------------------------------ |
+| `expression` | `String`      | CEL expression                 |
+| `scope`      | `String, nil` | Filter scope                   |
+| `payload`    | `Hash`        | Static payload (default: \{\}) |
+
+- **Returns** [DefaultFilter] a new instance of DefaultFilter
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]
+
+## `to_proto`
+
+`to_proto()`
+
+Convert to a V1::DefaultFilter protobuf message
+
+- **Returns** [V1::DefaultFilter]

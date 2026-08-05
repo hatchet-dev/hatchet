@@ -1,0 +1,34 @@
+# Class Hatchet::NonDeterminismError
+
+**Inherits:** `Error`
+
+Raised by the engine when durable-task execution detects a non-deterministic
+replay (the workflow did something different compared to the recorded log).
+
+## Attributes
+
+## `invocation_count`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil]
+
+## `node_id`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil]
+
+## `task_external_id`
+
+_Read-only attribute_
+
+- **Returns** [String, nil]
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(message, task_external_id: = nil, invocation_count: = nil, node_id: = nil)`
+
+- **Returns** [NonDeterminismError] a new instance of NonDeterminismError

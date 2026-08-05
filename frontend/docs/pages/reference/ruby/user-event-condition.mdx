@@ -1,0 +1,52 @@
+# Class Hatchet::UserEventCondition
+
+**Inherits:** `Object`
+
+A condition that waits for a user event with a specific key
+
+**Example: Wait for a user:update event**
+
+```ruby
+Hatchet::UserEventCondition.new(event_key: "user:update")
+```
+
+**Example: With filter expression**
+
+```ruby
+Hatchet::UserEventCondition.new(event_key: "user:update", expression: "input.user_id == '1234'")
+```
+
+## Attributes
+
+## `event_key`
+
+_Read-only attribute_
+
+- **Returns** [String] The event key to listen for
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Optional CEL expression to filter events
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(event_key:, expression: = nil)`
+
+**Parameters:**
+
+| Name         | Type          | Description                    |
+| ------------ | ------------- | ------------------------------ |
+| `event_key`  | `String`      | The event key to wait for      |
+| `expression` | `String, nil` | Optional CEL filter expression |
+
+- **Returns** [UserEventCondition] a new instance of UserEventCondition
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

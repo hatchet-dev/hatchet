@@ -1,0 +1,110 @@
+# Class Hatchet::Worker
+
+**Inherits:** `Object`
+
+Worker that processes tasks from the Hatchet engine.
+
+The worker connects to the Hatchet server via gRPC, registers its workflows,
+listens for task assignments, and executes them in a thread pool.
+
+**Example: Start a worker**
+
+```ruby
+worker = hatchet.worker("my-worker", workflows: [my_workflow])
+worker.start
+```
+
+## Attributes
+
+## `client`
+
+_Read-only attribute_
+
+- **Returns** [Hatchet::Client] The Hatchet client
+
+## `durable_slots`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Number of durable-task slots (defaults to `slots`)
+
+## `engine_version`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Engine semantic version detected on `start`
+
+## `labels`
+
+_Read-only attribute_
+
+- **Returns** [Hash] Worker labels for scheduling
+
+## `name`
+
+_Read-only attribute_
+
+- **Returns** [String] Worker name
+
+## `slots`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Number of concurrent task execution slots
+
+## `worker_id`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] Worker ID assigned by the server
+
+## `workflows`
+
+_Read-only attribute_
+
+- **Returns** [Array\<Workflow, Task>] Registered workflows
+
+## Public Instance Methods
+
+## `context`
+
+`context()`
+
+Access worker context for label management
+
+- **Returns** [WorkerContext]
+
+## `initialize`
+
+`initialize(name:, client:, workflows: = [], slots: = 10, durable_slots: = nil, labels: = {})`
+
+**Parameters:**
+
+| Name            | Type                    | Description                                       |
+| --------------- | ----------------------- | ------------------------------------------------- |
+| `name`          | `String`                | Worker name                                       |
+| `client`        | `Hatchet::Client`       | The Hatchet client                                |
+| `workflows`     | `Array<Workflow, Task>` | Workflows to register                             |
+| `slots`         | `Integer`               | Number of concurrent task slots (default: 10)     |
+| `durable_slots` | `Integer, nil`          | Number of durable-task slots; defaults to `slots` |
+| `labels`        | `Hash`                  | Worker labels (default: \{\})                     |
+
+- **Returns** [Worker] a new instance of Worker
+
+## `start`
+
+`start()`
+
+Start the worker. This blocks until shutdown is requested.
+
+1.  Registers workflows with the Hatchet server
+2.  Starts the health check server
+3.  Starts the action listener
+4.  Processes actions in the thread pool
+5.  Handles graceful shutdown on SIGINT/SIGTERM
+
+## `stop`
+
+`stop()`
+
+Request graceful shutdown

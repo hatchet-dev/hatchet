@@ -1,0 +1,65 @@
+# Class Hatchet::WorkflowRunListener
+
+**Inherits:** `Object`
+
+Thread-safe pooled gRPC listener for workflow run completion events.
+
+Maintains a single bidirectional gRPC stream to
+\<code>Dispatcher.SubscribeToWorkflowRuns\</code>. Multiple callers share the
+stream; each subscription sends a request on the outgoing side and blocks
+until the matching `WorkflowRunEvent` arrives on the incoming side.
+
+Modeled on the Python SDK's `PooledWorkflowRunListener`.
+
+**Example**
+
+```ruby
+listener = WorkflowRunListener.new(config: config, channel: channel)
+result = listener.result("workflow-run-id-123")
+# => {"my_task" => {"value" => 42}}
+```
+
+## Constants
+
+## `DEDUPE_MESSAGE`
+
+## `MAX_RETRIES`
+
+## `RETRY_INTERVAL`
+
+seconds between reconnect attempts
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(config:, channel:)`
+
+- **Returns** [WorkflowRunListener] a new instance of WorkflowRunListener
+
+## `result`
+
+`result(workflow_run_id)`
+
+Subscribe to a workflow run and block until it finishes.
+
+Returns the result hash keyed by task readable_id, e.g.
+\{"step1" => \{"value" => 42\}, "step2" => \{...\}\}
+
+Blocks indefinitely until the run reaches a terminal state.
+
+**Parameters:**
+
+| Name              | Type     | Description |
+| ----------------- | -------- | ----------- |
+| `workflow_run_id` | `String` |             |
+
+- **Raises** [FailedRunError] if the run failed
+- **Raises** [DedupeViolationError] if a dedupe violation occurred
+- **Returns** [Hash] Task results keyed by task name
+
+## `shutdown`
+
+`shutdown()`
+
+Stop the listener and clean up resources.

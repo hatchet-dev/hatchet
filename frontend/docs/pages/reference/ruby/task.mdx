@@ -1,0 +1,314 @@
+# Class Hatchet::Task
+
+**Inherits:** `Object`
+
+Represents a task within a workflow (or a standalone task).
+
+Tasks are the basic unit of work in Hatchet. They can be defined as part of a
+workflow or as standalone tasks. Each task has a block that executes the task
+logic, receiving the workflow input and a context object.
+
+**Example: Task defined in a workflow**
+
+```ruby
+step1 = workflow.task(:step1) { |input, ctx| { "result" => "done" } }
+```
+
+**Example: Standalone task**
+
+```ruby
+task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
+```
+
+## Constants
+
+## `COMPARATOR_MAP`
+
+## `DURATION_MAP`
+
+## Attributes
+
+## `backoff_factor`
+
+_Read-only attribute_
+
+- **Returns** [Float, nil] Backoff factor between retries
+
+## `backoff_max_seconds`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Maximum backoff seconds between retries
+
+## `batch`
+
+_Read-only attribute_
+
+- **Returns** [Hatchet::BatchTaskConfig, nil] Batch configuration, if this is a batch task
+
+## `client`
+
+_Read-only attribute_
+
+- **Returns** [Hatchet::Client, nil] The Hatchet client
+
+## `concurrency`
+
+_Read-only attribute_
+
+- **Returns** [Array\<ConcurrencyExpression>, ConcurrencyExpression, nil] Task-level concurrency
+
+## `deps`
+
+_Read-only attribute_
+
+- **Returns** [Hash, nil] Dependency providers
+
+## `desired_worker_labels`
+
+_Read-only attribute_
+
+- **Returns** [Hash, nil] Desired worker labels for scheduling
+
+## `durable`
+
+_Read-only attribute_
+
+- **Returns** [Boolean] Whether this is a durable task
+
+## `eviction_policy`
+
+_Read-only attribute_
+
+- **Returns** [Hatchet::EvictionPolicy, nil] Eviction policy for durable tasks
+
+## `execution_timeout`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Execution timeout in seconds
+
+## `fn`
+
+_Read-only attribute_
+
+- **Returns** [Proc, nil] The task execution block
+
+## `name`
+
+_Read-only attribute_
+
+- **Returns** [Symbol, String] Task name
+
+## `parents`
+
+_Read-only attribute_
+
+- **Returns** [Array\<Task, Symbol>] Parent task references
+
+## `rate_limits`
+
+_Read-only attribute_
+
+- **Returns** [Array\<RateLimit>] Rate limits applied to this task
+
+## `retries`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Maximum number of retries
+
+## `schedule_timeout`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Schedule timeout in seconds
+
+## `skip_if`
+
+_Read-only attribute_
+
+- **Returns** [Array] Skip-if conditions
+
+## `wait_for`
+
+_Read-only attribute_
+
+- **Returns** [Array] Wait-for conditions
+
+## `workflow`
+
+_Read-only attribute_
+
+- **Returns** [Workflow, nil] The owning workflow
+
+## Public Instance Methods
+
+## `call`
+
+`call(input, context)`
+
+Execute the task with the given input and context
+
+**Parameters:**
+
+| Name      | Type      | Description  |
+| --------- | --------- | ------------ |
+| `input`   | `Hash`    | Task input   |
+| `context` | `Context` | Task context |
+
+- **Raises** [Error]
+- **Returns** [Object] Task output
+
+## `create_bulk_run_item`
+
+`create_bulk_run_item(input: = {}, key: = nil, options: = nil)`
+
+Create a bulk run item for use with run_many
+
+**Parameters:**
+
+| Name      | Type                          | Description       |
+| --------- | ----------------------------- | ----------------- |
+| `input`   | `Hash`                        | Input data        |
+| `key`     | `String, nil`                 | Deduplication key |
+| `options` | `TriggerWorkflowOptions, nil` | Trigger options   |
+
+- **Returns** [Hash] Bulk run item
+
+## `id`
+
+`id()`
+
+- **Returns** [String] The workflow ID (for API calls)
+
+## `initialize`
+
+`initialize(name:, parents: = [], execution_timeout: = nil, schedule_timeout: = nil, retries: = nil, backoff_max_seconds: = nil, backoff_factor: = nil, rate_limits: = [], concurrency: = nil, desired_worker_labels: = nil, wait_for: = [], skip_if: = [], durable: = false, eviction_policy: = nil, batch: = nil, workflow: = nil, client: = nil, deps: = nil, &block)`
+
+**Parameters:**
+
+| Name                    | Type                                                       | Description                    |
+| ----------------------- | ---------------------------------------------------------- | ------------------------------ |
+| `name`                  | `Symbol, String`                                           | Task name                      |
+| `parents`               | `Array<Task, Symbol>`                                      | Parent tasks                   |
+| `execution_timeout`     | `Integer, nil`                                             | Execution timeout in seconds   |
+| `schedule_timeout`      | `Integer, nil`                                             | Schedule timeout in seconds    |
+| `retries`               | `Integer, nil`                                             | Max retries                    |
+| `backoff_max_seconds`   | `Integer, nil`                                             | Max backoff seconds            |
+| `backoff_factor`        | `Float, nil`                                               | Backoff multiplier             |
+| `rate_limits`           | `Array<RateLimit>`                                         | Rate limits                    |
+| `concurrency`           | `Array<ConcurrencyExpression>, ConcurrencyExpression, nil` |                                |
+| `desired_worker_labels` | `Hash, nil`                                                |                                |
+| `wait_for`              | `Array`                                                    | Wait conditions                |
+| `skip_if`               | `Array`                                                    | Skip conditions                |
+| `durable`               | `Boolean`                                                  | Whether this is a durable task |
+| `workflow`              | `Workflow, nil`                                            | The owning workflow            |
+| `client`                | `Hatchet::Client, nil`                                     | The client                     |
+| `deps`                  | `Hash, nil`                                                | Dependency providers           |
+| `block`                 | `Proc`                                                     | The task execution block       |
+
+- **Returns** [Task] a new instance of Task
+
+## `mock_run`
+
+`mock_run(input:, additional_metadata: = {}, retry_count: = 0, parent_outputs: = {})`
+
+Execute task in unit test mode with mocked context
+
+**Parameters:**
+
+| Name                  | Type      | Description                |
+| --------------------- | --------- | -------------------------- |
+| `input`               | `Hash`    | Task input                 |
+| `additional_metadata` | `Hash`    | Metadata for the context   |
+| `retry_count`         | `Integer` | Simulated retry count      |
+| `parent_outputs`      | `Hash`    | Mocked parent task outputs |
+
+- **Returns** [Object] Task output
+
+## `run`
+
+`run(input = {}, options: = nil)`
+
+Run this task (or its owning workflow) synchronously.
+
+For standalone tasks the result is automatically unwrapped so that the caller
+receives the task output directly (e.g. `{"result" => "done"}`) rather than
+the workflow-level output keyed by task name (e.g. `\{"my_task" => \{"result" =>
+"done"\}\}`).
+
+**Parameters:**
+
+| Name      | Type                          | Description     |
+| --------- | ----------------------------- | --------------- |
+| `input`   | `Hash`                        | Input data      |
+| `options` | `TriggerWorkflowOptions, nil` | Trigger options |
+
+- **Raises** [Error]
+- **Returns** [Hash] The task output
+
+## `run_many`
+
+`run_many(items, return_exceptions: = false)`
+
+Run many instances of this task in bulk
+
+**Parameters:**
+
+| Name                | Type          | Description                                     |
+| ------------------- | ------------- | ----------------------------------------------- |
+| `items`             | `Array<Hash>` | Bulk run items                                  |
+| `return_exceptions` | `Boolean`     | Whether to return exceptions instead of raising |
+
+- **Raises** [Error]
+- **Returns** [Array] Results (each unwrapped to the task output)
+
+## `run_many_no_wait`
+
+`run_many_no_wait(items)`
+
+Run many instances without waiting for results
+
+**Parameters:**
+
+| Name    | Type          | Description    |
+| ------- | ------------- | -------------- |
+| `items` | `Array<Hash>` | Bulk run items |
+
+- **Raises** [Error]
+- **Returns** [Array\<TaskRunRef>]
+
+## `run_no_wait`
+
+`run_no_wait(input = {}, options: = nil)`
+
+Run this task without waiting for the result.
+
+Returns a `TaskRunRef` whose `result` method automatically unwraps the task
+output, matching the behaviour of `#run`.
+
+**Parameters:**
+
+| Name      | Type                          | Description     |
+| --------- | ----------------------------- | --------------- |
+| `input`   | `Hash`                        | Input data      |
+| `options` | `TriggerWorkflowOptions, nil` | Trigger options |
+
+- **Raises** [Error]
+- **Returns** [TaskRunRef]
+
+## `to_proto`
+
+`to_proto(service_name, config: = nil)`
+
+Convert this task to a V1::CreateTaskOpts protobuf message.
+
+**Parameters:**
+
+| Name           | Type                   | Description                                   |
+| -------------- | ---------------------- | --------------------------------------------- |
+| `service_name` | `String`               | The workflow service name (namespaced)        |
+| `config`       | `Hatchet::Config, nil` | Config for namespace resolution in conditions |
+
+- **Returns** [V1::CreateTaskOpts]

@@ -1,0 +1,39 @@
+# Class Hatchet::SleepCondition
+
+**Inherits:** `Object`
+
+A sleep condition that causes a task to wait for a specified duration
+
+**Example: Wait for 10 seconds**
+
+```ruby
+Hatchet::SleepCondition.new(10)
+```
+
+## Attributes
+
+## `duration`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Duration in seconds to sleep
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(duration)`
+
+**Parameters:**
+
+| Name       | Type      | Description         |
+| ---------- | --------- | ------------------- |
+| `duration` | `Integer` | Duration in seconds |
+
+- **Returns** [SleepCondition] a new instance of SleepCondition
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

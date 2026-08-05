@@ -1,0 +1,95 @@
+# Class Hatchet::WorkerRuntime::DurableEviction::DurableRunRecord
+
+**Inherits:** `Object`
+
+Per-run state tracked by the cache.
+
+`wait_count` is ref-counted so concurrent waits over the same durable run
+don't prematurely clear the waiting flag when one child completes before the
+others.
+
+## Attributes
+
+## `eviction_policy`
+
+_Read-only attribute_
+
+Returns the value of attribute eviction_policy.
+
+## `eviction_reason`
+
+_Read-write attribute_
+
+Returns the value of attribute eviction_reason.
+
+## `invocation_count`
+
+_Read-only attribute_
+
+Returns the value of attribute invocation_count.
+
+## `key`
+
+_Read-only attribute_
+
+Returns the value of attribute key.
+
+## `registered_at`
+
+_Read-only attribute_
+
+Returns the value of attribute registered_at.
+
+## `step_run_id`
+
+_Read-only attribute_
+
+Returns the value of attribute step_run_id.
+
+## `wait_count`
+
+_Read-write attribute_
+
+Returns the value of attribute wait_count.
+
+## `wait_kind`
+
+_Read-write attribute_
+
+Returns the value of attribute wait_kind.
+
+## `wait_resource_id`
+
+_Read-write attribute_
+
+Returns the value of attribute wait_resource_id.
+
+## `waiting_since`
+
+_Read-write attribute_
+
+Returns the value of attribute waiting_since.
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(key:, step_run_id:, invocation_count:, eviction_policy:, registered_at:)`
+
+**Parameters:**
+
+| Name               | Type                           | Description                                                   |
+| ------------------ | ------------------------------ | ------------------------------------------------------------- |
+| `key`              | `String`                       | The action key uniquely identifying this step run invocation. |
+| `step_run_id`      | `String`                       |                                                               |
+| `invocation_count` | `Integer`                      |                                                               |
+| `eviction_policy`  | `Hatchet::EvictionPolicy, nil` |                                                               |
+| `registered_at`    | `Time`                         |                                                               |
+
+- **Returns** [DurableRunRecord] a new instance of DurableRunRecord
+
+## `waiting?`
+
+`waiting?()`
+
+- **Returns** [Boolean]

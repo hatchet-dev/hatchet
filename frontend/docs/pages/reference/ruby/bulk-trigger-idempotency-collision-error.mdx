@@ -1,0 +1,29 @@
+# Class Hatchet::BulkTriggerIdempotencyCollisionError
+
+**Inherits:** `Error`
+
+Raised when one or more runs in a bulk trigger collide on idempotency keys.
+Contains the IDs of successfully triggered runs and the individual collision
+errors.
+
+## Attributes
+
+## `collisions`
+
+_Read-only attribute_
+
+- **Returns** [Array\<IdempotencyCollisionError>] The individual collision errors
+
+## `successful_workflow_run_external_ids`
+
+_Read-only attribute_
+
+- **Returns** [Array\<String>] External IDs of successfully triggered workflow runs
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(successful_workflow_run_external_ids:, collisions:)`
+
+- **Returns** [BulkTriggerIdempotencyCollisionError] a new instance of BulkTriggerIdempotencyCollisionError

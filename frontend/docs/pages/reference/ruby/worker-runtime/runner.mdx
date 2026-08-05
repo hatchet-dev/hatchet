@@ -1,0 +1,94 @@
+# Class Hatchet::WorkerRuntime::Runner
+
+**Inherits:** `Object`
+
+Executes task actions in a thread pool, managing concurrency slots and context
+variable propagation.
+
+The runner receives actions from the action listener, looks up the
+corresponding task block, sets up context variables, executes the task, and
+sends the result back to the dispatcher. For durable tasks, it wires the
+`DurableContext` up to the shared `DurableEventListener` and per-run
+`DurableEviction::DurableEvictionManager` when the engine supports eviction.
+
+**Example**
+
+```ruby
+runner = Runner.new(
+  workflows: [my_workflow],
+  slots: 10,
+  dispatcher_client: dispatcher_grpc,
+  event_client: event_grpc,
+  logger: logger,
+  client: hatchet_client,
+  engine_version: "v0.80.0",
+  durable_slots: 10,
+)
+runner.execute(action)
+```
+
+## Constants
+
+## `STARTED_EVENT_RETRY_COUNT`
+
+## `STARTED_EVENT_STOP`
+
+## Attributes
+
+## `durable_event_listener`
+
+_Read-only attribute_
+
+- **Returns** [WorkerRuntime::DurableEventListener, nil]
+
+## `eviction_manager`
+
+_Read-only attribute_
+
+- **Returns** [WorkerRuntime::DurableEviction::DurableEvictionManager, nil]
+
+## Public Instance Methods
+
+## `execute`
+
+`execute(action)`
+
+Execute an action (task assignment) in the thread pool.
+
+**Parameters:**
+
+| Name     | Type             | Description                    |
+| -------- | ---------------- | ------------------------------ |
+| `action` | `AssignedAction` | The action from the dispatcher |
+
+## `initialize`
+
+`initialize(workflows:, slots:, dispatcher_client:, event_client:, logger:, client:, engine_version: = nil, durable_slots: = nil, worker_id: = nil)`
+
+**Parameters:**
+
+| Name                | Type                                  | Description                                                           |
+| ------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| `workflows`         | `Array<Workflow, Task>`               | Registered workflows                                                  |
+| `slots`             | `Integer`                             | Maximum concurrent task slots                                         |
+| `dispatcher_client` | `Hatchet::Clients::Grpc::Dispatcher`  | gRPC dispatcher client                                                |
+| `event_client`      | `Hatchet::Clients::Grpc::EventClient` | gRPC event client                                                     |
+| `logger`            | `Logger`                              | Logger instance                                                       |
+| `client`            | `Hatchet::Client`                     | The Hatchet client                                                    |
+| `engine_version`    | `String, nil`                         | Engine semantic version (from GetVersion)                             |
+| `durable_slots`     | `Integer, nil`                        | Separate slot count for durable tasks; defaults to `slots`.           |
+| `worker_id`         | `String, nil`                         | Worker ID from registration; stamped onto durable calls that need it. |
+
+- **Returns** [Runner] a new instance of Runner
+
+## `shutdown`
+
+`shutdown(timeout: = 30)`
+
+Gracefully shutdown the runner.
+
+**Parameters:**
+
+| Name      | Type      | Description                           |
+| --------- | --------- | ------------------------------------- |
+| `timeout` | `Integer` | Seconds to wait for in-progress tasks |

@@ -1,0 +1,66 @@
+# Class Hatchet::DesiredWorkerLabel
+
+**Inherits:** `Object`
+
+Defines a desired worker label for task scheduling affinity
+
+**Example: Prefer workers with a specific model**
+
+```ruby
+Hatchet::DesiredWorkerLabel.new(value: "fancy-ai-model-v2", weight: 10)
+```
+
+**Example: Require workers with enough memory**
+
+```ruby
+Hatchet::DesiredWorkerLabel.new(value: 256, required: true, comparator: :less_than)
+```
+
+## Attributes
+
+## `comparator`
+
+_Read-only attribute_
+
+- **Returns** [Symbol] Comparator for numeric values
+
+## `required`
+
+_Read-only attribute_
+
+- **Returns** [Boolean] Whether this label is required (hard constraint)
+
+## `value`
+
+_Read-only attribute_
+
+- **Returns** [String, Integer] The desired label value
+
+## `weight`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Weight for soft scheduling preferences (higher = stronger preference)
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(value:, weight: = 1, required: = false, comparator: = :equal)`
+
+**Parameters:**
+
+| Name         | Type              | Description                           |
+| ------------ | ----------------- | ------------------------------------- |
+| `value`      | `String, Integer` | Desired label value                   |
+| `weight`     | `Integer`         | Scheduling weight (default: 1)        |
+| `required`   | `Boolean`         | Hard requirement (default: false)     |
+| `comparator` | `Symbol`          | Comparison operator (default: :equal) |
+
+- **Returns** [DesiredWorkerLabel] a new instance of DesiredWorkerLabel
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

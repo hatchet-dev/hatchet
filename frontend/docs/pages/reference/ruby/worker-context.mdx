@@ -1,0 +1,47 @@
+# Class Hatchet::WorkerContext
+
+**Inherits:** `Object`
+
+Provides worker-level operations available from within task contexts
+
+## Public Instance Methods
+
+## `id`
+
+`id()`
+
+Get the worker ID
+
+- **Returns** [String, nil]
+
+## `initialize`
+
+`initialize(worker:)`
+
+**Parameters:**
+
+| Name     | Type     | Description         |
+| -------- | -------- | ------------------- |
+| `worker` | `Worker` | The worker instance |
+
+- **Returns** [WorkerContext] a new instance of WorkerContext
+
+## `labels`
+
+`labels()`
+
+Get current worker labels
+
+- **Returns** [Hash]
+
+## `upsert_labels`
+
+`upsert_labels(new_labels)`
+
+Upsert worker labels on the server and update local state.
+
+**Parameters:**
+
+| Name         | Type   | Description             |
+| ------------ | ------ | ----------------------- |
+| `new_labels` | `Hash` | Labels to add or update |

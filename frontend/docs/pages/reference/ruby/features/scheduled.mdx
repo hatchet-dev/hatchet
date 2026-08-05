@@ -1,0 +1,220 @@
+# Class Hatchet::Features::Scheduled
+
+**Inherits:** `Object`
+
+Scheduled client for managing scheduled workflows within Hatchet
+
+This class provides a high-level interface for creating, deleting, updating,
+bulk operations, listing, and retrieving scheduled workflow runs.
+
+- **Since** 0.1.0
+
+**Example: Creating a scheduled workflow**
+
+```ruby
+scheduled = scheduled_client.create(
+  workflow_name: "my-workflow",
+  trigger_at: Time.now + 3600,
+  input: { key: "value" },
+  additional_metadata: { source: "api" }
+)
+```
+
+## Public Instance Methods
+
+## `bulk_delete`
+
+`bulk_delete(scheduled_ids: = nil, workflow_id: = nil, parent_workflow_run_id: = nil, parent_step_run_id: = nil, statuses: = nil, additional_metadata: = nil)`
+
+Bulk delete scheduled workflow runs
+
+Provide either scheduled_ids (explicit list) or one or more filter fields.
+
+**Parameters:**
+
+| Name                     | Type                 | Description                                                      |
+| ------------------------ | -------------------- | ---------------------------------------------------------------- |
+| `scheduled_ids`          | `Array<String>, nil` | Explicit list of scheduled workflow run IDs to delete            |
+| `workflow_id`            | `String, nil`        | Filter by workflow ID                                            |
+| `parent_workflow_run_id` | `String, nil`        | Filter by parent workflow run ID                                 |
+| `parent_step_run_id`     | `String, nil`        | Filter by parent step run ID                                     |
+| `statuses`               | `Array<String>, nil` | Filter by scheduled run statuses (warning: may not be supported) |
+| `additional_metadata`    | `Hash, nil`          | Filter by additional metadata key/value pairs                    |
+
+- **Raises** [ArgumentError] If neither scheduled_ids nor any filter field is provided
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The bulk delete response containing deleted IDs and per-item errors
+- **Since** 0.1.0
+
+## `bulk_update`
+
+`bulk_update(updates)`
+
+Bulk reschedule scheduled workflow runs
+
+**Parameters:**
+
+| Name      | Type          | Description                                   |
+| --------- | ------------- | --------------------------------------------- |
+| `updates` | `Array<Hash>` | Array of hashes with :id and :trigger_at keys |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The bulk update response containing updated IDs and per-item errors
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled_client.bulk_update([
+  { id: "scheduled-1", trigger_at: Time.now + 3600 },
+  { id: "scheduled-2", trigger_at: Time.now + 7200 }
+])
+```
+
+## `create`
+
+`create(workflow_name:, trigger_at:, input: = {}, additional_metadata: = {})`
+
+Create a new scheduled workflow run
+
+IMPORTANT: It's preferable to use Workflow.run to trigger workflows if
+possible. This method is intended to be an escape hatch.
+
+**Parameters:**
+
+| Name                  | Type     | Description                                                      |
+| --------------------- | -------- | ---------------------------------------------------------------- |
+| `workflow_name`       | `String` | The name of the workflow to schedule (namespace will be applied) |
+| `trigger_at`          | `Time`   | The datetime when the run should be triggered                    |
+| `input`               | `Hash`   | The input data for the scheduled workflow                        |
+| `additional_metadata` | `Hash`   | Additional metadata associated with the future run               |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The created scheduled workflow instance
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled = scheduled_client.create(
+  workflow_name: "my-workflow",
+  trigger_at: Time.now + 3600,
+  input: { key: "value" },
+  additional_metadata: { source: "api" }
+)
+```
+
+## `delete`
+
+`delete(scheduled_id)`
+
+Delete a scheduled workflow run by its ID
+
+**Parameters:**
+
+| Name           | Type     | Description                                    |
+| -------------- | -------- | ---------------------------------------------- |
+| `scheduled_id` | `String` | The ID of the scheduled workflow run to delete |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [void]
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled_client.delete("scheduled-123")
+```
+
+## `get`
+
+`get(scheduled_id)`
+
+Retrieve a specific scheduled workflow by ID
+
+**Parameters:**
+
+| Name           | Type     | Description                                   |
+| -------------- | -------- | --------------------------------------------- |
+| `scheduled_id` | `String` | The scheduled workflow trigger ID to retrieve |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The requested scheduled workflow instance
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled = scheduled_client.get("scheduled-123")
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Scheduled client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(offset: = nil, limit: = nil, workflow_id: = nil, parent_workflow_run_id: = nil, statuses: = nil, additional_metadata: = nil, order_by_field: = nil, order_by_direction: = nil)`
+
+List scheduled workflows based on provided filters
+
+**Parameters:**
+
+| Name                     | Type                 | Description                                         |
+| ------------------------ | -------------------- | --------------------------------------------------- |
+| `offset`                 | `Integer, nil`       | The offset to use in pagination                     |
+| `limit`                  | `Integer, nil`       | The maximum number of scheduled workflows to return |
+| `workflow_id`            | `String, nil`        | The ID of the workflow to filter by                 |
+| `parent_workflow_run_id` | `String, nil`        | The ID of the parent workflow run to filter by      |
+| `statuses`               | `Array<String>, nil` | A list of statuses to filter by                     |
+| `additional_metadata`    | `Hash, nil`          | Additional metadata to filter by                    |
+| `order_by_field`         | `String, nil`        | The field to order the results by                   |
+| `order_by_direction`     | `String, nil`        | The direction to order the results by               |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] A list of scheduled workflows matching the provided filters
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled = scheduled_client.list(limit: 10, workflow_id: "wf-1")
+```
+
+## `update`
+
+`update(scheduled_id, trigger_at:)`
+
+Reschedule a scheduled workflow run by its ID
+
+Note: the server may reject rescheduling if the scheduled run has already
+triggered, or if it was created via code definition (not via API).
+
+**Parameters:**
+
+| Name           | Type     | Description                                        |
+| -------------- | -------- | -------------------------------------------------- |
+| `scheduled_id` | `String` | The ID of the scheduled workflow run to reschedule |
+| `trigger_at`   | `Time`   | The new datetime when the run should be triggered  |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The updated scheduled workflow instance
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+scheduled_client.update("scheduled-123", trigger_at: Time.now + 7200)
+```

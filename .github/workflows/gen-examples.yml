@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Generate snippets
-        run: task install-dependencies pre-commit-install generate-docs -v
+        run: task install-dependencies pre-commit-install generate-examples -v
 
       - name: Check for changes in examples directory
         id: verify-changed-files

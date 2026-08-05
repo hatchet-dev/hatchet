@@ -12,9 +12,9 @@ module Hatchet
     # The runner receives actions from the action listener, looks up the
     # corresponding task block, sets up context variables, executes the task,
     # and sends the result back to the dispatcher. For durable tasks, it wires
-    # the :class:`DurableContext` up to the shared
-    # :class:`DurableEventListener` and per-run
-    # :class:`DurableEviction::DurableEvictionManager` when the engine supports
+    # the {DurableContext} up to the shared
+    # {DurableEventListener} and per-run
+    # {DurableEviction::DurableEvictionManager} when the engine supports
     # eviction.
     #
     # @example

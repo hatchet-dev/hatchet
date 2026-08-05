@@ -1,0 +1,46 @@
+# Class Hatchet::ParentCondition
+
+**Inherits:** `Object`
+
+A condition based on parent task output
+
+**Example: Skip if parent output meets condition**
+
+```ruby
+Hatchet::ParentCondition.new(parent: start_task, expression: "output.random_number > 50")
+```
+
+## Attributes
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String] CEL expression evaluated against the parent's output
+
+## `parent`
+
+_Read-only attribute_
+
+- **Returns** [Hatchet::Task, Symbol, String] Reference to the parent task
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(parent:, expression:)`
+
+**Parameters:**
+
+| Name         | Type                            | Description                |
+| ------------ | ------------------------------- | -------------------------- |
+| `parent`     | `Hatchet::Task, Symbol, String` | The parent task reference  |
+| `expression` | `String`                        | CEL expression to evaluate |
+
+- **Returns** [ParentCondition] a new instance of ParentCondition
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

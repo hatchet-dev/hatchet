@@ -1,0 +1,104 @@
+# Class Hatchet::DurableContext
+
+**Inherits:** `Hatchet::Context`
+
+Extended context for durable tasks that supports sleep and event-waiting
+across task suspensions.
+
+Durable tasks can be suspended and resumed by the Hatchet engine, allowing
+long-running workflows that survive process restarts.
+
+Uses V1::V1Dispatcher for registering and listening for durable events via
+bidirectional gRPC streaming.
+
+**Example: Sleep for a duration**
+
+```ruby
+hatchet.durable_task(name: "my_task") do |input, ctx|
+  ctx.sleep_for(duration: 60) # sleep for 60 seconds
+end
+```
+
+**Example: Wait for an event**
+
+```ruby
+hatchet.durable_task(name: "my_task") do |input, ctx|
+  result = ctx.wait_for("event", Hatchet::UserEventCondition.new(event_key: "user:update"))
+end
+```
+
+## Attributes
+
+## `action_key`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] The action key used by the eviction manager to
+  identify this run invocation.
+
+## `durable_event_listener`
+
+_Read-write attribute_
+
+- **Returns** [Hatchet::WorkerRuntime::DurableEventListener, nil] New-style bidi
+  listener. When set the context delegates through it instead of the
+  legacy RegisterDurableEvent/ListenForDurableEvent path.
+
+## `engine_version`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] Engine version string advertised via GetVersion.
+
+## `eviction_manager`
+
+_Read-write attribute_
+
+- **Returns** [Hatchet::WorkerRuntime::DurableEviction::DurableEvictionManager, nil]
+
+## `invocation_count`
+
+_Read-write attribute_
+
+- **Returns** [Integer] Durable-task invocation count (>= 1).
+
+## Public Instance Methods
+
+## `sleep_for`
+
+`sleep_for(duration:, label: = nil)`
+
+Sleep for a specified duration. The task is suspended and resumed by the
+engine after the duration expires.
+
+Delegates to `#wait_for` with a `Hatchet::SleepCondition` so that both sleeps
+and event waits share a single registration / eviction path.
+
+**Parameters:**
+
+| Name       | Type              | Description                                            |
+| ---------- | ----------------- | ------------------------------------------------------ |
+| `duration` | `Integer, String` | Duration in seconds, or a duration string (e.g. "60s") |
+| `label`    | `String, nil`     | Optional wait label shown in durable event logs.       |
+
+- **Returns** [Hash, nil] Result from the sleep event
+
+## `wait_for`
+
+`wait_for(key, condition, label: = nil)`
+
+Wait for a condition to be met (event or sleep). The task is suspended and
+resumed when the condition is satisfied.
+
+Register the durable wait with `send_event` first, then start eviction
+tracking only while blocked on `wait_for_callback`.
+
+**Parameters:**
+
+| Name        | Type          | Description                                                                |
+| ----------- | ------------- | -------------------------------------------------------------------------- |
+| `key`       | `String`      | A unique key for this wait operation                                       |
+| `condition` | `Object`      | The condition to wait for (UserEventCondition, SleepCondition, Hash, etc.) |
+| `label`     | `String, nil` | Optional wait label shown in durable event logs.                           |
+
+- **Returns** [Hash] Result from the wait, including which condition was satisfied

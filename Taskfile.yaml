@@ -198,6 +198,10 @@ tasks:
       - task: generate-api-server
       - task: generate-api-client
   generate-docs:
+    cmds:
+      - task: generate-examples
+      - task: generate-sdk-reference
+  generate-examples:
     deps: [venv]
     dir: frontend/snippets
     cmds:
@@ -205,6 +209,32 @@ tasks:
       - task: sync-changelog
       - task: fmt
       - task: sync-agent-instructions
+  generate-sdk-reference:
+    cmds:
+      - cd frontend/docs && pnpm install
+      - task: generate-sdk-reference-python
+      - task: generate-sdk-reference-typescript
+      - task: generate-sdk-reference-ruby
+      - task: generate-sdk-reference-go
+      - task: fmt-docs
+  generate-sdk-reference-python:
+    dir: sdks/python
+    cmds:
+      - poetry install --all-extras
+      - poetry run python -m docs.generator.generate
+  generate-sdk-reference-typescript:
+    dir: sdks/typescript
+    cmds:
+      - pnpm install
+      - pnpm generate-docs
+  generate-sdk-reference-ruby:
+    dir: sdks/ruby
+    cmds:
+      - ruby docs/generate.rb
+  generate-sdk-reference-go:
+    dir: sdks/go
+    cmds:
+      - python3 docs/generate.py
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs

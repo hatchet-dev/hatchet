@@ -1,0 +1,51 @@
+# Class Hatchet::WorkflowRunRef
+
+**Inherits:** `Object`
+
+Reference to a running workflow, returned by `Workflow#run_no_wait`
+
+The result is the full workflow-level output keyed by task readable_id, e.g.
+`{"step1" => {...}, "step2" => {...}}`.
+
+**Example: Get result from a run reference**
+
+```ruby
+ref = workflow.run_no_wait(input)
+result = ref.result  # blocks until complete
+```
+
+## Attributes
+
+## `workflow_run_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The workflow run ID
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(workflow_run_id:, client: = nil, listener: = nil)`
+
+**Parameters:**
+
+| Name              | Type                                | Description                           |
+| ----------------- | ----------------------------------- | ------------------------------------- |
+| `workflow_run_id` | `String`                            | The workflow run ID                   |
+| `client`          | `Hatchet::Client`                   | The Hatchet client (used as fallback) |
+| `listener`        | `Hatchet::WorkflowRunListener, nil` | Pooled gRPC listener                  |
+
+- **Returns** [WorkflowRunRef] a new instance of WorkflowRunRef
+
+## `result`
+
+`result()`
+
+Block until the workflow run completes and return the result.
+
+Uses the pooled gRPC `SubscribeToWorkflowRuns` listener when available. Falls
+back to gRPC `GetRunDetails` polling otherwise.
+
+- **Raises** [Hatchet::FailedRunError] if the workflow run failed
+- **Returns** [Hash] The workflow run output keyed by task readable_id
