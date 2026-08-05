@@ -217,12 +217,25 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
+		// payloads can carry data we don't control (worker error messages, task
+		// outputs), and Postgres rejects the whole insert if any of them contain
+		// a character it can't store in jsonb. Failing here means the message
+		// that triggered the write can never be acked, so strip instead.
+		inlineContent := SanitizeJSONB(payload.Payload)
+
+		if len(inlineContent) != len(payload.Payload) {
+			p.l.Warn().Msgf(
+				"stripped unsupported unicode escapes from %s payload for task %d in tenant %s",
+				payload.Type, payload.Id, tenantId,
+			)
+		}
+
 		taskIds = append(taskIds, payload.Id)
 		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
 		payloadTypes = append(payloadTypes, string(payload.Type))
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-		inlineContents = append(inlineContents, payload.Payload)
+		inlineContents = append(inlineContents, inlineContent)
 		externalIds = append(externalIds, payload.ExternalId)
 		externalLocationKeys = append(externalLocationKeys, "")
 	}

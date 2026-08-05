@@ -3106,10 +3106,21 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
+		// same as the OLTP payload store: a single payload with a character
+		// Postgres can't store in jsonb would otherwise fail the whole batch
+		payload := SanitizeJSONB(opt.Payload)
+
+		if len(payload) != len(opt.Payload) {
+			r.l.Warn().Msgf(
+				"stripped unsupported unicode escapes from olap payload %s in tenant %s",
+				opt.ExternalId, tenantId,
+			)
+		}
+
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
-		payloads = append(payloads, opt.Payload)
+		payloads = append(payloads, payload)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
 		externalKeys = append(externalKeys, "")
 	}
