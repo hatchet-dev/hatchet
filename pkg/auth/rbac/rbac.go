@@ -43,7 +43,6 @@ func (a *Authorizer) IsAuthorized(role string, operation string) bool {
 type Role struct {
 	Inherits    *[]string
 	Permissions *[]string
-	Denies      *[]string
 }
 
 type RBACError struct {
@@ -60,9 +59,6 @@ type PermissionMap struct {
 
 func (p *PermissionMap) HasPermission(roleName string, operation string) bool {
 	curRole := p.Roles[roleName]
-	if curRole.Denies != nil && OperationIn(operation, *curRole.Denies) {
-		return false
-	}
 	if curRole.Permissions != nil {
 		inRole := OperationIn(operation, *curRole.Permissions)
 		if inRole {
@@ -113,15 +109,11 @@ func (p *PermissionMap) ValidateSpec(spec openapi3.T) error {
 
 	allOperations := map[string]interface{}{}
 	for roleName := range p.Roles {
-		if p.Roles[roleName].Permissions != nil {
-			for _, operationId := range *p.Roles[roleName].Permissions {
-				allOperations[operationId] = struct{}{}
-			}
+		if p.Roles[roleName].Permissions == nil {
+			continue
 		}
-		if p.Roles[roleName].Denies != nil {
-			for _, operationId := range *p.Roles[roleName].Denies {
-				allOperations[operationId] = struct{}{}
-			}
+		for _, operationId := range *p.Roles[roleName].Permissions {
+			allOperations[operationId] = struct{}{}
 		}
 	}
 	completeListOfOps := map[string]interface{}{}

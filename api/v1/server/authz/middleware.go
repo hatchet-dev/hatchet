@@ -88,9 +88,9 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return nil
 }
 
-// Bearer tokens are tenant-scoped and carry no user, so operations that read the user or the
-// tenant member from the request context are listed under the BEARER_TOKEN role's denies in
-// rbac.yaml and rejected here. The tenant itself is checked in the authn step.
+// Bearer tokens are admin-scoped but carry no user, so operations that read the user or the
+// tenant member from the request context are absent from the BEARER_TOKEN role in rbac.yaml
+// and rejected here. The tenant itself is checked in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
 	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only

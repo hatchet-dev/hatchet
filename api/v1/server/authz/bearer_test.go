@@ -31,12 +31,9 @@ func TestHandleBearerAuthEnforcesBearerTokenRole(t *testing.T) {
 		"TenantCreate",
 		"TenantInviteAccept",
 		"TenantInviteCreate",
-		"TenantInviteDelete",
-		"TenantInviteList",
 		"TenantInviteReject",
 		"TenantInviteUpdate",
 		"TenantMemberDelete",
-		"TenantMemberList",
 		"TenantMemberUpdate",
 		"TenantMembershipsList",
 		"UserGetCurrent",
@@ -58,6 +55,8 @@ func TestHandleBearerAuthEnforcesBearerTokenRole(t *testing.T) {
 
 	allowed := []string{
 		"TenantGet",
+		"TenantInviteList",
+		"TenantMemberList",
 		"WorkflowRunCreate",
 		"V1WorkflowRunCreate",
 		"WorkerList",
@@ -76,9 +75,9 @@ func TestHandleBearerAuthAllowedOperationsBypass(t *testing.T) {
 	require.NoError(t, err)
 
 	config := &server.ServerConfig{}
-	config.Auth.AllowedOperations = []string{"ApiTokenCreate"}
+	config.Auth.AllowedOperations = []string{"CloudOnlyOperation"}
 
 	a := &AuthZ{config: config, rbac: authorizer}
 
-	assert.NoError(t, a.handleBearerAuth(newBearerContext(), &middleware.RouteInfo{OperationID: "ApiTokenCreate"}))
+	assert.NoError(t, a.handleBearerAuth(newBearerContext(), &middleware.RouteInfo{OperationID: "CloudOnlyOperation"}))
 }
