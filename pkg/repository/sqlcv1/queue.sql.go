@@ -461,7 +461,7 @@ WITH working_set AS MATERIALIZED (
         v1_queue_item qi
     JOIN v1_task t ON t.id = qi.task_id AND t.inserted_at = qi.task_inserted_at
     WHERE
-        qi.tenant_id = $1::uuid
+        qi.tenant_id = $2::uuid
         AND t.additional_metadata IS NOT NULL
 )
 SELECT
@@ -473,10 +473,16 @@ FROM
     working_set ws
 CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
-    jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+    starts_with(kv.key, $1::text)
+    AND jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
 GROUP BY
     ws.queue, kv.key, (kv.value #>> '{}')
 `
+
+type GetQueueSizesByMetadataParams struct {
+	Keyprefix string    `json:"keyprefix"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+}
 
 type GetQueueSizesByMetadataRow struct {
 	Queue string `json:"queue"`
@@ -485,8 +491,8 @@ type GetQueueSizesByMetadataRow struct {
 	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetQueueSizesByMetadataRow, error) {
-	rows, err := db.Query(ctx, getQueueSizesByMetadata, tenantid)
+func (q *Queries) GetQueueSizesByMetadata(ctx context.Context, db DBTX, arg GetQueueSizesByMetadataParams) ([]*GetQueueSizesByMetadataRow, error) {
+	rows, err := db.Query(ctx, getQueueSizesByMetadata, arg.Keyprefix, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
