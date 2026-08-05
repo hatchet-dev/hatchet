@@ -461,7 +461,8 @@ FROM
     working_set ws
 CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
 WHERE
-    jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+    starts_with(kv.key, @keyPrefix::text)
+    AND jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
 GROUP BY
     ws.queue, kv.key, (kv.value #>> '{}');
 
