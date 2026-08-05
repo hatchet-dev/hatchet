@@ -54,6 +54,23 @@ class BulkTriggerIdempotencyCollisionError(Exception):
         self.collisions = collisions
 
 
+class PayloadTooLargeError(Exception):
+    """Raised when a gRPC call is rejected because the outgoing message exceeded the
+    configured max send size (see `ClientConfig.grpc_max_send_message_length`)."""
+
+    def __init__(self, payload_bytes: int, details: str) -> None:
+        self.payload_bytes = payload_bytes
+        self.details = details
+
+        super().__init__(
+            f"Payload too large: attempted to send {payload_bytes}, which "
+            "exceeds the gRPC max message size configured for this client. Increase "
+            "`grpc_max_send_message_length` in your ClientConfig (or the "
+            "HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH env var), or reduce the payload "
+            f"size. ({details})"
+        )
+
+
 TASK_RUN_ERROR_METADATA_KEY = "__hatchet_error_metadata__"
 
 

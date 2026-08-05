@@ -154,7 +154,12 @@ module Hatchet
             message: message_bytes,
           )
 
-          @stub.put_stream_event(request, metadata: @config.auth_metadata)
+          begin
+            @stub.put_stream_event(request, metadata: @config.auth_metadata)
+          rescue ::GRPC::ResourceExhausted => e
+            Hatchet.raise_if_grpc_payload_too_large!(e, request)
+            raise
+          end
         end
 
         # Close the connection.

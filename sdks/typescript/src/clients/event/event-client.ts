@@ -4,6 +4,7 @@ import {
   EventsServiceClient,
   EventsServiceDefinition,
   PushEventRequest,
+  PutStreamEventRequest,
 } from '@hatchet/protoc/events/events';
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -174,17 +175,19 @@ export class EventClient {
       throw new Error('Invalid data type. Expected string or Uint8Array.');
     }
 
-    retrier(
-      async () =>
-        this.client.putStreamEvent({
-          taskRunExternalId,
-          createdAt,
-          message: dataBytes,
-          eventIndex: index,
-        }),
-      this.logger
-    ).catch((e: unknown) => {
-      this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
+    const req = {
+      taskRunExternalId,
+      createdAt,
+      message: dataBytes,
+      eventIndex: index,
+    };
+
+    retrier(async () => this.client.putStreamEvent(req), this.logger).catch((e: unknown) => {
+      const payloadSizeBytes = PutStreamEventRequest.encode(
+        PutStreamEventRequest.fromPartial(req)
+      ).finish().length;
+      const hatchetError = toHatchetError(e, undefined, payloadSizeBytes);
+      this.logger.warn(`Could not put log: ${hatchetError.message}`);
     });
   }
 
