@@ -145,6 +145,10 @@ type Scheduler struct {
 	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
+
+	promGate *prometheus.Gate
+
+	queueMetrics *queueMetricsPoller
 }
 
 func New(
@@ -206,6 +210,8 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		signaler:               signaler,
+		promGate:               opts.promGate,
+		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
 	}
 
 	return q, nil
@@ -233,6 +239,19 @@ func (s *Scheduler) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
+	}
+
+	_, err = s.s.NewJob(
+		gocron.DurationJob(queueMetricsPollInterval),
+		gocron.NewTask(
+			s.runPollQueueMetrics(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule queue metrics polling: %w", err)
 	}
 
 	s.s.Start()
