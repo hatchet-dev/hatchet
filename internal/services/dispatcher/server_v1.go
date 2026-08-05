@@ -351,6 +351,9 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
+	var reqWg sync.WaitGroup
+	defer reqWg.Wait()
+
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(durableInvocationsKey{
@@ -420,6 +423,13 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				return r.err
 			}
 
+			if msg, isRegisterWorker := r.req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
+				if err := d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+				continue
+			}
+
 			switch msg := r.req.GetMessage().(type) {
 			case *contracts.DurableTaskRequest_Memo:
 				registerTask(msg.Memo.DurableTaskExternalId)
@@ -429,9 +439,14 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
-			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
-				d.l.Error().Err(err).Msg("error handling durable task request")
-			}
+			reqWg.Add(1)
+			go func(req *contracts.DurableTaskRequest) {
+				defer reqWg.Done()
+
+				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+			}(r.req)
 		}
 	}
 }
@@ -451,8 +466,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	)
 
 	switch msg := req.GetMessage().(type) {
-	case *contracts.DurableTaskRequest_RegisterWorker:
-		return d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker)
 	case *contracts.DurableTaskRequest_Memo:
 		return d.handleMemo(ctx, invocation, msg.Memo)
 	case *contracts.DurableTaskRequest_TriggerRuns:
