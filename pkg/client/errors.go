@@ -27,11 +27,6 @@ func (e *PayloadTooLargeErr) Error() string {
 	)
 }
 
-// wrapIfPayloadTooLarge inspects err for a gRPC RESOURCE_EXHAUSTED status caused by an
-// outgoing message that was larger than the configured max send size, and if so wraps it in
-// a PayloadTooLargeErr reporting the exact size of the message that was rejected. Any other
-// error (including other RESOURCE_EXHAUSTED causes, e.g. tenant quota limits) is returned
-// unchanged.
 func wrapIfPayloadTooLarge(err error, msg proto.Message) error {
 	if err == nil || status.Code(err) != codes.ResourceExhausted {
 		return err

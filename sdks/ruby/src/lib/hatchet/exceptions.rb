@@ -17,8 +17,7 @@ module Hatchet
     end
   end
 
-  # Raised when a gRPC call is rejected because the outgoing message exceeded the
-  # configured max send size (see Hatchet::Config#grpc_max_send_message_length).
+
   class PayloadTooLargeError < Error
     # @return [Integer] The exact serialized size, in bytes, of the message that was rejected
     attr_reader :payload_bytes
@@ -126,9 +125,6 @@ module Hatchet
     end
   end
 
-  # If `grpc_error` (a rescued ::GRPC::ResourceExhausted) was caused by an oversized
-  # outgoing message rather than e.g. a tenant quota limit, raises PayloadTooLargeError
-  # with the exact serialized size of `request`. Otherwise this is a no-op.
   def self.raise_if_grpc_payload_too_large!(grpc_error, request)
     details = grpc_error.message.to_s
     lowered = details.downcase
