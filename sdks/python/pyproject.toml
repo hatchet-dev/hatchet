@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.33.18"
+version = "1.37.1"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -16,6 +16,7 @@ authors = [
 dependencies = [
     "grpcio>=1.76.0,<2",
     "grpcio-tools>=1.76.0,<2",
+    "grpcio-status>=1.76.0,<2",
     "protobuf>=6.30.2,<7",
     "pydantic>=2.6.3,<3",
     "python-dateutil>=2.9.0.post0,<3",
@@ -38,7 +39,7 @@ otel = [
 ]
 
 lint = [
-    "mypy==1.20.0",
+    "mypy==1.20.1",
     "types-protobuf>=5.28.3.20241030",
     "black==26.3.1",
     "click>=8.4.2",
@@ -46,30 +47,31 @@ lint = [
     "ruff==0.15.10",
     "types-requests>=2.33.0.20260712",
     "psutil>=6.0.0",
-    "types-grpcio>=1.0.0.20260614",
+    "types-grpcio>=1.83.0.20260730",
+    "types-grpcio-status (>=1.0.0.20260408,<2.0.0.0)",
 ]
 
 test = [
     "pytest>=9.1.1,<10",
     "pytest-asyncio>=1.4.0",
-    "pytest-env>=1.6.0",
+    "pytest-env>=1.7.0",
     "pytest-retry>=1.7.0",
     "psycopg[pool]>=3.3.4,<4",
     "pytest-xdist>=3.7.0",
     "requests>=2.34.2,<3",
-    "boto3[s3]>=1.43.41",
-    "botocore>=1.43.46",
+    "boto3[s3]>=1.43.51",
+    "botocore>=1.43.62",
 ]
 
 docs = [
     "mkdocs>=1.6.1,<2",
-    "mkdocstrings[python]>=1.0.4,<2",
+    "mkdocstrings[python]>=1.0.6,<2",
     "pydoclint>=0.9.1",
     "markdownify>=1.2.3",
-    "openai>=2.44.0,<3",
+    "openai>=2.52.0,<3",
     "bs4>=0.0.2",
     "types-beautifulsoup4>=4.12.0.20250204",
-    "fastapi>=0.139.0,<1",
+    "fastapi>=0.141.1,<1",
     "uvicorn>=0.51.0,<1",
 ]
 

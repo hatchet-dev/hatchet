@@ -49,7 +49,8 @@ export function CodeEditor({
       const existingSchemas = existingOptions.schemas || [];
 
       const otherSchemas = existingSchemas.filter(
-        (s) => !s.fileMatch?.includes(modelPath),
+        (s: { fileMatch: string | string[] }) =>
+          !s.fileMatch?.includes(modelPath),
       );
 
       const newSchemas = hasJsonSchema

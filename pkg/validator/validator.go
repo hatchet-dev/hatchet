@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
-var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:gosimple
+var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:staticcheck
 
 // DurationRegex restricts durations to the grammar convert_duration_to_interval
 // can parse: one or more <number><unit> components, units ms/s/m/h, optional

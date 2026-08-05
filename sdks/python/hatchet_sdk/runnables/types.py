@@ -1,10 +1,12 @@
 import inspect
 import json
 from collections.abc import Callable, Mapping
+from datetime import timedelta
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
+    NewType,
     ParamSpec,
     TypeAlias,
     TypeGuard,
@@ -17,6 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
+)
+from hatchet_sdk.types.idempotency import (
+    StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.sticky import StickyStrategy
@@ -96,14 +102,32 @@ class WorkflowConfig(BaseModel):
     version: str | None = None
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
+    # An instance of the workflow's input model, passed to runs triggered by the
+    # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
+    # type is generic per-workflow; it is serialized via `input_validator` in
+    # `BaseWorkflow.to_proto`.
+    cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
+    idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
     default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+
+
+class BatchTaskConfig(BaseModel):
+    batch_max_size: int
+    batch_max_interval: timedelta | None = None
+    batch_group_key: str | None = None
+    batch_group_max_runs: int | None = None
+    broadcast_output: bool = False
+
+
+BatchMemberId = NewType("BatchMemberId", str)
+"""The key identifying a single item within a batch task's input/output dict (its task run external id)."""
 
 
 class StepType(str, Enum):

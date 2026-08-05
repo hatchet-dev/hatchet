@@ -68,6 +68,7 @@ func (tc *OLAPControllerImpl) logRepublish(ctx context.Context, entity string, c
 
 type OLAPControllerImpl struct {
 	mq                           msgqueue.MessageQueue
+	pubsub                       msgqueue.PubSub
 	l                            *zerolog.Logger
 	repo                         v1.Repository
 	dv                           datautils.DataDecoderValidator
@@ -96,6 +97,7 @@ type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
 	mq                          msgqueue.MessageQueue
+	pubsub                      msgqueue.PubSub
 	l                           *zerolog.Logger
 	repo                        v1.Repository
 	dv                          datautils.DataDecoderValidator
@@ -129,6 +131,12 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 func WithMessageQueue(mq msgqueue.MessageQueue) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -236,6 +244,10 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
@@ -270,6 +282,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 	o := &OLAPControllerImpl{
 		mq:                          opts.mq,
+		pubsub:                      opts.pubsub,
 		l:                           opts.l,
 		s:                           s,
 		p:                           opts.p,
@@ -753,18 +766,12 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				var filterId uuid.UUID
-
-				if payload.FilterId != nil {
-					filterId = *payload.FilterId
-				}
-
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
 					EventExternalId: payload.EventExternalId,
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-					FilterId:        filterId,
+					FilterId:        payload.FilterId,
 				})
 			}
 
@@ -803,7 +810,6 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Externalids:            externalIds,
 		Seenats:                seenAts,
 		Keys:                   keys,
-		Payloads:               payloadstoInsert,
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
@@ -811,7 +817,10 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		bulkCreateEventParams,
+		v1.BulkCreateEventsAndTriggersParams{
+			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
+			Payloads:                   payloadstoInsert,
+		},
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err
@@ -1022,6 +1031,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapEVICTED)
 		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		case sqlcv1.V1EventTypeOlapBATCHBUFFERED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+			// Running until the individual tasks are completed
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		default:
+			// Treat unknown or informational events as queued to keep array lengths aligned.
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
 		}
 	}
 
@@ -1164,7 +1183,7 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 		if err != nil {
 			return err
 		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+		if err := msgqueue.PubTenantMessage(ctx, tc.l, tc.mq, tc.pubsub, msgqueue.OLAP_QUEUE, msg); err != nil {
 			return err
 		}
 	}

@@ -112,11 +112,11 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 
 	params := sqlcv1.CreateWebhookParams{
 		Tenantid:                     tenantId,
-		Sourcename:                   sqlcv1.V1IncomingWebhookSourceName(opts.Sourcename),
+		Sourcename:                   opts.Sourcename,
 		Name:                         opts.Name,
 		Eventkeyexpression:           opts.Eventkeyexpression,
 		Returneventasresponsepayload: opts.ReturnEventAsResponsePayload,
-		Authmethod:                   sqlcv1.V1IncomingWebhookAuthType(opts.AuthConfig.Type),
+		Authmethod:                   opts.AuthConfig.Type,
 	}
 
 	if opts.ScopeExpression != nil {

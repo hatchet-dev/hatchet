@@ -21,7 +21,8 @@ WITH input AS (
         unnest(@workflowIds::uuid[]) AS workflow_id,
         unnest(@workflowVersionIds::uuid[]) AS workflow_version_id,
         unnest(@parentTaskExternalIds::uuid[]) AS parent_task_external_id,
-        unnest(@desiredWorkerLabels::jsonb[]) AS desired_worker_labels
+        unnest(@desiredWorkerLabels::jsonb[]) AS desired_worker_labels,
+        unnest(@idempotencyKeys::text[]) AS idempotency_keys
 )
 INSERT INTO v1_dag (
     tenant_id,
@@ -30,7 +31,8 @@ INSERT INTO v1_dag (
     workflow_id,
     workflow_version_id,
     parent_task_external_id,
-    desired_worker_labels
+    desired_worker_labels,
+    idempotency_key
 )
 SELECT
     i.tenant_id,
@@ -39,7 +41,8 @@ SELECT
     i.workflow_id,
     i.workflow_version_id,
     NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    i.desired_worker_labels
+    i.desired_worker_labels,
+    NULLIF(i.idempotency_keys, '')
 FROM
     input i
 RETURNING

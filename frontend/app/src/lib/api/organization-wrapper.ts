@@ -4,6 +4,8 @@ import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOr
 import type {
   CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest as ControlPlaneCreateOrganizationInviteRequest,
+  OrganizationMemberRoleType as ControlPlaneOrganizationMemberRoleType,
+  UpdateOrganizationMemberRequest as ControlPlaneUpdateOrganizationMemberRequest,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
@@ -20,6 +22,13 @@ type OrganizationCreateTenantRequest =
 type OrganizationMemberDeleteRequest = Parameters<
   typeof cloudApi.organizationMemberDelete
 >[1];
+// Control-plane-only: the legacy cloud management API is deprecated and does
+// not support member role changes. The role is typed as the shared string
+// values so callers holding the cloud client's (nominally distinct) role enum
+// compile against it.
+type OrganizationMemberUpdateRequest = {
+  role: `${ControlPlaneOrganizationMemberRoleType}`;
+};
 type ManagementTokenCreateRequest = Parameters<
   typeof cloudApi.managementTokenCreate
 >[1];
@@ -216,6 +225,22 @@ export function useOrganizationApi() {
                   data,
                 )
               : cloudApi.organizationMemberDelete(organizationMember, data))
+          ).data,
+      }),
+
+      // Control-plane-only: the legacy cloud management API is deprecated and
+      // does not support member role changes.
+      organizationMemberUpdateMutation: (organizationMember: string) => ({
+        mutationKey: [
+          'organization-member:update',
+          organizationMember,
+        ] as const,
+        mutationFn: async (data: OrganizationMemberUpdateRequest) =>
+          (
+            await controlPlaneApi.organizationMemberUpdate(
+              organizationMember,
+              data as ControlPlaneUpdateOrganizationMemberRequest,
+            )
           ).data,
       }),
 

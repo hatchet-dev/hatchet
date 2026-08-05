@@ -5,13 +5,24 @@ import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switche
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
+import useControlPlane from '@/hooks/use-control-plane';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
-import { useMutation } from '@tanstack/react-query';
+import {
+  defaultOnboardingState,
+  onboardingStorageKey,
+} from '@/pages/main/v1/overview/components/onboarding-state';
+import { type OrganizationTenantWithRegion } from '@/pages/main/v1/tenant-settings/organization';
+import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
+import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 export default function TenantSettings() {
@@ -33,12 +44,14 @@ export default function TenantSettings() {
           </SettingRow>
           <TenantApiUrl />
           <TenantRegion />
+          <TenantTags />
           <SettingRow
             label="Analytics Opt-Out"
             description="Disable usage analytics collection for this tenant."
           >
             <AnalyticsOptOut />
           </SettingRow>
+          <OnboardingSettingRow />
         </div>
       </div>
     </div>
@@ -112,6 +125,97 @@ const TenantRegion: React.FC = () => {
   );
 };
 
+// Tenant tags are a control-plane, org-owner concept (they drive which org
+// members can access the tenant). Org owners can edit them here — on the
+// tenant's own General tab — in addition to the org-wide Tenants list.
+const TenantTags: React.FC = () => {
+  const { tenant, organizationId } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizations } = useOrganizations();
+  const orgApi = useOrganizationApi();
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+
+  const isOrganizationOwner =
+    organizations.find((o) => o.metadata.id === organizationId)?.isOwner ??
+    false;
+  const canEditTags =
+    isControlPlaneEnabled && isOrganizationOwner && !!organizationId;
+
+  const organizationQuery = useQuery({
+    ...orgApi.organizationGetQuery(organizationId!),
+    enabled: canEditTags,
+  });
+  // Widen the tag picker with tags defined on user groups but not yet applied
+  // to any tenant — matches the org-side editor's suggestions.
+  const userGroupsQuery = useQuery({
+    ...orgApi.userGroupsListQuery(organizationId!),
+    enabled: canEditTags,
+  });
+
+  if (!canEditTags) {
+    return null;
+  }
+
+  // Cloud's OrganizationTenant type omits `tags`; the control-plane data has
+  // it. Same graft the org-wide Tenants list uses.
+  const tenants: OrganizationTenantWithRegion[] =
+    organizationQuery.data?.tenants ?? [];
+  const tags = tenants.find((t) => t.id === tenantId)?.tags ?? [];
+
+  const tagSet = new Set<string>();
+  for (const t of tenants) {
+    t.tags?.forEach((tag) => tagSet.add(tag));
+  }
+  for (const group of userGroupsQuery.data ?? []) {
+    group.tags?.forEach((tag) => tagSet.add(tag));
+  }
+  const allTenantTags = Array.from(tagSet).sort();
+
+  return (
+    <SettingRow
+      label="Tags"
+      description="Tags control which organization members can access this tenant."
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-1">
+          {tags.length > 0 ? (
+            tags.map((tag) => <TagBadge key={tag} tag={tag} />)
+          ) : (
+            <span className="text-sm text-muted-foreground">No tags</span>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setIsEditing(true)}
+        >
+          Edit tags
+        </Button>
+      </div>
+
+      {isEditing && (
+        <EditTenantTagsModal
+          open={isEditing}
+          onOpenChange={(open) => !open && setIsEditing(false)}
+          organizationId={organizationId!}
+          tenantId={tenantId}
+          tenantName={tenant?.name || tenantId}
+          initialTags={tags}
+          allTenantTags={allTenantTags}
+          onSuccess={() =>
+            queryClient.invalidateQueries({
+              queryKey: ['organization:get', organizationId],
+            })
+          }
+        />
+      )}
+    </SettingRow>
+  );
+};
+
 const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { tenantId } = useCurrentTenantId();
@@ -178,5 +282,37 @@ const AnalyticsOptOut: React.FC = () => {
           </Button>
         ))}
     </div>
+  );
+};
+
+const OnboardingSettingRow: React.FC = () => {
+  const { tenantId } = useCurrentTenantId();
+  const navigate = useNavigate();
+  // The same tenant-scoped key and defaults the Overview onboarding reads,
+  // so restarting here is indistinguishable from a first visit there.
+  const [, setStoredOnboarding] = useLocalStorageState<unknown>(
+    onboardingStorageKey(tenantId),
+    null,
+  );
+
+  return (
+    <SettingRow
+      label="Onboarding"
+      description="Restart the onboarding guide on the Overview page. This clears onboarding progress for this tenant in this browser."
+    >
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setStoredOnboarding(defaultOnboardingState());
+          navigate({
+            to: '/tenants/$tenant/overview',
+            params: { tenant: tenantId },
+          });
+        }}
+      >
+        Restart onboarding
+      </Button>
+    </SettingRow>
   );
 };

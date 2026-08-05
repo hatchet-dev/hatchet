@@ -15,7 +15,7 @@ import (
 
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/sethvargo/go-retry"
@@ -29,6 +29,7 @@ var embedMigrations embed.FS
 
 type runMigrationsOpt struct {
 	upToPenultimate bool
+	databaseURL     string
 }
 
 type RunMigrationsOpt func(*runMigrationsOpt)
@@ -39,13 +40,17 @@ func WithUpToPenultimate() RunMigrationsOpt {
 	}
 }
 
-func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
-	if err := runMigrationsImpl(ctx, opts...); err != nil {
-		log.Fatal(err)
+// WithDatabaseURL runs the migrations against the given database URL instead of
+// the DATABASE_URL environment variable. This is used by downstream consumers
+// (e.g. Hatchet Cloud) to apply the OSS schema to a separate database, such as a
+// dedicated OLAP database.
+func WithDatabaseURL(url string) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.databaseURL = url
 	}
 }
 
-func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
+func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
 
@@ -58,7 +63,10 @@ func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
 		phaseName      = "oss"
 	)
 
-	rawURL := os.Getenv(databaseEnvVar)
+	rawURL := options.databaseURL
+	if rawURL == "" {
+		rawURL = os.Getenv(databaseEnvVar)
+	}
 	if rawURL == "" {
 		return migratediag.MissingEnvError(databaseEnvVar, phaseName)
 	}

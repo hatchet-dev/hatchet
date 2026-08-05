@@ -44,6 +44,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+  nats:
+    # No healthcheck on purpose: nothing in CI waits on NATS readiness — the
+    # integration job composes up without --wait, and the e2e jobs' --wait is
+    # satisfied by "running" when no healthcheck is defined. The image's
+    # default CMD already loads /etc/nats/nats-server.conf; we mount ours to
+    # configure max_payload (etc).
+    image: "nats:2.14.3-alpine"
+    ports:
+      - "4222:4222"
+    volumes:
+      - "./hack/dev/nats-server.conf:/etc/nats/nats-server.conf:ro"
 
 volumes:
   hatchet_postgres_data:

@@ -119,6 +119,14 @@ listWorkflowRuns:
         required: false
         schema:
           $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
+      - description: The idempotency key(s) to filter for
+        in: query
+        name: idempotency_keys
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

@@ -44,8 +44,14 @@ type reconnectingStream[C any] struct {
 
 	generation uint64
 	mu         sync.Mutex
-	hasClient  bool
-	closed     bool
+	// sendMu serializes SendMsg and CloseSend on published clients: grpc-go
+	// allows only one concurrent sender, and CloseSend must not run
+	// concurrently with SendMsg. It also makes replay, publication, and
+	// retirement one atomic handoff. Never held during construction or
+	// backoff. Lock order is sendMu → mu, never reverse.
+	sendMu    sync.Mutex
+	hasClient bool
+	closed    bool
 }
 
 func newReconnectingStream[C any](
@@ -98,7 +104,9 @@ func (s *reconnectingStream[C]) setInitialClient(client C) {
 	s.hasClient = true
 }
 
-func (s *reconnectingStream[C]) installClient(client C) error {
+// installClientLocked publishes client and retires the previous client. The
+// caller must hold sendMu.
+func (s *reconnectingStream[C]) installClientLocked(client C) error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -113,7 +121,8 @@ func (s *reconnectingStream[C]) installClient(client C) error {
 	s.mu.Unlock()
 
 	if hadOldClient && s.closeSend != nil {
-		if err := s.closeSend(oldClient); err != nil {
+		err := s.closeSend(oldClient)
+		if err != nil {
 			s.l.Warn().Err(err).Str("stream", s.name).Msg("failed to close replaced stream client")
 		}
 	}
@@ -145,6 +154,9 @@ func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
 			return nil, err
 		}
 
+		s.sendMu.Lock()
+		defer s.sendMu.Unlock()
+
 		if s.replay != nil {
 			if err := s.replay(ctx, client); err != nil {
 				if s.closeSend != nil {
@@ -154,7 +166,7 @@ func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
 			}
 		}
 
-		if err := s.installClient(client); err != nil {
+		if err := s.installClientLocked(client); err != nil {
 			if s.closeSend != nil {
 				_ = s.closeSend(client)
 			}
@@ -219,14 +231,23 @@ func (s *reconnectingStream[C]) connectSync(ctx context.Context) error {
 func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) error) error {
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
-		client, gen, ok := s.snapshot()
-		if !ok {
-			return errStreamNotConnected
-		}
+		var gen uint64
+		err := func() error {
+			s.sendMu.Lock()
+			defer s.sendMu.Unlock()
 
-		err := send(client)
+			client, g, ok := s.snapshot()
+			if !ok {
+				return errStreamNotConnected
+			}
+			gen = g
+			return send(client)
+		}()
 		if err == nil {
 			return nil
+		}
+		if errors.Is(err, errStreamNotConnected) {
+			return err
 		}
 
 		lastErr = err
@@ -259,6 +280,8 @@ func (s *reconnectingStream[C]) closeStream() error {
 		return nil
 	}
 
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
 	return s.closeSend(client)
 }
 

@@ -8,14 +8,27 @@ export function useLocalStorageState<T>(
   key: string,
   defaultValue: T,
 ): [T, (value: SetStateValue<T>) => void] {
-  const [state, setState] = useState<T>(() => {
+  const readStoredValue = (): T => {
     try {
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : defaultValue;
     } catch (error) {
       return defaultValue;
     }
-  });
+  };
+
+  const [state, setState] = useState<T>(readStoredValue);
+
+  // The initializer runs once, so a caller whose key changes (for example
+  // a tenant-scoped key after a tenant switch) must reload the new key's
+  // value. Setting state during render makes React re-render before
+  // committing, so no frame of the previous key's state is ever shown or
+  // written under the new key.
+  const [renderedKey, setRenderedKey] = useState(key);
+  if (renderedKey !== key) {
+    setRenderedKey(key);
+    setState(readStoredValue());
+  }
 
   const setValue = (value: SetStateValue<T>) => {
     try {

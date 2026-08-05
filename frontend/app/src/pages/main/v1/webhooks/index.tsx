@@ -372,6 +372,22 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
   }
 };
 
+const createEventKeyPlaceholder = (sourceName: V1WebhookSourceName) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.SLACK:
+      return 'input.type';
+    case V1WebhookSourceName.GENERIC:
+    case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.LINEAR:
+    case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SVIX:
+      return 'input.id';
+    default:
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
 const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
   switch (sourceName) {
     case V1WebhookSourceName.GITHUB:
@@ -415,7 +431,7 @@ const CreateWebhookModal = () => {
       sourceName: V1WebhookSourceName.GENERIC,
       authType: V1WebhookAuthType.BASIC,
       name: '',
-      eventKeyExpression: 'input.id',
+      eventKeyExpression: '',
       username: '',
       password: '',
       returnEventAsResponsePayload: true,
@@ -425,20 +441,7 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
-  const eventKeyExpression = watch('eventKeyExpression');
   const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
-
-  /* Update default event key expression when source changes */
-  useEffect(() => {
-    if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
-      setValue('eventKeyExpression', 'input.type');
-    } else if (
-      sourceName === V1WebhookSourceName.GENERIC &&
-      !eventKeyExpression
-    ) {
-      setValue('eventKeyExpression', 'input.id');
-    }
-  }, [sourceName, eventKeyExpression, setValue]);
 
   const copyToClipboard = useCallback(async () => {
     if (webhookName) {
@@ -583,7 +586,7 @@ const CreateWebhookModal = () => {
             </Label>
             <Input
               id="eventKeyExpression"
-              placeholder="input.id"
+              placeholder={createEventKeyPlaceholder(sourceName)}
               {...register('eventKeyExpression')}
               className="h-10"
             />

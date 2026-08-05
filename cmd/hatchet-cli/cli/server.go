@@ -89,7 +89,18 @@ func runServerStart(cmd *cobra.Command) {
 		cli.Logger.Fatalf("%v", err)
 	}
 
-	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, ""))
+	additionalMessage := ""
+	if result.DefaultSet {
+		additionalMessage = fmt.Sprintf("Profile '%s' set as the default profile", result.ProfileName)
+	}
+
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, disableAuth, additionalMessage))
+
+	if disableAuth && result.Token != "" {
+		fmt.Println()
+		fmt.Println(styles.Muted.Render("Worker API token (set HATCHET_CLIENT_TOKEN to this value):"))
+		fmt.Println(result.Token)
+	}
 }
 
 var stopCmd = &cobra.Command{
@@ -134,6 +145,7 @@ type ServerStartResult struct {
 	Token         string
 	DashboardPort int
 	GrpcPort      int
+	DefaultSet    bool
 }
 
 // startLocalServer starts a local Hatchet server and returns connection details
@@ -147,7 +159,9 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 	var actualDashboardPort, actualGrpcPort int
 
 	// Build options for RunHatchetLite
-	allOpts := append(opts,
+	allOpts := make([]docker.HatchetLiteOpt, len(opts), len(opts)+2)
+	copy(allOpts, opts)
+	allOpts = append(allOpts,
 		docker.WithCreateTokenCallback(func(tok string) {
 			token = tok
 		}),
@@ -173,16 +187,24 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 		return nil, fmt.Errorf("could not add profile: %w", err)
 	}
 
+	// A non-interactive session cannot answer the profile-selection form, so the profile
+	// created here becomes the default unless the user already chose one.
+	defaultSet, err := cli.SetDefaultProfileIfUnset(profileName)
+	if err != nil {
+		return nil, fmt.Errorf("could not set default profile: %w", err)
+	}
+
 	return &ServerStartResult{
 		ProfileName:   profileName,
 		Token:         token,
 		DashboardPort: actualDashboardPort,
 		GrpcPort:      actualGrpcPort,
+		DefaultSet:    defaultSet,
 	}, nil
 }
 
 // serverStartedView renders the server started message
-func serverStartedView(profileName string, dashboardPort, grpcPort int, additionalMessage string) string {
+func serverStartedView(profileName string, dashboardPort, grpcPort int, disableAuth bool, additionalMessage string) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage("Hatchet server started successfully!"))
@@ -193,7 +215,11 @@ func serverStartedView(profileName string, dashboardPort, grpcPort int, addition
 	lines = append(lines, styles.KeyValue("gRPC Port", fmt.Sprintf("%d", grpcPort)))
 	lines = append(lines, "")
 	lines = append(lines, styles.Success.Render(fmt.Sprintf("Visit the dashboard at http://localhost:%d to get started!", dashboardPort)))
-	lines = append(lines, styles.Muted.Render("Admin credentials: email 'admin@example.com', password 'Admin123!!'"))
+	if disableAuth {
+		lines = append(lines, styles.Muted.Render("Authentication is disabled — no credentials required."))
+	} else {
+		lines = append(lines, styles.Muted.Render("Admin credentials: email 'admin@example.com', password 'Admin123!!'"))
+	}
 
 	if additionalMessage != "" {
 		lines = append(lines, "")

@@ -121,6 +121,9 @@ V1TaskSummary:
       type: string
       description: The external ID of the parent task.
       format: uuid
+    idempotencyKey:
+      type: string
+      description: The idempotency key that was claimed by the task run
   required:
     - metadata
     - createdAt
@@ -309,6 +312,8 @@ V1TaskEventType:
     - CREATED
     - QUEUED
     - SKIPPED
+    - WAITING_FOR_BATCH
+    - BATCH_FLUSHED
     - COULD_NOT_SEND_TO_WORKER
     - DURABLE_EVICTED
     - DURABLE_RESTORING

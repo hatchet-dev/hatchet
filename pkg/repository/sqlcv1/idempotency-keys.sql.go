@@ -14,63 +14,67 @@ import (
 
 const claimIdempotencyKeys = `-- name: ClaimIdempotencyKeys :many
 WITH inputs AS (
-    SELECT DISTINCT
+    SELECT
         UNNEST($1::TEXT[]) AS key,
-        UNNEST($2::UUID[]) AS claimed_by_external_id
-), incoming_claims AS (
-    SELECT
-        key, claimed_by_external_id,
-        ROW_NUMBER() OVER(PARTITION BY key ORDER BY claimed_by_external_id) AS claim_index
+        UNNEST($2::TIMESTAMPTZ[]) AS expires_at,
+        UNNEST($3::UUID[]) AS claimed_by_external_id
+), inputs_with_rn AS (
+    SELECT key, expires_at, claimed_by_external_id, ROW_NUMBER() OVER (PARTITION BY key ORDER BY expires_at DESC) AS rn
     FROM inputs
-), candidate_keys AS (
-    -- Grab all of the keys that are attempting to be claimed
-    SELECT
-        tenant_id,
-        expires_at,
-        key,
-        ROW_NUMBER() OVER(PARTITION BY tenant_id, key ORDER BY expires_at) AS key_index
+), deduplicated_potential_claims AS (
+    SELECT key, expires_at, claimed_by_external_id, rn
+    FROM inputs_with_rn
+    WHERE rn = 1
+), locked_existing_keys AS (
+    SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
     FROM v1_idempotency_key
     WHERE
-        tenant_id = $3::UUID
+        tenant_id = $4::UUID
         AND key IN (
             SELECT key
-            FROM incoming_claims
+            FROM deduplicated_potential_claims
         )
-        AND claimed_by_external_id IS NULL
-        AND expires_at > NOW()
-), to_update AS (
-    SELECT
-        ck.tenant_id,
-        ck.expires_at,
-        ck.key,
-        ic.claimed_by_external_id
-    FROM candidate_keys ck
-    JOIN incoming_claims ic ON (ck.key, ck.key_index) = (ic.key, ic.claim_index)
-    WHERE ck.tenant_id = $3::UUID
-    FOR UPDATE SKIP LOCKED
+    ORDER BY tenant_id, expires_at, key
+    FOR UPDATE
+), claimable_keys AS (
+    SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
+    FROM locked_existing_keys
+    WHERE expires_at <= NOW()
 ), claims AS (
-    UPDATE v1_idempotency_key k
+    INSERT INTO v1_idempotency_key (key, expires_at, tenant_id, claimed_by_external_id)
+    SELECT key, expires_at, $4::UUID, claimed_by_external_id
+    FROM deduplicated_potential_claims
+    ON CONFLICT (tenant_id, key) DO UPDATE
     SET
-        claimed_by_external_id = u.claimed_by_external_id,
-        updated_at = NOW()
-    FROM to_update u
-    WHERE (u.tenant_id, u.expires_at, u.key) = (k.tenant_id, k.expires_at, k.key)
-    RETURNING k.tenant_id, k.key, k.expires_at, k.claimed_by_external_id, k.inserted_at, k.updated_at
+        expires_at = CASE
+            WHEN (v1_idempotency_key.tenant_id, v1_idempotency_key.key) IN (SELECT tenant_id, key FROM claimable_keys) THEN EXCLUDED.expires_at
+            ELSE v1_idempotency_key.expires_at
+        END,
+        claimed_by_external_id = CASE
+            WHEN (v1_idempotency_key.tenant_id, v1_idempotency_key.key) IN (SELECT tenant_id, key FROM claimable_keys) THEN EXCLUDED.claimed_by_external_id
+            ELSE v1_idempotency_key.claimed_by_external_id
+        END,
+        updated_at = CASE
+            WHEN (v1_idempotency_key.tenant_id, v1_idempotency_key.key) IN (SELECT tenant_id, key FROM claimable_keys) THEN NOW()
+            ELSE v1_idempotency_key.updated_at
+        END
+    RETURNING tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 )
 
 SELECT
     i.key::TEXT AS key,
     c.expires_at::TIMESTAMPTZ AS expires_at,
-    c.claimed_by_external_id IS NOT NULL::BOOLEAN AS was_successfully_claimed,
+    (c.claimed_by_external_id = i.claimed_by_external_id)::BOOLEAN AS was_successfully_claimed,
     c.claimed_by_external_id
 FROM inputs i
-LEFT JOIN claims c ON (i.key = c.key AND i.claimed_by_external_id = c.claimed_by_external_id)
+LEFT JOIN claims c USING (key)
 `
 
 type ClaimIdempotencyKeysParams struct {
-	Keys                 []string    `json:"keys"`
-	Claimedbyexternalids []uuid.UUID `json:"claimedbyexternalids"`
-	Tenantid             uuid.UUID   `json:"tenantid"`
+	Keys                 []string             `json:"keys"`
+	Expiresats           []pgtype.Timestamptz `json:"expiresats"`
+	Claimedbyexternalids []uuid.UUID          `json:"claimedbyexternalids"`
+	Tenantid             uuid.UUID            `json:"tenantid"`
 }
 
 type ClaimIdempotencyKeysRow struct {
@@ -81,7 +85,12 @@ type ClaimIdempotencyKeysRow struct {
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {
-	rows, err := db.Query(ctx, claimIdempotencyKeys, arg.Keys, arg.Claimedbyexternalids, arg.Tenantid)
+	rows, err := db.Query(ctx, claimIdempotencyKeys,
+		arg.Keys,
+		arg.Expiresats,
+		arg.Claimedbyexternalids,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -117,26 +126,47 @@ func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, te
 	return err
 }
 
-const createIdempotencyKey = `-- name: CreateIdempotencyKey :exec
-INSERT INTO v1_idempotency_key (
-    tenant_id,
-    key,
-    expires_at
+const releaseIdempotencyKeys = `-- name: ReleaseIdempotencyKeys :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), relevant_tasks AS (
+    SELECT t.tenant_id, t.idempotency_key
+	FROM v1_task t
+	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
+	WHERE
+        (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+		AND t.idempotency_key IS NOT NULL
+		AND wv."idempotencyMethod" = 'STATUS'
+), keys_to_release AS (
+    SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
+	FROM v1_idempotency_key
+	WHERE (tenant_id, key) IN (
+		SELECT tenant_id, idempotency_key
+		FROM relevant_tasks
+	)
+	ORDER BY tenant_id, key
+	FOR UPDATE
 )
-VALUES (
-    $1::UUID,
-    $2::TEXT,
-    $3::TIMESTAMPTZ
+
+DELETE FROM v1_idempotency_key k
+WHERE (tenant_id, key) IN (
+	SELECT tenant_id, key
+	FROM keys_to_release
 )
 `
 
-type CreateIdempotencyKeyParams struct {
-	Tenantid  uuid.UUID          `json:"tenantid"`
-	Key       string             `json:"key"`
-	Expiresat pgtype.Timestamptz `json:"expiresat"`
+type ReleaseIdempotencyKeysParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
 }
 
-func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) error {
-	_, err := db.Exec(ctx, createIdempotencyKey, arg.Tenantid, arg.Key, arg.Expiresat)
+// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+// which means we want to evict any idempotency keys that still are live and tied to the task at this point
+func (q *Queries) ReleaseIdempotencyKeys(ctx context.Context, db DBTX, arg ReleaseIdempotencyKeysParams) error {
+	_, err := db.Exec(ctx, releaseIdempotencyKeys, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
 	return err
 }

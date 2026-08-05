@@ -36,6 +36,7 @@ COPY --from=frontend-build /app/dist ./static-assets
 COPY ./hack/lite/start.sh ./entrypoint.sh
 
 ENV LITE_STATIC_ASSET_DIR=/static-assets
+ENV LITE_FRONTEND_BASE_PATH=/
 ENV LITE_FRONTEND_PORT=8081
 ENV LITE_RUNTIME_PORT=8888
 

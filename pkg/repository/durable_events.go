@@ -87,10 +87,11 @@ type IngestTriggerRunsEntry struct {
 }
 
 type IngestTriggerRunsResult struct {
-	Entries         []*IngestTriggerRunsEntry
-	CreatedTasks    []*V1TaskWithPayload
-	CreatedDAGs     []*DAGWithData
-	InvocationCount int32
+	Entries               []*IngestTriggerRunsEntry
+	CreatedTasks          []*V1TaskWithPayload
+	CreatedDAGs           []*DAGWithData
+	InvocationCount       int32
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type IngestWaitForResult struct {
@@ -239,8 +240,8 @@ func describeCondition(c DurableWaitCondition) string {
 	switch c.Kind {
 	case DurableWaitConditionKindSleep:
 		if c.SleepDurationMs != nil {
-			sleepDurationMs := time.Duration(*c.SleepDurationMs) * time.Millisecond
-			return "sleep(" + sleepDurationMs.String() + ")"
+			sleepDuration := time.Duration(*c.SleepDurationMs) * time.Millisecond
+			return "sleep(" + sleepDuration.String() + ")"
 		}
 		return "sleep"
 	case DurableWaitConditionKindUserEvent:
@@ -1296,7 +1297,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		if len(newTriggerOpts) > 0 {
-			createdTasks, createdDags, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
+			createdTasks, createdDags, _, celFailures, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
 
 			if triggerErr != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", triggerErr)
@@ -1304,6 +1305,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			triggerRunsResult.CreatedTasks = createdTasks
 			triggerRunsResult.CreatedDAGs = createdDags
+			triggerRunsResult.CELEvaluationFailures = celFailures
 
 			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks)+len(createdDags))
 
@@ -1511,6 +1513,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
 		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &IngestDurableTaskEventResult{

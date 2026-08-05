@@ -15,6 +15,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+type durableInvocationsKey struct {
+	tenantId uuid.UUID
+	taskId   uuid.UUID
+}
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 	repo               v1.Repository
@@ -25,7 +29,7 @@ type DispatcherServiceImpl struct {
 	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
 	l                  *zerolog.Logger
-	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
+	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 	dispatcherId       uuid.UUID
 }
@@ -37,9 +41,9 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
 	pubBuffer := msgqueue.NewMQPubBuffer(mq)
-	tw := trigger.NewTriggerWriter(mq, repo, l, pubBuffer, 0, promGate)
+	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
 
 	return &DispatcherServiceImpl{
 		repo:          repo,

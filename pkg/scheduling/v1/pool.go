@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,12 +13,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 )
 
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
-	outbox pgoutbox.Outbox
+	outbox   pgoutbox.Outbox
+	taskRepo v1.TaskRepository
 
 	l *zerolog.Logger
 
@@ -43,6 +44,9 @@ type sharedConfig struct {
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
+// the engine selects the pool implementation per shard via scheduling.Pool
+var _ scheduling.Pool = (*SchedulingPool)(nil)
+
 type SchedulingPool struct {
 	Extensions *Extensions
 
@@ -61,6 +65,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	taskRepo v1.TaskRepository,
 	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
@@ -94,6 +99,7 @@ func NewSchedulingPool(
 			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			taskRepo:                               taskRepo,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
@@ -247,12 +253,13 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 	return tm
 }
 
-var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
-var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
+// aliased so errors.Is checks in the engine match either scheduler implementation
+var ErrTenantNotFound = scheduling.ErrTenantNotFound
+var ErrNoOptimisticSlots = scheduling.ErrNoOptimisticSlots
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	if !p.optimisticSchedulingEnabled {
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	// attempt to acquire a slot in the semaphore
@@ -264,13 +271,13 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId u
 		}()
 	default:
 		// no slots available
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	tm := p.getTenantManager(tenantId, false)
 
 	if tm == nil {
-		return nil, nil, nil, ErrTenantNotFound
+		return nil, nil, nil, nil, ErrTenantNotFound
 	}
 
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)

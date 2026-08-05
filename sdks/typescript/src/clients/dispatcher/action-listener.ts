@@ -10,6 +10,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { DispatcherClient } from './dispatcher-client';
 import { Heartbeat } from './heartbeat/heartbeat-controller';
+import { classifyListenerFailure } from './listener-severity';
 
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
@@ -22,6 +23,13 @@ enum ListenStrategy {
 export type ActionKey = `${string}/${number}`;
 
 export type Action = AssignedAction & { readonly key: ActionKey };
+
+export function workflowNameFromAction(
+  action: Pick<AssignedAction, 'actionId' | 'jobName'>
+): string {
+  const separatorIndex = action.actionId.lastIndexOf(':');
+  return separatorIndex === -1 ? action.jobName : action.actionId.substring(0, separatorIndex);
+}
 
 export function createAction(assignedAction: AssignedAction): Action {
   const action = assignedAction as Action;
@@ -99,7 +107,13 @@ export class ActionListener {
           }
 
           client.incrementRetries();
-          client.logger.error(`Listener encountered an error: ${getErrorMessage(e)}`);
+
+          const message = `Listener encountered an error: ${getErrorMessage(e)}`;
+          const severity = classifyListenerFailure(e, client.retries);
+          if (severity !== 'silent') {
+            client.logger[severity](message);
+          }
+
           if (client.retries > 1) {
             client.logger.info(`Retrying in ${client.retryInterval}ms...`);
             await sleep(client.retryInterval);
@@ -176,7 +190,12 @@ export class ActionListener {
       return res;
     } catch (e: unknown) {
       this.retries += 1;
-      this.logger.error(`Attempt ${this.retries}: Failed to connect, retrying...`);
+
+      const message = `Attempt ${this.retries}: Failed to connect, retrying...`;
+      const severity = classifyListenerFailure(e, this.retries);
+      if (severity !== 'silent') {
+        this.logger[severity](message);
+      }
 
       if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
         // Connection lost, reset heartbeat interval and retry connection

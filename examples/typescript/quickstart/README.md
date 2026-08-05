@@ -11,11 +11,10 @@ Before running this project, make sure you have the following:
 
 ## Setup
 
-1. Clone the repository:
+1. Create the project using the Hatchet CLI:
 
 ```bash
-git clone https://github.com/hatchet-dev/hatchet-typescript-quickstart.git
-cd hatchet-typescript-quickstart
+hatchet quickstart
 ```
 
 2. Set the required environment variable `HATCHET_CLIENT_TOKEN` created in the [Getting Started Guide](https://docs.hatchet.run/home/hatchet-cloud-quickstart).

@@ -232,6 +232,12 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// - otherwise, do not replenish
 	actionsToReplenish := make(map[string]*action)
 
+	// Isolate the activeCount scans: on large tenants this dominates replenish wall time
+	// while actionsMu is held, which blocks tryAssignBatch.
+	_, scanActiveSpan := telemetry.NewSpan(ctx, "replenish-scan-active-counts")
+	actionsScanned := 0
+	activeSlotsTotal := 0
+
 	for actionId, workers := range actionsToWorkerIds {
 		// if the action is not in the map, it should be replenished
 		if _, ok := s.actions[actionId]; !ok {
@@ -258,6 +264,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// determine if we match the conditions above
 		var replenish bool
 		activeCount := storedAction.activeCount()
+		actionsScanned++
+		activeSlotsTotal += activeCount
 
 		switch {
 		case activeCount == 0:
@@ -276,11 +284,19 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
+	telemetry.WithAttributes(scanActiveSpan,
+		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
+		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
+		telemetry.AttributeKV{Key: "replenish.unique_actions", Value: len(actionsToWorkerIds)},
+	)
+	scanActiveSpan.End()
+
 	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
 	// to add them to the actionsToReplenish map. This is a transitive closure over "workers of actions
 	// being replenished", computed with an explicit worklist so that newly added actions also have their
 	// workers visited. each worker is visited at most once, since a single visit adds all of its actions;
 	// this keeps the closure O(workers x actions-per-worker).
+	_, closureSpan := telemetry.NewSpan(ctx, "replenish-transitive-closure")
 	actionIdQueue := make([]string, 0, len(actionsToReplenish))
 
 	for actionId := range actionsToReplenish {
@@ -306,7 +322,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	telemetry.WithAttributes(computeActionsSpan, telemetry.AttributeKV{Key: "replenish.actions_to_replenish", Value: len(actionsToReplenish)})
+	telemetry.WithAttributes(closureSpan,
+		telemetry.AttributeKV{Key: "replenish.actions_to_replenish", Value: len(actionsToReplenish)},
+		telemetry.AttributeKV{Key: "replenish.closure_workers_visited", Value: len(visitedWorkers)},
+	)
+	closureSpan.End()
+
+	telemetry.WithAttributes(computeActionsSpan,
+		telemetry.AttributeKV{Key: "replenish.actions_to_replenish", Value: len(actionsToReplenish)},
+		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
+		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
+	)
 	computeActionsSpan.End()
 
 	s.l.Debug().Ctx(ctx).Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
@@ -512,6 +538,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// (we don't need cryptographically secure randomness)
 	randSource := rand.New(rand.NewSource(time.Now().UnixNano())) // nolint: gosec
 
+	totalSlotsBuilt := 0
+	maxSlotsPerAction := 0
+
 	// first pass: write all actions with new slots to the scheduler
 	for actionId, newSlots := range actionsToNewSlots {
 		storedAction := actionsToLock[actionId]
@@ -530,17 +559,37 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		storedAction.lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 		storedAction.lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 
+		totalSlotsBuilt += len(newSlots)
+		if len(newSlots) > maxSlotsPerAction {
+			maxSlotsPerAction = len(newSlots)
+		}
+
 		s.l.Debug().Ctx(ctx).Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
-	telemetry.WithAttributes(buildSlotsSpan, telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(actionsToNewSlots)})
+	telemetry.WithAttributes(buildSlotsSpan,
+		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(actionsToNewSlots)},
+		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
+		telemetry.AttributeKV{Key: "replenish.max_slots_per_action", Value: maxSlotsPerAction},
+		telemetry.AttributeKV{Key: "replenish.unacked_slot_entries", Value: len(s.unackedSlots)},
+	)
 	buildSlotsSpan.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(actionsToNewSlots)},
+		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
+		telemetry.AttributeKV{Key: "replenish.max_slots_per_action", Value: maxSlotsPerAction},
+		telemetry.AttributeKV{Key: "replenish.actions_to_lock", Value: len(actionsToLock)},
+	)
 
 	// second pass: clean up expired slots
 	_, cleanupSpan := telemetry.NewSpan(ctx, "replenish-cleanup-expired-slots")
 	defer cleanupSpan.End()
 
 	cleanupNow := time.Now()
+	actionsCleaned := 0
+	slotsRemoved := 0
+	actionsRemoved := 0
 
 	for _, storedAction := range actionsToReplenish {
 		hasSingleSlotExpired := false
@@ -559,7 +608,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			continue
 		}
 
-		newSlots := make([]*slot, 0, len(storedAction.slots))
+		beforeLen := len(storedAction.slots)
+		newSlots := make([]*slot, 0, beforeLen)
 
 		for i := range storedAction.slots {
 			slotItem := storedAction.slots[i]
@@ -571,6 +621,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		storedAction.slots = newSlots
 		storedAction.slotsByTypeAndWorkerId = make(map[string]map[uuid.UUID][]*slot)
+		actionsCleaned++
+		slotsRemoved += beforeLen - len(newSlots)
 
 		for _, slotItem := range newSlots {
 			slotType, err := slotItem.getSlotType()
@@ -595,8 +647,15 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		if len(storedAction.slots) == 0 {
 			s.l.Debug().Ctx(ctx).Msgf("removing action %s because it has no slots", actionId)
 			delete(s.actions, actionId)
+			actionsRemoved++
 		}
 	}
+
+	telemetry.WithAttributes(cleanupSpan,
+		telemetry.AttributeKV{Key: "replenish.actions_cleaned", Value: actionsCleaned},
+		telemetry.AttributeKV{Key: "replenish.slots_removed", Value: slotsRemoved},
+		telemetry.AttributeKV{Key: "replenish.actions_removed", Value: actionsRemoved},
+	)
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
 		s.l.Warn().Ctx(ctx).Dur("duration", sinceStart).Msg("replenishing slots took longer than 100ms")
@@ -711,6 +770,21 @@ type assignSingleResult struct {
 	succeeded bool
 
 	rateLimitResult *scheduleRateLimitResult
+
+	// toBatch indicates this queue item should be moved into the v1 batched queue table,
+	// rather than scheduled to a worker slot.
+	toBatch bool
+
+	// rateLimitAck/Nack are used for non-slot outcomes (like moving to the batched queue table).
+	// For slot-assigned outcomes, these are wired into the slot and invoked by slot.ack()/slot.nack().
+	rateLimitAck  func()
+	rateLimitNack func()
+}
+
+type batchedQueueItemResult struct {
+	qi            *sqlcv1.V1QueueItem
+	rateLimitAck  func()
+	rateLimitNack func()
 }
 
 func (s *Scheduler) tryAssignBatch(
@@ -725,6 +799,7 @@ func (s *Scheduler) tryAssignBatch(
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
+	stepIdsToBatchConfig map[string]bool,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -735,6 +810,11 @@ func (s *Scheduler) tryAssignBatch(
 
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
 	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch.item_count", Value: len(qis)},
+		telemetry.AttributeKV{Key: "action.id", Value: actionId},
+	)
 
 	if len(qis) > 0 {
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
@@ -762,9 +842,10 @@ func (s *Scheduler) tryAssignBatch(
 	noop := func() {}
 
 	// first, check rate limits for each of the queue items
+	_, rateLimitSpan := telemetry.NewSpan(ctx, "try-assign-batch-rate-limits")
 	for i := range res {
 		r := res[i]
-		qi := qis[i]
+		qi := qis[i] // #nosec G602 -- res and qis are both len(qis), i ranges over res
 
 		rateLimitAck := noop
 		rateLimitNack := noop
@@ -794,21 +875,53 @@ func (s *Scheduler) tryAssignBatch(
 
 		rlAcks[i] = rateLimitAck
 		rlNacks[i] = rateLimitNack
+
+		// store for non-slot outcomes (e.g. moving to batched queue table)
+		r.rateLimitAck = rateLimitAck
+		r.rateLimitNack = rateLimitNack
 	}
+
+	// After rate limits are evaluated, mark batch candidates to be moved to the batched queue table.
+	// This replaces the old DB trigger-based redirect.
+	for i := range res {
+		qi := res[i].qi
+		if qi == nil {
+			continue
+		}
+
+		if stepIdsToBatchConfig == nil || !stepIdsToBatchConfig[qi.StepID.String()] {
+			continue
+		}
+
+		res[i].toBatch = true
+	}
+	rateLimitSpan.End()
 
 	// lock the actions map and try to assign the batch of queue items.
 	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
 	// order as the replenish() function, otherwise we may deadlock.
+	// Spans start before each acquire so lock wait (e.g. behind replenish's actionsMu write
+	// lock or action.mu holders) is visible in the try-assign-batch parent.
+	_, actionsMuSpan := telemetry.NewSpan(ctx, "try-assign-batch-acquire-actions-mu")
 	s.actionsMu.RLock()
 	action, ok := s.actions[actionId]
 	s.actionsMu.RUnlock()
+	actionsMuSpan.End()
 
 	if !ok || action == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.missing", Value: true})
 		s.l.Debug().Ctx(ctx).Msgf("no action %s", actionId)
 
-		// Treat missing action as "no slots" for any non-rate-limited queue item.
+		// Treat missing action as "no slots" for non-rate-limited, non-batch queue items.
+		// Batch-eligible items (toBatch=true) do NOT need a worker slot here — they are
+		// moved to v1_batched_queue_item and the batch scheduler handles worker assignment.
+		// Clearing toBatch here would strand them in v1_queue_item indefinitely if the
+		// action isn't yet present in s.actions (e.g. replenish hasn't fired yet).
 		for i := range res {
 			if res[i].rateLimitResult != nil {
+				continue
+			}
+			if res[i].toBatch {
 				continue
 			}
 			res[i].noSlots = true
@@ -818,8 +931,12 @@ func (s *Scheduler) tryAssignBatch(
 		return res, newRingOffset, nil
 	}
 
+	_, actionMuRLockSpan := telemetry.NewSpan(ctx, "try-assign-batch-acquire-action-mu-rlock")
 	action.mu.RLock()
-	if len(action.slots) == 0 {
+	actionMuRLockSpan.End()
+	slotCount := len(action.slots)
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.slot_count", Value: slotCount})
+	if slotCount == 0 {
 		action.mu.RUnlock()
 
 		s.l.Debug().Ctx(ctx).Msgf("no slots for action %s", actionId)
@@ -837,12 +954,21 @@ func (s *Scheduler) tryAssignBatch(
 	}
 	action.mu.RUnlock()
 
+	_, actionMuLockSpan := telemetry.NewSpan(ctx, "try-assign-batch-acquire-action-mu")
 	action.mu.Lock()
+	actionMuLockSpan.End()
 	defer action.mu.Unlock()
 
 	candidateSlots := action.slots
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.slot_count", Value: len(candidateSlots)})
 
 	for i := range res {
+		// Batch candidates are moved to v1_batched_queue_item in the queuer flush path.
+		// They should not consume a worker slot here.
+		if res[i].toBatch {
+			continue
+		}
+
 		if res[i].rateLimitResult != nil {
 			continue
 		}
@@ -858,7 +984,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		childRingOffset := newRingOffset % denom
 
-		qi := qis[i]
+		qi := qis[i] // #nosec G602 -- res and qis are both len(qis), i ranges over res
 
 		labels := []*sqlcv1.GetDesiredLabelsRow(nil)
 
@@ -908,6 +1034,77 @@ func (s *Scheduler) tryAssignBatch(
 	}
 
 	return res, newRingOffset, nil
+}
+
+// tryAssignBatchQueueItem assigns a single representative queue item to obtain one worker slot
+// for an entire batch flush (v1_batched_queue_item). This is intentionally separate from the
+// regular chunk assignment flow.
+func (s *Scheduler) tryAssignBatchQueueItem(
+	ctx context.Context,
+	qi *sqlcv1.V1QueueItem,
+	labels []*sqlcv1.GetDesiredLabelsRow,
+) (
+	res assignSingleResult, err error,
+) {
+	spanCtx, span := telemetry.NewSpan(ctx, "try-assign-batch-queue-item")
+	defer span.End()
+
+	if qi == nil {
+		return res, nil
+	}
+
+	if err := spanCtx.Err(); err != nil {
+		return res, err
+	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()})
+
+	if isTimedOut(qi) {
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+
+	// NOTE: batch flush scheduling should not re-evaluate rate limits. Rate limits are evaluated per
+	// task before redirecting into the batched queue table.
+	noop := func() {}
+
+	// lock the actions map and try to assign a single slot.
+	// NOTE: keep lock ordering consistent with replenish().
+	s.actionsMu.RLock()
+	action, ok := s.actions[qi.ActionID]
+	if !ok || action == nil || len(action.slots) == 0 {
+		s.actionsMu.RUnlock()
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+	s.actionsMu.RUnlock()
+
+	action.mu.Lock()
+	defer action.mu.Unlock()
+
+	candidateSlots := action.slots
+	if len(candidateSlots) == 0 {
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+
+	// Default to 1 standard slot — same fallback as tryAssignBatch — since batch flush
+	// scheduling skips the regular slot-request lookup path.
+	requests := map[string]int32{v1.SlotTypeDefault: 1}
+
+	singleRes, err := s.tryAssignSingleton(ctx, qi, action, candidateSlots, 0, labels, requests, noop, noop)
+	if err != nil {
+		return singleRes, err
+	}
+
+	singleRes.qi = qi
+	return singleRes, nil
 }
 
 func findAssignableSlots(
@@ -1052,7 +1249,7 @@ func (s *Scheduler) tryAssignSingleton(
 		telemetry.AttributeKV{Key: "queue.name", Value: qi.Queue},
 	)
 
-	ringOffset = ringOffset % len(candidateSlots)
+	ringOffset %= len(candidateSlots)
 
 	if (qi.Sticky != sqlcv1.V1StickyStrategyNONE) || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
@@ -1100,6 +1297,8 @@ type assignedQueueItem struct {
 
 type assignResults struct {
 	assigned           []*assignedQueueItem
+	buffered           []*assignedQueueItem
+	batched            []*batchedQueueItemResult
 	unassigned         []*sqlcv1.V1QueueItem
 	schedulingTimedOut []*sqlcv1.V1QueueItem
 	rateLimited        []*scheduleRateLimitResult
@@ -1113,8 +1312,11 @@ func (s *Scheduler) tryAssign(
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToBatchConfig map[string]bool,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "batch.item_count", Value: len(qis)})
 
 	if len(qis) > 0 {
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *sqlcv1.V1QueueItem) string {
@@ -1142,6 +1344,8 @@ func (s *Scheduler) tryAssign(
 
 		actionIdToQueueItems[actionId] = append(actionIdToQueueItems[actionId], qi)
 	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "batch.action_count", Value: len(actionIdToQueueItems)})
 
 	resultsCh := make(chan *assignResults, len(actionIdToQueueItems))
 
@@ -1180,13 +1384,16 @@ func (s *Scheduler) tryAssign(
 
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*sqlcv1.V1QueueItem) error {
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
+					batchBuffered := make([]*assignedQueueItem, 0, len(batchQis))
+					batchBatched := make([]*batchedQueueItemResult, 0, len(batchQis))
+
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*sqlcv1.V1QueueItem, 0, len(batchQis))
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, taskIdsToLabelOverrides)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, stepIdsToBatchConfig, taskIdsToLabelOverrides)
 
 					if err != nil {
 						return err
@@ -1195,6 +1402,15 @@ func (s *Scheduler) tryAssign(
 					ringOffset = newRingOffset
 
 					for _, singleRes := range results {
+						if singleRes.toBatch {
+							batchBatched = append(batchBatched, &batchedQueueItemResult{
+								qi:            singleRes.qi,
+								rateLimitAck:  singleRes.rateLimitAck,
+								rateLimitNack: singleRes.rateLimitNack,
+							})
+							continue
+						}
+
 						if !singleRes.succeeded {
 							if singleRes.rateLimitResult != nil {
 								if singleRes.rateLimitResult.shouldRemoveFromQueue() {
@@ -1214,11 +1430,13 @@ func (s *Scheduler) tryAssign(
 							continue
 						}
 
-						batchAssigned = append(batchAssigned, &assignedQueueItem{
+						assignedItem := &assignedQueueItem{
 							WorkerId:  singleRes.workerId,
 							QueueItem: singleRes.qi,
 							AckId:     singleRes.ackId,
-						})
+						}
+
+						batchAssigned = append(batchAssigned, assignedItem)
 					}
 
 					if sinceStart := time.Since(batchStart); sinceStart > 100*time.Millisecond {
@@ -1227,6 +1445,8 @@ func (s *Scheduler) tryAssign(
 
 					r := &assignResults{
 						assigned:          batchAssigned,
+						buffered:          batchBuffered,
+						batched:           batchBatched,
 						rateLimited:       batchRateLimited,
 						rateLimitedToMove: batchRateLimitedToMove,
 						unassigned:        batchUnassigned,

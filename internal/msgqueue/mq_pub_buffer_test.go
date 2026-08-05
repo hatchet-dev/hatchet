@@ -5,8 +5,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // mockMessageQueue satisfies MessageQueue for tests. Only SendMessage is wired up.
@@ -24,11 +22,10 @@ func (m *mockMessageQueue) SendMessage(ctx context.Context, q Queue, msg *Messag
 	}
 	return nil
 }
-func (m *mockMessageQueue) Subscribe(_ Queue, _ AckHook, _ AckHook) (func() error, error) {
+func (m *mockMessageQueue) Subscribe(_ Queue, _ MsgHandler, _ MsgHandler) (func() error, error) {
 	return func() error { return nil }, nil
 }
-func (m *mockMessageQueue) RegisterTenant(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockMessageQueue) IsReady() bool                                       { return true }
+func (m *mockMessageQueue) IsReady() bool { return true }
 
 // TestPubBufferFlushesWhenFull verifies that when the channel is at capacity the
 // capacityRelease mechanism breaks the post-flush interval wait and triggers an

@@ -72,17 +72,17 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 	return qis, result, nil
 }
 
-func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, error) {
+func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, error) {
 	triggerOpts, err := r.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+	tasks, dags, idempotencyKeyCollisions, _, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
 
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
 	}
 
 	// get the queue items for the tasks that were created
@@ -107,11 +107,11 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 		if errors.Is(err, pgx.ErrNoRows) {
 			qis = []*sqlcv1.V1QueueItem{}
 		} else {
-			return nil, nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
 		}
 	}
 
-	return qis, tasks, dags, nil
+	return qis, tasks, dags, idempotencyKeyCollisions, nil
 }
 
 func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {

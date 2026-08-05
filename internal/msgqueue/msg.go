@@ -3,11 +3,21 @@ package msgqueue
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 )
+
+// MaxMessageSize is the maximum size of a single serialized Message body;
+// publishers recursively split larger multi-payload messages into chunks.
+// This is Hatchet's own contract, shared by every backend rather than read
+// from a broker: 16MiB matches RabbitMQ's server-side default
+// max_message_size (its default since 3.12), and the NATS backend refuses
+// to start unless the server's max_payload is at least this large. If the
+// contract ever changes, this constant moves every backend together.
+const MaxMessageSize = 16 * 1024 * 1024
 
 type Message struct {
 	// ID is the ID of the task.
@@ -29,11 +39,17 @@ type Message struct {
 	OtelCarrier map[string]string `json:"otel_carrier"`
 
 	// Retries is the number of retries for the task.
+	//
 	// Deprecated: retries are set globally at the moment.
 	Retries int `json:"retries"`
 
 	// Compressed indicates whether the payloads are gzip compressed
 	Compressed bool `json:"compressed,omitempty"`
+
+	// PublishedAt is stamped by the instrumented pub/sub at publish time and is
+	// used to observe transit latency on delivery. Zero for durable-queue
+	// messages and messages from engines that predate the field.
+	PublishedAt time.Time `json:"published_at,omitzero"`
 }
 
 func NewTenantMessage[T any](tenantId uuid.UUID, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {
@@ -65,6 +81,13 @@ func DecodeAndValidateSingleton(dv datautils.DataDecoderValidator, payloads [][]
 	}
 
 	return dv.DecodeAndValidate(payloads[0], target)
+}
+
+// Clone returns a shallow copy of the message. Payloads and OtelCarrier are
+// shared with the original: callers must replace them, never mutate in place.
+func (t *Message) Clone() *Message {
+	c := *t
+	return &c
 }
 
 func (t *Message) Serialize() ([]byte, error) {

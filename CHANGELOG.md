@@ -1,3 +1,21 @@
+## [0.98.9] - 2026-07-28
+
+Hatchet v0.98.9 is a feature release. It adds idempotency keys for tasks and workflows, task batching, and an embedded engine the Go SDK can run in-process, alongside a new default for concurrency scheduling and a batch of dashboard and hardening fixes.
+
+### Highlights
+
+- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+- Engine rows in the run trace view now carry a badge with their workflow, task, or event name, and the retry number on retried tasks, so repeated spans such as `hatchet.engine.workflow_run` are distinguishable at a glance.
+- CLI commands that take `--profile` now use the configured default or only profile without prompting, and `hatchet server start` sets its new profile as the default when none is configured. In sessions without a terminal, such as CI, a selection that would still need a prompt fails with an error that explains how to proceed.
+- Tasks and workflows can declare an idempotency key, so duplicate triggers no longer produce duplicate runs. Keys are held for a TTL or until the claiming run reaches a terminal status, in all four SDKs. Note, that idempotency is currently in beta and may be subject to change. See [Idempotency Key Expression](https://docs.hatchet.run/v1/idempotency#the-idempotency-key-expression) for more information.
+- The Go SDK can run a full engine in-process given only a Postgres connection string, via `hatchet.WithEmbeddedPostgres(databaseURL)`.
+- Concurrency strategies are now evaluated against the in-memory index by default rather than querying Postgres on every scheduling pass, where `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED` now defaults to `true`.
+- Best-effort pub/sub is now configured independently of the durable queue and can run on Postgres while durable messages stay on RabbitMQ. Existing deployments need no new configuration, see [Task Queue Configuration](https://docs.hatchet.run/self-hosting/configuration-options#task-queue-configuration) for full list of options.
+- Rate limits can be managed from the CLI with `hatchet rate-limits`, and interactively from the TUI.
+- The CLI now reports anonymized usage data on invocation. See [Anonymous Telemetry](https://docs.hatchet.run/reference/cli#anonymous-telemetry) for more information.
+- Added worker label filters, and reverted Monaco editor bundle to once again be fetched from a CDN.
+- Sensitive request data and RabbitMQ credentials are now kept out of logs, and rate limiting is re-enabled on incoming webhook requests.
+
 ## [0.94.10] - 2026-07-14
 
 Hatchet v0.94.10 headlines two DevEx improvements: development images that run without authentication, and use-case templates for the `hatchet quickstart` command. The release also adds independent OLAP and core data retention settings to the engine, tenant tagging and consolidated settings pages in Hatchet Cloud, automatic stream listener reconnection in the Go SDK, and RSS feeds for newly published changelog and cookbooks entries.
@@ -22,7 +40,6 @@ The Hatchet development images can be pulled directly as `hatchet-api-dev`, `hat
 This approach embeds a single global worker API key in the Hatchet binaries themselves, so it should only be used in development and testing environments.
 
 See the docs for [running without authentication via the CLI](https://docs.hatchet.run/reference/cli/running-hatchet-locally#running-without-authentication) and [via Docker Compose](https://docs.hatchet.run/self-hosting/docker-compose#running-without-authentication).
-
 
 ## [0.90.13] - 2026-06-29
 

@@ -14,6 +14,8 @@ from typing import (
     ParamSpec,
     TypeVar,
     cast,
+    get_args,
+    get_origin,
     get_type_hints,
     overload,
 )
@@ -45,6 +47,8 @@ from hatchet_sdk.runnables.eviction import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
+    BatchTaskConfig,
     EmptyModel,
     R,
     StepType,
@@ -253,8 +257,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self._config.on_crons,
             tasks=tasks,
-            ## TODO: Fix this
-            cron_input=None,
+            cron_input=self._serialize_input(self._config.cron_input, target="bytes"),
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(
                 self._config.sticky, StickyStrategyProto
@@ -264,6 +267,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
+            idempotency=(
+                self._config.idempotency.to_proto()
+                if self._config.idempotency
+                else None
+            ),
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -399,7 +407,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return WorkflowRunTriggerConfig(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
                 options,
                 child_key=child_key,
@@ -412,7 +420,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             key=key,
         )
 
-    def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+    def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str | None:
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,
@@ -432,7 +440,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @overload
     def _serialize_input(
-        self, input: TWorkflowInput | None, target: Literal["string"] = "string"
+        self, input: TWorkflowInput | None, target: Literal["bytes"] = "bytes"
     ) -> str | None: ...
 
     @overload
@@ -443,13 +451,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _serialize_input(
         self,
         input: TWorkflowInput | None,
-        target: Literal["string"] | Literal["dict"] = "string",
+        target: Literal["bytes"] | Literal["dict"] = "bytes",
     ) -> JSONSerializableMapping | str | None:
         if not input:
             return None
 
-        if target == "string":
-            return self._serialize_input_to_str(input)
+        if target == "bytes":
+            return self._serialize_input_to_bytes(input)
 
         if target == "dict":
             return self._serialize_input_to_dict(input)
@@ -636,7 +644,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return self._client._client.admin.schedule_workflow(
             name=self._config.name,
             schedules=[run_at],
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=opts,
         )
 
@@ -963,7 +971,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         ref = self._client._client.admin.run_workflow(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
                 options,
                 child_key=child_key,
@@ -1101,7 +1109,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             config = WorkflowRunTriggerConfig(
                 workflow_name=self._config.name,
-                input=self._serialize_input(input, target="string"),
+                input=self._serialize_input(input, target="bytes"),
                 options=opts,
             )
             durable_spawn_results = await durable_ctx._spawn_children_no_wait([config])
@@ -1125,7 +1133,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         ref = await self._client._client.admin.aio_run_workflow(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=opts,
         )
 
@@ -1351,6 +1359,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
+        slot_cost: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1384,10 +1393,19 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
+        :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
+
         :returns: A decorator which creates a `Task` object.
+
+        :raises ValueError: If `slot_cost` is not positive.
         """
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)
+
+        if slot_cost is not None and slot_cost <= 0:
+            raise ValueError("slot_cost must be a positive integer")
+
+        slot_requests = {"default": slot_cost} if slot_cost is not None else None
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
@@ -1431,6 +1449,180 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                slot_requests=slot_requests,
+            )
+
+            self._default_tasks.append(task)
+
+            return task
+
+        return inner
+
+    @overload
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_max_size: int,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[True],
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                R | CoroutineLike[R],
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_max_size: int,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[False] = False,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]: ...
+
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_max_size: int,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]:
+        """
+        .. note::
+        **Preview:** This function is in beta and may change in future releases.
+
+        A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
+
+        Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
+        then invoke the handler once with all buffered inputs keyed by step run ID.
+
+        The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
+        """
+
+        if batch_max_size <= 0:
+            raise ValueError("batch_max_size must be a positive integer")
+
+        if batch_max_interval is not None and batch_max_interval.total_seconds() <= 0:
+            raise ValueError("batch_max_interval must be positive when provided")
+
+        if batch_group_max_runs is not None and batch_group_max_runs <= 0:
+            raise ValueError(
+                "batch_group_max_runs must be a positive integer when provided"
+            )
+
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            backoff_factor=backoff_factor,
+            retries=0,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
+        def inner(
+            func: Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
+            ],
+        ) -> Task[TWorkflowInput, R]:
+            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
+            labels: list[DesiredWorkerLabel] = (
+                desired_worker_labels
+                if isinstance(desired_worker_labels, list)
+                else [
+                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
+                    for k, d in (desired_worker_labels or {}).items()
+                ]
+            )
+            task = Task(
+                _fn=cast(
+                    Callable[[TWorkflowInput, Context], R | CoroutineLike[R]], func
+                ),
+                is_durable=False,
+                workflow=self,
+                type=StepType.DEFAULT,
+                name=self._parse_task_name(name, func),
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
+                parents=parents,
+                retries=computed_params.retries,
+                rate_limits=[r.to_proto() for r in rate_limits or []],
+                desired_worker_labels=labels,
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
+                concurrency=None,
+                batch=BatchTaskConfig(
+                    batch_max_size=batch_max_size,
+                    batch_max_interval=batch_max_interval,
+                    batch_group_key=batch_group_key,
+                    batch_group_max_runs=batch_group_max_runs,
+                    broadcast_output=broadcast_output,
+                ),
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             self._default_tasks.append(task)
@@ -1777,6 +1969,11 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self._task = task
 
         return_type = get_type_hints(self._task._fn).get("return")
+        if self._task.batch and not self._task.batch.broadcast_output:
+            origin = get_origin(return_type)
+            args = get_args(return_type)
+            if origin is dict and len(args) == 2:
+                return_type = args[1]
 
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
             normalize_validator(return_type)

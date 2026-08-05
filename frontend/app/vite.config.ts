@@ -9,12 +9,42 @@ const controlPlaneApiProxyTarget =
   process.env.VITE_CONTROL_PLANE_API_PROXY_TARGET ?? 'http://127.0.0.1:8081';
 
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     sentryVitePlugin({
       org: 'hatchet',
       project: 'frontend-react',
     }),
+    {
+      name: 'inject-go-template',
+      apply: 'build',
+      transformIndexHtml: {
+        // When building for production, inject Go template directives that the
+        // hatchet-staticfileserver renders at request time to support deployment
+        // under any URL subpath (e.g. /hatchet/).
+        //
+        // See cmd/hatchet-staticfileserver/staticfileserver/server.go for details.
+        order: 'post',
+        handler(html) {
+          return {
+            html: html,
+            tags: [
+              {
+                tag: 'base',
+                attrs: { href: '{{ .BasePath }}' },
+                injectTo: 'head',
+              },
+              {
+                tag: 'script',
+                children: 'window.__CONFIG__ = { BASE_PATH: "{{ .BasePath }}" };',
+                injectTo: 'head',
+              },
+            ],
+          };
+        },
+      },
+    },
   ],
   resolve: {
     alias: {
@@ -44,6 +74,23 @@ export default defineConfig({
       '/api/v1/control-plane': {
         target: controlPlaneApiProxyTarget,
         changeOrigin: true,
+        // With no control plane running (OSS dev/e2e), a dead upstream would
+        // surface as a 500, which the frontend treats as a transient error
+        // and retries. Production OSS returns 404 for unregistered
+        // control-plane routes, so mimic that: unreachable upstream means
+        // "no control plane".
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if ('writeHead' in res && !res.headersSent) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(
+                JSON.stringify({
+                  errors: [{ description: 'control plane not available' }],
+                }),
+              );
+            }
+          });
+        },
       },
       // The frontend uses relative `/api/v1/...` paths, so proxy `/api` to the API server.
       '/api': {
