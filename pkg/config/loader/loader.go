@@ -858,8 +858,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return nil, nil, fmt.Errorf("could not create scheduling pool (v1alpha): %w", err)
 		}
 
-		pool.Extensions.Add(v1alpha.NewPrometheusExtension(promGate))
-
 		schedulingPoolV1 = pool
 		cleanupSchedulingPoolV1 = cleanupPool
 	} else {
@@ -885,11 +883,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 		}
 
-		pool.Extensions.Add(v1.NewPrometheusExtension(promGate))
-
 		schedulingPoolV1 = pool
 		cleanupSchedulingPoolV1 = cleanupPool
 	}
+
+	// the prometheus extension is written against the shared extension contract
+	// in pkg/scheduling, so one registration serves either implementation
+	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
