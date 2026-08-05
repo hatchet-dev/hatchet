@@ -177,8 +177,7 @@ function ScheduledRunsTable({
           });
         },
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedAdditionalMetaJobId],
+    [tenantId, selectedAdditionalMetaJobId, open, triggerNow],
   );
 
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
