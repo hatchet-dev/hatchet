@@ -125,26 +125,24 @@ func NewNoOpFlusher(
 	l *zerolog.Logger,
 ) {
 	topic := getTopic(strategy)
-	f := pgoutbox.NewNopFlusher()
 
-	outbox.AddFlusher(topic, f)
+	outbox.AddFlusher(topic, pgoutbox.NewNopFlusher())
 
 	go func() {
-		err := outbox.AcquireTopic(ctx, topic)
-
-		if err != nil {
-			l.Error().Err(err).Msgf("failed to acquire topic %s", topic)
-		}
-
 		for {
 			if ctx.Err() != nil {
 				return
 			}
 
-			_, err = outbox.ProcessMessages(ctx, topic)
+			// Subscribe owns the exclusive lease for the duration of the call: it blocks
+			// acquiring it, re-acquires it if it is ever lost mid-subscribe, and releases it
+			// on return so the topic's next consumer can take over immediately. It only
+			// returns early if the initial acquisition fails (e.g. a transient database
+			// error), so retry rather than leaving the topic undrained.
+			err := outbox.Subscribe(ctx, topic, pgoutbox.WithExclusive())
 
-			if err != nil {
-				l.Error().Err(err).Msgf("failed to process messages for topic %s", topic)
+			if err != nil && ctx.Err() == nil {
+				l.Error().Err(err).Msgf("failed to subscribe to topic %s, retrying", topic)
 			}
 
 			// context-aware sleep so this goroutine exits promptly on shutdown rather than

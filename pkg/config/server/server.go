@@ -250,6 +250,12 @@ type ConfigFileRuntime struct {
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
 
+	// Comma-separated CIDR ranges whose forwarding headers are trusted when deriving the client IP for rate limiting
+	APITrustedProxies []string `mapstructure:"apiTrustedProxies" json:"apiTrustedProxies,omitempty"`
+
+	// Trust forwarding headers from loopback/link-local/private peers by default; set false to trust only APITrustedProxies
+	APITrustPrivateProxies bool `mapstructure:"apiTrustPrivateProxies" json:"apiTrustPrivateProxies,omitempty" default:"true"`
+
 	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
 	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
 
@@ -519,12 +525,14 @@ type MessageQueueConfigFile struct {
 // are optional overrides which inherit from the durable message queue settings
 // when unset, so existing deployments need zero new configuration.
 type PubSubConfigFile struct {
-	// Kind is "rabbitmq" or "postgres"; empty inherits msgQueue.kind
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres"`
+	// Kind is "rabbitmq", "postgres", or "nats"; empty inherits msgQueue.kind
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres nats"`
 
 	RabbitMQ PubSubRabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty"`
 
 	Postgres PubSubPostgresConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
+
+	NATS PubSubNATSConfigFile `mapstructure:"nats" json:"nats,omitempty"`
 }
 
 type PubSubRabbitMQConfigFile struct {
@@ -542,6 +550,22 @@ type PubSubPostgresConfigFile struct {
 	// (never pgbouncer — LISTEN does not survive transaction pooling).
 	MaxConns int32 `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
 	MinConns int32 `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
+}
+
+type PubSubNATSConfigFile struct {
+	// URL is comma-separated seed URL(s). Prefer bare hosts (e.g.
+	// nats://nats:4222); put auth in Username/Password so rediscovered
+	// cluster peers authenticate too. URL-embedded user:pass still works for
+	// single-server/dev. Use tls:// for TLS. No durable-MQ inheritance —
+	// NATS is pub/sub only.
+	URL string `mapstructure:"url" json:"url,omitempty"`
+
+	Username string `mapstructure:"username" json:"username,omitempty"`
+	Password string `mapstructure:"password" json:"password,omitempty"`
+
+	// SubjectPrefix is prepended (with a trailing ".") to topic names.
+	// Empty defaults to "hatchet.pubsub".
+	SubjectPrefix string `mapstructure:"subjectPrefix" json:"subjectPrefix,omitempty"`
 }
 
 type PostgresMQConfigFile struct {
@@ -782,6 +806,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
 	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
+	_ = v.BindEnv("runtime.apiTrustedProxies", "SERVER_API_TRUSTED_PROXIES")
+	_ = v.BindEnv("runtime.apiTrustPrivateProxies", "SERVER_API_TRUST_PRIVATE_PROXIES")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
@@ -889,6 +915,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.maxConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.minConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS")
+	_ = v.BindEnv("msgQueue.pubSub.nats.url", "SERVER_MSGQUEUE_PUBSUB_NATS_URL")
+	_ = v.BindEnv("msgQueue.pubSub.nats.username", "SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME")
+	_ = v.BindEnv("msgQueue.pubSub.nats.password", "SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD")
+	_ = v.BindEnv("msgQueue.pubSub.nats.subjectPrefix", "SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")

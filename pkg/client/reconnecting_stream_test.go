@@ -322,9 +322,9 @@ func TestRetrySendStaleGenerationSkipsReconnect(t *testing.T) {
 	})
 
 	failingClient.sendFn = func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
-		// Advance generation as a concurrent reconnect would. Do not call
-		// installClient here: it CloseSends under sendMu, and this callback
-		// already runs under retrySend's sendMu (non-reentrant).
+		// Advance generation as a concurrent reconnect would, without
+		// installClientLocked's retirement side effect (CloseSend on the
+		// replaced client).
 		stream.mu.Lock()
 		stream.client = workingClient
 		stream.hasClient = true

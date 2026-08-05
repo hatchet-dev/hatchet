@@ -34,6 +34,7 @@ import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import sleep from '@hatchet/util/sleep';
+import { classifyListenerFailure } from '@clients/dispatcher/listener-severity';
 
 class TTLMap<K, V> {
   private cache = new Map<K, { value: V; expiresAt: number }>();
@@ -243,6 +244,7 @@ export class DurableListenerClient {
   private _receiveAbort: AbortController | undefined;
   private _statusInterval: ReturnType<typeof setInterval> | undefined;
   private _startLock: Promise<void> | undefined;
+  private _consecutiveFailures = 0;
 
   onServerEvict: ((durableTaskExternalId: string, invocationCount: number) => void) | undefined;
 
@@ -269,6 +271,7 @@ export class DurableListenerClient {
     if (this._running) return;
     this._workerId = workerId;
     this._running = true;
+    this._consecutiveFailures = 0;
     await this._connect();
     this._startStatusPolling();
   }
@@ -319,14 +322,24 @@ export class DurableListenerClient {
           signal: this._receiveAbort?.signal,
         });
 
+        let receivedResponse = false;
         for await (const response of stream) {
+          if (!receivedResponse) {
+            receivedResponse = true;
+            this._consecutiveFailures = 0;
+          }
           this._handleResponse(response);
         }
 
         if (this._running) {
-          this.logger.warn(
-            `durable event listener disconnected (EOF), reconnecting in ${DEFAULT_RECONNECT_INTERVAL}ms...`
-          );
+          this._consecutiveFailures += 1;
+
+          const message = `durable event listener disconnected (EOF), reconnecting in ${DEFAULT_RECONNECT_INTERVAL}ms...`;
+          const eofSeverity = classifyListenerFailure(undefined, this._consecutiveFailures);
+          if (eofSeverity !== 'silent') {
+            this.logger[eofSeverity](message);
+          }
+
           this._failPendingAcks(new Error('durable stream disconnected'));
           await sleep(DEFAULT_RECONNECT_INTERVAL);
           await this._connect();
@@ -337,7 +350,14 @@ export class DurableListenerClient {
           this.logger.debug('durable event listener aborted');
           return;
         }
-        this.logger.error(`error in durable event listener: ${getErrorMessage(e)}`);
+        this._consecutiveFailures += 1;
+
+        const message = `error in durable event listener: ${getErrorMessage(e)}`;
+        const errSeverity = classifyListenerFailure(e, this._consecutiveFailures);
+        if (errSeverity !== 'silent') {
+          this.logger[errSeverity](message);
+        }
+
         if (this._running) {
           this._failPendingAcks(new Error(`durable stream error: ${getErrorMessage(e)}`));
           await sleep(DEFAULT_RECONNECT_INTERVAL);

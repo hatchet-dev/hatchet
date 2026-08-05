@@ -1,18 +1,31 @@
 import { CreateApiTokenSection } from './components/create-api-token-section';
+import { FinishOnboardingDialog } from './components/finish-onboarding-dialog';
 import {
   LearnWorkflowSection,
   type WorkflowLanguageKey,
   type WorkflowStepKey,
   type InstallMethod,
-  workflowLanguageOptions,
   installMethodOptions,
   workflowStepOptions,
 } from './components/learn-workflow-section';
+import {
+  applyLanguageChange,
+  applyTabChange,
+  applyUseCaseChange,
+  hasQualifiedWorker,
+  normalizeOnboardingState,
+  onboardingStorageKey,
+  qualifiedRunQueryParams,
+  type OnboardingPersistedState,
+} from './components/onboarding-state';
+import { SkipOnboardingDialog } from './components/skip-onboarding-dialog';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
+import { type AvailableUseCaseKey } from './components/use-case-options';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -41,21 +54,49 @@ export default function Overview() {
   const [expiresIn, setExpiresIn] = useState(EXPIRES_IN_OPTIONS['100 years']);
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [showFinishDialog, setShowFinishDialog] = useState(false);
+  const [showSkipDialog, setShowSkipDialog] = useState(false);
   const [profileToken, setProfileToken] = useState<string | undefined>();
   const [profileTokenError, setProfileTokenError] = useState<
     string | undefined
   >();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [selectedTab, setSelectedTab] = useState<WorkflowStepKey>(
-    workflowStepOptions.install.value,
-  );
-  const [language, setLanguage] = useState<WorkflowLanguageKey>(
-    workflowLanguageOptions.python.value,
-  );
   const [installMethod, setInstallMethod] = useState<InstallMethod>(
     installMethodOptions.native.value,
   );
   const hasTrackedWorkerConnection = useRef(false);
+
+  // The raw stored value is normalized on every read, so malformed or
+  // stale entries fall back to the defaults.
+  const [storedOnboarding, setStoredOnboarding] = useLocalStorageState<unknown>(
+    onboardingStorageKey(tenantId ?? 'unknown'),
+    null,
+  );
+  const onboarding = useMemo(
+    () => normalizeOnboardingState(storedOnboarding),
+    [storedOnboarding],
+  );
+  const updateOnboarding = (patch: Partial<OnboardingPersistedState>) => {
+    setStoredOnboarding((prev: unknown) => ({
+      ...normalizeOnboardingState(prev),
+      ...patch,
+    }));
+  };
+
+  const selectedTab: WorkflowStepKey = onboarding.tab;
+  // All tab navigation, including direct tab clicks and Continue buttons,
+  // goes through applyTabChange so leaving Choose use case always confirms
+  // the selection.
+  const setSelectedTab = (tab: WorkflowStepKey) =>
+    setStoredOnboarding((prev: unknown) =>
+      applyTabChange(
+        normalizeOnboardingState(prev),
+        tab,
+        new Date().toISOString(),
+      ),
+    );
+  const language: WorkflowLanguageKey = onboarding.language;
+  const useCase: AvailableUseCaseKey = onboarding.useCase;
 
   const defaultTokenName = useMemo(() => {
     const name = currentUser?.name?.trim();
@@ -159,25 +200,72 @@ export default function Overview() {
     });
   };
 
-  // Poll for workers when on the "Run worker" tab
+  const selectionConfirmedAt = onboarding.selectionConfirmedAt;
+
+  // Poll for workers while "Project quickstart" is visible and onboarding
+  // is shown. Polling keeps running there even after a worker qualifies,
+  // because the indicator must also flip back when a worker disconnects.
+  // hasQualifiedWorker decides the connected state; the rows alone
+  // include workers that are stale or from a previous selection.
   const workersQuery = useQuery({
     ...queries.workers.list(tenantId!),
-    enabled: selectedTab === workflowStepOptions.quickstart.value,
+    enabled:
+      !!tenantId &&
+      !onboarding.hidden &&
+      selectedTab === workflowStepOptions.quickstart.value,
     refetchInterval: 2000, // Poll every 2 seconds
   });
 
-  const hasActiveWorker = (workersQuery.data?.rows?.length ?? 0) > 0;
+  const hasConnectedWorker = hasQualifiedWorker(
+    workersQuery.data?.rows ?? [],
+    selectionConfirmedAt,
+  );
+
+  // Detect a completed run created after the confirmed selection. Worker
+  // qualification above is current state and reverts on disconnect; a
+  // completed run is historical product state and stays complete while
+  // the confirmation timestamp stands. Both reset together when a
+  // selection change or Restart onboarding clears the timestamp. The
+  // query runs on any tab whenever a timestamp exists, so completion
+  // survives a reload onto Finish, and it polls only while the "Run a
+  // task" tab is waiting for a result. The timestamp is part of the query
+  // key, so a reset selection never reuses stale completion data. Runs
+  // are tenant-scoped, so a teammate's completed run after the
+  // confirmation also satisfies this check.
+  const qualifiedRunQuery = useQuery({
+    ...queries.v1WorkflowRuns.list(
+      tenantId!,
+      qualifiedRunQueryParams(
+        selectionConfirmedAt ?? new Date(0).toISOString(),
+      ),
+    ),
+    enabled: !!tenantId && !!selectionConfirmedAt && !onboarding.hidden,
+    refetchInterval: (query) =>
+      selectedTab === workflowStepOptions.runTask.value &&
+      (query.state.data?.rows?.length ?? 0) === 0
+        ? 2000
+        : false,
+  });
+
+  const hasQualifiedRun =
+    !!selectionConfirmedAt && (qualifiedRunQuery.data?.rows?.length ?? 0) > 0;
+
+  // The connection event fires once for each tenant, so a tenant switch
+  // without a remount must re-arm it.
+  useEffect(() => {
+    hasTrackedWorkerConnection.current = false;
+  }, [tenantId]);
 
   // Track worker connection (only once)
   useEffect(() => {
-    if (hasActiveWorker && !hasTrackedWorkerConnection.current) {
+    if (hasConnectedWorker && !hasTrackedWorkerConnection.current) {
       capture('onboarding_worker_connected', {
         tenant_id: tenantId,
         user_email: currentUser?.email,
       });
       hasTrackedWorkerConnection.current = true;
     }
-  }, [hasActiveWorker, capture, tenantId, currentUser?.email]);
+  }, [hasConnectedWorker, capture, tenantId, currentUser?.email]);
 
   return (
     <div className="flex h-full w-full flex-col gap-y-8 lg:p-6">
@@ -187,48 +275,70 @@ export default function Overview() {
         </div>
       </div>
 
-      <LearnWorkflowSection
-        tenantName={tenant?.name}
-        selectedTab={selectedTab}
-        onSelectedTabChange={setSelectedTab}
-        language={language}
-        onLanguageChange={setLanguage}
-        installMethod={installMethod}
-        onInstallMethodChange={setInstallMethod}
-        authDisabled={authDisabled}
-        authDisabledToken={authDisabledToken}
-        profileToken={profileToken}
-        isGeneratingProfileToken={createProfileTokenMutation.isPending}
-        profileTokenError={profileTokenError}
-        onGenerateProfileToken={handleGenerateProfileToken}
-        hasActiveWorker={hasActiveWorker}
-        onTabChangeEvent={(_tab, tabLabel) => {
-          capture('onboarding_tab_changed', {
-            tenant_id: tenantId,
-            user_email: currentUser?.email,
-            tab: tabLabel,
-          });
-        }}
-        onLanguageSelectedEvent={(_language, languageLabel) => {
-          capture('onboarding_language_selected', {
-            tenant_id: tenantId,
-            user_email: currentUser?.email,
-            language: languageLabel,
-          });
-        }}
-        onFinish={() => {
-          capture('onboarding_completed', {
-            tenant_id: tenantId,
-            user_email: currentUser?.email,
-          });
-          navigate({
-            to: '/tenants/$tenant/runs',
-            params: { tenant: tenantId! },
-          });
-        }}
-      />
+      {/* Hidden onboarding leaves no trace on Overview, whether hidden by
+          Skip or by Finish; recovery is Restart onboarding on the tenant
+          General settings page. */}
+      {!onboarding.hidden && (
+        <LearnWorkflowSection
+          tenantName={tenant?.name}
+          selectedTab={selectedTab}
+          onSelectedTabChange={setSelectedTab}
+          useCase={useCase}
+          onUseCaseChange={(nextUseCase) => {
+            setStoredOnboarding((prev: unknown) =>
+              applyUseCaseChange(normalizeOnboardingState(prev), nextUseCase),
+            );
+          }}
+          language={language}
+          onLanguageChange={(nextLanguage) => {
+            setStoredOnboarding((prev: unknown) =>
+              applyLanguageChange(normalizeOnboardingState(prev), nextLanguage),
+            );
+          }}
+          installMethod={installMethod}
+          onInstallMethodChange={setInstallMethod}
+          authDisabled={authDisabled}
+          authDisabledToken={authDisabledToken}
+          profileToken={profileToken}
+          isGeneratingProfileToken={createProfileTokenMutation.isPending}
+          profileTokenError={profileTokenError}
+          onGenerateProfileToken={handleGenerateProfileToken}
+          hasConnectedWorker={hasConnectedWorker}
+          hasQualifiedRun={hasQualifiedRun}
+          onViewRuns={() => {
+            navigate({
+              to: '/tenants/$tenant/runs',
+              params: { tenant: tenantId! },
+            });
+          }}
+          onSkip={() => setShowSkipDialog(true)}
+          onTabChangeEvent={(_tab, tabLabel) => {
+            capture('onboarding_tab_changed', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              tab: tabLabel,
+            });
+          }}
+          onLanguageSelectedEvent={(_language, languageLabel) => {
+            capture('onboarding_language_selected', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              language: languageLabel,
+            });
+          }}
+          onUseCaseSelectedEvent={(useCaseKey, useCaseLabel) => {
+            capture('onboarding_use_case_selected', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              use_case: useCaseKey,
+              use_case_label: useCaseLabel,
+            });
+          }}
+          onFinish={() => setShowFinishDialog(true)}
+        />
+      )}
 
-      {!authDisabled && (
+      {!authDisabled && !onboarding.hidden && (
         <CreateApiTokenSection
           tokenName={tokenName}
           onTokenNameChange={(value) => {
@@ -253,6 +363,35 @@ export default function Overview() {
       )}
 
       <SupportSection />
+
+      <SkipOnboardingDialog
+        open={showSkipDialog}
+        onOpenChange={setShowSkipDialog}
+        onConfirm={() => {
+          updateOnboarding({ hidden: true });
+          setShowSkipDialog(false);
+        }}
+      />
+
+      <FinishOnboardingDialog
+        open={showFinishDialog}
+        onOpenChange={setShowFinishDialog}
+        onConfirm={() => {
+          // The confirmed OK is the completion action, so the event fires
+          // exactly once here; opening or dismissing the dialog captures
+          // nothing.
+          capture('onboarding_completed', {
+            tenant_id: tenantId,
+            user_email: currentUser?.email,
+          });
+          updateOnboarding({ hidden: true });
+          setShowFinishDialog(false);
+          navigate({
+            to: '/tenants/$tenant/runs',
+            params: { tenant: tenantId! },
+          });
+        }}
+      />
 
       <TokenSuccessDialog
         open={showTokenDialog}

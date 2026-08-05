@@ -310,7 +310,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+		batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, nil, stepIds)
 
 		if err != nil {
 			span.RecordError(err)
@@ -372,6 +372,45 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				if numFlushed > 0 {
 					now := time.Now()
 
+					var workflowNames map[uuid.UUID]string
+
+					if tenantMetricsEnabled {
+						workflowIds := make([]uuid.UUID, 0, len(ar.assigned))
+						seen := make(map[uuid.UUID]struct{}, len(ar.assigned))
+
+						for _, assignedItem := range ar.assigned {
+							qi := assignedItem.QueueItem
+
+							if qi.RetryCount != 0 || !qi.TaskInsertedAt.Valid {
+								continue
+							}
+
+							if _, ok := seen[qi.WorkflowID]; !ok {
+								seen[qi.WorkflowID] = struct{}{}
+								workflowIds = append(workflowIds, qi.WorkflowID)
+							}
+						}
+
+						var err error
+						workflowNames, err = q.repo.ListWorkflowNamesByIds(ctx, workflowIds)
+
+						if err != nil {
+							q.l.Warn().Err(err).Msg("could not list workflow names for metric labels")
+						}
+
+						if workflowNames == nil {
+							workflowNames = make(map[uuid.UUID]string, len(workflowIds))
+						}
+
+						// an unresolved workflow id (deleted workflow, failed lookup) gets an
+						// explicit label rather than merging into an empty workflow_name
+						for _, id := range workflowIds {
+							if _, ok := workflowNames[id]; !ok {
+								workflowNames[id] = "unknown"
+							}
+						}
+					}
+
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
 						if tenantMetricsEnabled {
@@ -390,6 +429,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						prometheus.QueuedToAssigned.Inc()
 						if tenantMetricsEnabled {
 							prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+							prometheus.TenantQueuedToAssignedByWorkflowCounter.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Inc()
 						}
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
@@ -398,6 +438,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
 							if tenantMetricsEnabled {
 								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+								prometheus.TenantQueuedToAssignedTimeByWorkflowBuckets.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Observe(timeInQueueSeconds)
 							}
 						}
 					}
@@ -847,7 +888,7 @@ func (q *Queuer) runOptimisticQueue(
 		}
 
 	}
-	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, tx, stepIds)
 	if err != nil {
 		return nil, nil, err
 	}
