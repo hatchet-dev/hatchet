@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The worker's own `/health` `slots` field and `hatchet_worker_slots` gauge now charge each running task the `slotCost` it was registered with, instead of counting every running task as one slot.
+- Free capacity is now tracked per slot pool instead of summing the `default` and `durable` pools into one number. `/health` gained a `slotsByPool` field and `/metrics` gained a `hatchet_worker_available_slots{slot_type="..."}` gauge with the breakdown; the scalar `slots` value is now the minimum across the configured pools.
+
 ## [1.28.1] - 2026-07-30
 
 ### Fixed

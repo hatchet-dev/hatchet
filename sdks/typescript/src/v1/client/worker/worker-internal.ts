@@ -37,7 +37,7 @@ import { Duration, durationToString, durationToMs } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
-import { SlotConfig } from '../../slot-types';
+import { SlotConfig, SlotType } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
 import { DurableRunRecord } from './eviction/eviction-cache';
@@ -71,6 +71,10 @@ export class InternalWorker {
   listener: ActionListener | undefined;
   futures: Record<ActionKey, HatchetPromise<any>> = {};
   contexts: Record<ActionKey, Context<any, any>> = {};
+  /** Slot requests per registered action id, captured at registration time. */
+  action_slot_requests: Record<string, SlotRequests> = {};
+  /** Slot requests held by each currently running task, keyed the same way as `futures`. */
+  running_slot_requests: Record<ActionKey, SlotRequests> = {};
   slots?: number;
   durableSlots?: number;
   slotConfig: SlotConfig;
@@ -135,17 +139,64 @@ export class InternalWorker {
       () => this.status,
       this.name,
       () => this.getAvailableSlots(),
+      () => this.getAvailableSlotsByPool(),
       () => this.getRegisteredActions(),
       () => this.getFilteredLabels(),
       this.logger
     );
   }
 
+  /**
+   * Free capacity per slot pool. Pools are independent (a durable slot can't run a
+   * non-durable task), so they're reported separately, and each running task is
+   * charged the slot cost it was registered with rather than a flat one slot.
+   */
+  private getAvailableSlotsByPool(): Record<string, number> {
+    const consumed: Record<string, number> = {};
+
+    for (const requests of Object.values(this.running_slot_requests)) {
+      for (const [pool, cost] of Object.entries(requests)) {
+        consumed[pool] = (consumed[pool] || 0) + cost;
+      }
+    }
+
+    const available: Record<string, number> = {};
+    for (const [pool, total] of Object.entries(this.slotConfig)) {
+      available[pool] = Math.max(0, (total ?? 0) - (consumed[pool] || 0));
+    }
+
+    return available;
+  }
+
+  /**
+   * A single number for the `/health` `slots` field and the `hatchet_worker_slots` gauge.
+   * Since the pools aren't fungible, this is the most conservative reading: the smallest
+   * amount of free capacity across the configured pools. Use `slotsByPool` in the health
+   * response (or the `slot_type`-labeled gauges) for the full picture.
+   */
   private getAvailableSlots(): number {
-    // sum all the slots in the slot config
-    const totalSlots = Object.values(this.slotConfig).reduce((acc, curr) => acc + curr, 0);
-    const currentRuns = Object.keys(this.futures).length;
-    return Math.max(0, totalSlots - currentRuns);
+    const available = Object.values(this.getAvailableSlotsByPool());
+
+    if (available.length === 0) {
+      return 0;
+    }
+
+    return Math.min(...available);
+  }
+
+  /**
+   * Slot requests a task holds while it runs. Falls back to a single slot on the pool the
+   * action belongs to when the action wasn't registered through this worker.
+   */
+  private slotRequestsForAction(actionId: string): SlotRequests {
+    const registered = this.action_slot_requests[actionId];
+    if (registered) {
+      return registered;
+    }
+
+    return this.durable_action_set.has(actionId)
+      ? { [SlotType.Durable]: 1 }
+      : { [SlotType.Default]: 1 };
   }
 
   private getRegisteredActions(): string[] {
@@ -178,6 +229,7 @@ export class InternalWorker {
         acc[actionId] = (ctx: Context<any, any>) =>
           task.fn!(ctx.input, ctx as DurableContext<any, any>);
         this.durable_action_set.add(actionId);
+        this.action_slot_requests[actionId] = mapSlotRequestsPb(task, true);
         this.eviction_policies.set(
           actionId,
           task.evictionPolicy !== undefined
@@ -206,6 +258,8 @@ export class InternalWorker {
           acc[actionId] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx);
         }
 
+        this.action_slot_requests[actionId] = mapSlotRequestsPb(task, false);
+
         return acc;
       }, {});
 
@@ -220,6 +274,15 @@ export class InternalWorker {
           [onFailureTaskName(workflow)]: (ctx: Context<any, any>) => onFailureFn(ctx.input, ctx),
         }
       : {};
+
+    if (onFailureFn) {
+      const onFailureOpts =
+        typeof workflow.onFailure === 'object' ? (workflow.onFailure as { slotCost?: number }) : {};
+      this.action_slot_requests[onFailureTaskName(workflow)] = mapSlotRequestsPb(
+        onFailureOpts,
+        false
+      );
+    }
 
     this.action_registry = {
       ...this.action_registry,
@@ -512,6 +575,7 @@ export class InternalWorker {
     this.evictionManager?.unregisterRun(key);
     delete this.futures[key];
     delete this.contexts[key];
+    delete this.running_slot_requests[key];
   }
 
   /**
@@ -715,6 +779,7 @@ export class InternalWorker {
         })()
       );
       this.futures[actionKey] = future;
+      this.running_slot_requests[actionKey] = this.slotRequestsForAction(actionId);
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -1237,11 +1302,14 @@ function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
 }
 
+/** Slots a task requests, keyed by pool name (see {@link SlotType}). */
+export type SlotRequests = Record<string, number>;
+
 /** Durable tasks stay on the durable pool; slotCost applies only to the default pool. */
 export function mapSlotRequestsPb(
-  task: { slotRequests?: Record<string, number>; slotCost?: number },
+  task: { slotRequests?: SlotRequests; slotCost?: number },
   isDurable: boolean
-): Record<string, number> {
+): SlotRequests {
   if (task.slotRequests) {
     return task.slotRequests;
   }

@@ -8,6 +8,8 @@ interface PromRegistry {
 }
 interface PromGauge {
   set(value: number): void;
+  set(labels: Record<string, string>, value: number): void;
+  reset(): void;
 }
 
 export const workerStatus = {
@@ -21,7 +23,13 @@ export type WorkerStatus = (typeof workerStatus)[keyof typeof workerStatus];
 interface HealthCheckResponse {
   status: string;
   name: string;
+  /**
+   * Free capacity, taken as the minimum across the worker's slot pools. Pools are
+   * independent, so this is the conservative number; `slotsByPool` has the breakdown.
+   */
   slots: number;
+  /** Free capacity per slot pool, e.g. `{ "default": 5, "durable": 3 }`. */
+  slotsByPool: Record<string, number>;
   actions: string[];
   labels: Record<string, string | number>;
   nodeVersion: string;
@@ -32,6 +40,7 @@ export class HealthServer {
   private register: PromRegistry | null = null;
   private workerStatusGauge: PromGauge | null = null;
   private workerSlotsGauge: PromGauge | null = null;
+  private workerSlotsByPoolGauge: PromGauge | null = null;
   private workerActionsGauge: PromGauge | null = null;
   private metricsInitialized: boolean = false;
 
@@ -40,6 +49,7 @@ export class HealthServer {
     private getStatus: () => WorkerStatus,
     private workerName: string,
     private getSlots: () => number,
+    private getSlotsByPool: () => Record<string, number>,
     private getActions: () => string[],
     private getLabels: () => Record<string, string | number>,
     private logger: Logger
@@ -65,6 +75,7 @@ export class HealthServer {
       status: this.getStatus(),
       name: this.workerName,
       slots: this.getSlots(),
+      slotsByPool: this.getSlotsByPool(),
       actions: this.getActions(),
       labels: this.getLabels(),
       nodeVersion: process.version,
@@ -94,10 +105,25 @@ export class HealthServer {
 
       this.workerSlotsGauge = new Gauge({
         name: 'hatchet_worker_slots',
-        help: 'Total slots available on the worker',
+        help: 'Free slots on the worker, taken as the minimum across its slot pools',
         registers: [this.register as never],
         collect: () => {
           this.workerSlotsGauge!.set(this.getSlots());
+        },
+      }) as PromGauge;
+
+      this.workerSlotsByPoolGauge = new Gauge({
+        name: 'hatchet_worker_available_slots',
+        help: 'Free slots on the worker, broken down by slot pool',
+        labelNames: ['slot_type'],
+        registers: [this.register as never],
+        collect: () => {
+          // Pools can disappear between scrapes (nothing registered against them anymore),
+          // so clear stale series rather than leaving them at their last value.
+          this.workerSlotsByPoolGauge!.reset();
+          for (const [slotType, slots] of Object.entries(this.getSlotsByPool())) {
+            this.workerSlotsByPoolGauge!.set({ slot_type: slotType }, slots);
+          }
         },
       }) as PromGauge;
 
