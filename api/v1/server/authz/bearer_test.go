@@ -10,69 +10,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
-
-func TestBearerPolicyValidateSpec(t *testing.T) {
-	_, err := newBearerPolicy()
-	assert.Nil(t, err)
-}
-
-func TestBearerPolicyRejectsUnclassifiedOperation(t *testing.T) {
-	policy, err := rbac.LoadBearerPolicy([]byte("operations:\n  denied: []\n  allowed: []\n"))
-	require.NoError(t, err)
-
-	spec, err := gen.GetSwagger()
-	require.NoError(t, err)
-
-	err = policy.ValidateSpec(*spec)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exists in openapi specs but not in bearer.yaml")
-}
-
-func TestBearerPolicyRejectsUnknownOperation(t *testing.T) {
-	policy, err := rbac.LoadBearerPolicy([]byte("operations:\n  denied:\n    - NotARealOperation\n  allowed: []\n"))
-	require.NoError(t, err)
-
-	spec, err := gen.GetSwagger()
-	require.NoError(t, err)
-
-	err = policy.ValidateSpec(*spec)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "NotARealOperation exists in bearer.yaml but not in specs")
-}
-
-func TestBearerPolicyRejectsDuplicateOperation(t *testing.T) {
-	policy, err := rbac.LoadBearerPolicy([]byte("operations:\n  denied:\n    - TenantGet\n  allowed:\n    - TenantGet\n"))
-	require.NoError(t, err)
-
-	spec, err := gen.GetSwagger()
-	require.NoError(t, err)
-
-	err = policy.ValidateSpec(*spec)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TenantGet is listed more than once in bearer.yaml")
-}
 
 func newBearerContext() echo.Context {
 	e := echo.New()
 	return e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
 }
 
-func TestHandleBearerAuthEnforcesPolicy(t *testing.T) {
-	policy, err := newBearerPolicy()
+func TestHandleBearerAuthEnforcesBearerTokenRole(t *testing.T) {
+	authorizer, err := newHatchetAuthorizer()
 	require.NoError(t, err)
 
-	a := &AuthZ{bearer: policy}
+	a := &AuthZ{config: &server.ServerConfig{}, rbac: authorizer}
 
-	require.NotEmpty(t, policy.Operations.Denied)
-	require.NotEmpty(t, policy.Operations.Allowed)
+	denied := []string{
+		"ApiTokenCreate",
+		"ApiTokenList",
+		"ApiTokenUpdateRevoke",
+		"TenantCreate",
+		"TenantInviteAccept",
+		"TenantInviteCreate",
+		"TenantInviteReject",
+		"TenantInviteUpdate",
+		"TenantMemberDelete",
+		"TenantMemberUpdate",
+		"TenantMembershipsList",
+		"UserGetCurrent",
+		"UserListTenantInvites",
+		"UserUpdateLogout",
+		"UserUpdatePassword",
+	}
 
-	for _, operationId := range policy.Operations.Denied {
+	for _, operationId := range denied {
 		t.Run("denied/"+operationId, func(t *testing.T) {
 			err := a.handleBearerAuth(newBearerContext(), &middleware.RouteInfo{OperationID: operationId})
 
@@ -83,9 +53,29 @@ func TestHandleBearerAuthEnforcesPolicy(t *testing.T) {
 		})
 	}
 
-	for _, operationId := range policy.Operations.Allowed {
+	allowed := []string{
+		"TenantGet",
+		"WorkflowRunCreate",
+		"V1WorkflowRunCreate",
+		"WorkerList",
+		"EventCreate",
+	}
+
+	for _, operationId := range allowed {
 		t.Run("allowed/"+operationId, func(t *testing.T) {
 			assert.NoError(t, a.handleBearerAuth(newBearerContext(), &middleware.RouteInfo{OperationID: operationId}))
 		})
 	}
+}
+
+func TestHandleBearerAuthAllowedOperationsBypass(t *testing.T) {
+	authorizer, err := newHatchetAuthorizer()
+	require.NoError(t, err)
+
+	config := &server.ServerConfig{}
+	config.Auth.AllowedOperations = []string{"ApiTokenCreate"}
+
+	a := &AuthZ{config: config, rbac: authorizer}
+
+	assert.NoError(t, a.handleBearerAuth(newBearerContext(), &middleware.RouteInfo{OperationID: "ApiTokenCreate"}))
 }

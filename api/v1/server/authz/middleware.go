@@ -16,7 +16,6 @@ import (
 type AuthZ struct {
 	config *server.ServerConfig
 	rbac   *rbac.Authorizer
-	bearer *rbac.BearerPolicy
 	l      *zerolog.Logger
 }
 
@@ -26,16 +25,10 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 		return nil, err
 	}
 
-	bearerPolicy, err := newBearerPolicy()
-	if err != nil {
-		return nil, err
-	}
-
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
 		rbac:   rbacAuthorizer,
-		bearer: bearerPolicy,
 	}, nil
 }
 
@@ -96,12 +89,12 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 }
 
 // Bearer tokens are tenant-scoped and carry no user, so operations that read the user or the
-// tenant member from the request context are declared in bearer.yaml and rejected here. The
-// tenant itself is checked in the authn step.
+// tenant member from the request context are absent from the BEARER_TOKEN role in rbac.yaml and
+// rejected here. The tenant itself is checked in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
 	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
-	// regular bearer tokens are subject to the additional restrictions declared in bearer.yaml
+	// regular bearer tokens are restricted to the BEARER_TOKEN role in rbac.yaml
 	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
@@ -118,7 +111,7 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 		}
 	} else if !isExchangeToken {
-		if a.bearer.IsDenied(r.OperationID) {
+		if !rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) && !a.rbac.IsAuthorized(bearerTokenRole, r.OperationID) {
 			return echo.NewHTTPError(http.StatusForbidden, "This operation requires a user session and cannot be performed with an API token")
 		}
 	}
