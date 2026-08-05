@@ -114,6 +114,10 @@ func NewSchedulingPool(
 	}, nil
 }
 
+func (p *SchedulingPool) AddExtension(ext scheduling.SchedulerExtension) {
+	p.Extensions.Add(ext)
+}
+
 func (p *SchedulingPool) GetResultsCh() chan *QueueResults {
 	return p.resultsCh
 }

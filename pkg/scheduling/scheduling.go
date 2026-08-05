@@ -48,6 +48,11 @@ type Pool interface {
 	GetResultsCh() chan *QueueResults
 	GetConcurrencyResultsCh() chan *ConcurrencyResults
 
+	// AddExtension registers a scheduler extension (metrics, autoscaling, ...)
+	// against the pool. Extensions are written once against the shared contract
+	// in this package and work with either implementation.
+	AddExtension(ext SchedulerExtension)
+
 	SetTenants(tenants []*sqlcv1.Tenant)
 	Replenish(ctx context.Context, tenantId uuid.UUID)
 
