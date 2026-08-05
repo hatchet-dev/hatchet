@@ -157,7 +157,9 @@ module Hatchet
           return buffered[1]
         end
 
-        queue = @mu.synchronize { @pending_callbacks[key] ||= Queue.new }
+        queue = @mu.synchronize do
+          @pending_callbacks[key] ||= Queue.new
+        end
 
         @logger&.debug(
           "durable event listener wait_for_callback: waiting " \
@@ -602,16 +604,19 @@ module Hatchet
       def handle_entry_completed(completed)
         @logger&.debug(
           "durable event listener recv entry_completed: task=#{completed.ref.durable_task_external_id} " \
-          "invocation=#{completed.ref.invocation_count} branch_id=#{completed.ref.branch_id} " \
-          "node_id=#{completed.ref.node_id}",
+          "invocation=#{completed.ref.invocation_count} branch_id=#{completed.ref.branch_id} node_id=#{completed.ref.node_id}",
         )
         key = callback_key_for(completed.ref)
         result = parse_entry_completed(completed)
 
-        # The engine delivers completions in satisfied_order, so the listener
-        # simply hands each one to its waiter (or buffers it for a waiter that
-        # has not registered yet).
-        deliver_completion(key, result)
+        @mu.synchronize do
+          queue = @pending_callbacks.delete(key)
+          if queue
+            queue << [:ok, result]
+          else
+            @buffered_completions[key] = [Time.now, result]
+          end
+        end
       end
 
       def handle_eviction_ack(ack)
@@ -717,19 +722,6 @@ module Hatchet
           @pending_callbacks.each_value { |q| q << [:err, exc] }
           @pending_callbacks.clear
           @buffered_completions.clear
-        end
-      end
-
-      # Hand a completion to a registered waiter, or buffer it for a waiter
-      # that has not registered yet.
-      def deliver_completion(key, result)
-        @mu.synchronize do
-          queue = @pending_callbacks.delete(key)
-          if queue
-            queue << [:ok, result]
-          else
-            @buffered_completions[key] = [Time.now, result]
-          end
         end
       end
 

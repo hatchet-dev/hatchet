@@ -457,8 +457,8 @@ module Hatchet
 
       def cleanup_action(action_key)
         @contexts_mu.synchronize do
-          @task_threads.delete(action_key)
           @contexts.delete(action_key)
+          @task_threads.delete(action_key)
         end
 
         @eviction_manager&.unregister_run(action_key)

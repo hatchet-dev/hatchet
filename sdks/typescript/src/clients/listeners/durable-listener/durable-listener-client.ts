@@ -183,7 +183,7 @@ type BranchId = number;
 type NodeId = number;
 
 type PendingEventAckKey = `${TaskExternalId}:${InvocationCount}`;
-export type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
+type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
 type PendingEvictionAckKey = `${TaskExternalId}:${InvocationCount}`;
 
 function ackKey(taskExtId: string, invocationCount: number): PendingEventAckKey {
@@ -507,11 +507,13 @@ export class DurableListenerClient {
         ref?.nodeId ?? 0
       );
       const result = eventLogEntryResultFromProto(completed);
-
-      // The engine delivers completions in satisfiedOrder, so the listener simply
-      // hands each one to its waiter (or buffers it for a waiter that has not
-      // registered yet).
-      this._deliverCompletion(key, result);
+      const pending = this._pendingCallbacks.get(key);
+      if (pending) {
+        pending.resolve(result);
+        this._pendingCallbacks.delete(key);
+      } else {
+        this._bufferedCompletions.set(key, result);
+      }
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
       const key = evictionKey(ack.durableTaskExternalId, ack.invocationCount);
@@ -574,24 +576,6 @@ export class DurableListenerClient {
         this._pendingEvictionAcks.delete(eEvKey);
       }
     }
-  }
-
-  /**
-   * Hands a completion to a registered waiter, or buffers it for a waiter that
-   * has not registered yet.
-   */
-  private _deliverCompletion(
-    key: PendingCallbackKey,
-    result: DurableTaskEventLogEntryResult
-  ): void {
-    const pending = this._pendingCallbacks.get(key);
-    if (pending) {
-      pending.resolve(result);
-      this._pendingCallbacks.delete(key);
-      return;
-    }
-
-    this._bufferedCompletions.set(key, result);
   }
 
   async sendEvent(
@@ -680,7 +664,6 @@ export class DurableListenerClient {
 
     if (!this._pendingCallbacks.has(key)) {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
-
       this._pollWorkerStatus();
     }
 

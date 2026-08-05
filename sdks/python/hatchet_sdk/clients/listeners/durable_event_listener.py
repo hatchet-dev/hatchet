@@ -454,11 +454,13 @@ class DurableEventListener:
                 completed.ref.node_id,
             )
             result = DurableTaskEventLogEntryResult.from_proto(completed)
-
-            # The engine delivers completions in satisfied_order, so the listener
-            # simply hands each one to its waiter (or buffers it for a waiter that
-            # has not registered yet).
-            self._deliver_completion(completed_key, result)
+            if completed_key in self._pending_callbacks:
+                completed_future = self._pending_callbacks[completed_key]
+                if not completed_future.done():
+                    completed_future.set_result(result)
+                del self._pending_callbacks[completed_key]
+            else:
+                self._buffered_completions[completed_key] = result
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -533,19 +535,6 @@ class DurableEventListener:
                 eviction_future = self._pending_eviction_acks.pop(error_eviction_key)
                 if not eviction_future.done():
                     eviction_future.set_exception(exc)
-
-    def _deliver_completion(
-        self, key: PendingCallback, result: DurableTaskEventLogEntryResult
-    ) -> None:
-        """Hand a completion to a registered waiter, or buffer it for a waiter
-        that has not registered yet."""
-        if key in self._pending_callbacks:
-            future = self._pending_callbacks.pop(key)
-            if not future.done():
-                future.set_result(result)
-            return
-
-        self._buffered_completions[key] = result
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
@@ -684,7 +673,6 @@ class DurableEventListener:
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
-
             await self._poll_worker_status()
             return await future
 

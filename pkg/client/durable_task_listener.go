@@ -301,12 +301,14 @@ func (l *DurableTaskListener) AddPendingCallback(key PendingCallbackKey) chan Ca
 	if hasBuffered {
 		delete(l.bufferedCompletions, key)
 		ch <- CallbackResult{Resp: buffered.resp}
-		l.callbackStateMu.Unlock()
+	} else {
+		l.pendingCallbacks[key] = ch
+	}
+	l.callbackStateMu.Unlock()
+
+	if hasBuffered {
 		return ch
 	}
-
-	l.pendingCallbacks[key] = ch
-	l.callbackStateMu.Unlock()
 
 	l.signalStatusChanged()
 	return ch
@@ -851,10 +853,34 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 		}
 		l.deliverEventAck(key, resp)
 	case *v1.DurableTaskResponse_EntryCompleted:
-		// The engine delivers completions in satisfied_order, so the listener
-		// simply hands each one to its waiter (or buffers it for a waiter that
-		// has not registered yet).
-		l.deliverCompletion(resp)
+		completed := msg.EntryCompleted
+		ref := completed.GetRef()
+		key := PendingCallbackKey{
+			TaskID:    ref.GetDurableTaskExternalId(),
+			SignalKey: int64(ref.GetInvocationCount()),
+			BranchID:  ref.GetBranchId(),
+			NodeID:    ref.GetNodeId(),
+		}
+
+		l.callbackStateMu.Lock()
+		if l.callbacksTerminal {
+			l.callbackStateMu.Unlock()
+			return
+		}
+		l.pruneExpiredCompletionsLocked(time.Now())
+		ch, ok := l.pendingCallbacks[key]
+		if ok {
+			delete(l.pendingCallbacks, key)
+			// Callback channels are buffered, so publishing while locked cannot
+			// block and ensures Stop cannot return before this delivery.
+			select {
+			case ch <- CallbackResult{Resp: resp}:
+			default:
+			}
+		} else {
+			l.cacheCompletionLocked(key, resp)
+		}
+		l.callbackStateMu.Unlock()
 	case *v1.DurableTaskResponse_Error:
 		l.dispatchError(msg.Error)
 	case *v1.DurableTaskResponse_ServerEvict:
@@ -1010,40 +1036,6 @@ func (l *DurableTaskListener) workerStatusRequest() *v1.DurableTaskRequest {
 			},
 		},
 	}
-}
-
-// deliverCompletion hands an EntryCompleted response to a registered waiter,
-// or buffers it for late registration.
-func (l *DurableTaskListener) deliverCompletion(resp *v1.DurableTaskResponse) {
-	completed := resp.GetEntryCompleted()
-	ref := completed.GetRef()
-	key := PendingCallbackKey{
-		TaskID:    ref.GetDurableTaskExternalId(),
-		SignalKey: int64(ref.GetInvocationCount()),
-		BranchID:  ref.GetBranchId(),
-		NodeID:    ref.GetNodeId(),
-	}
-
-	l.callbackStateMu.Lock()
-	defer l.callbackStateMu.Unlock()
-
-	if l.callbacksTerminal {
-		return
-	}
-
-	l.pruneExpiredCompletionsLocked(time.Now())
-
-	ch, ok := l.pendingCallbacks[key]
-	if ok {
-		delete(l.pendingCallbacks, key)
-		select {
-		case ch <- CallbackResult{Resp: resp}:
-		default:
-		}
-		return
-	}
-
-	l.cacheCompletionLocked(key, resp)
 }
 
 func (l *DurableTaskListener) cacheCompletionLocked(
