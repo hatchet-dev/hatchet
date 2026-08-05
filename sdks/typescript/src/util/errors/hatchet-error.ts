@@ -10,20 +10,6 @@ class HatchetError extends Error {
   }
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} bytes`;
-  }
-  const units = ['KB', 'MB', 'GB'];
-  let value = bytes;
-  let unitIndex = -1;
-  do {
-    value /= 1024;
-    unitIndex += 1;
-  } while (value >= 1024 && unitIndex < units.length - 1);
-  return `${value.toFixed(2)} ${units[unitIndex]} (${bytes.toLocaleString()} bytes)`;
-}
-
 /**
  * Returns true if `e` is a gRPC RESOURCE_EXHAUSTED error caused by an oversized outgoing
  * message (as opposed to some other RESOURCE_EXHAUSTED condition, e.g. a tenant quota limit).
@@ -60,7 +46,7 @@ export function toHatchetError(
 
   if (payloadSizeBytes !== undefined && isMessageTooLargeError(e)) {
     message =
-      `Payload too large: attempted to send ${formatBytes(payloadSizeBytes)}, which exceeds ` +
+      `Payload too large: attempted to send ${payloadSizeBytes}, which exceeds ` +
       `the gRPC max message size configured for this client.` +
       `(${message})`;
   }
