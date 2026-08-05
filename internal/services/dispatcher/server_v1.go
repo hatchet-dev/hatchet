@@ -320,18 +320,6 @@ type durableTaskInvocation struct {
 	tenantId uuid.UUID
 	workerId uuid.UUID
 
-	// releases orders EntryCompleted responses by their per-log satisfied_order so
-	// that on replay the worker re-registers durable operations in the order they
-	// originally completed. Keyed per (task external id, invocation count); a replay
-	// bumps the invocation count and so starts from a fresh cursor.
-	//
-	// This assumes satisfied_order is contiguous and monotonic per log, which holds
-	// for linear tasks and branch-free concurrency. It does NOT hold for a task that
-	// is forked with BranchDurableTask when entries were satisfied out of node order
-	// before the branch point: the retained prefix can keep a non-contiguous subset of
-	// orders, leaving a permanent hole below the cursor. Such a task stalls and is
-	// evicted repeatedly (see evictStalledOrderedReleases) rather than making progress;
-	// that combination is currently unsupported.
 	releasesMu sync.Mutex
 	releases   map[orderedReleaseKey]*orderedRelease
 }
@@ -342,23 +330,11 @@ type orderedReleaseKey struct {
 }
 
 type orderedRelease struct {
-	// mu guards every field below and is held across the actual sends in
-	// deliverOrdered (not just the bookkeeping), so that two completions for this
-	// same (task, invocation) can never hit the wire out of the order in which they
-	// were logically released. It is separate from durableTaskInvocation.releasesMu
-	// (which only guards the releases map) so that one task's in-flight send never
-	// blocks bookkeeping or delivery for any other task on the same connection.
-	mu sync.Mutex
-	// maxSatisfiedOrderSentAlready is the highest satisfied_order sent to the worker;
-	// the next release is maxSatisfiedOrderSentAlready+1. Seeded at 0 for a fresh
-	// (task, invocation).
+	mu                           sync.Mutex
 	maxSatisfiedOrderSentAlready int64
-	// bufferedCompletions holds completions whose satisfied_order is not yet contiguous.
-	bufferedCompletions map[int64]*contracts.DurableTaskResponse
-	// oldestBufferedAt is when bufferedCompletions first became non-empty (zero when
-	// empty), for the gap-timeout backstop.
-	oldestBufferedAt time.Time
-	lastActivityAt   time.Time
+	bufferedCompletions          map[int64]*contracts.DurableTaskResponse
+	oldestBufferedAt             time.Time
+	lastActivityAt               time.Time
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -367,9 +343,6 @@ func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error 
 	return s.server.Send(resp)
 }
 
-// getRelease returns the release state for the given key, creating it if absent and
-// dropping any state for older invocation counts of the same task. Callers must hold
-// releasesMu.
 func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedRelease {
 	if s.releases == nil {
 		s.releases = make(map[orderedReleaseKey]*orderedRelease)
@@ -417,10 +390,6 @@ func (s *durableTaskInvocation) pruneIdleReleases(idle time.Duration) {
 	}
 }
 
-// deliverOrdered sends an EntryCompleted response in satisfied_order. Completions with
-// no satisfied_order (memos, or an older engine) pass straight through. Contiguous
-// completions are sent immediately (draining any held successors); a completion that
-// arrives ahead of its predecessors is held until the gap fills.
 func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocationCount int32, satisfiedOrder *int64, resp *contracts.DurableTaskResponse) error {
 	if satisfiedOrder == nil {
 		return s.send(resp)
@@ -490,10 +459,6 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	return nil
 }
 
-// staleReleaseHolds returns the keys of releases whose oldest held completion has been
-// waiting longer than timeout for a missing predecessor. Such a gap normally self-heals
-// on the next worker-status re-delivery; a persistent one means the predecessor delivery
-// was lost or the history diverged, and the invocation is evicted to restart cleanly.
 func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []orderedReleaseKey {
 	s.releasesMu.Lock()
 	defer s.releasesMu.Unlock()
@@ -733,9 +698,6 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
-			// NOTE: memo entries are never stamped with a satisfied_order: their results
-			// travel synchronously on the MemoAck, so an ordered release would stall the
-			// completion sequence on entries the worker never awaits.
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				tenantId,
 				taskExtId,
@@ -1258,13 +1220,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 // durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a
 // missing lower satisfied_order before the invocation is evicted to restart cleanly.
 const durableOrderedReleaseGapTimeout = 60 * time.Second
-
 const durableReleaseIdleTTL = 24 * time.Hour
 
-// evictStalledOrderedReleases tells the worker to evict any invocation whose ordered
-// release has stalled on a missing predecessor for too long. The periodic worker-status
-// re-delivery above normally fills such gaps; a persistent one indicates a lost delivery
-// or diverged history, so restarting the invocation is the safe recovery.
 func (d *DispatcherServiceImpl) evictStalledOrderedReleases(invocation *durableTaskInvocation) {
 	for _, key := range invocation.staleReleaseHolds(durableOrderedReleaseGapTimeout) {
 		d.l.Error().Msgf(
