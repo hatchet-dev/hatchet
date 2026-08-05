@@ -1,3 +1,4 @@
+import { config } from './config';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
@@ -1141,6 +1142,7 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  basepath: config.BASE_PATH,
 });
 
 declare module '@tanstack/react-router' {
