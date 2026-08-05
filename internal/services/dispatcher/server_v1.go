@@ -350,15 +350,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	}
 
 	registeredTasks := make(map[uuid.UUID]struct{})
-	var registeredTasksMu sync.Mutex
-
-	var reqWg sync.WaitGroup
-	defer reqWg.Wait()
 
 	defer func() {
-		registeredTasksMu.Lock()
-		defer registeredTasksMu.Unlock()
-
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(durableInvocationsKey{
 				tenantId: tenantId,
@@ -373,9 +366,6 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		if err != nil {
 			return
 		}
-
-		registeredTasksMu.Lock()
-		defer registeredTasksMu.Unlock()
 
 		if _, exists := registeredTasks[taskExtId]; !exists {
 			d.durableInvocations.Store(durableInvocationsKey{
@@ -439,31 +429,9 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
-			if _, isRegisterWorker := r.req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
-				if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
-					d.l.Error().Err(err).Msg("error handling durable task request")
-				}
-				continue
+			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
+				d.l.Error().Err(err).Msg("error handling durable task request")
 			}
-
-			// durableTaskRequestSem bounds how many of these run at once across the
-			// whole pod: unbounded fan-out across many worker connections can
-			// exhaust the DB connection pool faster than serialization ever would.
-			reqWg.Add(1)
-			go func(req *contracts.DurableTaskRequest) {
-				defer reqWg.Done()
-
-				select {
-				case d.durableTaskRequestSem <- struct{}{}:
-				case <-ctx.Done():
-					return
-				}
-				defer func() { <-d.durableTaskRequestSem }()
-
-				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
-					d.l.Error().Err(err).Msg("error handling durable task request")
-				}
-			}(r.req)
 		}
 	}
 }

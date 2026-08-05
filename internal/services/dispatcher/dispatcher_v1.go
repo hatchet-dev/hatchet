@@ -15,16 +15,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-// durableTaskRequestConcurrency bounds how many DurableTask stream messages
-// (across all worker connections on this pod) are handled concurrently. Each
-// handler does at least one DB round-trip, so this is sized well under the
-// database pool's default MaxConns (50, see pkg/config/database/config.go)
-// to leave headroom for every other query this pod issues; without a bound,
-// a large number of worker connections can fan out enough concurrent DB
-// acquisitions to exhaust the pool (and, in aggregate across pods, Postgres's
-// own connection limit).
-const durableTaskRequestConcurrency = 20
-
 type durableInvocationsKey struct {
 	tenantId uuid.UUID
 	taskId   uuid.UUID
@@ -42,10 +32,6 @@ type DispatcherServiceImpl struct {
 	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 	dispatcherId       uuid.UUID
-
-	// durableTaskRequestSem bounds concurrent DurableTask message handling
-	// across all worker connections on this pod. See durableTaskRequestConcurrency.
-	durableTaskRequestSem chan struct{}
 }
 
 // CancelStreamSessions hangs up all registered long-lived streams (durable event
@@ -69,7 +55,6 @@ func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub m
 		dispatcherId:  dispatcherId,
 		analytics:     a,
 
-		streamSessions:        streams.NewRegistry(),
-		durableTaskRequestSem: make(chan struct{}, durableTaskRequestConcurrency),
+		streamSessions: streams.NewRegistry(),
 	}
 }
