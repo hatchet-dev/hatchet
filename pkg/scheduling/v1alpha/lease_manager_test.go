@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package v1
+package v1alpha
 
 import (
 	"context"
