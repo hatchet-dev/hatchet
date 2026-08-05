@@ -26,6 +26,8 @@ RUN chmod +x ./hatchet-staticfileserver
 # Stage 3: Run the static fileserver
 FROM alpine:3.21
 
+ENV BASE_PATH="/"
+
 WORKDIR /app
 
 COPY --from=build /app/dist ./dist

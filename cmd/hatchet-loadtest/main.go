@@ -1,14 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"net/http"
@@ -39,12 +42,21 @@ type LoadTestConfig struct {
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
 
+	SelectEventKeys  []string
+	ExcludeEventKeys []string
+	EventKeys        []eventkeys.EventKey
+
 	// ExternalWorker, if set, skips registering a workflow and starting an
 	// in-process worker altogether - it assumes a separately-running SDK
 	// worker (e.g. cmd/hatchet-loadtest/go) has already registered a
 	// compatible workflow named "load-test-0" (or "load-test-{i}" for
 	// i<EventFanout).
 	ExternalWorker bool
+
+	// TimingSampleRate, in --externalWorker mode, is the proportion (0, 1]
+	// of completed runs to fetch full task timings for, so that there are
+	// fewer REST calls necessary. E.g. 0.3 samples 30% of runs.
+	TimingSampleRate float64
 }
 
 func main() {
@@ -70,12 +82,22 @@ func main() {
 
 			config.Namespace = os.Getenv("HATCHET_CLIENT_NAMESPACE")
 
+			eventKeys, err := resolveEventKeys(config.SelectEventKeys, config.ExcludeEventKeys, availableEventKeys(config.ExternalWorker))
+			if err != nil {
+				log.Println(err)
+				panic("load test failed")
+			}
+			config.EventKeys = eventKeys
+			l.Info().Msgf("publishing event keys: %v", config.EventKeys)
+
 			if err := do(config); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}
 		},
 	}
+
+	eventKeyNames := eventkeys.Names(eventkeys.All)
 
 	loadtest.Flags().IntVarP(&config.Events, "events", "e", 10, "events per second")
 	loadtest.Flags().IntVar(&config.EmitWorkers, "emitWorkers", 0, "emitWorkers specifies how many concurrent goroutines push events to the engine; each push is a blocking call, so this bounds sustained throughput regardless of --events. 0 auto-scales from --events (see emit.go's defaultEmitWorkers)")
@@ -97,7 +119,10 @@ func main() {
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
+	loadtest.Flags().StringSliceVar(&config.SelectEventKeys, "select", nil, fmt.Sprintf("select specifies which event keys to publish (comma-separated or repeated), e.g. --select %s. Known keys: %s. Mutually exclusive with --exclude; passing neither publishes only the standard key %q (batch/durable canaries are opt-in)", strings.Join(eventKeyNames, ","), strings.Join(eventKeyNames, ", "), eventkeys.EventKeyDefault.Name()))
+	loadtest.Flags().StringSliceVar(&config.ExcludeEventKeys, "exclude", nil, "exclude specifies which event keys to skip (comma-separated or repeated); all other available keys are published. Mutually exclusive with --select")
 	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
+	loadtest.Flags().Float64Var(&config.TimingSampleRate, "timingSampleRate", 1, "fetch full task timings for this proportion (0, 1] of completed runs instead of every one - e.g. 0.3 samples 30% of runs. The average still converges, at a fraction of the REST load on the engine; 1 (the default) fetches every run")
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
 	if err := cmd.Execute(); err != nil {
