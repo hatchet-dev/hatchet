@@ -39,8 +39,6 @@ interface TimelineBarsProps {
   onGroupSelect?: (group: SpanGroupInfo) => void;
   expandOnly: (id: string) => void;
   onRangeChange?: (range: VisibleRange) => void;
-  externalCursorPct?: number | null;
-  onCursorPctChange?: (pct: number | null) => void;
 }
 
 export const TimelineBars = memo(function TimelineBars({
@@ -65,8 +63,6 @@ export const TimelineBars = memo(function TimelineBars({
   onGroupSelect,
   expandOnly,
   onRangeChange,
-  externalCursorPct,
-  onCursorPctChange,
 }: TimelineBarsProps) {
   const barsRef = useRef<HTMLDivElement>(null);
 
@@ -83,12 +79,8 @@ export const TimelineBars = memo(function TimelineBars({
     onRangeChange,
   );
 
-  const { effectiveCursorPct, onMouseMove, onMouseLeave } = useCursorSync(
-    barsRef,
-    timelineValues,
-    externalCursorPct,
-    onCursorPctChange,
-  );
+  const { effectiveCursorPct, onMouseMove, onMouseLeave } =
+    useCursorSync(barsRef);
 
   const [tooltipPos, setTooltipPos] = useState<{
     x: number;
