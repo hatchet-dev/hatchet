@@ -150,8 +150,6 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Runtime.GRPCInsecure = true
 		scf.Runtime.Healthcheck = false
 
-		scf.SecurityCheck.Enabled = false
-
 		if cfg.usePostgresMQ() {
 			scf.MessageQueue.Kind = "postgres"
 		} else {
@@ -162,6 +160,19 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Encryption.MasterKeyset = string(*cfg.masterKeyset)
 		scf.Encryption.JWT.PrivateJWTKeyset = string(*cfg.privateJWTKeyset)
 		scf.Encryption.JWT.PublicJWTKeyset = string(*cfg.publicJWTKeyset)
+	}
+
+	disableCheck := func(scf *server.ServerConfigFile) {
+		disabled := false
+		scf.SecurityCheck.Enabled = &disabled
+	}
+
+	embedCheck := func(scf *server.ServerConfigFile) {
+		if scf.SecurityCheck.Enabled == nil {
+			enabled := true
+			scf.SecurityCheck.Enabled = &enabled
+		}
+		scf.SecurityCheck.Distribution = "embed"
 	}
 
 	cf := loader.NewConfigLoader("")
@@ -181,7 +192,7 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		fmt.Fprintf(os.Stderr, "embed: could not read fleet size: %v\n", err)
 	}
 
-	tokenCleanup, sc, err := cf.CreateServerFromConfig(*cfg.version, override)
+	tokenCleanup, sc, err := cf.CreateServerFromConfig(*cfg.version, override, disableCheck)
 	if err != nil {
 		_ = dc.Disconnect()
 		return nil, fmt.Errorf("could not build server config: %w", err)
@@ -213,7 +224,7 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if runErr := engine.Run(engineCtx, cf, *cfg.version, override); runErr != nil {
+		if runErr := engine.Run(engineCtx, cf, *cfg.version, override, disableCheck); runErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: engine exited: %v\n", runErr)
 		}
 	}()
@@ -222,7 +233,7 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if startErr := api.Start(cf, interruptCh, *cfg.version, override); startErr != nil {
+			if startErr := api.Start(cf, interruptCh, *cfg.version, override, embedCheck); startErr != nil {
 				fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
 			}
 		}()
