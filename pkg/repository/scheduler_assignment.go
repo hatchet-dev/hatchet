@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -146,7 +147,7 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 		for _, actionId := range actions {
 			rows = append(rows, &sqlcv1.ListActionsForWorkersRow{
 				WorkerId: w.ID,
-				ActionId: pgtype.Text{String: actionId, Valid: true},
+				ActionId: sqlchelpers.TextFromStr(actionId),
 			})
 		}
 	}

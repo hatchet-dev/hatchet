@@ -80,10 +80,7 @@ func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, re
 		Key:        key,
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
 		Weight:     100,
-	}
-
-	if strValue != nil {
-		row.StrValue = pgtype.Text{String: *strValue, Valid: true}
+		StrValue:   sqlchelpers.TextFromMaybeStr(strValue),
 	}
 
 	if intValue != nil {

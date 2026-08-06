@@ -1449,7 +1449,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 					ExternalID:    batchTask.ExternalID,
 					WorkflowRunID: batchTask.WorkflowRunID,
 					WorkerID:      batchTask.WorkerID,
-					StepTimeout:   pgtype.Text{String: "batch timeout", Valid: true},
+					StepTimeout:   sqlchelpers.TextFromStr("batch timeout"),
 				})
 			}
 		}
@@ -2874,11 +2874,7 @@ func (r *sharedRepository) replayTasks(
 		params.BatchKeys = append(params.BatchKeys, batchKeys[i])
 		params.DesiredWorkerLabels = append(params.DesiredWorkerLabels, task.DesiredWorkerLabel)
 		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
-		if task.TriggeringEventKey != nil {
-			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{String: *task.TriggeringEventKey, Valid: true})
-		} else {
-			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{})
-		}
+		params.TriggeringEventKeys = append(params.TriggeringEventKeys, sqlchelpers.TextFromMaybeStr(task.TriggeringEventKey))
 
 		stepIdsToParams[task.StepId] = params
 
