@@ -136,14 +136,7 @@ func run() error {
 			log.Printf("durable task %d starting", input.ID)
 
 			for i := range durableChildren {
-				_, err = durableChildTask.Run(
-					ctx,
-					hatchet.RunManyOpt{
-						Input: DurableChildInput{Index: i},
-					},
-				)
-
-				if err != nil {
+				if _, err := durableChildTask.Run(ctx, DurableChildInput{Index: i}); err != nil {
 					return DurableLoadTestOutput{}, fmt.Errorf("durable child fan-out failed: %w", err)
 				}
 			}

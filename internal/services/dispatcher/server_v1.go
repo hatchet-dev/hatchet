@@ -352,7 +352,6 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	registeredTasks := make(map[uuid.UUID]struct{})
 
 	var reqWg sync.WaitGroup
-	defer reqWg.Wait()
 
 	defer func() {
 		for taskId := range registeredTasks {
@@ -363,6 +362,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		}
 		d.workerInvocations.Delete(invocation.workerId)
 	}()
+
+	defer reqWg.Wait()
 
 	registerTask := func(externalIdStr string) {
 		taskExtId, err := uuid.Parse(externalIdStr)
