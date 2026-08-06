@@ -3164,6 +3164,18 @@ type V1BatchedQueueItem struct {
 	PayloadSize       int32              `json:"payload_size"`
 }
 
+type V1CaggTaskStatusesMinute struct {
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int64              `json:"queued_count"`
+	RunningCount   int64              `json:"running_count"`
+	CompletedCount int64              `json:"completed_count"`
+	CancelledCount int64              `json:"cancelled_count"`
+	FailedCount    int64              `json:"failed_count"`
+	EvictedCount   int64              `json:"evicted_count"`
+}
+
 type V1CelEvaluationFailuresOlap struct {
 	ID         int64                        `json:"id"`
 	TenantID   uuid.UUID                    `json:"tenant_id"`
