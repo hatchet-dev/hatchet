@@ -1,49 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-05T07:05:20Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-06T07:05:12Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 81% (1818/2239) · main: 66% (85/128)
+**Gating-CI pass rate** — PR: 82% (1807/2210) · main: 65% (70/107)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4]
+  x-axis [23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [75, 69, 83, 95, 85, 87, 84, 84, 79, 81, 100, 93, 78, 89]
-  line "main" [68, 79, 20, 20, 75, 41, 60, 78, 100, 38, 38, 100, 67, 100]
+  line "CI" [69, 83, 95, 85, 87, 84, 84, 79, 81, 100, 93, 78, 90, 81, 71]
+  line "main" [79, 20, 20, 75, 41, 60, 78, 100, 38, 38, 100, 67, 100, 50, 50]
 ```
 
-_X-axis = day of month (Jul 22 → Aug 04). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jul 23 → Aug 06). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `load` | test | 5 | 0 | 35 | 14% | flaky | PR | **timeout** — TestLoadCLI parent test failed after subtest timeouts |
-| 2 | `loadtest-arm` | build | 4 | 0 | 33 | 12% | flaky | PR | **product bug** — loadtest Docker build: missing cmd/hatchet-loadtest/eventkeys module |
-| 3 | `loadtest` | build | 4 | 0 | 33 | 12% | flaky | PR | **product bug** — loadtest Docker build: missing cmd/hatchet-loadtest/eventkeys module |
-| 4 | `lint` | frontend / docs | 1 | 0 | 8 | 12% | flaky | PR | **infra/CI** — Docs prettier: prometheus-metrics.mdx not formatted |
-| 5 | `lint` | ruby | 1 | 0 | 24 | 4% | flaky | PR | **infra/CI** — Ruby generated bindings out of date vs source |
-| 6 | `e2e-pgmq` | test | 1 | 0 | 35 | 3% | flaky | PR | **flaky test** — TestMultipleEvictionCycle intermittent in e2e-pgmq |
-| 7 | `generate` | test | 1 | 0 | 35 | 3% | flaky | PR | **infra/CI** — Prettier check-for-diff failed on generated frontend files |
-| 8 | `integration` | test | 1 | 0 | 35 | 3% | flaky | PR | **product bug** — Go compile: v1 and v1alpha package clash in pkg/scheduling/v1alpha |
+| 1 | `e2e-pgmq` | test | 10 | 0 | 31 | 32% | flaky | main + PR | **flaky test** — Durable eviction e2e (pgmq): second eviction cycle assertion fails intermittently |
+| 2 | `e2e` | test | 7 | 0 | 31 | 23% | flaky | main + PR | **flaky test** — Durable eviction e2e: second eviction cycle assertion fails intermittently |
+| 3 | `test` | ruby | 6 | 0 | 25 | 24% | flaky | PR | **infra/CI** — Ruby integration test: gRPC connection refused (engine not ready on :7070) |
+| 4 | `integration` | test | 5 | 0 | 31 | 16% | flaky | main + PR | **unknown** — Sample is passing test log line, not a failure message |
+| 5 | `rampup` | test | 5 | 0 | 31 | 16% | flaky | PR | **unknown** — Sample is go test command line only; actual failure not captured |
+| 6 | `unit` | test | 4 | 0 | 31 | 13% | flaky | PR | **flaky test** — Concurrent partition controller test race (expected 4, got 3) |
+| 7 | `generate` | test | 3 | 0 | 31 | 10% | flaky | PR | **unknown** — Sample is prettier output line, not a failure message |
+| 8 | `load` | test | 3 | 0 | 31 | 10% | flaky | PR | **unknown** — Sample is go test command line only; actual failure not captured |
+| 9 | `lint` | ruby | 2 | 0 | 25 | 8% | flaky | PR | **infra/CI** — Ruby generated bindings out of date (codegen check failed) |
+| 10 | `test` | python | 2 | 0 | 25 | 8% | flaky | PR | **product bug** — Scheduling queuer.go compile error: GetStepBatchConfigs API mismatch on PR branch |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `TestLoadCLI` | `load` | 8 | 35 | 23% | flaky | PR | **timeout** — TestLoadCLI parent test failed after subtest timeouts |
-| 2 | `TestLoadCLI/test_with_DAG` | `load` | 8 | 35 | 23% | flaky | PR | **timeout** — TestLoadCLI/test_with_DAG exceeded load test time budget |
-| 3 | `TestLoadCLI/test_simple_workflow` | `load` | 6 | 35 | 17% | flaky | PR | **timeout** — TestLoadCLI/test_simple_workflow hit 60s subtest timeout |
-| 4 | `TestLoadCLI/test_with_rate_limits` | `load` | 6 | 35 | 17% | flaky | PR | **timeout** — TestLoadCLI/test_with_rate_limits hit 60s subtest timeout |
-| 5 | `TestLoadCLI/test_with_event_fanout` | `load` | 6 | 35 | 17% | flaky | PR | **timeout** — TestLoadCLI/event_fanout hit 60s subtest timeout |
-| 6 | `TestLoadCLI/test_for_many_queued_events_and_little_worker_throughput` | `load` | 6 | 35 | 17% | flaky | PR | **timeout** — TestLoadCLI throughput subtest hit 60s timeout |
-| 7 | `TestLoadCLI/test_with_global_concurrency_key` | `load` | 6 | 35 | 17% | flaky | PR | **timeout** — TestLoadCLI concurrency subtest hit 60s timeout |
-| 8 | `(unparsed)` | `loadtest-arm` | 4 | 33 | 12% | flaky | PR | **product bug** — loadtest Docker build: missing cmd/hatchet-loadtest/eventkeys module |
-| 9 | `(unparsed)` | `loadtest` | 4 | 33 | 12% | flaky | PR | **product bug** — loadtest Docker build: missing cmd/hatchet-loadtest/eventkeys module |
-| 10 | `examples/opentelemetry_instrumentation/test_otel_traces.py::test_otel_spans_created_on_task_run` | `test` | 2 | 24 | 8% | flaky | PR | **product bug** — Python OTel example expects 6 spans but engine emits different trace set |
+| 1 | `TestMultipleEvictionCycle` | `e2e-pgmq` | 6 | 31 | 19% | flaky | main + PR | **flaky test** — Durable eviction e2e (pgmq): second eviction cycle assertion fails intermittently |
+| 2 | `examples/bulk_operations/test_bulk_replay.py::test_bulk_replay` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 3 | `examples/cron/test_cron_input.py::test_cron_input_workflow_running_options` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 4 | `examples/bug_tests/durable_child_key_duplicate_child/test_durable_child_key_duped_child.py::test_durable_child_key_duplicate_bug_all_duped` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 5 | `examples/cancellation/test_cancellation.py::test_cancellation` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 6 | `examples/bug_tests/durable_child_key_duplicate_child/test_durable_child_key_duped_child.py::test_durable_child_key_duplicate_bug_second_unique` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 7 | `examples/durable/test_durable.py::test_durable_memoization_via_replay` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 8 | `examples/durable_eviction/test_durable_eviction.py::test_evictable_task_restore` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 9 | `examples/durable_eviction/test_durable_eviction.py::test_evictable_cancel_after_eviction` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
+| 10 | `examples/durable/test_durable.py::test_durable_memo_now_caching` | `test` | 3 | 25 | 12% | flaky | PR | **flaky test** — Python SDK worker startup times out in CI (25s budget) |
 
 ## Recent CI-health wins (`ci-health`)
 
