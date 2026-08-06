@@ -60,7 +60,7 @@ func upV10136(ctx context.Context, db *sql.DB) error {
 		}
 
 		if valid {
-			return nil
+			continue
 		}
 
 		if _, err := db.ExecContext(ctx, fmt.Sprintf(`DROP INDEX CONCURRENTLY IF EXISTS %s;`, quoteIdent(indexName))); err != nil {
@@ -90,11 +90,11 @@ func upV10136(ctx context.Context, db *sql.DB) error {
 		buildStmt := fmt.Sprintf(
 			`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (external_id, seen_at);`,
 			quoteIdent(indexName),
-			quoteIdent(table),
+			quoteIdent(partition),
 		)
 
 		if _, err := db.ExecContext(ctx, buildStmt); err != nil {
-			return fmt.Errorf("failed to create index concurrently on %s: %w", table, err)
+			return fmt.Errorf("failed to create index concurrently on %s: %w", partition, err)
 		}
 	}
 
