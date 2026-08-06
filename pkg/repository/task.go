@@ -1825,6 +1825,15 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 
 	defer rollback()
 
+	_, err = r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+		Durabletaskid:         task.Id,
+		Durabletaskinsertedat: task.InsertedAt,
+		Tenantid:              tenantId,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+
 	evicted, err := r.queries.EvictTask(ctx, tx, sqlcv1.EvictTaskParams{
 		Tenantid:       tenantId,
 		Taskid:         task.Id,

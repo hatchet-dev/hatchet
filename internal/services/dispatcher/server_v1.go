@@ -20,11 +20,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.register-durable-event")
+	defer span.End()
+
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 	d.analytics.Count(ctx, analytics.Worker, analytics.Register)
 	taskId, err := uuid.Parse(req.TaskId)
 
@@ -345,6 +351,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
+	var reqWg sync.WaitGroup
+
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(durableInvocationsKey{
@@ -354,6 +362,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		}
 		d.workerInvocations.Delete(invocation.workerId)
 	}()
+
+	defer reqWg.Wait()
 
 	registerTask := func(externalIdStr string) {
 		taskExtId, err := uuid.Parse(externalIdStr)
@@ -414,6 +424,13 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				return r.err
 			}
 
+			if msg, isRegisterWorker := r.req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
+				if err := d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+				continue
+			}
+
 			switch msg := r.req.GetMessage().(type) {
 			case *contracts.DurableTaskRequest_Memo:
 				registerTask(msg.Memo.DurableTaskExternalId)
@@ -423,9 +440,14 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
-			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
-				d.l.Error().Err(err).Msg("error handling durable task request")
-			}
+			reqWg.Add(1)
+			go func(req *contracts.DurableTaskRequest) {
+				defer reqWg.Done()
+
+				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+			}(r.req)
 		}
 	}
 }
@@ -435,9 +457,16 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
 ) error {
+	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "worker_id", Value: invocation.workerId},
+		telemetry.AttributeKV{Key: "message_type", Value: fmt.Sprintf("%T", req.GetMessage())},
+	)
+
 	switch msg := req.GetMessage().(type) {
-	case *contracts.DurableTaskRequest_RegisterWorker:
-		return d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker)
 	case *contracts.DurableTaskRequest_Memo:
 		return d.handleMemo(ctx, invocation, msg.Memo)
 	case *contracts.DurableTaskRequest_TriggerRuns:
@@ -585,6 +614,15 @@ func (d *DispatcherServiceImpl) handleMemo(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskMemoRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-memo")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -646,6 +684,16 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskTriggerRunsRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-trigger-runs")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+		telemetry.AttributeKV{Key: "trigger_opts_count", Value: len(req.TriggerOpts)},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -741,6 +789,15 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWaitForRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-wait-for")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -853,6 +910,11 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskCompleteMemoRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-complete-memo")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId})
+
 	if req.Ref == nil {
 		return status.Errorf(codes.InvalidArgument, "ref is required")
 	}
@@ -900,6 +962,15 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-evict-invocation")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
@@ -967,6 +1038,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWorkerStatusRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-worker-status")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "waiting_entries_count", Value: len(req.WaitingEntries)},
+	)
+
 	if len(req.WaitingEntries) == 0 {
 		return nil
 	}
