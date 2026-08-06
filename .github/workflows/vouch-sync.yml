@@ -1,0 +1,42 @@
+name: "Vouch - Recheck open PRs and issues on VOUCHED change"
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/VOUCHED.td"]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch check-pr for each open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRS=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number')
+
+          for pr in $PRS; do
+            echo "Dispatching Vouch - Check PR for PR #$pr"
+            gh workflow run "Vouch - Check PR" \
+              --repo "${{ github.repository }}" \
+              --ref main \
+              -f pr-number="$pr"
+          done
+
+      - name: Dispatch check-issue for each open issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUES=$(gh issue list --repo "${{ github.repository }}" --state open --json number --jq '.[].number')
+
+          for issue in $ISSUES; do
+            echo "Dispatching Vouch - Check Issue for issue #$issue"
+            gh workflow run "Vouch - Check Issue" \
+              --repo "${{ github.repository }}" \
+              --ref main \
+              -f issue-number="$issue"
+          done
