@@ -6,7 +6,6 @@ SELECT
     create_v1_range_partition('v1_log_line', @date::date),
     create_v1_range_partition('v1_payload', @date::date),
     create_v1_range_partition('v1_event', @date::date),
-    create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
@@ -61,8 +60,6 @@ WITH task_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
 ), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', @date::date) AS p
-), event_to_run_partitions AS (
-    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
 ), durable_event_log_file_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
 ), durable_event_log_entry_partitions AS (
@@ -110,13 +107,6 @@ SELECT
     *
 FROM
     event_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    event_to_run_partitions
 
 UNION ALL
 
@@ -1525,27 +1515,6 @@ JOIN
 WHERE
     tr.tenant_id = @tenantId::uuid
 ;
-
--- name: CreateEventToRuns :many
-WITH input AS (
-    SELECT
-        UNNEST(@runExternalIds::uuid[]) AS run_external_id,
-        UNNEST(@eventIds::bigint[]) AS event_id,
-        UNNEST(@eventSeenAts::timestamptz[]) AS event_seen_at,
-        UNNEST(@filterIds::uuid[]) AS filter_id
-)
-INSERT INTO v1_event_to_run (run_external_id, event_id, event_seen_at, filter_id)
-SELECT
-    run_external_id,
-    event_id,
-    event_seen_at,
-    CASE WHEN filter_id = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
-        ELSE filter_id
-    END AS filter_id
-FROM
-    input
-RETURNING
-    *;
 
 -- name: FilterValidTasks :many
 WITH inputs AS (

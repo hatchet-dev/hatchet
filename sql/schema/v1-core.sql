@@ -2459,15 +2459,6 @@ CREATE TABLE v1_event (
 CREATE INDEX v1_event_key_scope_idx ON v1_event (tenant_id, key, scope);
 CREATE UNIQUE INDEX v1_event_external_id_seen_at ON v1_event (external_id, seen_at);
 
-CREATE TABLE v1_event_to_run (
-    run_external_id UUID NOT NULL,
-    event_id BIGINT NOT NULL,
-    event_seen_at TIMESTAMPTZ NOT NULL,
-    filter_id UUID,
-
-    PRIMARY KEY (event_id, event_seen_at, run_external_id)
-) PARTITION BY RANGE(event_seen_at);
-
 -- v1_durable_event_log represents the log file for the durable event history
 -- of a durable task. This table stores metadata like sequence values for entries.
 --

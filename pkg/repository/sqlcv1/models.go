@@ -3312,13 +3312,6 @@ type V1EventLookupTableOlap struct {
 	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
 }
 
-type V1EventToRun struct {
-	RunExternalID uuid.UUID          `json:"run_external_id"`
-	EventID       int64              `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      *uuid.UUID         `json:"filter_id"`
-}
-
 type V1EventToRunOlap struct {
 	RunID         int64              `json:"run_id"`
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
