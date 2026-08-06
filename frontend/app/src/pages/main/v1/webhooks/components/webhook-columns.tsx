@@ -7,12 +7,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { useIsTenantAdmin } from '@/hooks/use-tenant';
 import { V1Webhook } from '@/lib/api';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Check, Copy, Edit, Loader, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 export const WebhookActionsCell = ({ webhook }: { webhook: V1Webhook }) => {
+  const isTenantAdmin = useIsTenantAdmin();
   const { mutations, createWebhookURL } = useWebhooks(() =>
     setIsDropdownOpen(false),
   );
@@ -38,18 +40,20 @@ export const WebhookActionsCell = ({ webhook }: { webhook: V1Webhook }) => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            className="flex flex-row gap-x-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setIsDropdownOpen(false);
-              setIsEditModalOpen(true);
-            }}
-          >
-            <Edit className="size-4" />
-            Edit
-          </DropdownMenuItem>
+          {isTenantAdmin && (
+            <DropdownMenuItem
+              className="flex flex-row gap-x-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setIsDropdownOpen(false);
+                setIsEditModalOpen(true);
+              }}
+            >
+              <Edit className="size-4" />
+              Edit
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             className="flex flex-row gap-x-2"
             onClick={(e) => {
@@ -65,22 +69,24 @@ export const WebhookActionsCell = ({ webhook }: { webhook: V1Webhook }) => {
             )}
             Copy Webhook URL
           </DropdownMenuItem>
-          <DropdownMenuItem
-            className="flex flex-row gap-x-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              mutations.deleteWebhook({ webhookName: webhook.name });
-            }}
-            disabled={mutations.isDeletePending}
-          >
-            {mutations.isDeletePending ? (
-              <Loader className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
-            )}
-            Delete
-          </DropdownMenuItem>
+          {isTenantAdmin && (
+            <DropdownMenuItem
+              className="flex flex-row gap-x-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                mutations.deleteWebhook({ webhookName: webhook.name });
+              }}
+              disabled={mutations.isDeletePending}
+            >
+              {mutations.isDeletePending ? (
+                <Loader className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Delete
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <EditWebhookModal

@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// adminAndOwnerOnly must match ADMIN's own permission list in rbac.yaml exactly: MEMBER is
+// intentionally read-only (plus a small set of self-service actions), so every mutating
+// operation lives here instead.
 var adminAndOwnerOnly = []string{
 	"TenantInviteList",
 	"TenantInviteCreate",
@@ -21,6 +24,53 @@ var adminAndOwnerOnly = []string{
 	"ApiTokenList",
 	"ApiTokenCreate",
 	"ApiTokenUpdateRevoke",
+	"StepRunUpdateCancel",
+	"TenantUpdate",
+	"WorkflowRunUpdateReplay",
+	"WorkflowScheduledBulkUpdate",
+	"SnsCreate",
+	"V1TaskCancel",
+	"V1WebhookDelete",
+	"V1WebhookUpdate",
+	"CronWorkflowTriggerCreate",
+	"WorkerUpdate",
+	"WorkflowRunCreate",
+	"EventCreateBulk",
+	"ScheduledWorkflowRunCreate",
+	"AlertEmailGroupCreate",
+	"SnsDelete",
+	"RateLimitDelete",
+	"EventUpdateCancel",
+	"WebhookCreate",
+	"V1WorkflowRunCreate",
+	"SnsUpdate",
+	"EventUpdateReplay",
+	"V1DurableTaskBranch",
+	"MonitoringPostRunProbe",
+	"V1WebhookCreate",
+	"V1FilterCreate",
+	"WorkflowScheduledBulkDelete",
+	"V1FilterDelete",
+	"V1FilterUpdate",
+	"SlackWebhookDelete",
+	"V1CelDebug",
+	"TenantMemberDelete",
+	"WorkflowScheduledDelete",
+	"WorkflowScheduledUpdate",
+	"WorkflowUpdate",
+	"WorkflowDelete",
+	"V1TaskReplay",
+	"V1TaskRestore",
+	"WorkflowRunCancel",
+	"WebhookDelete",
+	"AlertEmailGroupUpdate",
+	"AlertEmailGroupDelete",
+	"EventCreate",
+	"StepRunUpdateRerun",
+	"WorkflowCronDelete",
+	"WorkflowCronUpdate",
+	"WorkflowCronTrigger",
+	"WorkflowScheduledTrigger",
 }
 
 func operationIdsFromSpec() []string {

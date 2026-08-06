@@ -3,6 +3,7 @@ import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
+  TenantMemberRole,
   queries,
 } from '@/lib/api';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
@@ -31,6 +32,20 @@ export function useCurrentTenantId() {
   invariant(tenantId, 'Could not resolve an active tenant');
 
   return { tenantId };
+}
+
+/**
+ * Hook to check whether the current user is an OWNER or ADMIN of the active tenant.
+ * Plain MEMBERs are read-only at the API layer (see api/v1/server/authz/rbac.yaml) — use
+ * this to hide/disable UI for mutating actions they can't actually perform.
+ */
+export function useIsTenantAdmin() {
+  const { membership } = useTenantDetails();
+
+  return (
+    membership === TenantMemberRole.OWNER ||
+    membership === TenantMemberRole.ADMIN
+  );
 }
 
 /**

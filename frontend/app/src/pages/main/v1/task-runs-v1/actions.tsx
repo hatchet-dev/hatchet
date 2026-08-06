@@ -18,7 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useIsTenantAdmin } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CancelTaskRequest,
@@ -379,7 +379,12 @@ export const TaskRunActionButton = ({
   className?: string;
 }) => {
   const { actionModalParams } = useRunsContext();
+  const isTenantAdmin = useIsTenantAdmin();
   const params = paramOverrides || actionModalParams;
+
+  if (!isTenantAdmin) {
+    return null;
+  }
 
   switch (actionType) {
     case 'cancel':

@@ -1,5 +1,6 @@
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Badge } from '@/components/v1/ui/badge';
+import { useIsTenantAdmin } from '@/hooks/use-tenant';
 import { TenantAlertEmailGroup } from '@/lib/api';
 
 export function EmailGroupCell({ group }: { group: TenantAlertEmailGroup }) {
@@ -48,21 +49,28 @@ export function EmailGroupActions({
   onDeleteClick: (group: TenantAlertEmailGroup) => void;
   onToggleMembersClick: (val: boolean) => void;
 }) {
+  const isTenantAdmin = useIsTenantAdmin();
+
   return (
     <div className="mr-4 flex items-center justify-end space-x-2">
       <TableRowActions
         row={group}
-        actions={[
-          group.metadata.id != 'default'
-            ? {
-                label: 'Delete',
-                onClick: () => onDeleteClick(group),
-              }
-            : {
-                label: alertTenantEmailsSet ? 'Disable' : 'Enable',
-                onClick: () => onToggleMembersClick(!alertTenantEmailsSet),
-              },
-        ]}
+        actions={
+          isTenantAdmin
+            ? [
+                group.metadata.id != 'default'
+                  ? {
+                      label: 'Delete',
+                      onClick: () => onDeleteClick(group),
+                    }
+                  : {
+                      label: alertTenantEmailsSet ? 'Disable' : 'Enable',
+                      onClick: () =>
+                        onToggleMembersClick(!alertTenantEmailsSet),
+                    },
+              ]
+            : []
+        }
       />
     </div>
   );

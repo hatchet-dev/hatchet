@@ -9,7 +9,7 @@ import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Dialog } from '@/components/v1/ui/dialog';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useIsTenantAdmin } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -19,6 +19,7 @@ import { useState, useMemo } from 'react';
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
   const authDisabled = useAuthDisabled();
+  const isTenantAdmin = useIsTenantAdmin();
   const { meta } = useApiMeta();
   const authDisabledToken =
     meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
@@ -27,7 +28,7 @@ export default function APITokens() {
 
   const listTokensQuery = useQuery({
     ...queries.tokens.list(tenantId),
-    enabled: !authDisabled,
+    enabled: !authDisabled && isTenantAdmin,
   });
 
   const tokenColumns = useMemo(
@@ -92,15 +93,21 @@ export default function APITokens() {
           description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
         />
 
-        <div className="mb-4 flex flex-row items-baseline justify-end">
-          <Button
-            key="create-api-token"
-            onClick={() => setShowTokenDialog(true)}
-          >
-            Create API Token
-          </Button>
-        </div>
-        {(listTokensQuery.data?.rows || []).length > 0 ? (
+        {isTenantAdmin && (
+          <div className="mb-4 flex flex-row items-baseline justify-end">
+            <Button
+              key="create-api-token"
+              onClick={() => setShowTokenDialog(true)}
+            >
+              Create API Token
+            </Button>
+          </div>
+        )}
+        {!isTenantAdmin ? (
+          <div className="py-4 text-sm text-muted-foreground">
+            You must be a tenant admin or owner to view API tokens.
+          </div>
+        ) : (listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
             columns={tokenColumns}
             data={listTokensQuery.data?.rows || []}

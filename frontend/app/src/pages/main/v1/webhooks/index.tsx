@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { Switch } from '@/components/v1/ui/switch';
+import { useIsTenantAdmin } from '@/hooks/use-tenant';
 import {
   V1CreateWebhookRequest,
   V1Webhook,
@@ -413,6 +414,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
 };
 
 const CreateWebhookModal = () => {
+  const isTenantAdmin = useIsTenantAdmin();
   const { mutations, createWebhookURL } = useWebhooks();
   const { createWebhook, isCreatePending } = mutations;
   const [open, setOpen] = useState(false);
@@ -468,6 +470,10 @@ const CreateWebhookModal = () => {
     },
     [createWebhook, reset],
   );
+
+  if (!isTenantAdmin) {
+    return null;
+  }
 
   return (
     <Dialog

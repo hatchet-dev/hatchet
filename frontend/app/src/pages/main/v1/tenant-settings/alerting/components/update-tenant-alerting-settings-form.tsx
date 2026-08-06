@@ -28,6 +28,7 @@ interface UpdateTenantAlertingSettingsProps {
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   alertingSettings: TenantAlertingSettings;
+  readOnly?: boolean;
 }
 
 export function UpdateTenantAlertingSettings({
@@ -78,6 +79,7 @@ export function UpdateTenantAlertingSettings({
         <Switch
           id="eta"
           checked={enabledExpiringTokenAlerting}
+          disabled={props.readOnly}
           onClick={() => setEnabledExpiringTokenAlerting((s) => !s)}
         />
       </AlertSettingRow>
@@ -89,6 +91,7 @@ export function UpdateTenantAlertingSettings({
         <Switch
           id="atrl"
           checked={enableTenantResourceLimitAlerts}
+          disabled={props.readOnly}
           onClick={() => setEnableTenantResourceLimitAlerts((s) => !s)}
         />
       </AlertSettingRow>
@@ -100,6 +103,7 @@ export function UpdateTenantAlertingSettings({
         <Switch
           id="awrf"
           checked={enabledWorkflowAlerting}
+          disabled={props.readOnly}
           onClick={() => setEnabledWorkflowAlerting((s) => !s)}
         />
       </AlertSettingRow>
@@ -114,7 +118,11 @@ export function UpdateTenantAlertingSettings({
               control={control}
               name="maxAlertingFrequency"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} {...field}>
+                <Select
+                  onValueChange={field.onChange}
+                  {...field}
+                  disabled={props.readOnly}
+                >
                   <SelectTrigger className="w-[140px]">
                     <SelectValue placeholder="Frequency..." />
                   </SelectTrigger>
@@ -133,12 +141,14 @@ export function UpdateTenantAlertingSettings({
         </AlertSettingRow>
       )}
 
-      <div className="flex justify-end pt-4">
-        <Button disabled={props.isLoading} className="w-fit">
-          {props.isLoading && <Spinner />}
-          Save
-        </Button>
-      </div>
+      {!props.readOnly && (
+        <div className="flex justify-end pt-4">
+          <Button disabled={props.isLoading} className="w-fit">
+            {props.isLoading && <Spinner />}
+            Save
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
