@@ -65,7 +65,6 @@ type Server struct {
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
-	rateLimiter   *middleware.HatchetRateLimiter
 
 	shutdownTimeout time.Duration
 }
@@ -87,7 +86,6 @@ type ServerOpts struct {
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
-	rateLimiter   *middleware.HatchetRateLimiter
 
 	shutdownTimeout time.Duration
 }
@@ -159,16 +157,6 @@ func WithTLSConfig(tls *tls.Config) ServerOpt {
 func WithInsecure() ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.insecure = true
-	}
-}
-
-// WithRateLimiter shares a rate limiter instance with other services (e.g. the
-// dispatcher, which applies the same per-tenant dispatcher quota to messages sent
-// over an already-open stream) instead of each constructing its own. If unset,
-// startGRPC falls back to constructing one from config, scoped to this server alone.
-func WithRateLimiter(rl *middleware.HatchetRateLimiter) ServerOpt {
-	return func(opts *ServerOpts) {
-		opts.rateLimiter = rl
 	}
 }
 
@@ -246,7 +234,6 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
-		rateLimiter:   opts.rateLimiter,
 
 		shutdownTimeout: opts.shutdownTimeout,
 	}, nil
@@ -297,15 +284,12 @@ func (s *Server) startGRPC() (func() error, error) {
 		s.a.SendAlert(context.Background(), err, nil)
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
-	limiter := s.rateLimiter
-	if limiter == nil {
-		limit := s.config.Runtime.GRPCRateLimit
-		if limit == 0 {
-			limit = 1000
-		}
-		burst := limit
-		limiter = middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), s.l)
+	limit := s.config.Runtime.GRPCRateLimit
+	if limit == 0 {
+		limit = 1000
 	}
+	burst := limit
+	limiter := middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), s.l)
 
 	errorInterceptor := middleware.NewErrorInterceptor(s.a, s.l)
 

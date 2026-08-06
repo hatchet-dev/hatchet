@@ -43,12 +43,6 @@ type Dispatcher interface {
 	Start() (func() error, error)
 }
 
-// This is a subset of *middleware.HatchetRateLimiter that the dispatcher needs to
-// apply per-tenant backpressure to messages sent over an open stream
-type RateLimiter interface {
-	WaitForDispatcherCapacity(ctx context.Context, rateLimitToken string) error
-}
-
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 	v                                   validator.Validator
@@ -170,7 +164,6 @@ type DispatcherOpts struct {
 	streamEventBufferTimeout            time.Duration
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
-	rateLimiter                         RateLimiter
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -187,12 +180,6 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
 		workflowRunBufferSize:               1000,
 		streamEventBufferTimeout:            5 * time.Second,
-	}
-}
-
-func WithRateLimiter(rl RateLimiter) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.rateLimiter = rl
 	}
 }
 
@@ -347,7 +334,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate, opts.rateLimiter),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 
