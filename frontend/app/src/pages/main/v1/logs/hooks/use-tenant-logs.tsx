@@ -166,6 +166,7 @@ export function useTenantLogs() {
           return { rows: [] };
         }
 
+        setFetchTimedOut(false);
         throw e;
       }
     },

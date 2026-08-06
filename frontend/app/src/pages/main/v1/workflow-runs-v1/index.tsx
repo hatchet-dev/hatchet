@@ -51,7 +51,10 @@ export default function RunsPage() {
 
   // Fail open on probe errors: the table's own error handling is more useful
   // than trapping the user on the onboarding placeholder.
-  const probesErrored = workflowCountQuery.isError || recentRunsQuery.isError;
+  const probesErrored =
+    workflowCountQuery.isError ||
+    recentRunsQuery.isError ||
+    recentRunsQuery.data === 'timeout';
 
   if (!probesErrored && !hasWorkflows && !hasRecentRuns) {
     return (

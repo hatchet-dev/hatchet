@@ -243,12 +243,14 @@ export default function Overview() {
       isSelfHosted,
     ),
     enabled: !!tenantId && !!selectionConfirmedAt && !onboarding.hidden,
-    refetchInterval: (query) =>
-      selectedTab === workflowStepOptions.runTask.value &&
-      (query.state.data !== 'timeout' &&
-        (query.state.data?.rows?.length ?? 0)) === 0
+    refetchInterval: (query) => {
+      const hasRows =
+        query.state.data !== 'timeout' &&
+        (query.state.data?.rows?.length ?? 0) > 0;
+      return selectedTab === workflowStepOptions.runTask.value && !hasRows
         ? 2000
-        : false,
+        : false;
+    },
   });
 
   const hasQualifiedRun =

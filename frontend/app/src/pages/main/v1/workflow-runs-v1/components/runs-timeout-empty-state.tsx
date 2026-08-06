@@ -10,7 +10,7 @@ export function RequestTimeoutCloudCTAEmptyState({
 }: RequestTimeoutCloudCTAEmptyStateProps) {
   const href = import.meta.env.DEV
     ? 'https://cloud.hatchet.run'
-    : `https://cloud.hatchet.run?utm_source=timeout_cta&utm_medium=app&utm_campaign=${utmCampaign}`;
+    : `https://cloud.hatchet.run?utm_source=timeout_cta&utm_medium=app&utm_campaign=${encodeURIComponent(utmCampaign)}`;
 
   return (
     <EmptyState

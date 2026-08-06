@@ -237,8 +237,9 @@ export const useEvents = ({ key }: UseEventsProps) => {
   });
 
   const fetchTimedOut = data === 'timeout';
-  const events = (data !== 'timeout' && data?.rows) || [];
-  const numEvents = (data !== 'timeout' && data?.pagination?.num_pages) || 1;
+  const events = (data !== 'timeout' ? data?.rows : undefined) ?? [];
+  const numEvents =
+    (data !== 'timeout' ? data?.pagination?.num_pages : undefined) ?? 1;
 
   const { data: eventKeys, error: eventKeysError } = useQuery({
     queryKey: ['v1:events:listKeys', tenantId],
