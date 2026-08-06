@@ -2,6 +2,7 @@ import { RunsTable } from './components/runs-table';
 import { RunsProvider } from './hooks/runs-provider';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { useOnboardingActions } from '@/components/v1/molecules/empty-state/workflows-guard';
+import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -39,13 +40,14 @@ export default function RunsPage() {
     ),
   );
 
-  // if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
-  //   return <Loading />;
-  // }
+  if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
+    return <Loading />;
+  }
 
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-  // const hasRecentRuns = (recentRunsQuery.data?.rows?.length ?? 0) > 0;
-  const hasRecentRuns = true;
+  const hasRecentRuns =
+    recentRunsQuery.data !== 'timeout' &&
+    (recentRunsQuery.data?.rows?.length ?? 0) > 0;
 
   // Fail open on probe errors: the table's own error handling is more useful
   // than trapping the user on the onboarding placeholder.
