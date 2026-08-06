@@ -277,7 +277,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         <DataTable
           emptyState={
             fetchTimedOut ? (
-              <RequestTimeoutCloudCTAEmptyState />
+              <RequestTimeoutCloudCTAEmptyState utmCampaign="runs" />
             ) : hasActiveFilters ? (
               <EmptyState
                 graphic={<RunsEmptyGraphic />}

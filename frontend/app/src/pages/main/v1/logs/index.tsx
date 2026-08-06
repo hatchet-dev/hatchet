@@ -191,7 +191,7 @@ function TenantLogs() {
         showTaskName
         emptyComponent={
           fetchTimedOut ? (
-            <RequestTimeoutCloudCTAEmptyState />
+            <RequestTimeoutCloudCTAEmptyState utmCampaign="logs" />
           ) : hasActiveFilters ? (
             <EmptyState
               graphic={<RunsEmptyGraphic />}

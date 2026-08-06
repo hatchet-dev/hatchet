@@ -1,7 +1,13 @@
 import { RunsEmptyGraphic } from './runs-empty-graphic';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 
-export function RequestTimeoutCloudCTAEmptyState() {
+interface RequestTimeoutCloudCTAEmptyStateProps {
+  utmCampaign: string;
+}
+
+export function RequestTimeoutCloudCTAEmptyState({
+  utmCampaign,
+}: RequestTimeoutCloudCTAEmptyStateProps) {
   return (
     <EmptyState
       graphic={<RunsEmptyGraphic />}
@@ -10,7 +16,7 @@ export function RequestTimeoutCloudCTAEmptyState() {
       links={[
         {
           label: 'Try our managed cloud',
-          href: 'https://cloud.hatchet.run',
+          href: `https://cloud.hatchet.run?utm_source=timeout_cta&utm_medium=app&utm_campaign=${utmCampaign}`,
           external: true,
         },
       ]}

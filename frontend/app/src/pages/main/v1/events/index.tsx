@@ -169,7 +169,7 @@ function EventsTable() {
         onResetFilters={resetFilters}
         emptyState={
           fetchTimedOut ? (
-            <RequestTimeoutCloudCTAEmptyState />
+            <RequestTimeoutCloudCTAEmptyState utmCampaign="events" />
           ) : hasActiveFilters ? (
             <EmptyState
               graphic={<RunsEmptyGraphic />}
