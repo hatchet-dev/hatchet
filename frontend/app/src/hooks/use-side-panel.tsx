@@ -20,6 +20,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -115,6 +116,8 @@ function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
   const location = useLocation();
 
   const props =
@@ -172,18 +175,15 @@ function useSidePanelData(): SidePanelData {
     }
   }, [props]);
 
-  const open = useCallback(
-    (newProps: UseSidePanelProps) => {
-      setHistory((prev) => {
-        const newHistory = prev.slice(0, currentIndex + 1);
-        newHistory.push(newProps);
-        return newHistory;
-      });
-      setCurrentIndex((prev) => prev + 1);
-      setIsOpen(true);
-    },
-    [currentIndex],
-  );
+  const open = useCallback((newProps: UseSidePanelProps) => {
+    setHistory((prev) => {
+      const newHistory = prev.slice(0, currentIndexRef.current + 1);
+      newHistory.push(newProps);
+      return newHistory;
+    });
+    setCurrentIndex((prev) => prev + 1);
+    setIsOpen(true);
+  }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
