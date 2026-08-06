@@ -87,7 +87,7 @@ type fakeTx struct {
 	pgx.Tx
 }
 
-func newTestOLAPOutbox(fake *fakeOutbox) *OLAPOutbox {
+func newTestOLAPOutbox(fake *fakeOutbox) *OLAPOutboxImpl {
 	l := zerolog.Nop()
 
 	o := newOLAPOutbox(nil, &l)

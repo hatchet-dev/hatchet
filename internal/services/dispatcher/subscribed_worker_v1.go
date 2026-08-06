@@ -171,7 +171,7 @@ func (worker *subscribedWorker) CancelTask(
 	sentCh := make(chan error, 1)
 	acquiredLock := worker.sendLock.Acquire()
 	if !acquiredLock {
-		err := worker.olap.WriteMonitoringEventsBestEffort(ctx, task.TenantID, v1.CreateMonitoringEventPayload{
+		err := worker.olapOutbox.MonitoringEvents(ctx, task.TenantID, v1.CreateMonitoringEventPayload{
 			TaskId:         task.ID,
 			RetryCount:     task.RetryCount,
 			WorkerId:       &worker.workerId,

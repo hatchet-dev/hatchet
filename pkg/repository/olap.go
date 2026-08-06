@@ -244,6 +244,49 @@ func (s ReadableTaskStatus) EnumValue() int {
 	}
 }
 
+// ReadableStatusForOlapEvent maps a monitoring event type to the readable run
+// status it implies. Unknown or informational events map to QUEUED.
+func ReadableStatusForOlapEvent(eventType sqlcv1.V1EventTypeOlap) sqlcv1.V1ReadableStatusOlap {
+	switch eventType {
+	case sqlcv1.V1EventTypeOlapRETRYING,
+		sqlcv1.V1EventTypeOlapREASSIGNED,
+		sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+		sqlcv1.V1EventTypeOlapCREATED,
+		sqlcv1.V1EventTypeOlapQUEUED,
+		sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+		sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+		sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+		sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
+		return sqlcv1.V1ReadableStatusOlapQUEUED
+	case sqlcv1.V1EventTypeOlapASSIGNED,
+		sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+		sqlcv1.V1EventTypeOlapSENTTOWORKER,
+		sqlcv1.V1EventTypeOlapSLOTRELEASED,
+		sqlcv1.V1EventTypeOlapSTARTED,
+		sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+		sqlcv1.V1EventTypeOlapDURABLERESTORING,
+		// running until the individual tasks are completed
+		sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+		return sqlcv1.V1ReadableStatusOlapRUNNING
+	case sqlcv1.V1EventTypeOlapFINISHED,
+		sqlcv1.V1EventTypeOlapSKIPPED:
+		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+	case sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		sqlcv1.V1EventTypeOlapFAILED,
+		sqlcv1.V1EventTypeOlapTIMEDOUT,
+		sqlcv1.V1EventTypeOlapRATELIMITERROR,
+		sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
+		return sqlcv1.V1ReadableStatusOlapFAILED
+	case sqlcv1.V1EventTypeOlapCANCELLED:
+		return sqlcv1.V1ReadableStatusOlapCANCELLED
+	case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
+		return sqlcv1.V1ReadableStatusOlapEVICTED
+	default:
+		// treat unknown or informational events as queued
+		return sqlcv1.V1ReadableStatusOlapQUEUED
+	}
+}
+
 type UpdateTaskStatusRow struct {
 	TenantId       uuid.UUID
 	TaskId         int64
@@ -297,14 +340,6 @@ type OLAPRepository interface {
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
-
-	// WriteMonitoringEventsBestEffort writes monitoring events straight to the OLAP
-	// tables, bypassing the outbox and message queue. It is for informational events
-	// on hot paths (e.g. SENT_TO_WORKER) where losing an event is acceptable: events
-	// for runs whose locks cannot be acquired are dropped rather than retried, and no
-	// status-update notifications are published — the next durable event carries the
-	// status forward.
-	WriteMonitoringEventsBestEffort(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)

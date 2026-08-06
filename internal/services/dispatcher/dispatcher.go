@@ -924,15 +924,15 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	err = innerEg.Wait()
 
 	if len(sentPayloads) > 0 {
-		// SENT_TO_WORKER events are informational: write them straight to the OLAP
-		// database off the dispatch path, so sends (which can run inside the trigger
+		// SENT_TO_WORKER events are informational: stage the whole batch as one outbox
+		// message off the dispatch path, so sends (which can run inside the trigger
 		// RPC on the optimistic path) don't wait on the write
-		go func() { // #nosec G118 -- intentionally decoupled from the request context so the write survives the response, bounded by its own timeout
+		go func() { // #nosec G118 -- intentionally decoupled from the request context so the staging survives the response, bounded by its own timeout
 			writeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			if writeErr := d.repov1.OLAP().WriteMonitoringEventsBestEffort(writeCtx, tenantId, sentPayloads...); writeErr != nil {
-				d.l.Error().Err(writeErr).Msg("could not write sent-to-worker monitoring events")
+			if writeErr := d.repov1.OLAPOutbox().MonitoringEvents(writeCtx, tenantId, sentPayloads...); writeErr != nil {
+				d.l.Error().Err(writeErr).Msg("could not publish sent-to-worker monitoring events")
 			}
 		}()
 	}

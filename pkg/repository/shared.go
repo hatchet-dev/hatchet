@@ -52,7 +52,7 @@ type sharedRepository struct {
 	// staging plus the non-transactional side effects for task lifecycle events.
 	// Both are wired at startup via Repository.SetMessagePublisher, before any
 	// controllers run.
-	olapOutbox *OLAPOutbox
+	olapOutbox *OLAPOutboxImpl
 	signaler   *OLAPSignaler
 }
 

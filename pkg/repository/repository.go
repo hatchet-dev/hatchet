@@ -60,7 +60,7 @@ type Repository interface {
 	Sync() SyncRepository
 
 	// OLAPOutbox stages OLAP queue messages in the transactional outbox.
-	OLAPOutbox() *OLAPOutbox
+	OLAPOutbox() OLAPOutbox
 
 	// Signaler orchestrates the messaging side effects of task lifecycle changes.
 	Signaler() *OLAPSignaler
@@ -325,7 +325,7 @@ func (r *repositoryImpl) Sync() SyncRepository {
 	return r.sync
 }
 
-func (r *repositoryImpl) OLAPOutbox() *OLAPOutbox {
+func (r *repositoryImpl) OLAPOutbox() OLAPOutbox {
 	return r.shared.olapOutbox
 }
 

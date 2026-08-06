@@ -136,9 +136,18 @@ type FailedWebhookValidationPayload struct {
 // OLAPOutbox stages OLAP queue messages in the transactional outbox, one method per
 // message kind. Staged messages commit atomically with the caller's transaction where
 // one is used (the OLAP signaler) and are relayed to the OLAP queue after commit.
-// The public methods open a short transaction of their own, for callers which publish
-// outside of a database transaction.
-type OLAPOutbox struct {
+// The interface methods open a short transaction of their own, for callers which
+// publish outside of a database transaction.
+type OLAPOutbox interface {
+	CreatedTasks(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedTaskPayload) error
+	CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedDAGPayload) error
+	MonitoringEvents(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error
+	EventTriggers(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedEventTriggerPayloadSingleton) error
+	CELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures ...CELEvaluationFailure) error
+	WebhookValidationFailures(ctx context.Context, tenantId uuid.UUID, payloads ...FailedWebhookValidationPayload) error
+}
+
+type OLAPOutboxImpl struct {
 	pool *pgxpool.Pool
 	l    *zerolog.Logger
 
@@ -149,14 +158,14 @@ type OLAPOutbox struct {
 	warnUnwired sync.Once
 }
 
-func newOLAPOutbox(pool *pgxpool.Pool, l *zerolog.Logger) *OLAPOutbox {
-	return &OLAPOutbox{
+func newOLAPOutbox(pool *pgxpool.Pool, l *zerolog.Logger) *OLAPOutboxImpl {
+	return &OLAPOutboxImpl{
 		pool: pool,
 		l:    l,
 	}
 }
 
-func (o *OLAPOutbox) CreatedTasks(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedTaskPayload) error {
+func (o *OLAPOutboxImpl) CreatedTasks(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedTaskPayload) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -170,7 +179,7 @@ func (o *OLAPOutbox) CreatedTasks(ctx context.Context, tenantId uuid.UUID, paylo
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
-func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedDAGPayload) error {
+func (o *OLAPOutboxImpl) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedDAGPayload) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -184,7 +193,7 @@ func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloa
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
-func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
+func (o *OLAPOutboxImpl) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -198,7 +207,7 @@ func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, p
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
-func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedEventTriggerPayloadSingleton) error {
+func (o *OLAPOutboxImpl) EventTriggers(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedEventTriggerPayloadSingleton) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -212,7 +221,7 @@ func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payl
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
-func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures ...CELEvaluationFailure) error {
+func (o *OLAPOutboxImpl) CELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures ...CELEvaluationFailure) error {
 	if len(failures) == 0 {
 		return nil
 	}
@@ -226,7 +235,7 @@ func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UU
 	return o.stage(ctx, nil, nil, olapOutboxTopic, msg)
 }
 
-func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uuid.UUID, payloads ...FailedWebhookValidationPayload) error {
+func (o *OLAPOutboxImpl) WebhookValidationFailures(ctx context.Context, tenantId uuid.UUID, payloads ...FailedWebhookValidationPayload) error {
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -274,7 +283,7 @@ func (b *outboxBatch) notify(ctx context.Context) {
 // flush writes the batch to the outbox on tx — one write per topic — collecting the
 // subscriber wake-ups into the batch's notifier. The transaction owner calls it once
 // before commit, then fires batch.notify after.
-func (o *OLAPOutbox) flush(ctx context.Context, tx pgx.Tx, batch *outboxBatch) error {
+func (o *OLAPOutboxImpl) flush(ctx context.Context, tx pgx.Tx, batch *outboxBatch) error {
 	for _, topic := range batch.topics {
 		if err := o.stage(ctx, tx, &batch.notifier, topic, batch.byTopic[topic]...); err != nil {
 			return err
@@ -292,7 +301,7 @@ func (o *OLAPOutbox) flush(ctx context.Context, tx pgx.Tx, batch *outboxBatch) e
 // transaction owner must fire it (Notifier.Notify) after commit, or subscribers
 // wait out their poll interval. It is nil on the short-transaction path, where
 // stage commits and notifies itself.
-func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, topic string, msgs ...*msgqueue.Message) error {
+func (o *OLAPOutboxImpl) stage(ctx context.Context, tx pgx.Tx, notifier *pgoutbox.Notifier, topic string, msgs ...*msgqueue.Message) error {
 	if len(msgs) == 0 {
 		return nil
 	}
