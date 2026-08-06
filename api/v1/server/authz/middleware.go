@@ -88,19 +88,13 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return nil
 }
 
-var restrictedWithBearerToken = []string{
-	// bearer tokens cannot read, list, or write other bearer tokens
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
-
-// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
-// and we check that the bearer token has access to the tenant in the authn step.
+// Bearer tokens are admin-scoped but carry no user, so operations that read the user or the
+// tenant member from the request context are absent from the BEARER_TOKEN role in rbac.yaml
+// and rejected here. The tenant itself is checked in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
 	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
-	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
+	// regular bearer tokens are restricted to the BEARER_TOKEN role in rbac.yaml
 	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
@@ -117,8 +111,8 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 		}
 	} else if !isExchangeToken {
-		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
-			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		if !rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) && !a.rbac.IsAuthorized(bearerTokenRole, r.OperationID) {
+			return echo.NewHTTPError(http.StatusForbidden, "This operation requires a user session and cannot be performed with an API token")
 		}
 	}
 
