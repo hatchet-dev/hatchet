@@ -9,8 +9,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-const v10136MaxBuildAttempts = 5
-
 func init() {
 	goose.AddMigrationNoTxContext(upV10136, downV10136)
 }
