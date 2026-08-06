@@ -94,7 +94,10 @@ func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, p
 	p := []sqlcv1.BulkAddMessageParams{}
 
 	p = append(p, sqlcv1.BulkAddMessageParams{
-		QueueId:   sqlchelpers.TextFromStr(queue),
+		QueueId: pgtype.Text{
+			String: queue,
+			Valid:  true,
+		},
 		Payload:   payload,
 		ExpiresAt: sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Minute)),
 		ReadAfter: sqlchelpers.TimestampFromTime(time.Now().UTC()),

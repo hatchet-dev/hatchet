@@ -1152,7 +1152,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 	}
 
 	if opts.Name != nil {
-		search := sqlchelpers.TextFromMaybeStr(opts.Name)
+		search := pgtype.Text{String: *opts.Name, Valid: true}
 		queryParams.Search = search
 		countParams.Search = search
 	}

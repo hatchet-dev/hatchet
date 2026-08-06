@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -108,11 +108,23 @@ func (r *filterRepository) UpdateFilter(ctx context.Context, tenantId, filterId 
 	}
 
 	params := sqlcv1.UpdateFilterParams{
-		Tenantid:   tenantId,
-		ID:         filterId,
-		Payload:    opts.Payload,
-		Scope:      sqlchelpers.TextFromMaybeStr(opts.Scope),
-		Expression: sqlchelpers.TextFromMaybeStr(opts.Expression),
+		Tenantid: tenantId,
+		ID:       filterId,
+		Payload:  opts.Payload,
+	}
+
+	if opts.Scope != nil {
+		params.Scope = pgtype.Text{
+			String: *opts.Scope,
+			Valid:  true,
+		}
+	}
+
+	if opts.Expression != nil {
+		params.Expression = pgtype.Text{
+			String: *opts.Expression,
+			Valid:  true,
+		}
 	}
 
 	return r.queries.UpdateFilter(ctx, r.pool, params)

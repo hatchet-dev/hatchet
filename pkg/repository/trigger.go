@@ -80,7 +80,10 @@ func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, re
 		Key:        key,
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
 		Weight:     100,
-		StrValue:   sqlchelpers.TextFromMaybeStr(strValue),
+	}
+
+	if strValue != nil {
+		row.StrValue = pgtype.Text{String: *strValue, Valid: true}
 	}
 
 	if intValue != nil {
@@ -982,7 +985,9 @@ func (r *sharedRepository) triggerWorkflows(
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
+					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1008,7 +1013,12 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
-				childKey := sqlchelpers.TextFromMaybeStr(tuple.childKey)
+				if tuple.childKey != nil {
+					childKey = pgtype.Text{
+						String: *tuple.childKey,
+						Valid:  true,
+					}
+				}
 
 				if tuple.priority != nil {
 					priority = pgtype.Int4{
@@ -1017,7 +1027,12 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
-				triggeringEventKey := sqlchelpers.TextFromMaybeStr(tuple.triggeringEventKey)
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
 
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1083,7 +1098,9 @@ func (r *sharedRepository) triggerWorkflows(
 						parentTaskId         pgtype.Int8
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
+						childKey             pgtype.Text
 						priority             pgtype.Int4
+						triggeringEventKey   pgtype.Text
 					)
 
 					if tuple.parentExternalId != nil {
@@ -1109,7 +1126,12 @@ func (r *sharedRepository) triggerWorkflows(
 						}
 					}
 
-					childKey := sqlchelpers.TextFromMaybeStr(tuple.childKey)
+					if tuple.childKey != nil {
+						childKey = pgtype.Text{
+							String: *tuple.childKey,
+							Valid:  true,
+						}
+					}
 
 					if tuple.priority != nil {
 						priority = pgtype.Int4{
@@ -1118,7 +1140,12 @@ func (r *sharedRepository) triggerWorkflows(
 						}
 					}
 
-					triggeringEventKey := sqlchelpers.TextFromMaybeStr(tuple.triggeringEventKey)
+					if tuple.triggeringEventKey != nil {
+						triggeringEventKey = pgtype.Text{
+							String: *tuple.triggeringEventKey,
+							Valid:  true,
+						}
+					}
 
 					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 						Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1220,7 +1247,9 @@ func (r *sharedRepository) triggerWorkflows(
 					parentTaskId         pgtype.Int8
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
+					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1245,7 +1274,12 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
-				childKey := sqlchelpers.TextFromMaybeStr(tuple.childKey)
+				if tuple.childKey != nil {
+					childKey = pgtype.Text{
+						String: *tuple.childKey,
+						Valid:  true,
+					}
+				}
 
 				if tuple.priority != nil {
 					priority = pgtype.Int4{
@@ -1254,7 +1288,12 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
-				triggeringEventKey := sqlchelpers.TextFromMaybeStr(tuple.triggeringEventKey)
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
 
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
