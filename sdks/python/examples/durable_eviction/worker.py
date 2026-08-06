@@ -140,6 +140,39 @@ async def capacity_evictable_sleep(
     return {"status": "completed"}
 
 
+class BranchChildInput(BaseModel):
+    delay: float
+    label: str
+
+
+@hatchet.task(input_validator=BranchChildInput)
+async def branch_child(input: BranchChildInput, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(input.delay)
+    return {"label": input.label}
+
+
+async def _branch(name: str, first_delay: float) -> dict[str, dict[str, str]]:
+    first = await branch_child.aio_run(
+        input=BranchChildInput(delay=first_delay, label=f"{name}-first")
+    )
+    second = await branch_child.aio_run(
+        input=BranchChildInput(delay=0.1, label=f"{name}-second")
+    )
+    return {"first": first, "second": second}
+
+
+@hatchet.durable_task(
+    eviction_policy=EvictionPolicy(
+        ttl=timedelta(seconds=60),
+        allow_capacity_eviction=False,
+    ),
+)
+async def concurrent_branches(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+    a, b = await asyncio.gather(_branch("a", 4), _branch("b", 1))
+    await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
+    return {"a": a, "b": b, "status": "completed"}
+
+
 # > Non Evictable Sleep
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
@@ -170,6 +203,8 @@ def main() -> None:
             non_evictable_sleep,
             child_task,
             bulk_child_task,
+            concurrent_branches,
+            branch_child,
         ],
     )
     worker.start()
