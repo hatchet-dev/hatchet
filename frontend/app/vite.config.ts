@@ -33,12 +33,12 @@ export default defineConfig({
               {
                 tag: 'base',
                 attrs: { href: '{{ .BasePath }}' },
-                injectTo: 'head',
+                injectTo: 'head-prepend',
               },
               {
                 tag: 'script',
                 children: 'window.__CONFIG__ = { BASE_PATH: "{{ .BasePath }}" };',
-                injectTo: 'head',
+                injectTo: 'head-prepend',
               },
             ],
           };
