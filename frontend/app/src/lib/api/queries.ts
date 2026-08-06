@@ -1,5 +1,9 @@
 import { V1EventList, V1TaskSummaryList, WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi, controlPlaneApi } from './api';
+import api, {
+  cloudApi,
+  controlPlaneApi,
+  SELF_HOSTED_LIST_TIMEOUT_MS,
+} from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import { AxiosError } from 'axios';
@@ -270,7 +274,7 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
       queryFn: async (): Promise<V1EventList | 'timeout' | undefined> => {
-        const timeout = isSelfHosted ? 100 : undefined;
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
           return (await api.v1EventList(tenant, query, { timeout })).data;
@@ -292,7 +296,7 @@ export const queries = createQueryKeyStore({
     ) => ({
       queryKey: ['v1:workflow-run:list', tenant, query],
       queryFn: async (): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
-        const timeout = isSelfHosted ? 100 : undefined;
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
           return (await api.v1WorkflowRunList(tenant, query, { timeout })).data;

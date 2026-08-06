@@ -9,7 +9,7 @@ import {
   V1LogsPointMetric,
   queries,
 } from '@/lib/api';
-import api from '@/lib/api/api';
+import api, { SELF_HOSTED_LIST_TIMEOUT_MS } from '@/lib/api/api';
 import { useSearchParams } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -136,7 +136,7 @@ export function useTenantLogs() {
       workflowIds,
     ],
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
-      const timeout = isSelfHosted ? 100 : undefined;
+      const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
       try {
         const response = await api.v1TenantLogLineList(
