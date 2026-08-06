@@ -1,18 +1,20 @@
-import { Button } from '../ui/button';
+import { Button, ButtonProps } from '../ui/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 
 export function CopyWorkflowConfigButton({
   workflowConfig,
+  size = 'sm',
 }: {
   workflowConfig: object | undefined;
+  size?: ButtonProps['size'];
 }) {
   const [copySuccess, setCopySuccess] = useState(false);
 
   return (
     <Button
       variant="outline"
-      size="sm"
+      size={size}
       onClick={() => {
         navigator.clipboard.writeText(JSON.stringify(workflowConfig ?? {}));
         setCopySuccess(true);

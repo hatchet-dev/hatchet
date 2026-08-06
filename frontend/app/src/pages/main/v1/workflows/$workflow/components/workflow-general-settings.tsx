@@ -1,273 +1,235 @@
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
-import { Badge } from '@/components/v1/ui/badge';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Label } from '@/components/v1/ui/label';
 import {
-  ConcurrencyLimitStrategy,
+  EmptyState,
+  FieldLabel,
+  formatLimitStrategy,
+} from './settings-primitives';
+import { Badge } from '@/components/v1/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { MarkdownRenderer } from '@/components/v1/ui/markdown';
+import {
   ConcurrencyScope,
+  ConcurrencySetting,
   WorkflowVersion,
 } from '@/lib/api';
 import { formatCron } from '@/lib/cron';
-
-function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
-  switch (strategy) {
-    case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
-      return 'Cancel In Progress';
-    case ConcurrencyLimitStrategy.DROP_NEWEST:
-      return 'Drop Newest';
-    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
-      return 'Queue Newest';
-    case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
-      return 'Group Round Robin';
-    default: {
-      const exhaustiveCheck: never = strategy;
-      return exhaustiveCheck;
-    }
-  }
-}
-
-function formatScope(scope: ConcurrencyScope): string {
-  switch (scope) {
-    case ConcurrencyScope.WORKFLOW:
-      return 'Workflow';
-    case ConcurrencyScope.TASK:
-      return 'Task';
-    default: {
-      const exhaustiveCheck: never = scope;
-      return exhaustiveCheck;
-    }
-  }
-}
+import { cn } from '@/lib/utils';
 
 export default function WorkflowGeneralSettings({
   workflow,
 }: {
   workflow: WorkflowVersion;
 }) {
-  const hasTriggers =
-    (workflow.triggers?.events && workflow.triggers.events.length > 0) ||
-    (workflow.triggers?.crons && workflow.triggers.crons.length > 0);
+  const hasEvents =
+    !!workflow.triggers?.events && workflow.triggers.events.length > 0;
+  const hasCrons =
+    !!workflow.triggers?.crons && workflow.triggers.crons.length > 0;
+  const hasTriggers = hasEvents || hasCrons;
+  const concurrency = (workflow.v1Concurrency ?? []).filter(
+    (c) => c.scope === ConcurrencyScope.WORKFLOW,
+  );
+  const hasIdempotency = !!workflow.idempotency;
+  const hasMisc = !!workflow.sticky || workflow.defaultPriority != null;
+  const hasExecution = hasIdempotency || hasMisc;
 
   return (
-    <div className="space-y-5">
-      {hasTriggers && (
-        <SettingsSection title="Triggers">
-          <TriggerSettings workflow={workflow} />
-        </SettingsSection>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {workflow.description && (
+        <Section
+          title="Description"
+          className="text-sm leading-relaxed"
+          cardClassName="md:col-span-2"
+        >
+          <MarkdownRenderer content={workflow.description} />
+        </Section>
       )}
 
-      <SettingsSection title="Concurrency">
-        <ConcurrencySettings workflow={workflow} />
-      </SettingsSection>
+      {hasTriggers && (
+        <Section title="Triggers">
+          <TriggerSettings workflow={workflow} />
+        </Section>
+      )}
 
-      <SettingsSection title="Other">
-        <ConfigurationSettings workflow={workflow} />
-      </SettingsSection>
+      {concurrency.length > 0 && (
+        <Section
+          title="Concurrency"
+          titleRight={
+            <span className="text-xs text-muted-foreground">
+              {concurrency.length} limit{concurrency.length === 1 ? '' : 's'}
+            </span>
+          }
+        >
+          <ConcurrencySettings concurrency={concurrency} />
+        </Section>
+      )}
 
-      <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
+      {!hasExecution && (
+        <Section title="Execution">
+          <EmptyState message="No additional execution configuration set for this workflow." />
+        </Section>
+      )}
+
+      {hasIdempotency && (
+        <Section title="Idempotency">
+          <IdempotencySettings workflow={workflow} />
+        </Section>
+      )}
+
+      {hasMisc && (
+        <Section title="Other">
+          <MiscSettings workflow={workflow} />
+        </Section>
+      )}
     </div>
   );
 }
 
-function SettingsSection({
+function Section({
   title,
+  titleRight,
+  className,
+  cardClassName,
   children,
 }: {
   title: string;
+  titleRight?: React.ReactNode;
+  className?: string;
+  cardClassName?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-        {title}
-      </h3>
-      <div className="pl-1">{children}</div>
-    </div>
+    <Card className={cn('bg-muted/30', cardClassName)}>
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base">{title}</CardTitle>
+        {titleRight}
+      </CardHeader>
+      <CardContent className={cn('max-h-80 overflow-y-auto', className)}>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+function ExpressionBlock({ code }: { code: string }) {
   return (
-    <p className="text-sm italic text-gray-500 dark:text-gray-400">{message}</p>
+    <CodeHighlighter
+      language="text"
+      className="whitespace-pre-wrap break-words text-xs leading-relaxed"
+      code={code}
+      copy={false}
+      maxHeight="8rem"
+    />
   );
 }
-
-function FieldGroup({
-  label,
-  children,
-  description,
-}: {
-  label: string;
-  children: React.ReactNode;
-  description?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-        {label}
-      </Label>
-      {children}
-      {description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {description}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// function ScheduleTimeoutSettings({ workflow }: { workflow: WorkflowVersion }) {
-//   if (!workflow.scheduleTimeout) {
-//     return (
-//       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
-//         No schedule timeout set for this workflow.
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="flex flex-col gap-2">
-//       <Input
-//         disabled
-//         placeholder="Schedule Timeout"
-//         value={workflow.scheduleTimeout}
-//       />
-//     </div>
-//   );
-// }
 
 function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.triggers) {
-    return (
-      <EmptyState message="There are no trigger settings for this workflow." />
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      {workflow.triggers.events && workflow.triggers.events.length > 0 && (
-        <FieldGroup label="Events">
-          <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-8">
+      {workflow.triggers?.events && workflow.triggers.events.length > 0 && (
+        <div>
+          <FieldLabel>Events</FieldLabel>
+          <div className="flex flex-wrap gap-1.5">
             {workflow.triggers.events.map((event) => (
               <Badge
                 key={event.event_key}
                 variant="secondary"
-                className="font-mono text-sm"
+                className="font-mono text-xs"
               >
                 {event.event_key}
               </Badge>
             ))}
           </div>
-        </FieldGroup>
+        </div>
       )}
 
-      {workflow.triggers.crons && workflow.triggers.crons.length > 0 && (
-        <FieldGroup label="Cron Schedules">
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-2">
+      {workflow.triggers?.crons && workflow.triggers.crons.length > 0 && (
+        <div>
+          <FieldLabel>Cron Schedules</FieldLabel>
+          <div className="space-y-2">
             {workflow.triggers.crons.map((cronTrigger) => (
               <div key={cronTrigger.cron}>
-                <Badge
-                  key={cronTrigger.cron}
-                  variant="secondary"
-                  className="font-mono text-sm"
-                >
+                <Badge variant="secondary" className="font-mono text-xs">
                   {cronTrigger.cron}
                 </Badge>
                 {cronTrigger.cron && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Runs {formatCron(cronTrigger.cron)}
                   </p>
                 )}
               </div>
             ))}
           </div>
-        </FieldGroup>
+        </div>
       )}
     </div>
   );
 }
 
-function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.v1Concurrency || workflow.v1Concurrency.length === 0) {
-    return (
-      <EmptyState message="There are no concurrency settings for this workflow." />
-    );
-  }
-
+function ConcurrencySettings({
+  concurrency,
+}: {
+  concurrency: ConcurrencySetting[];
+}) {
   return (
-    <SimpleTable
-      data={workflow.v1Concurrency
-        .map((c) => ({
-          stepReadableId: c.stepReadableId || 'N/A',
-          ...c,
-        }))
-        .sort(
-          (a, b) =>
-            b.scope.localeCompare(a.scope) ||
-            a.stepReadableId.localeCompare(b.stepReadableId),
-        )}
-      rowKey={(row, i) => `${row.scope}-${row.stepReadableId}-${i}`}
-      columns={[
-        { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
-        { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },
-        { columnLabel: 'Max', cellRenderer: (row) => row.maxRuns },
-        {
-          columnLabel: 'Strategy',
-          cellRenderer: (row) => (
-            <Badge variant="secondary">
-              {formatLimitStrategy(row.limitStrategy)}
+    <div className="text-xs">
+      {concurrency.map((c, i) => (
+        <div
+          key={i}
+          className="space-y-1.5 border-border py-2.5 first:pt-0 last:pb-0 [&:not(:last-child)]:border-b"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-foreground">Max {c.maxRuns}</span>
+            <span className="text-muted-foreground">·</span>
+            <Badge variant="secondary" className="font-normal">
+              {formatLimitStrategy(c.limitStrategy)}
             </Badge>
-          ),
-        },
-        {
-          columnLabel: 'Expression',
-          cellRenderer: (row) => (
-            <CodeHighlighter
-              language="text"
-              className="whitespace-pre-wrap break-words text-sm leading-relaxed"
-              code={row.expression}
-              copy={false}
-              maxHeight="10rem"
-              minWidth="20rem"
-            />
-          ),
-        },
-      ]}
-    />
+          </div>
+          <ExpressionBlock code={c.expression} />
+        </div>
+      ))}
+    </div>
   );
 }
 
-function ConfigurationSettings({ workflow }: { workflow: WorkflowVersion }) {
-  const hasConfig = workflow.sticky || workflow.defaultPriority;
-
-  if (!hasConfig) {
-    return (
-      <EmptyState message="No additional configuration set for this workflow." />
-    );
+function IdempotencySettings({ workflow }: { workflow: WorkflowVersion }) {
+  if (!workflow.idempotency) {
+    return null;
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-3 text-xs">
+      <div>
+        <FieldLabel>Idempotency Expression</FieldLabel>
+        <ExpressionBlock code={workflow.idempotency.expression} />
+      </div>
+      <div>
+        <FieldLabel>Idempotency TTL</FieldLabel>
+        <div className="text-foreground">
+          {workflow.idempotency.ttlMs.toLocaleString()} ms
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiscSettings({ workflow }: { workflow: WorkflowVersion }) {
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
       {workflow.sticky && (
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Sticky Strategy:
-          </Label>
-          <Badge variant="secondary" className="font-mono text-sm">
-            {workflow.sticky}
-          </Badge>
+        <div>
+          <FieldLabel>Sticky Strategy</FieldLabel>
+          <div className="font-mono text-foreground">{workflow.sticky}</div>
         </div>
       )}
-
-      {workflow.defaultPriority && (
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Default Priority:
-          </Label>
-          <Badge variant="secondary" className="font-mono text-sm">
-            {workflow.defaultPriority}
-          </Badge>
+      {workflow.defaultPriority != null && (
+        <div>
+          <FieldLabel>Default Priority</FieldLabel>
+          <div className="text-foreground">{workflow.defaultPriority}</div>
         </div>
       )}
     </div>

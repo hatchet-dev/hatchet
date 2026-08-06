@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -60,13 +61,12 @@ func ToWorkflowVersion(
 	events []*sqlcv1.WorkflowTriggerEventRef,
 	schedules []*sqlcv1.WorkflowTriggerScheduledRef,
 	stepConcurrency []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow,
+	taskData *repository.WorkflowVersionTaskData,
 ) *gen.WorkflowVersion {
 	wfConfig := make(map[string]interface{})
 
 	if version.CreateWorkflowVersionOpts != nil {
-		err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig)
-
-		if err != nil {
+		if err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig); err != nil {
 			return nil
 		}
 	}
@@ -77,12 +77,28 @@ func ToWorkflowVersion(
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		// WorkflowId:      version.WorkflowId.String(),
+		WorkflowId:      version.WorkflowId.String(),
 		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
-		ScheduleTimeout: &version.ScheduleTimeout,
 		DefaultPriority: &version.DefaultPriority.Int32,
 		WorkflowConfig:  &wfConfig,
+	}
+
+	if version.ScheduleTimeout != "" {
+		scheduleTimeout := version.ScheduleTimeout
+		res.ScheduleTimeout = &scheduleTimeout
+	}
+
+	if workflow.Description.Valid && workflow.Description.String != "" {
+		description := workflow.Description.String
+		res.Description = &description
+	}
+
+	if version.IdempotencyKeyExpression.Valid {
+		res.Idempotency = &gen.WorkflowVersionIdempotency{
+			Expression: version.IdempotencyKeyExpression.String,
+			TtlMs:      version.IdempotencyKeyTtlMs.Int64,
+		}
 	}
 
 	if version.Sticky.Valid {
@@ -148,8 +164,166 @@ func ToWorkflowVersion(
 
 	res.Triggers = &triggersResp
 	res.V1Concurrency = ToV1Concurrency(workflowConcurrency, stepConcurrency)
+	res.Tasks = ToWorkflowVersionTasks(taskData)
 
 	return res
+}
+
+func ToWorkflowVersionTasks(taskData *repository.WorkflowVersionTaskData) *[]gen.WorkflowVersionTask {
+	if taskData == nil {
+		empty := make([]gen.WorkflowVersionTask, 0)
+		return &empty
+	}
+
+	readableIdByStepId := make(map[uuid.UUID]string, len(taskData.Steps))
+	for _, step := range taskData.Steps {
+		readableIdByStepId[step.ID] = step.ReadableId.String
+	}
+
+	staticRateLimitsByStep := make(map[uuid.UUID][]*sqlcv1.StepRateLimit)
+	for _, rl := range taskData.RateLimits {
+		staticRateLimitsByStep[rl.StepId] = append(staticRateLimitsByStep[rl.StepId], rl)
+	}
+
+	dynamicRateLimitsByStep := make(map[uuid.UUID]map[string][]*sqlcv1.StepExpression)
+	keyOrderByStep := make(map[uuid.UUID][]string)
+	for _, expr := range taskData.Expressions {
+		byKey, ok := dynamicRateLimitsByStep[expr.StepId]
+		if !ok {
+			byKey = make(map[string][]*sqlcv1.StepExpression)
+			dynamicRateLimitsByStep[expr.StepId] = byKey
+		}
+
+		if _, seen := byKey[expr.Key]; !seen {
+			keyOrderByStep[expr.StepId] = append(keyOrderByStep[expr.StepId], expr.Key)
+		}
+
+		byKey[expr.Key] = append(byKey[expr.Key], expr)
+	}
+
+	workerLabelsByStep := make(map[uuid.UUID][]*sqlcv1.StepDesiredWorkerLabel)
+	for _, label := range taskData.WorkerLabels {
+		workerLabelsByStep[label.StepId] = append(workerLabelsByStep[label.StepId], label)
+	}
+
+	res := make([]gen.WorkflowVersionTask, 0, len(taskData.Steps))
+
+	for _, step := range taskData.Steps {
+		parents := make([]string, 0, len(step.Parents))
+		for _, parentId := range step.Parents {
+			if readableId, ok := readableIdByStepId[parentId]; ok {
+				parents = append(parents, readableId)
+			}
+		}
+
+		genTask := gen.WorkflowVersionTask{
+			ReadableId:      step.ReadableId.String,
+			Action:          step.ActionId,
+			Parents:         parents,
+			Retries:         step.Retries,
+			ScheduleTimeout: &step.ScheduleTimeout,
+			IsDurable:       &step.IsDurable,
+			RateLimits: ToWorkflowVersionTaskRateLimits(
+				staticRateLimitsByStep[step.ID],
+				dynamicRateLimitsByStep[step.ID],
+				keyOrderByStep[step.ID],
+			),
+			DesiredWorkerLabels: ToWorkflowVersionTaskDesiredWorkerLabels(workerLabelsByStep[step.ID]),
+		}
+
+		if step.Timeout.Valid && step.Timeout.String != "" {
+			timeout := step.Timeout.String
+			genTask.Timeout = &timeout
+		}
+
+		if step.RetryBackoffFactor.Valid {
+			factor := step.RetryBackoffFactor.Float64
+			genTask.RetryBackoffFactor = &factor
+		}
+
+		if step.RetryMaxBackoff.Valid {
+			maxBackoff := step.RetryMaxBackoff.Int32
+			genTask.RetryBackoffMaxSeconds = &maxBackoff
+		}
+
+		res = append(res, genTask)
+	}
+
+	return &res
+}
+
+func ToWorkflowVersionTaskRateLimits(
+	static []*sqlcv1.StepRateLimit,
+	dynamicByKey map[string][]*sqlcv1.StepExpression,
+	keyOrder []string,
+) *[]gen.WorkflowVersionTaskRateLimit {
+	res := make([]gen.WorkflowVersionTaskRateLimit, 0, len(static)+len(keyOrder))
+
+	for _, rl := range static {
+		key := rl.RateLimitKey
+		units := rl.Units
+		res = append(res, gen.WorkflowVersionTaskRateLimit{
+			Key:   &key,
+			Units: &units,
+		})
+	}
+
+	for _, key := range keyOrder {
+		keyCp := key
+		genRl := gen.WorkflowVersionTaskRateLimit{
+			Key: &keyCp,
+		}
+
+		for _, expr := range dynamicByKey[key] {
+			expression := expr.Expression
+
+			switch expr.Kind {
+			case sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY:
+				genRl.KeyExpression = &expression
+			case sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE:
+				genRl.LimitExpression = &expression
+			case sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS:
+				genRl.UnitsExpression = &expression
+			case sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW:
+				genRl.Duration = &expression
+			}
+		}
+
+		res = append(res, genRl)
+	}
+
+	return &res
+}
+
+func ToWorkflowVersionTaskDesiredWorkerLabels(labels []*sqlcv1.StepDesiredWorkerLabel) *[]gen.WorkflowVersionTaskDesiredWorkerLabel {
+	res := make([]gen.WorkflowVersionTaskDesiredWorkerLabel, 0, len(labels))
+
+	for _, label := range labels {
+		required := label.Required
+		weight := label.Weight
+		comparator := string(label.Comparator)
+
+		genLabel := gen.WorkflowVersionTaskDesiredWorkerLabel{
+			Key:        label.Key,
+			Required:   &required,
+			Weight:     &weight,
+			Comparator: &comparator,
+		}
+
+		if label.StrValue.Valid {
+			strValue := label.StrValue.String
+			genLabel.StrValue = &strValue
+		}
+
+		if label.IntValue.Valid {
+			intValue := label.IntValue.Int32
+			genLabel.IntValue = &intValue
+		}
+
+		res = append(res, genLabel)
+	}
+
+	return &res
 }
 
 func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVersionIdRow, taskConcurrencies []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow) *[]gen.ConcurrencySetting {

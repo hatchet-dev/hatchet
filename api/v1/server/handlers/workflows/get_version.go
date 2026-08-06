@@ -55,6 +55,12 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		return nil, fmt.Errorf("error fetching version: %s", err)
 	}
 
+	taskData, err := t.config.V1.Workflows().GetWorkflowVersionTasks(ctx.Request().Context(), tenantId, workflowVersionId)
+
+	if err != nil {
+		return nil, fmt.Errorf("error fetching version tasks: %s", err)
+	}
+
 	resp := transformers.ToWorkflowVersion(
 		&row.WorkflowVersion,
 		&workflow.Workflow,
@@ -63,6 +69,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		events,
 		scheduleT,
 		stepConcurrency,
+		taskData,
 	)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil

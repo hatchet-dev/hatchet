@@ -241,6 +241,8 @@ type WorkflowRepository interface {
 
 	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
+	GetWorkflowVersionTasks(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) (*WorkflowVersionTaskData, error)
+
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
 
@@ -1274,6 +1276,64 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	}
 
 	return row, crons, events, scheduled, stepConcurrency, workflowConcurrency, nil
+}
+
+type WorkflowVersionTaskData struct {
+	Steps        []*sqlcv1.ListStepsByWorkflowVersionIdsRow
+	RateLimits   []*sqlcv1.StepRateLimit
+	Expressions  []*sqlcv1.StepExpression
+	WorkerLabels []*sqlcv1.StepDesiredWorkerLabel
+}
+
+func (r *workflowRepository) GetWorkflowVersionTasks(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) (*WorkflowVersionTaskData, error) {
+	rows, err := r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+		Ids:      []uuid.UUID{workflowVersionId},
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch steps: %w", err)
+	}
+
+	steps := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(rows))
+	stepIds := make([]uuid.UUID, 0, len(rows))
+
+	for _, row := range rows {
+		steps = append(steps, row)
+		stepIds = append(stepIds, row.ID)
+	}
+
+	if len(stepIds) == 0 {
+		return &WorkflowVersionTaskData{Steps: steps}, nil
+	}
+
+	rateLimits, err := r.queries.ListRateLimitsForSteps(ctx, r.pool, sqlcv1.ListRateLimitsForStepsParams{
+		Stepids:  stepIds,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch step rate limits: %w", err)
+	}
+
+	expressions, err := r.queries.ListStepExpressions(ctx, r.pool, stepIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch step expressions: %w", err)
+	}
+
+	workerLabels, err := r.queries.ListStepDesiredWorkerLabels(ctx, r.pool, stepIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch step worker labels: %w", err)
+	}
+
+	return &WorkflowVersionTaskData{
+		Steps:        steps,
+		RateLimits:   rateLimits,
+		Expressions:  expressions,
+		WorkerLabels: workerLabels,
+	}, nil
 }
 
 func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
