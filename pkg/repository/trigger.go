@@ -2259,17 +2259,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
 		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
-		if opt.Scope != nil {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
-		} else {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
-		}
-
-		if opt.TriggeringWebhookName != nil {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
-		} else {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
-		}
+		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
+		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
