@@ -788,20 +788,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
-
-			var scope pgtype.Text
-			if payload.EventScope != nil {
-				scope = sqlchelpers.TextFromStr(*payload.EventScope)
-			}
-
-			scopes = append(scopes, scope)
-
-			var triggeringWebhookName pgtype.Text
-			if payload.TriggeringWebhookName != nil {
-				triggeringWebhookName = sqlchelpers.TextFromStr(*payload.TriggeringWebhookName)
-			}
-
-			triggeringWebhookNames = append(triggeringWebhookNames, triggeringWebhookName)
+			scopes = append(scopes, sqlchelpers.TextFromMaybeStr(payload.EventScope))
+			triggeringWebhookNames = append(triggeringWebhookNames, sqlchelpers.TextFromMaybeStr(payload.TriggeringWebhookName))
 		}
 	}
 

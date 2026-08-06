@@ -2198,10 +2198,7 @@ func (r *sharedRepository) insertTasks(
 				// place the task into a failed state rather than failing the entire batch insert
 				initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-				initialStateReasons[i] = pgtype.Text{
-					String: err.Error(),
-					Valid:  true,
-				}
+				initialStateReasons[i] = sqlchelpers.TextFromStr(err.Error())
 
 				batchKeys[i] = ""
 			} else {
@@ -2249,12 +2246,7 @@ func (r *sharedRepository) insertTasks(
 			}
 		}
 
-		if task.ChildKey != nil {
-			childKeys[i] = pgtype.Text{
-				String: *task.ChildKey,
-				Valid:  true,
-			}
-		}
+		childKeys[i] = sqlchelpers.TextFromMaybeStr(task.ChildKey)
 
 		concurrencyKeys[i] = make([]string, 0)
 
@@ -2340,10 +2332,7 @@ func (r *sharedRepository) insertTasks(
 					// place the task into a failed state
 					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-					initialStateReasons[i] = pgtype.Text{
-						String: failTaskError.Error(),
-						Valid:  true,
-					}
+					initialStateReasons[i] = sqlchelpers.TextFromStr(failTaskError.Error())
 
 					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
 					failedKeys := make([]string, len(strats))
@@ -2410,10 +2399,7 @@ func (r *sharedRepository) insertTasks(
 					// place the task into a failed state
 					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-					initialStateReasons[i] = pgtype.Text{
-						String: failTaskError.Error(),
-						Valid:  true,
-					}
+					initialStateReasons[i] = sqlchelpers.TextFromStr(failTaskError.Error())
 				} else {
 					createExpressionOpts[task.ExternalId] = opts
 				}
@@ -2514,27 +2500,8 @@ func (r *sharedRepository) insertTasks(
 		params.BatchKeys = append(params.BatchKeys, batchKeys[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
 		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
-
-		triggeringEventKey := pgtype.Text{}
-
-		if task.TriggeringEventKey != nil {
-			triggeringEventKey = pgtype.Text{
-				String: *task.TriggeringEventKey,
-				Valid:  true,
-			}
-		}
-
-		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
-
-		idempotencyKey := pgtype.Text{}
-		if task.IdempotencyKey != nil {
-			idempotencyKey = pgtype.Text{
-				String: *task.IdempotencyKey,
-				Valid:  true,
-			}
-		}
-
-		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
+		params.TriggeringEventKeys = append(params.TriggeringEventKeys, sqlchelpers.TextFromMaybeStr(task.TriggeringEventKey))
+		params.IdempotencyKeys = append(params.IdempotencyKeys, sqlchelpers.TextFromMaybeStr(task.IdempotencyKey))
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -2741,10 +2708,7 @@ func (r *sharedRepository) replayTasks(
 				// place the task into a failed state rather than failing the entire batch replay
 				initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-				initialStateReasons[i] = pgtype.Text{
-					String: err.Error(),
-					Valid:  true,
-				}
+				initialStateReasons[i] = sqlchelpers.TextFromStr(err.Error())
 			} else {
 				batchKeys[i] = value
 			}
@@ -2818,10 +2782,7 @@ func (r *sharedRepository) replayTasks(
 					// place the task into a failed state
 					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-					initialStateReasons[i] = pgtype.Text{
-						String: failTaskError.Error(),
-						Valid:  true,
-					}
+					initialStateReasons[i] = sqlchelpers.TextFromStr(failTaskError.Error())
 
 					// set to "FAILED" for each strategy to maintain cardinality in multi-dimensional array
 					failedKeys := make([]string, len(strats))
@@ -3234,10 +3195,7 @@ func (r *sharedRepository) createTaskEvents(
 		externalIdToData[externalId] = eventDatas[i]
 
 		if eventKeys[i] != "" {
-			paramKeys[i] = pgtype.Text{
-				String: eventKeys[i],
-				Valid:  true,
-			}
+			paramKeys[i] = sqlchelpers.TextFromStr(eventKeys[i])
 		}
 
 		internalTaskEvents[i] = InternalTaskEvent{
@@ -4003,15 +3961,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 			taskIds = append(taskIds, task.ID)
 			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
 			keys = append(keys, opt.Key)
-
-			if opt.ValueStr != nil {
-				valuesStr = append(valuesStr, pgtype.Text{
-					String: *opt.ValueStr,
-					Valid:  true,
-				})
-			} else {
-				valuesStr = append(valuesStr, pgtype.Text{})
-			}
+			valuesStr = append(valuesStr, sqlchelpers.TextFromMaybeStr(opt.ValueStr))
 
 			if opt.ValueInt != nil {
 				valuesInt = append(valuesInt, pgtype.Int4{
