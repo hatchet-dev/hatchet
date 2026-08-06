@@ -1,4 +1,5 @@
 import { RunsEmptyGraphic } from '../workflow-runs-v1/components/runs-empty-graphic';
+import { RequestTimeoutCloudCTAEmptyState } from '../workflow-runs-v1/components/runs-timeout-empty-state';
 import { LogsChart } from './components/logs-chart';
 import { useTenantLogs } from './hooks/use-tenant-logs';
 import type { TimeWindow } from './hooks/use-tenant-logs';
@@ -45,6 +46,7 @@ export default function TenantLogsPage() {
 function TenantLogs() {
   const {
     logs,
+    fetchTimedOut,
     isLoading,
     isRefetching,
     refetch,
@@ -188,7 +190,9 @@ function TenantLogs() {
         showAttempt={false}
         showTaskName
         emptyComponent={
-          hasActiveFilters ? (
+          fetchTimedOut ? (
+            <RequestTimeoutCloudCTAEmptyState />
+          ) : hasActiveFilters ? (
             <EmptyState
               graphic={<RunsEmptyGraphic />}
               title="No logs matching your filters"

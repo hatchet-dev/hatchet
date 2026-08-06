@@ -206,8 +206,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
   const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
 
-  console.log('fetchTimedOut', fetchTimedOut);
-
   const allStatusCount = Object.values(V1TaskStatus).length;
   const hasActiveFilters =
     (filters.apiFilters.statuses?.length ?? allStatusCount) < allStatusCount ||

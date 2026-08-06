@@ -2,6 +2,7 @@ import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useControlPlane from '@/hooks/use-control-plane';
 import {
   V1LogLine,
   V1LogLineOrderByDirection,
@@ -13,6 +14,7 @@ import { useSearchParams } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -55,7 +57,9 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
 export function useTenantLogs() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { refetchInterval } = useRefetchInterval();
+  const { isSelfHosted } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [fetchTimedOut, setFetchTimedOut] = useState(false);
   const workflowsQuery = useQuery({
     ...queries.workflows.list(tenantId, { limit: 1000 }),
     refetchInterval,
@@ -132,22 +136,38 @@ export function useTenantLogs() {
       workflowIds,
     ],
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
-      const response = await api.v1TenantLogLineList(tenantId, {
-        limit: LOGS_PER_PAGE,
-        since,
-        ...(pageParam
-          ? { until: pageParam }
-          : filters.until
-            ? { until: filters.until }
-            : {}),
-        ...(parsedQuery.level && {
-          levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
-        }),
-        ...(parsedQuery.search && { search: parsedQuery.search }),
-        ...(workflowIds && { workflow_ids: workflowIds }),
-        order_by_direction: V1LogLineOrderByDirection.DESC,
-      });
-      return response.data;
+      const timeout = isSelfHosted ? 100 : undefined;
+
+      try {
+        const response = await api.v1TenantLogLineList(
+          tenantId,
+          {
+            limit: LOGS_PER_PAGE,
+            since,
+            ...(pageParam
+              ? { until: pageParam }
+              : filters.until
+                ? { until: filters.until }
+                : {}),
+            ...(parsedQuery.level && {
+              levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
+            }),
+            ...(parsedQuery.search && { search: parsedQuery.search }),
+            ...(workflowIds && { workflow_ids: workflowIds }),
+            order_by_direction: V1LogLineOrderByDirection.DESC,
+          },
+          { timeout },
+        );
+        setFetchTimedOut(false);
+        return response.data;
+      } catch (e) {
+        if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
+          setFetchTimedOut(true);
+          return { rows: [] };
+        }
+
+        throw e;
+      }
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => {
@@ -267,6 +287,7 @@ export function useTenantLogs() {
 
   return {
     logs,
+    fetchTimedOut,
     isLoading: logsQuery.isLoading,
     isRefetching: logsQuery.isRefetching,
     isFetchingMore: logsQuery.isFetchingNextPage,
