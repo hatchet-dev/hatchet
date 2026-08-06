@@ -14,7 +14,7 @@ func init() {
 }
 
 func v10136IndexName(partition string) string {
-	return fmt.Sprintf("ix_%s_external_id_seen_at", partition)
+	return fmt.Sprintf("%s_external_id_seen_at", partition)
 }
 
 func indexIsValid(ctx context.Context, db *sql.DB, indexName string) (bool, error) {
