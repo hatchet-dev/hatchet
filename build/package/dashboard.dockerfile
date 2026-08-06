@@ -22,6 +22,7 @@ RUN npm run build
 FROM nginx:alpine
 
 ARG APP_TARGET=client
+ENV BASE_PATH=/
 
 COPY --from=api-binary-base /hatchet/hatchet-api ./hatchet-api
 COPY ./build/package/dashboard-entrypoint.sh ./entrypoint.sh

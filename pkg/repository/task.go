@@ -294,6 +294,10 @@ type TaskRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error)
 
+	GetQueueSizes(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error)
+
+	GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error)
+
 	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
 
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
@@ -1691,6 +1695,23 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId uuid.U
 	}
 
 	return res, nil
+}
+
+func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesRow, error) {
+	return r.queries.GetQueueSizes(ctx, r.pool, tenantId)
+}
+
+// PrometheusMetadataKeyPrefix is the additional metadata key prefix which opts a key into
+// the metadata queue size gauge. Unprefixed keys are unbounded in practice (per-run ids
+// and the like) and blow up series cardinality, so only explicitly prefixed keys are
+// exported.
+const PrometheusMetadataKeyPrefix = "prom_"
+
+func (r *TaskRepositoryImpl) GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error) {
+	return r.queries.GetQueueSizesByMetadata(ctx, r.pool, sqlcv1.GetQueueSizesByMetadataParams{
+		Tenantid:  tenantId,
+		Keyprefix: PrometheusMetadataKeyPrefix,
+	})
 }
 
 func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error) {

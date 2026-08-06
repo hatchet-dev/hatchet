@@ -1,0 +1,32 @@
+name: scheduler-sync
+on:
+  pull_request:
+    paths:
+      - "pkg/scheduling/**"
+      - "hack/ci/check-scheduler-sync.sh"
+      - ".github/workflows/scheduler-sync.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "pkg/scheduling/**"
+
+# While the v1alpha scheduler is rolling out, pkg/scheduling/v1 and
+# pkg/scheduling/v1alpha must be kept in sync: shared files identical, and
+# scheduler-core changes ported to both implementations. See
+# hack/ci/check-scheduler-sync.sh for the rules.
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Check scheduler packages are in sync
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./hack/ci/check-scheduler-sync.sh --base "origin/${{ github.base_ref }}"
+          else
+            ./hack/ci/check-scheduler-sync.sh
+          fi
