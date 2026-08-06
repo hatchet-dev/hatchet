@@ -5,9 +5,12 @@ package repository
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/stretchr/testify/assert"
@@ -482,4 +485,101 @@ func TestNonDeterminismDetail_KindMismatch(t *testing.T) {
 	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindMEMO, nil)
 	assert.Equal(t, "MEMO", detail.Expected)
 	assert.Equal(t, "run(my-wf)", detail.Received)
+}
+
+// --- Regression coverage for the dropped-child-failure replay bug ---
+//
+// GetOrCreateLogEntries builds its "skip" (already-existing) entries by
+// converting sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow into
+// sqlcv1.BulkGetDurableEventLogEntriesRow via a plain struct conversion
+// (`sqlcv1.BulkGetDurableEventLogEntriesRow(*row)`) rather than a hand-listed
+// field literal. These tests pin down the two failure-related fields that a
+// hand-listed projection previously dropped, plus the non-failure case, and
+// guard against the two row types silently drifting apart again in a way
+// that would make the conversion stop compiling (or, worse, compile but
+// quietly re-drop a field if the field lists were ever de-synced instead of
+// converted directly).
+
+func newChildSkipRow(t *testing.T, isFailure bool, errMsg *string) *sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow {
+	t.Helper()
+
+	childExternalID := uuid.New()
+
+	errText := pgtype.Text{}
+	if errMsg != nil {
+		errText = pgtype.Text{String: *errMsg, Valid: true}
+	}
+
+	return &sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow{
+		TenantID:                uuid.New(),
+		ExternalID:              uuid.New(),
+		ResultPayloadExternalID: uuid.New(),
+		ChildTaskExternalID:     &childExternalID,
+		ChildTaskIsFailure:      isFailure,
+		ChildTaskErrorMessage:   errText,
+		ID:                      1,
+		DurableTaskID:           2,
+		NodeID:                  3,
+		BranchID:                4,
+		InvocationCount:         1,
+	}
+}
+
+func TestChildSkipRowConversion_PreservesFailureAndMessage(t *testing.T) {
+	msg := "boom: child task failed"
+	row := newChildSkipRow(t, true, &msg)
+
+	converted := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
+
+	assert.True(t, converted.ChildTaskIsFailure)
+	assert.True(t, converted.ChildTaskErrorMessage.Valid)
+	assert.Equal(t, msg, converted.ChildTaskErrorMessage.String)
+	// Non-failure-specific fields must also survive untouched.
+	assert.Equal(t, row.ChildTaskExternalID, converted.ChildTaskExternalID)
+	assert.Equal(t, row.TenantID, converted.TenantID)
+	assert.Equal(t, row.ID, converted.ID)
+}
+
+func TestChildSkipRowConversion_PreservesNonFailureAndNullMessage(t *testing.T) {
+	row := newChildSkipRow(t, false, nil)
+
+	converted := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
+
+	assert.False(t, converted.ChildTaskIsFailure)
+	assert.False(t, converted.ChildTaskErrorMessage.Valid)
+}
+
+// TestBulkAndChildSkipRows_RemainFieldForFieldConvertible fails at test time
+// (in addition to the compiler already refusing the direct conversion above)
+// if the two sqlc-generated row types ever drift out of structural sync, so
+// a future schema change can't silently reintroduce this class of bug by,
+// say, someone replacing the direct conversion with a hand-written field
+// list again during a refactor.
+func TestBulkAndChildSkipRows_RemainFieldForFieldConvertible(t *testing.T) {
+	bulkType := reflect.TypeOf(sqlcv1.BulkGetDurableEventLogEntriesRow{})
+	skipType := reflect.TypeOf(sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow{})
+
+	if bulkType.NumField() != skipType.NumField() {
+		t.Fatalf("row types have a different number of fields: bulk=%d skip=%d", bulkType.NumField(), skipType.NumField())
+	}
+
+	for i := 0; i < bulkType.NumField(); i++ {
+		bf := bulkType.Field(i)
+		sf := skipType.Field(i)
+		assert.Equal(t, bf.Name, sf.Name, "field name mismatch at index %d", i)
+		assert.Equal(t, bf.Type, sf.Type, "field %q type mismatch", bf.Name)
+	}
+
+	// Explicitly assert the two fields this bug lost, so a future rename of
+	// either field is caught here even though the loop above would also
+	// catch it as a "field name mismatch".
+	_, bulkHasFailure := bulkType.FieldByName("ChildTaskIsFailure")
+	_, skipHasFailure := skipType.FieldByName("ChildTaskIsFailure")
+	_, bulkHasMessage := bulkType.FieldByName("ChildTaskErrorMessage")
+	_, skipHasMessage := skipType.FieldByName("ChildTaskErrorMessage")
+
+	assert.True(t, bulkHasFailure)
+	assert.True(t, skipHasFailure)
+	assert.True(t, bulkHasMessage)
+	assert.True(t, skipHasMessage)
 }
