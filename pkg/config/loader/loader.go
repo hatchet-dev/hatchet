@@ -47,7 +47,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1alpha"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -874,29 +876,66 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
 	}
 
-	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
-		dc.V1.Scheduler(),
-		dc.V1.Tasks(),
-		concurrencyOutbox,
-		&queueLogger,
-		cf.Runtime.SingleQueueLimit,
-		cf.Runtime.SchedulerConcurrencyRateLimit,
-		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
-		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
-		cf.Runtime.SchedulerCheckActiveMinInterval,
-		cf.Runtime.SchedulerCheckActiveMaxInterval,
-		cf.Runtime.SchedulerAdvisoryLockTimeout,
-		cf.Runtime.OptimisticSchedulingEnabled,
-		cf.Runtime.OptimisticSchedulingSlots,
-		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
-		promGate,
-	)
+	// The v1alpha scheduler is all-or-nothing per shard: the flag selects which
+	// implementation backs the scheduling pool for the whole process.
+	var schedulingPoolV1 scheduling.Pool
+	var cleanupSchedulingPoolV1 func() error
 
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
+	if cf.Runtime.V1AlphaSchedulerEnabled {
+		pool, cleanupPool, err := v1alpha.NewSchedulingPool(
+			dc.V1.Scheduler(),
+			dc.V1.Tasks(),
+			concurrencyOutbox,
+			&queueLogger,
+			cf.Runtime.SingleQueueLimit,
+			cf.Runtime.SchedulerConcurrencyRateLimit,
+			cf.Runtime.SchedulerConcurrencyPollingMinInterval,
+			cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+			cf.Runtime.SchedulerCheckActiveMinInterval,
+			cf.Runtime.SchedulerCheckActiveMaxInterval,
+			cf.Runtime.SchedulerAdvisoryLockTimeout,
+			cf.Runtime.OptimisticSchedulingEnabled,
+			cf.Runtime.OptimisticSchedulingSlots,
+			cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+			promGate,
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create scheduling pool (v1alpha): %w", err)
+		}
+
+		schedulingPoolV1 = pool
+		cleanupSchedulingPoolV1 = cleanupPool
+	} else {
+		pool, cleanupPool, err := v1.NewSchedulingPool(
+			dc.V1.Scheduler(),
+			dc.V1.Tasks(),
+			concurrencyOutbox,
+			&queueLogger,
+			cf.Runtime.SingleQueueLimit,
+			cf.Runtime.SchedulerConcurrencyRateLimit,
+			cf.Runtime.SchedulerConcurrencyPollingMinInterval,
+			cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+			cf.Runtime.SchedulerCheckActiveMinInterval,
+			cf.Runtime.SchedulerCheckActiveMaxInterval,
+			cf.Runtime.SchedulerAdvisoryLockTimeout,
+			cf.Runtime.OptimisticSchedulingEnabled,
+			cf.Runtime.OptimisticSchedulingSlots,
+			cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+			promGate,
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
+		}
+
+		schedulingPoolV1 = pool
+		cleanupSchedulingPoolV1 = cleanupPool
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
+	// the prometheus extension is written against the shared extension contract
+	// in pkg/scheduling, so one registration serves either implementation
+	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")

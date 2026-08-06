@@ -1,0 +1,314 @@
+package v1alpha
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
+	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
+)
+
+type sharedConfig struct {
+	repo v1.SchedulerRepository
+
+	outbox   pgoutbox.Outbox
+	taskRepo v1.TaskRepository
+
+	l *zerolog.Logger
+
+	promGate *prometheus.Gate
+
+	singleQueueLimit int
+
+	schedulerConcurrencyRateLimit int
+
+	schedulerConcurrencyPollingMinInterval time.Duration
+
+	schedulerConcurrencyPollingMaxInterval time.Duration
+
+	schedulerCheckActiveMinInterval time.Duration
+
+	schedulerCheckActiveMaxInterval time.Duration
+
+	schedulerAdvisoryLockTimeout time.Duration
+
+	concurrencyInMemoryIndexEnabled bool
+}
+
+// SchedulingPool is responsible for managing a pool of tenantManagers.
+// the engine selects the pool implementation per shard via scheduling.Pool
+var _ scheduling.Pool = (*SchedulingPool)(nil)
+
+type SchedulingPool struct {
+	Extensions *Extensions
+
+	tenants syncx.Map[uuid.UUID, *tenantManager]
+	setMu   mutex
+
+	cf *sharedConfig
+
+	resultsCh chan *QueueResults
+
+	concurrencyResultsCh chan *ConcurrencyResults
+
+	optimisticSchedulingEnabled bool
+	optimisticSemaphore         chan struct{}
+}
+
+func NewSchedulingPool(
+	repo v1.SchedulerRepository,
+	taskRepo v1.TaskRepository,
+	outbox pgoutbox.Outbox,
+	l *zerolog.Logger,
+	singleQueueLimit int,
+	schedulerConcurrencyRateLimit int,
+	schedulerConcurrencyPollingMinInterval time.Duration,
+	schedulerConcurrencyPollingMaxInterval time.Duration,
+	schedulerCheckActiveMinInterval time.Duration,
+	schedulerCheckActiveMaxInterval time.Duration,
+	schedulerAdvisoryLockTimeout time.Duration,
+	optimisticSchedulingEnabled bool,
+	optimisticSlots int,
+	concurrencyInMemoryIndexEnabled bool,
+	promGate *prometheus.Gate,
+) (*SchedulingPool, func() error, error) {
+	resultsCh := make(chan *QueueResults, 1000)
+	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
+	semaphore := make(chan struct{}, optimisticSlots)
+
+	s := &SchedulingPool{
+		Extensions: &Extensions{},
+		cf: &sharedConfig{
+			repo:                                   repo,
+			outbox:                                 outbox,
+			l:                                      l,
+			promGate:                               promGate,
+			singleQueueLimit:                       singleQueueLimit,
+			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
+			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
+			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
+			schedulerCheckActiveMinInterval:        schedulerCheckActiveMinInterval,
+			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
+			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
+			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			taskRepo:                               taskRepo,
+		},
+		resultsCh:                   resultsCh,
+		concurrencyResultsCh:        concurrencyResultsCh,
+		setMu:                       newMu(l),
+		optimisticSchedulingEnabled: optimisticSchedulingEnabled,
+		optimisticSemaphore:         semaphore,
+	}
+
+	return s, func() error {
+		s.cleanup()
+		return nil
+	}, nil
+}
+
+func (p *SchedulingPool) AddExtension(ext scheduling.SchedulerExtension) {
+	p.Extensions.Add(ext)
+}
+
+func (p *SchedulingPool) GetResultsCh() chan *QueueResults {
+	return p.resultsCh
+}
+
+func (p *SchedulingPool) GetConcurrencyResultsCh() chan *ConcurrencyResults {
+	return p.concurrencyResultsCh
+}
+
+func (p *SchedulingPool) cleanup() {
+	toCleanup := make([]*tenantManager, 0)
+
+	p.tenants.Range(func(key uuid.UUID, value *tenantManager) bool {
+		toCleanup = append(toCleanup, value)
+
+		return true
+	})
+
+	p.cleanupTenants(toCleanup)
+
+	err := p.Extensions.Cleanup()
+
+	if err != nil {
+		p.cf.l.Error().Err(err).Msg("failed to cleanup extensions")
+	}
+}
+
+func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
+	if ok := p.setMu.TryLock(); !ok {
+		return
+	}
+
+	defer p.setMu.Unlock()
+
+	tenantMap := make(map[uuid.UUID]bool)
+
+	for _, t := range tenants {
+		tenantId := t.ID
+		tenantMap[tenantId] = true
+		p.getTenantManager(tenantId, true) // nolint: ineffassign
+	}
+
+	toCleanup := make([]*tenantManager, 0)
+
+	// delete tenants that are not in the list
+	p.tenants.Range(func(tenantId uuid.UUID, value *tenantManager) bool {
+		if _, ok := tenantMap[tenantId]; !ok {
+			toCleanup = append(toCleanup, value)
+		}
+
+		return true
+	})
+
+	// delete each tenant from the map
+	for _, tm := range toCleanup {
+		p.tenants.Delete(tm.tenantId)
+	}
+
+	go func() {
+		// it is safe to cleanup tenants in a separate goroutine because we no longer have pointers to
+		// any cleaned up tenants in the map
+		p.cleanupTenants(toCleanup)
+	}()
+
+	go p.Extensions.SetTenants(tenants)
+}
+
+func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
+	wg := sync.WaitGroup{}
+
+	for _, tm := range toCleanup {
+		wg.Add(1)
+
+		go func(tm *tenantManager) {
+			defer wg.Done()
+
+			if err := tm.Cleanup(); err != nil {
+				tm.l.Error().Err(err).Msg("failed to cleanup tenant manager")
+			}
+
+			if err := p.Extensions.CleanupTenant(tm.tenantId); err != nil {
+				tm.l.Error().Err(err).Msg("failed to cleanup extension metrics for tenant")
+			}
+		}(tm)
+	}
+
+	wg.Wait()
+}
+
+func (p *SchedulingPool) Replenish(ctx context.Context, tenantId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.replenish(ctx)
+	}
+}
+
+func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.queue(ctx, queueNames)
+	}
+}
+
+func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyConcurrency(ctx, strategyIds)
+	}
+}
+
+func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewWorker(ctx, workerId)
+	}
+}
+
+func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewQueue(ctx, queueName)
+	}
+}
+
+func (p *SchedulingPool) NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyNewConcurrencyStrategy(ctx, strategyId)
+	}
+}
+
+func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bool) *tenantManager {
+	tm, ok := p.tenants.Load(tenantId)
+
+	if !ok {
+		if storeIfNotFound {
+			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.Extensions)
+			p.tenants.Store(tenantId, tm)
+		} else {
+			return nil
+		}
+	}
+
+	return tm
+}
+
+// aliased so errors.Is checks in the engine match either scheduler implementation
+var ErrTenantNotFound = scheduling.ErrTenantNotFound
+var ErrNoOptimisticSlots = scheduling.ErrNoOptimisticSlots
+
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
+	if !p.optimisticSchedulingEnabled {
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
+	}
+
+	// attempt to acquire a slot in the semaphore
+	select {
+	case p.optimisticSemaphore <- struct{}{}:
+		// acquired a slot
+		defer func() {
+			<-p.optimisticSemaphore
+		}()
+	default:
+		// no slots available
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
+	}
+
+	tm := p.getTenantManager(tenantId, false)
+
+	if tm == nil {
+		return nil, nil, nil, nil, ErrTenantNotFound
+	}
+
+	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)
+}
+
+func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
+	if !p.optimisticSchedulingEnabled {
+		return nil, nil, ErrNoOptimisticSlots
+	}
+
+	// attempt to acquire a slot in the semaphore
+	select {
+	case p.optimisticSemaphore <- struct{}{}:
+		// acquired a slot
+		defer func() {
+			<-p.optimisticSemaphore
+		}()
+	default:
+		// no slots available
+		return nil, nil, ErrNoOptimisticSlots
+	}
+
+	tm := p.getTenantManager(tenantId, false)
+
+	if tm == nil {
+		return nil, nil, ErrTenantNotFound
+	}
+
+	return tm.runOptimisticSchedulingFromEvents(ctx, opts, localWorkerIds)
+}

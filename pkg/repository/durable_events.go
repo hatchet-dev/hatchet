@@ -650,6 +650,14 @@ func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Cont
 }
 
 func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-and-lock-durable-event-log-file")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: tenantId},
+		telemetry.AttributeKV{Key: "durable_task_id", Value: durableTaskId},
+	)
+
 	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
@@ -714,6 +722,11 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	tx sqlcv1.DBTX,
 	opts GetOrCreateLogEntryOpts,
 ) ([]*EventLogEntryWithPayloads, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-or-create-durable-event-log-entries")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "entry_count", Value: len(opts.Entries)})
+
 	if len(opts.Entries) == 0 {
 		return nil, nil
 	}
@@ -1036,6 +1049,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 }
 
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "ingest-durable-task-event")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: opts.TenantId},
+		telemetry.AttributeKV{Key: "kind", Value: string(opts.Kind)},
+		telemetry.AttributeKV{Key: "invocation_count", Value: opts.InvocationCount},
+	)
+
+	if opts.Task != nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "task_external_id", Value: opts.Task.ExternalID})
+	}
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
 	}

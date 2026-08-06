@@ -417,6 +417,55 @@ WHERE
 GROUP BY
     qi.queue;
 
+-- name: GetQueueSizes :many
+WITH sizes AS (
+    SELECT
+        queue,
+        workflow_id,
+        COUNT(*) AS count
+    FROM
+        v1_queue_item
+    WHERE
+        tenant_id = @tenantId::uuid
+    GROUP BY
+        queue, workflow_id
+)
+SELECT
+    s.queue,
+    w."name" AS workflow_name,
+    SUM(s.count)::bigint AS count
+FROM
+    sizes s
+JOIN "Workflow" w ON w."id" = s.workflow_id
+GROUP BY
+    s.queue, w."name";
+
+-- name: GetQueueSizesByMetadata :many
+WITH working_set AS MATERIALIZED (
+    SELECT
+        qi.queue,
+        t.additional_metadata
+    FROM
+        v1_queue_item qi
+    JOIN v1_task t ON t.id = qi.task_id AND t.inserted_at = qi.task_inserted_at
+    WHERE
+        qi.tenant_id = @tenantId::uuid
+        AND t.additional_metadata IS NOT NULL
+)
+SELECT
+    ws.queue,
+    kv.key::text AS key,
+    (kv.value #>> '{}')::text AS value,
+    COUNT(*) AS count
+FROM
+    working_set ws
+CROSS JOIN LATERAL jsonb_each(ws.additional_metadata) AS kv(key, value)
+WHERE
+    starts_with(kv.key, @keyPrefix::text)
+    AND jsonb_typeof(kv.value) IN ('string', 'number', 'boolean')
+GROUP BY
+    ws.queue, kv.key, (kv.value #>> '{}');
+
 -- name: DeleteTasksFromQueue :exec
 WITH input AS (
     SELECT
