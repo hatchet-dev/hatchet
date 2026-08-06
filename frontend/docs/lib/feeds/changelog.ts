@@ -70,7 +70,7 @@ export function buildChangelogFeed(
   { label, pageSlug }: ChangelogSource,
 ): string {
   const page = `${site}/reference/changelog/${pageSlug}`;
-  const source = path.join(process.cwd(), "pages/reference/changelog", `${pageSlug}.mdx`);
+  const source = path.join(process.cwd(), "content/docs/reference/changelog", `${pageSlug}.mdx`);
 
   const items: FeedItem[] = parseMarkdown(fs.readFileSync(source, "utf-8")).map(
     ({ version, date, body }) => ({

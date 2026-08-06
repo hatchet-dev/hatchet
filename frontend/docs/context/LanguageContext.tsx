@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from "react";
 import { DEFAULT_LANGUAGE } from "@/lib/docs-languages";
 

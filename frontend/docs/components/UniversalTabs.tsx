@@ -1,15 +1,15 @@
+"use client";
+
 import React from "react";
-import { useRouter } from "next/router";
-import { Callout } from "nextra/components";
-import { Tabs } from "./StyledTabs";
+import { Tabs as BaseTabs } from "fumadocs-ui/components/ui/tabs";
+import {
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "fumadocs-ui/components/tabs";
+import { Callout } from "@/components/nextra-compat";
 import { useLanguage } from "../context/LanguageContext";
 import { LOGO_PATHS } from "@/lib/docs-languages";
-
-const tabLabelStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
-};
 
 /** Renders an SVG as a CSS mask filled with currentColor (works in light + dark mode). */
 function ThemedIcon({ src }: { src: string }) {
@@ -37,16 +37,12 @@ function ThemedIcon({ src }: { src: string }) {
 }
 
 /** Returns a logo-enhanced label if a logo exists, otherwise the plain string. */
-function toTabLabel(
-  name: string,
-  basePath: string,
-): string | React.ReactElement {
+function toTabLabel(name: string): React.ReactNode {
   const filename = LOGO_PATHS[name];
   if (!filename) return name;
-  const src = `${basePath}/${filename}`.replace(/\/+/g, "/");
   return (
-    <span style={tabLabelStyle}>
-      <ThemedIcon src={src} />
+    <span className="inline-flex items-center gap-1.5">
+      <ThemedIcon src={`/${filename}`.replace(/\/+/g, "/")} />
       {name}
     </span>
   );
@@ -91,15 +87,32 @@ function resolveSelectedItem(items: string[], value: string): string {
   return match ?? items[0];
 }
 
+interface Panel {
+  title?: string;
+  content: React.ReactNode;
+}
+
+/** Collect ordered panels from `<Tabs.Tab>` children (title is optional). */
+function collectPanels(children: React.ReactNode): Panel[] {
+  const panels: Panel[] = [];
+  React.Children.forEach(children, (child) => {
+    if (
+      React.isValidElement<{ title?: string; children?: React.ReactNode }>(
+        child,
+      )
+    ) {
+      panels.push({ title: child.props.title, content: child.props.children });
+    }
+  });
+  return panels;
+}
+
 export const UniversalTabs: React.FC<UniversalTabsProps> = ({
   items,
   children,
   optionKey = "language",
   variant = "tabs",
 }) => {
-  const router = useRouter();
-  const basePath = router.basePath || "";
-
   const {
     selectedLanguage,
     setSelectedLanguage,
@@ -112,68 +125,58 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
 
   const resolvedValue = resolveSelectedItem(items, selectedValue);
 
-  const handleChange = (index: number) => {
+  const handleChange = (value: string) => {
     if (optionKey === "language") {
-      setSelectedLanguage(items[index]);
+      setSelectedLanguage(value);
     } else {
-      setSelectedOption(optionKey, items[index]);
+      setSelectedOption(optionKey, value);
     }
   };
 
-  const tabLabels = items.map((item) => toTabLabel(item, basePath));
-
-  // Inject early access callout into SDK tabs that are in early access (skip for hidden variant)
-  const processedChildren =
-    optionKey === "language" && variant !== "hidden"
-      ? React.Children.map(children, (child) => {
-          if (
-            React.isValidElement<{
-              title?: string;
-              children?: React.ReactNode;
-            }>(child) &&
-            child.props.title &&
-            EARLY_ACCESS_SDKS.includes(child.props.title)
-          ) {
-            return React.cloneElement(child, {
-              children: (
-                <>
-                  <EarlyAccessCallout language={child.props.title} />
-                  {child.props.children}
-                </>
-              ),
-            });
-          }
-          return child;
-        })
-      : children;
+  const panels = collectPanels(children);
+  const contentFor = (item: string, index: number) => {
+    // match by title when present (hidden-variant pages rely on it),
+    // otherwise pair panels with items by position like the old Tabs did
+    const panel =
+      panels.find(
+        (p) => p.title && p.title.toLowerCase() === item.toLowerCase(),
+      ) ?? panels[index];
+    if (!panel) return null;
+    const isEarlyAccess =
+      optionKey === "language" && EARLY_ACCESS_SDKS.includes(item);
+    return isEarlyAccess ? (
+      <>
+        <EarlyAccessCallout language={item} />
+        {panel.content}
+      </>
+    ) : (
+      panel.content
+    );
+  };
 
   if (variant === "hidden") {
-    const childrenByItem = new Map<string, React.ReactNode>();
-    React.Children.forEach(processedChildren, (child) => {
-      if (
-        React.isValidElement<{ title?: string; children?: React.ReactNode }>(
-          child,
-        ) &&
-        child.props.title
-      ) {
-        const key = resolveSelectedItem(items, child.props.title);
-        childrenByItem.set(key, child.props.children);
-      }
-    });
-    const selectedContent = childrenByItem.get(resolvedValue) ?? null;
-    return <div>{selectedContent}</div>;
+    return <div>{contentFor(resolvedValue, items.indexOf(resolvedValue))}</div>;
   }
 
   return (
-    <Tabs
-      items={tabLabels}
-      selectedIndex={
-        items.includes(resolvedValue) ? items.indexOf(resolvedValue) : 0
-      }
-      onChange={handleChange}
+    <BaseTabs
+      value={resolvedValue}
+      onValueChange={handleChange}
+      className="flex flex-col overflow-hidden rounded-xl border bg-fd-secondary my-4"
     >
-      {processedChildren}
-    </Tabs>
+      <TabsList>
+        {items.map((item) => (
+          <TabsTrigger key={item} value={item}>
+            {toTabLabel(item)}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {items.map((item, i) => (
+        <TabsContent key={item} value={item}>
+          {contentFor(item, i)}
+        </TabsContent>
+      ))}
+    </BaseTabs>
   );
 };
 

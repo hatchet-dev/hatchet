@@ -22,7 +22,7 @@ import { snippets } from "../lib/generated/snippets/index.js";
 // ---------------------------------------------------------------------------
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(SCRIPT_DIR, "..");
-const PAGES_DIR = path.join(DOCS_ROOT, "pages");
+const CONTENT_DIR = path.join(DOCS_ROOT, "content/docs");
 const OUTPUT_DIR = path.join(DOCS_ROOT, "public");
 
 const DOCS_BASE_URL = "https://docs.hatchet.run";
@@ -68,7 +68,7 @@ function resolveSnippetPath(
 }
 
 // ---------------------------------------------------------------------------
-// _meta.js parsing
+// meta.json parsing (fumadocs content layout)
 // ---------------------------------------------------------------------------
 interface DocPage {
   title: string;
@@ -78,69 +78,34 @@ interface DocPage {
   section: string;
 }
 
-/**
- * Parse a _meta.js file into a plain object.
- *
- * **Limitations:** This uses regex to convert simple JS object literals to
- * JSON. It only supports _meta.js files that export a plain object with:
- *   - Simple unquoted or quoted string keys (no computed `[expr]` keys)
- *   - String or plain-object values (no function calls, template literals,
- *     spread operators, or variable references)
- *   - No inline or block comments
- *
- * If your _meta.js file uses any of these unsupported constructs, either
- * simplify it or extend this parser (e.g. with @babel/parser + eval).
- */
-function parseMetaJs(filepath: string): Record<string, any> {
-  const raw = fs.readFileSync(filepath, "utf-8");
-  let content = raw.replace("export default ", "");
-  // Quote unquoted object keys for JSON parsing
-  const pattern = /^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/gm;
-  content = content.replace(pattern, '$1"$2":');
-  // Apply twice to catch keys that were adjacent
-  content = content.replace(pattern, '$1"$2":');
-  // Quote unquoted keys inside inline objects (e.g. { collapsed: true })
-  content = content.replace(
-    /(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/g,
-    '$1"$2":',
-  );
-  // Remove trailing commas before closing braces
-  content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
-  // Strip trailing semicolon from export default {...};
-  content = content.replace(/\s*;\s*$/, "");
-
-  try {
-    return JSON.parse(content);
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Failed to parse _meta.js at ${filepath}: ${message}.\n` +
-        `The regex-based parser only supports simple object literals ` +
-        `(no computed keys, spread operators, comments, or expressions). ` +
-        `Simplify the file or switch to a proper JS parser.\n` +
-        `--- transformed content ---\n${content}`,
-    );
-  }
+interface MetaJson {
+  title?: string;
+  pages?: string[];
 }
 
-function isDocPage(key: string, value: any): boolean {
-  if (key.trim().startsWith("--")) return false;
-  if (key.trim().startsWith("_")) return false;
-  if (typeof value === "string") return true;
-  if (typeof value === "object" && value !== null) {
-    if (value.display === "hidden") return false;
-    if ("title" in value) return true;
-  }
-  return false;
+function readMeta(dir: string): MetaJson | null {
+  const metaPath = path.join(dir, "meta.json");
+  if (!fs.existsSync(metaPath)) return null;
+  return JSON.parse(fs.readFileSync(metaPath, "utf-8"));
 }
 
-function extractTitle(value: any): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && value !== null && "title" in value)
-    return value.title;
-  return "";
+/** Read the `title` field from an MDX file's frontmatter. */
+function readFrontmatterTitle(mdxPath: string): string | null {
+  const src = fs.readFileSync(mdxPath, "utf-8");
+  const fm = /^---\n([\s\S]*?)\n---/.exec(src);
+  if (!fm) return null;
+  const line = fm[1]
+    .split("\n")
+    .find((l) => /^title\s*:/.test(l));
+  if (!line) return null;
+  return line
+    .replace(/^title\s*:\s*/, "")
+    .replace(/^["']|["']$/g, "")
+    .replace(/\\"/g, '"');
 }
+
+const SEPARATOR_RE = /^---.*---$/;
+const LINK_RE = /^\[.*\]\(.*\)$/;
 
 function collectPagesFromDir(
   dir: string,
@@ -148,51 +113,25 @@ function collectPagesFromDir(
   sectionTitle: string,
   pages: DocPage[],
 ): void {
-  const metaPath = path.join(dir, "_meta.js");
-  if (!fs.existsSync(metaPath)) return;
+  const meta = readMeta(dir);
+  if (!meta?.pages) return;
 
-  const meta = parseMetaJs(metaPath);
+  for (const key of meta.pages) {
+    if (SEPARATOR_RE.test(key) || LINK_RE.test(key)) continue;
 
-  for (const [key, value] of Object.entries(meta)) {
-    if (!isDocPage(key, value)) continue;
-
-    const title = extractTitle(value as any);
     const subDir = path.join(dir, key);
-    const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
-
-    // Check if this key is a folder with its own _meta.js (sub-section)
-    const subMetaPath = path.join(subDir, "_meta.js");
-    if (fs.existsSync(subMetaPath)) {
-      // Add the index page for this folder if it exists and isn't hidden
-      const indexMdx = path.join(subDir, "index.mdx");
-      if (fs.existsSync(indexMdx)) {
-        const indexValue = parseMetaJs(subMetaPath)["index"];
-        if (!indexValue || (typeof indexValue === "object" && indexValue.display !== "hidden")) {
-          pages.push({
-            title: title || key,
-            slug: key,
-            href,
-            filepath: indexMdx,
-            section: sectionTitle,
-          });
-        }
-      }
-      // Recurse into sub-section
+    if (fs.existsSync(subDir) && fs.statSync(subDir).isDirectory()) {
       collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
       continue;
     }
 
-    // Plain .mdx file
-    let mdxPath = path.join(dir, key + ".mdx");
-    if (!fs.existsSync(mdxPath)) {
-      mdxPath = path.join(subDir, "index.mdx");
-    }
+    const mdxPath = path.join(dir, key + ".mdx");
     if (!fs.existsSync(mdxPath)) continue;
 
     pages.push({
-      title: title || key,
+      title: readFrontmatterTitle(mdxPath) ?? key,
       slug: key,
-      href,
+      href: `${DOCS_BASE_URL}/${urlPrefix}/${key}`,
       filepath: mdxPath,
       section: sectionTitle,
     });
@@ -202,45 +141,20 @@ function collectPagesFromDir(
 function collectPages(): DocPage[] {
   const pages: DocPage[] = [];
 
-  const rootMetaPath = path.join(PAGES_DIR, "_meta.js");
-  if (!fs.existsSync(rootMetaPath)) return pages;
-
-  const rootMeta = parseMetaJs(rootMetaPath);
-  const sectionOrder = Object.keys(rootMeta).filter(
-    (k) => !k.startsWith("_"),
-  );
+  const rootMeta = readMeta(CONTENT_DIR);
+  if (!rootMeta?.pages) return pages;
 
   // Sections to exclude from search index and llms output
   const EXCLUDED_SECTIONS = new Set(["agent-instructions"]);
 
-  for (const sectionKey of sectionOrder) {
+  for (const sectionKey of rootMeta.pages) {
+    if (SEPARATOR_RE.test(sectionKey) || LINK_RE.test(sectionKey)) continue;
     if (EXCLUDED_SECTIONS.has(sectionKey)) continue;
 
-    const sectionDir = path.join(PAGES_DIR, sectionKey);
-    const sectionMetaPath = path.join(sectionDir, "_meta.js");
+    const sectionDir = path.join(CONTENT_DIR, sectionKey);
+    if (!fs.existsSync(sectionDir)) continue;
 
-    const sectionValue = rootMeta[sectionKey] ?? {};
-    const sectionTitle =
-      typeof sectionValue === "object"
-        ? extractTitle(sectionValue as any)
-        : sectionKey;
-
-    if (!fs.existsSync(sectionMetaPath)) {
-      // Plain top-level .mdx file
-      const mdxPath = path.join(PAGES_DIR, sectionKey + ".mdx");
-      if (fs.existsSync(mdxPath)) {
-        pages.push({
-          title: sectionTitle || sectionKey,
-          slug: sectionKey,
-          href: `${DOCS_BASE_URL}/${sectionKey}`,
-          filepath: mdxPath,
-          section: sectionTitle || sectionKey,
-        });
-      }
-      continue;
-    }
-
-    // Recurse into section directory
+    const sectionTitle = readMeta(sectionDir)?.title ?? sectionKey;
     collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages);
   }
 
@@ -630,7 +544,9 @@ function convertMdxToMarkdown(
   filepath?: string,
   depth?: number,
 ): string {
-  let text = content;
+  // Frontmatter is a rendering concern (sidebar/SEO titles); the markdown
+  // output keeps its in-body `# Heading` instead
+  let text = content.replace(/^---\n[\s\S]*?\n---\n+/, "");
 
   if (filepath) {
     text = resolveMdxComponentImports(

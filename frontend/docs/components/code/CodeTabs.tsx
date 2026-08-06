@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { DOC_LANGUAGES } from "@/lib/docs-languages";
 import UniversalTabs from "../UniversalTabs";
@@ -26,7 +28,7 @@ export const CodeTabs: React.FC<CodeTabsProps> = ({ children }) => {
   const childrenDict = React.useMemo(() => {
     const dict: { [key: string]: React.ReactNode } = {};
     React.Children.forEach(children, (child) => {
-      if (React.isValidElement(child)) {
+      if (React.isValidElement<{ title: string }>(child)) {
         dict[child.props.title] = child;
       }
     });
