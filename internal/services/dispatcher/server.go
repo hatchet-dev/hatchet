@@ -1859,29 +1859,59 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	}
 	d.refreshTimeoutBuf.add(key, increment)
 
-	timeoutAt, err, _ := d.refreshTimeoutGroup.Do(key.String(), func() (interface{}, error) {
-		return d.flushRefreshTimeout(ctx, key)
-	})
+	timeoutAt, err := d.doFlushRefreshTimeout(ctx, key, false)
 	if err != nil {
 		return nil, err
 	}
 
+	// A singleflight leader (often a trailing flush) may have observed an empty
+	// buffer before this call's add() was visible. Force-flush once so our
+	// pending increment is not stranded behind a shared no-op result.
+	if timeoutAt.IsZero() && d.refreshTimeoutBuf.hasPending(key) {
+		timeoutAt, err = d.doFlushRefreshTimeout(ctx, key, true)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if timeoutAt.IsZero() {
+		if estimated, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
+			timeoutAt = estimated
+		} else {
+			return nil, status.Errorf(codes.FailedPrecondition, "could not refresh timeout for task %s", taskExternalId)
+		}
+	}
+
 	return &contracts.RefreshTimeoutResponse{
-		TimeoutAt: timestamppb.New(timeoutAt.(time.Time)),
+		TimeoutAt: timestamppb.New(timeoutAt),
 	}, nil
 }
 
-func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTimeoutKey) (time.Time, error) {
-	if !d.refreshTimeoutBuf.shouldFlush(key) {
+func (d *DispatcherImpl) doFlushRefreshTimeout(ctx context.Context, key refreshTimeoutKey, force bool) (time.Time, error) {
+	result, err, _ := d.refreshTimeoutGroup.Do(key.String(), func() (interface{}, error) {
+		return d.flushRefreshTimeout(ctx, key, force)
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if result == nil {
+		return time.Time{}, nil
+	}
+	return result.(time.Time), nil
+}
+
+func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTimeoutKey, force bool) (time.Time, error) {
+	if !force && !d.refreshTimeoutBuf.shouldFlush(key) {
 		if timeoutAt, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
 			d.refreshTimeoutBuf.scheduleTrailingFlush(key, func(k refreshTimeoutKey) {
 				flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
-				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
-					return d.flushRefreshTimeout(flushCtx, k)
-				})
+				_, err := d.doFlushRefreshTimeout(flushCtx, k, false)
 				if err != nil {
+					if status.Code(err) == codes.NotFound {
+						return
+					}
 					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
 				}
 			})
@@ -1900,7 +1930,12 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
 				return cached, nil
 			}
-			return time.Time{}, fmt.Errorf("no buffered refresh timeout for %s", key)
+			// A singleflight waiter may have add()'d after take saw empty.
+			if d.refreshTimeoutBuf.hasPending(key) {
+				continue
+			}
+			// Empty buffer is a no-op (trailing flush / singleflight race), not an error.
+			return time.Time{}, nil
 		}
 
 		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
@@ -1908,6 +1943,10 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			IncrementTimeoutBy: sum.String(),
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Task runtime is gone (finished/cancelled); drop the buffered increment.
+				return time.Time{}, status.Errorf(codes.NotFound, "could not refresh timeout: task run %s not found or already finished", key.taskExternalId)
+			}
 			// Put the failed sum back so a retry can flush it.
 			d.refreshTimeoutBuf.add(key, sum)
 			return time.Time{}, err
@@ -1916,6 +1955,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 		timeoutAt = taskRuntime.TimeoutAt.Time
 		d.refreshTimeoutBuf.markFlushed(key, timeoutAt)
 
+		// OLAP monitoring is best-effort; the timeout extension already committed.
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(
 			key.tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -1928,11 +1968,9 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			},
 		)
 		if err != nil {
-			return time.Time{}, err
-		}
-
-		if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-			return time.Time{}, err
+			d.l.Error().Err(err).Str("key", key.String()).Msg("could not create timeout refreshed monitoring event")
+		} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			d.l.Error().Err(err).Str("key", key.String()).Msg("could not publish timeout refreshed monitoring event")
 		}
 
 		if !d.refreshTimeoutBuf.hasPending(key) {
