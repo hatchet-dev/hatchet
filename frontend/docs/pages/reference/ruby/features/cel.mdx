@@ -1,0 +1,75 @@
+# Class Hatchet::Features::CEL
+
+**Inherits:** `Object`
+
+CEL client for debugging CEL expressions within Hatchet
+
+This class provides a high-level interface for testing and debugging CEL
+(Common Expression Language) expressions used in filters and conditions.
+
+- **Since** 0.1.0
+
+**Example: Debugging a CEL expression**
+
+```ruby
+result = cel_client.debug(
+  expression: 'input.value > 10',
+  input: { value: 15 }
+)
+if result.result.status == 'success'
+  puts "Output: #{result.result.output}"
+else
+  puts "Error: #{result.result.error}"
+end
+```
+
+## Public Instance Methods
+
+## `debug`
+
+`debug(expression:, input:, additional_metadata: = nil, filter_payload: = nil)`
+
+Debug a CEL expression with provided input and optional metadata
+
+Useful for testing and validating CEL expressions and debugging issues in
+production.
+
+**Parameters:**
+
+| Name                  | Type        | Description                                                                |
+| --------------------- | ----------- | -------------------------------------------------------------------------- |
+| `expression`          | `String`    | The CEL expression to debug                                                |
+| `input`               | `Hash`      | The input, which simulates the workflow run input                          |
+| `additional_metadata` | `Hash, nil` | Additional metadata simulating metadata sent with an event or workflow run |
+| `filter_payload`      | `Hash, nil` | The filter payload simulating a payload set on a previously-created filter |
+
+- **Raises** [RuntimeError] If no response is received from the CEL debug API
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [CELEvaluationResult] A result containing either a CELSuccess or CELFailure
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+result = cel_client.debug(
+  expression: 'input.count > 5 && metadata.env == "prod"',
+  input: { count: 10 },
+  additional_metadata: { env: 'prod' }
+)
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new CEL client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0

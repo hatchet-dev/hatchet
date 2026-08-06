@@ -1,0 +1,212 @@
+# Class Hatchet::Config
+
+**Inherits:** `Object`
+
+Configuration class for Hatchet client settings
+
+This class manages all configuration options for the Hatchet client, including
+token authentication, connection settings, and various client behaviors.
+Configuration can be set via constructor options, environment variables, or
+extracted from JWT tokens.
+
+**Example: Basic configuration**
+
+```ruby
+config = Config.new(token: "your-jwt-token")
+```
+
+**Example: Full configuration with all options**
+
+```ruby
+config = Config.new(
+  token: "your-jwt-token",
+  host_port: "localhost:7070",
+  server_url: "https://api.hatchet.com",
+  namespace: "production",
+  worker_preset_labels: { "env" => "prod", "region" => "us-east-1" }
+)
+```
+
+**Example: Configuration via environment variables**
+
+```ruby
+ENV["HATCHET_CLIENT_TOKEN"] = "your-jwt-token"
+ENV["HATCHET_CLIENT_HOST_PORT"] = "localhost:7070"
+config = Config.new  # Will load from environment
+```
+
+## Constants
+
+## `DEFAULT_GRPC_MAX_MESSAGE_LENGTH`
+
+4MB
+
+## `DEFAULT_HOST_PORT`
+
+## `DEFAULT_SERVER_URL`
+
+## `ENV_FILE_NAMES`
+
+## Attributes
+
+## `grpc_max_recv_message_length`
+
+_Read-write attribute_
+
+- **Returns** [Integer] Maximum gRPC receive message length in bytes
+
+## `grpc_max_send_message_length`
+
+_Read-write attribute_
+
+- **Returns** [Integer] Maximum gRPC send message length in bytes
+
+## `healthcheck`
+
+_Read-write attribute_
+
+Returns the value of attribute healthcheck.
+
+## `host_port`
+
+_Read-write attribute_
+
+- **Returns** [String] gRPC server host and port
+
+## `listener_v2_timeout`
+
+_Read-write attribute_
+
+- **Returns** [Integer, nil] Timeout for listener v2 in milliseconds
+
+## `logger`
+
+_Read-write attribute_
+
+- **Returns** [Logger] Logger instance
+
+## `namespace`
+
+_Read-write attribute_
+
+- **Returns** [String] Namespace prefix for resource names
+
+## `server_url`
+
+_Read-write attribute_
+
+- **Returns** [String] Server URL for HTTP requests
+
+## `tenant_id`
+
+_Read-write attribute_
+
+- **Returns** [String] Tenant ID (extracted from JWT 'sub' field if not provided)
+
+## `tls_config`
+
+_Read-write attribute_
+
+- **Returns** [TLSConfig] TLS configuration
+
+## `token`
+
+_Read-write attribute_
+
+- **Returns** [String] JWT token for authentication
+
+## `worker_preset_labels`
+
+_Read-write attribute_
+
+- **Returns** [Hash\<String, String>] Default labels applied to all workers
+
+## Public Instance Methods
+
+## `apply_namespace`
+
+`apply_namespace(resource_name, namespace_override: = nil)`
+
+Apply namespace prefix to a resource name
+
+**Parameters:**
+
+| Name                 | Type          | Description                                             |
+| -------------------- | ------------- | ------------------------------------------------------- |
+| `resource_name`      | `String, nil` | The resource name to namespace                          |
+| `namespace_override` | `String, nil` | Optional namespace to use instead of the configured one |
+
+- **Returns** [String, nil] The namespaced resource name, or nil if resource_name is nil
+
+**Example: Apply default namespace**
+
+```ruby
+config = Config.new(token: "token", namespace: "prod")
+config.apply_namespace("workflow") #=> "prod_workflow"
+```
+
+**Example: Apply custom namespace**
+
+```ruby
+config.apply_namespace("workflow", namespace_override: "staging_") #=> "staging_workflow"
+```
+
+**Example: Skip namespace if already present**
+
+```ruby
+config.apply_namespace("prod_workflow") #=> "prod_workflow"
+```
+
+## `auth_metadata`
+
+`auth_metadata()`
+
+Returns authentication metadata for gRPC calls.
+
+- **Returns** [Hash\<String, String>] Metadata hash with authorization bearer token
+
+## `hash`
+
+`hash()`
+
+## `initialize`
+
+`initialize(**options)`
+
+Initialize a new configuration instance
+
+Configuration values are loaded in the following priority order:
+
+1.  Explicit constructor options (highest priority)
+2.  Environment variables (HATCHET*CLIENT*\*)
+3.  JWT token payload (for tenant_id from 'sub' field)
+4.  Default values (lowest priority)
+
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+
+**Parameters:**
+
+| Name      | Type   | Description           |
+| --------- | ------ | --------------------- |
+| `options` | `Hash` | Configuration options |
+
+- **Raises** [Error] if token is missing, empty, or not a valid JWT
+- **Returns** [Config] a new instance of Config
+
+## `to_h`
+
+`to_h()`
+
+Convert configuration to a hash representation
+
+- **Returns** [Hash\<Symbol, Object>] Hash containing all configuration values

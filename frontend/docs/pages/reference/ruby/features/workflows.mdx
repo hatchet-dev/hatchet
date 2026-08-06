@@ -1,0 +1,133 @@
+# Class Hatchet::Features::Workflows
+
+**Inherits:** `Object`
+
+Workflows client for managing workflow definitions within Hatchet
+
+Note that workflows are the declaration, _not_ the individual runs. If you're
+looking for runs, use the Runs client instead.
+
+- **Since** 0.1.0
+
+**Example: Getting a workflow**
+
+```ruby
+workflow = workflows_client.get("workflow-id")
+```
+
+**Example: Listing workflows**
+
+```ruby
+workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10)
+```
+
+## Public Instance Methods
+
+## `delete`
+
+`delete(workflow_id)`
+
+Permanently delete a workflow
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+**Parameters:**
+
+| Name          | Type     | Description                      |
+| ------------- | -------- | -------------------------------- |
+| `workflow_id` | `String` | The ID of the workflow to delete |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [void]
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+workflows_client.delete("workflow-123")
+```
+
+## `get`
+
+`get(workflow_id)`
+
+Get a workflow by its ID
+
+**Parameters:**
+
+| Name          | Type     | Description                        |
+| ------------- | -------- | ---------------------------------- |
+| `workflow_id` | `String` | The ID of the workflow to retrieve |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The workflow details
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+workflow = workflows_client.get("workflow-123")
+```
+
+## `get_version`
+
+`get_version(workflow_id, version: = nil)`
+
+Get a workflow version by the workflow ID and an optional version
+
+**Parameters:**
+
+| Name          | Type          | Description                                                     |
+| ------------- | ------------- | --------------------------------------------------------------- |
+| `workflow_id` | `String`      | The ID of the workflow to retrieve the version for              |
+| `version`     | `String, nil` | The version to retrieve. If nil, the latest version is returned |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The workflow version
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+version = workflows_client.get_version("workflow-123", version: "v2")
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Workflows client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(workflow_name: = nil, limit: = nil, offset: = nil)`
+
+List all workflows in the tenant matching optional filters
+
+**Parameters:**
+
+| Name            | Type           | Description                                                       |
+| --------------- | -------------- | ----------------------------------------------------------------- |
+| `workflow_name` | `String, nil`  | The name of the workflow to filter by (namespace will be applied) |
+| `limit`         | `Integer, nil` | The maximum number of items to return                             |
+| `offset`        | `Integer, nil` | The offset to start the list from                                 |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] A list of workflows
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10, offset: 0)
+```

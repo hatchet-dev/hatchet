@@ -1,0 +1,1396 @@
+# Hatchet Go SDK Reference
+
+```go
+import "github.com/hatchet-dev/hatchet/sdks/go"
+```
+
+Define workflows that can declare tasks and be run, scheduled, and so on. Transform functions into Hatchet tasks using a clean, reflection\-based API.
+
+### Basic Usage
+
+```
+client, err := hatchet.NewClient()
+if err != nil {
+	log.Fatal(err)
+}
+
+workflow := client.NewWorkflow("my-workflow",
+	hatchet.WithWorkflowConcurrency(types.Concurrency{
+		Expression: "input.userId",
+		MaxRuns:    5,
+	}))
+fmt.Printf("Workflow name: %s\n", workflow.Name()) // Includes namespace if set
+
+task1 := workflow.NewTask("task-1", MyTaskFunction)
+task2 := workflow.NewTask("task-2", MyOtherTaskFunction,
+	hatchet.WithParents(task1))
+
+worker, err := client.NewWorker("worker-name", hatchet.WithWorkflows(workflow))
+if err != nil {
+	log.Fatal(err)
+}
+
+err = worker.StartBlocking(ctx)
+```
+
+### Examples
+
+For comprehensive examples demonstrating various Hatchet features, see:
+
+- Basic workflow with a single task: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/simple
+- Complex workflows with task dependencies: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/dag
+- Conditional task execution and branching: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/conditions
+- Triggered by external events: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/events
+- Time\-based workflow scheduling: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/cron
+- Error handling and parallel execution: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/retries-concurrency
+- Control execution rate per resource: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/rate-limiting
+- Process multiple items efficiently: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/bulk-operations
+- Nested workflow execution: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/child-workflows
+- Worker affinity and state management: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/sticky-workers
+- Long\-running tasks with state persistence: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/durable
+- Real\-time data processing: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/streaming
+- Task execution prioritization: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/priority
+- Task timeout handling: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/timeouts
+- Workflow and task cancellation: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/cancellations
+- Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/on-failure
+
+View all examples: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples
+
+## Constants
+
+```go
+const (
+    // IdempotencyMethodTTL evicts the idempotency key after a fixed time-to-live window.
+    IdempotencyMethodTTL = create.IdempotencyMethodTTL
+
+    // IdempotencyMethodStatus keeps the idempotency key alive until the associated run
+    // reaches a terminal status. TTL acts as a fallback that caps how long the key can live.
+    IdempotencyMethodStatus = create.IdempotencyMethodStatus
+)
+```
+
+```go
+const EmbeddedDatabaseURLEnv = "HATCHET_CLIENT_EMBEDDED_DATABASE_URL"
+```
+
+## Variables
+
+DefaultDurableTaskEvictionPolicy provides sensible defaults for durable task eviction.
+
+```go
+var DefaultDurableTaskEvictionPolicy = &EvictionPolicy{
+    TTL:                   15 * time.Minute,
+    AllowCapacityEviction: true,
+    Priority:              0,
+}
+```
+
+MinEngineVersion defines minimum engine versions for feature support.
+
+```go
+var MinEngineVersion = struct {
+    SlotConfig      string
+    DurableEviction string
+    Observability   string
+}{
+    SlotConfig:      "v0.78.23",
+    DurableEviction: "v0.80.0",
+    Observability:   "v0.82.0",
+}
+```
+
+## func AndCondition
+
+```go
+func AndCondition(conditions ...condition.Condition) condition.Condition
+```
+
+AndCondition creates a condition that is satisfied when all of the provided conditions are met.
+
+## func EmitDeprecationNotice
+
+```go
+func EmitDeprecationNotice(feature, message string, start time.Time, logger *zerolog.Logger, opts *DeprecationOpts) error
+```
+
+EmitDeprecationNotice emits a time\-aware deprecation notice.
+
+- feature: a short identifier for deduplication \(each feature logs once\).
+- message: the human\-readable deprecation message.
+- start: the UTC time when the deprecation window began.
+- logger: the zerolog logger to write to.
+- opts: optional configuration; pass nil for defaults.
+
+Returns a non\-nil \*DeprecationError only in phase 3 \(\~20% chance\).
+
+## func EventInto
+
+```go
+func EventInto(event EventUnmarshaller, dest any) error
+```
+
+EventInto extracts the event payload from a WaitForEvent result into dest.
+
+```
+event, err := ctx.WaitForEvent("approval:decision", "")
+if err != nil { return err }
+var data map[string]interface{}
+if err := hatchet.EventInto(event, &data); err != nil { return err }
+```
+
+## func OrCondition
+
+```go
+func OrCondition(conditions ...condition.Condition) condition.Condition
+```
+
+OrCondition creates a condition that is satisfied when any of the provided conditions are met.
+
+## func ParentCondition
+
+```go
+func ParentCondition(task *Task, expression string) condition.Condition
+```
+
+ParentCondition creates a condition based on a parent task's output.
+
+## func ParseSemver
+
+```go
+func ParseSemver(v string) (int, int, int)
+```
+
+ParseSemver extracts major, minor, patch from a version string like "v0.78.23". Returns \(0,0,0\) if parsing fails.
+
+## func RegisterEmbeddedBackend
+
+```go
+func RegisterEmbeddedBackend(b EmbeddedBackend)
+```
+
+## func SemverLessThan
+
+```go
+func SemverLessThan(a, b string) bool
+```
+
+SemverLessThan returns true if version a is strictly less than version b.
+
+## func SleepCondition
+
+```go
+func SleepCondition(duration time.Duration) condition.Condition
+```
+
+SleepCondition creates a condition that waits for a specified duration.
+
+## func SupportsDurableEviction
+
+```go
+func SupportsDurableEviction(engineVersion string) (bool, error)
+```
+
+SupportsDurableEviction checks whether the engine version supports durable eviction.
+
+## func UserEventCondition
+
+```go
+func UserEventCondition(eventKey, expression string) condition.Condition
+```
+
+UserEventCondition creates a condition that waits for a user event.
+
+## func WithEmbeddedPostgres
+
+```go
+func WithEmbeddedPostgres(databaseURL string, opts ...EmbeddedOption) v0Client.ClientOpt
+```
+
+## type BatchConfig
+
+BatchConfig configures batching behavior for a batch task. See Workflow.NewBatchTask.
+
+```go
+type BatchConfig = types.BatchConfig
+```
+
+## type BatchMemberId
+
+BatchMemberId identifies a single item within a batch task's input/output map. Its value is the external id of the buffered item's underlying task run.
+
+```go
+type BatchMemberId = string
+```
+
+## type BulkTriggerIdempotencyCollisionError
+
+BulkTriggerIdempotencyCollisionError is returned when one or more runs in a bulk trigger collide on idempotency keys. It carries the IDs of successful runs alongside the individual collision errors.
+
+```go
+type BulkTriggerIdempotencyCollisionError struct {
+    SuccessfulRunExternalIds []string
+    Collisions               []*IdempotencyCollisionError
+}
+```
+
+## func IsBulkTriggerIdempotencyCollisionError
+
+```go
+func IsBulkTriggerIdempotencyCollisionError(err error) (*BulkTriggerIdempotencyCollisionError, bool)
+```
+
+IsBulkTriggerIdempotencyCollisionError checks if the error is a BulkTriggerIdempotencyCollisionError.
+
+## func \(\*BulkTriggerIdempotencyCollisionError\) Error
+
+```go
+func (e *BulkTriggerIdempotencyCollisionError) Error() string
+```
+
+## type Client
+
+Client provides the main interface for interacting with Hatchet.
+
+```go
+type Client struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewClient
+
+```go
+func NewClient(opts ...v0Client.ClientOpt) (*Client, error)
+```
+
+NewClient creates a new Hatchet client. Configuration options can be provided to customize the client behavior.
+
+## func \(\*Client\) CEL
+
+```go
+func (c *Client) CEL() *features.CELClient
+```
+
+CEL returns a client for working with CEL expressions.
+
+## func \(\*Client\) Close
+
+```go
+func (c *Client) Close(ctx context.Context) error
+```
+
+## func \(\*Client\) Crons
+
+```go
+func (c *Client) Crons() *features.CronsClient
+```
+
+Crons returns a client for managing cron triggers.
+
+## func \(\*Client\) Events
+
+```go
+func (c *Client) Events() v0Client.EventClient
+```
+
+Events returns a client for sending and managing events.
+
+## func \(\*Client\) Filters
+
+```go
+func (c *Client) Filters() *features.FiltersClient
+```
+
+Filters returns a client for managing event filters.
+
+## func \(\*Client\) GetEngineVersion
+
+```go
+func (c *Client) GetEngineVersion(ctx context.Context) (string, error)
+```
+
+GetEngineVersion retrieves the engine version from the server.
+
+## func \(\*Client\) Logs
+
+```go
+func (c *Client) Logs() *features.LogsClient
+```
+
+Logs returns a client for managing task logs.
+
+## func \(\*Client\) Metrics
+
+```go
+func (c *Client) Metrics() *features.MetricsClient
+```
+
+Metrics returns a feature client for interacting with workflow and task metrics.
+
+## func \(\*Client\) NewStandaloneBatchTask
+
+```go
+func (c *Client) NewStandaloneBatchTask(name string, fn any, batch BatchConfig, options ...StandaloneTaskOption) *StandaloneTask
+```
+
+NewStandaloneBatchTask creates a standalone batch task that can be triggered independently. This is a specialized workflow containing only one batch task, making it easier to create simple single\-task workflows without the workflow boilerplate.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.Context, input map[string]T) (map[string]R, error)
+```
+
+or, when batch.BroadcastOutput is true:
+
+```
+func(ctx hatchet.Context, input map[string]T) (R, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+Options can be any combination of WorkflowOption and TaskOption.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+## func \(\*Client\) NewStandaloneDurableTask
+
+```go
+func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
+```
+
+NewStandaloneDurableTask creates a standalone durable task that can be triggered independently. This is a specialized workflow containing only one durable task, making it easier to create simple single\-task workflows with durable functionality.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.DurableContext, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+Options can be any combination of WorkflowOption and TaskOption.
+
+## func \(\*Client\) NewStandaloneTask
+
+```go
+func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
+```
+
+NewStandaloneTask creates a standalone task that can be triggered independently. This is a specialized workflow containing only one task, making it easier to create simple single\-task workflows without the workflow boilerplate.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.Context, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+Options can be any combination of WorkflowOption and TaskOption.
+
+## func \(\*Client\) NewWorker
+
+```go
+func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error)
+```
+
+NewWorker creates a worker that can execute workflows.
+
+## func \(\*Client\) NewWorkflow
+
+```go
+func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow
+```
+
+NewWorkflow creates a new workflow definition. Workflows can be configured with triggers, events, and other options.
+
+## func \(\*Client\) RateLimits
+
+```go
+func (c *Client) RateLimits() *features.RateLimitsClient
+```
+
+RateLimits returns a client for managing rate limits.
+
+## func \(\*Client\) Run
+
+```go
+func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error)
+```
+
+Run executes a workflow with the provided input and waits for completion.
+
+## func \(\*Client\) RunMany
+
+```go
+func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error)
+```
+
+RunMany executes multiple workflow instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+
+## func \(\*Client\) RunNoWait
+
+```go
+func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error)
+```
+
+RunNoWait executes a workflow with the provided input without waiting for completion. Returns a workflow run reference that can be used to track the run status.
+
+## func \(\*Client\) Runs
+
+```go
+func (c *Client) Runs() *features.RunsClient
+```
+
+Runs returns a client for managing workflow runs.
+
+## func \(\*Client\) Schedules
+
+```go
+func (c *Client) Schedules() *features.SchedulesClient
+```
+
+Schedules returns a client for managing scheduled workflow runs.
+
+## func \(\*Client\) Webhooks
+
+```go
+func (c *Client) Webhooks() *features.WebhooksClient
+```
+
+Webhooks returns a client for managing webhooks.
+
+## func \(\*Client\) Workers
+
+```go
+func (c *Client) Workers() *features.WorkersClient
+```
+
+Workers returns a client for managing workers.
+
+## func \(\*Client\) Workflows
+
+```go
+func (c *Client) Workflows() *features.WorkflowsClient
+```
+
+Workflows returns a client for managing workflow definitions.
+
+## type Context
+
+Context represents the execution context passed to task functions. It provides access to workflow metadata, retry information, and other execution details.
+
+```go
+type Context = pkgWorker.HatchetContext
+```
+
+## type DeprecationError
+
+DeprecationError is returned when a deprecation grace period has expired.
+
+```go
+type DeprecationError struct {
+    Feature string
+    Message string
+}
+```
+
+## func \(\*DeprecationError\) Error
+
+```go
+func (e *DeprecationError) Error() string
+```
+
+## type DeprecationOpts
+
+DeprecationOpts provides optional configuration for EmitDeprecationNotice.
+
+```go
+type DeprecationOpts struct {
+    // WarnWindow is how long after start the notice is a warning.
+    // Defaults to 90 days if zero.
+    WarnWindow time.Duration
+
+    // ErrorWindow is how long after start the notice is an error log.
+    // After this window, calls have a 20% chance of returning an error.
+    // If zero (default), the error/raise phase is never reached — the notice
+    // stays at error-level logging indefinitely.
+    ErrorWindow time.Duration
+}
+```
+
+## type DesiredWorkerLabel
+
+```go
+type DesiredWorkerLabel = types.DesiredWorkerLabel
+```
+
+## type DurableContext
+
+DurableContext represents the execution context for durable tasks. It extends Context with additional methods for durable operations like SleepFor.
+
+```go
+type DurableContext = pkgWorker.DurableHatchetContext
+```
+
+## type EmbeddedBackend
+
+```go
+type EmbeddedBackend func(ctx context.Context, cfg EmbeddedConfig) (shutdown func(context.Context) error, err error)
+```
+
+## type EmbeddedConfig
+
+```go
+type EmbeddedConfig struct {
+    GRPCPort      *int
+    APIPort       *int
+    StartAPI      *bool
+    RunMigrations *bool
+    RabbitMQURL   *string
+    LogLevel      *string
+    DatabaseURL   string
+}
+```
+
+## type EmbeddedOption
+
+```go
+type EmbeddedOption func(*EmbeddedConfig)
+```
+
+## func WithEmbeddedAPIPort
+
+```go
+func WithEmbeddedAPIPort(port int) EmbeddedOption
+```
+
+## func WithEmbeddedGRPCPort
+
+```go
+func WithEmbeddedGRPCPort(port int) EmbeddedOption
+```
+
+## func WithEmbeddedLogLevel
+
+```go
+func WithEmbeddedLogLevel(level string) EmbeddedOption
+```
+
+## func WithEmbeddedRabbitMQ
+
+```go
+func WithEmbeddedRabbitMQ(url string) EmbeddedOption
+```
+
+## func WithoutEmbeddedAPI
+
+```go
+func WithoutEmbeddedAPI() EmbeddedOption
+```
+
+## func WithoutEmbeddedMigrations
+
+```go
+func WithoutEmbeddedMigrations() EmbeddedOption
+```
+
+## type EventUnmarshaller
+
+EventUnmarshaller is implemented by the result of DurableContext.WaitForEvent. Use EventInto to extract the event payload.
+
+```go
+type EventUnmarshaller interface {
+    Unmarshal(dest any) error
+}
+```
+
+## type EvictionNotSupportedError
+
+EvictionNotSupportedError is returned when an eviction policy is configured against an engine version that does not support durable\-task eviction.
+
+```go
+type EvictionNotSupportedError struct {
+    EngineVersion string
+}
+```
+
+## func IsEvictionNotSupportedError
+
+```go
+func IsEvictionNotSupportedError(err error) (*EvictionNotSupportedError, bool)
+```
+
+IsEvictionNotSupportedError reports whether err is an EvictionNotSupportedError.
+
+## func \(\*EvictionNotSupportedError\) Error
+
+```go
+func (e *EvictionNotSupportedError) Error() string
+```
+
+## type EvictionPolicy
+
+EvictionPolicy configures how durable tasks are evicted from worker slots when they are in a waiting state \(e.g. sleeping, waiting for events, waiting for children\).
+
+```go
+type EvictionPolicy struct {
+    // TTL is the maximum continuous waiting duration before TTL-eligible eviction.
+    // A zero value means no TTL-based eviction.
+    TTL time.Duration
+
+    // AllowCapacityEviction controls whether this task may be evicted under durable-slot pressure.
+    AllowCapacityEviction bool
+
+    // Priority determines eviction order when multiple candidates exist.
+    // Lower values are evicted first.
+    Priority int
+}
+```
+
+## type IdempotencyCollisionError
+
+IdempotencyCollisionError is returned when an idempotency key collision occurs. It contains the ID of the existing run that claimed the key.
+
+```go
+type IdempotencyCollisionError struct {
+    ExistingRunExternalId string
+}
+```
+
+## func IsIdempotencyCollisionError
+
+```go
+func IsIdempotencyCollisionError(err error) (*IdempotencyCollisionError, bool)
+```
+
+IsIdempotencyCollisionError checks if the error is an IdempotencyCollisionError.
+
+## func \(\*IdempotencyCollisionError\) Error
+
+```go
+func (e *IdempotencyCollisionError) Error() string
+```
+
+## type IdempotencyConfig
+
+IdempotencyConfig configures idempotency behavior for a workflow or standalone task. When set, runs triggered with the same computed key return an IdempotencyCollisionError instead of creating a new run. The Method controls how long the key lives: TTL evicts after a fixed window, while STATUS keeps the key until the run reaches a terminal status \(using TTL as a fallback cap\).
+
+```go
+type IdempotencyConfig struct {
+    // Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
+    Expression string
+
+    // TTL is the duration during which duplicate runs with the same key are rejected.
+    // When Method is STATUS, this acts as a fallback: the longest the key can live before it's evicted.
+    TTL time.Duration
+
+    // Method determines how the idempotency key's lifetime is managed. Defaults to TTL.
+    Method IdempotencyMethod
+}
+```
+
+## type IdempotencyMethod
+
+IdempotencyMethod determines how the lifetime of an idempotency key is managed.
+
+```go
+type IdempotencyMethod = create.IdempotencyMethod
+```
+
+## type NonDeterminismError
+
+NonDeterminismError is returned when a durable task replay detects non\-deterministic behavior.
+
+```go
+type NonDeterminismError struct {
+    TaskExternalID  string
+    Message         string
+    NodeID          int64
+    InvocationCount int32
+}
+```
+
+## func IsNonDeterminismError
+
+```go
+func IsNonDeterminismError(err error) (*NonDeterminismError, bool)
+```
+
+IsNonDeterminismError checks if the error is a NonDeterminismError and returns it if so.
+
+## func \(\*NonDeterminismError\) Error
+
+```go
+func (e *NonDeterminismError) Error() string
+```
+
+## type RunManyOpt
+
+RunManyOpt is a type that represents the options for running multiple instances of a workflow with different inputs and options.
+
+```go
+type RunManyOpt struct {
+    Input any
+    Opts  []RunOptFunc
+}
+```
+
+## type RunOptFunc
+
+```go
+type RunOptFunc func(*runOpts)
+```
+
+## func WithDesiredWorkerLabels
+
+```go
+func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc
+```
+
+WithDesiredWorkerLabels sets desired worker labels for routing the workflow run to specific workers.
+
+## func WithRunKey
+
+```go
+func WithRunKey(key string) RunOptFunc
+```
+
+WithRunKey sets the key for the child workflow run.
+
+## func WithRunMetadata
+
+```go
+func WithRunMetadata(metadata map[string]string) RunOptFunc
+```
+
+WithRunMetadata sets the additional metadata for the workflow run.
+
+## func WithRunPriority
+
+```go
+func WithRunPriority(priority RunPriority) RunOptFunc
+```
+
+WithRunPriority sets the priority for the workflow run.
+
+## func WithRunSticky
+
+```go
+func WithRunSticky(sticky bool) RunOptFunc
+```
+
+WithRunSticky enables stickiness for the child workflow run.
+
+## type RunPriority
+
+```go
+type RunPriority = features.RunPriority
+```
+
+## type StandaloneTask
+
+StandaloneTask represents a single task that runs independently without a workflow wrapper. It's essentially a specialized workflow containing only one task.
+
+```go
+type StandaloneTask struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*StandaloneTask\) Dump
+
+```go
+func (st *StandaloneTask) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn)
+```
+
+Dump implements the WorkflowBase interface for internal use.
+
+## func \(\*StandaloneTask\) GetName
+
+```go
+func (st *StandaloneTask) GetName() string
+```
+
+GetName returns the name of the standalone task.
+
+## func \(\*StandaloneTask\) OnFailure
+
+```go
+func (st *StandaloneTask) OnFailure(fn any)
+```
+
+OnFailure sets a failure handler for the standalone task. The handler will be called when the standalone task fails.
+
+## func \(\*StandaloneTask\) Run
+
+```go
+func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error)
+```
+
+Run executes the standalone task with the provided input and waits for completion.
+
+## func \(\*StandaloneTask\) RunMany
+
+```go
+func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)
+```
+
+RunMany executes multiple standalone task instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+
+## func \(\*StandaloneTask\) RunNoWait
+
+```go
+func (st *StandaloneTask) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error)
+```
+
+RunNoWait executes the standalone task with the provided input without waiting for completion. Returns a workflow run reference that can be used to track the run status.
+
+## type StandaloneTaskOption
+
+StandaloneTaskOption represents options that can be applied to standalone tasks. This interface allows both WorkflowOption and TaskOption to be used interchangeably.
+
+```go
+type StandaloneTaskOption any
+```
+
+## type Task
+
+Task represents a task reference for building DAGs and conditions.
+
+```go
+type Task struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*Task\) GetName
+
+```go
+func (t *Task) GetName() string
+```
+
+Name returns the name of the task.
+
+## type TaskOption
+
+TaskOption configures a task instance.
+
+```go
+type TaskOption func(*taskConfig)
+```
+
+## func WithConcurrency
+
+```go
+func WithConcurrency(concurrency ...*types.Concurrency) TaskOption
+```
+
+WithConcurrency sets concurrency limits for task execution.
+
+## func WithCron
+
+```go
+func WithCron(cronExpressions ...string) TaskOption
+```
+
+WithCron configures standalone tasks to run on a cron schedule. Only applicable to standalone tasks, not workflow tasks.
+
+## func WithDescription
+
+```go
+func WithDescription(description string) TaskOption
+```
+
+WithDescription sets a human\-readable description for the task.
+
+## func WithEvents
+
+```go
+func WithEvents(events ...string) TaskOption
+```
+
+WithEvents configures standalone tasks to trigger on specific events. Only applicable to standalone tasks, not workflow tasks.
+
+## func WithEvictionPolicy
+
+```go
+func WithEvictionPolicy(policy *EvictionPolicy) TaskOption
+```
+
+WithEvictionPolicy sets the eviction policy for a durable task.
+
+## func WithExecutionTimeout
+
+```go
+func WithExecutionTimeout(timeout time.Duration) TaskOption
+```
+
+WithExecutionTimeout sets the maximum execution duration for a task.
+
+## func WithParents
+
+```go
+func WithParents(parents ...*Task) TaskOption
+```
+
+WithParents sets parent task dependencies.
+
+## func WithRateLimits
+
+```go
+func WithRateLimits(rateLimits ...*types.RateLimit) TaskOption
+```
+
+WithRateLimits sets rate limiting for task execution.
+
+## func WithRetries
+
+```go
+func WithRetries(retries int) TaskOption
+```
+
+WithRetries sets the number of retry attempts for failed tasks.
+
+## func WithRetryBackoff
+
+```go
+func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption
+```
+
+WithRetryBackoff configures exponential backoff for task retries.
+
+## func WithScheduleTimeout
+
+```go
+func WithScheduleTimeout(timeout time.Duration) TaskOption
+```
+
+WithScheduleTimeout sets the maximum time a task can wait to be scheduled.
+
+## func WithSkipIf
+
+```go
+func WithSkipIf(condition condition.Condition) TaskOption
+```
+
+WithSkipIf sets a condition that will skip the task if met.
+
+## func WithSlotCost
+
+```go
+func WithSlotCost(cost int) TaskOption
+```
+
+WithSlotCost sets the number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it. Durable tasks ignore it. Panics if cost is not positive.
+
+## func WithWaitFor
+
+```go
+func WithWaitFor(condition condition.Condition) TaskOption
+```
+
+WithWaitFor sets a condition that must be met before the task executes.
+
+## type TaskResult
+
+TaskResult wraps a single task's output and provides type\-safe conversion methods.
+
+```go
+type TaskResult struct {
+    RunId string
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*TaskResult\) Into
+
+```go
+func (tr *TaskResult) Into(dest any) error
+```
+
+Into converts the task result into the provided destination using JSON marshal/unmarshal. The destination should be a pointer to the desired type.
+
+Example usage:
+
+```
+var output MyOutputType
+err := taskResult.Into(&output)
+```
+
+## type Worker
+
+Worker represents a worker that can execute workflows.
+
+```go
+type Worker struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*Worker\) Start
+
+```go
+func (w *Worker) Start() (func() error, error)
+```
+
+Starts the worker instance and returns a cleanup function.
+
+## func \(\*Worker\) StartBlocking
+
+```go
+func (w *Worker) StartBlocking(ctx context.Context) error
+```
+
+StartBlocking starts the worker and blocks until it completes. This is a convenience method for common usage patterns.
+
+## func \(\*Worker\) Use
+
+```go
+func (w *Worker) Use(mws ...worker.MiddlewareFunc)
+```
+
+Use registers middleware functions on the worker. Middleware functions are called in order for each step run execution.
+
+## type WorkerLabelComparator
+
+```go
+type WorkerLabelComparator = types.WorkerLabelComparator
+```
+
+## type WorkerOption
+
+WorkerOption configures a worker instance.
+
+```go
+type WorkerOption func(*workerConfig)
+```
+
+## func WithDurableSlots
+
+```go
+func WithDurableSlots(durableSlots int) WorkerOption
+```
+
+WithDurableSlots sets the maximum number of concurrent durable task runs.
+
+## func WithLabels
+
+```go
+func WithLabels(labels map[string]any) WorkerOption
+```
+
+WithLabels assigns labels to the worker for task routing.
+
+## func WithLogger
+
+```go
+func WithLogger(logger *zerolog.Logger) WorkerOption
+```
+
+WithLogger sets a custom logger for the worker.
+
+## func WithPanicHandler
+
+```go
+func WithPanicHandler(panicHandler func(ctx Context, recovered any)) WorkerOption
+```
+
+WithPanicHandler sets a custom panic handler for the worker.
+
+recovered is the non\-nil value that was obtained after calling recover\(\)
+
+## func WithSlots
+
+```go
+func WithSlots(slots int) WorkerOption
+```
+
+WithSlots sets the maximum number of concurrent workflow runs.
+
+## func WithWorkflows
+
+```go
+func WithWorkflows(workflows ...WorkflowBase) WorkerOption
+```
+
+WithWorkflows registers workflows and standalone tasks with the worker. Both workflows and standalone tasks implement the WorkflowBase interface.
+
+## type Workflow
+
+Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
+
+```go
+type Workflow struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*Workflow\) Dump
+
+```go
+func (w *Workflow) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn)
+```
+
+Dump implements the WorkflowBase interface for internal use.
+
+## func \(\*Workflow\) GetName
+
+```go
+func (w *Workflow) GetName() string
+```
+
+GetName returns the resolved workflow name \(including namespace if applicable\).
+
+## func \(\*Workflow\) NewBatchTask
+
+```go
+func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options ...TaskOption) *Task
+```
+
+NewBatchTask transforms a function into a Hatchet batch task that runs as part of a workflow. Batch tasks buffer concurrent runs until Hatchet flushes the batch \(size reached or flush interval\), then invoke the handler once with all buffered inputs keyed by each run's external id \(BatchMemberId\). retries is always forced to 0 for batch tasks.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.Context, input map[string]T) (map[string]R, error)
+```
+
+or, when batch.BroadcastOutput is true \(the same result is returned to every caller\):
+
+```
+func(ctx hatchet.Context, input map[string]T) (R, error)
+```
+
+Function signatures are validated at runtime using reflection. Batch tasks cannot be durable.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+## func \(\*Workflow\) NewDurableTask
+
+```go
+func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task
+```
+
+NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.DurableContext, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+## func \(\*Workflow\) NewTask
+
+```go
+func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task
+```
+
+NewTask transforms a function into a Hatchet task that runs as part of a workflow.
+
+The function parameter must have the signature:
+
+```
+func(ctx hatchet.Context, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+## func \(\*Workflow\) OnFailure
+
+```go
+func (w *Workflow) OnFailure(fn any)
+```
+
+OnFailure sets a failure handler for the workflow. The handler will be called when any task in the workflow fails.
+
+## func \(\*Workflow\) Run
+
+```go
+func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error)
+```
+
+Run executes the workflow with the provided input and waits for completion.
+
+## func \(\*Workflow\) RunMany
+
+```go
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)
+```
+
+RunMany executes multiple workflow instances with different inputs.
+
+## func \(\*Workflow\) RunNoWait
+
+```go
+func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error)
+```
+
+RunNoWait executes the workflow with the provided input without waiting for completion. Returns a workflow run reference that can be used to track the run status.
+
+## type WorkflowBase
+
+```go
+type WorkflowBase interface {
+    GetName() string
+    OnFailure(fn any)
+
+    // Internal use only. Will be removed in the future.
+    Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn)
+}
+```
+
+## type WorkflowOption
+
+WorkflowOption configures a workflow instance.
+
+```go
+type WorkflowOption func(*workflowConfig)
+```
+
+## func WithDefaultFilters
+
+```go
+func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption
+```
+
+WithDefaultFilters sets default filters for event\-triggered workflows or standalone tasks.
+
+## func WithWorkflowConcurrency
+
+```go
+func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption
+```
+
+WithWorkflowConcurrency sets concurrency controls for the workflow.
+
+## func WithWorkflowCron
+
+```go
+func WithWorkflowCron(cronExpressions ...string) WorkflowOption
+```
+
+WithWorkflowCron configures the workflow to run on a cron schedule. Multiple cron expressions can be provided.
+
+## func WithWorkflowCronInput
+
+```go
+func WithWorkflowCronInput(input any) WorkflowOption
+```
+
+WithWorkflowCronInput sets the input for cron workflows.
+
+## func WithWorkflowDefaultPriority
+
+```go
+func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption
+```
+
+WithWorkflowDefaultPriority sets the default priority for the workflow.
+
+## func WithWorkflowDescription
+
+```go
+func WithWorkflowDescription(description string) WorkflowOption
+```
+
+WithWorkflowDescription sets a human\-readable description for the workflow.
+
+## func WithWorkflowEvents
+
+```go
+func WithWorkflowEvents(events ...string) WorkflowOption
+```
+
+WithWorkflowEvents configures the workflow to trigger on specific events.
+
+## func WithWorkflowIdempotency
+
+```go
+func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption
+```
+
+WithWorkflowIdempotency configures idempotency for the workflow. When set, runs triggered with the same computed key within the TTL window return an IdempotencyCollisionError instead of creating a new run.
+
+## func WithWorkflowStickyStrategy
+
+```go
+func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption
+```
+
+WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
+
+## func WithWorkflowTaskDefaults
+
+```go
+func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption
+```
+
+WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
+
+## func WithWorkflowVersion
+
+```go
+func WithWorkflowVersion(version string) WorkflowOption
+```
+
+WithWorkflowVersion sets the version identifier for the workflow.
+
+## type WorkflowResult
+
+WorkflowResult wraps workflow execution results and provides type\-safe conversion methods.
+
+```go
+type WorkflowResult struct {
+    RunId string
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*WorkflowResult\) Raw
+
+```go
+func (wr *WorkflowResult) Raw() any
+```
+
+Raw returns the raw workflow result as interface\{\}.
+
+## func \(\*WorkflowResult\) TaskOutput
+
+```go
+func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult
+```
+
+TaskOutput extracts the output of a specific task from the workflow result. Returns a TaskResult that can be used to convert the task output into the desired type.
+
+Example usage:
+
+```
+taskResult := workflowResult.TaskOutput("myTask")
+var output MyOutputType
+err := taskResult.Into(&output)
+```
+
+## type WorkflowRunRef
+
+WorkflowRunRef is a type that represents a reference to a workflow run.
+
+```go
+type WorkflowRunRef struct {
+    RunId string
+    // contains filtered or unexported fields
+}
+```
+
+## func \(\*WorkflowRunRef\) Result
+
+```go
+func (wr *WorkflowRunRef) Result() (*WorkflowResult, error)
+```
+
+V0Workflow returns the underlying v0Client.Workflow.
+
+Generated by [gomarkdoc](https://github.com/princjef/gomarkdoc)

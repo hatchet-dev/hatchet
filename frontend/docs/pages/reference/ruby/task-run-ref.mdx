@@ -1,0 +1,49 @@
+# Class Hatchet::TaskRunRef
+
+**Inherits:** `Object`
+
+Reference to a running standalone task, returned by `Task#run_no_wait`.
+
+Wraps a `WorkflowRunRef` and automatically extracts the task-specific output
+from the workflow-level result. For a task named "my_task", calling `result`
+returns the task output directly (e.g. `{"value" => 42}`) instead of the full
+keyed output (`{"my_task" => {"value" => 42}}`).
+
+**Example**
+
+```ruby
+ref = my_task.run_no_wait(input)
+output = ref.result  # => {"value" => 42}
+```
+
+## Attributes
+
+## `workflow_run_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The workflow run ID
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(workflow_run_ref:, task_name:)`
+
+**Parameters:**
+
+| Name               | Type             | Description                           |
+| ------------------ | ---------------- | ------------------------------------- |
+| `workflow_run_ref` | `WorkflowRunRef` | The underlying workflow run reference |
+| `task_name`        | `Symbol, String` | The task name used to extract output  |
+
+- **Returns** [TaskRunRef] a new instance of TaskRunRef
+
+## `result`
+
+`result()`
+
+Block until the task completes and return the extracted task output
+
+- **Raises** [Hatchet::FailedRunError] if the workflow run failed
+- **Returns** [Hash] The task output

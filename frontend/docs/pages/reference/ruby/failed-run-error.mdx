@@ -1,0 +1,27 @@
+# Class Hatchet::FailedRunError
+
+**Inherits:** `Error`
+
+Raised when a workflow run fails with one or more task errors
+
+## Attributes
+
+## `exceptions`
+
+_Read-only attribute_
+
+- **Returns** [Array\<TaskRunError>] The individual task run errors
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(exceptions)`
+
+**Parameters:**
+
+| Name         | Type                  | Description |
+| ------------ | --------------------- | ----------- |
+| `exceptions` | `Array<TaskRunError>` |             |
+
+- **Returns** [FailedRunError] a new instance of FailedRunError

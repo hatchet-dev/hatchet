@@ -46,9 +46,13 @@ export default {
       },
       go: {
         title: "Go SDK",
-        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
+        href: "/reference/go",
         type: "page",
-        newWindow: true,
+      },
+      ruby: {
+        title: "Ruby SDK",
+        href: "/reference/ruby",
+        type: "page",
       },
     },
   },

@@ -1,0 +1,58 @@
+# Class Hatchet::Features::RateLimits
+
+**Inherits:** `Object`
+
+Rate Limits client for managing rate limits within Hatchet
+
+This class provides a high-level interface for creating and updating rate
+limits using the gRPC Admin client.
+
+- **Since** 0.1.0
+
+**Example: Setting a rate limit**
+
+```ruby
+rate_limits_client.put(key: "api-calls", limit: 100, duration: :SECOND)
+```
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(admin_grpc, config)`
+
+Initializes a new RateLimits client instance
+
+**Parameters:**
+
+| Name         | Type                            | Description               |
+| ------------ | ------------------------------- | ------------------------- |
+| `admin_grpc` | `Hatchet::Clients::Grpc::Admin` | The gRPC Admin client     |
+| `config`     | `Hatchet::Config`               | The Hatchet configuration |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `put`
+
+`put(key:, limit:, duration: = :SECOND)`
+
+Put a rate limit for a given key
+
+**Parameters:**
+
+| Name       | Type      | Description                                              |
+| ---------- | --------- | -------------------------------------------------------- |
+| `key`      | `String`  | The key to set the rate limit for                        |
+| `limit`    | `Integer` | The rate limit to set                                    |
+| `duration` | `Symbol`  | The duration of the rate limit (:SECOND, :MINUTE, :HOUR) |
+
+- **Raises** [GRPC::BadStatus] If the gRPC request fails
+- **Returns** [void]
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+rate_limits_client.put(key: "api-calls", limit: 100, duration: :SECOND)
+```

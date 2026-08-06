@@ -1,0 +1,34 @@
+# Class Hatchet::TaskRunError
+
+**Inherits:** `Error`
+
+Represents an error from a failed task run
+
+## Attributes
+
+## `exc`
+
+_Read-only attribute_
+
+- **Returns** [String] The error message from the task
+
+## `task_run_external_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The external ID of the failed task run
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(message, task_run_external_id: = nil)`
+
+**Parameters:**
+
+| Name                   | Type     | Description                            |
+| ---------------------- | -------- | -------------------------------------- |
+| `message`              | `String` | Error message                          |
+| `task_run_external_id` | `String` | The external ID of the failed task run |
+
+- **Returns** [TaskRunError] a new instance of TaskRunError

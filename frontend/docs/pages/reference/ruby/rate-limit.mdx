@@ -1,0 +1,79 @@
+# Class Hatchet::RateLimit
+
+**Inherits:** `Object`
+
+Defines a rate limit for a task
+
+**Example: Static rate limit**
+
+```ruby
+Hatchet::RateLimit.new(static_key: "api-calls", units: 1)
+```
+
+**Example: Dynamic rate limit per user**
+
+```ruby
+Hatchet::RateLimit.new(
+  dynamic_key: "input.user_id",
+  units: 1,
+  limit: 10,
+  duration: :minute
+)
+```
+
+## Attributes
+
+## `duration`
+
+_Read-only attribute_
+
+- **Returns** [Symbol, nil] Duration window for the rate limit
+
+## `dynamic_key`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Dynamic rate limit key (CEL expression)
+
+## `limit`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Maximum number of units allowed in the duration
+
+## `static_key`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Static rate limit key
+
+## `units`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Number of units consumed per execution
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(static_key: = nil, dynamic_key: = nil, units: = 1, limit: = nil, duration: = nil)`
+
+**Parameters:**
+
+| Name          | Type           | Description                                     |
+| ------------- | -------------- | ----------------------------------------------- |
+| `static_key`  | `String, nil`  | Static rate limit key                           |
+| `dynamic_key` | `String, nil`  | Dynamic rate limit key expression               |
+| `units`       | `Integer`      | Units consumed per execution                    |
+| `limit`       | `Integer, nil` | Max units in the duration window                |
+| `duration`    | `Symbol, nil`  | Duration window (:second, :minute, :hour, etc.) |
+
+- **Raises** [ArgumentError]
+- **Returns** [RateLimit] a new instance of RateLimit
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

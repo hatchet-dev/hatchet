@@ -1,0 +1,44 @@
+# Class Hatchet::HealthcheckConfig
+
+**Inherits:** `Object`
+
+Healthcheck configuration for worker health monitoring
+
+**Example: Enable healthcheck on custom port**
+
+```ruby
+healthcheck = HealthcheckConfig.new(enabled: true, port: 8080)
+```
+
+## Attributes
+
+## `enabled`
+
+_Read-write attribute_
+
+Returns the value of attribute enabled.
+
+## `port`
+
+_Read-write attribute_
+
+- **Returns** [Integer] Port number for healthcheck endpoint
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(**options)`
+
+Initialize healthcheck configuration
+
+- **Option** `options`
+- **Option** `options`
+
+**Parameters:**
+
+| Name      | Type   | Description                       |
+| --------- | ------ | --------------------------------- |
+| `options` | `Hash` | Healthcheck configuration options |
+
+- **Returns** [HealthcheckConfig] a new instance of HealthcheckConfig

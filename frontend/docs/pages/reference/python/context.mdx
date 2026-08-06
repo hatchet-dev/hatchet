@@ -1,15 +1,18 @@
 # Context
 
-The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+The Hatchet Context class provides helper methods and useful data to tasks at runtime.
+
+- For **tasks** and **durable tasks**, it is passed as the second argument (`fn(input, ctx)`).
+- For **batch tasks**, it is paired with each input as a tuple (`fn(tasks)` where `tasks: list[tuple[input, Context]]`).
 
 There are two types of context classes you'll encounter:
 
-- `Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
-- `DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`.
+- `Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more
+- `DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`
 
 ## Context
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -293,7 +296,7 @@ Returns:
 
 Bases: `Context`
 
-### Methods
+Methods:
 
 | Name            | Description                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -308,10 +311,11 @@ Durably wait for either a sleep or an event.
 
 Parameters:
 
-| Name          | Type                                              | Description                                                                                  | Default    |
-| ------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
-| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
-| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
+| Name          | Type                                              | Description                                                                                                                                                 | Default    |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API.                                                                | _required_ |
+| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                                                                                  | `()`       |
+| `label`       | `str \| None`                                     | An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
 
 Returns:
 
@@ -331,3 +335,16 @@ Raises:
 Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
 For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name       | Type          | Description                                                                                                                                                  | Default    |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `duration` | `Duration`    | The duration to sleep for. Should be a timedelta object.                                                                                                     | _required_ |
+| `label`    | `str \| None` | An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
+
+Returns:
+
+| Type          | Description                                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SleepResult` | A SleepResult object containing the actual duration slept, which may be different from the requested duration in cases of durable eviction and resumption. |

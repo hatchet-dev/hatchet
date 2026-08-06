@@ -163,6 +163,10 @@ export function LanguageSelectorButton() {
   const { selectedLanguage } = useLanguage();
   const current = resolveSelected(selectedLanguage);
 
+  if (/^\/reference\/(python|typescript|go|ruby)/.test(router.pathname)) {
+    return null;
+  }
+
   return (
     <div className="relative ml-auto">
       <Dialog>

@@ -1,0 +1,61 @@
+# Module Hatchet::ConditionConverter
+
+Shared logic for converting condition objects into protobuf messages.
+
+Used by both Task (for workflow registration) and DurableContext (for runtime
+durable event registration) to avoid duplicating the condition processing
+logic.
+
+## Public Class Methods
+
+## `convert_condition`
+
+`convert_condition(cond, action:, sleep_conditions:, user_event_conditions:, or_group_id: = nil, readable_data_key: = nil, proto_method: = :to_proto, proto_arg: = nil, config: = nil)`
+
+Convert a single condition into the appropriate protobuf message and append it
+to the provided accumulator arrays.
+
+**Parameters:**
+
+| Name                    | Type          | Description                                                                        |
+| ----------------------- | ------------- | ---------------------------------------------------------------------------------- |
+| `cond`                  | `Object`      | The condition (SleepCondition, UserEventCondition, Hash, or duck-typed)            |
+| `action`                | `Symbol`      | Proto action (:QUEUE or :SKIP)                                                     |
+| `sleep_conditions`      | `Array`       | Accumulator for sleep condition protos                                             |
+| `user_event_conditions` | `Array`       | Accumulator for user event condition protos                                        |
+| `or_group_id`           | `String, nil` | Shared OR group ID (defaults to a new UUID)                                        |
+| `readable_data_key`     | `String, nil` | Override for Hash readable_data_key (used by durable context)                      |
+| `proto_method`          | `Symbol`      | Method to check for self-converting conditions (:to_proto or :to_durable_proto)    |
+| `proto_arg`             | `Object, nil` | Argument to pass to proto_method (action for :to_proto, key for :to_durable_proto) |
+
+## `convert_hash_condition`
+
+`convert_hash_condition(cond, action:, or_group_id:, readable_data_key:, sleep_conditions:, user_event_conditions:, config: = nil)`
+
+**Parameters:**
+
+| Name     | Type                   | Description                     |
+| -------- | ---------------------- | ------------------------------- |
+| `cond`   | `Hash`                 | Hash-based condition            |
+| `config` | `Hatchet::Config, nil` | Config for namespace resolution |
+
+## `convert_sleep_condition`
+
+`convert_sleep_condition(duration, action:, or_group_id:, sleep_conditions:)`
+
+**Parameters:**
+
+| Name       | Type              | Description                                                           |
+| ---------- | ----------------- | --------------------------------------------------------------------- |
+| `duration` | `Integer, String` | Sleep duration (seconds as Integer, or Go duration string like "15s") |
+
+## `convert_user_event_condition`
+
+`convert_user_event_condition(event_key, action:, or_group_id:, expression:, user_event_conditions:, config: = nil)`
+
+**Parameters:**
+
+| Name        | Type                   | Description                     |
+| ----------- | ---------------------- | ------------------------------- |
+| `event_key` | `String`               | Event key                       |
+| `config`    | `Hatchet::Config, nil` | Config for namespace resolution |

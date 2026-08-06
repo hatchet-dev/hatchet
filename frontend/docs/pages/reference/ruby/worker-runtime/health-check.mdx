@@ -1,0 +1,51 @@
+# Class Hatchet::WorkerRuntime::HealthCheck
+
+**Inherits:** `Object`
+
+Simple HTTP health check server using raw TCPServer.
+
+WEBrick was removed from Ruby's default gems in Ruby 3.4+, so we use a raw
+TCPServer with minimal HTTP response to avoid adding a dependency.
+
+**Example**
+
+```ruby
+health = HealthCheck.new(port: 8001, logger: logger)
+health.start  # runs in a background thread
+health.stop
+```
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(port:, logger:)`
+
+**Parameters:**
+
+| Name     | Type      | Description       |
+| -------- | --------- | ----------------- |
+| `port`   | `Integer` | Port to listen on |
+| `logger` | `Logger`  | Logger instance   |
+
+- **Returns** [HealthCheck] a new instance of HealthCheck
+
+## `running?`
+
+`running?()`
+
+Check if the server is running
+
+- **Returns** [Boolean]
+
+## `start`
+
+`start()`
+
+Start the health check server in a background thread
+
+## `stop`
+
+`stop()`
+
+Stop the health check server

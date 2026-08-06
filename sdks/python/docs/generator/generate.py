@@ -1,27 +1,60 @@
 import argparse
-import asyncio
 import os
+import re
 
 from docs.generator.doc_types import Document
-from docs.generator.llm import parse_markdown
 from docs.generator.paths import crawl_directory, find_child_paths
 from docs.generator.shared import TMP_GEN_PATH
-from docs.generator.utils import gather_max_concurrency, rm_rf
+from docs.generator.utils import rm_rf
+
+CODE_SPAN_PATTERN = re.compile(r"(`[^`]*`)")
 
 
-async def clean_markdown_with_openai(document: Document) -> None:
+def escape_mdx_line(line: str) -> str:
+    is_table_row = line.lstrip().startswith("|")
+    segments = []
+
+    for segment in CODE_SPAN_PATTERN.split(line):
+        if segment.startswith("`"):
+            if is_table_row:
+                segment = re.sub(r"(?<!\\)\|", r"\\|", segment)
+            segments.append(segment)
+        else:
+            segments.append(re.sub(r"(?<!\\)([<{}])", r"\\\1", segment))
+
+    return "".join(segments)
+
+
+def to_mdx(content: str) -> str:
+    first_heading = re.search(r"^#\s", content, flags=re.MULTILINE)
+    if first_heading:
+        content = content[first_heading.start() :]
+
+    lines = []
+    in_fence = False
+
+    for line in content.splitlines(keepends=True):
+        if line.lstrip().startswith("```"):
+            if not in_fence and line.strip() == "```":
+                line = line.replace("```", "```python", 1)
+            in_fence = not in_fence
+            lines.append(line)
+        elif in_fence:
+            lines.append(line)
+        else:
+            lines.append(escape_mdx_line(line))
+
+    return "".join(lines)
+
+
+def clean_markdown(document: Document) -> None:
     print("Generating mdx for", document.readable_source_path)
 
     with open(document.source_path, "r", encoding="utf-8") as f:
         original_md = f.read()
 
-    content = await parse_markdown(original_markdown=original_md)
-
-    if not content:
-        return None
-
     with open(document.mdx_output_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(to_mdx(original_md))
 
 
 def generate_sub_meta_entry(child: str) -> str:
@@ -72,16 +105,15 @@ def update_meta_js(documents: list[Document]) -> None:
             f.write(meta)
 
 
-async def run(selections: list[str]) -> None:
+def run(selections: list[str]) -> None:
     rm_rf(TMP_GEN_PATH)
 
     try:
         os.system("poetry run mkdocs build")
         documents = crawl_directory(TMP_GEN_PATH, selections)
 
-        await gather_max_concurrency(
-            *[clean_markdown_with_openai(d) for d in documents], max_concurrency=10
-        )
+        for document in documents:
+            clean_markdown(document)
 
         if not selections:
             update_meta_js(documents)
@@ -108,7 +140,7 @@ def main() -> None:
         [f"{name.strip()}.md" for name in args.select.split(",")] if args.select else []
     )
 
-    asyncio.run(run(selections))
+    run(selections)
 
 
 if __name__ == "__main__":

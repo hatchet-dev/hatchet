@@ -1,0 +1,166 @@
+# Class Hatchet::Features::Filters
+
+**Inherits:** `Object`
+
+Filters client for interacting with Hatchet's filters API
+
+This class provides a high-level interface for creating, retrieving, listing,
+updating, and deleting filters in the Hatchet system.
+
+- **Since** 0.1.0
+
+**Example: Listing filters**
+
+```ruby
+filters = filters_client.list(limit: 10, workflow_ids: ["wf-1"])
+```
+
+**Example: Creating a filter**
+
+```ruby
+filter = filters_client.create(
+  workflow_id: "wf-1",
+  expression: 'input.priority > 5',
+  scope: "high-priority"
+)
+```
+
+## Public Instance Methods
+
+## `create`
+
+`create(workflow_id:, expression:, scope:, payload: = nil)`
+
+Create a new filter
+
+**Parameters:**
+
+| Name          | Type        | Description                                         |
+| ------------- | ----------- | --------------------------------------------------- |
+| `workflow_id` | `String`    | The ID of the workflow to associate with the filter |
+| `expression`  | `String`    | The CEL expression to evaluate for the filter       |
+| `scope`       | `String`    | The scope for the filter                            |
+| `payload`     | `Hash, nil` | The payload to send with the filter                 |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The created filter
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+filter = filters_client.create(
+  workflow_id: "wf-1",
+  expression: 'input.value > 10',
+  scope: "my-scope",
+  payload: { threshold: 10 }
+)
+```
+
+## `delete`
+
+`delete(filter_id)`
+
+Delete a filter by its ID
+
+**Parameters:**
+
+| Name        | Type     | Description                    |
+| ----------- | -------- | ------------------------------ |
+| `filter_id` | `String` | The ID of the filter to delete |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The deleted filter
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+filters_client.delete("filter-123")
+```
+
+## `get`
+
+`get(filter_id)`
+
+Get a filter by its ID
+
+**Parameters:**
+
+| Name        | Type     | Description                      |
+| ----------- | -------- | -------------------------------- |
+| `filter_id` | `String` | The ID of the filter to retrieve |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The filter details
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+filter = filters_client.get("filter-123")
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Filters client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(limit: = nil, offset: = nil, workflow_ids: = nil, scopes: = nil)`
+
+List filters for the current tenant
+
+**Parameters:**
+
+| Name           | Type                 | Description                             |
+| -------------- | -------------------- | --------------------------------------- |
+| `limit`        | `Integer, nil`       | The maximum number of filters to return |
+| `offset`       | `Integer, nil`       | The number of filters to skip           |
+| `workflow_ids` | `Array<String>, nil` | A list of workflow IDs to filter by     |
+| `scopes`       | `Array<String>, nil` | A list of scopes to filter by           |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] A list of filters matching the specified criteria
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+filters = filters_client.list(limit: 10, workflow_ids: ["wf-1"])
+```
+
+## `update`
+
+`update(filter_id, updates)`
+
+Update a filter by its ID
+
+**Parameters:**
+
+| Name        | Type     | Description                        |
+| ----------- | -------- | ---------------------------------- |
+| `filter_id` | `String` | The ID of the filter to update     |
+| `updates`   | `Hash`   | The updates to apply to the filter |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The updated filter
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+filters_client.update("filter-123", { expression: 'input.value > 20' })
+```

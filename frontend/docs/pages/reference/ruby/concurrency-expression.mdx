@@ -1,0 +1,83 @@
+# Class Hatchet::ConcurrencyExpression
+
+**Inherits:** `Object`
+
+Defines a concurrency expression for workflow or task-level concurrency
+control
+
+**Example: Workflow-level concurrency**
+
+```ruby
+Hatchet::ConcurrencyExpression.new(
+  expression: "input.group_key",
+  max_runs: 5,
+  limit_strategy: :cancel_in_progress
+)
+```
+
+**Example: Task-level concurrency with multiple keys**
+
+```ruby
+[
+  Hatchet::ConcurrencyExpression.new(expression: "input.digit", max_runs: 8, limit_strategy: :group_round_robin),
+  Hatchet::ConcurrencyExpression.new(expression: "input.name", max_runs: 3, limit_strategy: :group_round_robin)
+]
+```
+
+## Constants
+
+## `LIMIT_STRATEGY_MAP`
+
+Map Ruby symbol to v1 proto enum symbol
+
+## Attributes
+
+## `expression`
+
+_Read-only attribute_
+
+- **Returns** [String] CEL expression evaluated against the workflow input
+
+## `limit_strategy`
+
+_Read-only attribute_
+
+- **Returns** [Symbol] Strategy when limit is exceeded (:cancel_in_progress, :cancel_newest, :group_round_robin, :queue)
+
+## `max_runs`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Maximum concurrent runs for this key
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(expression:, max_runs: = 1, limit_strategy: = :cancel_in_progress)`
+
+**Parameters:**
+
+| Name             | Type      | Description                            |
+| ---------------- | --------- | -------------------------------------- |
+| `expression`     | `String`  | CEL expression evaluated against input |
+| `max_runs`       | `Integer` | Maximum concurrent runs                |
+| `limit_strategy` | `Symbol`  | Strategy when limit is reached         |
+
+- **Returns** [ConcurrencyExpression] a new instance of ConcurrencyExpression
+
+## `to_h`
+
+`to_h()`
+
+Convert to a hash for API serialization
+
+- **Returns** [Hash]
+
+## `to_proto`
+
+`to_proto()`
+
+Convert to a V1::Concurrency protobuf message
+
+- **Returns** [V1::Concurrency]

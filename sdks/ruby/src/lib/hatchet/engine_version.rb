@@ -3,7 +3,7 @@
 module Hatchet
   # Minimum engine versions required for specific SDK features.
   #
-  # Mirrors :class:`hatchet_sdk.engine_version.MinEngineVersion` in the
+  # Mirrors `hatchet_sdk.engine_version.MinEngineVersion` in the
   # Python SDK.
   module MinEngineVersion
     SLOT_CONFIG = "v0.78.23"

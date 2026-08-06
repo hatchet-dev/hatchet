@@ -1,0 +1,206 @@
+# OpenTelemetry
+
+```go
+import "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
+```
+
+Package opentelemetry provides OpenTelemetry instrumentation for the Hatchet Go SDK.
+
+It automatically creates spans for each step run, propagates hatchet.\* attributes to all child spans, supports W3C traceparent propagation, and optionally sends traces to the Hatchet engine's OTLP collector.
+
+Basic usage \(sends traces to Hatchet by default\):
+
+```
+instrumentor, err := opentelemetry.NewInstrumentor()
+worker.Use(instrumentor.Middleware())
+```
+
+## Constants
+
+Span attribute key constants for Hatchet OpenTelemetry instrumentation. These mirror the OTelAttribute enum in the Python SDK and the OTelAttribute object in the TypeScript SDK.
+
+```go
+const (
+    // Instrumentor identifies the span source.
+    AttrInstrumentor = "instrumentor"
+
+    // AttrInstrumentorValue is the standard value for the instrumentor attribute.
+    AttrInstrumentorValue = "hatchet"
+
+    // Shared attributes
+    AttrNamespace          = "hatchet.namespace"
+    AttrAdditionalMetadata = "hatchet.additional_metadata"
+    AttrWorkflowName       = "hatchet.workflow_name"
+    AttrPriority           = "hatchet.priority"
+    AttrActionPayload      = "hatchet.payload"
+
+    // Action / consumer span attributes
+    AttrActionName          = "hatchet.action_name"
+    AttrStepName            = "hatchet.step_name"
+    AttrChildWorkflowIndex  = "hatchet.child_workflow_index"
+    AttrChildWorkflowKey    = "hatchet.child_workflow_key"
+    AttrParentWorkflowRunID = "hatchet.parent_workflow_run_id"
+    AttrRetryCount          = "hatchet.retry_count"
+    AttrStepID              = "hatchet.step_id"
+    AttrStepRunID           = "hatchet.step_run_id"
+    AttrTenantID            = "hatchet.tenant_id"
+    AttrWorkerID            = "hatchet.worker_id"
+    AttrWorkflowID          = "hatchet.workflow_id"
+    AttrWorkflowRunID       = "hatchet.workflow_run_id"
+    AttrWorkflowVersionID   = "hatchet.workflow_version_id"
+
+    // Trigger / producer span attributes
+    AttrChildWorkflowRunID = "hatchet.child_workflow_run_id"
+    AttrNumWorkflows       = "hatchet.num_workflows"
+    AttrTriggerAt          = "hatchet.trigger_at"
+
+    // Span names
+    SpanStartStepRun     = "hatchet.start_step_run"
+    SpanCancelStepRun    = "hatchet.cancel_step_run"
+    SpanRunWorkflow      = "hatchet.run_workflow"
+    SpanRunWorkflows     = "hatchet.run_workflows"
+    SpanScheduleWorkflow = "hatchet.schedule_workflow"
+)
+```
+
+## func NewMiddleware
+
+```go
+func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc
+```
+
+NewMiddleware creates a Hatchet middleware that wraps each step run execution with an OpenTelemetry span. It:
+
+- Extracts W3C traceparent from AdditionalMetadata for distributed trace propagation
+- Creates a "hatchet.start_step_run" span with hatchet.\* attributes
+- Stores attributes in context so HatchetAttributeSpanProcessor can inject them into all child spans
+
+The hatchetExporter re\-parents step_run spans under the engine's deterministic workflow_run span before forwarding to the Hatchet collector, so external OTel backends see the original traceparent parent\-child chain.
+
+## type HatchetAttributeSpanProcessor
+
+HatchetAttributeSpanProcessor wraps an inner SpanProcessor and injects hatchet.\* attributes into every span created within a step run context. This ensures child spans are queryable by the same attributes \(e.g. hatchet.step_run_id\) as the parent span.
+
+```go
+type HatchetAttributeSpanProcessor struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewHatchetAttributeSpanProcessor
+
+```go
+func NewHatchetAttributeSpanProcessor(inner sdktrace.SpanProcessor) *HatchetAttributeSpanProcessor
+```
+
+NewHatchetAttributeSpanProcessor creates a new HatchetAttributeSpanProcessor that wraps the given inner processor.
+
+## func \(\*HatchetAttributeSpanProcessor\) ForceFlush
+
+```go
+func (p *HatchetAttributeSpanProcessor) ForceFlush(ctx context.Context) error
+```
+
+## func \(\*HatchetAttributeSpanProcessor\) OnEnd
+
+```go
+func (p *HatchetAttributeSpanProcessor) OnEnd(span sdktrace.ReadOnlySpan)
+```
+
+## func \(\*HatchetAttributeSpanProcessor\) OnStart
+
+```go
+func (p *HatchetAttributeSpanProcessor) OnStart(ctx context.Context, span sdktrace.ReadWriteSpan)
+```
+
+## func \(\*HatchetAttributeSpanProcessor\) Shutdown
+
+```go
+func (p *HatchetAttributeSpanProcessor) Shutdown(ctx context.Context) error
+```
+
+## type Instrumentor
+
+Instrumentor sets up OpenTelemetry tracing for Hatchet workers.
+
+```go
+type Instrumentor struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewInstrumentor
+
+```go
+func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error)
+```
+
+NewInstrumentor creates a new HatchetInstrumentor.
+
+## func \(\*Instrumentor\) Middleware
+
+```go
+func (i *Instrumentor) Middleware() worker.MiddlewareFunc
+```
+
+Middleware returns the OTel middleware that should be registered on the worker.
+
+## func \(\*Instrumentor\) Shutdown
+
+```go
+func (i *Instrumentor) Shutdown(ctx context.Context) error
+```
+
+Shutdown flushes any remaining spans and shuts down the TracerProvider. Call this before your application exits to ensure all spans are exported.
+
+## func \(\*Instrumentor\) TracerProvider
+
+```go
+func (i *Instrumentor) TracerProvider() trace.TracerProvider
+```
+
+TracerProvider returns the TracerProvider used by the instrumentor.
+
+## type InstrumentorOption
+
+InstrumentorOption configures the Instrumentor.
+
+```go
+type InstrumentorOption func(*instrumentorOptions)
+```
+
+## func DisableHatchetCollector
+
+```go
+func DisableHatchetCollector() InstrumentorOption
+```
+
+DisableHatchetCollector disables sending traces to the Hatchet engine's OTLP collector. By default, the collector is enabled and connection settings \(endpoint, token, TLS\) are automatically loaded from the same environment variables used by the Hatchet client \(HATCHET_CLIENT_HOST_PORT, HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_TLS_STRATEGY\).
+
+## func EnableHatchetCollector
+
+```go
+func EnableHatchetCollector() InstrumentorOption
+```
+
+EnableHatchetCollector enables sending traces to the Hatchet engine's OTLP collector. This is the default behavior; this option exists for explicitness.
+
+Deprecated: The collector is enabled by default. Use DisableHatchetCollector\(\) to opt out.
+
+## func WithBatchSpanProcessorOptions
+
+```go
+func WithBatchSpanProcessorOptions(opts ...sdktrace.BatchSpanProcessorOption) InstrumentorOption
+```
+
+WithBatchSpanProcessorOptions sets options for the BatchSpanProcessor that sends spans to the Hatchet collector.
+
+## func WithTracerProvider
+
+```go
+func WithTracerProvider(tp *sdktrace.TracerProvider) InstrumentorOption
+```
+
+WithTracerProvider sets a custom TracerProvider. If not set, a new one is created. The provider must be an SDK TracerProvider to support adding span processors.
+
+Generated by [gomarkdoc](https://github.com/princjef/gomarkdoc)

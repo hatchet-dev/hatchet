@@ -1,0 +1,733 @@
+# Feature Clients
+
+```go
+import "github.com/hatchet-dev/hatchet/sdks/go/features"
+```
+
+package features provides functionality for interacting with hatchet features.
+
+## func IsValidCronExpression
+
+```go
+func IsValidCronExpression(expression string) bool
+```
+
+IsValidCronExpression validates that a string is a valid cron expression.
+
+## type APIKeyAuth
+
+```go
+type APIKeyAuth struct {
+    HeaderName string
+    APIKey     string
+}
+```
+
+## type BasicAuth
+
+```go
+type BasicAuth struct {
+    Username string
+    Password string
+}
+```
+
+## type CELClient
+
+CELClient provides methods for evaluating CEL expressions
+
+```go
+type CELClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewCELClient
+
+```go
+func NewCELClient(api *rest.ClientWithResponses, tenantId string) *CELClient
+```
+
+NewCELClient creates a new CELClient
+
+## func \(\*CELClient\) Debug
+
+```go
+func (c *CELClient) Debug(ctx context.Context, expression string, input map[string]any, additionalMetadata, filterPayload *map[string]any) (*rest.V1CELDebugResponse, error)
+```
+
+Debug evaluates a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production.
+
+## type CreateCronTrigger
+
+CreateCronTrigger contains the configuration for creating a cron trigger.
+
+```go
+type CreateCronTrigger struct {
+    // Name is the unique identifier for the cron trigger.
+    Name string `json:"name"`
+
+    // Expression is the cron expression that defines the schedule.
+    Expression string `json:"expression"`
+
+    // (optional) Input is the input data for the workflow.
+    Input map[string]interface{} `json:"input,omitempty"`
+
+    // (optional) AdditionalMetadata is metadata to associate with the cron trigger.
+    AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+    // (optional) Priority is the priority of the run triggered by the cron.
+    Priority *RunPriority `json:"priority,omitempty"`
+}
+```
+
+## type CreateRatelimitOpts
+
+CreateRatelimitOpts contains options for creating or updating a rate limit.
+
+```go
+type CreateRatelimitOpts struct {
+    // key is the unique identifier for the rate limit
+    Key string
+    // limit is the maximum number of requests allowed within the duration
+    Limit int
+    // duration specifies the time period for the rate limit
+    Duration types.RateLimitDuration
+}
+```
+
+## type CreateScheduledRunTrigger
+
+CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
+
+```go
+type CreateScheduledRunTrigger struct {
+    // TriggerAt specifies when the workflow should be triggered.
+    TriggerAt time.Time `json:"triggerAt"`
+
+    // Input is the optional input data for the workflow.
+    Input map[string]interface{} `json:"input,omitempty"`
+
+    // AdditionalMetadata is optional metadata to associate with the scheduled run.
+    AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+    Priority *RunPriority `json:"priority,omitempty"`
+}
+```
+
+## type CreateWebhookOpts
+
+```go
+type CreateWebhookOpts struct {
+    Name               string
+    SourceName         rest.V1WebhookSourceName
+    EventKeyExpression string
+    ScopeExpression    *string
+    StaticPayload      *map[string]interface{}
+    Auth               WebhookAuth
+}
+```
+
+## type CronsClient
+
+CronsClient provides methods for interacting with cron workflow triggers
+
+```go
+type CronsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewCronsClient
+
+```go
+func NewCronsClient(api *rest.ClientWithResponses, tenantId string) *CronsClient
+```
+
+NewCronsClient creates a new CronsClient
+
+## func \(\*CronsClient\) Create
+
+```go
+func (c *CronsClient) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error)
+```
+
+Create creates a new cron workflow trigger.
+
+## func \(\*CronsClient\) Delete
+
+```go
+func (c *CronsClient) Delete(ctx context.Context, cronId string) error
+```
+
+Delete removes a cron workflow trigger.
+
+## func \(\*CronsClient\) Get
+
+```go
+func (c *CronsClient) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
+```
+
+Get retrieves a specific cron workflow trigger by its ID.
+
+## func \(\*CronsClient\) List
+
+```go
+func (c *CronsClient) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error)
+```
+
+List retrieves a collection of cron workflow triggers based on the provided parameters.
+
+## type FiltersClient
+
+FiltersClient provides methods for interacting with filters
+
+```go
+type FiltersClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewFiltersClient
+
+```go
+func NewFiltersClient(api *rest.ClientWithResponses, tenantID string) *FiltersClient
+```
+
+NewFiltersClient creates a new FiltersClient
+
+## func \(\*FiltersClient\) Create
+
+```go
+func (c *FiltersClient) Create(ctx context.Context, opts rest.V1CreateFilterRequest) (*rest.V1Filter, error)
+```
+
+Create creates a new filter.
+
+## func \(\*FiltersClient\) Delete
+
+```go
+func (c *FiltersClient) Delete(ctx context.Context, filterID string) (*rest.V1Filter, error)
+```
+
+Delete deletes a filter by its ID.
+
+## func \(\*FiltersClient\) Get
+
+```go
+func (c *FiltersClient) Get(ctx context.Context, filterID string) (*rest.V1Filter, error)
+```
+
+Get gets a filter by its ID.
+
+## func \(\*FiltersClient\) List
+
+```go
+func (c *FiltersClient) List(ctx context.Context, opts *rest.V1FilterListParams) (*rest.V1FilterList, error)
+```
+
+List lists filters for a given tenant.
+
+## func \(\*FiltersClient\) Update
+
+```go
+func (c *FiltersClient) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error)
+```
+
+Update updates a filter by its ID.
+
+## type HMACAuth
+
+```go
+type HMACAuth struct {
+    SigningSecret       string
+    SignatureHeaderName string
+    Algorithm           rest.V1WebhookHMACAlgorithm
+    Encoding            rest.V1WebhookHMACEncoding
+}
+```
+
+## type InvalidCronExpressionError
+
+InvalidCronExpressionError represents an error when an invalid cron expression is provided.
+
+```go
+type InvalidCronExpressionError struct {
+    Expression string
+}
+```
+
+## func \(\*InvalidCronExpressionError\) Error
+
+```go
+func (e *InvalidCronExpressionError) Error() string
+```
+
+## type LogsClient
+
+```go
+type LogsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewLogsClient
+
+```go
+func NewLogsClient(api *rest.ClientWithResponses, tenantId string) *LogsClient
+```
+
+## func \(\*LogsClient\) List
+
+```go
+func (l *LogsClient) List(ctx context.Context, taskRunId uuid.UUID, opts *rest.V1LogLineListParams) (*rest.V1LogLineList, error)
+```
+
+## type MetricsClient
+
+MetricsClient provides methods for retrieving metrics for workflows, tasks, and tenant queue
+
+```go
+type MetricsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewMetricsClient
+
+```go
+func NewMetricsClient(api *rest.ClientWithResponses, tenantId string) *MetricsClient
+```
+
+NewMetricsClient creates a new MetricsClient
+
+## func \(\*MetricsClient\) GetQueueMetrics
+
+```go
+func (m *MetricsClient) GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantQueueMetrics, error)
+```
+
+GetQueueMetrics retrieves tenant\-wide queue metrics.
+
+## func \(\*MetricsClient\) GetTaskQueueMetrics
+
+```go
+func (m *MetricsClient) GetTaskQueueMetrics(ctx context.Context) (*rest.TenantStepRunQueueMetrics, error)
+```
+
+GetTaskQueueMetrics retrieves tenant\-wide step run queue metrics.
+
+## func \(\*MetricsClient\) GetWorkflowMetrics
+
+```go
+func (m *MetricsClient) GetWorkflowMetrics(ctx context.Context, workflowName string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
+```
+
+GetWorkflowMetrics retrieves metrics for a specific workflow.
+
+## type RateLimitsClient
+
+RateLimitsClient provides methods for interacting with rate limits
+
+```go
+type RateLimitsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewRateLimitsClient
+
+```go
+func NewRateLimitsClient(api *rest.ClientWithResponses, tenantId string, admin v0Client.AdminClient) *RateLimitsClient
+```
+
+NewRateLimitsClient creates a new RateLimitsClient with the provided api client, tenant id, and admin client.
+
+## func \(\*RateLimitsClient\) List
+
+```go
+func (c *RateLimitsClient) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitList, error)
+```
+
+List retrieves rate limits based on the provided parameters \(optional\).
+
+## func \(\*RateLimitsClient\) Upsert
+
+```go
+func (c *RateLimitsClient) Upsert(opts CreateRatelimitOpts) error
+```
+
+Upsert creates or updates a rate limit with the provided options.
+
+## type RunPriority
+
+RunPriority is the priority for a workflow run.
+
+```go
+type RunPriority int32
+```
+
+```go
+const (
+    // RunPriorityLow is the lowest priority for a workflow run.
+    RunPriorityLow RunPriority = 1
+    // RunPriorityMedium is the medium priority for a workflow run.
+    RunPriorityMedium RunPriority = 2
+    // RunPriorityHigh is the highest priority for a workflow run.
+    RunPriorityHigh RunPriority = 3
+)
+```
+
+## type RunsClient
+
+RunsClient provides methods for interacting with workflow runs
+
+```go
+type RunsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewRunsClient
+
+```go
+func NewRunsClient(api *rest.ClientWithResponses, tenantId string, v0Client client.Client) *RunsClient
+```
+
+NewRunsClient creates a new client for interacting with workflow runs.
+
+## func \(\*RunsClient\) BranchDurableTask
+
+```go
+func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId string, nodeId, branchId int64) (*rest.V1BranchDurableTaskResponse, error)
+```
+
+BranchDurableTask creates a branch from a durable task at the specified node.
+
+## func \(\*RunsClient\) Cancel
+
+```go
+func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1CancelledTasks, error)
+```
+
+Cancel requests cancellation of a specific task within a workflow run.
+
+## func \(\*RunsClient\) Get
+
+```go
+func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunDetails, error)
+```
+
+Get retrieves a workflow run by its ID.
+
+## func \(\*RunsClient\) GetDetails
+
+```go
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error)
+```
+
+GetDetails retrieves detailed information about a workflow run via gRPC, including task\-level output, errors, and status.
+
+## func \(\*RunsClient\) GetStatus
+
+```go
+func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskStatus, error)
+```
+
+GetStatus retrieves the status of a workflow run by its ID.
+
+## func \(\*RunsClient\) List
+
+```go
+func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error)
+```
+
+List retrieves a collection of workflow runs based on the provided parameters.
+
+## func \(\*RunsClient\) Replay
+
+```go
+func (r *RunsClient) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1ReplayedTasks, error)
+```
+
+Replay requests a task to be replayed within a workflow run.
+
+## func \(\*RunsClient\) Restore
+
+```go
+func (r *RunsClient) Restore(ctx context.Context, taskExternalId string) (*rest.V1RestoreTaskResponse, error)
+```
+
+Restore re\-enqueues an evicted task so it can resume execution.
+
+## func \(\*RunsClient\) SubscribeToStream
+
+```go
+func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string) <-chan string
+```
+
+SubscribeToStream subscribes to streaming events for a specific workflow run.
+
+## type SchedulesClient
+
+SchedulesClient provides methods for interacting with workflow schedules
+
+```go
+type SchedulesClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewSchedulesClient
+
+```go
+func NewSchedulesClient(api *rest.ClientWithResponses, tenantId string, namespace *string) *SchedulesClient
+```
+
+NewSchedulesClient creates a new SchedulesClient
+
+## func \(\*SchedulesClient\) Create
+
+```go
+func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error)
+```
+
+Create creates a new scheduled workflow run.
+
+## func \(\*SchedulesClient\) Delete
+
+```go
+func (s *SchedulesClient) Delete(ctx context.Context, scheduledRunId string) error
+```
+
+Delete removes a scheduled workflow run.
+
+## func \(\*SchedulesClient\) Get
+
+```go
+func (s *SchedulesClient) Get(ctx context.Context, scheduledRunId string) (*rest.ScheduledWorkflows, error)
+```
+
+Get retrieves a specific scheduled workflow run by its ID.
+
+## func \(\*SchedulesClient\) List
+
+```go
+func (s *SchedulesClient) List(ctx context.Context, opts rest.WorkflowScheduledListParams) (*rest.ScheduledWorkflowsList, error)
+```
+
+List retrieves a collection of scheduled workflow runs based on the provided parameters.
+
+## type SvixAuth
+
+SvixAuth implements Svix's signature verification protocol for webhooks. Only the signing secret \(whsec\_...\) is required; signature headers and algorithms are configured explicitly to match Svix's expectations.
+
+```go
+type SvixAuth struct {
+    SigningSecret string
+}
+```
+
+## type TenantClient
+
+TenantClient provides methods for interacting with your Tenant
+
+```go
+type TenantClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewTenantCliet
+
+```go
+func NewTenantCliet(api *rest.ClientWithResponses, tenantId string) *TenantClient
+```
+
+NewTenantCliet creates a new TenantClient
+
+## func \(\*TenantClient\) Get
+
+```go
+func (t *TenantClient) Get(ctx context.Context) (*rest.Tenant, error)
+```
+
+Get retrieves the details of the current tenant
+
+## type UpdateWebhookOpts
+
+```go
+type UpdateWebhookOpts struct {
+    EventKeyExpression *string
+    ScopeExpression    *string
+    StaticPayload      *map[string]interface{}
+}
+```
+
+## type WebhookAuth
+
+```go
+type WebhookAuth interface {
+    // contains filtered or unexported methods
+}
+```
+
+## type WebhooksClient
+
+WebhooksClient provides methods for managing webhook configurations
+
+```go
+type WebhooksClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewWebhooksClient
+
+```go
+func NewWebhooksClient(api *rest.ClientWithResponses, tenantId string) *WebhooksClient
+```
+
+NewWebhooksClient creates a new WebhooksClient
+
+## func \(\*WebhooksClient\) Create
+
+```go
+func (c *WebhooksClient) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error)
+```
+
+Create creates a new webhook configuration.
+
+## func \(\*WebhooksClient\) Delete
+
+```go
+func (c *WebhooksClient) Delete(ctx context.Context, webhookName string) error
+```
+
+Delete removes a webhook configuration.
+
+## func \(\*WebhooksClient\) Get
+
+```go
+func (c *WebhooksClient) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error)
+```
+
+Get retrieves a specific webhook by its name.
+
+## func \(\*WebhooksClient\) List
+
+```go
+func (c *WebhooksClient) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error)
+```
+
+List retrieves a collection of webhooks based on the provided parameters.
+
+## func \(\*WebhooksClient\) Update
+
+```go
+func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error)
+```
+
+Update updates an existing webhook configuration.
+
+## type WorkersClient
+
+WorkersClient provides methods for interacting with workers
+
+```go
+type WorkersClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewWorkersClient
+
+```go
+func NewWorkersClient(api *rest.ClientWithResponses, tenantId string) *WorkersClient
+```
+
+NewWorkersClient creates a new WorkersClient
+
+## func \(\*WorkersClient\) Get
+
+```go
+func (w *WorkersClient) Get(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Get retrieves a worker by its ID.
+
+## func \(\*WorkersClient\) List
+
+```go
+func (w *WorkersClient) List(ctx context.Context) (*rest.WorkerList, error)
+```
+
+List retrieves all workers for the tenant.
+
+## func \(\*WorkersClient\) Pause
+
+```go
+func (w *WorkersClient) Pause(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Pause pauses a worker.
+
+## func \(\*WorkersClient\) Unpause
+
+```go
+func (w *WorkersClient) Unpause(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Unpause unpauses a worker.
+
+## type WorkflowsClient
+
+WorkflowsClient provides methods for interacting with workflows
+
+```go
+type WorkflowsClient struct {
+    // contains filtered or unexported fields
+}
+```
+
+## func NewWorkflowsClient
+
+```go
+func NewWorkflowsClient(api *rest.ClientWithResponses, tenantId string) *WorkflowsClient
+```
+
+NewWorkflowsClient creates a new WorkflowsClient
+
+## func \(\*WorkflowsClient\) Delete
+
+```go
+func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*rest.WorkflowDeleteResponse, error)
+```
+
+Delete removes a workflow by its ID or name.
+
+## func \(\*WorkflowsClient\) Get
+
+```go
+func (w *WorkflowsClient) Get(ctx context.Context, workflowName string) (*rest.Workflow, error)
+```
+
+Get retrieves a workflow by its ID or name.
+
+## func \(\*WorkflowsClient\) GetId
+
+```go
+func (w *WorkflowsClient) GetId(ctx context.Context, workflowName string) (uuid.UUID, error)
+```
+
+GetId retrieves a workflow by its name.
+
+## func \(\*WorkflowsClient\) List
+
+```go
+func (w *WorkflowsClient) List(ctx context.Context, opts *rest.WorkflowListParams) (*rest.WorkflowList, error)
+```
+
+List retrieves all workflows for the tenant with optional filtering parameters.
+
+Generated by [gomarkdoc](https://github.com/princjef/gomarkdoc)

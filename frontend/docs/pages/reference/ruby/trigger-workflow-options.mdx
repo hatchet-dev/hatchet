@@ -1,0 +1,91 @@
+# Class Hatchet::TriggerWorkflowOptions
+
+**Inherits:** `Object`
+
+Options for triggering a workflow run
+
+**Example: Trigger with metadata and priority**
+
+```ruby
+Hatchet::TriggerWorkflowOptions.new(
+  additional_metadata: { "user_id" => "123" },
+  priority: 3
+)
+```
+
+## Attributes
+
+## `additional_metadata`
+
+_Read-only attribute_
+
+- **Returns** [Hash, nil] Additional metadata to attach to the run
+
+## `child_index`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Child index for deterministic replay
+
+## `desired_worker_labels`
+
+_Read-only attribute_
+
+- **Returns** [Hash, nil] Desired worker labels for scheduling
+
+## `key`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Deduplication key
+
+## `parent_id`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Parent workflow run ID (auto-set from context vars)
+
+## `parent_step_run_id`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] Parent step run ID (auto-set from context vars)
+
+## `priority`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Priority level (1-4, higher = more priority)
+
+## `sticky`
+
+_Read-only attribute_
+
+- **Returns** [Boolean, nil] Whether to use sticky scheduling
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(additional_metadata: = nil, key: = nil, priority: = nil, parent_id: = nil, parent_step_run_id: = nil, child_index: = nil, sticky: = nil, desired_worker_labels: = nil)`
+
+**Parameters:**
+
+| Name                    | Type           | Description                   |
+| ----------------------- | -------------- | ----------------------------- |
+| `additional_metadata`   | `Hash, nil`    | Metadata to attach to the run |
+| `key`                   | `String, nil`  | Deduplication key             |
+| `priority`              | `Integer, nil` | Priority level                |
+| `parent_id`             | `String, nil`  | Parent workflow run ID        |
+| `parent_step_run_id`    | `String, nil`  | Parent step run ID            |
+| `child_index`           | `Integer, nil` | Child index                   |
+| `sticky`                | `Boolean, nil` | Enable sticky scheduling      |
+| `desired_worker_labels` | `Hash, nil`    | Worker labels for scheduling  |
+
+- **Returns** [TriggerWorkflowOptions] a new instance of TriggerWorkflowOptions
+
+## `to_h`
+
+`to_h()`
+
+- **Returns** [Hash]

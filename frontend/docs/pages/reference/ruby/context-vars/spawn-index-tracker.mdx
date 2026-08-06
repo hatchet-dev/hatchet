@@ -1,0 +1,34 @@
+# Class Hatchet::ContextVars::SpawnIndexTracker
+
+**Inherits:** `Object`
+
+Thread-safe counter for tracking spawn indices per action key. This provides
+deterministic child_index values for replay consistency.
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize()`
+
+- **Returns** [SpawnIndexTracker] a new instance of SpawnIndexTracker
+
+## `next_index`
+
+`next_index(action_key)`
+
+Get and increment the spawn index for the given action key.
+
+**Parameters:**
+
+| Name         | Type     | Description    |
+| ------------ | -------- | -------------- |
+| `action_key` | `String` | The action key |
+
+- **Returns** [Integer] The current spawn index (before increment)
+
+## `reset`
+
+`reset()`
+
+Reset the counter (e.g., between test runs)

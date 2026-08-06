@@ -32,7 +32,7 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| None`             | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
@@ -108,7 +108,7 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| None`             | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 

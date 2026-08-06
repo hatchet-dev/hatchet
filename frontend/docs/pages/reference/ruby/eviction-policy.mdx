@@ -1,0 +1,65 @@
+# Class Hatchet::EvictionPolicy
+
+**Inherits:** `Object`
+
+Task-scoped eviction parameters for **durable** tasks.
+
+Setting the durable task's eviction policy to `nil` means the task run is
+never eligible for eviction.
+
+**Example**
+
+```ruby
+Hatchet::EvictionPolicy.new(
+  ttl: 600,                     # 10 minutes, in seconds
+  allow_capacity_eviction: true,
+  priority: 0,
+)
+```
+
+## Attributes
+
+## `allow_capacity_eviction`
+
+_Read-only attribute_
+
+- **Returns** [Boolean] Whether this task may be evicted under durable-slot pressure.
+
+## `priority`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Lower values are evicted first when multiple candidates exist.
+
+## `ttl`
+
+_Read-only attribute_
+
+- **Returns** [Numeric, nil] Maximum continuous waiting duration in seconds before
+  TTL-eligible eviction. Applies to time spent in SDK-instrumented
+  "waiting" states (e.g. `DurableContext#sleep_for`,
+  `DurableContext#wait_for`). `nil` disables TTL eviction.
+
+## Public Instance Methods
+
+## `==`
+
+`==(other)`
+
+## `hash`
+
+`hash()`
+
+## `initialize`
+
+`initialize(ttl:, allow_capacity_eviction: = true, priority: = 0)`
+
+**Parameters:**
+
+| Name                      | Type           | Description                                           |
+| ------------------------- | -------------- | ----------------------------------------------------- |
+| `ttl`                     | `Numeric, nil` | TTL in seconds (or nil to disable TTL-based eviction) |
+| `allow_capacity_eviction` | `Boolean`      |                                                       |
+| `priority`                | `Integer`      |                                                       |
+
+- **Returns** [EvictionPolicy] a new instance of EvictionPolicy

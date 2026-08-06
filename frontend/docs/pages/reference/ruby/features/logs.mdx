@@ -1,0 +1,59 @@
+# Class Hatchet::Features::Logs
+
+**Inherits:** `Object`
+
+Logs client for interacting with Hatchet's logs API
+
+This class provides a high-level interface for listing log lines associated
+with task runs in the Hatchet system.
+
+- **Since** 0.1.0
+
+**Example: Listing logs for a task run**
+
+```ruby
+logs = logs_client.list("task-run-id", limit: 100)
+```
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Logs client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(task_run_id, limit: = 1000, since: = nil, until_time: = nil)`
+
+List log lines for a given task run
+
+**Parameters:**
+
+| Name          | Type        | Description                                           |
+| ------------- | ----------- | ----------------------------------------------------- |
+| `task_run_id` | `String`    | The ID of the task run to list logs for               |
+| `limit`       | `Integer`   | Maximum number of log lines to return (default: 1000) |
+| `since`       | `Time, nil` | The start time to get logs for                        |
+| `until_time`  | `Time, nil` | The end time to get logs for                          |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] A list of log lines for the specified task run
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+logs = logs_client.list("task-run-123", limit: 500, since: Time.now - 3600)
+```

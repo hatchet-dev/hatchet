@@ -1,0 +1,76 @@
+# Class Hatchet::TLSConfig
+
+**Inherits:** `Object`
+
+TLS configuration for client connections
+
+**Example: Basic TLS setup**
+
+```ruby
+tls = TLSConfig.new(strategy: "tls", server_name: "api.hatchet.com")
+```
+
+**Example: Custom certificate setup**
+
+```ruby
+tls = TLSConfig.new(
+  strategy: "mtls",
+  cert_file: "/path/to/client.crt",
+  key_file: "/path/to/client.key",
+  root_ca_file: "/path/to/ca.crt"
+)
+```
+
+## Attributes
+
+## `cert_file`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] Path to client certificate file for mTLS
+
+## `key_file`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] Path to client private key file for mTLS
+
+## `root_ca_file`
+
+_Read-write attribute_
+
+- **Returns** [String, nil] Path to root CA certificate file
+
+## `server_name`
+
+_Read-write attribute_
+
+- **Returns** [String] Server name for TLS verification
+
+## `strategy`
+
+_Read-write attribute_
+
+- **Returns** [String] TLS strategy ("tls", "mtls", "insecure")
+
+## Public Instance Methods
+
+## `initialize`
+
+`initialize(**options)`
+
+Initialize TLS configuration
+
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+- **Option** `options`
+
+**Parameters:**
+
+| Name      | Type   | Description               |
+| --------- | ------ | ------------------------- |
+| `options` | `Hash` | TLS configuration options |
+
+- **Returns** [TLSConfig] a new instance of TLSConfig

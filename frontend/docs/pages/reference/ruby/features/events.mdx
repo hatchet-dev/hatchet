@@ -1,0 +1,264 @@
+# Class Hatchet::Features::Events
+
+**Inherits:** `Object`
+
+Events client for interacting with Hatchet event management API
+
+This class provides a high-level interface for creating and managing events in
+the Hatchet system. It uses gRPC for event creation (push/bulk_push) and the
+REST API for read operations (list, get, etc.).
+
+- **Since** 0.1.0
+
+**Example: Creating an event**
+
+```ruby
+response = events.push(
+  key: "user-login",
+  data: { user_id: 123, action: "login" },
+  additional_metadata: { ip_address: "192.168.1.1" }
+)
+```
+
+## Constants
+
+## `BulkCreateEventRequest`
+
+- **Since** 0.1.0
+
+## `CreateEventRequest`
+
+Re-export commonly used event classes for convenience
+
+- **Since** 0.1.0
+
+## `EventList`
+
+- **Since** 0.1.0
+
+## Public Instance Methods
+
+## `bulk_push`
+
+`bulk_push(events, namespace: = nil)`
+
+Create events in bulk
+
+**Parameters:**
+
+| Name        | Type          | Description                                                                                           |
+| ----------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `events`    | `Array<Hash>` | Array of event hashes, each containing :key, :data, and optionally :additional_metadata and :priority |
+| `namespace` | `String, nil` | Override namespace for all events                                                                     |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The gRPC response containing the created events
+- **Since** 0.1.0
+
+**Example: Bulk create events**
+
+```ruby
+events_data = [
+  { key: "user-signup", data: { user_id: 1 } },
+  { key: "user-login", data: { user_id: 1 }, priority: 1 }
+]
+response = events.bulk_push(events_data)
+```
+
+## `cancel`
+
+`cancel(event_ids: = nil, keys: = nil, since: = nil, until_time: = nil)`
+
+Cancel events matching the given criteria
+
+**Parameters:**
+
+| Name         | Type                 | Description                    |
+| ------------ | -------------------- | ------------------------------ |
+| `event_ids`  | `Array<String>, nil` | Specific event IDs to cancel   |
+| `keys`       | `Array<String>, nil` | Event keys to cancel           |
+| `since`      | `Time, nil`          | Cancel events after this time  |
+| `until_time` | `Time, nil`          | Cancel events before this time |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The cancellation response
+- **Since** 0.1.0
+
+## `create`
+
+`create(key:, data:, additional_metadata: = nil, priority: = nil, scope: = nil, namespace: = nil)`
+
+Creates a new event in the Hatchet system
+
+This method sends an event creation request via gRPC. The event will be
+processed and made available for workflow triggers and event-driven
+automation.
+
+**Parameters:**
+
+| Name                  | Type           | Description                       |
+| --------------------- | -------------- | --------------------------------- |
+| `key`                 | `String`       | The event key/name                |
+| `data`                | `Hash`         | The event payload data            |
+| `additional_metadata` | `Hash, nil`    | Additional metadata for the event |
+| `priority`            | `Integer, nil` | Event priority                    |
+| `scope`               | `String, nil`  | The scope for event filtering     |
+| `namespace`           | `String, nil`  | Override namespace for this event |
+
+- **Raises** [ArgumentError] If required parameters are missing
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The gRPC response containing the created event details
+- **Since** 0.1.0
+
+**Example: Creating a simple event**
+
+```ruby
+response = events.create(
+  key: "user-login",
+  data: { user_id: 123, action: "login" },
+  additional_metadata: { ip_address: "192.168.1.1" }
+)
+```
+
+## `get`
+
+`get(event_id)`
+
+Get a specific event by ID
+
+**Parameters:**
+
+| Name       | Type     | Description  |
+| ---------- | -------- | ------------ |
+| `event_id` | `String` | The event ID |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The event details
+- **Since** 0.1.0
+
+## `get_data`
+
+`get_data(event_id)`
+
+Get event data for a specific event
+
+**Parameters:**
+
+| Name       | Type     | Description  |
+| ---------- | -------- | ------------ |
+| `event_id` | `String` | The event ID |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The event data
+- **Since** 0.1.0
+
+## `initialize`
+
+`initialize(rest_client, event_grpc, config)`
+
+Initializes a new Events client instance
+
+**Parameters:**
+
+| Name          | Type                                  | Description                                                       |
+| ------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`                              | The configured REST client for API communication                  |
+| `event_grpc`  | `Hatchet::Clients::Grpc::EventClient` | The gRPC event client for push operations                         |
+| `config`      | `Hatchet::Config`                     | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `list`
+
+`list(offset: = nil, limit: = nil, keys: = nil, since: = nil, until_time: = nil, workflow_ids: = nil, workflow_run_statuses: = nil, event_ids: = nil, additional_metadata: = nil, scopes: = nil)`
+
+List events with filtering options
+
+**Parameters:**
+
+| Name                    | Type                        | Description                        |
+| ----------------------- | --------------------------- | ---------------------------------- |
+| `offset`                | `Integer, nil`              | Pagination offset                  |
+| `limit`                 | `Integer, nil`              | Maximum number of events to return |
+| `keys`                  | `Array<String>, nil`        | Filter by event keys               |
+| `since`                 | `Time, nil`                 | Filter events after this time      |
+| `until_time`            | `Time, nil`                 | Filter events before this time     |
+| `workflow_ids`          | `Array<String>, nil`        | Filter by workflow IDs             |
+| `workflow_run_statuses` | `Array<String>, nil`        | Filter by workflow run statuses    |
+| `event_ids`             | `Array<String>, nil`        | Filter by specific event IDs       |
+| `additional_metadata`   | `Hash<String, String>, nil` | Filter by additional metadata      |
+| `scopes`                | `Array<String>, nil`        | Filter by event scopes             |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [HatchetSdkRest::V1EventList] List of events matching the filters
+- **Since** 0.1.0
+
+**Example: List recent events**
+
+```ruby
+events = events_client.list(
+  limit: 10,
+  since: Time.now - 24 * 60 * 60,
+  keys: ["user-signup", "user-login"]
+)
+```
+
+## `list_keys`
+
+`list_keys()`
+
+List available event keys for the tenant
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] List of available event keys
+- **Since** 0.1.0
+
+## `push`
+
+`push(event_key, payload, additional_metadata: = nil, namespace: = nil, priority: = nil)`
+
+Push a single event to Hatchet
+
+**Parameters:**
+
+| Name                  | Type           | Description                       |
+| --------------------- | -------------- | --------------------------------- |
+| `event_key`           | `String`       | The event key/name                |
+| `payload`             | `Hash`         | The event payload data            |
+| `additional_metadata` | `Hash, nil`    | Additional metadata for the event |
+| `namespace`           | `String, nil`  | Override namespace for this event |
+| `priority`            | `Integer, nil` | Event priority                    |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The gRPC response containing the created event details
+- **Since** 0.1.0
+
+**Example: Push a simple event**
+
+```ruby
+response = events.push(
+  "user-signup",
+  { user_id: 456, email: "user@example.com" },
+  additional_metadata: { source: "web" }
+)
+```
+
+## `replay`
+
+`replay(event_ids: = nil, keys: = nil, since: = nil, until_time: = nil)`
+
+Replay events matching the given criteria
+
+**Parameters:**
+
+| Name         | Type                 | Description                    |
+| ------------ | -------------------- | ------------------------------ |
+| `event_ids`  | `Array<String>, nil` | Specific event IDs to replay   |
+| `keys`       | `Array<String>, nil` | Event keys to replay           |
+| `since`      | `Time, nil`          | Replay events after this time  |
+| `until_time` | `Time, nil`          | Replay events before this time |
+
+- **Raises** [Hatchet::Error] If the API request fails or returns an error
+- **Returns** [Object] The replay response
+- **Since** 0.1.0

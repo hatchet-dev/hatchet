@@ -1,0 +1,122 @@
+# Class Hatchet::Features::Metrics
+
+**Inherits:** `Object`
+
+Metrics client for reading metrics out of Hatchet's metrics API
+
+This class provides a high-level interface for retrieving queue metrics,
+Prometheus metrics, task statistics, and task metrics from the Hatchet system.
+
+- **Since** 0.1.0
+
+**Example: Getting queue metrics**
+
+```ruby
+metrics = metrics_client.get_queue_metrics
+```
+
+**Example: Getting task metrics**
+
+```ruby
+task_metrics = metrics_client.get_task_metrics(
+  since: Time.now - 86400,
+  workflow_ids: ["wf-1"]
+)
+```
+
+## Public Instance Methods
+
+## `get_queue_metrics`
+
+`get_queue_metrics()`
+
+Retrieve the current queue metrics for the tenant
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Hash] The current queue metrics
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+queues = metrics_client.get_queue_metrics
+```
+
+## `get_task_metrics`
+
+`get_task_metrics(since: = nil, until_time: = nil, workflow_ids: = nil, parent_task_external_id: = nil, triggering_event_external_id: = nil)`
+
+Retrieve task metrics grouped by status (queued, running, completed, failed,
+cancelled)
+
+**Parameters:**
+
+| Name                           | Type                 | Description                                                          |
+| ------------------------------ | -------------------- | -------------------------------------------------------------------- |
+| `since`                        | `Time, nil`          | Start time for the metrics query (defaults to the past day if unset) |
+| `until_time`                   | `Time, nil`          | End time for the metrics query                                       |
+| `workflow_ids`                 | `Array<String>, nil` | List of workflow IDs to filter the metrics by                        |
+| `parent_task_external_id`      | `String, nil`        | ID of the parent task to filter by                                   |
+| `triggering_event_external_id` | `String, nil`        | ID of the triggering event to filter by                              |
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [TaskMetrics] Task metrics with counts per status
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+metrics = metrics_client.get_task_metrics(
+  since: Time.now - 86400,
+  workflow_ids: ["wf-1"]
+)
+puts "Completed: #{metrics.completed}, Failed: #{metrics.failed}"
+```
+
+## `get_task_stats`
+
+`get_task_stats()`
+
+Get task statistics for the tenant
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [Object] The task statistics
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+stats = metrics_client.get_task_stats
+```
+
+## `initialize`
+
+`initialize(rest_client, config)`
+
+Initializes a new Metrics client instance
+
+**Parameters:**
+
+| Name          | Type              | Description                                                       |
+| ------------- | ----------------- | ----------------------------------------------------------------- |
+| `rest_client` | `Object`          | The configured REST client for API communication                  |
+| `config`      | `Hatchet::Config` | The Hatchet configuration containing tenant_id and other settings |
+
+- **Returns** [void]
+- **Since** 0.1.0
+
+## `scrape_tenant_prometheus_metrics`
+
+`scrape_tenant_prometheus_metrics()`
+
+Scrape Prometheus metrics for the tenant
+
+- **Raises** [HatchetSdkRest::ApiError] If the API request fails
+- **Returns** [String] The metrics in Prometheus text format
+- **Since** 0.1.0
+
+**Example**
+
+```ruby
+prometheus_text = metrics_client.scrape_tenant_prometheus_metrics
+```

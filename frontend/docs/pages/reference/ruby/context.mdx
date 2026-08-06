@@ -1,0 +1,219 @@
+# Class Hatchet::Context
+
+**Inherits:** `Object`
+
+Context object passed to task execution blocks.
+
+Provides access to workflow run metadata, parent task outputs, logging,
+cancellation, and other runtime capabilities.
+
+**Example: Accessing parent output**
+
+```ruby
+workflow.task(:step2, parents: [step1]) do |input, ctx|
+  parent_result = ctx.task_output(step1)
+  { "sum" => parent_result["value"] + 1 }
+end
+```
+
+## Attributes
+
+## `additional_metadata`
+
+_Read-only attribute_
+
+- **Returns** [Hash] Additional metadata attached to this run
+
+## `attempt_number`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Current attempt number (retry_count + 1)
+
+## `deps`
+
+_Read-write attribute_
+
+- **Returns** [Hash] Resolved dependency values
+
+## `filter_payload`
+
+_Read-only attribute_
+
+- **Returns** [Hash, nil] Filter payload for event-triggered workflows
+
+## `priority`
+
+_Read-only attribute_
+
+- **Returns** [Integer, nil] Task priority
+
+## `retry_count`
+
+_Read-only attribute_
+
+- **Returns** [Integer] Current retry count (0 on first attempt)
+
+## `step_run_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The step run ID
+
+## `worker_id`
+
+_Read-only attribute_
+
+- **Returns** [String, nil] The worker ID assigned by the server
+
+## `workflow_run_id`
+
+_Read-only attribute_
+
+- **Returns** [String] The workflow run ID
+
+## Public Instance Methods
+
+## `cancel`
+
+`cancel()`
+
+Cancel the current workflow run.
+
+Batch tasks share one context across every buffered member, so there is no
+single task run to cancel; instead this sends a batch CANCELLED event covering
+every member of the batch.
+
+## `cancelled?`
+
+`cancelled?()`
+
+Check if the task has been cancelled
+
+- **Returns** [Boolean] true if cancellation has been requested
+
+## `get_task_run_error`
+
+`get_task_run_error(task_ref)`
+
+Get the error from a specific upstream task (used in on_failure tasks)
+
+**Parameters:**
+
+| Name       | Type                   | Description                  |
+| ---------- | ---------------------- | ---------------------------- |
+| `task_ref` | `Task, Symbol, String` | Reference to the failed task |
+
+- **Returns** [TaskRunError, nil] The task run error, or nil
+
+## `initialize`
+
+`initialize(workflow_run_id:, step_run_id:, action: = nil, client: = nil, dispatcher_client: = nil, event_client: = nil, additional_metadata: = {}, retry_count: = 0, parent_outputs: = {}, deps: = {}, priority: = nil, filter_payload: = nil, worker_context: = nil, worker_id: = nil)`
+
+**Parameters:**
+
+| Name                  | Type                                       | Description                                |
+| --------------------- | ------------------------------------------ | ------------------------------------------ |
+| `workflow_run_id`     | `String`                                   | The workflow run ID                        |
+| `step_run_id`         | `String`                                   | The step run ID                            |
+| `action`              | `Object, nil`                              | The action object from the dispatcher      |
+| `client`              | `Hatchet::Client, nil`                     | The Hatchet client                         |
+| `dispatcher_client`   | `Hatchet::Clients::Grpc::Dispatcher, nil`  | gRPC dispatcher client                     |
+| `event_client`        | `Hatchet::Clients::Grpc::EventClient, nil` | gRPC event client                          |
+| `additional_metadata` | `Hash`                                     | Additional metadata                        |
+| `retry_count`         | `Integer`                                  | Current retry count                        |
+| `parent_outputs`      | `Hash`                                     | Hash of parent task name -> output         |
+| `deps`                | `Hash`                                     | Resolved dependency values                 |
+| `priority`            | `Integer, nil`                             | Priority                                   |
+| `filter_payload`      | `Hash, nil`                                | Filter payload                             |
+| `worker_context`      | `Object, nil`                              | Worker context for worker-level operations |
+
+- **Returns** [Context] a new instance of Context
+
+## `log`
+
+`log(message)`
+
+Log a message via the Hatchet logging system. Sends the log to the server via
+gRPC if an event client is available.
+
+**Parameters:**
+
+| Name      | Type           | Description        |
+| --------- | -------------- | ------------------ |
+| `message` | `String, Hash` | The message to log |
+
+## `put_stream`
+
+`put_stream(data)`
+
+Put a stream chunk for real-time streaming output.
+
+**Parameters:**
+
+| Name   | Type     | Description              |
+| ------ | -------- | ------------------------ |
+| `data` | `String` | The chunk data to stream |
+
+## `refresh_timeout`
+
+`refresh_timeout(duration)`
+
+Refresh the execution timeout for this task.
+
+**Parameters:**
+
+| Name       | Type              | Description                                  |
+| ---------- | ----------------- | -------------------------------------------- |
+| `duration` | `Integer, String` | New timeout in seconds, or a duration string |
+
+## `release_slot`
+
+`release_slot()`
+
+Release the worker slot before the task completes. Useful for tasks that have
+a resource-intensive phase followed by a lighter phase.
+
+## `task_output`
+
+`task_output(task_ref)`
+
+Get the output of a parent task
+
+**Parameters:**
+
+| Name       | Type                   | Description                  |
+| ---------- | ---------------------- | ---------------------------- |
+| `task_ref` | `Task, Symbol, String` | Reference to the parent task |
+
+- **Returns** [Hash, nil] The parent task's output
+
+## `task_run_errors`
+
+`task_run_errors()`
+
+Get errors from upstream task runs (used in on_failure tasks)
+
+- **Returns** [Array\<TaskRunError>] Task run errors
+
+## `was_skipped?`
+
+`was_skipped?(task_ref)`
+
+Check if a parent task was skipped
+
+**Parameters:**
+
+| Name       | Type                   | Description                  |
+| ---------- | ---------------------- | ---------------------------- |
+| `task_ref` | `Task, Symbol, String` | Reference to the parent task |
+
+- **Returns** [Boolean] true if the task was skipped
+
+## `worker`
+
+`worker()`
+
+Access the worker context for worker-level operations
+
+- **Returns** [WorkerContext, nil]
