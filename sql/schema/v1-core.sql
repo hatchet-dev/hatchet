@@ -2457,6 +2457,7 @@ CREATE TABLE v1_event (
 ) PARTITION BY RANGE(seen_at);
 
 CREATE INDEX v1_event_key_scope_idx ON v1_event (tenant_id, key, scope);
+CREATE UNIQUE INDEX v1_event_external_id_seen_at ON v1_event (external_id, seen_at);
 
 CREATE TABLE v1_event_lookup_table (
     tenant_id UUID NOT NULL,
