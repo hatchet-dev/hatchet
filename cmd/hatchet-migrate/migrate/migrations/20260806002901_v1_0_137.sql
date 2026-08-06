@@ -4,20 +4,11 @@ DROP TRIGGER v1_event_lookup_table_insert_trigger ON v1_event;
 DROP FUNCTION v1_event_lookup_table_insert_function();
 
 DROP TABLE v1_event_lookup_table;
-DROP TABLE v1_event_to_run;
+TRUNCATE TABLE v1_event_to_run;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-CREATE TABLE v1_event_to_run (
-    run_external_id UUID NOT NULL,
-    event_id BIGINT NOT NULL,
-    event_seen_at TIMESTAMPTZ NOT NULL,
-    filter_id UUID,
-
-    PRIMARY KEY (event_id, event_seen_at, run_external_id)
-) PARTITION BY RANGE(event_seen_at);
-
 CREATE TABLE v1_event_lookup_table (
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL,
