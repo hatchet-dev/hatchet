@@ -149,6 +149,7 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Runtime.GRPCBroadcastAddress = grpcBroadcast
 		scf.Runtime.GRPCInsecure = true
 		scf.Runtime.Healthcheck = false
+		scf.Runtime.Embedded = true
 
 		scf.SecurityCheck.Enabled = false
 

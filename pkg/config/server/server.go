@@ -250,6 +250,9 @@ type ConfigFileRuntime struct {
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 
+	// Whether this instance is running in embedded mode
+	Embedded bool `mapstructure:"embedded" json:"embedded,omitempty" default:"false"`
+
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
