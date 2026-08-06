@@ -343,6 +343,11 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	deregister := d.streamSessions.Register(cancel)
 	defer deregister()
 
+	rateLimitToken := tenantId.String()
+	if tokenId, ok := ctx.Value(analytics.APITokenIDKey).(uuid.UUID); ok && tokenId != uuid.Nil {
+		rateLimitToken = tokenId.String()
+	}
+
 	invocation := &durableTaskInvocation{
 		server:   server,
 		tenantId: tenantId,
@@ -438,6 +443,15 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.TriggerRuns.DurableTaskExternalId)
 			case *contracts.DurableTaskRequest_WaitFor:
 				registerTask(msg.WaitFor.DurableTaskExternalId)
+			}
+
+			// blocks until the tenant's dispatcher quota has capacity, so a client
+			// sending requests faster than they can be processed is throttled here
+			// instead of piling up unbounded goroutines
+			if d.rateLimiter != nil {
+				if err := d.rateLimiter.WaitForDispatcherCapacity(ctx, rateLimitToken); err != nil {
+					continue
+				}
 			}
 
 			reqWg.Add(1)

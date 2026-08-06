@@ -50,6 +50,10 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 	return rl.rateLimiters[rateLimitToken]
 }
 
+func (rl *HatchetRateLimiter) WaitForDispatcherCapacity(ctx context.Context, rateLimitToken string) error {
+	return rl.GetOrCreateTenantRateLimiter(rateLimitToken).dispatcherLimiter.Wait(ctx)
+}
+
 func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateLimiter {
 	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher)", r, b)
 	return &HatchetRateLimiter{

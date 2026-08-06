@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
@@ -36,6 +37,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
 type Teardown struct {
@@ -125,6 +127,15 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 		return runV1Config(ctx, sc, cleanup)
 	}
 	return runV0Config(ctx, sc, cleanup)
+}
+
+func newGRPCRateLimiter(sc *server.ServerConfig) *middleware.HatchetRateLimiter {
+	limit := sc.Runtime.GRPCRateLimit
+	if limit == 0 {
+		limit = 1000
+	}
+
+	return middleware.NewHatchetRateLimiter(rate.Limit(limit), int(limit), sc.Logger)
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
@@ -341,6 +352,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	if sc.HasService("grpc") {
 		cacheInstance := cache.New(10 * time.Second)
+		rateLimiter := newGRPCRateLimiter(sc)
 
 		// create the dispatcher
 		d, err := dispatcher.New(
@@ -357,6 +369,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithRateLimiter(rateLimiter),
 		)
 
 		if err != nil {
@@ -422,6 +435,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
+			grpc.WithRateLimiter(rateLimiter),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithDispatcherV1(d.V1()),
@@ -786,6 +800,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	if sc.HasService("all") || sc.HasService("grpc-api") {
 		cacheInstance := cache.New(10 * time.Second)
+		rateLimiter := newGRPCRateLimiter(sc)
 
 		// create the dispatcher
 		d, err := dispatcher.New(
@@ -802,6 +817,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithRateLimiter(rateLimiter),
 		)
 
 		if err != nil {
@@ -869,6 +885,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
+			grpc.WithRateLimiter(rateLimiter),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithDispatcherV1(d.V1()),

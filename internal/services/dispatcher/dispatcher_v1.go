@@ -32,6 +32,7 @@ type DispatcherServiceImpl struct {
 	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 	dispatcherId       uuid.UUID
+	rateLimiter        RateLimiter
 }
 
 // CancelStreamSessions hangs up all registered long-lived streams (durable event
@@ -41,7 +42,7 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate, rateLimiter RateLimiter) *DispatcherServiceImpl {
 	pubBuffer := msgqueue.NewMQPubBuffer(mq)
 	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
 
@@ -54,6 +55,7 @@ func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub m
 		pubBuffer:     pubBuffer,
 		dispatcherId:  dispatcherId,
 		analytics:     a,
+		rateLimiter:   rateLimiter,
 
 		streamSessions: streams.NewRegistry(),
 	}
