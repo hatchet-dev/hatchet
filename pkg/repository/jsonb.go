@@ -12,7 +12,7 @@ func ValidateJSONB(jsonb []byte, fieldName string) error {
 		return nil
 	}
 
-	if !isUnicodeValid(jsonb) {
+	if !IsUnicodeValid(jsonb) {
 		return fmt.Errorf("encoded jsonb contains invalid null character \\u0000 in field `%s`", fieldName)
 	}
 
@@ -23,7 +23,7 @@ func ValidateJSONB(jsonb []byte, fieldName string) error {
 	return nil
 }
 
-func isUnicodeValid(jsonb []byte) bool {
+func IsUnicodeValid(jsonb []byte) bool {
 	dec := json.NewDecoder(bytes.NewReader(jsonb))
 	for {
 		token, err := dec.Token()
