@@ -1,3 +1,5 @@
+"use client";
+
 import { useLanguage } from "@/context/LanguageContext";
 import { Tabs } from "@/components/StyledTabs";
 import UniversalTabs from "@/components/UniversalTabs";

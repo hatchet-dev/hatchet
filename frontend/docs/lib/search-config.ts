@@ -1,7 +1,7 @@
 /**
  * Shared MiniSearch configuration used at:
  *   1. Index generation time (scripts/generate-llms.ts)
- *   2. MCP server query time (pages/api/mcp.ts)
+ *   2. MCP server query time (app/api/mcp/route.ts)
  *   3. Browser search UI (components/Search.tsx)
  *
  * IMPORTANT: Any change here requires regenerating the index

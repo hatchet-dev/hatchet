@@ -1,0 +1,66 @@
+---
+title: "Quickstart"
+---
+
+import { Tabs, Steps, Callout } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Kubernetes Quickstart
+
+## Prerequisites
+
+- A Kubernetes cluster currently set as the current context in `kubectl`
+- `kubectl` and `helm` installed
+
+## Quickstart
+
+<Steps>
+### Get Hatchet Running
+
+To deploy `hatchet-stack`, run the following commands:
+
+```sh
+helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
+helm install hatchet-stack hatchet/hatchet-stack --set caddy.enabled=true
+```
+
+This default installation will run the Hatchet server as an internal service in the cluster and spins up a reverse proxy via `Caddy` to get local access.
+
+Encryption keys and secrets are generated automatically on first install by the quickstart job, which is enabled by default (`api.quickstartJob.enabled=true`). See [Credentials & Key Generation](/self-hosting/kubernetes-helm-configuration) for details.
+
+To view the Hatchet server, run the following command:
+
+```sh
+export NAMESPACE=default # TODO: replace with your namespace
+export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app=caddy" -o jsonpath="{.items[0].metadata.name}")
+export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+kubectl --namespace $NAMESPACE port-forward $POD_NAME 8080:$CONTAINER_PORT
+```
+
+And then navigate to `http://localhost:8080` to see the Hatchet frontend running. You can log into Hatchet with the following credentials:
+
+```
+Email: admin@example.com
+Password: Admin123!!
+```
+
+### Port forward to the Hatchet engine
+
+```sh
+export NAMESPACE=default # TODO: replace with your namespace
+export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=engine" -o jsonpath="{.items[0].metadata.name}")
+export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+kubectl --namespace $NAMESPACE port-forward $POD_NAME 7070:$CONTAINER_PORT
+```
+
+This will spin up the Hatchet engine service on `localhost:7070` which you can then connect to from the examples.
+
+### Generate an API token
+
+To generate an API token, navigate to the `Settings` tab in the Hatchet frontend and click on the `API Tokens` tab. Click the `Generate API Token` button to create a new token. Store this token somewhere safe.
+
+### Run your first worker
+
+Now that you have an API token, see the guide [here](https://docs.hatchet.run/home/setup) for how to run your first task.
+
+</Steps>

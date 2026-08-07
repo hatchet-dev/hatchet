@@ -67,7 +67,7 @@ tasks:
     desc: Sync agent-instructions MDX files into hatchet-cli skill-assets references
     cmds:
       - |
-        src="frontend/docs/pages/agent-instructions"
+        src="frontend/docs/content/docs/agent-instructions"
         dest="cmd/hatchet-cli/cli/skill-assets/hatchet-cli/references"
         for f in "$src"/*.mdx; do
           name=$(basename "$f" .mdx)
@@ -86,7 +86,7 @@ tasks:
           ruby: 'sdks/ruby/src/CHANGELOG.md'
     cmd:
         for: { var: CHANGELOGS }
-        cmd: bash ./hack/docs/sync-changelog.sh {{.ITEM}} frontend/docs/pages/reference/changelog/{{.KEY}}.mdx
+        cmd: bash ./hack/docs/sync-changelog.sh {{.ITEM}} frontend/docs/content/docs/reference/changelog/{{.KEY}}.mdx
   pre:
     aliases: [fmt]
     cmds:

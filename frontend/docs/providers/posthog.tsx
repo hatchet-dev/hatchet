@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider as PhProvider, usePostHog } from "posthog-js/react";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useConsent } from "@/context/ConsentContext";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
@@ -51,7 +51,9 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PhProvider client={posthog}>
-      <PostHogPageView />
+      <Suspense fallback={null}>
+        <PostHogPageView />
+      </Suspense>
       {children}
     </PhProvider>
   );
