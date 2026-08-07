@@ -10,7 +10,7 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useIsTenantAdmin } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useApiError } from '@/lib/hooks';
@@ -37,6 +37,7 @@ function RateLimitsTable() {
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:rate-limits', {});
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const { handleApiError } = useApiError({});
 
   const {
@@ -64,8 +65,12 @@ function RateLimitsTable() {
   });
 
   const tableColumns = useMemo(
-    () => columns({ onDeleteClick: (row) => deleteMutation.mutate(row) }),
-    [deleteMutation],
+    () =>
+      columns({
+        isTenantAdmin,
+        onDeleteClick: (row) => deleteMutation.mutate(row),
+      }),
+    [isTenantAdmin, deleteMutation],
   );
 
   return (

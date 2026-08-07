@@ -1,6 +1,7 @@
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import { Button } from '@/components/v1/ui/button';
+import { useIsTenantAdmin } from '@/hooks/use-tenant';
 import { Play } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -12,8 +13,13 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   const {
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
   } = useRunsContext();
+  const isTenantAdmin = useIsTenantAdmin();
 
   const actions = useMemo(() => {
+    if (!isTenantAdmin) {
+      return [];
+    }
+
     let baseActions = [
       !hideCancelAndReplayButtons && (
         <div key="bulk-actions" className="flex flex-row gap-x-1">
@@ -45,7 +51,12 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
     }
 
     return baseActions;
-  }, [onTriggerWorkflow, hideTriggerRunButton, hideCancelAndReplayButtons]);
+  }, [
+    isTenantAdmin,
+    onTriggerWorkflow,
+    hideTriggerRunButton,
+    hideCancelAndReplayButtons,
+  ]);
 
   return <>{actions}</>;
 };

@@ -35,7 +35,11 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import useControlPlane from '@/hooks/use-control-plane';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import {
+  useCurrentTenantId,
+  useIsTenantAdmin,
+  useTenantDetails,
+} from '@/hooks/use-tenant';
 import api, {
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
@@ -136,6 +140,7 @@ function SettingsSectionHeader({
 
 const AlertingSettings: React.FC = () => {
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const alertingSettings = useQuery({
     ...queries.alertingSettings.get(tenantId),
   });
@@ -167,6 +172,7 @@ const AlertingSettings: React.FC = () => {
     <UpdateTenantAlertingSettings
       alertingSettings={alertingSettings.data}
       isLoading={isLoading}
+      readOnly={!isTenantAdmin}
       onSubmit={(opts) => {
         updateMutation.mutate(opts);
       }}
@@ -178,6 +184,7 @@ const AlertingSettings: React.FC = () => {
 function EmailGroupsList() {
   const { tenant } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const [showGroupsDialog, setShowGroupsDialog] = useState(false);
   const [deleteEmailGroup, setDeleteEmailGroup] =
     useState<TenantAlertEmailGroup | null>(null);
@@ -270,14 +277,16 @@ function EmailGroupsList() {
         title="Email Groups"
         description="Create reusable email recipient groups for alert delivery, including a default group for tenant members."
         action={
-          <Button
-            key="create-email-group"
-            onClick={() => {
-              setShowGroupsDialog(true);
-            }}
-          >
-            Create new group
-          </Button>
+          isTenantAdmin ? (
+            <Button
+              key="create-email-group"
+              onClick={() => {
+                setShowGroupsDialog(true);
+              }}
+            >
+              Create new group
+            </Button>
+          ) : undefined
         }
       />
       <Separator className="my-4" />
@@ -509,6 +518,7 @@ function DeleteSlackWebhook({
 
 function SNSIntegrationsList() {
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const [showSNSDialog, setShowSNSDialog] = useState(false);
   const [deleteSNS, setDeleteSNS] = useState<SNSIntegration | null>(null);
 
@@ -557,9 +567,11 @@ function SNSIntegrationsList() {
         title="SNS Integrations"
         description="Create SNS ingestion endpoints to receive events from AWS services and forward them into this tenant."
         action={
-          <Button onClick={() => setShowSNSDialog(true)}>
-            Create SNS Endpoint
-          </Button>
+          isTenantAdmin ? (
+            <Button onClick={() => setShowSNSDialog(true)}>
+              Create SNS Endpoint
+            </Button>
+          ) : undefined
         }
       />
       <Separator className="my-4" />
@@ -677,6 +689,7 @@ function DeleteSNSIntegration({
 function GithubInstallationsList() {
   const { tenantId } = useCurrentTenantId();
   const { tenant } = useTenantDetails();
+  const isTenantAdmin = useIsTenantAdmin();
 
   const [installationToLink, setInstallationToLink] = useState<
     string | undefined
@@ -727,6 +740,7 @@ function GithubInstallationsList() {
             onLinkToTenant={(installationId: string) => {
               setInstallationToLink(installationId);
             }}
+            isTenantAdmin={isTenantAdmin}
           />
         ),
       },
@@ -737,7 +751,7 @@ function GithubInstallationsList() {
         ),
       },
     ],
-    [],
+    [isTenantAdmin],
   );
 
   const currentPath = window.location.pathname;
@@ -748,11 +762,13 @@ function GithubInstallationsList() {
         title="GitHub Accounts"
         description="Link GitHub accounts and installations that this tenant can use for connected repository workflows."
         action={
-          <a
-            href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
-          >
-            <Button>Link new account</Button>
-          </a>
+          isTenantAdmin ? (
+            <a
+              href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
+            >
+              <Button>Link new account</Button>
+            </a>
+          ) : undefined
         }
       />
       <Separator className="my-4" />

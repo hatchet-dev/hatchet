@@ -25,7 +25,7 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useIsTenantAdmin } from '@/hooks/use-tenant';
 import {
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteFilter,
@@ -74,6 +74,7 @@ function ScheduledRunsTable({
   parentStepRunId,
 }: ScheduledWorkflowRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const { open } = useSidePanel();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
@@ -125,15 +126,17 @@ function ScheduledRunsTable({
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 
-  const actions = [
-    <Button
-      key="schedule-run"
-      onClick={() => setTriggerWorkflow(true)}
-      variant="cta"
-    >
-      Schedule Run
-    </Button>,
-  ];
+  const actions = isTenantAdmin
+    ? [
+        <Button
+          key="schedule-run"
+          onClick={() => setTriggerWorkflow(true)}
+          variant="cta"
+        >
+          Schedule Run
+        </Button>,
+      ]
+    : [];
 
   const [showScheduledRunRevoke, setShowScheduledRunRevoke] = useState<
     ScheduledWorkflows | undefined
@@ -159,6 +162,7 @@ function ScheduledRunsTable({
     () =>
       columns({
         tenantId,
+        isTenantAdmin,
         onDeleteClick: (row) => {
           setShowScheduledRunRevoke(row);
         },
@@ -178,7 +182,7 @@ function ScheduledRunsTable({
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedAdditionalMetaJobId],
+    [tenantId, isTenantAdmin, selectedAdditionalMetaJobId],
   );
 
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
@@ -213,52 +217,57 @@ function ScheduledRunsTable({
         ? 'Reschedule filtered'
         : 'Reschedule all';
 
-  const leftActions = [
-    <DropdownMenu
-      key="scheduled-run-actions"
-      open={isActionsOpen}
-      onOpenChange={setIsActionsOpen}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" type="button">
-          <Command className="cq-xl:hidden size-4" />
-          <span className="cq-xl:inline hidden text-sm">Actions</span>
-          <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="z-40">
-        <DropdownMenuItem
-          className="h-8 w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 font-normal"
-          onSelect={() => {
-            setIsActionsOpen(false);
-            if (selectedIds.length > 0) {
-              setCancelParams({ scheduledRunIds: selectedIds });
-            } else {
-              setCancelParams({ scheduledRunIds: [], filter: actionFilter });
-            }
-          }}
+  const leftActions = isTenantAdmin
+    ? [
+        <DropdownMenu
+          key="scheduled-run-actions"
+          open={isActionsOpen}
+          onOpenChange={setIsActionsOpen}
         >
-          {deleteLabel}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="h-8 w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 font-normal"
-          onSelect={() => {
-            setIsActionsOpen(false);
-            if (selectedIds.length > 0) {
-              setRescheduleParams({ scheduledRunIds: selectedIds });
-            } else {
-              setRescheduleParams({
-                scheduledRunIds: [],
-                filter: actionFilter,
-              });
-            }
-          }}
-        >
-          {rescheduleLabel}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>,
-  ];
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" type="button">
+              <Command className="cq-xl:hidden size-4" />
+              <span className="cq-xl:inline hidden text-sm">Actions</span>
+              <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-40">
+            <DropdownMenuItem
+              className="h-8 w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 font-normal"
+              onSelect={() => {
+                setIsActionsOpen(false);
+                if (selectedIds.length > 0) {
+                  setCancelParams({ scheduledRunIds: selectedIds });
+                } else {
+                  setCancelParams({
+                    scheduledRunIds: [],
+                    filter: actionFilter,
+                  });
+                }
+              }}
+            >
+              {deleteLabel}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="h-8 w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 font-normal"
+              onSelect={() => {
+                setIsActionsOpen(false);
+                if (selectedIds.length > 0) {
+                  setRescheduleParams({ scheduledRunIds: selectedIds });
+                } else {
+                  setRescheduleParams({
+                    scheduledRunIds: [],
+                    filter: actionFilter,
+                  });
+                }
+              }}
+            >
+              {rescheduleLabel}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+      ]
+    : [];
 
   return (
     <>

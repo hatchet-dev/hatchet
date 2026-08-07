@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useIsTenantAdmin } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
@@ -39,6 +39,7 @@ export default function CronsPage() {
 
 function CronsTable() {
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
@@ -92,6 +93,7 @@ function CronsTable() {
     () =>
       columns({
         tenantId,
+        isTenantAdmin,
         onDeleteClick: handleDeleteClick,
         onEnableClick,
         onTriggerClick: (cron) => triggerNow(cron.metadata.id),
@@ -101,7 +103,14 @@ function CronsTable() {
         updatingCronId,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedJobId, isUpdatePending, updatingCronId, triggerNow],
+    [
+      tenantId,
+      isTenantAdmin,
+      selectedJobId,
+      isUpdatePending,
+      updatingCronId,
+      triggerNow,
+    ],
   );
 
   const filters: ToolbarFilters = [
@@ -118,15 +127,17 @@ function CronsTable() {
     },
   ];
 
-  const actions = [
-    <Button
-      key="create-cron"
-      onClick={() => setTriggerWorkflow(true)}
-      variant="cta"
-    >
-      Create Cron Job
-    </Button>,
-  ];
+  const actions = isTenantAdmin
+    ? [
+        <Button
+          key="create-cron"
+          onClick={() => setTriggerWorkflow(true)}
+          variant="cta"
+        >
+          Create Cron Job
+        </Button>,
+      ]
+    : [];
 
   return (
     <>

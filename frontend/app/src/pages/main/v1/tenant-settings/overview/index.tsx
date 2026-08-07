@@ -8,7 +8,11 @@ import { Switch } from '@/components/v1/ui/switch';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import {
+  useCurrentTenantId,
+  useIsTenantAdmin,
+  useTenantDetails,
+} from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -218,18 +222,23 @@ const TenantTags: React.FC = () => {
 
 const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { tenantId } = useCurrentTenantId();
+  const { tenantId, tenant } = useTenantDetails();
+  const isTenantAdmin = useIsTenantAdmin();
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenantId, data);
+      await api.tenantUpdate(tenantId!, data);
     },
     onMutate: () => setIsLoading(true),
     onSuccess: () => window.location.reload(),
     onError: handleApiError,
   });
+
+  if (!isTenantAdmin) {
+    return <ReadOnlyValue value={tenant?.name ?? ''} />;
+  }
 
   return (
     <UpdateTenantForm
@@ -242,6 +251,7 @@ const UpdateTenant: React.FC = () => {
 const AnalyticsOptOut: React.FC = () => {
   const { tenant } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
+  const isTenantAdmin = useIsTenantAdmin();
   const [changed, setChanged] = useState(false);
   const [checkedState, setChecked] = useState(!!tenant?.analyticsOptOut);
   const [isLoading, setIsLoading] = useState(false);
@@ -263,12 +273,14 @@ const AnalyticsOptOut: React.FC = () => {
       <Switch
         id="aoo"
         checked={checkedState}
+        disabled={!isTenantAdmin}
         onClick={() => {
           setChecked((s) => !s);
           setChanged(true);
         }}
       />
       {changed &&
+        isTenantAdmin &&
         (isLoading ? (
           <Spinner />
         ) : (

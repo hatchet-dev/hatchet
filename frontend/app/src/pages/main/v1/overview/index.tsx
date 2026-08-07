@@ -26,7 +26,7 @@ import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useIsTenantAdmin, useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -42,6 +42,7 @@ const EXPIRES_IN_OPTIONS = {
 
 export default function Overview() {
   const { tenant, tenantId } = useTenantDetails();
+  const isTenantAdmin = useIsTenantAdmin();
   const { currentUser } = useCurrentUser();
   const authDisabled = useAuthDisabled();
   const { meta } = useApiMeta();
@@ -212,6 +213,7 @@ export default function Overview() {
     enabled:
       !!tenantId &&
       !onboarding.hidden &&
+      isTenantAdmin &&
       selectedTab === workflowStepOptions.quickstart.value,
     refetchInterval: 2000, // Poll every 2 seconds
   });
@@ -239,7 +241,11 @@ export default function Overview() {
         selectionConfirmedAt ?? new Date(0).toISOString(),
       ),
     ),
-    enabled: !!tenantId && !!selectionConfirmedAt && !onboarding.hidden,
+    enabled:
+      !!tenantId &&
+      !!selectionConfirmedAt &&
+      !onboarding.hidden &&
+      isTenantAdmin,
     refetchInterval: (query) =>
       selectedTab === workflowStepOptions.runTask.value &&
       (query.state.data?.rows?.length ?? 0) === 0
@@ -277,8 +283,10 @@ export default function Overview() {
 
       {/* Hidden onboarding leaves no trace on Overview, whether hidden by
           Skip or by Finish; recovery is Restart onboarding on the tenant
-          General settings page. */}
-      {!onboarding.hidden && (
+          General settings page. Onboarding also requires creating an API
+          token, which plain tenant members can't do, so it's hidden for
+          them entirely rather than shown broken. */}
+      {!onboarding.hidden && isTenantAdmin && (
         <LearnWorkflowSection
           tenantName={tenant?.name}
           selectedTab={selectedTab}
@@ -338,7 +346,7 @@ export default function Overview() {
         />
       )}
 
-      {!authDisabled && !onboarding.hidden && (
+      {!authDisabled && !onboarding.hidden && isTenantAdmin && (
         <CreateApiTokenSection
           tokenName={tokenName}
           onTokenNameChange={(value) => {

@@ -23,9 +23,11 @@ export function GithubAccountCell({
 export function GithubLinkCell({
   installation,
   onLinkToTenant,
+  isTenantAdmin,
 }: {
   installation: GithubAppInstallation;
   onLinkToTenant: (installationId: string) => void;
+  isTenantAdmin: boolean;
 }) {
   if (installation.is_linked_to_tenant) {
     return (
@@ -38,6 +40,11 @@ export function GithubLinkCell({
       </Button>
     );
   }
+
+  if (!isTenantAdmin) {
+    return null;
+  }
+
   return installation.type == 'installation' ? (
     <Button
       variant="outline"
