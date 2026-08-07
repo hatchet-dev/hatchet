@@ -39,7 +39,7 @@ jobs:
                   || ['admin', 'write'].includes(data.permission);
               } catch (err) {
                 core.info(`could not resolve permission for ${login}: ${err.message}`);
-                return false;
+                return null;
               }
             }
 
@@ -48,22 +48,25 @@ jobs:
               "Thanks for taking the time to open this pull request! :heart:",
               "",
               "To keep our review queue focused, we only accept pull requests that are linked to an " +
-                "issue the Hatchet team has already triaged and marked as `" + ACCEPTED_LABEL + "`.",
+                "issue the Hatchet team has already triaged, labelled `" + ACCEPTED_LABEL + "`, and " +
+                "assigned to you.",
               "",
-              "We couldn't find a linked accepted issue for this PR, so we're closing it for now. " +
-                "This isn't a reflection of the quality of your work — it just helps us make sure " +
-                "effort is spent on changes we're ready to merge.",
+              "We couldn't find a linked issue that's both accepted and assigned to you, so we're " +
+                "closing this PR for now. This isn't a reflection of the quality of your work — it " +
+                "just helps us make sure effort goes into changes we're ready to merge, and that two " +
+                "people don't unknowingly build the same thing.",
               "",
               "**What to do next:**",
-              "1. Open (or find) an issue describing the change and wait for a maintainer to add the " +
-                "`" + ACCEPTED_LABEL + "` label.",
-              "2. Once the issue is accepted, link it from this PR using a closing keyword " +
-                "(e.g. `Closes #123`) in the description and reopen the PR.",
-              "",
+              "1. Open (or find) an issue describing the change, and comment there to say you'd like " +
+                "to take it on.",
+              "2. Wait for a maintainer to add the `" + ACCEPTED_LABEL + "` label and assign the " +
+                "issue to you.",
+              "3. Link the issue from this PR using a closing keyword (e.g. `Closes #123`) in the " +
+                "description, then reopen the PR.",
               "Thanks again for contributing to Hatchet! :axe:",
             ].join('\n');
 
-            async function linkedAcceptedIssue(number) {
+            async function linkedAcceptedIssue(number, author) {
               const query = `
                 query($owner:String!, $repo:String!, $number:Int!) {
                   repository(owner:$owner, name:$repo) {
@@ -72,6 +75,7 @@ jobs:
                         nodes {
                           number
                           labels(first:50) { nodes { name } }
+                          assignees(first:20) { nodes { login } }
                         }
                       }
                     }
@@ -85,6 +89,7 @@ jobs:
               const nodes = res.repository.pullRequest.closingIssuesReferences.nodes || [];
               return nodes.some(issue =>
                 (issue.labels.nodes || []).some(l => l.name.toLowerCase() === ACCEPTED_LABEL)
+                && (issue.assignees.nodes || []).some(a => a.login.toLowerCase() === author.toLowerCase())
               );
             }
 
@@ -113,7 +118,13 @@ jobs:
                 core.info(`#${number}: bot author, skipping`);
                 return;
               }
-              if (await isMaintainer(pr.user && pr.user.login)) {
+              const author = pr.user && pr.user.login;
+              const maintainer = await isMaintainer(author);
+              if (maintainer === null) {
+                core.info(`#${number}: permission lookup failed, leaving open`);
+                return;
+              }
+              if (maintainer) {
                 core.info(`#${number}: author is a maintainer, skipping`);
                 return;
               }
@@ -121,7 +132,7 @@ jobs:
                 core.info(`#${number}: has ${ACCEPTED_LABEL} label, skipping`);
                 return;
               }
-              if (await linkedAcceptedIssue(number)) {
+              if (await linkedAcceptedIssue(number, author)) {
                 core.info(`#${number}: linked to an accepted issue, skipping`);
                 return;
               }
