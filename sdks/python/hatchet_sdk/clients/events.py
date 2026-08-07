@@ -5,6 +5,7 @@ import warnings
 from datetime import timezone
 from typing import cast
 
+import grpc.aio
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict
 
@@ -44,6 +45,7 @@ from hatchet_sdk.types.trigger import (
     PushEventOptions as PushEventOptions,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
+from hatchet_sdk.utils.grpc_payload import raise_if_payload_too_large
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
@@ -396,7 +398,8 @@ class EventClient(BaseRestClient):
 
         try:
             put_stream_event(request, metadata=create_authorization_header(self.token))
-        except Exception:
+        except grpc.RpcError as e:
+            raise_if_payload_too_large(e, request)
             raise
 
     async def _put_stream_event(
@@ -415,9 +418,13 @@ class EventClient(BaseRestClient):
     async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         request = self._create_put_stream_event_request(data, step_run_id, index)
 
-        await self._retrying_aio_put_stream_event(
-            request, create_authorization_header(self.token)
-        )
+        try:
+            await self._retrying_aio_put_stream_event(
+                request, create_authorization_header(self.token)
+            )
+        except grpc.aio.AioRpcError as e:
+            raise_if_payload_too_large(e, request)
+            raise
 
     async def aio_list(
         self,

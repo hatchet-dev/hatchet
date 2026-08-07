@@ -17,6 +17,23 @@ module Hatchet
     end
   end
 
+
+  class PayloadTooLargeError < Error
+    # @return [Integer] The exact serialized size, in bytes, of the message that was rejected
+    attr_reader :payload_bytes
+
+    def initialize(payload_bytes, details)
+      @payload_bytes = payload_bytes
+      super(
+        "Payload too large: attempted to send #{payload_bytes}, " \
+        "which exceeds the gRPC max message size configured for this client. Increase " \
+        "grpc_max_send_message_length in your Hatchet::Config (or the " \
+        "HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH env var), or reduce the payload size. " \
+        "(#{details})",
+      )
+    end
+  end
+
   # Raised when a dedupe violation occurs (duplicate key)
   class DedupeViolationError < Error
     def initialize(message = "Dedupe violation: a run with this key already exists")
@@ -106,5 +123,13 @@ module Hatchet
       messages = exceptions.map(&:message).join("; ")
       super("Workflow run failed with #{exceptions.length} error(s): #{messages}")
     end
+  end
+
+  def self.raise_if_grpc_payload_too_large!(grpc_error, request)
+    details = grpc_error.message.to_s
+    lowered = details.downcase
+    return unless lowered.include?("larger than") || lowered.include?("too large")
+
+    raise PayloadTooLargeError.new(request.to_proto.bytesize, details)
   end
 end

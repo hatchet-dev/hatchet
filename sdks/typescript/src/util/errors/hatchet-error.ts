@@ -10,10 +10,29 @@ class HatchetError extends Error {
   }
 }
 
+/**
+ * Returns true if `e` is a gRPC RESOURCE_EXHAUSTED error caused by an oversized outgoing
+ * message (as opposed to some other RESOURCE_EXHAUSTED condition, e.g. a tenant quota limit).
+ */
+function isMessageTooLargeError(e: unknown): boolean {
+  if (e == null || typeof e !== 'object' || !('code' in e)) {
+    return false;
+  }
+  const { code } = e as { code: unknown };
+  // nice-grpc-common Status.RESOURCE_EXHAUSTED === 8
+  if (code !== 8) {
+    return false;
+  }
+  const details = 'details' in e ? String((e as { details: unknown }).details ?? '') : '';
+  const lowered = details.toLowerCase();
+  return lowered.includes('larger than') || lowered.includes('too large');
+}
+
 export function toHatchetError(
   e: unknown,
   defaultMessageOrOptions:
-    string | { defaultMessage?: string; prefix?: string } = 'An error occurred'
+    string | { defaultMessage?: string; prefix?: string } = 'An error occurred',
+  payloadSizeBytes?: number
 ): HatchetError {
   if (e instanceof HatchetError) {
     return e;
@@ -24,6 +43,14 @@ export function toHatchetError(
       : defaultMessageOrOptions;
   const defaultMessage = opts.defaultMessage ?? 'An error occurred';
   let message = getErrorMessage(e) || defaultMessage;
+
+  if (payloadSizeBytes !== undefined && isMessageTooLargeError(e)) {
+    message =
+      `Payload too large: attempted to send ${payloadSizeBytes}, which exceeds ` +
+      `the gRPC max message size configured for this client.` +
+      `(${message})`;
+  }
+
   if (opts.prefix) {
     message = opts.prefix + message;
   }

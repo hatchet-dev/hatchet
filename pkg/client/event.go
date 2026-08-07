@@ -315,7 +315,11 @@ func (a *eventClientImpl) PutStreamEvent(ctx context.Context, taskRunId string, 
 
 	_, err := a.client.PutStreamEvent(a.ctx.newContext(ctx), request)
 
-	return err
+	if err != nil {
+		return wrapIfPayloadTooLarge(err, request)
+	}
+
+	return nil
 }
 
 // injectTraceContext adds traceparent and source workflow/step run IDs into the
