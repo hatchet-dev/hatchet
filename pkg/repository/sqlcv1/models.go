@@ -3307,25 +3307,11 @@ type V1Event struct {
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
 }
 
-type V1EventLookupTable struct {
-	TenantID    uuid.UUID          `json:"tenant_id"`
-	ExternalID  uuid.UUID          `json:"external_id"`
-	EventID     int64              `json:"event_id"`
-	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
-}
-
 type V1EventLookupTableOlap struct {
 	TenantID    uuid.UUID          `json:"tenant_id"`
 	ExternalID  uuid.UUID          `json:"external_id"`
 	EventID     int64              `json:"event_id"`
 	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
-}
-
-type V1EventToRun struct {
-	RunExternalID uuid.UUID          `json:"run_external_id"`
-	EventID       int64              `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      *uuid.UUID         `json:"filter_id"`
 }
 
 type V1EventToRunOlap struct {
