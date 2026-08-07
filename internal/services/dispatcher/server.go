@@ -1272,8 +1272,8 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	}
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
-		if validationErr := v1.ValidateJSONB([]byte(request.EventPayload), "errorMessage"); validationErr != nil {
-			request.EventPayload = validationErr.Error()
+		if isValidUnicode := v1.IsUnicodeValid([]byte(request.EventPayload)); !isValidUnicode {
+			request.EventPayload = fmt.Sprintf("invalid unicode in error message: %q", request.EventPayload)
 		}
 	}
 
