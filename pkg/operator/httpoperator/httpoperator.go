@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 
 	"github.com/hatchet-dev/hatchet/internal/signature"
@@ -230,7 +230,7 @@ func (h *HTTPOperator) refreshActions(ctx context.Context) {
 		return
 	}
 
-	if slicesEqualUnordered(actions, h.lastActions) {
+	if listutils.AreUnorderedEqual(actions, h.lastActions) {
 		return
 	}
 
@@ -276,20 +276,6 @@ func pollActions(ctx context.Context, sender requestSender, l *zerolog.Logger, c
 	}
 
 	return resp.Actions, nil
-}
-
-// slicesEqualUnordered reports whether a and b contain the same elements regardless of order.
-func slicesEqualUnordered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	ac := slices.Clone(a)
-	bc := slices.Clone(b)
-	slices.Sort(ac)
-	slices.Sort(bc)
-
-	return slices.Equal(ac, bc)
 }
 
 func (h *HTTPOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {

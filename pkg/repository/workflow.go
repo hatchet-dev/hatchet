@@ -24,6 +24,16 @@ import (
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
 
+type DagNode struct {
+	// include both of these to make it easier to render the dag in other places
+	ParentReadableIds []string
+	ChildReadableIds  []string
+
+	// todo: expand this to include conditions and other stuff so we can render dags from json?
+}
+
+type DagShape map[StepReadableId]DagNode
+
 type CreateWorkflowVersionOpts struct {
 	// (required) the workflow name
 	Name string `validate:"required,hatchetName"`
@@ -110,6 +120,9 @@ type CreateStepOpts struct {
 
 	// (optional) whether this step is durable
 	IsDurable bool `json:"isDurable,omitempty"`
+
+	// (optional) whether this step is the synthetic DAG orchestrator step
+	IsDagOrchestrator bool `json:"isDagOrchestrator,omitempty"`
 
 	// (optional) slot requests for this step (slot_type -> units)
 	SlotRequests map[string]int32 `json:"slotRequests,omitempty" validate:"omitempty,dive,keys,required,endkeys,gt=0"`
@@ -222,6 +235,8 @@ type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
+	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
+	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)
 
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -276,6 +291,20 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 	}
 
 	return workflowIdToNameMap, nil
+}
+
+func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
+	return r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+		Ids:      []uuid.UUID{workflowVersionId},
+		Tenantid: tenantId,
+	})
+}
+
+func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
+	return r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		Stepids:  stepIds,
+		Tenantid: tenantId,
+	})
 }
 
 type JobRunHasCycleError struct {
@@ -414,14 +443,46 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
+	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// todo: maybe don't need `len` check here?
+	isUsingDagOperator := dagOperatorEnabled && len(opts.Tasks) > 1
+
+	if isUsingDagOperator {
+		var retentionPeriod *string
+
+		if rp := r.limitConfig.CorePartitionRetentionOrDefault(); rp != "" {
+			retentionPeriod = &rp
+		}
+
+		// big number of retries to make it very unlikely we exhaust them
+		numRetries := 10_000
+
+		opts.Tasks = append(opts.Tasks, CreateStepOpts{
+			ReadableId:        opts.Name,
+			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
+			IsDurable:         true,
+			IsDagOrchestrator: true,
+			Timeout:           retentionPeriod,
+			ScheduleTimeout:   retentionPeriod,
+			Retries:           &numRetries,
+		})
+	}
+
 	cs, modifiedOpts, err := checksumV1(opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// if the checksum matches the old checksum, we don't need to create a new workflow version
-	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
+	// if the checksum matches and the version's DAG operator flag matches the current server
+	// flag, reuse the existing version — no change needed.
+	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs &&
+		oldWorkflowVersion.WorkflowVersion.IsUsingDagOperator == isUsingDagOperator {
 		return &oldWorkflowVersion.WorkflowVersion.ID, nil
 	}
 
@@ -437,6 +498,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
 		InputJsonSchema:           opts.InputJsonSchema,
+		IsUsingDagOperator:        sqlchelpers.BoolFromBoolean(isUsingDagOperator),
 	}
 
 	if opts.Sticky != nil {
@@ -466,6 +528,37 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Valid: true,
 		}
 	}
+
+	if isUsingDagOperator {
+		shape := make(DagShape)
+
+		for _, t := range opts.Tasks {
+			if t.IsDagOrchestrator {
+				continue
+			}
+
+			children := make([]string, 0)
+			for _, maybeChild := range opts.Tasks {
+				if slices.Contains(maybeChild.Parents, t.ReadableId) {
+					children = append(children, maybeChild.ReadableId)
+				}
+			}
+
+			shape[StepReadableId(t.ReadableId)] = DagNode{
+				ParentReadableIds: t.Parents,
+				ChildReadableIds:  children,
+			}
+		}
+
+		dagShape, err := json.Marshal(shape)
+
+		if err != nil {
+			return nil, err
+		}
+
+		createParams.DagShape = dagShape
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
@@ -767,15 +860,16 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:             stepId,
-			Tenantid:       tenantId,
-			Jobid:          jobId,
-			Actionid:       stepOpts.Action,
-			Timeout:        timeout,
-			Readableid:     stepOpts.ReadableId,
-			CustomUserData: customUserData,
-			Retries:        retries,
-			IsDurable:      sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
+			ID:                stepId,
+			Tenantid:          tenantId,
+			Jobid:             jobId,
+			Actionid:          stepOpts.Action,
+			Timeout:           timeout,
+			Readableid:        stepOpts.ReadableId,
+			CustomUserData:    customUserData,
+			Retries:           retries,
+			IsDurable:         sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
+			IsDagOrchestrator: sqlchelpers.BoolFromBoolean(stepOpts.IsDagOrchestrator),
 		}
 
 		if stepOpts.ScheduleTimeout != nil {

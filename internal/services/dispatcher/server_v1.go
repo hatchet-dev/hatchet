@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -330,7 +332,6 @@ type durableTaskInvocation struct {
 	l        *zerolog.Logger
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
-	workerId uuid.UUID
 	closed   bool // channel transport only; guarded by sendMu
 
 	releasesMu sync.Mutex
@@ -684,28 +685,27 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 		}
 
 		if _, exists := registeredTasks[taskExtId]; !exists {
-			d.durableInvocations.Store(durableInvocationsKey{invocation.tenantId, taskExtId}, invocation)
+			d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskExtId}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
 
 	// register the task up front so async responses route back to this invocation
 	// immediately, before the caller sends its first message.
-	d.durableInvocations.Store(durableInvocationsKey{invocation.tenantId, externalId}, invocation)
+	d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: externalId}, invocation)
 	registeredTasks[externalId] = struct{}{}
 
 	go func() {
 		defer deregister()
-		defer cancel()
 
-		// Teardown order matters: deregister from durableInvocations first so new async
-		// routers can't find this invocation, then close respCh under sendMu so any in-flight
-		// send (which holds sendMu and selects on ctx.Done()) has already returned. Marking
-		// closed before close() makes later sends return an error instead of panicking on a
-		// closed channel.
+		// Cancel first: an in-flight send holds sendMu and selects on ctx.Done(), so cancelling
+		// before taking sendMu unblocks it and avoids deadlocking against that sender. Marking
+		// closed before close() makes later sends return an error instead of panicking.
 		defer func() {
+			cancel()
+
 			for taskId := range registeredTasks {
-				d.durableInvocations.Delete(durableInvocationsKey{tenant.ID, taskId})
+				d.durableInvocations.Delete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId})
 			}
 
 			invocation.sendMu.Lock()
@@ -747,7 +747,6 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
-		telemetry.AttributeKV{Key: "worker_id", Value: invocation.workerId},
 		telemetry.AttributeKV{Key: "message_type", Value: fmt.Sprintf("%T", req.GetMessage())},
 	)
 
@@ -780,8 +779,6 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
-
-	invocation.workerId = workerId
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
@@ -1510,4 +1507,175 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 			EntryCompleted: resp,
 		},
 	})
+}
+
+func (d *DispatcherServiceImpl) replayDAGStepChild(ctx context.Context, tenantId, childExternalId uuid.UUID) error {
+	childTasks, err := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{childExternalId})
+	if err != nil {
+		return fmt.Errorf("failed to look up child task %s for replay: %w", childExternalId, err)
+	}
+
+	if len(childTasks) == 0 {
+		return fmt.Errorf("child task %s not found for replay", childExternalId)
+	}
+
+	replayTasks := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0, len(childTasks))
+
+	for _, ct := range childTasks {
+		replayTasks = append(replayTasks, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         ct.ID,
+				InsertedAt: ct.InsertedAt,
+				RetryCount: ct.RetryCount,
+			},
+			WorkflowRunExternalId: ct.WorkflowRunID,
+			TaskExternalId:        ct.ExternalID,
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDReplayTasks,
+		false,
+		true,
+		tasktypes.ReplayTasksPayload{Tasks: replayTasks},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create replay message for child task %s: %w", childExternalId, err)
+	}
+
+	if err := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return fmt.Errorf("failed to send replay message for child task %s: %w", childExternalId, err)
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	childIndex := int64(req.ChildIndex)
+	stepLabel := req.ActionId
+	if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
+		stepLabel = parts[1]
+	}
+
+	orchestratorWorkflowRunId := task.ExternalID
+	workflowVersionId := req.WorkflowVersionId
+	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
+		ReplayOrphanedChildren: true,
+		ParentReExecuted:       req.ParentReExecuted,
+		TriggerTaskData: &v1.TriggerTaskData{
+			WorkflowName: req.WorkflowName,
+			// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
+			WorkflowVersionId:    &workflowVersionId,
+			TargetActionId:       &req.ActionId,
+			UserMessage:          &stepLabel,
+			Data:                 []byte(req.Input),
+			AdditionalMetadata:   req.AdditionalMetadata,
+			ParentExternalId:     &task.ExternalID,
+			ParentTaskId:         &task.ID,
+			ParentTaskInsertedAt: &task.InsertedAt.Time,
+			ChildIndex:           &childIndex,
+			DagParentTaskRunIds:  req.DagParentTaskRunIds,
+			IsSkipped:            req.IsSkipped,
+			IsCancelled:          req.IsCancelled,
+			DesiredWorkerLabels:  req.DesiredWorkerLabels,
+			WorkflowRunId:        &orchestratorWorkflowRunId,
+			OlapDagId:            &task.ID,
+			OlapDagInsertedAt:    &task.InsertedAt.Time,
+		},
+	}}
+
+	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			InvocationCount: req.InvocationCount,
+		},
+		TriggerRuns: &v1.IngestTriggerRunsOpts{
+			TriggerOpts: triggerOpts,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to ingest durable task event: %w", err)
+	}
+
+	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
+	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+
+	if len(dags) > 0 || len(tasks) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, tenantId, tasks, dags); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/dags for dag step trigger")
+		}
+	}
+
+	if len(ingestionResult.TriggerRunsResult.Entries) == 0 {
+		return nil, fmt.Errorf("no entries returned from durable event ingestion")
+	}
+
+	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	if entry.ChildNeedsReplay {
+		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
+			return nil, err
+		}
+	}
+
+	return &operator.DAGStepTriggerResult{
+		NodeId:                entry.NodeId,
+		BranchId:              entry.BranchId,
+		WorkflowRunExternalId: entry.WorkflowRunExternalId,
+		IsSatisfied:           entry.IsSatisfied,
+		ResultPayload:         entry.ResultPayload,
+		IsFailure:             entry.ChildTaskIsFailure,
+		ErrorMessage:          entry.ChildTaskErrorMessage,
+		ReExecuted:            entry.ReExecuted,
+	}, nil
+}
+
+// CancelDAGChildren cancels already-triggered DAG children on the operator's behalf, since it
+// has no direct message-queue access; mirrors the admin CancelTasks path.
+func (d *DispatcherServiceImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
+	if len(taskExternalIds) == 0 {
+		return nil
+	}
+
+	tasks, err := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, taskExternalIds)
+	if err != nil {
+		return fmt.Errorf("failed to look up dag children to cancel: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+
+	for _, task := range tasks {
+		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{Tasks: tasksToCancel},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create cancel message for dag children: %w", err)
+	}
+
+	return d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 }

@@ -316,7 +316,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, taskRuns, isLoading, isError } =
+  const { workflowRun, shape, taskRuns, taskEvents, isLoading, isError } =
     useWorkflowDetails();
 
   const tasksForSynthesis = useMemo((): TaskSummaryForSynthesis[] => {
@@ -345,8 +345,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   );
 
   const durableTaskIds = useMemo(
-    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
-    [taskRuns],
+    () =>
+      taskRuns
+        .filter((t) => t.isDurable && t.taskExternalId !== id)
+        .map((t) => t.taskExternalId),
+    [taskRuns, id],
   );
 
   if (isLoading || isError || !workflowRun) {
@@ -423,6 +426,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
+                  events={taskEvents.filter((e) => e.taskId !== id)}
                 />
               </TabsContent>
               <TabsContent
