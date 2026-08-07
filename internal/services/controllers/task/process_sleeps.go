@@ -26,15 +26,12 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 		return false, fmt.Errorf("could not list process durable sleeps for tenant %s: %w", tenantId, err)
 	}
 
-	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signaler.SignalTasksCreated(ctx, tenantIdUUID, matchResult.CreatedTasks)
-
-		if err != nil {
-			return false, fmt.Errorf("could not signal created tasks: %w", err)
-		}
-	}
-
+	// the sleep repository stages all OLAP messages on its transaction and runs the
+	// non-transactional signaling side effects post-commit
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
+		// FIXME: this is a stateful side effect which can't be dropped — it must
+		// become transactionally safe (staged in the outbox on the match transaction)
+		// once the task processing queue consumes through the outbox path.
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantIdUUID, matchResult.SatisfiedDurableEventLogEntries); err != nil {
 			tc.l.Error().Err(err).Msg("could not process satisfied entries from sleep")
 		}

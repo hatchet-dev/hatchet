@@ -49,6 +49,13 @@ type sharedRepository struct {
 	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore    PayloadStoreRepository
 	m               TenantLimitRepository
+
+	// olapOutbox stages OLAP queue messages, and signaler orchestrates the OLAP
+	// staging plus the non-transactional side effects for task lifecycle events.
+	// Both are wired at startup via Repository.SetMessagePublisher, before any
+	// controllers run.
+	olapOutbox *OLAPOutboxImpl
+	signaler   *OLAPSignaler
 }
 
 func newSharedRepository(
@@ -123,6 +130,9 @@ func newSharedRepository(
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
+
+	s.olapOutbox = newOLAPOutbox(pool, l)
+	s.signaler = newOLAPSignaler(s)
 
 	return s, s.cleanup
 }

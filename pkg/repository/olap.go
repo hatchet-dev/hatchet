@@ -244,6 +244,49 @@ func (s ReadableTaskStatus) EnumValue() int {
 	}
 }
 
+// ReadableStatusForOlapEvent maps a monitoring event type to the readable run
+// status it implies. Unknown or informational events map to QUEUED.
+func ReadableStatusForOlapEvent(eventType sqlcv1.V1EventTypeOlap) sqlcv1.V1ReadableStatusOlap {
+	switch eventType {
+	case sqlcv1.V1EventTypeOlapRETRYING,
+		sqlcv1.V1EventTypeOlapREASSIGNED,
+		sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+		sqlcv1.V1EventTypeOlapCREATED,
+		sqlcv1.V1EventTypeOlapQUEUED,
+		sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+		sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+		sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+		sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
+		return sqlcv1.V1ReadableStatusOlapQUEUED
+	case sqlcv1.V1EventTypeOlapASSIGNED,
+		sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+		sqlcv1.V1EventTypeOlapSENTTOWORKER,
+		sqlcv1.V1EventTypeOlapSLOTRELEASED,
+		sqlcv1.V1EventTypeOlapSTARTED,
+		sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+		sqlcv1.V1EventTypeOlapDURABLERESTORING,
+		// running until the individual tasks are completed
+		sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+		return sqlcv1.V1ReadableStatusOlapRUNNING
+	case sqlcv1.V1EventTypeOlapFINISHED,
+		sqlcv1.V1EventTypeOlapSKIPPED:
+		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+	case sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		sqlcv1.V1EventTypeOlapFAILED,
+		sqlcv1.V1EventTypeOlapTIMEDOUT,
+		sqlcv1.V1EventTypeOlapRATELIMITERROR,
+		sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
+		return sqlcv1.V1ReadableStatusOlapFAILED
+	case sqlcv1.V1EventTypeOlapCANCELLED:
+		return sqlcv1.V1ReadableStatusOlapCANCELLED
+	case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
+		return sqlcv1.V1ReadableStatusOlapEVICTED
+	default:
+		// treat unknown or informational events as queued
+		return sqlcv1.V1ReadableStatusOlapQUEUED
+	}
+}
+
 type UpdateTaskStatusRow struct {
 	TenantId       uuid.UUID
 	TaskId         int64
@@ -328,7 +371,6 @@ type OLAPRepository interface {
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
-	OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error
 
 	PayloadStore() PayloadStoreRepository
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
@@ -3069,11 +3111,6 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
-type OffloadPayloadOpts struct {
-	ExternalId          uuid.UUID
-	ExternalLocationKey string
-}
-
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
@@ -3246,42 +3283,6 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	return externalIdToPayload, nil
-}
-
-func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return fmt.Errorf("error beginning transaction: %v", err)
-	}
-
-	defer rollback()
-
-	tenantIds := make([]uuid.UUID, len(payloads))
-	externalIds := make([]uuid.UUID, len(payloads))
-	externalLocationKeys := make([]string, len(payloads))
-
-	for i, opt := range payloads {
-		externalIds[i] = opt.ExternalId
-		tenantIds[i] = tenantId
-		externalLocationKeys[i] = opt.ExternalLocationKey
-	}
-
-	err = r.queries.OffloadPayloads(ctx, tx, sqlcv1.OffloadPayloadsParams{
-		Externalids:          externalIds,
-		Tenantids:            tenantIds,
-		Externallocationkeys: externalLocationKeys,
-	})
-
-	if err != nil {
-		return fmt.Errorf("error offloading payloads: %v", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return fmt.Errorf("error committing transaction: %v", err)
-	}
-
-	return nil
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {

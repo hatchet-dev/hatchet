@@ -140,9 +140,9 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
+	TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) error
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]IdempotencyCollision, error)
 
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
@@ -279,22 +279,20 @@ type WorkflowAndScope struct {
 	Scope      string
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) error {
 	pre, post := r.m.Meter(ctx, nil, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
-		return nil, err
+		return err
 	}
 
-	result, err := r.doTriggerFromEvents(ctx, nil, tenantId, opts)
-
-	if err != nil {
-		return nil, err
+	if _, err := r.doTriggerFromEvents(ctx, nil, tenantId, opts); err != nil {
+		return err
 	}
 
 	post()
 
-	return result, nil
+	return nil
 }
 
 func (r *sharedRepository) doTriggerFromEvents(
@@ -387,26 +385,26 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]IdempotencyCollision, error) {
 	tx, err := r.PrepareOptimisticTx(ctx)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
+		return nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
 
 	defer tx.Rollback()
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+	_, _, idempotencyKeyCollisions, _, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
-	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
+	return idempotencyKeyCollisions, nil
 }
 
 type ErrNamesNotFound struct {
@@ -642,6 +640,15 @@ type createCoreUserEventOpts struct {
 	externalIdToEventIdAndFilterId map[uuid.UUID]EventExternalIdFilterId
 	externalIdsToPayloads          map[uuid.UUID][]byte
 	params                         sqlcv1.BulkCreateEventsParams
+
+	// opts are the original event trigger opts, threaded through so triggerWorkflows
+	// can stage the created-event-trigger message on its transaction.
+	opts []EventTriggerOpts
+
+	// celEvaluationFailures are the failures from the event-preparation phase (filter
+	// evaluation), staged on the trigger transaction alongside the failures from the
+	// workflow-triggering phase.
+	celEvaluationFailures []CELEvaluationFailure
 }
 
 const internalIdempotencyKeyPrefix = "hatchet_internal_"
@@ -1522,6 +1529,16 @@ func (r *sharedRepository) triggerWorkflows(
 		return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
+	// stage the OLAP messages (created-task/created-dag, initial-state monitoring
+	// events, created-event-trigger, cel-evaluation-failures) on the same tx so they
+	// commit atomically with the inserts; postSignal covers the non-transactional
+	// side effects and runs after commit
+	postSignal, err := r.stageTriggerSignals(ctx, tx, tenantId, tasks, dags, coreEvents, celEvaluationFailures)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to stage olap messages: %w", err)
+	}
+
 	// commit if we started the transaction
 	if existingTx == nil {
 		if err := commit(ctx); err != nil {
@@ -1529,9 +1546,11 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		postTask()
+		postSignal()
 
 	} else {
 		existingTx.AddPostCommit(postTask)
+		existingTx.AddPostCommit(postSignal)
 	}
 
 	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
@@ -2452,6 +2471,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		},
 		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
 		externalIdsToPayloads:          eventExternalIdsToPayloads,
+		opts:                           opts,
+		celEvaluationFailures:          celEvaluationFailures,
 	}
 
 	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil

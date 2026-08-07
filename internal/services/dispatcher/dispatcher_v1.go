@@ -26,7 +26,6 @@ type DispatcherServiceImpl struct {
 	v                  validator.Validator
 	analytics          analytics.Analytics
 	triggerWriter      *trigger.TriggerWriter
-	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
 	l                  *zerolog.Logger
 	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
@@ -41,9 +40,8 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
-	pubBuffer := msgqueue.NewMQPubBuffer(mq)
-	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
+	tw := trigger.NewTriggerWriter(repo, l, 0)
 
 	return &DispatcherServiceImpl{
 		repo:          repo,
@@ -51,7 +49,6 @@ func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub m
 		v:             v,
 		l:             l,
 		triggerWriter: tw,
-		pubBuffer:     pubBuffer,
 		dispatcherId:  dispatcherId,
 		analytics:     a,
 

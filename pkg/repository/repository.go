@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/limits"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
-
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type TaskOperationLimits struct {
@@ -55,9 +58,21 @@ type Repository interface {
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
 	Sync() SyncRepository
+
+	// OLAPOutbox stages OLAP queue messages in the transactional outbox.
+	OLAPOutbox() OLAPOutbox
+
+	// Signaler orchestrates the messaging side effects of task lifecycle changes.
+	Signaler() *OLAPSignaler
+
+	// SetMessagePublisher wires the pub/sub notifier, the outbox instance backing
+	// message staging, and the prometheus gate. It must be called once at startup,
+	// before any controllers run; when unwired, staging is a no-op.
+	SetMessagePublisher(pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate)
 }
 
 type repositoryImpl struct {
+	shared            *sharedRepository
 	apiToken          APITokenRepository
 	dispatcher        DispatcherRepository
 	durableEvents     DurableEventsRepository
@@ -112,6 +127,7 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
+		shared:            shared,
 		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
 		durableEvents:     newDurableEventsRepository(shared),
@@ -146,6 +162,9 @@ func NewRepository(
 		workflowSchedules: newWorkflowScheduleRepository(shared),
 		sync:              NewSyncRepository(pool, l),
 	}
+
+	// the signaler uses the cached tenant repository for scheduler notifications
+	shared.signaler.tenant = impl.tenant
 
 	return impl, func() error {
 		var multiErr error
@@ -304,4 +323,18 @@ func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 
 func (r *repositoryImpl) Sync() SyncRepository {
 	return r.sync
+}
+
+func (r *repositoryImpl) OLAPOutbox() OLAPOutbox {
+	return r.shared.olapOutbox
+}
+
+func (r *repositoryImpl) Signaler() *OLAPSignaler {
+	return r.shared.signaler
+}
+
+func (r *repositoryImpl) SetMessagePublisher(pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate) {
+	r.shared.olapOutbox.outbox = ob
+	r.shared.signaler.pubsub = pubsub
+	r.shared.signaler.promGate = promGate
 }

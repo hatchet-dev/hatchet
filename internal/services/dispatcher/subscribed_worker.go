@@ -7,16 +7,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type subscribedWorker struct {
-	stream    contracts.Dispatcher_ListenServer
-	finished  chan<- bool
-	sendLock  *timeout_lock.TimeoutLock
-	pubBuffer *msgqueue.MQPubBuffer
-	workerId  uuid.UUID
+	stream     contracts.Dispatcher_ListenServer
+	finished   chan<- bool
+	sendLock   *timeout_lock.TimeoutLock
+	olapOutbox v1.OLAPOutbox
+	workerId   uuid.UUID
 }
 
 func newSubscribedWorker(
@@ -24,14 +24,14 @@ func newSubscribedWorker(
 	fin chan<- bool,
 	workerId uuid.UUID,
 	maxLockAcquisitionTime time.Duration,
-	pubBuffer *msgqueue.MQPubBuffer,
+	olapOutbox v1.OLAPOutbox,
 ) *subscribedWorker {
 	lock := timeout_lock.NewTimeoutLock(maxLockAcquisitionTime)
 	return &subscribedWorker{
-		stream:    stream,
-		finished:  fin,
-		workerId:  workerId,
-		pubBuffer: pubBuffer,
-		sendLock:  lock,
+		stream:     stream,
+		finished:   fin,
+		workerId:   workerId,
+		olapOutbox: olapOutbox,
+		sendLock:   lock,
 	}
 }

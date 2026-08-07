@@ -5,25 +5,19 @@ import (
 	"errors"
 	"fmt"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/google/uuid"
-
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
-	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
 	"github.com/rs/zerolog"
 )
 
+// TriggerWriter writes workflow triggers through the trigger repository, which stages
+// all resulting OLAP messages on the trigger transaction and runs the non-transactional
+// signaling side effects post-commit.
 type TriggerWriter struct {
-	mq        msgqueue.MessageQueue
-	repo      v1.Repository
-	pubBuffer *msgqueue.MQPubBuffer
-	l         *zerolog.Logger
-	signaler  *signal.OLAPSignaler
+	repo v1.Repository
+	l    *zerolog.Logger
 
 	semaphore chan struct{}
 }
@@ -32,9 +26,7 @@ var ErrNoTriggerSlots = errors.New("no trigger slots available")
 
 // NewTriggerWriter creates a new TriggerWriter with the given number of slots for concurrency control.
 // If the number of slots is 0, there is no limit to concurrency.
-func NewTriggerWriter(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, slots int, promGate *prometheus.Gate) *TriggerWriter {
-	s := signal.NewOLAPSignaler(mq, pubsub, repo, l, pubBuffer, promGate)
-
+func NewTriggerWriter(repo v1.Repository, l *zerolog.Logger, slots int) *TriggerWriter {
 	var sem chan struct{}
 
 	if slots > 0 {
@@ -42,11 +34,8 @@ func NewTriggerWriter(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, repo v1.
 	}
 
 	return &TriggerWriter{
-		mq:        mq,
 		l:         l,
 		repo:      repo,
-		pubBuffer: pubBuffer,
-		signaler:  s,
 		semaphore: sem,
 	}
 }
@@ -72,7 +61,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 		opts = append(opts, opt)
 	}
 
-	result, err := tw.repo.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	err := tw.repo.Triggers().TriggerFromEvents(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
@@ -82,31 +71,6 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 		}
 
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		return tw.signaler.SignalEventsCreated(ctx, tenantId, eventIdToOpts, result.EventExternalIdToRuns)
-	})
-
-	eg.Go(func() error {
-		return tw.signaler.SignalCELEvaluationFailures(ctx, tenantId, result.CELEvaluationFailures)
-	})
-
-	eg.Go(func() error {
-		return tw.signaler.SignalTasksCreated(ctx, tenantId, result.Tasks)
-	})
-
-	eg.Go(func() error {
-		return tw.signaler.SignalDAGsCreated(ctx, tenantId, result.Dags)
-	})
-
-	// signaling errors do not result in a failure, since we have already written the tasks to the database, but
-	// we log the error
-	// FIXME: we need a mechanism to DLQ these failed signals
-	if err := eg.Wait(); err != nil {
-		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromEvents")
 	}
 
 	return nil
@@ -127,7 +91,7 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		}
 	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	idempotencyKeyCollisions, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
@@ -139,34 +103,5 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 
-	// signaling errors do not result in a failure since we have already written the tasks to the database,
-	// but we log them.
-	// FIXME: we need a mechanism to DLQ these failed signals
-	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
-		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
-	}
-
-	if len(celEvaluationFailures) > 0 {
-		if err := tw.signaler.SignalCELEvaluationFailures(ctx, tenantId, celEvaluationFailures); err != nil {
-			tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal CEL evaluation failures in TriggerFromWorkflowNames")
-		}
-	}
-
 	return idempotencyKeyCollisions, nil
-}
-
-func (tw *TriggerWriter) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
-	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
-		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in SignalCreated")
-	}
-
-	return nil
-}
-
-func (tw *TriggerWriter) SignalCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []v1.CELEvaluationFailure) error {
-	if err := tw.signaler.SignalCELEvaluationFailures(ctx, tenantId, failures); err != nil {
-		tw.l.Error().Err(err).Msg("failed to signal CEL evaluation failures in SignalCELEvaluationFailures")
-	}
-
-	return nil
 }

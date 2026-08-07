@@ -152,7 +152,6 @@ type IngestorImpl struct {
 
 	analytics analytics.Analytics
 	tw        *trigger.TriggerWriter
-	pubBuffer *msgqueue.MQPubBuffer
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -182,12 +181,9 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	var tw *trigger.TriggerWriter
-	var pubBuffer *msgqueue.MQPubBuffer
 
 	if opts.grpcTriggersEnabled {
-		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
-
-		tw = trigger.NewTriggerWriter(opts.mqv1, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
+		tw = trigger.NewTriggerWriter(opts.repov1, opts.l, opts.grpcTriggerSlots)
 	}
 
 	var localScheduler *scheduler.Scheduler
@@ -208,7 +204,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		localScheduler:           localScheduler,
 		localDispatcher:          opts.localDispatcher,
 		tw:                       tw,
-		pubBuffer:                pubBuffer,
 	}, nil
 }
 
@@ -237,10 +232,6 @@ func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId 
 	)
 }
 
-// Cleanup stops the pubBuffer goroutines if they exist
 func (i *IngestorImpl) Cleanup() error {
-	if i.pubBuffer != nil {
-		i.pubBuffer.Stop()
-	}
 	return nil
 }

@@ -57,7 +57,6 @@ type DispatcherImpl struct {
 	a                                   *hatcheterrors.Wrapped
 	sharedNonBufferedReaderv1           *msgqueue.SharedTenantReader
 	l                                   *zerolog.Logger
-	pubBuffer                           *msgqueue.MQPubBuffer
 	serviceV1                           *DispatcherServiceImpl
 	streamSessions                      *streams.Registry
 	workers                             *workers
@@ -309,14 +308,11 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
-
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
 		mqv1:                                opts.mqv1,
 		pubsub:                              opts.pubsub,
-		pubBuffer:                           pubBuffer,
 		l:                                   opts.l,
 		dv:                                  opts.dv,
 		v:                                   v,
@@ -334,7 +330,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 
@@ -402,7 +398,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
-		d.pubBuffer.Stop()
 		d.refreshTimeoutBuf.stop()
 
 		// drain the existing connections
@@ -863,6 +858,9 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 	innerEg := errgroup.Group{}
 
+	sentPayloads := make([]tasktypesv1.CreateMonitoringEventPayload, 0, len(taskIds))
+	sentPayloadsMu := sync.Mutex{}
+
 	for _, taskId := range taskIds {
 		task, ok := tasks[taskId]
 
@@ -901,28 +899,19 @@ func (d *DispatcherImpl) sendTasksToWorker(
 					durableInvCount = *task.InvocationCount
 				}
 
-				msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-					task.TenantID,
-					tasktypesv1.CreateMonitoringEventPayload{
-						TaskId:                 task.ID,
-						RetryCount:             task.RetryCount,
-						DurableInvocationCount: durableInvCount,
-						WorkerId:               &workerId,
-						EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
-						EventTimestamp:         time.Now().UTC(),
-						EventMessage:           "Sent task run to the assigned worker",
-					},
-				)
-
-				if err != nil {
-					d.l.Error().Ctx(ctx).Err(err).Int64("task_id", task.ID).Msg("could not create monitoring event")
-				} else {
-					defer func() {
-						if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-							d.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event")
-						}
-					}()
+				payload := tasktypesv1.CreateMonitoringEventPayload{
+					TaskId:                 task.ID,
+					RetryCount:             task.RetryCount,
+					DurableInvocationCount: durableInvCount,
+					WorkerId:               &workerId,
+					EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
+					EventTimestamp:         time.Now().UTC(),
+					EventMessage:           "Sent task run to the assigned worker",
 				}
+
+				sentPayloadsMu.Lock()
+				sentPayloads = append(sentPayloads, payload)
+				sentPayloadsMu.Unlock()
 
 				return nil
 			}
@@ -933,7 +922,23 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		})
 	}
 
-	return innerEg.Wait()
+	err = innerEg.Wait()
+
+	if len(sentPayloads) > 0 {
+		// SENT_TO_WORKER events are informational: stage the whole batch as one outbox
+		// message off the dispatch path, so sends (which can run inside the trigger
+		// RPC on the optimistic path) don't wait on the write
+		go func() { // #nosec G118 -- intentionally decoupled from the request context so the staging survives the response, bounded by its own timeout
+			writeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if writeErr := d.repov1.OLAPOutbox().MonitoringEvents(writeCtx, tenantId, sentPayloads...); writeErr != nil {
+				d.l.Error().Err(writeErr).Msg("could not publish sent-to-worker monitoring events")
+			}
+		}()
+	}
+
+	return err
 }
 
 func (d *DispatcherImpl) handleRetries(

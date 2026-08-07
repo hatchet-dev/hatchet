@@ -55,6 +55,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	natsmq "github.com/hatchet-dev/hatchet/internal/msgqueue/nats"
+	mqoutbox "github.com/hatchet-dev/hatchet/internal/msgqueue/outbox"
 	pgmq "github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
@@ -480,6 +481,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	var mqv1 msgqueue.MessageQueue
 	var pubsubv1 msgqueue.PubSub
+	var mqOutbox pgoutbox.Outbox
 	cleanup1 := func() error {
 		return nil
 	}
@@ -537,9 +539,46 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		cleanupPubSub, pubsubv1, err = createPubSubV1(dc, cf, &l)
+		// OLAP messages and internal task events are staged in the transactional
+		// outbox (by the repository layer) and the relay republishes them to the
+		// underlying queues, so consumers are unaffected.
+		var cleanupMQOutbox func() error
+
+		mqOutbox, cleanupMQOutbox, err = newMQOutbox(dc.Pool, l, pubsubv1, cf.MessageQueue.Outbox)
 
 		if err != nil {
 			return nil, nil, err
+		}
+
+		relay := mqoutbox.NewRelay(
+			mqv1,
+			mqOutbox,
+			mqoutbox.WithQueue(msgqueue.OLAP_QUEUE),
+			mqoutbox.WithQueue(msgqueue.TASK_PROCESSING_QUEUE),
+			mqoutbox.WithSubscribeConfig(cf.MessageQueue.Outbox.SubscribeBatchSize, cf.MessageQueue.Outbox.PollInterval),
+			mqoutbox.WithLogger(&l),
+			mqoutbox.WithPubSub(pubsubv1),
+		)
+
+		var cleanupRelay func() error
+
+		cleanupRelay, err = relay.Start()
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not start mq outbox relay: %w", err)
+		}
+
+		cleanupMQ := cleanup1
+		cleanup1 = func() error {
+			if cleanupErr := cleanupRelay(); cleanupErr != nil {
+				return cleanupErr
+			}
+
+			if cleanupErr := cleanupMQOutbox(); cleanupErr != nil {
+				return cleanupErr
+			}
+
+			return cleanupMQ()
 		}
 
 		ing, err = ingestor.NewIngestor(
@@ -823,6 +862,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	v := validator.NewDefaultValidator()
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+
+	// wire the pub/sub notifier and the mq outbox into the repository: the repository
+	// stages OLAP messages and internal task events in the outbox (on its transactions
+	// where possible) and notifies schedulers through the pub/sub
+	if cf.MessageQueue.Enabled {
+		dc.V1.SetMessagePublisher(pubsubv1, mqOutbox, promGate)
+	}
 
 	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
 
@@ -1347,6 +1393,39 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+// newMQOutbox creates the outbox instance backing outbox-routed message queues. It is
+// a separate instance from the concurrency outbox so that wake-up notifications are
+// only emitted for message queue topics. Notifications ride the configured pub/sub
+// (with its own isolated pooled resources) via the pgoutbox adapter.
+func newMQOutbox(pool *pgxpool.Pool, l zerolog.Logger, pubsub msgqueue.PubSub, cf server.OutboxConfigFile) (pgoutbox.Outbox, func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// see the comment on newConcurrencyOutbox: the outbox shares the database connection
+	// pool, so tx-scoped outbox methods must be used inside existing transactions.
+	// The task processing topic deliberately has NO expiration: internal task events
+	// drive the workflow state machine and must never be dropped by a TTL.
+	mqOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithTopicExpiration(mqoutbox.Topic(msgqueue.OLAP_QUEUE), cf.Expiration),
+		pgoutbox.WithPubSub(mqoutbox.NewPgoutboxPubSub(pubsub)),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, nil, fmt.Errorf("could not create mq outbox: %w", err) // nolint:govet
+	}
+
+	cleanup := func() error {
+		cancel()
+		return nil
+	}
+
+	return mqOutbox, cleanup, nil
 }
 
 func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {

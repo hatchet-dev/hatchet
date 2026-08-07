@@ -19,6 +19,12 @@ const (
 
 	// TopicKindSchedulerPartition wakes the scheduler owning a partition.
 	TopicKindSchedulerPartition TopicKind = "scheduler-partition"
+
+	// TopicKindOutbox carries transactional-outbox wake-up notifications. Like
+	// tenant streams, outbox topics fan out to every subscriber (each replica
+	// runs its own outbox relay), but they are never gated by tenant pub/sub
+	// settings.
+	TopicKindOutbox TopicKind = "outbox"
 )
 
 // Topic identifies a best-effort pub/sub destination.
@@ -52,6 +58,14 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 	return Topic{
 		name: fmt.Sprintf("%s_scheduler_v1", partitionId),
 		kind: TopicKindSchedulerPartition,
+	}
+}
+
+// OutboxTopic carries wake-up notifications for a transactional outbox topic.
+func OutboxTopic(name string) Topic {
+	return Topic{
+		name: name,
+		kind: TopicKindOutbox,
 	}
 }
 

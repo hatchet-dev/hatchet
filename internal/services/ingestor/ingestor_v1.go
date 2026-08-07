@@ -286,33 +286,11 @@ func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte,
 	}
 }
 
-func createWebhookValidationFailureMsg(tenantId uuid.UUID, webhookName, errorText string) (*msgqueue.Message, error) {
-	payloadTyped := tasktypes.FailedWebhookValidationPayload{
+func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId uuid.UUID, webhookName, errorText string) error {
+	err := i.repov1.OLAPOutbox().WebhookValidationFailures(context.Background(), tenantId, v1.FailedWebhookValidationPayload{
 		WebhookName: webhookName,
 		ErrorText:   errorText,
-	}
-
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDFailedWebhookValidation,
-		false,
-		true,
-		payloadTyped,
-	)
-}
-
-func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId uuid.UUID, webhookName, errorText string) error {
-	msg, err := createWebhookValidationFailureMsg(
-		tenantId,
-		webhookName,
-		errorText,
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create failed webhook validation payload: %w", err)
-	}
-
-	err = i.mqv1.SendMessage(context.Background(), msgqueue.OLAP_QUEUE, msg)
+	})
 
 	if err != nil {
 		return fmt.Errorf("could not add failed webhook validation to olap queue: %w", err)
@@ -322,21 +300,10 @@ func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId uuid.UUID, webhoo
 }
 
 func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId uuid.UUID, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
-	msg, err := tasktypes.CELEvaluationFailureMessage(
-		tenantId,
-		[]v1.CELEvaluationFailure{
-			{
-				Source:       source,
-				ErrorMessage: errorText,
-			},
-		},
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to create CEL evaluation failure message: %w", err)
-	}
-
-	err = i.mqv1.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg)
+	err := i.repov1.OLAPOutbox().CELEvaluationFailures(ctx, tenantId, v1.CELEvaluationFailure{
+		Source:       source,
+		ErrorMessage: errorText,
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to send CEL evaluation failure message: %w", err)

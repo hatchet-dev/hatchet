@@ -4,9 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type UserEventTaskPayload struct {
@@ -22,16 +19,6 @@ type UserEventTaskPayload struct {
 	// WasProcessedLocally indicates whether the event was written and tasks were triggered on the gRPC server
 	// instead of the controller, so we can skip the triggering logic downstream
 	WasProcessedLocally bool `json:"was_processed_locally"`
-}
-
-func NewInternalEventMessage(tenantId uuid.UUID, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDInternalEvent,
-		false,
-		true,
-		events...,
-	)
 }
 
 type StreamEventPayload struct {

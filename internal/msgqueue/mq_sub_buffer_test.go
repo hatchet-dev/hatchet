@@ -139,10 +139,14 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 				msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
 				result: make(chan error, 1),
 			}
+			// The timeout is a hang guard only: draining all 1000 messages takes
+			// ~90ms by design (serial semaphore releases at ~9ms per flush, 100
+			// messages per flush), so a tight timeout races the normal drain on
+			// loaded CI runners.
 			select {
 			case buf.msgIdBufferCh <- msg:
 				buf.notifier <- struct{}{}
-			case <-time.After(100 * time.Millisecond):
+			case <-time.After(5 * time.Second):
 				t.Error("timeout sending message")
 			}
 		}()

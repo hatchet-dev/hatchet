@@ -20,6 +20,7 @@ require (
 	github.com/docker/go-sdk/context v0.1.0-alpha013
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.24.0
+	github.com/exaring/otelpgx v0.11.1
 	github.com/fatih/color v1.19.0
 	github.com/getkin/kin-openapi v0.144.0
 	github.com/go-co-op/gocron/v2 v2.21.1
@@ -238,7 +239,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/exaring/otelpgx v0.10.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/go-chi/chi v1.5.5

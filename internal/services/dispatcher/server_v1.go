@@ -14,9 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -918,15 +916,6 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		})
 	}
 
-	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
-	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
-
-	if len(dags) > 0 || len(tasks) > 0 {
-		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, tasks, dags); sigErr != nil {
-			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
-		}
-	}
-
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerRunsAck{
 			TriggerRunsAck: ackResp,
@@ -1151,20 +1140,15 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	}
 
 	if wasEvicted {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(
-			invocation.tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:                 task.ID,
-				RetryCount:             task.RetryCount,
-				DurableInvocationCount: req.InvocationCount,
-				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-				EventMessage:           durableEvictionMessage(req),
-			},
-		)
+		err := d.repo.OLAPOutbox().MonitoringEvents(ctx, invocation.tenantId, v1.CreateMonitoringEventPayload{
+			TaskId:                 task.ID,
+			RetryCount:             task.RetryCount,
+			DurableInvocationCount: req.InvocationCount,
+			EventTimestamp:         time.Now(),
+			EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			EventMessage:           durableEvictionMessage(req),
+		})
 		if err != nil {
-			d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
-		} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
 			d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
 		}
 	} else {

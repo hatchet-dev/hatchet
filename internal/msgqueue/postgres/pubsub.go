@@ -32,6 +32,9 @@ type PubSub struct {
 	// ttlCache dedupes queue-row upserts, which are needed so >8KB payloads can
 	// fall back to durable rows
 	ttlCache *cache.TTLCache[string, bool]
+
+	// wakeups coalesces outbox wake-up notifications (see notifyCoalescer)
+	wakeups *notifyCoalescer
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -86,6 +89,8 @@ func NewPubSub(repo v1.MessageQueueRepository, fs ...PubSubOpt) (func() error, *
 		ttlCache: c,
 	}
 
+	p.wakeups = newNotifyCoalescer(p.fireWakeup, notifyCoalesceWindow)
+
 	return func() error {
 		c.Stop()
 		return nil
@@ -111,7 +116,17 @@ func (p *PubSub) IsReady() bool {
 // queue row (see MessageQueueRepository.Notify), which subscribers drain with
 // a ~1s poll — task-stream-event payloads routinely exceed 8KB and stream
 // delivery must not regress.
+//
+// Outbox topics carry pure wake-up signals whose payload subscribers ignore, so
+// they are coalesced per topic instead of notifying once per publish: NOTIFY
+// serializes notify-carrying transactions on a global queue lock at commit, and
+// under concurrent staging that lock gates trigger throughput.
 func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Message) error {
+	if topic.Kind() == msgqueue.TopicKindOutbox {
+		p.wakeups.pub(topic, msg)
+		return nil
+	}
+
 	// upsert the queue row so >8KB fallback rows have a queue to land on
 	err := p.ensureQueue(ctx, topic)
 
@@ -139,6 +154,33 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	}
 
 	return eg.Wait()
+}
+
+// fireWakeup delivers a coalesced wake-up notification. It runs detached from
+// any caller context — trailing fires come from the coalescer's timer — and
+// errors are logged only: wake-ups are best-effort, subscribers poll as the
+// fallback.
+func (p *PubSub) fireWakeup(topic msgqueue.Topic, msg *msgqueue.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// the queue row is needed so the subscriber's fallback poll has a queue; the
+	// upsert is TTL-cached so this is almost always a no-op
+	if err := p.ensureQueue(ctx, topic); err != nil {
+		p.l.Error().Err(err).Msgf("could not ensure queue for wake-up on %s", topic.Name())
+		return
+	}
+
+	msgBytes, err := json.Marshal(msg)
+
+	if err != nil {
+		p.l.Error().Err(err).Msg("error marshalling wake-up message")
+		return
+	}
+
+	if err := p.repo.Notify(ctx, topic.Name(), string(msgBytes)); err != nil {
+		p.l.Error().Err(err).Msgf("could not notify wake-up on %s", topic.Name())
+	}
 }
 
 // Sub subscribes to a topic. Inline NOTIFY payloads are handled directly;

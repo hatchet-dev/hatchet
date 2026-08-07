@@ -523,6 +523,7 @@ type MessageQueueConfigFile struct {
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
 
 	PubSub PubSubConfigFile `mapstructure:"pubSub" json:"pubSub,omitempty"`
+	Outbox OutboxConfigFile `mapstructure:"outbox" json:"outbox,omitempty"`
 }
 
 // PubSubConfigFile configures the best-effort pub/sub mechanism. All settings
@@ -554,6 +555,19 @@ type PubSubPostgresConfigFile struct {
 	// (never pgbouncer — LISTEN does not survive transaction pooling).
 	MaxConns int32 `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
 	MinConns int32 `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
+}
+
+type OutboxConfigFile struct {
+	// SubscribeBatchSize is the number of staged messages relayed per pass.
+	SubscribeBatchSize int `mapstructure:"subscribeBatchSize" json:"subscribeBatchSize,omitempty" default:"100"`
+
+	// PollInterval is the fallback polling interval for the relay; new messages
+	// normally wake the relay via pub/sub notifications.
+	PollInterval time.Duration `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"5s"`
+
+	// Expiration is the TTL backstop for staged messages which could not be relayed
+	// (e.g. poison messages); they are deleted after this duration.
+	Expiration time.Duration `mapstructure:"expiration" json:"expiration,omitempty" default:"24h"`
 }
 
 type PubSubNATSConfigFile struct {
@@ -919,6 +933,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.maxConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.minConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS")
+	_ = v.BindEnv("msgQueue.outbox.subscribeBatchSize", "SERVER_MSGQUEUE_OUTBOX_SUBSCRIBE_BATCH_SIZE")
+	_ = v.BindEnv("msgQueue.outbox.pollInterval", "SERVER_MSGQUEUE_OUTBOX_POLL_INTERVAL")
+	_ = v.BindEnv("msgQueue.outbox.expiration", "SERVER_MSGQUEUE_OUTBOX_EXPIRATION")
 	_ = v.BindEnv("msgQueue.pubSub.nats.url", "SERVER_MSGQUEUE_PUBSUB_NATS_URL")
 	_ = v.BindEnv("msgQueue.pubSub.nats.username", "SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME")
 	_ = v.BindEnv("msgQueue.pubSub.nats.password", "SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD")
