@@ -203,6 +203,12 @@ func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return ctx, span
 }
 
+func NewRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))
+	return ctx, span
+}
+
 func NewSpanWithCarrier(ctx context.Context, name string, carrier map[string]string) (context.Context, trace.Span) {
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 

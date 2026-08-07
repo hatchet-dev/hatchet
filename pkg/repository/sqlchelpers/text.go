@@ -2,6 +2,14 @@ package sqlchelpers
 
 import "github.com/jackc/pgx/v5/pgtype"
 
+func TextFromMaybeStr(str *string) pgtype.Text {
+	if str == nil {
+		return pgtype.Text{}
+	}
+
+	return TextFromStr(*str)
+}
+
 func TextFromStr(str string) pgtype.Text {
 	var pgText pgtype.Text
 

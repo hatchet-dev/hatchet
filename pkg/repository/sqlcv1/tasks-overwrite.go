@@ -1013,6 +1013,7 @@ WITH to_insert AS (
         -- Webhook names are nullable
         UNNEST($7::TEXT[]) AS triggering_webhook_name
 )
+
 INSERT INTO v1_event (
     tenant_id,
     external_id,
@@ -1022,8 +1023,10 @@ INSERT INTO v1_event (
     scope,
 	triggering_webhook_name
 )
+
 SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
+ON CONFLICT (external_id, seen_at) DO NOTHING
 RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 `
 

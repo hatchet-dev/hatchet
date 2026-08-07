@@ -2458,53 +2458,7 @@ CREATE TABLE v1_event (
 ) PARTITION BY RANGE(seen_at);
 
 CREATE INDEX v1_event_key_scope_idx ON v1_event (tenant_id, key, scope);
-
-CREATE TABLE v1_event_lookup_table (
-    tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
-    event_id BIGINT NOT NULL,
-    event_seen_at TIMESTAMPTZ NOT NULL,
-
-    PRIMARY KEY (external_id, event_seen_at)
-) PARTITION BY RANGE(event_seen_at);
-
-CREATE OR REPLACE FUNCTION v1_event_lookup_table_insert_function()
-RETURNS TRIGGER AS
-$$
-BEGIN
-    INSERT INTO v1_event_lookup_table (
-        tenant_id,
-        external_id,
-        event_id,
-        event_seen_at
-    )
-    SELECT
-        tenant_id,
-        external_id,
-        id,
-        seen_at
-    FROM new_rows
-    ON CONFLICT (external_id, event_seen_at) DO NOTHING;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER v1_event_lookup_table_insert_trigger
-AFTER INSERT ON v1_event
-REFERENCING NEW TABLE AS new_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION v1_event_lookup_table_insert_function();
-
-CREATE TABLE v1_event_to_run (
-    run_external_id UUID NOT NULL,
-    event_id BIGINT NOT NULL,
-    event_seen_at TIMESTAMPTZ NOT NULL,
-    filter_id UUID,
-
-    PRIMARY KEY (event_id, event_seen_at, run_external_id)
-) PARTITION BY RANGE(event_seen_at);
+CREATE UNIQUE INDEX v1_event_external_id_seen_at ON v1_event (external_id, seen_at);
 
 -- v1_durable_event_log represents the log file for the durable event history
 -- of a durable task. This table stores metadata like sequence values for entries.
@@ -2525,6 +2479,9 @@ CREATE TABLE v1_durable_event_log_file (
     latest_node_id BIGINT NOT NULL,
     -- The latest branch id. Branches represent different execution paths on a replay.
     latest_branch_id BIGINT NOT NULL,
+    -- A monotonically increasing, contiguous counter for the order in which entries of this log
+    -- were satisfied. Incremented under the log file row lock so satisfaction order is total.
+    latest_satisfied_order BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
@@ -2572,6 +2529,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
     satisfied_at TIMESTAMPTZ,
+    -- The position of this entry in the per-log satisfaction order, assigned from
+    -- v1_durable_event_log_file.latest_satisfied_order when the entry is first satisfied.
+    -- NULL for entries satisfied before this column existed. Once set, never re-stamped.
+    satisfied_order BIGINT,
 
     user_message TEXT,
     wait_data JSONB,

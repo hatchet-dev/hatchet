@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.37.0"
+version = "1.37.1"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -47,20 +47,20 @@ lint = [
     "ruff==0.15.10",
     "types-requests>=2.33.0.20260712",
     "psutil>=6.0.0",
-    "types-grpcio>=1.82.1.20260711",
+    "types-grpcio>=1.83.0.20260730",
     "types-grpcio-status (>=1.0.0.20260408,<2.0.0.0)",
 ]
 
 test = [
     "pytest>=9.1.1,<10",
     "pytest-asyncio>=1.4.0",
-    "pytest-env>=1.6.0",
+    "pytest-env>=1.7.0",
     "pytest-retry>=1.7.0",
     "psycopg[pool]>=3.3.4,<4",
     "pytest-xdist>=3.7.0",
     "requests>=2.34.2,<3",
-    "boto3[s3]>=1.43.46",
-    "botocore>=1.43.51",
+    "boto3[s3]>=1.43.51",
+    "botocore>=1.43.62",
 ]
 
 docs = [
@@ -68,10 +68,10 @@ docs = [
     "mkdocstrings[python]>=1.0.6,<2",
     "pydoclint>=0.9.1",
     "markdownify>=1.2.3",
-    "openai>=2.46.0,<3",
+    "openai>=2.52.0,<3",
     "bs4>=0.0.2",
     "types-beautifulsoup4>=4.12.0.20250204",
-    "fastapi>=0.139.2,<1",
+    "fastapi>=0.141.1,<1",
     "uvicorn>=0.51.0,<1",
 ]
 

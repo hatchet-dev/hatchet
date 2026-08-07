@@ -1543,88 +1543,10 @@ func (r *sharedRepository) triggerWorkflows(
 	}
 
 	if coreEvents != nil {
-		eventExternalIdsToIds := make(map[uuid.UUID]EventIds)
-
 		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
 
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
-		}
-
-		for _, createdEvent := range createdEvents {
-			eventExternalIdsToIds[createdEvent.ExternalID] = EventIds{
-				Id:     createdEvent.ID,
-				SeenAt: createdEvent.SeenAt,
-			}
-		}
-
-		eventToRunExternalIds := []uuid.UUID{}
-		eventToRunEventIds := []int64{}
-		eventToRunEventSeenAts := []pgtype.Timestamptz{}
-		eventToRunRunFilterIds := []uuid.UUID{}
-
-		for _, task := range tasks {
-			externalId := task.ExternalID
-
-			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId]
-
-			if !ok {
-				continue
-			}
-
-			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
-
-			if !ok {
-				continue
-			}
-
-			eventToRunExternalIds = append(eventToRunExternalIds, task.ExternalID)
-			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
-			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
-
-			if eventIdAndFilterId.FilterId != nil {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, *eventIdAndFilterId.FilterId)
-			} else {
-				// fixme: this will write a bunch of nil ids into the filter id column (which is nullable)
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.Nil)
-			}
-		}
-
-		for _, dag := range dags {
-			externalId := dag.ExternalID
-
-			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId]
-
-			if !ok {
-				continue
-			}
-
-			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
-
-			if !ok {
-				continue
-			}
-
-			eventToRunExternalIds = append(eventToRunExternalIds, dag.ExternalID)
-			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
-			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
-
-			if eventIdAndFilterId.FilterId != nil {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, *eventIdAndFilterId.FilterId)
-			} else {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.Nil)
-			}
-		}
-
-		_, err = r.queries.CreateEventToRuns(ctx, tx, sqlcv1.CreateEventToRunsParams{
-			Runexternalids: eventToRunExternalIds,
-			Eventids:       eventToRunEventIds,
-			Eventseenats:   eventToRunEventSeenAts,
-			Filterids:      eventToRunRunFilterIds,
-		})
-
-		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
 		}
 
 		for _, e := range createdEvents {
@@ -2446,17 +2368,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
 		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
-		if opt.Scope != nil {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
-		} else {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
-		}
-
-		if opt.TriggeringWebhookName != nil {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
-		} else {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
-		}
+		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
+		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 

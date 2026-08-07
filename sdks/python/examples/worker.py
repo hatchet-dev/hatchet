@@ -89,8 +89,10 @@ from examples.durable_event.worker import (
     durable_event_task_with_filter,
 )
 from examples.durable_eviction.worker import (
+    branch_child,
     bulk_child_task as eviction_bulk_child_task,
     child_task as eviction_child_task,
+    concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
@@ -245,6 +247,8 @@ def main() -> None:
             non_evictable_sleep,
             eviction_child_task,
             eviction_bulk_child_task,
+            concurrent_branches,
+            branch_child,
             memo_now_caching,
             wait_for_event_lookback,
             wait_for_or_event_lookback,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -188,6 +189,48 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	return cleanup, nil
 }
 
+func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logger *zerolog.Logger) echo.IPExtractor {
+	trustOpts := []echo.TrustOption{}
+
+	if trustPrivateProxies {
+		trustOpts = append(trustOpts,
+			echo.TrustLoopback(true),
+			echo.TrustLinkLocal(true),
+			echo.TrustPrivateNet(true),
+		)
+	}
+
+	for _, cidr := range trustedProxies {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			logger.Warn().Msgf("ignoring invalid apiTrustedProxies CIDR %q: %v", cidr, err)
+			continue
+		}
+
+		trustOpts = append(trustOpts, echo.TrustIPRange(ipNet))
+	}
+
+	if !trustPrivateProxies && len(trustOpts) == 0 {
+		return echo.ExtractIPDirect()
+	}
+
+	xffExtractor := echo.ExtractIPFromXFFHeader(trustOpts...)
+	realIPExtractor := echo.ExtractIPFromRealIPHeader(trustOpts...)
+
+	return func(r *http.Request) string {
+		if r.Header.Get(echo.HeaderXForwardedFor) != "" {
+			return xffExtractor(r)
+		}
+
+		return realIPExtractor(r)
+	}
+}
+
 func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
 
@@ -201,29 +244,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	e.HideBanner = true
 	e.HidePort = true
-	e.IPExtractor = func(r *http.Request) string {
-		// Cloudflare sets CF-Connecting-IP header with the original client IP
-		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
-			return ip
-		}
-
-		// Fallback to X-Forwarded-For
-		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-			// X-Forwarded-For can contain multiple IPs, we only want the first one
-			ips := strings.Split(ip, ",")
-			if len(ips) > 0 {
-				return ips[0]
-			}
-		}
-
-		// Additional fallback to X-Real-IP used by certain proxies
-		if ip := r.Header.Get("X-Real-IP"); ip != "" {
-			return ip
-		}
-
-		// Final fallback to remote address
-		return r.RemoteAddr
-	}
+	e.IPExtractor = hatchetIPExtractor(t.config.Runtime.APITrustPrivateProxies, t.config.Runtime.APITrustedProxies, t.config.Logger)
 
 	g := e.Group("")
 
