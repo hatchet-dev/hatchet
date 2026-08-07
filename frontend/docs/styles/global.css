@@ -17,6 +17,30 @@
 }
 
 @font-face {
+  font-family: "Judge";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
+}
+
+/* Martina Plantijn — the serif hatchet.run uses for body copy */
+@font-face {
+  font-family: "martina";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/martina-plantijn-regular.woff2) format("woff2");
+}
+@font-face {
+  font-family: "martina";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/martina-plantijn-italic.woff2) format("woff2");
+}
+
+@font-face {
   font-family: "dm-mono";
   font-weight: 400;
   font-display: swap;
@@ -96,9 +120,9 @@
 /* Dark: hatchet.run navy, desaturated so long-form docs read calmer than
    the marketing site (blue accents kept for links/primary) */
 .dark {
-  --fg: 215 16% 88%;
-  --surface: 222 24% 8%; /* muted navy background */
-  --surface-2: 222 22% 11%; /* cards / popovers */
+  --fg: 213 25% 90%;
+  --surface: 228 61% 10%; /* hatchet.run navy #0A1029 (exact) */
+  --surface-2: 227 88% 6%; /* navy-dark #02081D, for cards / popovers */
   --color-fd-background: hsl(var(--surface));
   --color-fd-foreground: hsl(var(--fg));
   --color-fd-card: hsl(var(--surface-2));
@@ -107,13 +131,13 @@
   --color-fd-popover-foreground: hsl(var(--fg));
   --color-fd-primary: hsl(var(--blue));
   --color-fd-primary-foreground: hsl(var(--surface));
-  --color-fd-secondary: hsl(220 16% 100% / 0.05);
+  --color-fd-secondary: hsl(212 100% 90% / 0.06);
   --color-fd-secondary-foreground: hsl(var(--fg));
-  --color-fd-muted: hsl(220 16% 100% / 0.04);
-  --color-fd-muted-foreground: hsl(215 12% 62%);
-  --color-fd-accent: hsl(220 16% 100% / 0.07);
+  --color-fd-muted: hsl(212 100% 90% / 0.04);
+  --color-fd-muted-foreground: hsl(213 20% 66%);
+  --color-fd-accent: hsl(212 100% 90% / 0.08);
   --color-fd-accent-foreground: hsl(var(--fg));
-  --color-fd-border: hsl(220 16% 100% / 0.08);
+  --color-fd-border: hsl(212 100% 85% / 0.1);
   --color-fd-ring: hsl(var(--blue));
 }
 
@@ -152,20 +176,20 @@
 .dark {
   /* approximations of the marketing opacity-tiered colors as solid HSL
      (these vars are consumed as hsl(var(--x)) and cannot carry alpha) */
-  --background: 222 24% 8%; /* muted navy */
-  --foreground: 215 16% 88%;
-  --card: 222 22% 11%;
-  --card-foreground: 215 16% 88%;
-  --popover: 222 22% 11%;
-  --popover-foreground: 215 16% 88%;
+  --background: 228 61% 10%; /* navy #0A1029 */
+  --foreground: 213 25% 90%;
+  --card: 227 88% 6%; /* navy-dark #02081D */
+  --card-foreground: 213 25% 90%;
+  --popover: 227 88% 6%;
+  --popover-foreground: 213 25% 90%;
   --primary: 212 100% 60%; /* blue */
-  --primary-foreground: 222 24% 8%;
-  --secondary: 222 16% 16%;
-  --secondary-foreground: 215 16% 88%;
-  --muted: 222 16% 14%;
-  --muted-foreground: 215 12% 62%;
-  --accent: 222 16% 16%;
-  --accent-foreground: 215 16% 88%;
+  --primary-foreground: 228 61% 10%;
+  --secondary: 226 30% 17%;
+  --secondary-foreground: 213 25% 90%;
+  --muted: 226 28% 14%;
+  --muted-foreground: 213 20% 66%;
+  --accent: 226 30% 17%;
+  --accent-foreground: 213 25% 90%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
   --border: 227 42% 16%;
@@ -203,25 +227,80 @@
   --radius-sm: calc(var(--radius) - 4px);
   --font-mono: "dm-mono", ui-monospace, SFMono-Regular, monospace;
   --font-judge: "JudgeExtended", sans-serif;
+  --font-judge-regular: "Judge", sans-serif;
+  --font-serif: "martina", ui-serif, Georgia, serif;
 }
 
 /* ========================= */
-/* Typography                */
+/* Typography (hatchet.run)  */
 /* ========================= */
 body {
   font-size: 0.9375rem;
 }
 
+/* Headings: Judge Extended, tight tracking — matches the marketing site */
 h1,
 h2,
-h3 {
+h4,
+h5,
+h6 {
   font-family: var(--font-judge);
+  font-weight: normal !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* h3 uses the regular Judge cut on the marketing site */
+h3 {
+  font-family: var(--font-judge-regular);
   font-weight: normal !important;
   letter-spacing: 0 !important;
 }
 
+h1 {
+  line-height: 1.05;
+}
+
 h2 {
   font-size: 1.625rem !important;
+  line-height: 1.1;
+}
+
+/* Body copy: Martina Plantijn serif, the signature hatchet.run reading font.
+   Scoped to the doc article so nav/sidebar/TOC/UI stay in the system sans. */
+#nd-page .prose {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+/* Keep functional/dense elements out of the serif */
+#nd-page .prose :is(code, pre, kbd, samp),
+#nd-page .prose :is([role="tablist"], table) {
+  font-family: var(--font-mono);
+}
+
+/* Inline code: compact chips (like hatchet.run's blog) so the boxes don't
+   crowd or overlap against the taller serif line-height. `.shiki`/`pre`
+   descendants are code blocks and keep their own styling. */
+#nd-page .prose :not(pre) > code {
+  font-size: 0.82em;
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  border: none;
+  background-color: var(--color-fd-muted);
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+#nd-page .prose :not(pre) > code::before,
+#nd-page .prose :not(pre) > code::after {
+  content: none; /* strip Fumadocs' backtick pseudo-quotes */
+}
+
+#nd-page .prose :is(h1, h2, h4, h5, h6) {
+  font-family: var(--font-judge);
+}
+#nd-page .prose h3 {
+  font-family: var(--font-judge-regular);
 }
 
 code,
@@ -229,6 +308,28 @@ pre,
 kbd,
 samp {
   font-family: var(--font-mono);
+}
+
+/* Links: subtle underline that fills in on hover (marketing behavior).
+   Heading self-links and cards carry data-card and stay undecorated,
+   matching hatchet.run's blog prose. */
+#nd-page .prose a:not([data-card]) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+  text-decoration-color: hsl(var(--blue) / 0.45);
+  transition: text-decoration-color 0.2s ease;
+}
+#nd-page .prose a:not([data-card]):hover {
+  text-decoration-color: hsl(var(--blue));
+}
+#nd-page .prose :is(h1, h2, h3, h4, h5, h6) a {
+  text-decoration: none;
+}
+
+/* Blue hatchet-burst list markers, like hatchet.run */
+#nd-page .prose ul > li::marker {
+  color: hsl(var(--blue));
 }
 
 /* ========================= */
