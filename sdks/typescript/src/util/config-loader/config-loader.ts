@@ -216,10 +216,7 @@ export class ConfigLoader {
 
   static loadYamlConfig(path?: string): ClientConfig | undefined {
     try {
-      const configFile = readFileSync(
-        p.join(__dirname, path ?? this.default_yaml_config_path),
-        'utf8'
-      );
+      const configFile = readFileSync(p.join(path ?? this.default_yaml_config_path), 'utf8');
 
       const config = parse(configFile);
 
