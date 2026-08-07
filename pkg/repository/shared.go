@@ -37,9 +37,11 @@ type sharedRepository struct {
 	concurrencyStrategyCache *cache.Cache
 
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
+	workflowIdNameCache         *expirable.LRU[uuid.UUID, string]
 	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
+	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
@@ -66,9 +68,12 @@ func newSharedRepository(
 
 	// 5-second cache because the workflow version id can change when a new workflow is deployed
 	tenantIdWorkflowNameCache := expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second)
+	// a workflow id always maps to the same name, so a long TTL is safe
+	workflowIdNameCache := expirable.NewLRU(10000, func(key uuid.UUID, value string) {}, time.Hour)
 	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
+	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 
@@ -103,9 +108,11 @@ func newSharedRepository(
 		stepExpressionCache:         stepExpressionCache,
 		concurrencyStrategyCache:    concurrencyStrategyCache,
 		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
+		workflowIdNameCache:         workflowIdNameCache,
 		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
 		stepIdLabelsCache:           stepIdLabelsCache,
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
+		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
 		celParser:                   celParser,
 		env:                         env,
 		celProgramCache:             celProgramCache,
