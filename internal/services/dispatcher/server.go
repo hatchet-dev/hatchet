@@ -1271,6 +1271,12 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		}
 	}
 
+	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
+		if validationErr := v1.ValidateJSONB([]byte(request.EventPayload), "errorMessage"); validationErr != nil {
+			request.EventPayload = validationErr.Error()
+		}
+	}
+
 	var durableInvCount int32
 	invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
 		{ID: task.ID, InsertedAt: task.InsertedAt},
