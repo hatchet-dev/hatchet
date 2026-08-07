@@ -108,6 +108,11 @@ roles:
       - V1FilterDelete
       - V1FilterGet
       - V1FilterUpdate
+      - V1HttpOperatorList
+      - V1HttpOperatorCreate
+      - V1HttpOperatorGet
+      - V1HttpOperatorUpdate
+      - V1HttpOperatorDelete
       - TenantResourcePolicyGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart

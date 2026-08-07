@@ -1449,7 +1449,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 					ExternalID:    batchTask.ExternalID,
 					WorkflowRunID: batchTask.WorkflowRunID,
 					WorkerID:      batchTask.WorkerID,
-					StepTimeout:   pgtype.Text{String: "batch timeout", Valid: true},
+					StepTimeout:   "batch timeout",
 				})
 			}
 		}
@@ -1459,9 +1459,9 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	failOpts := make([]FailTaskOpts, 0, len(toTimeout))
 
 	for _, task := range toTimeout {
-		errorMsg := fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String)
+		errorMsg := fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout)
 		if task.BatchID != nil {
-			errorMsg = fmt.Sprintf("Task failed due to batch timeout, exceeded timeout of %s", task.StepTimeout.String)
+			errorMsg = fmt.Sprintf("Task failed due to batch timeout, exceeded timeout of %s", task.StepTimeout)
 		}
 
 		failOpts = append(failOpts, FailTaskOpts{
