@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -139,13 +138,6 @@ type workflowDeclarationImpl[I any, O any] struct {
 	tasks        []*task.TaskDeclaration[I]
 	durableTasks []*task.DurableTaskDeclaration[I]
 
-	// Store task functions with their specific output types
-	taskFuncs        map[string]interface{}
-	durableTaskFuncs map[string]interface{}
-
-	// Map to store task output setters
-	outputSetters map[string]func(*O, interface{})
-
 	DefaultPriority *int32
 	DefaultFilters  []types.DefaultFilter
 	Idempotency     *create.IdempotencyConfig
@@ -194,17 +186,14 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		CronInput:   opts.CronInput,
 		Concurrency: opts.Concurrency,
 		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in
-		StickyStrategy:   opts.StickyStrategy,
-		TaskDefaults:     opts.TaskDefaults,
-		outputKey:        opts.OutputKey,
-		tasks:            []*task.TaskDeclaration[I]{},
-		taskFuncs:        make(map[string]interface{}),
-		durableTasks:     []*task.DurableTaskDeclaration[I]{},
-		durableTaskFuncs: make(map[string]interface{}),
-		outputSetters:    make(map[string]func(*O, interface{})),
-		DefaultPriority:  opts.DefaultPriority,
-		DefaultFilters:   opts.DefaultFilters,
-		Idempotency:      opts.Idempotency,
+		StickyStrategy:  opts.StickyStrategy,
+		TaskDefaults:    opts.TaskDefaults,
+		outputKey:       opts.OutputKey,
+		tasks:           []*task.TaskDeclaration[I]{},
+		durableTasks:    []*task.DurableTaskDeclaration[I]{},
+		DefaultPriority: opts.DefaultPriority,
+		DefaultFilters:  opts.DefaultFilters,
+		Idempotency:     opts.Idempotency,
 	}
 
 	if opts.Version != "" {
@@ -225,57 +214,11 @@ func (w *workflowDeclarationImpl[I, O]) Name() string {
 
 // Task registers a standard (non-durable) task with the workflow
 func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
-	name := opts.Name
-
-	// Use reflection to validate the function type
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func ||
-		fnType.NumIn() != 2 ||
-		fnType.NumOut() != 2 ||
-		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		panic("Invalid function type for task " + name + ": must be func(I, worker.HatchetContext) (*T, error)")
-	}
-
-	// Create a setter function that can set this specific output type to the corresponding field in O
-	w.outputSetters[name] = func(result *O, output interface{}) {
-		resultValue := reflect.ValueOf(result).Elem()
-		field := resultValue.FieldByName(name)
-
-		// If the field isn't found by name, try to find it by JSON tag
-		resultType := resultValue.Type()
-		for i := 0; i < resultType.NumField(); i++ {
-			fieldType := resultType.Field(i)
-			jsonTag := fieldType.Tag.Get("json")
-			// Extract the name part from the json tag (before any comma)
-			if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
-				jsonTag = jsonTag[:commaIdx]
-			}
-			if jsonTag == name || strings.EqualFold(fieldType.Name, name) {
-				field = resultValue.Field(i)
-				break
-			}
-		}
-
-		if field.IsValid() && field.CanSet() {
-			outputValue := reflect.ValueOf(output).Elem()
-			field.Set(outputValue)
-		}
-	}
-
-	// Create a generic task function that wraps the specific one
 	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
-		// Use reflection to call the specific function
-		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
-		results := fnValue.Call(inputs)
-
-		// Handle errors
-		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
+		output, err := fn(ctx, input)
+		if err != nil {
+			return nil, err
 		}
-
-		// Return the output as any
-		output := results[0].Interface()
 		return &output, nil
 	}
 
@@ -329,59 +272,17 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 	}
 
 	w.tasks = append(w.tasks, taskDecl)
-	w.taskFuncs[name] = fn
 
 	return taskDecl
 }
 
 // BatchTask registers a batch task with the workflow
 func (w *workflowDeclarationImpl[I, O]) BatchTask(opts create.WorkflowTask[I, O], batch *types.BatchConfig, fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
-	name := opts.Name
-
-	// Use reflection to validate the function type
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func ||
-		fnType.NumIn() != 2 ||
-		fnType.NumOut() != 2 ||
-		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		panic("Invalid function type for batch task " + name + ": must be func(worker.HatchetContext, I) (*T, error)")
-	}
-
-	// Create a setter function that can set this specific output type to the corresponding field in O
-	w.outputSetters[name] = func(result *O, output interface{}) {
-		resultValue := reflect.ValueOf(result).Elem()
-		field := resultValue.FieldByName(name)
-
-		resultType := resultValue.Type()
-		for i := 0; i < resultType.NumField(); i++ {
-			fieldType := resultType.Field(i)
-			jsonTag := fieldType.Tag.Get("json")
-			if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
-				jsonTag = jsonTag[:commaIdx]
-			}
-			if jsonTag == name || strings.EqualFold(fieldType.Name, name) {
-				field = resultValue.Field(i)
-				break
-			}
-		}
-
-		if field.IsValid() && field.CanSet() {
-			outputValue := reflect.ValueOf(output).Elem()
-			field.Set(outputValue)
-		}
-	}
-
-	// Create a generic task function that wraps the specific one
 	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
-		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
-		results := fnValue.Call(inputs)
-
-		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
+		output, err := fn(ctx, input)
+		if err != nil {
+			return nil, err
 		}
-
-		output := results[0].Interface()
 		return &output, nil
 	}
 
@@ -437,49 +338,17 @@ func (w *workflowDeclarationImpl[I, O]) BatchTask(opts create.WorkflowTask[I, O]
 	}
 
 	w.tasks = append(w.tasks, taskDecl)
-	w.taskFuncs[name] = fn
 
 	return taskDecl
 }
 
 // DurableTask registers a durable task with the workflow
 func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I] {
-	name := opts.Name
-
-	// Use reflection to validate the function type
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func ||
-		fnType.NumIn() != 2 ||
-		fnType.NumOut() != 2 ||
-		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		panic("Invalid function type for durable task " + name + ": must be func(I, worker.DurableHatchetContext) (*T, error)")
-	}
-
-	// Create a setter function that can set this specific output type to the corresponding field in O
-	w.outputSetters[name] = func(result *O, output interface{}) {
-		resultValue := reflect.ValueOf(result).Elem()
-		field := resultValue.FieldByName(name)
-
-		if field.IsValid() && field.CanSet() {
-			outputValue := reflect.ValueOf(output).Elem()
-			field.Set(outputValue)
-		}
-	}
-
-	// Create a generic task function that wraps the specific one
 	genericFn := func(ctx worker.DurableHatchetContext, input I) (*any, error) {
-		// Use reflection to call the specific function
-		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
-		results := fnValue.Call(inputs)
-
-		// Handle errors
-		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
+		output, err := fn(ctx, input)
+		if err != nil {
+			return nil, err
 		}
-
-		// Return the output as any
-		output := results[0].Interface()
 		return &output, nil
 	}
 
@@ -543,36 +412,17 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 	}
 
 	w.durableTasks = append(w.durableTasks, taskDecl)
-	w.durableTaskFuncs[name] = fn
 
 	return taskDecl
 }
 
 // OnFailureTask registers a task that will be executed if the workflow fails.
 func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
-	// Use reflection to validate the function type
-	fnType := reflect.TypeOf(fn)
-	if fnType.Kind() != reflect.Func ||
-		fnType.NumIn() != 2 ||
-		fnType.NumOut() != 2 ||
-		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		panic("Invalid function type for on failure task: must be func(I, worker.HatchetContext) (*T, error)")
-	}
-
-	// Create a generic task function that wraps the specific one
 	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
-		// Use reflection to call the specific function
-		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
-		results := fnValue.Call(inputs)
-
-		// Handle errors
-		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
+		output, err := fn(ctx, input)
+		if err != nil {
+			return nil, err
 		}
-
-		// Return the output as any
-		output := results[0].Interface()
 		return &output, nil
 	}
 
@@ -801,9 +651,8 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	// Create named function objects for regular tasks
 	regularNamedFns := make([]NamedFunction, len(w.tasks))
 	for i, task := range w.tasks {
-		taskName := task.Name
-		originalFn := w.taskFuncs[taskName]
 		isBatch := task.Batch != nil
+		fn := task.Fn.(func(ctx worker.HatchetContext, input I) (*any, error))
 
 		regularNamedFns[i] = NamedFunction{
 			ActionID: taskOpts[i].Action,
@@ -818,24 +667,11 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 					return nil, err
 				}
 
-				// Call the original function using reflection
-				fnValue := reflect.ValueOf(originalFn)
-				inputVal := reflect.ValueOf(input)
-				if !inputVal.IsValid() {
-					// input is a nil interface (e.g. I = any with null input),
-					// use a zero value of the function's expected parameter type
-					inputVal = reflect.Zero(fnValue.Type().In(1))
+				output, err := fn(ctx, input)
+				if err != nil {
+					return nil, err
 				}
-				inputs := []reflect.Value{reflect.ValueOf(ctx), inputVal}
-				results := fnValue.Call(inputs)
-
-				// Handle errors
-				if !results[1].IsNil() {
-					return nil, results[1].Interface().(error)
-				}
-
-				// Return the output
-				return results[0].Interface(), nil
+				return *output, nil
 			},
 		}
 	}
@@ -843,8 +679,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	// Create named function objects for durable tasks
 	durableNamedFns := make([]NamedFunction, len(w.durableTasks))
 	for i, task := range w.durableTasks {
-		taskName := task.Name
-		originalFn := w.durableTaskFuncs[taskName]
+		fn := task.Fn.(func(ctx worker.DurableHatchetContext, input I) (*any, error))
 
 		durableNamedFns[i] = NamedFunction{
 			ActionID:       durableOpts[i].Action,
@@ -856,31 +691,20 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 					return nil, err
 				}
 
-				// Create a DurableHatchetContext from the HatchetContext
 				durableCtx := worker.NewDurableHatchetContext(ctx)
 
-				// Call the original function using reflection
-				fnValue := reflect.ValueOf(originalFn)
-				inputVal := reflect.ValueOf(input)
-				if !inputVal.IsValid() {
-					inputVal = reflect.Zero(fnValue.Type().In(1))
+				output, err := fn(durableCtx, input)
+				if err != nil {
+					return nil, err
 				}
-				inputs := []reflect.Value{reflect.ValueOf(durableCtx), inputVal}
-				results := fnValue.Call(inputs)
-
-				// Handle errors
-				if !results[1].IsNil() {
-					return nil, results[1].Interface().(error)
-				}
-
-				// Return the output
-				return results[0].Interface(), nil
+				return *output, nil
 			},
 		}
 	}
 
 	var onFailureFn WrappedTaskFn
 	if w.OnFailureTask != nil {
+		fn := w.OnFailureTask.Fn.(func(ctx worker.HatchetContext, input I) (*any, error))
 		onFailureFn = func(ctx worker.HatchetContext) (interface{}, error) {
 			var input I
 			err := ctx.WorkflowInput(&input)
@@ -888,20 +712,11 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 				return nil, err
 			}
 
-			// Call the function using reflection
-			fnValue := reflect.ValueOf(w.OnFailureTask.Fn)
-			inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
-			results := fnValue.Call(inputs)
-
-			// Handle errors
-			if !results[1].IsNil() {
-				return nil, results[1].Interface().(error)
+			output, err := fn(ctx, input)
+			if err != nil {
+				return nil, err
 			}
-
-			// Get the result
-			result := results[0].Interface()
-
-			return result, nil
+			return *output, nil
 		}
 	}
 

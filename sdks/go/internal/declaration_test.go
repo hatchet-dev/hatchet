@@ -67,13 +67,10 @@ func TestWorkflowDump_DefaultFilters(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			wf := &workflowDeclarationImpl[any, any]{
-				name:             "test-workflow",
-				tasks:            []*task.TaskDeclaration[any]{},
-				durableTasks:     []*task.DurableTaskDeclaration[any]{},
-				taskFuncs:        make(map[string]any),
-				durableTaskFuncs: make(map[string]any),
-				outputSetters:    make(map[string]func(*any, any)),
-				DefaultFilters:   tc.filters,
+				name:           "test-workflow",
+				tasks:          []*task.TaskDeclaration[any]{},
+				durableTasks:   []*task.DurableTaskDeclaration[any]{},
+				DefaultFilters: tc.filters,
 			}
 
 			req, _, _, _ := wf.Dump()
