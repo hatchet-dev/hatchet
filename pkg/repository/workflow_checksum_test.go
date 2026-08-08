@@ -154,4 +154,71 @@ func TestChecksumV1_BackwardsCompatibility(t *testing.T) {
 			t.Error("SlotRequests={default:2} should change the hash, but it did not")
 		}
 	})
+
+	t.Run("unset displayName does not change hash", func(t *testing.T) {
+		opts := &CreateWorkflowVersionOpts{
+			Name: "test-workflow",
+			Tasks: []CreateStepOpts{
+				{
+					ReadableId:  "step1",
+					Action:      "default:step1",
+					DisplayName: nil,
+				},
+			},
+			DisplayName: nil,
+		}
+
+		cs, _, err := checksumV1(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if cs != baselineChecksum {
+			t.Errorf("unset displayName changed the hash\n  baseline: %s\n  got:      %s", baselineChecksum, cs)
+		}
+	})
+
+	t.Run("workflow-level displayName expression changes hash", func(t *testing.T) {
+		opts := &CreateWorkflowVersionOpts{
+			Name: "test-workflow",
+			Tasks: []CreateStepOpts{
+				{
+					ReadableId: "step1",
+					Action:     "default:step1",
+				},
+			},
+			DisplayName: StringPtr("input.name"),
+		}
+
+		cs, _, err := checksumV1(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if cs == baselineChecksum {
+			t.Error("workflow-level displayName should change the hash, but it did not")
+		}
+	})
+
+	t.Run("per-step displayName expression changes hash", func(t *testing.T) {
+		opts := &CreateWorkflowVersionOpts{
+			Name: "test-workflow",
+			Tasks: []CreateStepOpts{
+				{
+					ReadableId:  "step1",
+					Action:      "default:step1",
+					DisplayName: StringPtr("input.step"),
+				},
+			},
+		}
+
+		cs, _, err := checksumV1(opts)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if cs == baselineChecksum {
+			t.Error("per-step displayName should change the hash, but it did not")
+		}
+	})
 }

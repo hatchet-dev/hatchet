@@ -172,6 +172,7 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
+        display_name: str | None = None,
         batch: BatchTaskConfig | None = None,
         slot_requests: dict[str, int] | None = None,
         eviction_policy: EvictionPolicy | None = None,
@@ -210,6 +211,7 @@ class Task(Generic[TWorkflowInput, R]):
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
         self.concurrency = concurrency or []
+        self.display_name = display_name
 
         self.wait_for = flatten_conditions(wait_for or [])
         self.skip_if = flatten_conditions(skip_if or [])
@@ -504,6 +506,7 @@ class Task(Generic[TWorkflowInput, R]):
             backoff_factor=self.backoff_factor,
             backoff_max_seconds=self.backoff_max_seconds,
             concurrency=[t.to_proto() for t in concurrency],
+            display_name=self.display_name,
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
             is_durable=self._is_durable,

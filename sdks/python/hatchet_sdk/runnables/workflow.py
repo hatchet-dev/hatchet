@@ -264,6 +264,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),  # type: ignore[arg-type]
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
+            display_name=self._config.display_name,
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
@@ -1356,6 +1357,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1386,6 +1388,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :param concurrency: A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param wait_for: A list of conditions that must be met before the task can run.
 
@@ -1446,6 +1450,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
@@ -1645,6 +1650,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1683,6 +1689,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :param concurrency: A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param wait_for: A list of conditions that must be met before the task can run.
 
@@ -1736,6 +1744,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
@@ -1758,6 +1767,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1781,6 +1791,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param concurrency: A list of concurrency expressions for the on-failure task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
+
         :returns: A decorator which creates a `Task` object.
         """
         _warn_if_str_duration(schedule_timeout, execution_timeout)
@@ -1803,6 +1815,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 desired_worker_labels=None,
                 parents=None,
                 wait_for=None,
@@ -1829,6 +1842,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1852,6 +1866,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param concurrency: A list of concurrency expressions for the on-success task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
+
         :returns: A decorator which creates a Task object.
         """
         _warn_if_str_duration(schedule_timeout, execution_timeout)
@@ -1874,6 +1890,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 parents=None,
                 desired_worker_labels=None,
                 wait_for=None,

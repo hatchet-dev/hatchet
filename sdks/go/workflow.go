@@ -189,6 +189,7 @@ type workflowConfig struct {
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
 	defaultFilters  []types.DefaultFilter
+	displayName     *string
 	idempotency     *IdempotencyConfig
 }
 
@@ -246,6 +247,15 @@ func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
 	}
 }
 
+// WithWorkflowDisplayName sets a CEL expression used to derive the run's display name.
+// The expression is evaluated against the run input at trigger time (e.g. "input.customerName");
+// on any evaluation error or empty result the run falls back to a generated name.
+func WithWorkflowDisplayName(expression string) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.displayName = &expression
+	}
+}
+
 // WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
 func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
 	return func(config *workflowConfig) {
@@ -300,6 +310,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
 		DefaultFilters: config.defaultFilters,
+		DisplayName:    config.displayName,
 	}
 
 	if config.defaultPriority != nil {
@@ -342,6 +353,7 @@ type taskConfig struct {
 	skipIf                 condition.Condition
 	description            string
 	evictionPolicy         *EvictionPolicy
+	displayName            *string
 	slotCost               *int32
 }
 
@@ -417,6 +429,15 @@ func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
 func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
 	return func(config *taskConfig) {
 		config.concurrency = concurrency
+	}
+}
+
+// WithDisplayName sets a CEL expression used to derive the task's display name.
+// The expression is evaluated against the run input at trigger time (e.g. "input.customerName");
+// on any evaluation error or empty result the task falls back to a generated name.
+func WithDisplayName(expression string) TaskOption {
+	return func(config *taskConfig) {
+		config.displayName = &expression
 	}
 }
 
@@ -576,6 +597,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
 		SkipIf:                 config.skipIf,
+		DisplayName:            config.displayName,
 		SlotCost:               config.slotCost,
 	}
 

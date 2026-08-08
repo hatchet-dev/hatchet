@@ -939,6 +939,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		DefaultPriority: req.DefaultPriority,
 		DefaultFilters:  defaultFilters,
 		InputJsonSchema: req.InputJsonSchema,
+		DisplayName:     req.DisplayName,
 		Idempotency:     idempotency,
 	}, nil
 }
@@ -1016,6 +1017,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			ScheduleTimeout:     stepCp.ScheduleTimeout,
 			IsDurable:           stepCp.IsDurable,
 			SlotRequests:        nil,
+			DisplayName:         stepCp.DisplayName,
 		}
 
 		if stepCp.SlotRequests != nil {
