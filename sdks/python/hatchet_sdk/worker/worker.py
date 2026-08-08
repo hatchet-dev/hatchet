@@ -4,7 +4,7 @@ import multiprocessing.context
 import os
 import signal
 import sys
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -41,6 +41,12 @@ from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManage
 from hatchet_sdk.worker.slot_types import SlotType
 
 T = TypeVar("T")
+
+# Upper bound on how long we'll wait for the best-effort "pause task
+# assignment" REST call to the engine during graceful shutdown. This is a
+# courtesy to the engine, not a precondition for tearing the worker down, so
+# it must never be allowed to block shutdown indefinitely.
+_PAUSE_TASK_ASSIGNMENT_TIMEOUT_SECONDS = 10
 
 
 class WorkerStatus(Enum):
@@ -641,8 +647,7 @@ class Worker:
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
-                    if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                    self._create_tracked_task(self.exit_gracefully(), "exit_gracefully")
                     break
 
                 if (
@@ -650,8 +655,7 @@ class Worker:
                     and task_count.value
                     >= self._config.terminate_worker_after_num_tasks
                 ):
-                    if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                    self._create_tracked_task(self.exit_gracefully(), "exit_gracefully")
                     break
 
                 self._status = WorkerStatus.HEALTHY
@@ -681,14 +685,35 @@ class Worker:
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
-        if self._loop:
-            self._loop.create_task(self.exit_gracefully())
+        self._create_tracked_task(self.exit_gracefully(), "exit_gracefully")
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
         logger.info(f"received {signal_received}...")
-        if self._loop:
-            self._loop.create_task(self._exit_forcefully())
+        self._create_tracked_task(self._exit_forcefully(), "_exit_forcefully")
+
+    def _create_tracked_task(self, coro: Coroutine[Any, Any, None], name: str) -> None:
+        """Schedule a coroutine on the worker's loop and make sure that if it
+        raises, the exception is logged rather than silently discarded.
+
+        create_task() alone leaves the resulting Task's exception unobserved
+        unless something awaits it; for top-level shutdown entry points
+        (signal handlers) nothing ever does, so an exception there would
+        otherwise abandon shutdown without a trace.
+        """
+        if not self._loop:
+            return
+
+        task = self._loop.create_task(coro)
+
+        def _log_if_failed(finished: "asyncio.Task[None]") -> None:
+            if finished.cancelled():
+                return
+            exc = finished.exception()
+            if exc is not None:
+                logger.error(f"{name} failed", exc_info=exc)
+
+        task.add_done_callback(_log_if_failed)
 
     def _close_queues(self) -> None:
         queues: list[Queue[Any] | None] = [
@@ -747,15 +772,37 @@ class Worker:
         Reads the worker_id that the listener subprocess deposited at startup,
         then calls the REST API to mark the worker as paused so the engine
         stops routing new work here while in-flight tasks finish.
+
+        This is a best-effort courtesy to the engine, not a precondition for
+        the worker's own shutdown: it is bounded by a timeout, and any error
+        (timeout, REST failure, engine unreachable, etc.) is logged and
+        swallowed here so that callers can always proceed with local
+        teardown regardless of what happens on the engine side.
         """
         try:
             worker_id = await asyncio.to_thread(self._worker_id_queue.get, timeout=10)
         except Exception:
             logger.warning("could not read worker_id; skipping pause")
             return
+
         logger.info("pausing task assignment...")
-        await self._client.workers.aio_pause(worker_id)
-        logger.info("task assignment paused")
+        try:
+            await asyncio.wait_for(
+                self._client.workers.aio_pause(worker_id),
+                timeout=_PAUSE_TASK_ASSIGNMENT_TIMEOUT_SECONDS,
+            )
+            logger.info("task assignment paused")
+        except asyncio.TimeoutError:
+            logger.warning(
+                "timed out pausing task assignment at the engine after "
+                f"{_PAUSE_TASK_ASSIGNMENT_TIMEOUT_SECONDS}s; continuing shutdown "
+                "without engine confirmation"
+            )
+        except Exception:
+            logger.exception(
+                "failed to pause task assignment at the engine; continuing "
+                "shutdown without engine confirmation"
+            )
 
     def _stop_listener_action_loops(self) -> None:
         """Tell listener subprocesses to stop their gRPC action streams.
@@ -775,8 +822,19 @@ class Worker:
 
         self._killing = True
 
-        # tell the engine that the worker is paused
-        await self._pause_task_assignment()
+        # Tell the engine that the worker is paused. This is purely a
+        # courtesy to the engine so it stops routing new work here while
+        # in-flight tasks finish; _pause_task_assignment() is already
+        # timeout-bounded and swallows its own errors, but we guard here too
+        # so that any unexpected exception can never prevent local teardown
+        # (runner drain, queue/listener shutdown, loop stop) from running.
+        try:
+            await self._pause_task_assignment()
+        except Exception:
+            logger.exception(
+                "unexpected error pausing task assignment at the engine; "
+                "continuing local shutdown"
+            )
 
         # wait for tasks to complete, needs the event queue so that completion tasks aren't dropped
         if self._action_runner:
