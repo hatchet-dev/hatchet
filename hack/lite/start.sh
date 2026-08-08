@@ -22,5 +22,8 @@ if ./hatchet-admin authdisabled; then
   echo "====================================================================="
 fi
 
-# Run the Go binary
-./hatchet-lite --config ./config
+# Run the Go binary. exec replaces the shell so the engine becomes PID 1 and
+# receives SIGTERM from `docker stop` directly. Without it bash stays PID 1,
+# Linux skips the default signal disposition for PID 1, and the engine is
+# SIGKILLed at the end of the grace period without draining.
+exec ./hatchet-lite --config ./config
