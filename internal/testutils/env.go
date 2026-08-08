@@ -62,7 +62,8 @@ func Prepare(t *testing.T) {
 
 	cleanup, server, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable security checks since we're not running the server
-		scf.SecurityCheck.Enabled = false
+		disabled := false
+		scf.SecurityCheck.Enabled = &disabled
 	})
 	if err != nil {
 		t.Fatalf("could not load server config: %v", err)

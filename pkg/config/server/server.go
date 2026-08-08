@@ -344,8 +344,9 @@ type InternalClientTLSConfigFile struct {
 }
 
 type SecurityCheckConfigFile struct {
-	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
-	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
+	Enabled      *bool  `mapstructure:"enabled" json:"enabled,omitempty"`
+	Endpoint     string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
+	Distribution string `mapstructure:"distribution" json:"distribution,omitempty"`
 }
 
 // Alerting options
