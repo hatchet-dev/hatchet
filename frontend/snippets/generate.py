@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
@@ -241,7 +241,9 @@ def _read_sdk_version(lang: str) -> str:
                 if line.startswith("version = "):
                     return line.split('"')[1].strip()
     elif lang == "typescript":
-        with open(os.path.join(ROOT, "sdks", "typescript", "package.json"), encoding="utf-8") as f:
+        with open(
+            os.path.join(ROOT, "sdks", "typescript", "package.json"), encoding="utf-8"
+        ) as f:
             data = json.load(f)
         return data["version"]
     elif lang == "ruby":
@@ -270,46 +272,6 @@ def write_examples(examples: list[ProcessedExample]) -> None:
             )
 
 
-class JavaScriptObjectDecoder(json.JSONDecoder):
-    def replacement(self, match: re.Match[str]) -> str:
-        indent = match.group(1)
-        key = match.group(2)
-        return f'{indent}"{key}":'
-
-    def decode(self, s: str, _w: Callable[..., Any] = re.compile(r"\s").match) -> Any:  # type: ignore[override]
-        pattern = r"^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:"
-        quoted = re.sub(pattern, self.replacement, s)
-        result = re.sub(pattern, self.replacement, quoted, flags=re.MULTILINE)
-        result = re.sub(
-            r"(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:",
-            r'\1"\2":',
-            result,
-        )
-        result = re.sub(r",(\s*\n?\s*})(\s*);?", r"\1", result)
-
-        return super().decode(result)
-
-
-def is_doc_page(key: str, children: str | dict[str, Any]) -> bool:
-    if key.strip().startswith("--"):
-        return False
-
-    if isinstance(children, str):
-        return True
-
-    return "title" in children
-
-
-def extract_doc_name(value: str | dict[str, Any]) -> str:
-    if isinstance(value, str):
-        return value
-
-    if "title" in value:
-        return value["title"]
-
-    raise ValueError(f"Invalid doc value: {value}")
-
-
 def keys_to_path(keys: list[str]) -> str:
     keys = [k for k in keys if k]
 
@@ -322,53 +284,92 @@ def keys_to_path(keys: list[str]) -> str:
     return "/" + "/".join(keys).replace("//", "/").rstrip("/")
 
 
+def _read_frontmatter_title(mdx_path: str) -> str | None:
+    with open(mdx_path, encoding="utf-8") as f:
+        src = f.read()
+    match = re.match(r"^---\s*\n(.*?)\n---", src, re.DOTALL)
+    if not match:
+        return None
+    for line in match.group(1).splitlines():
+        title_match = re.match(r"\s*title\s*:\s*(.+?)\s*$", line)
+        if title_match:
+            return title_match.group(1).strip().strip('"').strip("'")
+    return None
+
+
+def _read_meta_pages(dir_path: str) -> list[str] | None:
+    meta_path = os.path.join(dir_path, "meta.json")
+    if not os.path.exists(meta_path):
+        return None
+    with open(meta_path, encoding="utf-8") as f:
+        return cast(dict[str, Any], json.load(f)).get("pages")
+
+
+def _build_doc_tree(dir_path: str, url_keys: list[str]) -> dict[str, Any]:
+    """Reconstruct the docsPages tree from the fumadocs content/docs layout.
+
+    Mirrors the shape the dashboard consumes: a nested map of slug segments
+    whose leaves are {title, href}. Titles come from each page's frontmatter
+    (folders from their meta.json title / index page).
+    """
+    node: dict[str, Any] = {}
+    seen: set[str] = set()
+
+    def add(key: str) -> None:
+        key = key.strip()
+        if not key or key in seen:
+            return
+        seen.add(key)
+        sub_dir = os.path.join(dir_path, key)
+        mdx = os.path.join(dir_path, key + ".mdx")
+        if os.path.isdir(sub_dir):
+            child = _build_doc_tree(sub_dir, url_keys + [key])
+            meta_path = os.path.join(sub_dir, "meta.json")
+            title: str | None = None
+            if os.path.exists(meta_path):
+                with open(meta_path, encoding="utf-8") as f:
+                    title = cast(dict[str, Any], json.load(f)).get("title")
+            index_mdx = os.path.join(sub_dir, "index.mdx")
+            if title is None and os.path.exists(index_mdx):
+                title = _read_frontmatter_title(index_mdx)
+            child.setdefault("title", title or key)
+            child.setdefault(
+                "href", f"https://docs.hatchet.run{keys_to_path(url_keys + [key])}"
+            )
+            node[key] = child
+        elif os.path.exists(mdx):
+            node[key] = asdict(
+                DocumentationPage(
+                    title=_read_frontmatter_title(mdx) or key,
+                    href=f"https://docs.hatchet.run{keys_to_path(url_keys + [key])}",
+                )
+            )
+
+    # Honor meta.json ordering first (skip separators "---x---" and links "[x](y)")
+    for entry in _read_meta_pages(dir_path) or []:
+        if (
+            not isinstance(entry, str)
+            or entry.startswith("---")
+            or entry.startswith("[")
+        ):
+            continue
+        add(entry)
+
+    # Then include anything on disk not listed in meta.json, for full coverage
+    for name in sorted(os.listdir(dir_path)):
+        if name == "meta.json":
+            continue
+        if name.endswith(".mdx"):
+            add(name[:-4])
+        elif os.path.isdir(os.path.join(dir_path, name)):
+            add(name)
+
+    return node
+
+
 def write_doc_index_to_app() -> None:
-    docs_root = os.path.join(ROOT, "frontend", "docs")
-    pages_dir = os.path.join(docs_root, "pages/")
-
-    path = docs_root + "/**/_meta.js"
-    tree: dict[str, Any] = {}
-
-    for filename in glob.iglob(path, recursive=True):
-        with open(filename) as f:
-            content = f.read().replace("export default ", "").strip().rstrip(";")
-            parsed_meta = cast(
-                dict[str, Any], json.loads(content, cls=JavaScriptObjectDecoder)
-            )
-
-            keys = (
-                filename.replace(pages_dir, "")
-                .replace("_meta.js", "")
-                .rstrip("/")
-                .split("/")
-            )
-            docs = {
-                key: extract_doc_name(value)
-                for key, value in parsed_meta.items()
-                if is_doc_page(key, value)
-            }
-
-            for key, title in docs.items():
-                key = key.strip() or "index"
-                full_keys = keys + [key]
-                full_keys = [k for k in full_keys]
-
-                current = tree
-                for k in full_keys[:-1]:
-                    k = k or "index"
-                    if k not in current:
-                        current[k] = {}
-                    elif isinstance(current[k], str):
-                        break
-
-                    current = current[k]
-                else:
-                    current[full_keys[-1]] = asdict(
-                        DocumentationPage(
-                            title=title,
-                            href=f"https://docs.hatchet.run{keys_to_path(full_keys[:-1])}/{key}",
-                        )
-                    )
+    content_dir = os.path.join(ROOT, "frontend", "docs", "content", "docs")
+    tree = _build_doc_tree(content_dir, [])
 
     out_dir = os.path.join(ROOT, "frontend", "app", "src", "lib", "generated", "docs")
     os.makedirs(out_dir, exist_ok=True)
@@ -404,7 +405,9 @@ if __name__ == "__main__":
     )
 
     print(f"Writing snippet type to {BASE_SNIPPETS_DIR}/snippet.ts")
-    with open(os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w", encoding="utf-8") as f:
+    with open(
+        os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w", encoding="utf-8"
+    ) as f:
         f.write(snippet_type)
 
     write_examples(processed_examples)

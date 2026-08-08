@@ -88,10 +88,14 @@
   --opacity-9: 0.88;
 
   --brand: hsl(var(--navy));
+  /* Prose link colour — strong blue on white */
+  --link: hsl(214 90% 46%);
 }
 
 .dark {
   --brand: hsl(var(--cyan));
+  /* Brighter sky-blue so links pop against the navy background */
+  --link: hsl(210 100% 76%);
 }
 
 /* ==================================== */
@@ -238,33 +242,6 @@ body {
   font-size: 0.9375rem;
 }
 
-/* Headings: Judge Extended, tight tracking — matches the marketing site */
-h1,
-h2,
-h4,
-h5,
-h6 {
-  font-family: var(--font-judge);
-  font-weight: normal !important;
-  letter-spacing: -0.02em !important;
-}
-
-/* h3 uses the regular Judge cut on the marketing site */
-h3 {
-  font-family: var(--font-judge-regular);
-  font-weight: normal !important;
-  letter-spacing: 0 !important;
-}
-
-h1 {
-  line-height: 1.05;
-}
-
-h2 {
-  font-size: 1.625rem !important;
-  line-height: 1.1;
-}
-
 /* Body copy: Martina Plantijn serif, the signature hatchet.run reading font.
    Scoped to the doc article so nav/sidebar/TOC/UI stay in the system sans. */
 #nd-page .prose {
@@ -296,11 +273,24 @@ h2 {
   content: none; /* strip Fumadocs' backtick pseudo-quotes */
 }
 
+/* Headings: Judge Extended with tight tracking (marketing site), scoped to
+   the content article so the sidebar/nav/TOC keep the default Fumadocs sans. */
 #nd-page .prose :is(h1, h2, h4, h5, h6) {
   font-family: var(--font-judge);
+  font-weight: normal;
+  letter-spacing: -0.02em;
 }
 #nd-page .prose h3 {
   font-family: var(--font-judge-regular);
+  font-weight: normal;
+  letter-spacing: 0;
+}
+#nd-page .prose h1 {
+  line-height: 1.05;
+}
+#nd-page .prose h2 {
+  font-size: 1.625rem;
+  line-height: 1.1;
 }
 
 code,
@@ -310,20 +300,24 @@ samp {
   font-family: var(--font-mono);
 }
 
-/* Links: subtle underline that fills in on hover (marketing behavior).
-   Heading self-links and cards carry data-card and stay undecorated,
-   matching hatchet.run's blog prose. */
+/* Links: coloured so they clearly stand out from body copy, with an
+   underline that fills in on hover. Brighter blue in dark mode for contrast
+   against the navy background. */
 #nd-page .prose a:not([data-card]) {
+  color: var(--link);
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.15em;
-  text-decoration-color: hsl(var(--blue) / 0.45);
-  transition: text-decoration-color 0.2s ease;
+  text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+  transition:
+    text-decoration-color 0.2s ease,
+    color 0.2s ease;
 }
 #nd-page .prose a:not([data-card]):hover {
-  text-decoration-color: hsl(var(--blue));
+  text-decoration-color: var(--link);
 }
 #nd-page .prose :is(h1, h2, h3, h4, h5, h6) a {
+  color: inherit;
   text-decoration: none;
 }
 

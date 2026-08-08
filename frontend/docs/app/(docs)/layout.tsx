@@ -12,6 +12,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       tabs={{
         transform: (option, node) => {
           if (HIDDEN_TABS.has(String(option.title))) return null;
+          // Fumadocs' default icon wrapper (bordered only on mobile)
           const icon = node.icon ? (
             <div className="size-full [&_svg]:size-full max-md:p-1.5 max-md:rounded-md max-md:border max-md:bg-fd-secondary">
               {node.icon}
