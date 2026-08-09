@@ -273,24 +273,39 @@ body {
   content: none; /* strip Fumadocs' backtick pseudo-quotes */
 }
 
-/* Headings: Judge Extended with tight tracking (marketing site), scoped to
-   the content article so the sidebar/nav/TOC keep the default Fumadocs sans. */
+/* Headings: ported from the old Nextra docs (the sizes/margins the boss
+   preferred) — Judge Extended, with the h2 divider rule. Scoped to the
+   content article so the sidebar/nav/TOC keep the default Fumadocs sans. */
 #nd-page .prose :is(h1, h2, h4, h5, h6) {
   font-family: var(--font-judge);
   font-weight: normal;
-  letter-spacing: -0.02em;
+}
+#nd-page .prose h1 {
+  font-size: 2.25rem; /* text-4xl */
+  line-height: 1.1;
+  letter-spacing: -0.025em; /* tracking-tight */
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+#nd-page .prose h2 {
+  font-size: 1.625rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  margin-top: 2.5rem; /* mt-10 */
+  padding-bottom: 0.25rem; /* pb-1 */
+  border-bottom: 1px solid var(--color-fd-border);
 }
 #nd-page .prose h3 {
   font-family: var(--font-judge-regular);
   font-weight: normal;
+  font-size: 1.5rem; /* text-2xl */
   letter-spacing: 0;
+  margin-top: 2rem; /* mt-8 */
 }
-#nd-page .prose h1 {
-  line-height: 1.05;
-}
-#nd-page .prose h2 {
-  font-size: 1.625rem;
-  line-height: 1.1;
+#nd-page .prose h4 {
+  font-size: 1.25rem; /* text-xl */
+  letter-spacing: -0.02em;
+  margin-top: 2rem; /* mt-8 */
 }
 
 code,
@@ -324,6 +339,53 @@ samp {
 /* Blue hatchet-burst list markers, like hatchet.run */
 #nd-page .prose ul > li::marker {
   color: hsl(var(--blue));
+}
+
+/* ========================= */
+/* Sidebar rhythm            */
+/* Recessed navy-dark rail (bg-fd-card = #02081D) already applies; this just
+   tightens Fumadocs' default spacing to the cleaner cadence from the studies:
+   groups sit closer, rows are a touch shorter. */
+/* ========================= */
+/* Same system-sans stack as the studies sample (SF Pro on macOS). */
+#nd-sidebar {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Nav rows — the sample's exact metrics (13px, 6px/9px padding, 7px radius). */
+#nd-sidebar a[href] {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.5;
+  padding: 0.375rem 0.5625rem; /* 6px 9px */
+  border-radius: 7px;
+  gap: 0.5rem;
+}
+/* Section labels (separators) — 12.5px bold, groups pulled closer. */
+#nd-sidebar p[class~="mt-6"] {
+  font-size: 0.78rem; /* ~12.5px */
+  font-weight: 700;
+  margin-top: 1rem; /* 24px -> 16px */
+  margin-bottom: 0.3rem;
+}
+
+/* Recessed navy-dark colours from the sample (variant B). Dark-scoped so
+   light mode keeps the Fumadocs tokens. */
+.dark #nd-sidebar p[class~="mt-6"] {
+  color: #e7eefb;
+}
+.dark #nd-sidebar a[href] {
+  color: #93a3c2;
+}
+.dark #nd-sidebar a[href]:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #e7eefb;
+}
+.dark #nd-sidebar a[href][data-active="true"] {
+  background-color: rgba(51, 146, 255, 0.16);
+  color: #7cb8ff;
+  font-weight: 600;
 }
 
 /* ========================= */
