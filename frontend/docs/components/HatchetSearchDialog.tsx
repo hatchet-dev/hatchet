@@ -22,9 +22,6 @@ import {
   expandSynonyms,
 } from "@/lib/search-config";
 
-// ---------------------------------------------------------------------------
-// Lazy singleton for the search index
-// ---------------------------------------------------------------------------
 let indexPromise: Promise<MiniSearch> | null = null;
 
 function loadIndex(): Promise<MiniSearch> {
@@ -40,10 +37,6 @@ function loadIndex(): Promise<MiniSearch> {
   return indexPromise;
 }
 
-/**
- * Extract a short snippet of content around the first query match.
- * Falls back to the first ~120 characters if no match is found.
- */
 function getContentSnippet(
   content: string | undefined,
   query: string,
@@ -94,7 +87,6 @@ function getContentSnippet(
   return plain.slice(0, maxLen).trim() + "…";
 }
 
-/** Convert a MiniSearch doc id to a route. */
 function idToRoute(id: string): string {
   return (
     "/" +
@@ -113,7 +105,6 @@ function getPageTitle(result: SearchResult): string {
   return (result.pageTitle as string) || (result.title as string) || result.id;
 }
 
-/** Map reranked MiniSearch results into fumadocs' search list items, grouped by page. */
 function toItems(results: SearchResult[], query: string): SearchItemType[] {
   const items: SearchItemType[] = [];
   const seenPages = new Set<string>();
@@ -162,9 +153,6 @@ export default function HatchetSearchDialog(props: SharedProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setLoading] = useState(false);
 
-  // -------------------------------------------------------------------------
-  // PostHog search-miss tracking: capture when the dialog closes
-  // -------------------------------------------------------------------------
   const sessionRef = useRef({ query: "", resultCount: 0, clicked: false });
   const prevOpenRef = useRef(false);
 
@@ -193,12 +181,10 @@ export default function HatchetSearchDialog(props: SharedProps) {
     prevOpenRef.current = props.open;
   }, [props.open]);
 
-  // Preload the index as soon as the dialog opens
   useEffect(() => {
     if (props.open) loadIndex().catch(() => {});
   }, [props.open]);
 
-  // Run the search when the query changes
   useEffect(() => {
     if (!search.trim()) {
       setResults([]);

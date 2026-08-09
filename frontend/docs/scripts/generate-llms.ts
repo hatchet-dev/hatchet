@@ -89,14 +89,11 @@ function readMeta(dir: string): MetaJson | null {
   return JSON.parse(fs.readFileSync(metaPath, "utf-8"));
 }
 
-/** Read the `title` field from an MDX file's frontmatter. */
 function readFrontmatterTitle(mdxPath: string): string | null {
   const src = fs.readFileSync(mdxPath, "utf-8");
   const fm = /^---\n([\s\S]*?)\n---/.exec(src);
   if (!fm) return null;
-  const line = fm[1]
-    .split("\n")
-    .find((l) => /^title\s*:/.test(l));
+  const line = fm[1].split("\n").find((l) => /^title\s*:/.test(l));
   if (!line) return null;
   return line
     .replace(/^title\s*:\s*/, "")
@@ -205,21 +202,24 @@ function resolveSnippets(
 
 function convertCallouts(text: string): string {
   const pattern = /<Callout\s+type=["'](\w+)["']\s*>([\s\S]*?)<\/Callout>/g;
-  return text.replace(pattern, (_match, calloutType: string, content: string) => {
-    const label = calloutType.charAt(0).toUpperCase() + calloutType.slice(1);
-    const trimmed = content.trim();
-    const lines = trimmed.split("\n");
-    if (lines.length === 1) {
-      return `> **${label}:** ${trimmed}`;
-    }
-    return (
-      `> **${label}:** ${lines[0]}\n` +
-      lines
-        .slice(1)
-        .map((l) => (l.trim() ? `> ${l}` : ">"))
-        .join("\n")
-    );
-  });
+  return text.replace(
+    pattern,
+    (_match, calloutType: string, content: string) => {
+      const label = calloutType.charAt(0).toUpperCase() + calloutType.slice(1);
+      const trimmed = content.trim();
+      const lines = trimmed.split("\n");
+      if (lines.length === 1) {
+        return `> **${label}:** ${trimmed}`;
+      }
+      return (
+        `> **${label}:** ${lines[0]}\n` +
+        lines
+          .slice(1)
+          .map((l) => (l.trim() ? `> ${l}` : ">"))
+          .join("\n")
+      );
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -326,10 +326,7 @@ function extractTabContents(
   return result;
 }
 
-function expandUniversalTabs(
-  text: string,
-  languages: string[] | null,
-): string {
+function expandUniversalTabs(text: string, languages: string[] | null): string {
   const pattern =
     /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?(?:\s+variant=["'][^"']*["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
 
@@ -351,7 +348,12 @@ function expandUniversalTabs(
     for (const [label, content] of tabContents) {
       const langKey = TAB_LABEL_TO_LANG[label.toLowerCase()];
 
-      if (isLanguageTabs && langKey && languages && !languages.includes(langKey))
+      if (
+        isLanguageTabs &&
+        langKey &&
+        languages &&
+        !languages.includes(langKey)
+      )
         continue;
 
       parts.push(`#### ${label}\n\n${content.trim()}`);
@@ -371,8 +373,7 @@ function expandUniversalTabs(
 }
 
 function expandStandaloneTabs(text: string): string {
-  const pattern =
-    /<Tabs\s+items=\{(\[[\s\S]*?\])\}\s*>([\s\S]*?)<\/Tabs>/g;
+  const pattern = /<Tabs\s+items=\{(\[[\s\S]*?\])\}\s*>([\s\S]*?)<\/Tabs>/g;
 
   return text.replace(pattern, (_match, itemsStr: string, inner: string) => {
     let items = itemsStr.match(/"([^"]*)"/g)?.map((s) => s.slice(1, -1)) ?? [];
@@ -421,11 +422,7 @@ function convertCards(text: string): string {
 }
 
 function convertFileTree(text: string): string {
-  function walkFileTree(
-    content: string,
-    lines: string[],
-    depth: number,
-  ): void {
+  function walkFileTree(content: string, lines: string[], depth: number): void {
     const folderPattern =
       /<FileTree\.Folder\s+name=["']([^"']*)["'][^>]*>([\s\S]*?)<\/FileTree\.Folder>/g;
     let folderMatch: RegExpExecArray | null;
@@ -433,8 +430,7 @@ function convertFileTree(text: string): string {
       lines.push("  ".repeat(depth) + folderMatch[1] + "/");
       walkFileTree(folderMatch[2], lines, depth + 1);
     }
-    const filePattern =
-      /<FileTree\.File\s+name=["']([^"']*)["'][^>]*\s*\/>/g;
+    const filePattern = /<FileTree\.File\s+name=["']([^"']*)["'][^>]*\s*\/>/g;
     let fileMatch: RegExpExecArray | null;
     while ((fileMatch = filePattern.exec(content)) !== null) {
       lines.push("  ".repeat(depth) + fileMatch[1]);
@@ -456,7 +452,11 @@ function convertMarkdownTables(text: string): string {
   text = text.replace(/^\|[-|\s:]+\|$/gm, "");
   // Convert data/header rows: strip pipes and join cells with commas
   text = text.replace(/^\|(.+)\|$/gm, (_match, inner: string) =>
-    inner.split("|").map((c: string) => c.trim()).filter(Boolean).join(", "),
+    inner
+      .split("|")
+      .map((c: string) => c.trim())
+      .filter(Boolean)
+      .join(", "),
   );
   return text;
 }
@@ -486,8 +486,7 @@ function resolveMdxComponentImports(
     return text;
   }
 
-  const mdxImportPattern =
-    /import\s+(\w+)\s+from\s+["']([^"']*\.mdx)["']/g;
+  const mdxImportPattern = /import\s+(\w+)\s+from\s+["']([^"']*\.mdx)["']/g;
 
   // Collect all MDX component imports first
   const imports: Array<{ componentName: string; relPath: string }> = [];
@@ -544,8 +543,6 @@ function convertMdxToMarkdown(
   filepath?: string,
   depth?: number,
 ): string {
-  // Frontmatter is a rendering concern (sidebar/SEO titles); the markdown
-  // output keeps its in-body `# Heading` instead
   let text = content.replace(/^---\n[\s\S]*?\n---\n+/, "");
 
   if (filepath) {
@@ -664,7 +661,8 @@ function splitByH2(
   markdown: string,
 ): Array<{ heading: string; slug: string; content: string }> {
   const lines = markdown.split("\n");
-  const sections: Array<{ heading: string; slug: string; content: string }> = [];
+  const sections: Array<{ heading: string; slug: string; content: string }> =
+    [];
   let currentHeading = "";
   let currentSlug = "";
   let currentLines: string[] = [];
@@ -738,9 +736,7 @@ function buildSearchIndex(
     for (const section of sections) {
       if (!section.content.trim()) continue;
 
-      let id = section.slug
-        ? `${pageRoute}#${section.slug}`
-        : pageRoute;
+      let id = section.slug ? `${pageRoute}#${section.slug}` : pageRoute;
 
       if (seenIds.has(id)) {
         let suffix = 2;
@@ -847,9 +843,7 @@ function generatePerPageMarkdown(
     }
   }
 
-  console.log(
-    `  Wrote ${pages.length} per-page markdown files to ${llmsDir}/`,
-  );
+  console.log(`  Wrote ${pages.length} per-page markdown files to ${llmsDir}/`);
 }
 
 // ---------------------------------------------------------------------------
@@ -907,9 +901,7 @@ function main(): void {
 
   const searchIndexPath = path.join(OUTPUT_DIR, "llms-search-index.json");
   fs.writeFileSync(searchIndexPath, searchIndexJson);
-  console.log(
-    `  Wrote ${searchIndexPath} (${searchIndexJson.length} bytes)`,
-  );
+  console.log(`  Wrote ${searchIndexPath} (${searchIndexJson.length} bytes)`);
 
   if (languages) {
     console.log(`  Languages: ${languages.join(", ")}`);

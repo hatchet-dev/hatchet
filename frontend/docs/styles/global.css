@@ -3,9 +3,6 @@
 @import "fumadocs-ui/css/preset.css";
 @plugin "tailwindcss-animate";
 
-/* ========================= */
-/* Fonts (mirrors hatchet.run) */
-/* ========================= */
 @font-face {
   font-family: "JudgeExtended";
   font-style: normal;
@@ -24,7 +21,6 @@
   src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
 }
 
-/* Martina Plantijn — the serif hatchet.run uses for body copy */
 @font-face {
   font-family: "martina";
   font-style: normal;
@@ -67,15 +63,12 @@
   src: url(./fonts/dm-mono-medium-italic.woff2) format("woff2");
 }
 
-/* ==================================== */
-/* Brand primitives (from hatchet.run)  */
-/* ==================================== */
 :root {
-  --navy: 228 61% 10%; /* #0A1029 */
-  --cyan: 212 100% 86%; /* #B8D9FF */
-  --navy-dark: 227 88% 6%; /* #02081D */
-  --cyan-dark: 212 60% 78%; /* #A5C5E9 */
-  --blue: 212 100% 60%; /* #3392FF */
+  --navy: 228 61% 10%;
+  --cyan: 212 100% 86%;
+  --navy-dark: 227 88% 6%;
+  --cyan-dark: 212 60% 78%;
+  --blue: 212 100% 60%;
 
   --opacity-1: 0.04;
   --opacity-2: 0.08;
@@ -88,20 +81,16 @@
   --opacity-9: 0.88;
 
   --brand: hsl(var(--navy));
-  /* Prose link colour — strong blue on white */
+
   --link: hsl(214 90% 46%);
 }
 
 .dark {
   --brand: hsl(var(--cyan));
-  /* Brighter sky-blue so links pop against the navy background */
+
   --link: hsl(210 100% 76%);
 }
 
-/* ==================================== */
-/* Fumadocs theme tokens                */
-/* Light: clean white fallback          */
-/* ==================================== */
 :root {
   --color-fd-background: hsl(0 0% 100%);
   --color-fd-foreground: hsl(0 0% 3.9%);
@@ -121,12 +110,10 @@
   --color-fd-ring: hsl(var(--blue));
 }
 
-/* Dark: hatchet.run navy, desaturated so long-form docs read calmer than
-   the marketing site (blue accents kept for links/primary) */
 .dark {
   --fg: 213 25% 90%;
-  --surface: 228 61% 10%; /* hatchet.run navy #0A1029 (exact) */
-  --surface-2: 227 88% 6%; /* navy-dark #02081D, for cards / popovers */
+  --surface: 228 61% 10%;
+  --surface-2: 227 88% 6%;
   --color-fd-background: hsl(var(--surface));
   --color-fd-foreground: hsl(var(--fg));
   --color-fd-card: hsl(var(--surface-2));
@@ -145,10 +132,6 @@
   --color-fd-ring: hsl(var(--blue));
 }
 
-/* ==================================== */
-/* shadcn token bridge (components/ui,  */
-/* StyledTabs, diagrams)                */
-/* ==================================== */
 :root {
   --background: 0 0% 100%;
   --foreground: 0 0% 3.9%;
@@ -178,15 +161,13 @@
 }
 
 .dark {
-  /* approximations of the marketing opacity-tiered colors as solid HSL
-     (these vars are consumed as hsl(var(--x)) and cannot carry alpha) */
-  --background: 228 61% 10%; /* navy #0A1029 */
+  --background: 228 61% 10%;
   --foreground: 213 25% 90%;
-  --card: 227 88% 6%; /* navy-dark #02081D */
+  --card: 227 88% 6%;
   --card-foreground: 213 25% 90%;
   --popover: 227 88% 6%;
   --popover-foreground: 213 25% 90%;
-  --primary: 212 100% 60%; /* blue */
+  --primary: 212 100% 60%;
   --primary-foreground: 228 61% 10%;
   --secondary: 226 30% 17%;
   --secondary-foreground: 213 25% 90%;
@@ -235,30 +216,21 @@
   --font-serif: "martina", ui-serif, Georgia, serif;
 }
 
-/* ========================= */
-/* Typography (hatchet.run)  */
-/* ========================= */
 body {
   font-size: 0.9375rem;
 }
 
-/* Body copy: Martina Plantijn serif, the signature hatchet.run reading font.
-   Scoped to the doc article so nav/sidebar/TOC/UI stay in the system sans. */
 #nd-page .prose {
   font-family: var(--font-serif);
   font-size: 1.0625rem;
   line-height: 1.7;
 }
 
-/* Keep functional/dense elements out of the serif */
 #nd-page .prose :is(code, pre, kbd, samp),
 #nd-page .prose :is([role="tablist"], table) {
   font-family: var(--font-mono);
 }
 
-/* Inline code: compact chips (like hatchet.run's blog) so the boxes don't
-   crowd or overlap against the taller serif line-height. `.shiki`/`pre`
-   descendants are code blocks and keep their own styling. */
 #nd-page .prose :not(pre) > code {
   font-size: 0.82em;
   padding: 0.12em 0.4em;
@@ -270,20 +242,17 @@ body {
 }
 #nd-page .prose :not(pre) > code::before,
 #nd-page .prose :not(pre) > code::after {
-  content: none; /* strip Fumadocs' backtick pseudo-quotes */
+  content: none;
 }
 
-/* Headings: ported from the old Nextra docs (the sizes/margins the boss
-   preferred) — Judge Extended, with the h2 divider rule. Scoped to the
-   content article so the sidebar/nav/TOC keep the default Fumadocs sans. */
 #nd-page .prose :is(h1, h2, h4, h5, h6) {
   font-family: var(--font-judge);
   font-weight: normal;
 }
 #nd-page .prose h1 {
-  font-size: 2.25rem; /* text-4xl */
+  font-size: 2.25rem;
   line-height: 1.1;
-  letter-spacing: -0.025em; /* tracking-tight */
+  letter-spacing: -0.025em;
   margin-top: 0.5rem;
   margin-bottom: 0.75rem;
 }
@@ -291,21 +260,21 @@ body {
   font-size: 1.625rem;
   line-height: 1.3;
   letter-spacing: 0;
-  margin-top: 2.5rem; /* mt-10 */
-  padding-bottom: 0.25rem; /* pb-1 */
+  margin-top: 2.5rem;
+  padding-bottom: 0.25rem;
   border-bottom: 1px solid var(--color-fd-border);
 }
 #nd-page .prose h3 {
   font-family: var(--font-judge-regular);
   font-weight: normal;
-  font-size: 1.5rem; /* text-2xl */
+  font-size: 1.5rem;
   letter-spacing: 0;
-  margin-top: 2rem; /* mt-8 */
+  margin-top: 2rem;
 }
 #nd-page .prose h4 {
-  font-size: 1.25rem; /* text-xl */
+  font-size: 1.25rem;
   letter-spacing: -0.02em;
-  margin-top: 2rem; /* mt-8 */
+  margin-top: 2rem;
 }
 
 code,
@@ -315,9 +284,6 @@ samp {
   font-family: var(--font-mono);
 }
 
-/* Links: coloured so they clearly stand out from body copy, with an
-   underline that fills in on hover. Brighter blue in dark mode for contrast
-   against the navy background. */
 #nd-page .prose a:not([data-card]) {
   color: var(--link);
   text-decoration-line: underline;
@@ -336,42 +302,31 @@ samp {
   text-decoration: none;
 }
 
-/* Blue hatchet-burst list markers, like hatchet.run */
 #nd-page .prose ul > li::marker {
   color: hsl(var(--blue));
 }
 
-/* ========================= */
-/* Sidebar rhythm            */
-/* Recessed navy-dark rail (bg-fd-card = #02081D) already applies; this just
-   tightens Fumadocs' default spacing to the cleaner cadence from the studies:
-   groups sit closer, rows are a touch shorter. */
-/* ========================= */
-/* Same system-sans stack as the studies sample (SF Pro on macOS). */
 #nd-sidebar {
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: "dm-mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.01em;
 }
 
-/* Nav rows — the sample's exact metrics (13px, 6px/9px padding, 7px radius). */
 #nd-sidebar a[href] {
-  font-size: 0.8125rem; /* 13px */
+  font-size: 0.78rem;
   line-height: 1.5;
-  padding: 0.375rem 0.5625rem; /* 6px 9px */
+  padding: 0.375rem 0.5625rem;
   border-radius: 7px;
   gap: 0.5rem;
 }
-/* Section labels (separators) — 12.5px bold, groups pulled closer. */
+
 #nd-sidebar p[class~="mt-6"] {
-  font-size: 0.78rem; /* ~12.5px */
+  font-size: 0.72rem;
   font-weight: 700;
-  margin-top: 1rem; /* 24px -> 16px */
+  letter-spacing: 0.02em;
+  margin-top: 1rem;
   margin-bottom: 0.3rem;
 }
 
-/* Recessed navy-dark colours from the sample (variant B). Dark-scoped so
-   light mode keeps the Fumadocs tokens. */
 .dark #nd-sidebar p[class~="mt-6"] {
   color: #e7eefb;
 }
@@ -388,9 +343,6 @@ samp {
   font-weight: 600;
 }
 
-/* ========================= */
-/* Custom UI Components      */
-/* ========================= */
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;
@@ -423,9 +375,6 @@ samp {
     opacity var(--transition);
 }
 
-/* ========================= */
-/* Animation Effects         */
-/* ========================= */
 .spark {
   position: absolute;
   inset: 0;
@@ -448,7 +397,6 @@ samp {
   }
 }
 
-/* MCP / markdown action links - always under breadcrumbs, left justified */
 .page-actions {
   display: flex;
   gap: 0.75rem;

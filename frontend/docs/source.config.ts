@@ -9,7 +9,6 @@ import { remarkMermaid } from "./lib/remark-mermaid";
 export const docs = defineDocs({
   dir: "content/docs",
   docs: {
-    // cast: zod's .extend() blows TS instantiation depth against fumadocs' schema types
     schema: frontmatterSchema.extend({
       seoTitle: z.string().optional(),
     }) as unknown as typeof frontmatterSchema,

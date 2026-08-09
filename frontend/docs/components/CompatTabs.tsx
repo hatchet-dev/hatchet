@@ -8,11 +8,6 @@ import {
   TabsContent,
 } from "fumadocs-ui/components/tabs";
 
-/**
- * Nextra-shaped Tabs built on fumadocs' native tab primitives.
- * Unlike fumadocs' high-level Tabs, `items` may contain arbitrary
- * ReactNodes; panels pair with items by index.
- */
 export function CompatTabs({
   items = [],
   defaultIndex = 0,

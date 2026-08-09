@@ -12,7 +12,6 @@ fi
 SOURCE="$1"
 DESTINATION="$2"
 
-# Sidebar/search title for the generated page (fumadocs requires frontmatter)
 case "$(basename "${DESTINATION}" .mdx)" in
   platform) TITLE="Platform & Go SDK" ;;
   python) TITLE="Python SDK" ;;

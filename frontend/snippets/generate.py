@@ -306,12 +306,6 @@ def _read_meta_pages(dir_path: str) -> list[str] | None:
 
 
 def _build_doc_tree(dir_path: str, url_keys: list[str]) -> dict[str, Any]:
-    """Reconstruct the docsPages tree from the fumadocs content/docs layout.
-
-    Mirrors the shape the dashboard consumes: a nested map of slug segments
-    whose leaves are {title, href}. Titles come from each page's frontmatter
-    (folders from their meta.json title / index page).
-    """
     node: dict[str, Any] = {}
     seen: set[str] = set()
 
@@ -345,7 +339,6 @@ def _build_doc_tree(dir_path: str, url_keys: list[str]) -> dict[str, Any]:
                 )
             )
 
-    # Honor meta.json ordering first (skip separators "---x---" and links "[x](y)")
     for entry in _read_meta_pages(dir_path) or []:
         if (
             not isinstance(entry, str)
@@ -355,7 +348,6 @@ def _build_doc_tree(dir_path: str, url_keys: list[str]) -> dict[str, Any]:
             continue
         add(entry)
 
-    # Then include anything on disk not listed in meta.json, for full coverage
     for name in sorted(os.listdir(dir_path)):
         if name == "meta.json":
             continue

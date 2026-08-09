@@ -538,10 +538,6 @@ function routeRequest(
   }
 }
 
-// ---------------------------------------------------------------------------
-// App-router route handlers
-// ---------------------------------------------------------------------------
-
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
@@ -557,9 +553,6 @@ export async function GET(req: Request) {
   const accept = (req.headers.get("accept") || "").toLowerCase();
 
   if (accept.includes("text/event-stream")) {
-    // SSE stream — required by MCP Streamable HTTP transport.
-    // For a stateless server we just keep the stream open; the client
-    // closes when it's done.
     const encoder = new TextEncoder();
     let keepAlive: ReturnType<typeof setInterval>;
     const stream = new ReadableStream({
@@ -577,7 +570,7 @@ export async function GET(req: Request) {
           try {
             controller.close();
           } catch {
-            // already closed
+            void 0;
           }
         });
       },
@@ -596,7 +589,6 @@ export async function GET(req: Request) {
     });
   }
 
-  // Plain GET returns server metadata (useful for browser discovery)
   return Response.json(
     {
       name: SERVER_NAME,
@@ -610,7 +602,6 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE() {
-  // Session termination (no-op for stateless server)
   return new Response(null, { status: 200, headers: CORS_HEADERS });
 }
 
@@ -629,7 +620,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Handle batch requests (array of JSON-RPC messages)
   if (Array.isArray(body)) {
     const responses: JsonRpcResponse[] = [];
     for (const item of body) {
@@ -642,10 +632,8 @@ export async function POST(req: Request) {
     return Response.json(responses, { headers: CORS_HEADERS });
   }
 
-  // Single request
   const result = routeRequest(body as JsonRpcRequest, req.headers);
   if (!result) {
-    // Notification — no response
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 

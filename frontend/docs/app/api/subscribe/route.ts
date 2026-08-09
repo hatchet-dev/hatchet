@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   try {
     ({ email } = await req.json());
   } catch {
-    // fall through to the missing-email error
+    void 0;
   }
 
   if (!email) {

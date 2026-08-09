@@ -15,11 +15,6 @@ import {
 import { CompatTabs } from "./CompatTabs";
 import { NextraTab } from "./NextraTab";
 
-/**
- * `Tabs` must be a plain server-side function so that the `<Tabs.Tab>` member
- * syntax used across the MDX content keeps working: static properties on a
- * client-component export are not accessible across the RSC boundary.
- */
 export function Tabs(props: React.ComponentProps<typeof CompatTabs>) {
   return <CompatTabs {...props} />;
 }

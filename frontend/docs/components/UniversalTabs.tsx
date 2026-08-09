@@ -92,7 +92,6 @@ interface Panel {
   content: React.ReactNode;
 }
 
-/** Collect ordered panels from `<Tabs.Tab>` children (title is optional). */
 function collectPanels(children: React.ReactNode): Panel[] {
   const panels: Panel[] = [];
   React.Children.forEach(children, (child) => {
@@ -135,8 +134,6 @@ export const UniversalTabs: React.FC<UniversalTabsProps> = ({
 
   const panels = collectPanels(children);
   const contentFor = (item: string, index: number) => {
-    // match by title when present (hidden-variant pages rely on it),
-    // otherwise pair panels with items by position like the old Tabs did
     const panel =
       panels.find(
         (p) => p.title && p.title.toLowerCase() === item.toLowerCase(),
