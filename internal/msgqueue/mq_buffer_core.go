@@ -63,12 +63,39 @@ func newBufferCore(flushInterval time.Duration, bufferSize, maxConcurrency int, 
 // startFlusher starts the ticker- and notifier-driven flush loop. flush is called
 // as go flush() for ticker and notifier events; on shutdown it is called
 // synchronously when drainOnShutdown is set.
-func (c *bufferCore) startFlusher(ctx context.Context, flush func()) {
+//
+// Buffers are created per (tenantId, msgId) and never removed, so the flusher
+// parks with the ticker stopped once the buffer is empty. Otherwise every
+// buffer ever created keeps waking up each flushInterval forever, which
+// accumulates CPU on long-running processes as tenants come and go. Producers
+// always send on notifier after enqueueing, so a parked flusher is guaranteed
+// to be woken by the next message.
+func (c *bufferCore) startFlusher(ctx context.Context, bufLen func() int, flush func()) {
 	go func() {
 		ticker := time.NewTicker(c.flushInterval)
 		defer ticker.Stop()
 
+		idle := false
+
 		for {
+			if idle {
+				select {
+				case <-ctx.Done():
+					if c.drainOnShutdown {
+						flush()
+					}
+					return
+				case <-c.notifier:
+					idle = false
+					ticker.Reset(c.flushInterval)
+					if !c.disableImmediateFlush {
+						go flush()
+					}
+				}
+
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				if c.drainOnShutdown {
@@ -76,6 +103,12 @@ func (c *bufferCore) startFlusher(ctx context.Context, flush func()) {
 				}
 				return
 			case <-ticker.C:
+				if bufLen() == 0 {
+					ticker.Stop()
+					idle = true
+					continue
+				}
+
 				go flush()
 			case <-c.notifier:
 				if !c.disableImmediateFlush {

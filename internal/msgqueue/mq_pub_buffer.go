@@ -107,7 +107,7 @@ func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pu
 		msgIdPubBufferCh: make(chan *msgWithErrCh, PUB_BUFFER_SIZE),
 		pub:              pub,
 	}
-	b.startFlusher(ctx, b.flush)
+	b.startFlusher(ctx, func() int { return len(b.msgIdPubBufferCh) }, b.flush)
 	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdPubBufferCh) }, b.flush)
 	return b
 }

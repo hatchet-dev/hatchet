@@ -229,7 +229,7 @@ func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst D
 		msgIdBufferCh: make(chan *msgWithResultCh, bufferSize),
 		dst:           dst,
 	}
-	b.startFlusher(ctx, b.flush)
+	b.startFlusher(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	return b
 }
