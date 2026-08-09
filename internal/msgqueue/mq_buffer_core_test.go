@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func waitForFlushCount(t *testing.T, flushCount *atomic.Int64, min int64) {
@@ -66,6 +68,64 @@ func TestFlusherParksWhenIdle(t *testing.T) {
 	c.notifier <- struct{}{}
 
 	waitForFlushCount(t, &flushCount, parked+1)
+}
+
+// TestSubBufferEvictsIdleBuffers verifies that buffers which have not seen a
+// message for BUFFER_IDLE_TIMEOUT are removed from the buffers map and that a
+// later message for the same key is processed through a freshly created buffer.
+func TestSubBufferEvictsIdleBuffers(t *testing.T) {
+	oldTimeout := BUFFER_IDLE_TIMEOUT
+	BUFFER_IDLE_TIMEOUT = 20 * time.Millisecond
+	defer func() { BUFFER_IDLE_TIMEOUT = oldTimeout }()
+
+	var handler MsgHandler
+	sub := func(preAck MsgHandler, postAck MsgHandler) (func() error, error) {
+		handler = preAck
+		return func() error { return nil }, nil
+	}
+
+	var processed atomic.Int64
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
+		processed.Add(1)
+		return nil
+	}
+
+	buf := NewSubBufferFromSubscribe(sub, dst)
+
+	cleanup, err := buf.Start()
+	if err != nil {
+		t.Fatalf("could not start sub buffer: %v", err)
+	}
+	defer cleanup() // nolint: errcheck
+
+	send := func() {
+		msg := &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("p")}}
+		if err := handler(msg); err != nil {
+			t.Fatalf("could not handle message: %v", err)
+		}
+	}
+
+	send()
+
+	if got := buf.buffers.Len(); got != 1 {
+		t.Fatalf("expected 1 buffer after first message, got %d", got)
+	}
+
+	deadline := time.After(time.Second)
+	for buf.buffers.Len() != 0 {
+		select {
+		case <-deadline:
+			t.Fatal("idle buffer was not evicted")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	// a message after eviction must create a fresh buffer and still be processed
+	send()
+
+	if got := processed.Load(); got != 2 {
+		t.Fatalf("expected 2 processed flushes, got %d", got)
+	}
 }
 
 // TestParkedFlusherRestartsTickerWithImmediateFlushDisabled verifies that when
