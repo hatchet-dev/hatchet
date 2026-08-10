@@ -2555,6 +2555,7 @@ func (r *sharedRepository) insertTasks(
 	eventTaskExternalIds := make([]uuid.UUID, 0)
 	eventDatas := make([][]byte, 0)
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+	taskIdToIdempotencyKey := make(map[int64]string)
 
 	for stepId, params := range stepIdsToParams {
 		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
@@ -2563,9 +2564,7 @@ func (r *sharedRepository) insertTasks(
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
 		}
 
-		createdTasksWithPayloads := make([]*V1TaskWithPayload, len(createdTasks))
-
-		for i, task := range createdTasks {
+		for _, task := range createdTasks {
 			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
@@ -2574,31 +2573,32 @@ func (r *sharedRepository) insertTasks(
 			}
 
 			res = append(res, &withPayload)
-			createdTasksWithPayloads[i] = &withPayload
-		}
 
-		for _, createdTask := range createdTasksWithPayloads {
 			idRetryCount := TaskIdInsertedAtRetryCount{
-				Id:         createdTask.ID,
-				InsertedAt: createdTask.InsertedAt,
-				RetryCount: createdTask.RetryCount,
+				Id:         withPayload.ID,
+				InsertedAt: withPayload.InsertedAt,
+				RetryCount: withPayload.RetryCount,
 			}
 
-			switch createdTask.InitialState {
+			if task.IdempotencyKey.Valid {
+				taskIdToIdempotencyKey[withPayload.ID] = task.IdempotencyKey.String
+			}
+
+			switch withPayload.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
 		}
@@ -2613,7 +2613,7 @@ func (r *sharedRepository) insertTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
-		nil,
+		taskIdToIdempotencyKey,
 	)
 
 	if err != nil {
@@ -2909,6 +2909,7 @@ func (r *sharedRepository) replayTasks(
 	eventTaskExternalIds := make([]uuid.UUID, 0)
 	eventDatas := make([][]byte, 0)
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+	taskIdToIdempotencyKey := make(map[int64]string)
 
 	for stepId, params := range stepIdsToParams {
 		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
@@ -2929,40 +2930,40 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
 		}
 
-		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
-		for i, task := range replayRes {
+		for _, task := range replayRes {
 			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
 				Runtime: nil,
 				Payload: input,
 			}
-			replayResWithPayloads[i] = &withPayload
 			res = append(res, &withPayload)
-		}
 
-		for _, replayedTask := range replayResWithPayloads {
-			idRetryCount := TaskIdInsertedAtRetryCount{
-				Id:         replayedTask.ID,
-				InsertedAt: replayedTask.InsertedAt,
-				RetryCount: replayedTask.RetryCount,
+			if task.IdempotencyKey.Valid {
+				taskIdToIdempotencyKey[withPayload.ID] = task.IdempotencyKey.String
 			}
 
-			switch replayedTask.InitialState {
+			idRetryCount := TaskIdInsertedAtRetryCount{
+				Id:         withPayload.ID,
+				InsertedAt: withPayload.InsertedAt,
+				RetryCount: withPayload.RetryCount,
+			}
+
+			switch withPayload.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
 		}
@@ -2977,7 +2978,7 @@ func (r *sharedRepository) replayTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
-		nil,
+		taskIdToIdempotencyKey,
 	)
 
 	if err != nil {
