@@ -1,7 +1,3 @@
----
-title: "Replay a Run"
----
-
 # Replay a Hatchet Run
 
 These are instructions for an AI agent to replay a previously executed Hatchet run, optionally with modified input. Follow each step in order.

@@ -1,7 +1,3 @@
----
-title: "Setup CLI"
----
-
 # Install and Set Up the Hatchet CLI
 
 These are instructions for an AI agent to install the Hatchet CLI and configure a profile. Follow each step in order.

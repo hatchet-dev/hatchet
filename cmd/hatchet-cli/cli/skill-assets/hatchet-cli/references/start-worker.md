@@ -1,7 +1,3 @@
----
-title: "Start Worker"
----
-
 # Start a Hatchet Worker in Dev Mode
 
 These are instructions for an AI agent to start a Hatchet worker using the CLI. Follow each step in order.

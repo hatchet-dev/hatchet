@@ -1,7 +1,3 @@
----
-title: "Debug a Run"
----
-
 # Debug a Hatchet Run
 
 These are instructions for an AI agent to diagnose why a Hatchet run failed, is stuck, or behaved unexpectedly. Follow each step in order.

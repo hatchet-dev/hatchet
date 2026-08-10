@@ -1,7 +1,3 @@
----
-title: "Trigger & Watch"
----
-
 # Trigger a Workflow and Watch for Completion
 
 These are instructions for an AI agent to trigger a Hatchet workflow and poll until it completes. Follow each step in order.

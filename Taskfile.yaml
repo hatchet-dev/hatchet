@@ -71,7 +71,7 @@ tasks:
         dest="cmd/hatchet-cli/cli/skill-assets/hatchet-cli/references"
         for f in "$src"/*.mdx; do
           name=$(basename "$f" .mdx)
-          cp "$f" "$dest/$name.md"
+          awk 'BEGIN{fm=0; body=0} NR==1 && $0=="---"{fm=1; next} fm==1{if($0=="---") fm=2; next} fm==2 && body==0 && $0==""{next} {body=1; print}' "$f" > "$dest/$name.md"
         done
 
   sync-changelog:
