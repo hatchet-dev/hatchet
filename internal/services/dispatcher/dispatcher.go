@@ -403,6 +403,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		wg.Wait()
 
 		d.pubBuffer.Stop()
+		d.serviceV1.pubBuffer.Stop()
 		d.refreshTimeoutBuf.stop()
 
 		// drain the existing connections
