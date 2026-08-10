@@ -281,6 +281,12 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
     result: {
       tools: [
         {
+          name: "get_full_docs",
+          description:
+            "Retrieve the full Hatchet documentation as a single text file.",
+          inputSchema: { type: "object", properties: {}, required: [] },
+        },
+        {
           name: "search_docs",
           description:
             "Search Hatchet documentation by keyword. Returns matching page titles and URIs.",
