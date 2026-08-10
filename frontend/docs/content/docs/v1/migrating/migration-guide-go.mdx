@@ -1,0 +1,117 @@
+---
+title: "Go Migration Guide"
+---
+
+import { Callout } from "@/components/nextra-compat";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
+
+## Hatchet Go SDK Migration Guide
+
+<Callout type="warning">
+  This guide covers migrating from Hatchet **v0** to **v1**. v0 has since been
+  removed and everything now runs on v1, so this page is kept for historical
+  reference only and is no longer relevant.
+</Callout>
+
+This comprehensive guide covers migration paths between all three major versions of the Hatchet Go SDK:
+
+- **V0 SDK** (`github.com/hatchet-dev/hatchet/pkg/client`) - Original SDK
+- **V1 Generics SDK** (`github.com/hatchet-dev/hatchet/pkg/v1`) - Type-safe SDK with Go generics (deprecated)
+- **V1 Reflection SDK** (`github.com/hatchet-dev/hatchet/sdks/go`) - Current SDK with reflection-based API
+
+<Callout type="info">
+  The V1 engine will continue to support V0 tasks until September 30th, 2025.
+</Callout>
+
+## Quick Start with V1 Reflection SDK (Current)
+
+The current V1 SDK provides the cleanest API using reflection for type safety:
+
+<Snippet src={snippets.go.sdk_migration.main.all} />
+
+## Migration Paths
+
+### From V0 SDK to V1 Reflection SDK
+
+**V0 SDK (Legacy)**:
+
+<Snippet src={snippets.go.sdk_migration.v0.all} />
+
+**V1 Reflection SDK (Current)**:
+
+<Snippet src={snippets.go.sdk_migration.v1.all} />
+
+### From V1 Generics SDK to V1 Reflection SDK
+
+**V1 Generics SDK (Deprecated)**:
+
+<Snippet src={snippets.go.sdk_migration.v1_old.all} />
+
+**V1 Reflection SDK (Current)**:
+
+<Snippet src={snippets.go.sdk_migration.v1.all} />
+
+## Migration Checklist
+
+### From V0 to V1 Reflection SDK
+
+- [ ] Update import: `github.com/hatchet-dev/hatchet/pkg/client` → `github.com/hatchet-dev/hatchet/sdks/go`
+- [ ] Change client creation: `client.New()` → `hatchet.NewClient()`
+- [ ] Convert `WorkflowJob` to `NewWorkflow()` with tasks
+- [ ] Replace `RegisterWorkflow()` with `WithWorkflows()` option
+- [ ] Update function signatures to use typed inputs/outputs
+- [ ] Replace `worker.HatchetContext` with `hatchet.Context`
+
+### From V1 Generics to V1 Reflection SDK
+
+- [ ] Update import: `github.com/hatchet-dev/hatchet/pkg/v1` → `github.com/hatchet-dev/hatchet/sdks/go`
+- [ ] Change client creation: `v1.NewHatchetClient()` → `hatchet.NewClient()`
+- [ ] Remove factory imports and usage
+- [ ] Convert `factory.NewTask()` to `NewStandaloneTask()` or workflow tasks
+- [ ] Remove explicit type parameters (generics)
+- [ ] Update function return types (remove pointers where appropriate)
+- [ ] Replace `create.StandaloneTask{}` structs with option functions
+
+## Common Patterns
+
+### Error Handling and Retries
+
+```go
+task := workflow.NewTask("resilient-task", func(ctx hatchet.Context, input any) (any, error) {
+    // Your task logic here
+    return result, nil
+},
+    hatchet.WithRetries(5),
+    hatchet.WithRetryBackoff(2.0, time.Second*30), // 2x backoff, max 30s
+)
+```
+
+### Child Workflows
+
+```go
+parentTask := workflow.NewTask("parent", func(ctx hatchet.Context, input any) (any, error) {
+    // Spawn child workflow
+    result, err := childWorkflow.Run(ctx, input, hatchet.WithRunKey("key"))
+    if err != nil {
+        return nil, err
+    }
+
+    return result, nil
+})
+```
+
+### Bulk Operations
+
+```go
+// Run multiple instances of a workflow
+runInputs := []hatchet.RunManyOpt{
+    {Input: map[string]string{"user": "alice"}},
+    {Input: map[string]string{"user": "bob"}},
+    {Input: map[string]string{"user": "charlie"}},
+}
+
+renRefs, err := client.RunMany(ctx, "bulk-workflow", runInputs)
+```
+
+This guide should cover all major migration scenarios between the three Go SDK versions. The V1 Reflection SDK provides the most ergonomic API while maintaining full compatibility with the Hatchet platform.

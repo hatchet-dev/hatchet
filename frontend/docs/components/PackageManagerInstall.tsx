@@ -1,3 +1,5 @@
+"use client";
+
 import { useLanguage } from "@/context/LanguageContext";
 import { getPackageManagers } from "@/lib/docs-languages";
 import { Tabs } from "@/components/StyledTabs";

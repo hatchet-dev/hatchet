@@ -1,14 +1,20 @@
-import { renderRSS, type FeedItem, type Channel, FeedContext } from "@/lib/feeds/rss";
+import {
+  renderRSS,
+  type FeedItem,
+  type Channel,
+  FeedContext,
+} from "@/lib/feeds/rss";
 import fs from "node:fs";
 import path from "node:path";
 
-const RELEASE_HEADING = /^## (v\d+\.\d+\.\d+(?:-[\w.]+)?) - (\d{4}-\d{2}-\d{2})\s*$/;
+const RELEASE_HEADING =
+  /^## (v\d+\.\d+\.\d+(?:-[\w.]+)?) - (\d{4}-\d{2}-\d{2})\s*$/;
 const MAX_ITEMS_PER_FEED = 20;
 
 interface Release {
   version: string;
   date: string;
-  body: string
+  body: string;
 }
 
 export interface ChangelogSource {
@@ -17,16 +23,20 @@ export interface ChangelogSource {
 }
 
 function slug(heading: string): string {
-  return heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ /g, "-");
+  return heading
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/ /g, "-");
 }
 
 function extractDescription(body: string): string {
   // allows us to extract the prose from under the release header
   // up-to (but not including) the next header encountered.
-  const paragraph = body
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .find((p) => p && !/^[#\-`]/.test(p)) ?? "";
+  const paragraph =
+    body
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .find((p) => p && !/^[#\-`]/.test(p)) ?? "";
 
   return paragraph
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
@@ -34,7 +44,6 @@ function extractDescription(body: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 
 function parseMarkdown(md: string): Release[] {
   const out: Release[] = [];
@@ -47,18 +56,17 @@ function parseMarkdown(md: string): Release[] {
 
   for (const line of md.split("\n")) {
     if (out.length >= MAX_ITEMS_PER_FEED) {
-      break
+      break;
     }
 
     const match = line.match(RELEASE_HEADING);
     if (match) {
       flush();
       out.push({ version: match[1], date: match[2], body: "" });
-      continue
+      continue;
     }
 
     buf.push(line);
-
   }
   flush();
 
@@ -70,7 +78,11 @@ export function buildChangelogFeed(
   { label, pageSlug }: ChangelogSource,
 ): string {
   const page = `${site}/reference/changelog/${pageSlug}`;
-  const source = path.join(process.cwd(), "pages/reference/changelog", `${pageSlug}.mdx`);
+  const source = path.join(
+    process.cwd(),
+    "content/docs/reference/changelog",
+    `${pageSlug}.mdx`,
+  );
 
   const items: FeedItem[] = parseMarkdown(fs.readFileSync(source, "utf-8")).map(
     ({ version, date, body }) => ({
@@ -90,7 +102,7 @@ export function buildChangelogFeed(
     language: "en",
     logo: `${site}/logo.png`,
     lastBuildDate: items[0]?.pubDate,
-  }
+  };
 
   return renderRSS(feed, items);
 }

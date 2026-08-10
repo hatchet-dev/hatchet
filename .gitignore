@@ -5,6 +5,7 @@
 *.pem
 app
 !frontend/app
+!frontend/docs/app
 *.db
 test.yaml
 dist

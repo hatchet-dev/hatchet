@@ -1,4 +1,5 @@
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useControlPlane from '@/hooks/use-control-plane';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
@@ -47,6 +48,7 @@ export const useRuns = ({
   onlyTasks,
   disablePagination = false,
 }: UseRunsProps) => {
+  const { isSelfHosted } = useControlPlane();
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const { offset, pagination, setPageSize, setPagination } = usePagination({
@@ -81,28 +83,37 @@ export const useRuns = ({
   );
 
   const listTasksQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(tenantId, {
-      offset: disablePagination ? 0 : offset,
-      limit: disablePagination ? 500 : pagination.pageSize,
-      statuses: statuses && statuses.length > 0 ? statuses : undefined,
-      workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
-      parent_task_external_id: parentTaskExternalId,
-      since,
-      until: finishedBefore,
-      additional_metadata: additionalMetadata,
-      idempotency_keys: idempotencyKeys,
-      additional_metadata_operator: additionalMetadataOperator,
-      worker_id: workerId,
-      only_tasks: onlyTasks,
-      triggering_event_external_id: triggeringEventExternalId,
-      include_payloads: false,
-      running_filter: runningFilter,
-    }),
+    ...queries.v1WorkflowRuns.list(
+      tenantId,
+      {
+        offset: disablePagination ? 0 : offset,
+        limit: disablePagination ? 500 : pagination.pageSize,
+        statuses: statuses && statuses.length > 0 ? statuses : undefined,
+        workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
+        parent_task_external_id: parentTaskExternalId,
+        since,
+        until: finishedBefore,
+        additional_metadata: additionalMetadata,
+        idempotency_keys: idempotencyKeys,
+        additional_metadata_operator: additionalMetadataOperator,
+        worker_id: workerId,
+        only_tasks: onlyTasks,
+        triggering_event_external_id: triggeringEventExternalId,
+        include_payloads: false,
+        running_filter: runningFilter,
+      },
+      isSelfHosted,
+    ),
     refetchInterval:
       Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });
 
-  const tasks = listTasksQuery.data;
+  const getRowId = useCallback((row: V1TaskSummary) => {
+    return row.metadata.id;
+  }, []);
+
+  const tasks =
+    listTasksQuery.data === 'timeout' ? undefined : listTasksQuery.data;
   const tableRows = useMemo(() => {
     return tasks?.rows || [];
   }, [tasks]);
@@ -131,9 +142,23 @@ export const useRuns = ({
       .filter((row) => row !== undefined) as V1TaskSummary[];
   }, [rowSelection, tableRows]);
 
-  const getRowId = useCallback((row: V1TaskSummary) => {
-    return row.metadata.id;
-  }, []);
+  if (listTasksQuery.data === 'timeout') {
+    return {
+      numPages: 0,
+      tableRows: [],
+      selectedRuns: [],
+      refetch: listTasksQuery.refetch,
+      isLoading: listTasksQuery.isLoading,
+      isError: listTasksQuery.isError,
+      isFetching: listTasksQuery.isFetching,
+      getRowId,
+      isRefetching: listTasksQuery.isRefetching,
+      pagination,
+      setPagination,
+      setPageSize,
+      fetchTimedOut: true,
+    };
+  }
 
   return {
     numPages: tasks?.pagination.num_pages || 0,
@@ -148,5 +173,6 @@ export const useRuns = ({
     pagination,
     setPagination,
     setPageSize,
+    fetchTimedOut: false,
   };
 };
