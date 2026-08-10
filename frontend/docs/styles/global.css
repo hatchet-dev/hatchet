@@ -343,6 +343,17 @@ samp {
   font-weight: 600;
 }
 
+@media (min-width: 768px) {
+  #nd-docs-layout {
+    grid-template-columns:
+      0
+      var(--fd-sidebar-col)
+      minmax(0, 1fr)
+      var(--fd-toc-width)
+      0 !important;
+  }
+}
+
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;
