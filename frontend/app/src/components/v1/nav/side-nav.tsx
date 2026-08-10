@@ -7,6 +7,7 @@ import {
   RESIZE_DRAG_THRESHOLD_PX,
   useSidebar,
 } from '@/components/hooks/use-sidebar';
+import { SidebarCloudCTA } from '@/components/v1/nav/cloud-cta';
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import {
   SidebarButtonPrimary,
@@ -466,8 +467,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             {/* Fixed footer */}
             <div className="w-full shrink-0 py-2">
               <div className="flex w-full flex-col items-center gap-1">
+                <SidebarCloudCTA collapsed className="w-10" />
                 <HelpDropdown
-                  variant="sidebar"
                   triggerVariant="icon"
                   align="start"
                   side="right"
@@ -551,8 +552,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               data-cy="v1-sidebar-footer"
               className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
             >
+              <SidebarCloudCTA collapsed={false} />
               <HelpDropdown
-                variant="sidebar"
                 triggerVariant="split"
                 align="start"
                 side="top"
