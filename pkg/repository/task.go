@@ -2613,6 +2613,7 @@ func (r *sharedRepository) insertTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		nil,
 	)
 
 	if err != nil {
@@ -2976,6 +2977,7 @@ func (r *sharedRepository) replayTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		nil,
 	)
 
 	if err != nil {
@@ -3142,11 +3144,15 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	datas := make([][]byte, len(releasedTasks))
 	externalIds := make([]uuid.UUID, len(releasedTasks))
 	isCurrentRetry := make([]bool, len(releasedTasks))
+	taskIdToIdempotencyKey := make(map[int64]string, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
 		datas[i] = outputs[i]
 		externalIds[i] = releasedTask.ExternalID
 		isCurrentRetry[i] = releasedTask.IsCurrentRetry
+		if releasedTask.IdempotencyKey.Valid {
+			taskIdToIdempotencyKey[releasedTask.ID] = releasedTask.IdempotencyKey.String
+		}
 	}
 
 	// filter out any rows which are not the current retry
@@ -3173,6 +3179,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredDatas,
 		makeEventTypeArr(eventType, len(filteredExternalIds)),
 		make([]string, len(filteredExternalIds)),
+		taskIdToIdempotencyKey,
 	)
 }
 
@@ -3214,6 +3221,7 @@ func (r *sharedRepository) createTaskEvents(
 	eventDatas [][]byte,
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
+	taskIdToIdempotencyKey map[int64]string,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
@@ -3230,7 +3238,7 @@ func (r *sharedRepository) createTaskEvents(
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
 	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
-	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, len(tasks))
+	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, 0, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -3263,13 +3271,17 @@ func (r *sharedRepository) createTaskEvents(
 			Data:           eventDatas[i],
 		}
 
-		releaseIdempotencyKeysOpts[i] = ReleaseIdempotencyKeysOpt{
-			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
-				Id:         task.Id,
-				InsertedAt: task.InsertedAt,
-				RetryCount: task.RetryCount,
-			},
-			EventType: eventTypes[i],
+		if idempotencyKey, ok := taskIdToIdempotencyKey[task.Id]; ok && idempotencyKey != "" {
+			releaseIdempotencyKeysOpts = append(
+				releaseIdempotencyKeysOpts, ReleaseIdempotencyKeysOpt{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         task.Id,
+						InsertedAt: task.InsertedAt,
+						RetryCount: task.RetryCount,
+					},
+					EventType: eventTypes[i],
+				},
+			)
 		}
 	}
 
@@ -3288,8 +3300,10 @@ func (r *sharedRepository) createTaskEvents(
 		return nil, err
 	}
 
-	if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
-		return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
+	if len(releaseIdempotencyKeysOpts) > 0 {
+		if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
+			return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
+		}
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
