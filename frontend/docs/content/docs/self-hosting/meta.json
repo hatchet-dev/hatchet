@@ -1,0 +1,32 @@
+{
+  "pages": [
+    "index",
+    "---Docker---",
+    "hatchet-lite",
+    "docker-compose",
+    "---Kubernetes---",
+    "kubernetes-quickstart",
+    "networking",
+    "kubernetes-helm-configuration",
+    "kubernetes-external-database",
+    "high-availability",
+    "---Managing Hatchet---",
+    "configuration-options",
+    "using-pgbouncer",
+    "prometheus-metrics",
+    "opentelemetry",
+    "worker-configuration-options",
+    "upgrading-downgrading",
+    "downgrading-db-schema-manually",
+    "benchmarking",
+    "data-retention",
+    "improving-performance",
+    "read-replicas",
+    "sampling",
+    "smtp-server"
+  ],
+  "title": "Self-Hosting",
+  "root": true,
+  "description": "Run Hatchet yourself",
+  "icon": "Server"
+}

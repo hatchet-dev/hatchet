@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "index",
+    "platform",
+    "python",
+    "typescript",
+    "ruby"
+  ],
+  "title": "Changelog"
+}
