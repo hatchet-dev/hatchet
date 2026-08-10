@@ -31,14 +31,16 @@ export const PACKAGE_MANAGERS: Record<
 };
 
 export function getPackageManagers(
-  lang: DocLanguage
+  lang: DocLanguage,
 ): readonly string[] | null {
   const pm = PACKAGE_MANAGERS[lang];
   if (Array.isArray(pm)) return pm;
   return null;
 }
 
-export function getFixedPackageManagerMessage(lang: DocLanguage): string | null {
+export function getFixedPackageManagerMessage(
+  lang: DocLanguage,
+): string | null {
   const pm = PACKAGE_MANAGERS[lang];
   if (pm && typeof pm === "object" && "fixed" in pm) return pm.fixed;
   return null;

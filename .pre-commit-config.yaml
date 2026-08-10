@@ -3,19 +3,19 @@ repos:
     hooks:
       - id: sync-python-changelog
         name: sync python changelog docs
-        entry: bash hack/docs/sync-changelog.sh sdks/python/CHANGELOG.md frontend/docs/pages/reference/changelog/python.mdx
+        entry: bash hack/docs/sync-changelog.sh sdks/python/CHANGELOG.md frontend/docs/content/docs/reference/changelog/python.mdx
         language: system
         pass_filenames: false
         files: ^sdks/python/CHANGELOG\.md$
       - id: sync-typescript-changelog
         name: sync typescript changelog docs
-        entry: bash hack/docs/sync-changelog.sh sdks/typescript/CHANGELOG.md frontend/docs/pages/reference/changelog/typescript.mdx
+        entry: bash hack/docs/sync-changelog.sh sdks/typescript/CHANGELOG.md frontend/docs/content/docs/reference/changelog/typescript.mdx
         language: system
         pass_filenames: false
         files: ^sdks/typescript/CHANGELOG\.md$
       - id: sync-ruby-changelog
         name: sync ruby changelog docs
-        entry: bash hack/docs/sync-changelog.sh sdks/ruby/src/CHANGELOG.md frontend/docs/pages/reference/changelog/ruby.mdx
+        entry: bash hack/docs/sync-changelog.sh sdks/ruby/src/CHANGELOG.md frontend/docs/content/docs/reference/changelog/ruby.mdx
         language: system
         pass_filenames: false
         files: ^sdks/ruby/src/CHANGELOG\.md$

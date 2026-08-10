@@ -1,0 +1,543 @@
+---
+title: "Runnables"
+---
+
+# Runnables
+
+`Runnables` in the Hatchet TypeScript SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
+
+- `WorkflowDeclaration`, returned by `hatchet.workflow(...)`, which lets you define tasks and call `run()`, `schedule()`, `cron()`, etc.
+- `TaskWorkflowDeclaration`, returned by `hatchet.task(...)`, which is a single standalone task that exposes the same execution helpers as a workflow.
+
+<a id="taskworkflowdeclaration"></a>
+
+### TaskWorkflowDeclaration
+
+A standalone task declaration that can be run like a workflow.
+
+`TaskWorkflowDeclaration` is returned by `hatchet.task(...)` and wraps a single
+task definition while exposing the same execution helpers as workflows, such as
+`run()`, `runNoWait()`, `schedule()`, and `cron()` (inherited from
+`BaseWorkflowDeclaration`).
+
+Example:
+
+```typescript
+const greet = hatchet.task<{ name: string }, { message: string }>({
+  name: "greet",
+  fn: async (input) => ({ message: `Hello, ${input.name}!` }),
+});
+
+await greet.run({ name: "World" });
+const ref = await greet.runNoWait({ name: "World" });
+```
+
+#### Template
+
+**MiddlewareBefore**
+
+Extra fields added to the task fn input by pre-middleware hooks.
+
+#### Methods
+
+<a id="cron"></a>
+
+##### `cron()`
+
+Creates a cron schedule for the task.
+
+Parameters
+
+| Parameter    | Type                | Description                                                 |
+| ------------ | ------------------- | ----------------------------------------------------------- |
+| `name`       | `string`            | The name of the cron schedule.                              |
+| `expression` | `string`            | The cron expression defining the schedule.                  |
+| `input`      | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?`   | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`CronWorkflows`\>
+
+A promise that resolves with the cron workflow details.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.cron;
+```
+
+<a id="delay"></a>
+
+##### `delay()`
+
+Schedules the task to run after a specified delay.
+
+Parameters
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `duration` | `number`            | The delay in seconds before the task should run.            |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves with the scheduled workflow details.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.delay;
+```
+
+<a id="run"></a>
+
+##### `run()`
+
+Triggers a task run and waits for the result.
+
+Parameters
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
+
+A promise that resolves with the task output merged with post-middleware fields.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.run;
+```
+
+<a id="runandwait"></a>
+
+##### `runAndWait()`
+
+Triggers a task run and waits for the result.
+
+Parameters
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`O` & `Resolved`\<`GlobalOutput`, `MiddlewareAfter`\>\>
+
+A promise that resolves with the task output merged with post-middleware fields.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runAndWait;
+```
+
+<a id="runmany"></a>
+
+##### `runMany()`
+
+Triggers many task runs and waits for all results.
+
+Parameters
+
+| Parameter | Type                                  | Description                                      |
+| --------- | ------------------------------------- | ------------------------------------------------ |
+| `runs`    | `RunManyOpt`\<`I` & `GlobalInput`\>[] | The list of inputs and optional per-run options. |
+
+Returns
+
+`Promise`\<`O` & `Resolved`\<..., ...\>[]\>
+
+A promise that resolves with ordered task outputs.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runMany;
+```
+
+<a id="runmanynowait"></a>
+
+##### `runManyNoWait()`
+
+Triggers many task runs without waiting for completion.
+
+Parameters
+
+| Parameter | Type                                  | Description                                      |
+| --------- | ------------------------------------- | ------------------------------------------------ |
+| `runs`    | `RunManyOpt`\<`I` & `GlobalInput`\>[] | The list of inputs and optional per-run options. |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
+
+WorkflowRunRef values for each scheduled run.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runManyNoWait;
+```
+
+<a id="runnowait"></a>
+
+##### `runNoWait()`
+
+Triggers a task run without waiting for completion.
+
+Parameters
+
+| Parameter  | Type                | Description                                                 |
+| ---------- | ------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<`O` & `Resolved`\<..., ...\>\>\>
+
+A WorkflowRunRef containing the run ID and methods to get results.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runNoWait;
+```
+
+Triggers a task run without waiting for completion.
+
+Parameters
+
+| Parameter  | Type                  | Description                                                 |
+| ---------- | --------------------- | ----------------------------------------------------------- |
+| `input`    | `I` & `GlobalInput`[] | The input data for the task, including global input fields. |
+| `options?` | `RunOpts`             | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
+
+A WorkflowRunRef containing the run ID and methods to get results.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runNoWait;
+```
+
+<a id="schedule"></a>
+
+##### `schedule()`
+
+Schedules the task to run at a specific date and time.
+
+Parameters
+
+| Parameter   | Type                | Description                                                 |
+| ----------- | ------------------- | ----------------------------------------------------------- |
+| `enqueueAt` | `Date`              | The date when the task should be triggered.                 |
+| `input`     | `I` & `GlobalInput` | The input data for the task, including global input fields. |
+| `options?`  | `RunOpts`           | Optional configuration for this task run.                   |
+
+Returns
+
+`Promise`\<`ScheduledWorkflows`\>
+
+A promise that resolves with the scheduled workflow details.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.schedule;
+```
+
+---
+
+<a id="workflowdeclaration"></a>
+
+### WorkflowDeclaration
+
+A Hatchet workflow, which lets you define tasks and perform actions on the workflow.
+
+Workflows in Hatchet represent coordinated units of work that can be triggered,
+scheduled, or run on a cron schedule. Each workflow can contain multiple tasks
+that can be arranged in dependencies (DAGs), with customized retry behavior,
+timeouts, concurrency controls, and more.
+
+Example:
+
+```typescript
+import { hatchet } from "./hatchet-client";
+
+type MyInput = { name: string };
+
+const workflow = hatchet.workflow<MyInput>({
+  name: "my-workflow",
+});
+
+workflow.task({
+  name: "greet",
+  fn: async (input) => {
+    return { message: `Hello, ${input.name}!` };
+  },
+});
+
+// Run the workflow
+await workflow.run({ name: "World" });
+```
+
+Workflows support various execution patterns, including:
+
+- One-time execution with `run()` and `runNoWait()`
+- Scheduled execution with `schedule()`
+- Cron-based recurring execution with `cron()`
+- Bulk execution by passing an array input to `run()` and `runNoWait()`
+- Per-run bulk execution options with `runMany()` and `runManyNoWait()`
+
+Tasks within workflows can be defined with `workflow.task()` or
+`workflow.durableTask()` and arranged into complex dependency patterns.
+
+#### Methods
+
+<a id="batchtask"></a>
+
+##### `batchTask()`
+
+Adds a batch task to the workflow. Batch tasks buffer concurrent runs until Hatchet
+flushes the batch (size reached or flush interval), then invoke the handler once with
+all buffered inputs keyed by each run's task-run external id. The handler must return
+a Record mapping each id to its output, or set `batch.broadcastOutput` to return the
+same result to all callers. retries is always forced to 0 for batch tasks.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Parameters
+
+| Parameter | Type                                                                                                                                         | Description                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`TI`, `TO`\>, `"name"` \| `"batch"` \| `"fn"`\> & `object` | The batch task configuration options. |
+
+Returns
+
+`CreateWorkflowTaskOpts`\<`TI`, `TO`\>
+
+The task options that were added.
+
+<a id="durabletask"></a>
+
+##### `durableTask()`
+
+Adds a durable task to the workflow.
+The return type will be either the property on O that corresponds to the task name,
+or if there is no matching property, the inferred return type of the function.
+
+Parameters
+
+| Parameter | Type                                                                                            | Description                     |
+| --------- | ----------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"batch"` \| `"slotCost"` \| `"fn"`\> & `object` | The task configuration options. |
+
+Returns
+
+`CreateWorkflowDurableTaskOpts`\<`I`, `TO`\>
+
+The task options that were added.
+
+<a id="onfailure"></a>
+
+##### `onFailure()`
+
+Adds an onFailure task to the workflow.
+This will only run if any task in the workflow fails.
+
+Parameters
+
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateOnFailureTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+
+Returns
+
+`CreateWorkflowTaskOpts`\<`I`, `TaskOutputType`\<`O`, `Name`, `L`\>\>
+
+The task options that were added.
+
+<a id="onsuccess"></a>
+
+##### `onSuccess()`
+
+Adds an onSuccess task to the workflow.
+This will only run if all tasks in the workflow complete successfully.
+
+Parameters
+
+| Parameter | Type                                                                                                                                                                       | Description                     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`any`, `any`, \{ \}, \{ \}, \{ \}, \{ \}\> \| `Omit`\<`CreateOnSuccessTaskOpts`\<..., ...\>, `"fn"`\> & `object` | The task configuration options. |
+
+Returns
+
+`CreateWorkflowTaskOpts`\<`I`, `TaskOutputType`\<`O`, `Name`, `L`\>\>
+
+The task options that were added.
+
+<a id="task"></a>
+
+##### `task()`
+
+Adds a task to the workflow.
+The return type will be either the property on O that corresponds to the task name,
+or if there is no matching property, the inferred return type of the function.
+
+Parameters
+
+| Parameter | Type                                                                                                                                                                   | Description                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | \| `Omit`\<`CreateWorkflowTaskOpts`\<..., ...\>, `"fn"`\> & `object` \| [`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `TO`, \{ \}, \{ \}, \{ \}, \{ \}\> | The task configuration options. |
+
+Returns
+
+`CreateWorkflowTaskOpts`\<`I`, `TO`\>
+
+The task options that were added.
+
+## Type Aliases
+
+<a id="createbatchtaskworkflowopts"></a>
+
+### CreateBatchTaskWorkflowOpts
+
+```ts
+type CreateBatchTaskWorkflowOpts<I, O> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>> &
+  object;
+```
+
+Options for creating a batch task workflow. Batch tasks buffer concurrent runs and
+dispatch them together as a single execution; fn receives a Record keyed by each
+buffered run's task-run external id.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+#### Type Declaration
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `batch` | `BatchTaskConfig` |
+
+## Functions
+
+<a id="createbatchtaskworkflow"></a>
+
+### `CreateBatchTaskWorkflow()`
+
+Creates a new batch task workflow declaration, with the handler's single return value
+broadcast to every member of the batch.
+
+Parameters
+
+| Parameter | Type                                                                                                                | Description                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | The batch task configuration options. |
+| `client?` | `IHatchetClient`                                                                                                    | Optional Hatchet client instance.     |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Creates a new batch task workflow declaration. The handler receives a Record keyed by
+batch member id and must return a Record with the exact same key set.
+
+Parameters
+
+| Parameter | Type                                                                                                                | Description                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | The batch task configuration options. |
+| `client?` | `IHatchetClient`                                                                                                    | Optional Hatchet client instance.     |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+---
+
+<a id="createdurabletaskworkflow"></a>
+
+### `CreateDurableTaskWorkflow()`
+
+Creates a new durable task workflow declaration with types inferred from the function parameter.
+
+Parameters
+
+| Parameter | Type                                                                     | Description                             |
+| --------- | ------------------------------------------------------------------------ | --------------------------------------- |
+| `options` | `object` & `Omit`\<`CreateWorkflowDurableTaskOpts`\<`I`, `O`\>, `"fn"`\> | The durable task configuration options. |
+| `client?` | `IHatchetClient`                                                         | Optional Hatchet client instance.       |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+---
+
+<a id="createtaskworkflow"></a>
+
+### `CreateTaskWorkflow()`
+
+Creates a new task workflow declaration with types inferred from the function parameter.
+
+Parameters
+
+| Parameter | Type                                                              | Description                       |
+| --------- | ----------------------------------------------------------------- | --------------------------------- |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | The task configuration options.   |
+| `client?` | `IHatchetClient`                                                  | Optional Hatchet client instance. |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+---
+
+<a id="createworkflow"></a>
+
+### `CreateWorkflow()`
+
+Creates a new workflow instance.
+
+Parameters
+
+| Parameter | Type                 | Description                                                                                                                             |
+| --------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `options` | `CreateWorkflowOpts` | The options for creating the workflow. Optionally include a Zod schema via the `input` field to generate a JSON Schema for the backend. |
+| `client?` | `IHatchetClient`     | Optional Hatchet client instance.                                                                                                       |
+
+Returns
+
+[`WorkflowDeclaration`](#workflowdeclaration)\<`I`, `O`\>
+
+A new Workflow instance.

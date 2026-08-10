@@ -1,0 +1,8 @@
+{
+  "pages": [
+    "index",
+    "audit-logs"
+  ],
+  "title": "Security",
+  "defaultOpen": false
+}
