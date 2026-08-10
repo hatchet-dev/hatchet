@@ -354,6 +354,12 @@ samp {
   }
 }
 
+[data-radix-popper-content-wrapper]:has(
+  [class*="radix-popover-trigger-width"]
+) {
+  font-family: var(--font-mono);
+}
+
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;

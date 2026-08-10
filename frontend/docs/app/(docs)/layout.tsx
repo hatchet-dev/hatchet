@@ -2,6 +2,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { ReactNode } from "react";
 import { source } from "@/lib/source";
 import { HatchetLogo } from "@/components/HatchetLogo";
+import { SidebarLanguageSelect } from "@/components/SidebarLanguageSelect";
 
 const HIDDEN_TABS = new Set(["Contributing", "Agent Instructions"]);
 
@@ -27,7 +28,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       }}
       nav={{ title: <HatchetLogo />, url: "https://hatchet.run" }}
       githubUrl="https://github.com/hatchet-dev/hatchet"
-      sidebar={{ defaultOpenLevel: 0 }}
+      sidebar={{
+        defaultOpenLevel: 0,
+        banner: <SidebarLanguageSelect />,
+      }}
     >
       {children}
     </DocsLayout>
