@@ -281,9 +281,9 @@ function handleToolsList(id: string | number | null): JsonRpcResponse {
     result: {
       tools: [
         {
-          name: "get_full_docs",
+          name: "get_docs",
           description:
-            "Retrieve the full Hatchet documentation as a single text file.",
+            "Retrieve the index Hatchet documentation page as a text file.",
           inputSchema: { type: "object", properties: {}, required: [] },
         },
         {
@@ -321,6 +321,10 @@ function handleToolsCall(
 
   if (toolName === "search_docs") {
     return handleSearchDocs(id, args);
+  }
+
+  if (toolName === "get_docs") {
+    return handleGetDocs();
   }
 
   if (toolName === "get_full_docs") {
@@ -438,6 +442,31 @@ function handleSearchDocs(
     id,
     result: {
       content: [{ type: "text", text }],
+    },
+  };
+}
+
+function handleGetDocs(): JsonRpcResponse {
+  const docsPath = path.join(process.cwd(), "public", "llms.txt");
+  let content = "";
+  try {
+    content = fs.readFileSync(docsPath, "utf-8");
+  } catch {
+    return {
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32603,
+        message: "Failed to read documentation index file",
+      },
+    };
+  }
+
+  return {
+    jsonrpc: "2.0",
+    id: null,
+    result: {
+      content: [{ type: "text", text: content }],
     },
   };
 }
