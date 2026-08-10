@@ -44,12 +44,20 @@ func RegisterEmbeddedBackend(b EmbeddedBackend) {
 	embeddedBackend = b
 }
 
-func WithEmbeddedPostgres(databaseURL string, opts ...EmbeddedOption) v0Client.ClientOpt { //nolint:staticcheck // SA1019
-	cfg := EmbeddedConfig{DatabaseURL: databaseURL}
+// WithEmbedded runs Hatchet in-process. By default it starts a bundled Postgres;
+// pass WithEmbeddedDatabaseURL to point it at your own instead.
+func WithEmbedded(opts ...EmbeddedOption) v0Client.ClientOpt { //nolint:staticcheck // SA1019
+	cfg := EmbeddedConfig{}
 	for _, o := range opts {
 		o(&cfg)
 	}
 	return func(co *v0Client.ClientOpts) { co.Embedded = &cfg } //nolint:staticcheck // SA1019
+}
+
+// WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead
+// of the bundled one.
+func WithEmbeddedDatabaseURL(url string) EmbeddedOption {
+	return func(c *EmbeddedConfig) { c.DatabaseURL = url }
 }
 
 func WithEmbeddedGRPCPort(port int) EmbeddedOption {

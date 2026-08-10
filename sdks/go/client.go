@@ -60,7 +60,7 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	var shutdown func(context.Context) error
 	if embeddedCfg != nil {
 		if embeddedBackend == nil {
-			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet-embedded")
 		}
 		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
 		if err != nil {
