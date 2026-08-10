@@ -1,6 +1,6 @@
 ## [0.101.16] - 2026-08-10
 
-Hatchet v0.101.16 takes idempotency keys and batch tasks out of beta. It is otherwise a performance and operations release: it adds a NATS backend for pub/sub, lets the dashboard be served from a subpath, and reworks scheduling around an actor pattern, alongside substantial durable task performance work, new queue depth metrics, and safer batch migrations.
+Hatchet v0.101.16 takes idempotency keys and batch tasks out of beta. It is otherwise a performance and operations release, adding a NATS backend for pub/sub and allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, new queue depth metrics, and safer batch migrations.
 
 ### Highlights
 
