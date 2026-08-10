@@ -1137,21 +1137,41 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		return fmt.Errorf("could not list tasks: %w", err)
 	}
 
-	taskIdsToTasks := make(map[int64]*sqlcv1.V1Task)
+	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
+	durableTaskIds := make([]v1.IdInsertedAt, 0)
 
 	for _, task := range tasks {
-		taskIdsToTasks[task.ID] = task
+		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
+			V1TaskWithPayload: &v1.V1TaskWithPayload{
+				V1Task: task,
+			},
+		}
+
+		if task.IsDurable.Valid && task.IsDurable.Bool {
+			durableTaskIds = append(durableTaskIds, v1.IdInsertedAt{
+				ID:         task.ID,
+				InsertedAt: task.InsertedAt,
+			})
+		}
+	}
+
+	if len(durableTaskIds) > 0 {
+		invocationCounts, err := d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, msg.TenantID, durableTaskIds)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(durableTaskIds))
+		} else {
+			for _, id := range durableTaskIds {
+				taskIdToData[id.ID].InvocationCount = invocationCounts[id]
+			}
+		}
 	}
 
 	// group by worker id
-	workerIdToTasks := make(map[uuid.UUID][]*sqlcv1.V1Task)
+	workerIdToTasks := make(map[uuid.UUID][]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, msg := range msgs {
-		if _, ok := workerIdToTasks[msg.WorkerId]; !ok {
-			workerIdToTasks[msg.WorkerId] = []*sqlcv1.V1Task{}
-		}
-
-		task, ok := taskIdsToTasks[msg.TaskId]
+		task, ok := taskIdToData[msg.TaskId]
 
 		if !ok {
 			d.l.Warn().Ctx(ctx).Msgf("task %d not found", msg.TaskId)
@@ -1185,7 +1205,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 				}
 
 				for _, retryCount := range retryCounts {
-					err = w.CancelTask(ctx, msg.TenantID, task, retryCount)
+					err = w.CancelTask(ctx, msg.TenantID, task.V1Task, retryCount, task.InvocationCount)
 
 					if err != nil {
 						multiErr = multierror.Append(multiErr, fmt.Errorf("could not send job to worker: %w", err))
