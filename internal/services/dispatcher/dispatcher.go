@@ -1159,7 +1159,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		invocationCounts, err := d.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, msg.TenantID, durableTaskIds)
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(durableTaskIds))
+			return fmt.Errorf("could not get durable task invocation counts: %w", err)
 		} else {
 			for _, id := range durableTaskIds {
 				taskIdToData[id.ID].InvocationCount = invocationCounts[id]
