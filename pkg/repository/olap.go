@@ -291,7 +291,7 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
-	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
+	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
@@ -1607,12 +1607,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 	return externalIds, nil
 }
 
-func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
-	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, sqlcv1.ListTaskEventsParams{
+func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit *int64, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error) {
+	args := sqlcv1.ListTaskEventsParams{
 		Tenantid:       tenantId,
 		Taskid:         taskId,
 		Taskinsertedat: taskInsertedAt,
-	})
+	}
+	if limit != nil {
+		args.Eventlimit = *limit
+	}
+	if offset != nil {
+		args.Eventoffset = *offset
+	}
+	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, args)
 
 	if err != nil {
 		return nil, err
