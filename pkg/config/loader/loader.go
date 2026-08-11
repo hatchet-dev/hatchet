@@ -392,8 +392,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	durableEventBufferOpts := repov1.DurableEventBufferOpts{
-		FlushInterval: scf.Runtime.DurableEventBufferFlushInterval,
-		MaxBatchSize:  scf.Runtime.DurableEventBufferMaxSize,
+		FlushInterval:        scf.Runtime.DurableEventBufferFlushInterval,
+		MaxBatchSize:         scf.Runtime.DurableEventBufferMaxSize,
+		MaxConcurrentFlushes: scf.Runtime.DurableEventBufferMaxConcurrentFlushes,
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(

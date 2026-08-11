@@ -324,7 +324,11 @@ type ConfigFileRuntime struct {
 
 	// DurableEventBufferMaxSize caps how many durable task events a single flush
 	// batches together, so a burst of traffic still flushes promptly.
-	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"100"`
+	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"20"`
+
+	// DurableEventBufferMaxConcurrentFlushes bounds how many durable ingest
+	// transactions run concurrently.
+	DurableEventBufferMaxConcurrentFlushes int `mapstructure:"durableEventBufferMaxConcurrentFlushes" json:"durableEventBufferMaxConcurrentFlushes,omitempty" default:"16"`
 
 	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
 	// This controls how long the buffer waits for out-of-order events before flushing them.
@@ -1033,6 +1037,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
 	_ = v.BindEnv("runtime.durableEventBufferFlushInterval", "SERVER_DURABLE_EVENT_BUFFER_FLUSH_INTERVAL")
 	_ = v.BindEnv("runtime.durableEventBufferMaxSize", "SERVER_DURABLE_EVENT_BUFFER_MAX_SIZE")
+	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options

@@ -62,6 +62,19 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
 
+-- name: BulkUpdateLogFileLatestNodeId :exec
+UPDATE v1_durable_event_log_file lf
+SET latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
+FROM (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+) i
+WHERE lf.durable_task_id = i.durable_task_id
+  AND lf.durable_task_inserted_at = i.durable_task_inserted_at
+;
+
 -- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
     tenant_id,

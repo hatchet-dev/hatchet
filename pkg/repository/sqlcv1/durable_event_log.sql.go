@@ -254,6 +254,30 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const bulkUpdateLogFileLatestNodeId = `-- name: BulkUpdateLogFileLatestNodeId :exec
+UPDATE v1_durable_event_log_file lf
+SET latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
+FROM (
+    SELECT
+        UNNEST($1::BIGINT[]) AS durable_task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($3::BIGINT[]) AS node_id
+) i
+WHERE lf.durable_task_id = i.durable_task_id
+  AND lf.durable_task_inserted_at = i.durable_task_inserted_at
+`
+
+type BulkUpdateLogFileLatestNodeIdParams struct {
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Nodeids                []int64              `json:"nodeids"`
+}
+
+func (q *Queries) BulkUpdateLogFileLatestNodeId(ctx context.Context, db DBTX, arg BulkUpdateLogFileLatestNodeIdParams) error {
+	_, err := db.Exec(ctx, bulkUpdateLogFileLatestNodeId, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Nodeids)
+	return err
+}
+
 const createDurableEventLogBranchPoint = `-- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
     tenant_id,
