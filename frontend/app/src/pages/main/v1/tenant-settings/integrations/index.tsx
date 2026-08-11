@@ -48,17 +48,27 @@ import api, {
 import { cloudApi } from '@/lib/api/api';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { appRoutes } from '@/router';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
   const { isControlPlaneEnabled } = useControlPlane();
   const integrations = useApiMetaIntegrations();
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+
+  const listManagedWorkersQuery = useQuery({
+    ...queries.cloud.listManagedWorkers(tenant),
+  });
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
+
+  const hasExistingManagedWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
   return (
     <div className="h-full w-full flex-grow">
@@ -79,7 +89,7 @@ export default function Integrations() {
             <TabsTrigger value="metrics" variant="underlined">
               Metrics
             </TabsTrigger>
-            {isControlPlaneEnabled && (
+            {isControlPlaneEnabled && hasExistingManagedWorkers && (
               <TabsTrigger value="github" variant="underlined">
                 GitHub
               </TabsTrigger>
@@ -102,7 +112,7 @@ export default function Integrations() {
             <PrometheusMetricsSettings />
           </TabsContent>
 
-          {isControlPlaneEnabled && (
+          {isControlPlaneEnabled && hasExistingManagedWorkers && (
             <TabsContent value="github">
               <GithubInstallationsList />
             </TabsContent>
