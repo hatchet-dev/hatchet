@@ -1,6 +1,6 @@
 //go:build stress && !e2e && !load && !rampup && !integration
 
-package v1alpha
+package v1
 
 import (
 	"context"
