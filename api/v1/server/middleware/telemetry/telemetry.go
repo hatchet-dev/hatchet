@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
@@ -36,11 +37,12 @@ func (m *OTelMiddleware) Middleware() echo.MiddlewareFunc {
 	)
 }
 
-// ErrorStatusMiddleware marks the current span as Error for any 4xx or 5xx response.
-// otelecho only sets Error for 5xx (per OTel semantic conventions). This middleware
-// must be registered after otelecho so it runs inside the span. The OTel SDK ignores
-// attempts to downgrade from Error to Unset, so otelecho's subsequent status-setting
-// for 4xx is a no-op.
+// ErrorStatusMiddleware marks the current span as Error for any 4xx or 5xx response,
+// except 499, which records that the client disconnected rather than that the server
+// failed. otelecho only sets Error for 5xx (per OTel semantic conventions). This
+// middleware must be registered after otelecho so it runs inside the span. The OTel SDK
+// ignores attempts to downgrade from Error to Unset, so otelecho's subsequent
+// status-setting for 4xx is a no-op.
 func (m *OTelMiddleware) ErrorStatusMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -60,7 +62,7 @@ func (m *OTelMiddleware) ErrorStatusMiddleware() echo.MiddlewareFunc {
 				statusCode = c.Response().Status
 			}
 
-			if statusCode >= 400 {
+			if statusCode >= 400 && statusCode != middleware.StatusClientClosedRequest {
 				span.SetStatus(codes.Error, fmt.Sprintf("HTTP %d", statusCode))
 				if err != nil {
 					span.RecordError(err)
