@@ -456,6 +456,10 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 		override(cf)
 	}
 
+	if cf.VersionOverride != "" {
+		version = cf.VersionOverride
+	}
+
 	return createControllerLayer(dc, cf, version)
 }
 

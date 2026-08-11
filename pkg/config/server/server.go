@@ -87,6 +87,8 @@ type ServerConfigFile struct {
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+
+	VersionOverride string `mapstructure:"versionOverride" json:"versionOverride,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -1055,4 +1057,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
+
+	// misc options
+	_ = v.BindEnv("versionOverride", "SERVER_VERSION_OVERRIDE")
 }
