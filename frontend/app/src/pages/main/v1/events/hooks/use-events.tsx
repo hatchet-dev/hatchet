@@ -11,6 +11,7 @@ import {
   TimeRangeConfig,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useControlPlane from '@/hooks/use-control-plane';
 import { usePagination } from '@/hooks/use-pagination';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import api, { queries, V1TaskStatus } from '@/lib/api';
@@ -212,25 +213,12 @@ export const useEvents = ({ key }: UseEventsProps) => {
       ],
     });
 
+  const { isSelfHosted } = useControlPlane();
+
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
-    queryKey: [
-      'v1:events:list',
+    ...queries.v1Events.list(
       tenantId,
       {
-        keys: selectedKeys,
-        workflows: selectedWorkflowIds,
-        offset,
-        limit,
-        statuses: selectedStatuses,
-        additionalMetadata: selectedMetadata,
-        eventIds: selectedEventIds,
-        scopes: selectedScopes,
-        since,
-        until,
-      },
-    ],
-    queryFn: async () => {
-      const response = await api.v1EventList(tenantId, {
         offset,
         limit,
         keys: selectedKeys,
@@ -241,16 +229,17 @@ export const useEvents = ({ key }: UseEventsProps) => {
         additionalMetadata: selectedMetadata,
         workflowIds: selectedWorkflowIds,
         scopes: selectedScopes,
-      });
-
-      return response.data;
-    },
+      },
+      isSelfHosted,
+    ),
     refetchInterval: selectedEventIds?.length ? false : refetchInterval,
     placeholderData: (prev) => prev,
   });
 
-  const events = data?.rows ?? [];
-  const numEvents = data?.pagination?.num_pages ?? 1;
+  const fetchTimedOut = data === 'timeout';
+  const events = (data !== 'timeout' ? data?.rows : undefined) ?? [];
+  const numEvents =
+    (data !== 'timeout' ? data?.pagination?.num_pages : undefined) ?? 1;
 
   const { data: eventKeys, error: eventKeysError } = useQuery({
     queryKey: ['v1:events:listKeys', tenantId],
@@ -290,6 +279,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
   return {
     events,
     numEvents,
+    fetchTimedOut,
     isLoading: isLoading || workflowKeysIsLoading,
     refetch,
     error: error || eventKeysError || workflowKeysError,
