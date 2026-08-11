@@ -1728,17 +1728,17 @@ func (r *durableEventsRepository) ingestDurableTaskEventBatch(ctx context.Contex
 					nodeId := nodeIdBranchId.NodeId
 					branchId := nodeIdBranchId.BranchId
 
-					runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", ct.ExternalID.String(), branchId, nodeId)
+					runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
 
-					taskId := ct.ID
+					taskId := task.ID
 
 					createMatchOpts = append(createMatchOpts, CreateMatchOpts{
 						Kind:                         sqlcv1.V1MatchKindSIGNAL,
 						Conditions:                   conditions,
 						SignalTaskId:                 &taskId,
-						SignalTaskInsertedAt:         ct.InsertedAt,
+						SignalTaskInsertedAt:         task.InsertedAt,
 						SignalExternalId:             &ct.ExternalID,
-						SignalTaskExternalId:         &ct.ExternalID,
+						SignalTaskExternalId:         &task.ExternalID,
 						SignalKey:                    &runEventLogEntrySignalKey,
 						DurableEventLogEntryNodeId:   &nodeId,
 						DurableEventLogEntryBranchId: &branchId,
