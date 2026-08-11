@@ -1,9 +1,4 @@
 {
-  "pages": [
-    "client",
-    "Context",
-    "feature-clients",
-    "Runnables"
-  ],
-  "title": "Typescript SDK"
+  "pages": ["client", "context", "feature-clients", "runnables"],
+  "title": "TypeScript SDK"
 }

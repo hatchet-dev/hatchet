@@ -472,7 +472,7 @@ type Task struct {
 	name string
 }
 
-// Name returns the name of the task.
+// GetName returns the name of the task.
 func (t *Task) GetName() string {
 	return t.name
 }

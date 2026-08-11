@@ -83,6 +83,8 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	}, nil
 }
 
+// Close shuts down the client. It is a no-op unless the client runs in embedded mode,
+// in which case it shuts down the in-process engine.
 func (c *Client) Close(ctx context.Context) error {
 	if c.embeddedShutdown != nil {
 		return c.embeddedShutdown(ctx)
@@ -836,7 +838,7 @@ type WorkflowRunRef struct {
 	resultFn   func() (*WorkflowResult, error)
 }
 
-// V0Workflow returns the underlying v0Client.Workflow.
+// Result blocks until the workflow run completes and returns its result.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 	if wr.resultFn != nil {
 		return wr.resultFn()
@@ -940,7 +942,7 @@ func (tr *TaskResult) Into(dest any) error {
 	return nil
 }
 
-// Raw returns the raw workflow result as interface{}.
+// Raw returns the raw, undecoded workflow result.
 func (wr *WorkflowResult) Raw() any {
 	return wr.result
 }

@@ -1,24 +1,33 @@
 import os
 
-from docs.generator.doc_types import Document
+from docs.generator.doc_types import HAND_AUTHORED_BASENAMES, Document
 
 
 def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:
-    return [
-        d
-        for root, _, filenames in os.walk(directory)
-        for filename in filenames
-        if (d := Document.from_path(os.path.join(root, filename))).readable_source_path
-        in only_include
-        or not only_include
+    return sorted(
+        (
+            d
+            for root, _, filenames in os.walk(directory)
+            for filename in filenames
+            if (
+                d := Document.from_path(os.path.join(root, filename))
+            ).readable_source_path
+            in only_include
+            or not only_include
+        ),
+        key=lambda d: d.readable_source_path,
+    )
+
+
+def assert_ownership(documents: list[Document]) -> None:
+    offenders = [
+        d.readable_source_path
+        for d in documents
+        if not d.directory and d.basename in HAND_AUTHORED_BASENAMES
     ]
 
-
-def find_child_paths(prefix: str, docs: list[Document]) -> set[str]:
-    return {
-        doc.directory
-        for doc in docs
-        if doc.directory.startswith(prefix)
-        and doc.directory != prefix
-        and doc.directory.count("/") == prefix.count("/") + 1
-    }
+    if offenders:
+        raise RuntimeError(
+            f"Refusing to overwrite hand-authored pages: {offenders}. "
+            "Rename the mkdocs source files or update HAND_AUTHORED_BASENAMES."
+        )

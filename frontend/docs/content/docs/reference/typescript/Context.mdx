@@ -252,7 +252,7 @@ Parameters
 
 | Parameter  | Type                                                                                                                                                               | Description                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
 | `input`    | `Q`                                                                                                                                                                | The input data for the workflow.                                            |
 | `options?` | `ChildRunOpts`                                                                                                                                                     | An options object containing key, sticky, priority, and additionalMetadata. |
 
@@ -624,7 +624,7 @@ Parameters
 
 | Parameter  | Type                                                                                                                                                               | Description                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to spawn.                   |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](runnables.mdx#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to spawn.                   |
 | `input?`   | `Q`                                                                                                                                                                | The input data for the child workflow.   |
 | `options?` | `ChildRunOpts`                                                                                                                                                     | Options for spawning the child workflow. |
 

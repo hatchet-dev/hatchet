@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { Document } from './doc_types';
+import { Document, FILENAME_REMAP } from './doc_types';
 import { crawlDirectory } from './paths';
-import { TMP_GEN_PATH } from './shared';
+import { FRONTEND_DOCS_RELATIVE_PATH, TMP_GEN_PATH } from './shared';
 
 function rmrf(target: string) {
   if (fs.existsSync(target)) {
@@ -11,64 +11,92 @@ function rmrf(target: string) {
   }
 }
 
-function metaEntry(key: string, title: string): string {
-  return `  "${key}": {
-    title: "${title}",
-    theme: {
-      toc: true,
-    },
-  },`;
+function dirTitle(dirName: string): string {
+  return dirName.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function generateMetaJs(docs: Document[], subDirs: string[]): string {
-  const docEntries = docs.map((d) => d.metaJsEntry);
-  const subDirEntries = subDirs.map((dir) => {
-    const name = dir.replace(/^\//, '');
-    const title = name.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    return metaEntry(name, title);
-  });
+// Writes a fumadocs meta.json for each generated subdirectory (e.g. feature-clients).
+// The top-level typescript/meta.json is hand-maintained and intentionally not touched.
+function writeSubdirMetaJson(documents: Document[]) {
+  const subDirs = [...new Set(documents.map((d) => d.directory).filter(Boolean))].sort();
 
-  const all = [...docEntries, ...subDirEntries].sort((a, b) => {
-    const keyA = a.trim().split(':')[0].replace(/"/g, '').toLowerCase();
-    const keyB = b.trim().split(':')[0].replace(/"/g, '').toLowerCase();
-    return keyA.localeCompare(keyB);
-  });
+  for (const dir of subDirs) {
+    const dirName = dir.replace(/^\//, '');
+    const pages = documents
+      .filter((d) => d.directory === dir)
+      .map((d) => d.basename)
+      .sort((a, b) => a.localeCompare(b));
 
-  return `export default {\n${all.join('\n\n')}\n};\n`;
-}
+    const meta = { pages, title: dirTitle(dirName) };
+    const metaPath = path.join(FRONTEND_DOCS_RELATIVE_PATH, dirName, 'meta.json');
 
-function updateMetaJs(documents: Document[]) {
-  const metaJsPaths = new Set(documents.map((d) => d.mdxOutputMetaJsPath));
-
-  for (const metaJsPath of metaJsPaths) {
-    const relevantDocs = documents.filter((d) => d.mdxOutputMetaJsPath === metaJsPath);
-    const thisDir = relevantDocs[0].directory;
-
-    const subDirs = [
-      ...new Set(
-        documents
-          .map((d) => d.directory)
-          .filter((dir) => dir !== thisDir && dir.startsWith(thisDir) && dir.split('/').length === thisDir.split('/').filter(Boolean).length + 2)
-      ),
-    ];
-
-    const meta = generateMetaJs(relevantDocs, subDirs);
-
-    fs.mkdirSync(path.dirname(metaJsPath), { recursive: true });
-    fs.writeFileSync(metaJsPath, meta, 'utf-8');
-    console.log('Wrote', metaJsPath);
+    fs.mkdirSync(path.dirname(metaPath), { recursive: true });
+    fs.writeFileSync(metaPath, `${JSON.stringify(meta, null, 2)}\n`, 'utf-8');
+    console.log('Wrote', metaPath);
   }
 }
 
-function fixBrokenFeatureAnchorLinks(content: string): string {
-  return content.replace(/\(client\.features\.([^)\s#]+\.mdx)/g, '(feature-clients/$1');
+function fixLinks(content: string, document: Document): string {
+  const inFeatureClients = document.directory === '/feature-clients';
+
+  // typedoc flattens feature client modules to client.features.<name>.mdx; point links
+  // at the feature-clients/ directory (or the sibling file when already inside it).
+  let result = content.replace(/\(client\.features\.([^)\s#]+\.mdx)/g, (_m, leaf) =>
+    inFeatureClients ? `(${leaf}` : `(feature-clients/${leaf}`
+  );
+
+  // Rewrite links to renamed top-level files (e.g. Runnables.mdx -> runnables.mdx).
+  for (const [from, to] of Object.entries(FILENAME_REMAP)) {
+    const target = inFeatureClients ? `../${to}` : to;
+    result = result.split(`(${from}`).join(`(${target}`);
+  }
+
+  return result;
+}
+
+function withFrontmatter(content: string, document: Document): string {
+  if (content.startsWith('---\n')) {
+    return content;
+  }
+  return `---\ntitle: "${document.title}"\n---\n\n${content}`;
 }
 
 function copyDoc(document: Document) {
-  const content = fixBrokenFeatureAnchorLinks(fs.readFileSync(document.sourcePath, 'utf-8'));
+  const raw = fs.readFileSync(document.sourcePath, 'utf-8');
+  const content = withFrontmatter(fixLinks(raw, document), document);
   fs.mkdirSync(path.dirname(document.mdxOutputPath), { recursive: true });
   fs.writeFileSync(document.mdxOutputPath, content, 'utf-8');
   console.log('Wrote', document.mdxOutputPath);
+}
+
+// The generator owns every .mdx in the output tree: remove any it did not emit.
+function removeStaleMdx(documents: Document[]) {
+  const emitted = new Set(documents.map((d) => path.resolve(d.mdxOutputPath)));
+
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (
+        (entry.name.endsWith('.mdx') && !emitted.has(path.resolve(full))) ||
+        entry.name === '_meta.js'
+      ) {
+        fs.rmSync(full);
+        console.log('Removed stale', full);
+      }
+    }
+  };
+
+  if (fs.existsSync(FRONTEND_DOCS_RELATIVE_PATH)) {
+    walk(FRONTEND_DOCS_RELATIVE_PATH);
+  }
+}
+
+function formatOutput(documents: Document[]) {
+  const files = documents.map((d) => d.mdxOutputPath).sort();
+  console.log('Running prettier on generated docs...');
+  execSync(`npx prettier --write ${files.map((f) => `'${f}'`).join(' ')}`, { stdio: 'inherit' });
 }
 
 function run() {
@@ -78,21 +106,18 @@ function run() {
     console.log('Running typedoc...');
     execSync('npx typedoc', { stdio: 'inherit' });
 
-    const documents = crawlDirectory(TMP_GEN_PATH);
+    const documents = crawlDirectory(TMP_GEN_PATH).sort((a, b) =>
+      a.mdxOutputPath.localeCompare(b.mdxOutputPath)
+    );
     console.log(`Found ${documents.length} documents`);
 
     for (const doc of documents) {
       copyDoc(doc);
     }
 
-    updateMetaJs(documents);
-
-    console.log('Running prettier on frontend docs...');
-    execSync('pnpm lint:fix', {
-      stdio: 'inherit',
-      cwd: path.resolve(process.cwd(), '../../frontend/docs'),
-      shell: '/bin/bash',
-    });
+    removeStaleMdx(documents);
+    writeSubdirMetaJson(documents);
+    formatOutput(documents);
   } finally {
     rmrf(TMP_GEN_PATH);
   }
