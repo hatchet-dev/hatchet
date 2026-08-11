@@ -1,6 +1,6 @@
 import os
 
-from docs.generator.doc_types import HAND_AUTHORED_BASENAMES, Document
+from docs.generator.doc_types import Document
 
 
 def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:
@@ -19,15 +19,15 @@ def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:
     )
 
 
-def assert_ownership(documents: list[Document]) -> None:
+def assert_ownership(documents: list[Document], specifics: set[str]) -> None:
     offenders = [
         d.readable_source_path
         for d in documents
-        if not d.directory and d.basename in HAND_AUTHORED_BASENAMES
+        if not d.directory and d.basename in specifics
     ]
 
     if offenders:
         raise RuntimeError(
-            f"Refusing to overwrite hand-authored pages: {offenders}. "
-            "Rename the mkdocs source files or update HAND_AUTHORED_BASENAMES."
+            f"Refusing to overwrite hand-authored Python-specifics pages: {offenders}. "
+            "Rename the mkdocs source files or the specifics pages."
         )

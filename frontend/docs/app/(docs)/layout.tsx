@@ -1,6 +1,5 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
-import type * as PageTree from "fumadocs-core/page-tree";
 import type { ReactNode } from "react";
 import { source } from "@/lib/source";
 import { HatchetLogo } from "@/components/HatchetLogo";
@@ -8,8 +7,8 @@ import { SidebarLanguageSelect } from "@/components/SidebarLanguageSelect";
 
 const HIDDEN_TABS = new Set(["Contributing", "Agent Instructions"]);
 
-function wrapIcon(icon: ReactNode): ReactNode {
-  if (!icon) return icon;
+function wrapIcon(icon: ReactNode) {
+  if (!icon) return undefined;
   return (
     <div className="size-full [&_svg]:size-full max-md:p-1.5 max-md:rounded-md max-md:border max-md:bg-fd-secondary">
       {icon}
@@ -23,22 +22,23 @@ export default function Layout({ children }: { children: ReactNode }) {
   const tabs = getLayoutTabs(tree, {
     transform: (option, node) => {
       if (HIDDEN_TABS.has(String(option.title))) return null;
-      return { ...option, icon: node.icon ? wrapIcon(node.icon) : option.icon };
+      return { ...option, icon: wrapIcon(node.icon) ?? option.icon };
     },
   });
 
-  // The Reference folder has no index page (its landing page is the
-  // changelog), so getLayoutTabs skips it — add its tab manually.
+  // The Reference folder has no index page (so it gets no sidebar entry of its
+  // own) which also means getLayoutTabs skips it — add its tab manually,
+  // pointing at the changelog. $folder keeps active-state detection working
+  // for every /reference/* page.
   const reference = tree.children.find(
-    (node): node is PageTree.Folder =>
-      node.type === "folder" && String(node.name) === "Reference",
+    (node) => node.type === "folder" && String(node.name) === "Reference",
   );
-  if (reference) {
+  if (reference && reference.type === "folder") {
     tabs.push({
       title: reference.name,
       description: reference.description,
-      icon: wrapIcon(reference.icon),
       url: "/reference/changelog",
+      icon: wrapIcon(reference.icon),
       $folder: reference,
     });
   }

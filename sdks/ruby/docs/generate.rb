@@ -10,7 +10,10 @@
 #     feature-clients/meta.json
 #
 # Ownership: this script owns every .mdx file and feature-clients/meta.json in
-# the output directory. ruby/meta.json is hand-maintained and never touched.
+# the output directory. ruby/meta.json is MERGED, not overwritten: existing
+# entry order and "---Separator---" strings are preserved, newly emitted
+# top-level pages are appended, and entries whose page no longer exists are
+# dropped. The top-level reference/meta.json is never touched.
 #
 # Output is deterministic: files are parsed in sorted order and every listing
 # either follows an explicit order defined here or the (stable) source order.
@@ -268,8 +271,21 @@ class Renderer
     out.reject { |s| s.to_s.empty? }.join("\n\n")
   end
 
+  # Any public method not in the curated order and not excluded is still
+  # documented (appended alphabetically by #order); log it so additions to the
+  # SDK surface are visible in generator output without requiring an edit here.
+  def log_uncurated
+    preferred = PREFERRED_ORDER[@obj.path]
+    return unless preferred
+
+    functions.reject { |m| preferred.include?(m.name.to_s) }.each do |m|
+      puts "auto-included: #{@obj.path}##{m.name} (not in curated order; appended alphabetically)"
+    end
+  end
+
   # Render a full "## Class" block: intro, methods table, attributes, functions.
   def class_block(title: @obj.name.to_s)
+    log_uncurated
     meths = functions
     attrs = attributes
     out = ["## #{title}"]
@@ -304,7 +320,7 @@ class Renderer
     return meths unless preferred
 
     listed, rest = meths.partition { |m| preferred.include?(m.name.to_s) }
-    listed.sort_by { |m| preferred.index(m.name.to_s) } + rest
+    listed.sort_by { |m| preferred.index(m.name.to_s) } + rest.sort_by { |m| m.name.to_s }
   end
 
   def examples(obj)
@@ -518,6 +534,43 @@ def generate_runnables_page
   )
 end
 
+# Merge ruby/meta.json rather than overwriting it: keep existing entry order
+# and any "---Separator---" strings, drop entries whose page no longer exists,
+# and append newly emitted top-level pages (sorted) that aren't listed yet.
+def merge_ruby_meta
+  path = File.join(OUT_DIR, "meta.json")
+  meta = File.exist?(path) ? JSON.parse(File.read(path)) : { "pages" => [], "title" => "Ruby SDK" }
+
+  emitted = Dir[File.join(OUT_DIR, "*.mdx")].map { |f| File.basename(f, ".mdx") }
+  emitted << "feature-clients" if File.exist?(File.join(OUT_DIR, "feature-clients", "meta.json"))
+  emitted.sort!
+
+  kept = (meta["pages"] || []).select { |p| p.start_with?("---") || emitted.include?(p) }
+  meta["pages"] = kept + (emitted - kept)
+
+  File.write(path, JSON.pretty_generate(meta) + "\n")
+  puts "wrote meta.json (merged)"
+end
+
+# Backstop: every emitted .mdx must be reachable from a meta.json pages array,
+# otherwise fumadocs silently drops it from the sidebar.
+def assert_all_pages_reachable
+  top_pages = JSON.parse(File.read(File.join(OUT_DIR, "meta.json")))["pages"]
+  fc_pages = JSON.parse(File.read(File.join(OUT_DIR, "feature-clients", "meta.json")))["pages"]
+
+  unreachable = Dir[File.join(OUT_DIR, "**", "*.mdx")].sort.reject do |f|
+    base = File.basename(f, ".mdx")
+    if File.dirname(f) == OUT_DIR
+      top_pages.include?(base)
+    else
+      top_pages.include?("feature-clients") && fc_pages.include?(base)
+    end
+  end
+  return if unreachable.empty?
+
+  abort "ERROR: emitted pages not reachable from any meta.json pages array: #{unreachable.join(', ')}"
+end
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -533,8 +586,8 @@ YARD.parse(sources)
 
 RbsTypes.load!
 
-# The generator owns every .mdx file and feature-clients/meta.json; remove
-# stale output so the directory is exactly generator output + ruby/meta.json.
+# The generator owns every .mdx file and both meta.json files (ruby/meta.json
+# via merge); remove stale output so the directory is exactly generator output.
 Dir[File.join(OUT_DIR, "**", "*.mdx")].sort.each { |f| File.delete(f) }
 FileUtils.mkdir_p(File.join(OUT_DIR, "feature-clients"))
 
@@ -543,5 +596,7 @@ generate_client_page(pages)
 generate_context_page
 generate_runnables_page
 generate_feature_client_pages(pages)
+merge_ruby_meta
+assert_all_pages_reachable
 
 puts "done: #{Dir[File.join(OUT_DIR, '**', '*')].count { |f| File.file?(f) }} files in #{OUT_DIR}"

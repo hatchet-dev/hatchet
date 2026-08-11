@@ -14,16 +14,13 @@ FRONTEND_PYTHON_REF_DIR = (
     FRONTEND_DOCS_DIR / "content" / "docs" / "reference" / "python"
 )
 MANIFEST_PATH = GENERATOR_DIR / "manifest.json"
+DOCS_DIR = GENERATOR_DIR.parent
+ROOT_META_PATH = FRONTEND_PYTHON_REF_DIR / "meta.json"
 
-## Hand-authored pages living alongside the generated ones. The generator must
-## never write or delete these, nor the hand-maintained `python/meta.json`.
-HAND_AUTHORED_BASENAMES = {
-    "asyncio",
-    "pydantic",
-    "lifespans",
-    "dependency-injection",
-    "dataclasses",
-}
+## Everything after this separator in `python/meta.json` is a hand-authored
+## Python-specifics page. The generator preserves those entries verbatim and
+## must never write or delete their mdx files.
+SPECIFICS_SEPARATOR = "---Python Specifics---"
 
 MD_EXTENSION = "md"
 MDX_EXTENSION = "mdx"

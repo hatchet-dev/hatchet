@@ -6,12 +6,15 @@
 // frontend/docs/content/docs/reference/go/.
 //
 // Ownership: the generator owns every .mdx file in that directory as well as
-// feature-clients/meta.json. The top-level go/meta.json is hand-maintained and is
-// never touched here.
+// feature-clients/meta.json. The top-level go/meta.json is merged rather than
+// overwritten: existing entry order and separator strings are preserved, stale
+// pages are dropped, and newly emitted pages are appended. The top-level
+// reference/meta.json is never touched.
 package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/doc"
@@ -78,6 +81,22 @@ func run() error {
 		files[filepath.Join("feature-clients", a.page+".mdx")] = renderFeaturePage(features, a)
 	}
 	files[filepath.Join("feature-clients", "meta.json")] = renderFeatureMeta(accessors)
+
+	topPages := []string{"feature-clients"}
+	for name := range files {
+		if !strings.Contains(name, string(filepath.Separator)) && strings.HasSuffix(name, ".mdx") {
+			topPages = append(topPages, strings.TrimSuffix(name, ".mdx"))
+		}
+	}
+	topMeta, err := mergeTopMeta(filepath.Join(outDir, "meta.json"), topPages)
+	if err != nil {
+		return err
+	}
+	files["meta.json"] = topMeta
+
+	if err := verifyMetaCoverage(files); err != nil {
+		return err
+	}
 
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -156,6 +175,112 @@ func cleanOutDir(outDir string) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// mergeTopMeta merges the emitted top-level pages into the existing go/meta.json:
+// existing entry order, separator strings ("---...---"), and non-string entries are
+// preserved; string entries whose page was not emitted are dropped; emitted pages not
+// already listed are appended in sorted order.
+func mergeTopMeta(path string, emitted []string) (string, error) {
+	meta := map[string]any{"title": "Go SDK"}
+	if data, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(data, &meta); err != nil {
+			return "", fmt.Errorf("parse %s: %w", path, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	pages, _ := meta["pages"].([]any)
+
+	exists := map[string]bool{}
+	for _, p := range emitted {
+		exists[p] = true
+	}
+
+	merged := []any{}
+	present := map[string]bool{}
+	for _, entry := range pages {
+		s, isString := entry.(string)
+		isSeparator := isString && strings.HasPrefix(s, "---") && strings.HasSuffix(s, "---")
+		if isString && !isSeparator && !exists[s] {
+			fmt.Println("meta.json: dropping stale page", s)
+			continue
+		}
+		merged = append(merged, entry)
+		if isString {
+			present[s] = true
+		}
+	}
+
+	var missing []string
+	for _, p := range emitted {
+		if !present[p] {
+			missing = append(missing, p)
+		}
+	}
+	sort.Strings(missing)
+	for _, p := range missing {
+		merged = append(merged, p)
+	}
+
+	meta["pages"] = merged
+	out, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(out) + "\n", nil
+}
+
+// verifyMetaCoverage asserts that every emitted .mdx page is reachable from a
+// meta.json pages array, so a generator bug can't silently orphan a page.
+func verifyMetaCoverage(files map[string]string) error {
+	pagesOf := func(name string) (map[string]bool, error) {
+		var m struct {
+			Pages []any `json:"pages"`
+		}
+		if err := json.Unmarshal([]byte(files[name]), &m); err != nil {
+			return nil, fmt.Errorf("parse emitted %s: %w", name, err)
+		}
+		set := map[string]bool{}
+		for _, e := range m.Pages {
+			if s, ok := e.(string); ok {
+				set[s] = true
+			}
+		}
+		return set, nil
+	}
+	top, err := pagesOf("meta.json")
+	if err != nil {
+		return err
+	}
+	feature, err := pagesOf(filepath.Join("feature-clients", "meta.json"))
+	if err != nil {
+		return err
+	}
+
+	var orphans []string
+	for name := range files {
+		if !strings.HasSuffix(name, ".mdx") {
+			continue
+		}
+		dir, base := filepath.Split(name)
+		page := strings.TrimSuffix(base, ".mdx")
+		reachable := false
+		switch dir {
+		case "":
+			reachable = top[page]
+		case "feature-clients" + string(filepath.Separator):
+			reachable = feature[page] && top["feature-clients"]
+		}
+		if !reachable {
+			orphans = append(orphans, name)
+		}
+	}
+	sort.Strings(orphans)
+	if len(orphans) > 0 {
+		return fmt.Errorf("emitted pages not reachable from any meta.json pages array: %s", strings.Join(orphans, ", "))
 	}
 	return nil
 }
