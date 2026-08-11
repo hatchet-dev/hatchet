@@ -52,31 +52,35 @@ type CreateMatchConditionsParams struct {
 const getPreviousMatchingEventsByKeysWithScopeHint = `-- name: GetPreviousMatchingEventsByKeysWithScopeHint :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::text[]) AS key,
-        UNNEST($3::timestamptz[]) AS since,
-        UNNEST($4::text[]) AS scope
+        UNNEST($1::text[]) AS key,
+        UNNEST($2::timestamptz[]) AS since,
+        UNNEST($3::text[]) AS scope,
+        UNNEST($4::uuid[]) AS tenant_id
 )
 
 SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM v1_event e
-JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
-WHERE tenant_id = $1::uuid
-ORDER BY e.seen_at DESC
+JOIN inputs i
+    ON i.key = e.key
+    AND e.seen_at >= i.since
+    AND e.scope = i.scope
+    AND e.tenant_id = i.tenant_id
+ORDER BY e.tenant_id, e.seen_at DESC, e.id DESC
 `
 
 type GetPreviousMatchingEventsByKeysWithScopeHintParams struct {
-	Tenantid   uuid.UUID            `json:"tenantid"`
 	Keys       []string             `json:"keys"`
 	Seensinces []pgtype.Timestamptz `json:"seensinces"`
 	Scopes     []string             `json:"scopes"`
+	Tenantids  []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) GetPreviousMatchingEventsByKeysWithScopeHint(ctx context.Context, db DBTX, arg GetPreviousMatchingEventsByKeysWithScopeHintParams) ([]*V1Event, error) {
 	rows, err := db.Query(ctx, getPreviousMatchingEventsByKeysWithScopeHint,
-		arg.Tenantid,
 		arg.Keys,
 		arg.Seensinces,
 		arg.Scopes,
+		arg.Tenantids,
 	)
 	if err != nil {
 		return nil, err
