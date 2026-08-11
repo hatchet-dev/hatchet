@@ -18,9 +18,6 @@ from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunLis
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
-    V1AdditionalMetadataOperator,
-)
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )
@@ -612,7 +609,6 @@ class RunsClient(BaseRestClient):
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
         include_payloads: bool = True,
-        additional_metadata_operator: Literal["AND", "OR"] = "OR",
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -629,7 +625,6 @@ class RunsClient(BaseRestClient):
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
         :param include_payloads: Whether to include payloads in the response.
-        :param additional_metadata_operator: The operator to use for filtering by additional metadata. Can be "AND" or "OR".
 
         :return: A list of task runs matching the specified filters.
         """
@@ -647,7 +642,6 @@ class RunsClient(BaseRestClient):
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
-            additional_metadata_operator=additional_metadata_operator,
         )
 
     def list(
@@ -664,7 +658,6 @@ class RunsClient(BaseRestClient):
         parent_task_external_id: str | None = None,
         triggering_event_external_id: str | None = None,
         include_payloads: bool = True,
-        additional_metadata_operator: Literal["AND", "OR"] = "OR",
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -681,7 +674,6 @@ class RunsClient(BaseRestClient):
         :param parent_task_external_id: The parent task external ID to filter task runs by.
         :param triggering_event_external_id: The event id that triggered the task run.
         :param include_payloads: Whether to include payloads in the response.
-        :param additional_metadata_operator: The operator to use for filtering by additional metadata. Can be "AND" or "OR".
 
         :return: A list of task runs matching the specified filters.
         """
@@ -701,9 +693,6 @@ class RunsClient(BaseRestClient):
             v1_workflow_run_list = tenacity_retry(
                 self._wra(client).v1_workflow_run_list, self.client_config.tenacity
             )
-            additional_meta_operator_enum = V1AdditionalMetadataOperator(
-                additional_metadata_operator
-            )
 
             return v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
@@ -721,7 +710,6 @@ class RunsClient(BaseRestClient):
                 parent_task_external_id=parent_task_external_id,
                 triggering_event_external_id=triggering_event_external_id,
                 include_payloads=include_payloads,
-                additional_metadata_operator=additional_meta_operator_enum,
             )
 
     def create(
