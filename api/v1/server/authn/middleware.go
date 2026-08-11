@@ -153,11 +153,8 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	session, err := store.Get(c.Request(), store.GetName())
 	ctx := c.Request().Context()
 	if err != nil {
-		err = a.helpers.SaveUnauthenticated(c)
-
-		if err != nil {
-			a.l.Error().Ctx(ctx).Err(err).Msg("error saving unauthenticated session")
-			return fmt.Errorf("error saving unauthenticated session")
+		if saveErr := a.helpers.SaveUnauthenticated(c); saveErr != nil {
+			return a.sessionSaveError(ctx, saveErr)
 		}
 
 		return forbidden
@@ -167,8 +164,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		// if the session is new, make sure we write a Set-Cookie header to the response
 		if session.IsNew {
 			if saveErr := a.helpers.SaveNewSession(c, session); saveErr != nil {
-				a.l.Error().Ctx(ctx).Err(saveErr).Msg("error saving unauthenticated session")
-				return fmt.Errorf("error saving unauthenticated session")
+				return a.sessionSaveError(ctx, saveErr)
 			}
 
 			c.Set("session", session)
@@ -217,6 +213,24 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
+}
+
+// sessionSaveError logs a failed unauthenticated session save and converts it into the
+// error returned to Echo. The session store saves through the request's context, so if
+// that context is already done the caller went away and the failure isn't a server
+// fault: log at info and return 499 instead of a 500. The underlying save error is kept
+// on the echo.HTTPError as its internal error, which is logged but never sent to the
+// client.
+func (a *AuthN) sessionSaveError(ctx context.Context, saveErr error) error {
+	if ctx.Err() != nil {
+		a.l.Info().Ctx(ctx).Err(saveErr).Msg("request ended while saving unauthenticated session")
+
+		return echo.NewHTTPError(middleware.StatusClientClosedRequest, "client closed request").SetInternal(saveErr)
+	}
+
+	a.l.Error().Ctx(ctx).Err(saveErr).Msg("error saving unauthenticated session")
+
+	return fmt.Errorf("error saving unauthenticated session")
 }
 
 func (a *AuthN) handleBearerAuth(c echo.Context) error {
