@@ -62,6 +62,7 @@ export default function Integrations() {
 
   const listManagedWorkersQuery = useQuery({
     ...queries.cloud.listManagedWorkers(tenant),
+    enabled: isControlPlaneEnabled,
   });
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
