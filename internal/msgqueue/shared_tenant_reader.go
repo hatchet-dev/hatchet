@@ -62,6 +62,8 @@ func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck MsgHandler) (
 		})
 
 		if err != nil {
+			t.fs.Delete(subId)
+			t.isRunning = false
 			return nil, err
 		}
 
@@ -147,6 +149,8 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId uuid.UUID, f DstFunc) (f
 		cleanupSingleSub, err := subBuffer.Start()
 
 		if err != nil {
+			t.fs.Delete(subId)
+			t.isRunning = false
 			return nil, err
 		}
 

@@ -542,7 +542,10 @@ type PubSubRabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty"`
 
 	MaxPubChans int32 `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"10"`
-	MaxSubChans int32 `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"20"`
+	// Each tenant with an active stream/event subscription holds one pooled
+	// subscriber channel for the life of that subscription. The previous
+	// default of 20 silently blocked new subscribers once saturated.
+	MaxSubChans int32 `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
 }
 
 type PubSubPostgresConfigFile struct {
