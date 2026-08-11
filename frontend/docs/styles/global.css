@@ -1,115 +1,365 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@plugin "tailwindcss-animate";
 
-/* ========================= */
-/* Root Variables & Theming  */
-/* ========================= */
-@layer base {
-  @font-face {
-    font-family: "JudgeExtended";
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url(./fonts/F37Judge-MediumExtended.woff2) format("woff2");
-  }
+@font-face {
+  font-family: "JudgeExtended";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/F37Judge-MediumExtended.woff2) format("woff2");
+  ascent-override: 105%;
+  descent-override: 35%;
+}
 
-  :root {
-    --nextra-primary-hue: 228;
-    --nextra-primary-saturation: 61%;
-    --nextra-primary-lightness: 44%;
-    --nextra-bg: 255 255 255;
+@font-face {
+  font-family: "Judge";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
+}
 
-    --navy: 228 61% 10%;
-    --cyan: 212 100% 86%;
-    --brand: hsl(var(--navy));
+@font-face {
+  font-family: "martina";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/martina-plantijn-regular.woff2) format("woff2");
+}
+@font-face {
+  font-family: "martina";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/martina-plantijn-italic.woff2) format("woff2");
+}
 
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+@font-face {
+  font-family: "dm-mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/dm-mono-regular.woff2) format("woff2");
+}
+@font-face {
+  font-family: "dm-mono";
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+  src: url(./fonts/dm-mono-regular-italic.woff2) format("woff2");
+}
+@font-face {
+  font-family: "dm-mono";
+  font-weight: 500;
+  font-display: swap;
+  src: url(./fonts/dm-mono-medium.woff2) format("woff2");
+}
+@font-face {
+  font-family: "dm-mono";
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+  src: url(./fonts/dm-mono-medium-italic.woff2) format("woff2");
+}
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+:root {
+  --navy: 228 61% 10%;
+  --cyan: 212 100% 86%;
+  --navy-dark: 227 88% 6%;
+  --cyan-dark: 212 60% 78%;
+  --blue: 212 100% 60%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
+  --opacity-1: 0.04;
+  --opacity-2: 0.08;
+  --opacity-3: 0.14;
+  --opacity-4: 0.18;
+  --opacity-5: 0.32;
+  --opacity-6: 0.56;
+  --opacity-7: 0.64;
+  --opacity-8: 0.72;
+  --opacity-9: 0.88;
 
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+  --brand: hsl(var(--navy));
 
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
+  --link: hsl(214 90% 46%);
+}
 
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
+.dark {
+  --brand: hsl(var(--cyan));
 
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+  --link: hsl(210 100% 76%);
+}
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+:root {
+  --color-fd-background: hsl(0 0% 100%);
+  --color-fd-foreground: hsl(0 0% 3.9%);
+  --color-fd-card: hsl(0 0% 100%);
+  --color-fd-card-foreground: hsl(0 0% 3.9%);
+  --color-fd-popover: hsl(0 0% 100%);
+  --color-fd-popover-foreground: hsl(0 0% 3.9%);
+  --color-fd-primary: hsl(var(--blue));
+  --color-fd-primary-foreground: hsl(0 0% 100%);
+  --color-fd-secondary: hsl(0 0% 96.1%);
+  --color-fd-secondary-foreground: hsl(0 0% 9%);
+  --color-fd-muted: hsl(0 0% 96.1%);
+  --color-fd-muted-foreground: hsl(0 0% 45.1%);
+  --color-fd-accent: hsl(0 0% 96.1%);
+  --color-fd-accent-foreground: hsl(0 0% 9%);
+  --color-fd-border: hsl(0 0% 89.8%);
+  --color-fd-ring: hsl(var(--blue));
+}
 
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+.dark {
+  --fg: 213 25% 90%;
+  --surface: 228 61% 10%;
+  --surface-2: 227 88% 6%;
+  --color-fd-background: hsl(var(--surface));
+  --color-fd-foreground: hsl(var(--fg));
+  --color-fd-card: hsl(var(--surface-2));
+  --color-fd-card-foreground: hsl(var(--fg));
+  --color-fd-popover: hsl(var(--surface-2));
+  --color-fd-popover-foreground: hsl(var(--fg));
+  --color-fd-primary: hsl(var(--blue));
+  --color-fd-primary-foreground: hsl(var(--surface));
+  --color-fd-secondary: hsl(212 100% 90% / 0.06);
+  --color-fd-secondary-foreground: hsl(var(--fg));
+  --color-fd-muted: hsl(212 100% 90% / 0.04);
+  --color-fd-muted-foreground: hsl(213 20% 66%);
+  --color-fd-accent: hsl(212 100% 90% / 0.08);
+  --color-fd-accent-foreground: hsl(var(--fg));
+  --color-fd-border: hsl(212 100% 85% / 0.1);
+  --color-fd-ring: hsl(var(--blue));
+}
 
-    /* Chart Colors */
-    --chart-1: 221.2 83.2% 53.3%;
-    --chart-2: 212 95% 68%;
-    --chart-3: 216 92% 60%;
-    --chart-4: 210 98% 78%;
-    --chart-5: 212 97% 87%;
+:root {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96.1%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96.1%;
+  --muted-foreground: 0 0% 45.1%;
+  --accent: 0 0% 96.1%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 89.8%;
+  --input: 0 0% 89.8%;
+  --ring: 0 0% 3.9%;
+  --chart-1: 221.2 83.2% 53.3%;
+  --chart-2: 212 95% 68%;
+  --chart-3: 216 92% 60%;
+  --chart-4: 210 98% 78%;
+  --chart-5: 212 97% 87%;
+  --radius: 0.5rem;
+}
 
-    --radius: 0.5rem;
-  }
+.dark {
+  --background: 228 61% 10%;
+  --foreground: 213 25% 90%;
+  --card: 227 88% 6%;
+  --card-foreground: 213 25% 90%;
+  --popover: 227 88% 6%;
+  --popover-foreground: 213 25% 90%;
+  --primary: 212 100% 60%;
+  --primary-foreground: 228 61% 10%;
+  --secondary: 226 30% 17%;
+  --secondary-foreground: 213 25% 90%;
+  --muted: 226 28% 14%;
+  --muted-foreground: 213 20% 66%;
+  --accent: 226 30% 17%;
+  --accent-foreground: 213 25% 90%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 227 42% 16%;
+  --input: 227 42% 16%;
+  --ring: 212 100% 60%;
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+}
 
-  .dark {
-    --nextra-primary-hue: 212;
-    --nextra-primary-saturation: 100%;
-    --nextra-primary-lightness: 60%;
-    --nextra-bg: 2 8 29;
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --font-mono: "dm-mono", ui-monospace, SFMono-Regular, monospace;
+  --font-judge: "JudgeExtended", sans-serif;
+  --font-judge-regular: "Judge", sans-serif;
+  --font-serif: "martina", ui-serif, Georgia, serif;
+}
 
-    --brand: hsl(var(--cyan));
+body {
+  font-size: 0.9375rem;
+}
 
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+#nd-page .prose {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+#nd-page .prose :is(code, pre, kbd, samp),
+#nd-page .prose :is([role="tablist"], table) {
+  font-family: var(--font-mono);
+}
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+#nd-page .prose :not(pre) > code {
+  font-size: 0.82em;
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  border: none;
+  background-color: var(--color-fd-muted);
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+#nd-page .prose :not(pre) > code::before,
+#nd-page .prose :not(pre) > code::after {
+  content: none;
+}
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+#nd-page .prose :is(h1, h2, h4, h5, h6) {
+  font-family: var(--font-judge);
+  font-weight: normal;
+}
+#nd-page .prose h1 {
+  font-size: 2.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+#nd-page .prose h2 {
+  font-size: 1.625rem;
+  line-height: 1.3;
+  letter-spacing: 0;
+  margin-top: 2.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--color-fd-border);
+}
+#nd-page .prose h3 {
+  font-family: var(--font-judge-regular);
+  font-weight: normal;
+  font-size: 1.5rem;
+  letter-spacing: 0;
+  margin-top: 2rem;
+}
+#nd-page .prose h4 {
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  margin-top: 2rem;
+}
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+#nd-page .prose a:not([data-card]) {
+  color: var(--link);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+  text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+  transition:
+    text-decoration-color 0.2s ease,
+    color 0.2s ease;
+}
+#nd-page .prose a:not([data-card]):hover {
+  text-decoration-color: var(--link);
+}
+#nd-page .prose :is(h1, h2, h3, h4, h5, h6) a {
+  color: inherit;
+  text-decoration: none;
+}
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+#nd-page .prose ul > li::marker {
+  color: hsl(var(--blue));
+}
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+#nd-sidebar {
+  font-family: "dm-mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.01em;
+}
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+#nd-sidebar a[href] {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 0.375rem 0.5625rem;
+  border-radius: 7px;
+  gap: 0.5rem;
+}
 
-    /* Dark Mode Chart Colors */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+#nd-sidebar p[class~="mt-6"] {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-top: 1rem;
+  margin-bottom: 0.3rem;
+}
+
+.dark #nd-sidebar p[class~="mt-6"] {
+  color: #e7eefb;
+}
+.dark #nd-sidebar a[href] {
+  color: #93a3c2;
+}
+.dark #nd-sidebar a[href]:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #e7eefb;
+}
+.dark #nd-sidebar a[href][data-active="true"] {
+  background-color: rgba(51, 146, 255, 0.16);
+  color: #7cb8ff;
+  font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  #nd-docs-layout {
+    grid-template-columns:
+      0
+      var(--fd-sidebar-col)
+      minmax(0, 1fr)
+      var(--fd-toc-width)
+      0 !important;
   }
 }
 
-/* ========================= */
-/* Custom UI Components      */
-/* ========================= */
+[data-radix-popper-content-wrapper]:has(
+  [class*="radix-popover-trigger-width"]
+) {
+  font-family: var(--font-mono);
+}
+
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;
@@ -142,9 +392,6 @@
     opacity var(--transition);
 }
 
-/* ========================= */
-/* Animation Effects         */
-/* ========================= */
 .spark {
   position: absolute;
   inset: 0;
@@ -167,201 +414,6 @@
   }
 }
 
-/* ========================= */
-/* Nextra Cards Overrides    */
-/* ========================= */
-.nextra-cards {
-  display: grid;
-  gap: 0.875rem;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  grid-template-columns: repeat(var(--rows, 3), minmax(0, 1fr));
-  align-items: stretch;
-}
-
-@media (max-width: 768px) {
-  .nextra-cards {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Card: minimal doc-style link block. Title on top (column-reverse), then description. */
-.nextra-card {
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: stretch;
-  justify-content: flex-start;
-  min-height: 100%;
-  gap: 0.375rem;
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius, 0.5rem);
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--card));
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: hsl(var(--muted-foreground));
-  text-decoration: none;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-/* Description/content area grows to fill space for equal-height cards */
-.nextra-card > *:not(span) {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-wrap: break-word;
-}
-
-.nextra-card:hover {
-  border-color: hsl(var(--ring));
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
-}
-
-/* Title row: icon + label. Override Nextra’s padding so card padding controls spacing. */
-.nextra-card > span {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0;
-  margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: hsl(var(--foreground));
-}
-
-.nextra-card:hover > span {
-  color: hsl(var(--foreground));
-}
-
-/* Optional arrow after title on hover */
-.nextra-card > span::after {
-  content: "→";
-  margin-left: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.nextra-card:hover > span::after {
-  opacity: 0.7;
-  transform: translateX(2px);
-}
-
-/* Allow natural wrapping instead of truncation for better readability */
-.nextra-card ._truncate {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  word-wrap: break-word;
-}
-
-/* ========================= */
-/* Dark Mode Fixes (Nextra)  */
-/* ========================= */
-
-html
-  :is(
-    kbd,
-    ._border-gray-200,
-    .dark\:_border-neutral-800,
-    .nx-border,
-    .nextra-sidebar-footer,
-    .nextra-toc-footer,
-    .nextra-code-block pre,
-    .nextra-code pre,
-
-  ) {
-  @apply border-[color:hsl(var(--border))] dark:border-[color:hsl(var(--border))];
-  @apply ring-[color:hsl(var(--border))] dark:ring-[color:hsl(var(--border))];
-}
-
-/* ========================= */
-/* Code Block Styling        */
-/* ========================= */
-.shiki {
-  padding: 15px !important;
-  border-radius: 10px !important;
-  background-color: #ccc;
-  border-radius: 0.375rem; /* rounded-md */
-  font-size: 0.875rem;
-  border-width: 1px;
-  border-style: solid;
-}
-
-html.dark .nextra-code-block pre,
-html.dark .nextra-code pre,
-.dark .shiki {
-  background-color: transparent !important;
-  border-color: hsl(var(--border)) !important;
-}
-
-pre.shiki {
-  overflow-x: auto;
-}
-
-/* High contrast mode */
-.contrast-more .shiki {
-  filter: contrast(1.5);
-}
-
-/* ========================= */
-/* Miscellaneous Fixes       */
-/* ========================= */
-
-/* Slightly smaller default body text (paragraphs/lists inherit from body) */
-body {
-  font-size: 0.9375rem;
-}
-
-/* More breathing room between the main content column and the sidebar */
-@media (min-width: 768px) {
-  article.nextra-content {
-    padding-left: max(env(safe-area-inset-left), 2.5rem);
-    padding-right: max(env(safe-area-inset-right), 2.5rem);
-  }
-}
-
-h1,
-h2,
-h3 {
-  font-family: "JudgeExtended", sans-serif;
-  font-weight: normal !important;
-  letter-spacing: 0 !important;
-}
-
-h2 {
-  font-size: 1.625rem !important;
-}
-
-.nextra-steps h3::before {
-  line-height: 25px;
-}
-
-.dark .nextra-breadcrumb a,
-.dark .nextra-breadcrumb a:visited,
-.dark .nextra-breadcrumb a:hover,
-.dark .nextra-breadcrumb a:active {
-  background: none !important;
-  -webkit-text-fill-color: var(--ash-gray) !important;
-}
-
-.nextra-nav-container-blur {
-  background-color: var(--background) !important;
-}
-
-nav:not(.nextra-toc) {
-  background-color: var(--background) !important;
-}
-
-.dark .nx-sticky,
-.dark ._sticky {
-  box-shadow: none !important;
-}
-
-/* MCP / markdown action links - always under breadcrumbs, left justified */
 .page-actions {
   display: flex;
   gap: 0.75rem;

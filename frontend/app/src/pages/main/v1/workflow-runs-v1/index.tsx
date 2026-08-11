@@ -3,6 +3,7 @@ import { RunsProvider } from './hooks/runs-provider';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { useOnboardingActions } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Loading } from '@/components/v1/ui/loading';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
@@ -16,6 +17,7 @@ export default function RunsPage() {
     href: docsPages.v1.quickstart.href,
     description: 'Learn about running tasks',
   });
+  const { isSelfHosted } = useControlPlane();
 
   const since24h = useMemo(
     () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -26,12 +28,16 @@ export default function RunsPage() {
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
   const recentRunsQuery = useQuery(
-    queries.v1WorkflowRuns.list(tenantId, {
-      limit: 1,
-      offset: 0,
-      since: since24h,
-      only_tasks: false,
-    }),
+    queries.v1WorkflowRuns.list(
+      tenantId,
+      {
+        limit: 1,
+        offset: 0,
+        since: since24h,
+        only_tasks: false,
+      },
+      isSelfHosted,
+    ),
   );
 
   if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
@@ -39,11 +45,16 @@ export default function RunsPage() {
   }
 
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-  const hasRecentRuns = (recentRunsQuery.data?.rows?.length ?? 0) > 0;
+  const hasRecentRuns =
+    recentRunsQuery.data !== 'timeout' &&
+    (recentRunsQuery.data?.rows?.length ?? 0) > 0;
 
   // Fail open on probe errors: the table's own error handling is more useful
   // than trapping the user on the onboarding placeholder.
-  const probesErrored = workflowCountQuery.isError || recentRunsQuery.isError;
+  const probesErrored =
+    workflowCountQuery.isError ||
+    recentRunsQuery.isError ||
+    recentRunsQuery.data === 'timeout';
 
   if (!probesErrored && !hasWorkflows && !hasRecentRuns) {
     return (

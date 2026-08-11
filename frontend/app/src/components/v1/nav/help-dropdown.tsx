@@ -63,14 +63,12 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
 }
 
 export function HelpDropdown({
-  variant = 'default',
   triggerVariant = 'icon',
   align = 'end',
   side,
   className,
 }: {
-  variant?: 'default' | 'sidebar';
-  triggerVariant?: 'icon' | 'button' | 'split';
+  triggerVariant?: 'icon' | 'split';
   align?: React.ComponentProps<typeof DropdownMenuContent>['align'];
   side?: React.ComponentProps<typeof DropdownMenuContent>['side'];
   className?: string;
@@ -127,16 +125,6 @@ export function HelpDropdown({
       );
     }
 
-    if (triggerVariant === 'button') {
-      return (
-        <SidebarButtonPrimaryAction
-          name="Help & Support"
-          icon={<BiHelpCircle className="size-4 mr-2" />}
-          className={cn(className)}
-        />
-      );
-    }
-
     return (
       <Button
         variant="icon"
@@ -160,7 +148,7 @@ export function HelpDropdown({
       )}
       <DropdownMenuContent
         className="w-56"
-        variant={variant === 'sidebar' ? 'sidebar' : 'default'}
+        variant={'sidebar'}
         align={align}
         side={side}
         forceMount

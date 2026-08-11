@@ -3273,6 +3273,7 @@ type V1DurableEventLogEntry struct {
 	IdempotencyKey          []byte                `json:"idempotency_key"`
 	IsSatisfied             bool                  `json:"is_satisfied"`
 	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
 }
@@ -3285,6 +3286,7 @@ type V1DurableEventLogFile struct {
 	LatestInsertedAt      pgtype.Timestamptz `json:"latest_inserted_at"`
 	LatestNodeID          int64              `json:"latest_node_id"`
 	LatestBranchID        int64              `json:"latest_branch_id"`
+	LatestSatisfiedOrder  int64              `json:"latest_satisfied_order"`
 }
 
 type V1DurableSleep struct {
@@ -3305,25 +3307,11 @@ type V1Event struct {
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
 }
 
-type V1EventLookupTable struct {
-	TenantID    uuid.UUID          `json:"tenant_id"`
-	ExternalID  uuid.UUID          `json:"external_id"`
-	EventID     int64              `json:"event_id"`
-	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
-}
-
 type V1EventLookupTableOlap struct {
 	TenantID    uuid.UUID          `json:"tenant_id"`
 	ExternalID  uuid.UUID          `json:"external_id"`
 	EventID     int64              `json:"event_id"`
 	EventSeenAt pgtype.Timestamptz `json:"event_seen_at"`
-}
-
-type V1EventToRun struct {
-	RunExternalID uuid.UUID          `json:"run_external_id"`
-	EventID       int64              `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      *uuid.UUID         `json:"filter_id"`
 }
 
 type V1EventToRunOlap struct {

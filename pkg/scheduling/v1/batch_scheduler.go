@@ -680,7 +680,7 @@ func (b *BatchScheduler) emitWaitingEvents(group *batchGroup, newItems []*sqlcv1
 
 	batchMaxIntervalMs := b.batchMaxIntervalMs()
 
-	pending := (int32)(len(group.buffer))
+	pending := (int32)(len(group.buffer)) // #nosec G115 -- buffer length is bounded by batchSize, an int32
 
 	buffered := make([]*v1repo.AssignedItem, 0, len(newItems))
 
@@ -706,9 +706,9 @@ func (b *BatchScheduler) emitWaitingEvents(group *batchGroup, newItems []*sqlcv1
 			Batch: &v1repo.BatchAssignmentMetadata{
 				State:                        "waiting",
 				TriggeredAt:                  triggeredAt,
-				ConfiguredBatchMaxSize:       int32(b.batchSize),
+				ConfiguredBatchMaxSize:       int32(b.batchSize), // #nosec G115 -- constructed from an int32
 				ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,
-				ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns),
+				ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns), // #nosec G115 -- constructed from an int32
 				Pending:                      pending,
 				NextFlushAt:                  group.flushDeadline,
 				BatchID:                      "",
@@ -964,9 +964,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 					State:                        "flushed",
 					Reason:                       reason,
 					TriggeredAt:                  triggeredAt,
-					ConfiguredBatchMaxSize:       int32(b.batchSize),
+					ConfiguredBatchMaxSize:       int32(b.batchSize), // #nosec G115 -- constructed from an int32
 					ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,
-					ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns),
+					ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns), // #nosec G115 -- constructed from an int32
 					Pending:                      0,
 					NextFlushAt:                  nil,
 					BatchID:                      batchID,

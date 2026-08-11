@@ -1,0 +1,220 @@
+---
+title: "Autoscaling Workers"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Autoscaling Workers
+
+Hatchet provides a Task Stats API that enables you to implement autoscaling for your worker pools. By querying real-time queue depths and task distribution, you can dynamically scale workers based on actual workload demand.
+
+## Task Stats API
+
+The Task Stats endpoint returns current statistics for queued and running tasks across your tenant, broken down by task name, queue, and concurrency group.
+
+### Endpoint
+
+```
+GET /api/v1/tenants/{tenantId}/task-stats
+```
+
+### Authentication
+
+The endpoint requires Bearer token authentication using a valid API token:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+### Response Format
+
+The response is a JSON object keyed by task name, with each task containing statistics for queued and running states:
+
+```json
+{
+  "my-task": {
+    "queued": {
+      "total": 150,
+      "queues": {
+        "my-task:default": 100,
+        "my-task:priority": 50
+      },
+      "concurrency": [
+        {
+          "expression": "input.user_id",
+          "type": "GROUP_ROUND_ROBIN",
+          "keys": {
+            "user-123": 10,
+            "user-456": 15
+          }
+        }
+      ],
+      "oldest": "2024-01-15T10:30:00Z"
+    },
+    "running": {
+      "total": 25,
+      "oldest": "2024-01-15T10:25:00Z",
+      "concurrency": []
+    }
+  }
+}
+```
+
+Each task stat includes:
+
+- **total**: The total count of tasks in this state
+- **concurrency**: Distribution across concurrency groups (if concurrency limits are configured)
+- **oldest**: Timestamp of the oldest task in the specified state
+
+These are available only for `queued` tasks:
+
+- **queues**: A breakdown of task counts by queue name
+
+### Example Usage
+
+```bash
+curl -H "Authorization: Bearer your-api-token-here" \
+  https://cloud.onhatchet.run/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/task-stats
+```
+
+## Autoscaling with KEDA
+
+[KEDA](https://keda.sh) (Kubernetes Event-driven Autoscaling) can use the Task Stats API to automatically scale your worker deployments based on queue depth.
+
+### Setting Up a KEDA ScaledObject
+
+Create a `ScaledObject` that queries the Hatchet Task Stats API and scales your worker deployment based on the number of queued tasks:
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: hatchet-worker-scaler
+spec:
+  scaleTargetRef:
+    name: hatchet-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: metrics-api
+      metadata:
+        targetValue: "100"
+        url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=my-task"
+        valueLocation: "my-task.queued.total"
+        authMode: "bearer"
+      authenticationRef:
+        name: hatchet-api-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hatchet-api-token
+type: Opaque
+stringData:
+  token: "your-api-token-here"
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: hatchet-api-token
+spec:
+  secretTargetRef:
+    - parameter: token
+      name: hatchet-api-token
+      key: token
+```
+
+<Callout type="info">
+  The `valueLocation` field uses JSONPath-style notation to extract a specific
+  value from the response. Adjust `my-task` to match your actual task name.
+
+Pass each task you scale on via the `taskNames` query parameter so the
+endpoint guarantees the JSONPath resolves with `0` when no work is queued.
+Without it, the response can be `{}` and KEDA's metrics-api scaler will fail
+to scale from zero.
+
+</Callout>
+
+### Scaling Based on Multiple Tasks
+
+If you have multiple task types handled by the same worker, you can create multiple triggers or use a custom metrics endpoint that aggregates the totals:
+
+```yaml
+triggers:
+  - type: metrics-api
+    metadata:
+      targetValue: "50"
+      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=task-a"
+      valueLocation: "task-a.queued.total"
+      authMode: "bearer"
+    authenticationRef:
+      name: hatchet-api-token
+  - type: metrics-api
+    metadata:
+      targetValue: "50"
+      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=task-b"
+      valueLocation: "task-b.queued.total"
+      authMode: "bearer"
+    authenticationRef:
+      name: hatchet-api-token
+```
+
+### Scaling Based on Worker Slot Utilization
+
+Instead of scaling on queue depth, you can scale on how utilized your workers' slots are. Hatchet exposes [Prometheus metrics](/self-hosting/prometheus-metrics) that track used and total slots per unique worker label `(key, value)` pair and slot type, so each labeled worker pool can be scaled independently:
+
+- `hatchet_tenant_worker_label_slots{tenant_id, label_key, label_value, slot_type}`: total slots of the slot type across workers with the label pair
+- `hatchet_tenant_used_worker_label_slots{tenant_id, label_key, label_value, slot_type}`: used slots of the slot type across workers with the label pair
+
+The `slot_type` label separates a worker's independent slot pools (e.g. `default` and `durable`). Scale on the slot type your tasks consume — usually `default` — so that a large, mostly-idle durable slot pool doesn't mask saturation of the default slots.
+
+Averaging the used and total slot gauges separately over a time window and then dividing gives the average utilization of a worker pool over that window:
+
+```promql
+avg_over_time(hatchet_tenant_used_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+/
+avg_over_time(hatchet_tenant_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+```
+
+This query returns a value between 0 and 1. Averaging the numerator and denominator separately (rather than averaging the ratio) keeps the result correct when workers scale up or down within the window.
+
+With [KEDA's Prometheus scaler](https://keda.sh/docs/latest/scalers/prometheus/), you can scale a worker deployment up when average utilization exceeds 75%:
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gpu-worker-scaler
+spec:
+  scaleTargetRef:
+    name: gpu-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        threshold: "0.75"
+        query: |
+          avg_over_time(hatchet_tenant_used_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+          /
+          avg_over_time(hatchet_tenant_worker_label_slots{tenant_id="<tenant-id>", label_key="pool", label_value="gpu", slot_type="default"}[5m])
+```
+
+Workers that do not carry the targeted label do not affect the query. To autoscale on a tenant's entire worker fleet regardless of labels, use the per-worker gauges instead:
+
+```promql
+sum by (tenant_id) (avg_over_time(hatchet_tenant_used_worker_slots{tenant_id="<tenant-id>"}[5m]))
+/
+sum by (tenant_id) (avg_over_time(hatchet_tenant_worker_slots{tenant_id="<tenant-id>"}[5m]))
+```
+
+### Scaling Based on Queue Backlog by Metadata Tag
+
+To scale on queue depth via Prometheus instead of the Task Stats API, Hatchet exposes queue size gauges, including one grouped by the additional metadata `(key, value)` pairs on queued tasks. Only metadata keys prefixed with `prom_` are exported. If your GPU workloads tag their workflow runs with additional metadata (e.g. `prom_pool: gpu`), the GPU backlog can drive its own scaler:
+
+```promql
+sum(hatchet_tenant_additional_metadata_queue_size{tenant_id="<tenant-id>", key="prom_pool", value="gpu"}) or vector(0)
+```
+
+The `or vector(0)` matters for scale-to-zero: once a queue drains, its series is removed shortly after reporting zero. There is also `hatchet_tenant_queue_size{tenant_id, queue, workflow_name}` for scaling on a specific queue or workflow's backlog. Both gauges are polled from the database every 15 seconds.

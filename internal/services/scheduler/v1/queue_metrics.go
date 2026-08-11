@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -157,6 +158,12 @@ func (p *queueMetricsPoller) applyMetadataSizes(tenantId uuid.UUID, rows []*sqlc
 	current := make(map[metadataQueueSizeKey]struct{}, len(rows))
 
 	for _, row := range rows {
+		// GetQueueSizesByMetadata filters on the same prefix; it is re-checked here because
+		// this is where series are allocated
+		if !strings.HasPrefix(row.Key, repov1.PrometheusMetadataKeyPrefix) {
+			continue
+		}
+
 		k := metadataQueueSizeKey{queue: row.Queue, key: row.Key, value: row.Value}
 		current[k] = struct{}{}
 		prometheus.TenantQueueSizeByMetadata.WithLabelValues(tenantIdStr, k.queue, k.key, k.value).Set(float64(row.Count))

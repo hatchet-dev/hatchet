@@ -70,6 +70,7 @@ func (r *rateLimiter) Cleanup() {
 
 func (r *rateLimiter) loopFlush(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -179,7 +180,11 @@ func (r *rateLimiter) shouldRefill() bool {
 		return false
 	}
 
-	return r.nextRefillAt.After(time.Now().UTC())
+	// refill once the deadline has been reached, so use() sees refilled limits
+	// immediately instead of waiting for the next background flush tick. The
+	// early-return guard in flushToDatabase bounds how often this hits the
+	// database.
+	return !r.nextRefillAt.After(time.Now().UTC())
 }
 
 func (r *rateLimiter) copyDbRateLimits() rateLimitSet {

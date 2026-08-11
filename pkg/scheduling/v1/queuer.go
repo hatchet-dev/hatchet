@@ -568,16 +568,6 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 	return newCurr, nil
 }
 
-type QueueResults struct {
-	TenantId uuid.UUID
-	Assigned []*v1.AssignedItem
-	Buffered []*v1.AssignedItem
-
-	Unassigned         []*sqlcv1.V1QueueItem
-	SchedulingTimedOut []*sqlcv1.V1QueueItem
-	RateLimited        []*v1.RateLimitResult
-}
-
 func (q *Queuer) ack(r *assignResults) {
 	q.unackedMu.Lock()
 	defer q.unackedMu.Unlock()

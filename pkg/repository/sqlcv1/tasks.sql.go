@@ -203,65 +203,6 @@ func (q *Queries) CountActiveTaskBatchRuns(ctx context.Context, db DBTX, arg Cou
 	return active_count, err
 }
 
-const createEventToRuns = `-- name: CreateEventToRuns :many
-WITH input AS (
-    SELECT
-        UNNEST($1::uuid[]) AS run_external_id,
-        UNNEST($2::bigint[]) AS event_id,
-        UNNEST($3::timestamptz[]) AS event_seen_at,
-        UNNEST($4::uuid[]) AS filter_id
-)
-INSERT INTO v1_event_to_run (run_external_id, event_id, event_seen_at, filter_id)
-SELECT
-    run_external_id,
-    event_id,
-    event_seen_at,
-    CASE WHEN filter_id = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
-        ELSE filter_id
-    END AS filter_id
-FROM
-    input
-RETURNING
-    run_external_id, event_id, event_seen_at, filter_id
-`
-
-type CreateEventToRunsParams struct {
-	Runexternalids []uuid.UUID          `json:"runexternalids"`
-	Eventids       []int64              `json:"eventids"`
-	Eventseenats   []pgtype.Timestamptz `json:"eventseenats"`
-	Filterids      []uuid.UUID          `json:"filterids"`
-}
-
-func (q *Queries) CreateEventToRuns(ctx context.Context, db DBTX, arg CreateEventToRunsParams) ([]*V1EventToRun, error) {
-	rows, err := db.Query(ctx, createEventToRuns,
-		arg.Runexternalids,
-		arg.Eventids,
-		arg.Eventseenats,
-		arg.Filterids,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1EventToRun
-	for rows.Next() {
-		var i V1EventToRun
-		if err := rows.Scan(
-			&i.RunExternalID,
-			&i.EventID,
-			&i.EventSeenAt,
-			&i.FilterID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const createPartitions = `-- name: CreatePartitions :exec
 SELECT
     create_v1_range_partition('v1_task', $1::date),
@@ -270,8 +211,6 @@ SELECT
     create_v1_range_partition('v1_log_line', $1::date),
     create_v1_range_partition('v1_payload', $1::date),
     create_v1_range_partition('v1_event', $1::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table', $1::date),
-    create_v1_range_partition('v1_event_to_run', $1::date),
     create_v1_range_partition('v1_durable_event_log_file', $1::date),
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80)
@@ -1442,10 +1381,6 @@ WITH task_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
 ), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', $1::date) AS p
-), event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', $1::date) AS p
-), event_to_run_partitions AS (
-    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', $1::date) AS p
 ), durable_event_log_file_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', $1::date) AS p
 ), durable_event_log_entry_partitions AS (
@@ -1493,20 +1428,6 @@ SELECT
     parent_table, partition_name
 FROM
     event_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    event_lookup_table_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    event_to_run_partitions
 
 UNION ALL
 

@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "v1-sdk-improvements",
+    "migration-guide-engine",
+    "migration-guide-python",
+    "migration-guide-typescript",
+    "migration-guide-go"
+  ],
+  "title": "V0 to V1 Upgrade Guide"
+}
