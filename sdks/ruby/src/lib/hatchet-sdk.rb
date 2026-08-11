@@ -227,7 +227,7 @@ module Hatchet
     # @option opts [Array<String>] :on_events ([]) A list of event triggers for the task - events which cause the task to be run
     # @option opts [Array<DefaultFilter>] :default_filters ([]) A list of filters to create when the task is created
     # @option opts [TTLBasedIdempotencyConfig, StatusBasedIdempotencyConfig, nil] :idempotency (nil) An idempotency configuration for the task
-    # @option opts [Hash] :opts ({}) Any other task options (+retries:+, +execution_timeout:+, +concurrency:+, and so on) are forwarded to the task declaration - see {Workflow#task} for the full list
+    # @param opts [Hash] Any other keyword arguments (+retries:+, +execution_timeout:+, +concurrency:+, and so on) are forwarded to the task declaration - see {Workflow#task} for the full list
     # @yield [input, ctx] The task execution block
     # @return [Hatchet::Task] The created task object, which can be run, scheduled, and registered on a worker
     #
@@ -253,7 +253,7 @@ module Hatchet
     #
     # @param name [String] The name of the task
     # @param batch [Hatchet::BatchTaskConfig] The batch configuration (+max_size+, flush interval, +broadcast_output+)
-    # @option opts [Hash] :opts ({}) Any other task options (+on_events:+, +idempotency:+, and so on)
+    # @param opts [Hash] Any other keyword arguments (+on_events:+, +idempotency:+, and so on) are forwarded to {#task}
     # @yield [inputs, ctx] The batch execution block, receiving a Hash of task-run external id => input
     # @return [Hatchet::Task] The created batch task object
     #
@@ -274,7 +274,7 @@ module Hatchet
     #   durable task. Defaults to {Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY}
     #   (15-minute TTL, capacity-eviction enabled). Pass ``nil`` to disable
     #   eviction entirely for this task.
-    # @option opts [Hash] :opts ({}) Any other task options forwarded to the task declaration
+    # @param opts [Hash] Any other keyword arguments (+retries:+, +execution_timeout:+, and so on) are forwarded to the task declaration - see {Workflow#task} for the full list
     # @yield [input, ctx] The task execution block
     # @return [Hatchet::Task] The created durable task object
     def durable_task(name:, eviction_policy: Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY, **opts, &block)

@@ -183,13 +183,12 @@ my_task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
 
 Parameters:
 
-| Name              | Type                                                               | Description                                                                                                                                                         | Default    |
-| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `name`            | `String`                                                           | The name of the task.                                                                                                                                               | _required_ |
-| `on_events`       | `Array<String>`                                                    | A list of event triggers for the task - events which cause the task to be run.                                                                                      | `[]`       |
-| `default_filters` | `Array<DefaultFilter>`                                             | A list of filters to create when the task is created.                                                                                                               | `[]`       |
-| `idempotency`     | `TTLBasedIdempotencyConfig \| StatusBasedIdempotencyConfig \| nil` | An idempotency configuration for the task.                                                                                                                          | `nil`      |
-| `opts`            | `Hash`                                                             | Any other task options (`retries:`, `execution_timeout:`, `concurrency:`, and so on) are forwarded to the task declaration - see `Workflow#task` for the full list. | `{}`       |
+| Name              | Type                                                               | Description                                                                    | Default    |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------- |
+| `name`            | `String`                                                           | The name of the task.                                                          | _required_ |
+| `on_events`       | `Array<String>`                                                    | A list of event triggers for the task - events which cause the task to be run. | `[]`       |
+| `default_filters` | `Array<DefaultFilter>`                                             | A list of filters to create when the task is created.                          | `[]`       |
+| `idempotency`     | `TTLBasedIdempotencyConfig \| StatusBasedIdempotencyConfig \| nil` | An idempotency configuration for the task.                                     | `nil`      |
 
 Returns:
 
@@ -207,7 +206,7 @@ Parameters:
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `name`            | `String`                         | The name of the task.                                                                                                                                                                                 | _required_                                      |
 | `eviction_policy` | `Hatchet::EvictionPolicy \| nil` | Eviction policy for this durable task. Defaults to `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` (15-minute TTL, capacity-eviction enabled). Pass `nil` to disable eviction entirely for this task. | `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
-| `opts`            | `Hash`                           | Any other task options forwarded to the task declaration.                                                                                                                                             | `{}`                                            |
+| `**opts`          | `Hash`                           | Any other keyword arguments (`retries:`, `execution_timeout:`, and so on) are forwarded to the task declaration - see `Workflow#task` for the full list.                                              | `{}`                                            |
 
 Returns:
 
@@ -231,11 +230,11 @@ end
 
 Parameters:
 
-| Name    | Type                       | Description                                                              | Default    |
-| ------- | -------------------------- | ------------------------------------------------------------------------ | ---------- |
-| `name`  | `String`                   | The name of the task.                                                    | _required_ |
-| `batch` | `Hatchet::BatchTaskConfig` | The batch configuration (`max_size`, flush interval, `broadcast_output`) | _required_ |
-| `opts`  | `Hash`                     | Any other task options (`on_events:`, `idempotency:`, and so on)         | `{}`       |
+| Name     | Type                       | Description                                                                                    | Default    |
+| -------- | -------------------------- | ---------------------------------------------------------------------------------------------- | ---------- |
+| `name`   | `String`                   | The name of the task.                                                                          | _required_ |
+| `batch`  | `Hatchet::BatchTaskConfig` | The batch configuration (`max_size`, flush interval, `broadcast_output`)                       | _required_ |
+| `**opts` | `Hash`                     | Any other keyword arguments (`on_events:`, `idempotency:`, and so on) are forwarded to `task`. | `{}`       |
 
 Returns:
 

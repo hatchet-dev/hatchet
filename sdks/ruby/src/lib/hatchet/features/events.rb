@@ -12,8 +12,8 @@ module Hatchet
     #
     # @example Creating an event
     #   response = hatchet.events.push(
-    #     key: "user-login",
-    #     data: { user_id: 123, action: "login" },
+    #     "user-login",
+    #     { user_id: 123, action: "login" },
     #     additional_metadata: { ip_address: "192.168.1.1" }
     #   )
     #
