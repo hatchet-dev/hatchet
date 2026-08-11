@@ -1121,6 +1121,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		childTaskExternalIds := make([]uuid.UUID, 0, len(skipOpts))
 		durableTaskIds := make([]int64, 0, len(skipOpts))
 		durableTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(skipOpts))
+		tenantIds := make([]uuid.UUID, 0, len(skipOpts))
 		seenChildTaskExternalIds := make(map[uuid.UUID]struct{}, len(skipOpts))
 		for _, o := range skipOpts {
 			if o.ChildTaskExternalId == uuid.Nil {
@@ -1135,11 +1136,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			childTaskExternalIds = append(childTaskExternalIds, o.ChildTaskExternalId)
 			durableTaskIds = append(durableTaskIds, o.DurableTaskId)
 			durableTaskInsertedAts = append(durableTaskInsertedAts, o.DurableTaskInsertedAt)
+			tenantIds = append(tenantIds, o.TenantId)
 		}
 
 		skipRows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
 			Durabletaskids:         durableTaskIds,
 			Durabletaskinsertedats: durableTaskInsertedAts,
+			Tenantids:              tenantIds,
 			Childtaskexternalids:   childTaskExternalIds,
 		})
 
