@@ -863,7 +863,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	workflowResult, err := workflowRunRef.Result()
+	workflowResult, err := workflowRunRef.resultWithContext(ctx)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
