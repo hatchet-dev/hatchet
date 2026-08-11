@@ -31,7 +31,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-func getEnvConfig() (string, bool, string, bool, bool, bool) {
+func getEnvConfig() (string, bool, string, bool, bool) {
 	// Get migration strategy: penultimate or latest
 	migrateStrategy := os.Getenv("TESTING_MATRIX_MIGRATE")
 	if migrateStrategy == "" {
@@ -53,10 +53,7 @@ func getEnvConfig() (string, bool, string, bool, bool, bool) {
 	// Get whether PgBouncer connection pooling is enabled
 	pgBouncerEnabled := strings.ToLower(os.Getenv("TESTING_MATRIX_PGBOUNCER_ENABLED")) == "true"
 
-	// Get whether the v1alpha (event loop) scheduler is enabled
-	v1alphaScheduler := strings.ToLower(os.Getenv("TESTING_MATRIX_V1ALPHA_SCHEDULER")) == "true"
-
-	return migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled, v1alphaScheduler
+	return migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled
 }
 
 func RunTestWithEngine(m *testing.M) {
@@ -104,9 +101,9 @@ func startEngine() func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get configuration values from environment
-	migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled, v1alphaScheduler := getEnvConfig()
+	migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled := getEnvConfig()
 
-	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s, PgBouncer enabled: %t, v1alpha scheduler enabled: %t", migrateStrategy, rabbitmqEnabled, pgVersion, pgBouncerEnabled, v1alphaScheduler)
+	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s, PgBouncer enabled: %t", migrateStrategy, rabbitmqEnabled, pgVersion, pgBouncerEnabled)
 
 	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
@@ -172,12 +169,6 @@ func startEngine() func() {
 		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "true")
 	} else {
 		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "false")
-	}
-
-	if v1alphaScheduler {
-		os.Setenv("SERVER_V1ALPHA_SCHEDULER_ENABLED", "true")
-	} else {
-		os.Setenv("SERVER_V1ALPHA_SCHEDULER_ENABLED", "false")
 	}
 
 	// Run migrations

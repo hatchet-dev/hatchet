@@ -3,12 +3,15 @@ package operation
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var testResourceID = uuid.New().String()
@@ -56,6 +59,7 @@ func TestInterval_RunInterval_WithJitter(t *testing.T) {
 		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
+		// firstTrigger left false so subsequent-trigger timing (interval+jitter) is measured
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -283,4 +287,225 @@ func TestInterval_RunInterval_Integration(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase(t *testing.T) {
+	const (
+		base   = 100 * time.Millisecond
+		jitter = 50 * time.Millisecond
+		window = base + jitter
+		n      = 40
+	)
+
+	var delays []time.Duration
+	for i := 0; i < n; i++ {
+		interval := &Interval{
+			resourceId:    testResourceID,
+			maxJitter:     jitter,
+			startInterval: base,
+			currInterval:  base,
+			maxInterval:   time.Second,
+			firstTrigger:  true,
+			repo:          v1.NewNoOpIntervalSettingsRepository(),
+		}
+
+		start := time.Now()
+		<-interval.getNextTrigger()
+		delays = append(delays, time.Since(start))
+
+		// Subsequent trigger should wait ~base (+jitter), not a full-window phase near zero.
+		start = time.Now()
+		<-interval.getNextTrigger()
+		second := time.Since(start)
+		assert.GreaterOrEqual(t, second, base-5*time.Millisecond, "subsequent trigger should wait at least the base interval")
+		assert.LessOrEqual(t, second, window+20*time.Millisecond, "subsequent trigger should not exceed base+jitter")
+	}
+
+	var min, max time.Duration = delays[0], delays[0]
+	var sum time.Duration
+	for _, d := range delays {
+		if d < min {
+			min = d
+		}
+		if d > max {
+			max = d
+		}
+		sum += d
+	}
+
+	assert.Less(t, min, 40*time.Millisecond, "first-trigger phase should sometimes be near the start of the window")
+	assert.Greater(t, max, 80*time.Millisecond, "first-trigger phase should sometimes land later in the window")
+	assert.Less(t, max, window+30*time.Millisecond, "first-trigger phase should stay within the window")
+	avg := sum / time.Duration(n)
+	assert.Greater(t, avg, 30*time.Millisecond, "average first-trigger delay should be spread across the window")
+	assert.Less(t, avg, window, "average first-trigger delay should be below the window upper bound")
+}
+
+func TestInterval_NewInterval_DoesNotBlockOnRead(t *testing.T) {
+	repo := &countingIntervalRepo{inner: v1.NewNoOpIntervalSettingsRepository()}
+	l := zerolog.Nop()
+
+	start := time.Now()
+	interval := NewInterval(
+		&l,
+		repo,
+		"timeout-step-runs",
+		testResourceID,
+		0,
+		50*time.Millisecond,
+		time.Second,
+		3,
+		nil,
+	)
+	elapsed := time.Since(start)
+
+	require.NotNil(t, interval)
+	assert.True(t, interval.needsIntervalLoad)
+	assert.True(t, interval.firstTrigger)
+	assert.Equal(t, int64(0), repo.reads.Load(), "NewInterval must not call ReadInterval")
+	assert.Less(t, elapsed, 20*time.Millisecond, "NewInterval should return without waiting on DB")
+}
+
+func TestInterval_RunInterval_LazyLoadsPersistedInterval(t *testing.T) {
+	persisted := 200 * time.Millisecond
+	repo := &countingIntervalRepo{
+		inner:      v1.NewNoOpIntervalSettingsRepository(),
+		readResult: persisted,
+	}
+	l := zerolog.Nop()
+
+	interval := NewInterval(
+		&l,
+		repo,
+		"timeout-step-runs",
+		testResourceID,
+		0,
+		50*time.Millisecond,
+		time.Second,
+		3,
+		nil,
+	)
+	assert.Equal(t, int64(0), repo.reads.Load())
+	assert.Equal(t, 50*time.Millisecond, interval.currInterval)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	ch := interval.RunInterval(ctx)
+
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		t.Fatal("expected at least one trigger after lazy load")
+	}
+
+	assert.GreaterOrEqual(t, repo.reads.Load(), int64(1), "RunInterval should lazy-load the persisted interval")
+	assert.False(t, interval.needsIntervalLoad)
+	assert.Equal(t, persisted, interval.currInterval, "lazy load should apply the persisted interval")
+}
+
+func TestInterval_RunInterval_GaugePhaseIsRandomized(t *testing.T) {
+	prev := gaugeInterval
+	gaugeInterval = 40 * time.Millisecond
+	t.Cleanup(func() { gaugeInterval = prev })
+
+	const n = 24
+	var (
+		mu         sync.Mutex
+		firstCalls []time.Duration
+		wg         sync.WaitGroup
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	wg.Add(n)
+
+	for i := 0; i < n; i++ {
+		interval := &Interval{
+			resourceId:      uuid.New().String(),
+			maxJitter:       0,
+			startInterval:   time.Hour, // keep method triggers out of the way
+			currInterval:    time.Hour,
+			maxInterval:     time.Hour,
+			incBackoffCount: 3,
+			repo:            v1.NewNoOpIntervalSettingsRepository(),
+			firstTrigger:    true,
+			gauge: func(context.Context, string) (int, error) {
+				mu.Lock()
+				firstCalls = append(firstCalls, time.Since(start))
+				mu.Unlock()
+				wg.Done()
+				// Only record the first call per interval: replace gauge after first fire
+				// by returning quickly; subsequent ticks may race Done, so use Once per interval.
+				return 0, nil
+			},
+		}
+
+		// Wrap gauge with Once so wg.Done is only called once per interval.
+		var once sync.Once
+		g := interval.gauge
+		interval.gauge = func(ctx context.Context, resourceId string) (int, error) {
+			once.Do(func() {
+				_, _ = g(ctx, resourceId)
+			})
+			return 0, nil
+		}
+
+		_ = interval.RunInterval(ctx)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(300 * time.Millisecond):
+		t.Fatalf("timed out waiting for gauge first calls; got %d/%d", len(firstCalls), n)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(firstCalls), n)
+
+	var min, max time.Duration = firstCalls[0], firstCalls[0]
+	for _, d := range firstCalls[:n] {
+		if d < min {
+			min = d
+		}
+		if d > max {
+			max = d
+		}
+	}
+
+	// Without phase spread, all first gauge ticks would cluster near gaugeInterval.
+	// With phase in [0, gaugeInterval) then a full tick, first calls land in
+	// roughly [gaugeInterval, 2*gaugeInterval). Spread across that window.
+	assert.Greater(t, max-min, 15*time.Millisecond, "gauge first-call times should be phase-spread, not synchronized")
+}
+
+type countingIntervalRepo struct {
+	inner      v1.IntervalSettingsRepository
+	readResult time.Duration
+	reads      atomic.Int64
+}
+
+func (r *countingIntervalRepo) ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error) {
+	return r.inner.ReadAllIntervals(ctx, operationId)
+}
+
+func (r *countingIntervalRepo) ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error) {
+	r.reads.Add(1)
+	if r.readResult > 0 {
+		return r.readResult, nil
+	}
+	return r.inner.ReadInterval(ctx, operationId, tenantId)
+}
+
+func (r *countingIntervalRepo) SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error) {
+	return r.inner.SetInterval(ctx, operationId, tenantId, d)
 }

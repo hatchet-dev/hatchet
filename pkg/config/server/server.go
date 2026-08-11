@@ -225,10 +225,6 @@ type ConfigFileRuntime struct {
 	// How many slots to allocate for optimistic scheduling
 	OptimisticSchedulingSlots int `mapstructure:"optimisticSchedulingSlots" json:"optimisticSchedulingSlots,omitempty" default:"5"`
 
-	// Whether this shard runs the v1alpha scheduler (single event loop per tenant)
-	// instead of the v1 lock-based scheduler. All-or-nothing per shard.
-	V1AlphaSchedulerEnabled bool `mapstructure:"v1AlphaSchedulerEnabled" json:"v1AlphaSchedulerEnabled,omitempty" default:"false"`
-
 	// Whether we can perform writes from the gRPC API and fall back to sending messages through RabbitMQ if we exhaust slots
 	GRPCTriggerWritesEnabled bool `mapstructure:"grpcTriggerWritesEnabled" json:"grpcTriggerWritesEnabled,omitempty" default:"true"`
 
@@ -926,7 +922,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
-	_ = v.BindEnv("runtime.v1AlphaSchedulerEnabled", "SERVER_V1ALPHA_SCHEDULER_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 
