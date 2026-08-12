@@ -377,14 +377,14 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
 	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+	return s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil)
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
@@ -396,10 +396,16 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	defer tx.Rollback()
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+
+	if len(storePayloadOpts) > 0 {
+		if err := r.payloadStore.Store(ctx, tx.tx, storePayloadOpts...); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -679,18 +685,14 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 	return key, nil
 }
 
-func (r *sharedRepository) triggerWorkflows(
+func (r *sharedRepository) triggerWorkflowsCore(
 	ctx context.Context,
-	existingTx *OptimisticTx,
+	optTx *OptimisticTx,
 	tenantId uuid.UUID,
 	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
-) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	var preflightTx sqlcv1.DBTX = r.pool
-
-	if existingTx != nil {
-		preflightTx = existingTx.tx
-	}
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
+	preflightTx := optTx.tx
 
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
 
@@ -738,7 +740,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 		}
 
 		idempotencyKeyToLockHolder := make(map[string]uuid.UUID, len(claims))
@@ -788,7 +790,7 @@ func (r *sharedRepository) triggerWorkflows(
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -823,7 +825,7 @@ func (r *sharedRepository) triggerWorkflows(
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
@@ -835,7 +837,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
 
 		for _, match := range additionalMatches {
@@ -908,28 +910,14 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	var commit func(context.Context) error
-	var rollback func()
-	var tx sqlcv1.DBTX
-
-	if existingTx == nil {
-		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-
-		defer rollback()
-	} else {
-		tx = existingTx.tx
-	}
+	tx := optTx.tx
 
 	// check if we should skip the creation of any workflows if they're child workflows which
 	// already have a signal registered
 	tuplesToSkip, err := r.registerChildWorkflows(ctx, tx, tenantId, tuples, stepsToExternalIds, workflowVersionToSteps)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
 	}
 
 	for i, tuple := range tuples {
@@ -1075,7 +1063,7 @@ func (r *sharedRepository) triggerWorkflows(
 							)
 
 							if err != nil {
-								return nil, nil, nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
+								return nil, nil, nil, nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
 							}
 
 							groupConditions = append(groupConditions, *c)
@@ -1344,7 +1332,7 @@ func (r *sharedRepository) triggerWorkflows(
 	dags, err := r.createDAGs(ctx, tx, tenantId, dagOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
 	}
 
 	// populate taskOpts with inserted DAG data
@@ -1369,7 +1357,7 @@ func (r *sharedRepository) triggerWorkflows(
 	tasks, err := r.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create tasks: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create tasks: %w", err)
 	}
 
 	for _, dag := range dags {
@@ -1386,10 +1374,10 @@ func (r *sharedRepository) triggerWorkflows(
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
@@ -1417,7 +1405,7 @@ func (r *sharedRepository) triggerWorkflows(
 		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
 		}
 
 		for _, e := range createdEvents {
@@ -1438,22 +1426,49 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+	optTx.AddPostCommit(postTask)
 
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
-	}
+	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, nil
+}
 
-	// commit if we started the transaction
-	if existingTx == nil {
-		if err := commit(ctx); err != nil {
+func (r *sharedRepository) triggerWorkflows(
+	ctx context.Context,
+	existingTx *OptimisticTx,
+	tenantId uuid.UUID,
+	triggerCandidateTuples []triggerTuple,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+	tx := existingTx
+	ownsTx := false
+
+	if tx == nil {
+		var err error
+		tx, err = r.PrepareOptimisticTx(ctx)
+
+		if err != nil {
 			return nil, nil, nil, nil, err
 		}
 
-		postTask()
+		defer tx.Rollback()
+		ownsTx = true
+	}
 
-	} else {
-		existingTx.AddPostCommit(postTask)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents)
+
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	if len(storePayloadOpts) > 0 {
+		if err := r.payloadStore.Store(ctx, tx.tx, storePayloadOpts...); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+		}
+	}
+
+	if ownsTx {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
 	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
