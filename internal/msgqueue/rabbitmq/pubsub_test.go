@@ -178,32 +178,6 @@ func TestPubSubCompressedRoundtrip(t *testing.T) {
 	require.NoError(t, cleanupSub())
 }
 
-func TestPubSubSubPoolSaturationReturnsError(t *testing.T) {
-	// One subscriber channel in the pool; a second Sub must fail instead of
-	// hanging forever while the caller believes the stream is connected.
-	ps := newTestPubSub(t, WithPubSubMaxSubChannels(1))
-
-	cleanupSub1, err := ps.Sub(msgqueue.TenantTopic(uuid.New()), func(*msgqueue.Message) error {
-		return nil
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = cleanupSub1()
-	})
-
-	start := time.Now()
-	cleanupSub2, err := ps.Sub(msgqueue.TenantTopic(uuid.New()), func(*msgqueue.Message) error {
-		return nil
-	})
-	elapsed := time.Since(start)
-
-	require.Error(t, err)
-	require.Nil(t, cleanupSub2)
-	assert.Contains(t, err.Error(), "pubsub subscriber channel pool saturated")
-	assert.Contains(t, err.Error(), "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS")
-	assert.Less(t, elapsed, 15*time.Second, "saturation should surface via acquire timeout, not hang")
-}
-
 func TestPubSubReconnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

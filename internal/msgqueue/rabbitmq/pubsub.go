@@ -3,11 +3,9 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -19,12 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
-
-// How long Sub waits to acquire a pooled AMQP channel before surfacing pool
-// saturation. Without this, Acquire blocks indefinitely when every slot is held
-// by a long-lived tenant subscription and callers observe a "connected" stream
-// that never receives events.
-const subChannelAcquireTimeout = 5 * time.Second
 
 // PubSub implements msgqueue.PubSub over RabbitMQ. Tenant topics map to the
 // legacy per-tenant fanout exchanges ("<uuid>_v1") and scheduler partition
@@ -41,8 +33,6 @@ type PubSub struct {
 
 	pubChannels *channelPool
 	subChannels *channelPool
-
-	maxSubChannels int32
 
 	// lru cache of tenant exchanges we've already declared
 	exchangeCache *lru.Cache[string, bool]
@@ -67,7 +57,7 @@ func defaultPubSubOpts() *PubSubOpts {
 	return &PubSubOpts{
 		l:              &l,
 		maxPubChannels: 10,
-		maxSubChannels: 100,
+		maxSubChannels: 20,
 	}
 }
 
@@ -128,14 +118,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	newLogger := opts.l.With().Str("service", "rabbitmq-pubsub").Logger()
 	opts.l = &newLogger
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels, channelPoolQueuePubSub, channelPoolRolePub)
 
 	if err != nil {
 		cancel()
 		return nil, nil, err
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels, channelPoolQueuePubSub, channelPoolRoleSub)
 
 	if err != nil {
 		pubChannelPool.Close()
@@ -144,12 +134,11 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	}
 
 	p := &PubSub{
-		ctx:            ctx,
-		identity:       identity(),
-		l:              opts.l,
-		pubChannels:    pubChannelPool,
-		subChannels:    subChannelPool,
-		maxSubChannels: opts.maxSubChannels,
+		ctx:         ctx,
+		identity:    identity(),
+		l:           opts.l,
+		pubChannels: pubChannelPool,
+		subChannels: subChannelPool,
 		compressor: msgqueue.Compressor{
 			Enabled:   opts.compressionEnabled,
 			Threshold: opts.compressionThreshold,
@@ -168,14 +157,6 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 func (p *PubSub) IsReady() bool {
 	return p.pubChannels.hasActiveConnection() && p.subChannels.hasActiveConnection()
-}
-
-func (p *PubSub) poolSaturatedErr(cause error) error {
-	return fmt.Errorf(
-		"pubsub subscriber channel pool saturated (max %d); increase SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS: %w",
-		p.maxSubChannels,
-		cause,
-	)
 }
 
 // Pub publishes a message to the topic. Delivery is best-effort and
@@ -301,11 +282,6 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 
 // Sub subscribes to a topic. Delivery is at-most-once: messages are acked
 // before the handler runs, and handler errors are logged, never redelivered.
-//
-// Sub blocks until the subscriber has acquired a channel and started
-// consuming, or until channel-pool acquisition times out. Callers therefore
-// see pool saturation as an error instead of a silent "connected but idle"
-// stream.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	ctx, cancel := context.WithCancel(p.ctx)
 
@@ -314,31 +290,10 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	sessionCount := 0
 	wg := sync.WaitGroup{}
 
-	started := make(chan error, 1)
-	var startOnce sync.Once
-	var live atomic.Bool
-
-	signalStarted := func(err error) {
-		startOnce.Do(func() {
-			started <- err
-		})
-	}
-
 	innerFn := func() error {
-		acquireCtx, acquireCancel := context.WithTimeout(ctx, subChannelAcquireTimeout)
-		defer acquireCancel()
-
-		poolCh, err := p.subChannels.Acquire(acquireCtx)
+		poolCh, err := p.subChannels.Acquire(ctx)
 
 		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(acquireCtx.Err(), context.DeadlineExceeded) {
-				return p.poolSaturatedErr(err)
-			}
-
 			return err
 		}
 
@@ -364,9 +319,6 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		if err != nil {
 			return err
 		}
-
-		live.Store(true)
-		signalStarted(nil)
 
 		for rabbitMsg := range deliveries {
 			wg.Add(1)
@@ -425,26 +377,12 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 
 		for {
 			if ctx.Err() != nil {
-				signalStarted(ctx.Err())
 				return
 			}
 
 			sessionCount++
 
 			if err := innerFn(); err != nil {
-				if ctx.Err() != nil {
-					signalStarted(ctx.Err())
-					return
-				}
-
-				signalStarted(err)
-
-				// Before the first successful consume, fail Sub instead of
-				// retrying forever under a saturated pool.
-				if !live.Load() {
-					return
-				}
-
 				if time.Since(lastRetry) > RETRY_RESET_INTERVAL {
 					retryCount = 0
 				}
@@ -457,20 +395,6 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 			}
 		}
 	}()
-
-	var startErr error
-
-	select {
-	case startErr = <-started:
-	case <-time.After(subChannelAcquireTimeout + 2*time.Second):
-		startErr = p.poolSaturatedErr(context.DeadlineExceeded)
-	}
-
-	if startErr != nil {
-		cancel()
-		wg.Wait()
-		return nil, startErr
-	}
 
 	cleanup := func() error {
 		p.l.Debug().Msgf("shutting down pubsub subscriber: %s", topic.Name())
