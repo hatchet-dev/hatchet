@@ -2124,26 +2124,28 @@ func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx
 		workflowVersionsToLookup = append(workflowVersionsToLookup, id)
 	}
 
-	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
-		Tenantid: tenantId,
-		Ids:      workflowVersionsToLookup,
-	})
+	if len(workflowVersionsToLookup) > 0 {
+		steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+			Tenantid: tenantId,
+			Ids:      workflowVersionsToLookup,
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list steps by workflow version ids: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list steps by workflow version ids: %w", err)
+		}
 
-	for _, step := range steps {
-		k := step.WorkflowVersionId
-		res[k] = append(res[k], step)
-	}
+		for _, step := range steps {
+			k := step.WorkflowVersionId
+			res[k] = append(res[k], step)
+		}
 
-	// update the cache with all entries we looked up
-	for _, id := range workflowVersionsToLookup {
-		k := id
+		// update the cache with all entries we looked up
+		for _, id := range workflowVersionsToLookup {
+			k := id
 
-		if steps, ok := res[k]; ok {
-			r.stepsInWorkflowVersionCache.Add(k, steps)
+			if steps, ok := res[k]; ok {
+				r.stepsInWorkflowVersionCache.Add(k, steps)
+			}
 		}
 	}
 
