@@ -287,8 +287,8 @@ class ActionListener:
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("deadline exceeded, retrying subscription")
                 else:
-                    # TODO retry
-                    logger.error("action listener error - reconnecting")
+                    # falls through to retry
+                    logger.debug("action listener error - reconnecting")
 
                     self.retries = self.retries + 1
 
