@@ -1978,6 +1978,41 @@ func getQueueCacheKey(tenantId uuid.UUID, queue string) string {
 	return fmt.Sprintf("%s:%s", tenantId, queue)
 }
 
+func (r *sharedRepository) listStepsByIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) (map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, error) {
+	res := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, len(stepIds))
+
+	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
+
+	for _, id := range stepIds {
+		if step, found := r.stepIdConfigCache.Get(id); found {
+			res[id] = step
+			continue
+		}
+
+		stepIdsToLookup = append(stepIdsToLookup, id)
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return res, nil
+	}
+
+	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
+		Ids:      stepIdsToLookup,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, step := range steps {
+		res[step.ID] = step
+		r.stepIdConfigCache.Add(step.ID, step)
+	}
+
+	return res, nil
+}
+
 func (r *sharedRepository) createTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -1997,19 +2032,10 @@ func (r *sharedRepository) createTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]CreateTaskOpts, 0, len(tasks))
@@ -2672,19 +2698,10 @@ func (r *sharedRepository) replayTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]ReplayTaskOpts, 0, len(tasks))
