@@ -119,7 +119,7 @@ class ActionListener:
                     grpc.StatusCode.DEADLINE_EXCEEDED,
                 ]:
                     # todo case on "recvmsg:Connection reset by peer" for updates?
-                    if self.missed_heartbeats >= 3:
+                    if self.missed_heartbeats >= 5:
                         # we don't reraise the error here, as we don't want to stop the heartbeat thread
                         logger.exception(
                             f"⛔️ failed heartbeat ({self.missed_heartbeats})"
