@@ -92,7 +92,7 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       posthog-js:
-        specifier: ^1.272.1
+        specifier: ^1.294.0
         version: 1.369.2
       posthog-node:
         specifier: ^5.24.15

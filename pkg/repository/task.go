@@ -1978,6 +1978,41 @@ func getQueueCacheKey(tenantId uuid.UUID, queue string) string {
 	return fmt.Sprintf("%s:%s", tenantId, queue)
 }
 
+func (r *sharedRepository) listStepsByIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) (map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, error) {
+	res := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, len(stepIds))
+
+	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
+
+	for _, id := range stepIds {
+		if step, found := r.stepIdConfigCache.Get(id); found {
+			res[id] = step
+			continue
+		}
+
+		stepIdsToLookup = append(stepIdsToLookup, id)
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return res, nil
+	}
+
+	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
+		Ids:      stepIdsToLookup,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, step := range steps {
+		res[step.ID] = step
+		r.stepIdConfigCache.Add(step.ID, step)
+	}
+
+	return res, nil
+}
+
 func (r *sharedRepository) createTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -1997,19 +2032,10 @@ func (r *sharedRepository) createTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]CreateTaskOpts, 0, len(tasks))
@@ -2614,6 +2640,7 @@ func (r *sharedRepository) insertTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 		taskIdToIdempotencyKey,
+		nil,
 	)
 
 	if err != nil {
@@ -2672,19 +2699,10 @@ func (r *sharedRepository) replayTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]ReplayTaskOpts, 0, len(tasks))
@@ -2979,6 +2997,7 @@ func (r *sharedRepository) replayTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 		taskIdToIdempotencyKey,
+		nil,
 	)
 
 	if err != nil {
@@ -3181,6 +3200,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		makeEventTypeArr(eventType, len(filteredExternalIds)),
 		make([]string, len(filteredExternalIds)),
 		taskIdToIdempotencyKey,
+		nil,
 	)
 }
 
@@ -3223,9 +3243,14 @@ func (r *sharedRepository) createTaskEvents(
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
 	taskIdToIdempotencyKey map[int64]string,
+	childExternalIdsByIndex []*uuid.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
+	}
+
+	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
+		return nil, fmt.Errorf("mismatched task and child external id lengths")
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -3235,6 +3260,7 @@ func (r *sharedRepository) createTaskEvents(
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
+	childExternalIds := make([]uuid.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
@@ -3249,6 +3275,12 @@ func (r *sharedRepository) createTaskEvents(
 
 		externalId := uuid.New()
 		externalIds[i] = externalId
+
+		if childExternalIdsByIndex != nil && childExternalIdsByIndex[i] != nil {
+			childExternalIds[i] = *childExternalIdsByIndex[i]
+		} else {
+			childExternalIds[i] = uuid.Nil
+		}
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
 		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
@@ -3287,14 +3319,15 @@ func (r *sharedRepository) createTaskEvents(
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Eventtypes:      eventTypesStrs,
-		Datas:           paramDatas,
-		Eventkeys:       paramKeys,
-		Externalids:     externalIds,
+		Tenantid:         tenantId,
+		Taskids:          taskIds,
+		Taskinsertedats:  taskInsertedAts,
+		Retrycounts:      retryCounts,
+		Eventtypes:       eventTypesStrs,
+		Datas:            paramDatas,
+		Eventkeys:        paramKeys,
+		Externalids:      externalIds,
+		Childexternalids: childExternalIds,
 	})
 
 	if err != nil {
