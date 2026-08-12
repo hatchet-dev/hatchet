@@ -213,6 +213,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	}
 
 	pub := msgqueue.NewMQPubBuffer(tq)
+	defer pub.Stop()
 
 	task, err := msgqueue.NewTenantMessage(testTenantUUID, id, false, true, &testMessagePayload{
 		Key: "value",

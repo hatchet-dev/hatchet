@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
 
+	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 
@@ -89,9 +93,29 @@ func expectedWorkflowNames(namespace string, fanout int) []string {
 
 	names := make([]string, 0, fanout)
 	for i := 0; i < fanout; i++ {
-		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), namespace))
+		names = append(names, applyNamespace(eventkeys.WorkflowStandardName(i), namespace))
 	}
 	return names
+}
+
+func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) []string {
+	switch key {
+	case eventkeys.EventKeyDefault:
+		return expectedWorkflowNames(namespace, fanout)
+	case eventkeys.EventKeyBatch:
+		return []string{applyNamespace(eventkeys.WorkflowBatchName, namespace)}
+	case eventkeys.EventKeyDurable:
+		return []string{applyNamespace(eventkeys.WorkflowDurableName, namespace)}
+	default:
+		return nil
+	}
+}
+
+func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
+	if key == eventkeys.EventKeyDefault {
+		return int64(fanout) * int64(dagSteps)
+	}
+	return 1
 }
 
 // phaseAccumulator computes a simple running mean per phase from a stream of
@@ -104,41 +128,83 @@ type phaseAccumulator struct {
 	execution  avgResult
 }
 
-func accumulatePhases(samples <-chan PhaseSample) <-chan phaseAccumulator {
-	out := make(chan phaseAccumulator, 1)
+type phasesByKey struct {
+	byKey   map[eventkeys.EventKey]phaseAccumulator
+	overall phaseAccumulator
+}
+
+type resolvedWorkflowSet struct {
+	ids  []uuid.UUID
+	keys map[uuid.UUID]eventkeys.EventKey
+}
+
+type phaseAcc struct {
+	qCount, sCount, eCount int64
+	qAvg, sAvg, eAvg       time.Duration
+	qSnaps, sSnaps, eSnaps []LatencySnapshot
+}
+
+func (p *phaseAcc) add(s PhaseSample) {
+	now := time.Now()
+
+	p.qCount++
+	p.qAvg += (s.Queued - p.qAvg) / time.Duration(p.qCount)
+	p.qSnaps = append(p.qSnaps, LatencySnapshot{t: now, latency: s.Queued})
+
+	p.sCount++
+	p.sAvg += (s.Scheduling - p.sAvg) / time.Duration(p.sCount)
+	p.sSnaps = append(p.sSnaps, LatencySnapshot{t: now, latency: s.Scheduling})
+
+	p.eCount++
+	p.eAvg += (s.Execution - p.eAvg) / time.Duration(p.eCount)
+	p.eSnaps = append(p.eSnaps, LatencySnapshot{t: now, latency: s.Execution})
+}
+
+func (p *phaseAcc) result() phaseAccumulator {
+	return phaseAccumulator{
+		queued:     avgResult{count: p.qCount, avg: p.qAvg, latencyResult: LatencyResult{snapshots: p.qSnaps}},
+		scheduling: avgResult{count: p.sCount, avg: p.sAvg, latencyResult: LatencyResult{snapshots: p.sSnaps}},
+		execution:  avgResult{count: p.eCount, avg: p.eAvg, latencyResult: LatencyResult{snapshots: p.eSnaps}},
+	}
+}
+
+func accumulatePhases(samples <-chan PhaseSample) <-chan phasesByKey {
+	out := make(chan phasesByKey, 1)
 
 	go func() {
-		var qCount, sCount, eCount int64
-		var qAvg, sAvg, eAvg time.Duration
-		var qSnaps, sSnaps, eSnaps []LatencySnapshot
+		overall := &phaseAcc{}
+		byKey := make(map[eventkeys.EventKey]*phaseAcc)
 
 		for s := range samples {
-			now := time.Now()
+			overall.add(s)
 
-			qCount++
-			qAvg += (s.Queued - qAvg) / time.Duration(qCount)
-			qSnaps = append(qSnaps, LatencySnapshot{t: now, latency: s.Queued})
-
-			sCount++
-			sAvg += (s.Scheduling - sAvg) / time.Duration(sCount)
-			sSnaps = append(sSnaps, LatencySnapshot{t: now, latency: s.Scheduling})
-
-			eCount++
-			eAvg += (s.Execution - eAvg) / time.Duration(eCount)
-			eSnaps = append(eSnaps, LatencySnapshot{t: now, latency: s.Execution})
+			a := byKey[s.EventKey]
+			if a == nil {
+				a = &phaseAcc{}
+				byKey[s.EventKey] = a
+			}
+			a.add(s)
 		}
 
-		out <- phaseAccumulator{
-			queued:     avgResult{count: qCount, avg: qAvg, latencyResult: LatencyResult{snapshots: qSnaps}},
-			scheduling: avgResult{count: sCount, avg: sAvg, latencyResult: LatencyResult{snapshots: sSnaps}},
-			execution:  avgResult{count: eCount, avg: eAvg, latencyResult: LatencyResult{snapshots: eSnaps}},
+		res := phasesByKey{
+			byKey:   make(map[eventkeys.EventKey]phaseAccumulator, len(byKey)),
+			overall: overall.result(),
 		}
+		for k, a := range byKey {
+			res.byKey[k] = a.result()
+		}
+
+		out <- res
 	}()
 
 	return out
 }
 
 func do(config LoadTestConfig) error {
+	if len(config.EventKeys) == 0 {
+		config.EventKeys = []eventkeys.EventKey{eventkeys.EventKeyDefault}
+	}
+
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
 	after := 10 * time.Second
@@ -183,7 +249,7 @@ func do(config LoadTestConfig) error {
 
 	// Only populated when config.ExternalWorker is set - see below.
 	var timingClient v1.HatchetClient //nolint:staticcheck // SA1019
-	resolvedWorkflowIDs := make(chan []uuid.UUID, 1)
+	resolvedWorkflows := make(chan resolvedWorkflowSet, 1)
 
 	if config.ExternalWorker {
 		close(durations)
@@ -198,7 +264,14 @@ func do(config LoadTestConfig) error {
 			}
 			timingClient = hc
 
-			names := expectedWorkflowNames(hc.V0().Namespace(), config.EventFanout)
+			var names []string
+			nameToKey := make(map[string]eventkeys.EventKey)
+			for _, key := range config.EventKeys {
+				for _, n := range workflowNamesForKey(key, hc.V0().Namespace(), config.EventFanout) {
+					names = append(names, n)
+					nameToKey[n] = key
+				}
+			}
 
 			l.Info().Msgf("externalWorker: resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
 
@@ -210,7 +283,12 @@ func do(config LoadTestConfig) error {
 
 			l.Info().Msgf("externalWorker: resolved workflow(s) %v to ids %v", names, ids)
 
-			resolvedWorkflowIDs <- ids
+			workflowKeys := make(map[uuid.UUID]eventkeys.EventKey, len(ids))
+			for i, id := range ids {
+				workflowKeys[id] = nameToKey[names[i]]
+			}
+
+			resolvedWorkflows <- resolvedWorkflowSet{ids: ids, keys: workflowKeys}
 			registered <- nil
 		}()
 	} else {
@@ -228,45 +306,53 @@ func do(config LoadTestConfig) error {
 
 	time.Sleep(after)
 
-	scheduled := make(chan time.Duration, config.Events)
+	scheduled := make(chan scheduledSample, config.Events)
 
-	// Compute running average for scheduled times using a rolling average.
-	scheduledResult := make(chan avgResult)
+	scheduledResult := make(chan map[eventkeys.EventKey]avgResult, 1)
 	go func() {
-		var count int64
-		var avg time.Duration
-		var snapshots []LatencySnapshot
-		for d := range scheduled {
-			count++
-			if count == 1 {
-				avg = d
-			} else {
-				avg += (d - avg) / time.Duration(count)
-			}
-			snapshots = append(snapshots, LatencySnapshot{
-				t:       time.Now(),
-				latency: d,
-			})
+		type acc struct {
+			count     int64
+			avg       time.Duration
+			snapshots []LatencySnapshot
 		}
-		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
+		accs := make(map[eventkeys.EventKey]*acc)
+		for s := range scheduled {
+			a := accs[s.eventKey]
+			if a == nil {
+				a = &acc{}
+				accs[s.eventKey] = a
+			}
+			a.count++
+			if a.count == 1 {
+				a.avg = s.latency
+			} else {
+				a.avg += (s.latency - a.avg) / time.Duration(a.count)
+			}
+			a.snapshots = append(a.snapshots, LatencySnapshot{t: time.Now(), latency: s.latency})
+		}
+		out := make(map[eventkeys.EventKey]avgResult, len(accs))
+		for k, a := range accs {
+			out[k] = avgResult{count: a.count, avg: a.avg, latencyResult: LatencyResult{snapshots: a.snapshots}}
+		}
+		scheduledResult <- out
 	}()
 
 	// externalWorker mode: start sweeping the engine's own timing data for
 	// the resolved workflow(s), in parallel with emission below.
 	var phaseSamples chan PhaseSample
-	var phaseResultCh <-chan phaseAccumulator
+	var phaseResultCh <-chan phasesByKey
 	var cancelTiming context.CancelFunc
 	var collector *TimingCollector
 
 	if config.ExternalWorker {
-		workflowIDs := <-resolvedWorkflowIDs
+		resolved := <-resolvedWorkflows
 
 		// new context so that the timing drain is independent.
 		var timingCtx context.Context
 		timingCtx, cancelTiming = context.WithCancel(context.Background())
 		defer cancelTiming() // safe to call more than once; guards every return path below
 
-		collector = NewTimingCollector(timingClient, workflowIDs, timingPollInterval, config.TimingSampleRate)
+		collector = NewTimingCollector(timingClient, resolved.ids, resolved.keys, timingPollInterval, config.TimingSampleRate)
 
 		phaseSamples = make(chan PhaseSample, 256)
 		phaseResultCh = accumulatePhases(phaseSamples)
@@ -277,16 +363,26 @@ func do(config LoadTestConfig) error {
 		}()
 	}
 
-	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers)
+	pushedByKey := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers, config.EventKeys)
 	close(scheduled)
+
+	pbkj, err := json.MarshalIndent(pushedByKey, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal pushedByKey: %w", err)
+	}
+
+	log.Printf("ℹ️ pushed per event key: %v", string(pbkj))
+
+	emitted := pushedByKey[eventkeys.EventKeyDefault]
 
 	executed := <-ch
 	uniques := <-ch
 
 	finalDurationResult := <-durationsResult
-	finalScheduledResult := <-scheduledResult
+	finalScheduledByKey := <-scheduledResult
+	finalScheduledResult := finalScheduledByKey[eventkeys.EventKeyDefault]
 
-	var phases phaseAccumulator
+	var phases phasesByKey
 	if config.ExternalWorker {
 		// Give the engine config.Wait to finish runs that were still in flight
 		// when emission stopped.
@@ -324,6 +420,9 @@ func do(config LoadTestConfig) error {
 		phases = <-phaseResultCh
 	}
 
+	benchPhases := phases.byKey[eventkeys.EventKeyDefault]
+	standardSelected := slices.Contains(config.EventKeys, eventkeys.EventKeyDefault)
+
 	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
 
 	if config.ExternalWorker {
@@ -331,21 +430,29 @@ func do(config LoadTestConfig) error {
 		if sampleRate <= 0 || sampleRate > 1 {
 			sampleRate = 1
 		}
-		expectedSampled := int64(float64(expected) * sampleRate)
 
-		log.Printf(
-			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
-			emitted, config.Events, sampleRate*100, phases.queued.count, phases.scheduling.count, phases.execution.count,
-		)
+		var expectedAllKeys int64
+		for _, k := range config.EventKeys {
+			expectedAllKeys += pushedByKey[k] * executionsPerPush(k, config.EventFanout, config.DagSteps)
+		}
+		expectedSampled := int64(float64(expectedAllKeys) * sampleRate)
 
-		if phases.execution.count == 0 {
+		for _, k := range config.EventKeys {
+			p := phases.byKey[k]
+			log.Printf(
+				"ℹ️ pushed %d %q events, using %d events/s (externalWorker: engine-observed samples, %.0f%% sampled — queued n=%d, scheduling n=%d, execution n=%d)",
+				pushedByKey[k], k, config.Events, sampleRate*100, p.queued.count, p.scheduling.count, p.execution.count,
+			)
+		}
+
+		if phases.overall.execution.count == 0 {
 			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
 		}
 
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
-			if phases.execution.count < lower || phases.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed) got=%d", expectedSampled, sampleRate*100, expected, phases.execution.count)
+			if phases.overall.execution.count < lower || phases.overall.execution.count > upper {
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, len(config.EventKeys), phases.overall.execution.count)
 			}
 		}
 	} else {
@@ -368,16 +475,29 @@ func do(config LoadTestConfig) error {
 	}
 
 	if config.ExternalWorker {
-		// engine-observed timing replaces the client-side duration/scheduling
-		// averages above (which are meaningless here - durations was closed
-		// with zero samples and there's no in-process step handler), rather
-		// than reporting alongside them.
-		log.Printf("ℹ️ final average queued time per event: %s", phases.queued.avg)
-		log.Printf("ℹ️ final average scheduling time per event: %s", phases.scheduling.avg)
-		log.Printf("ℹ️ final average duration per executed event: %s", phases.execution.avg)
+		// The engine-observed phase results are what we report on; there's no
+		// in-process step handler feeding client-side duration/scheduling here.
+		log.Printf("ℹ️ overall engine timing (n=%d):", phases.overall.execution.count)
+		log.Printf("ℹ️   final average queued time per event: %s", phases.overall.queued.avg)
+		log.Printf("ℹ️   final average scheduling time per event: %s", phases.overall.scheduling.avg)
+		log.Printf("ℹ️   final average duration per executed event: %s", phases.overall.execution.avg)
+
+		for _, k := range config.EventKeys {
+			p := phases.byKey[k]
+			log.Printf("ℹ️ engine timing for %s (n=%d):", k, p.execution.count)
+			log.Printf("ℹ️   queued=%s scheduling=%s execution=%s", p.queued.avg, p.scheduling.avg, p.execution.avg)
+			if r, ok := finalScheduledByKey[k]; ok {
+				log.Printf("ℹ️   scheduling (push) latency: avg=%s n=%d", r.avg, r.count)
+			}
+		}
 	} else {
 		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
+		for _, k := range config.EventKeys {
+			if r, ok := finalScheduledByKey[k]; ok {
+				log.Printf("ℹ️ scheduling (push) latency for %s: avg=%s n=%d", k, r.avg, r.count)
+			}
+		}
 	}
 	// In externalWorker mode, finalDurationResult/finalScheduledResult have no
 	// snapshots (durations was closed with zero samples up front, and there's
@@ -385,7 +505,7 @@ func do(config LoadTestConfig) error {
 	// phase results instead, same as the "final average" log lines above.
 	durationForReport, schedulingForReport := finalDurationResult, finalScheduledResult
 	if config.ExternalWorker {
-		durationForReport, schedulingForReport = phases.execution, phases.scheduling
+		durationForReport, schedulingForReport = phases.overall.execution, phases.overall.scheduling
 	}
 
 	if ShouldSendSlack() {
@@ -417,6 +537,16 @@ func do(config LoadTestConfig) error {
 		if err != nil {
 			return err
 		}
+		for _, k := range config.EventKeys {
+			r, ok := finalScheduledByKey[k]
+			if !ok || len(r.latencyResult.snapshots) == 0 {
+				continue
+			}
+			plotName := "scheduling-" + strings.ReplaceAll(k.String(), ":", "-")
+			if err := r.latencyResult.GeneratePlot(config.PlotDir, plotName); err != nil {
+				return err
+			}
+		}
 		log.Printf("ℹ️ exported scheduling/duration snapshot data")
 	}
 
@@ -428,8 +558,20 @@ func do(config LoadTestConfig) error {
 	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
 
 	if config.ExternalWorker {
-		if phases.execution.avg > thresholdWithTolerance {
-			return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", phases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+		if standardSelected {
+			if benchPhases.execution.count == 0 {
+				return fmt.Errorf("❌ no timing samples observed for %q - check that the external SDK worker actually executed tasks for workflow(s) %v", eventkeys.EventKeyDefault, expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
+			}
+
+			if expected != benchPhases.execution.count {
+				log.Printf("⚠️ warning: pushed and executed-timing-sample counts do not match: expected=%d got=%d", expected, benchPhases.execution.count)
+			}
+
+			if benchPhases.execution.avg > thresholdWithTolerance {
+				return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", benchPhases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+			}
+		} else if phases.overall.execution.count == 0 {
+			return fmt.Errorf("❌ no timing samples observed for selected event key(s) %v - check that the external SDK worker executed the corresponding workflow(s)", eventkeys.Names(config.EventKeys))
 		}
 	} else {
 		if expected != executed {

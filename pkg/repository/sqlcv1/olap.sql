@@ -307,7 +307,8 @@ JOIN v1_task_events_olap t
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
 JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
-ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
+LIMIT @eventLimit::bigint OFFSET @eventOffset::bigint;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (

@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import posthog from "posthog-js";
 import { CodeBlock } from "./code/CodeBlock";

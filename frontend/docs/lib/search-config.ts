@@ -1,7 +1,7 @@
 /**
  * Shared MiniSearch configuration used at:
  *   1. Index generation time (scripts/generate-llms.ts)
- *   2. MCP server query time (pages/api/mcp.ts)
+ *   2. MCP server query time (app/api/mcp/route.ts)
  *   3. Browser search UI (components/Search.tsx)
  *
  * IMPORTANT: Any change here requires regenerating the index
@@ -350,10 +350,9 @@ function tokenizeQuery(text: string): string[] {
  * for the full query (e.g. "Durable Execution" for "durable execut") may
  * rank below documents that score well on individual terms. This fixes that.
  */
-export function rerankResults<T extends { id: string; score: number; [k: string]: unknown }>(
-  results: T[],
-  query: string,
-): T[] {
+export function rerankResults<
+  T extends { id: string; score: number; [k: string]: unknown },
+>(results: T[], query: string): T[] {
   const queryLower = query.toLowerCase().trim();
   const queryTerms = tokenizeQuery(queryLower);
 

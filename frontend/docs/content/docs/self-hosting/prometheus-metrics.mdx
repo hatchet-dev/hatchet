@@ -1,0 +1,406 @@
+---
+title: "Prometheus Metrics"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+## Prometheus Metrics for Hatchet
+
+This document provides an overview of the Prometheus metrics exposed by Hatchet, setup instructions for the metrics endpoint, and example PromQL queries to analyze them.
+
+### Setup
+
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on the `grpc`, `controllers`, and `scheduler` deployments.
+
+<Callout type="warning">
+  The [global metrics](#global-metrics) are per-process counters — every engine
+  pod maintains its own values, and different metrics are emitted by different
+  roles. Task-creation counters in particular (`hatchet_created_tasks_total` and
+  `hatchet_tenant_created_tasks`) increment on the `grpc` role, so a scrape that
+  only covers `controllers` and `scheduler` will never see them, and example
+  queries that reference created tasks (e.g. _Queue Processing Efficiency:
+  Assigned vs Created_) cannot be computed. Make sure your scrape configuration
+  targets all engine pods — including any pod running the combined `all`
+  services — and aggregate the counters across pods (e.g. with `sum(...)`) when
+  querying.
+</Callout>
+
+- Required
+  - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
+    - Default: `false`
+    - Description: Enables or disables the Prometheus metrics HTTP server.
+
+- Optional
+  - **`SERVER_PROMETHEUS_ADDRESS`** (`prometheus.address`)
+    - Default: `":9090"`
+    - Description: The network address and port to bind the Prometheus metrics server to.
+
+  - **`SERVER_PROMETHEUS_PATH`** (`prometheus.path`)
+    - Default: `"/metrics"`
+    - Description: The HTTP path at which metrics will be exposed.
+
+Once enabled, you can setup any scraper that supports ingesting Prometheus metrics.
+
+#### Tenant metrics endpoint
+
+<Callout type="info">
+  This step requires communication with a service that scrapes Hatchet
+  Prometheus metrics.
+</Callout>
+
+To enable the [tenant API endpoint](/v1/prometheus-metrics) you can set the following environment variables:
+
+- Required
+  - **`SERVER_PROMETHEUS_SERVER_URL`** (`prometheus.prometheusServerURL`)
+    - Description: The Prometheus server URL.
+
+- Optional
+  - **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
+    - Description: The username to access the Prometheus instance via HTTP basic auth.
+
+  - **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
+    - Description: The password to access the Prometheus instance via HTTP basic auth.
+
+**Example environment setup:**
+
+```bash
+export SERVER_PROMETHEUS_ENABLED=true
+export SERVER_PROMETHEUS_ADDRESS=":9999"
+export SERVER_PROMETHEUS_PATH="/custom-metrics"
+```
+
+Restart your Hatchet server after setting these variables to apply the changes.
+
+---
+
+### Global Metrics
+
+| Metric Name                               | Type      | Description                                                                       |
+| ----------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                            |
+| `hatchet_created_tasks_total`             | Counter   | The total number of tasks created                                                 |
+| `hatchet_retried_tasks_total`             | Counter   | The total number of tasks retried                                                 |
+| `hatchet_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                          |
+| `hatchet_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
+| `hatchet_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                       |
+| `hatchet_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                    |
+| `hatchet_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
+| `hatchet_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                  |
+| `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
+| `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+| `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
+| `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
+| `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
+
+The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
+`rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
+`hatchet_pubsub_publish_duration_seconds` is additionally labelled by `result`.
+Two caveats when comparing backends:
+
+- Publish duration is how long `Pub` blocks the caller, not how long the broker
+  took to deliver, and only Postgres waits on the broker at all — it publishes
+  with a query, while NATS buffers in memory and RabbitMQ returns once the
+  frames hit the socket (publisher confirms are not enabled). Expect `nats` to
+  report the smallest durations and `postgres` the largest, regardless of how
+  quickly each actually delivers.
+- Transit latency is a difference between two clocks, so it is subject to skew
+  between the publishing and subscribing pods. Messages published by engines
+  that predate the `published_at` stamp are not observed at all.
+
+#### Example PromQL Queries
+
+##### 1. Rate of calls to the queuer method
+
+```promql
+rate(hatchet_queue_invocations_total[5m])
+```
+
+##### 2. Average queue time in milliseconds
+
+```promql
+# Calculates average queue time over the past 5 minutes, converted to ms
+rate(hatchet_queued_to_assigned_time_seconds_sum[5m])
+  / rate(hatchet_queued_to_assigned_time_seconds_count[5m])
+  * 1e3
+```
+
+##### 3. Success and failure rates
+
+```promql
+rate(hatchet_succeeded_tasks_total[5m])
+rate(hatchet_failed_tasks_total[5m])
+```
+
+##### 4. Queue time distribution (histogram)
+
+```promql
+sum by (le) (
+  rate(hatchet_queued_to_assigned_time_seconds_bucket[5m])
+)
+```
+
+##### 5. Rate of tasks created vs. retried
+
+```promql
+rate(hatchet_created_tasks_total[5m])
+rate(hatchet_retried_tasks_total[5m])
+```
+
+##### 6. Task Assignment Rate
+
+```promql
+rate(hatchet_assigned_tasks[5m])
+```
+
+##### 7. Scheduling Timeout Rate
+
+```promql
+rate(hatchet_scheduling_timed_out[5m])
+```
+
+##### 8. Rate Limiting Impact
+
+```promql
+rate(hatchet_rate_limited[5m])
+```
+
+##### 9. Task Completion Ratio (Success vs Total)
+
+```promql
+rate(hatchet_succeeded_tasks_total[5m])
+/
+(rate(hatchet_succeeded_tasks_total[5m]) + rate(hatchet_failed_tasks_total[5m]))
+```
+
+##### 10. Task Cancellation Rate
+
+```promql
+rate(hatchet_cancelled_tasks_total[5m])
+```
+
+##### 11. Task Skip Rate
+
+```promql
+rate(hatchet_skipped_tasks_total[5m])
+```
+
+##### 12. Queue Processing Efficiency (Assigned vs Created)
+
+```promql
+rate(hatchet_assigned_tasks[5m]) / rate(hatchet_created_tasks_total[5m])
+```
+
+##### 13. Task Reassignment Rate
+
+```promql
+rate(hatchet_reassigned_tasks[5m])
+```
+
+### Tenant Metrics
+
+| Metric Name                                                  | Type      | Description                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hatchet_tenant_workflow_duration_milliseconds`              | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks)                                                                                                                                                                                                                     |
+| `hatchet_tenant_queue_invocations`                           | Counter   | The total number of invocations of the queuer function                                                                                                                                                                                                                                     |
+| `hatchet_tenant_created_tasks`                               | Counter   | The total number of tasks created                                                                                                                                                                                                                                                          |
+| `hatchet_tenant_retried_tasks`                               | Counter   | The total number of tasks retried                                                                                                                                                                                                                                                          |
+| `hatchet_tenant_succeeded_tasks`                             | Counter   | The total number of tasks that succeeded                                                                                                                                                                                                                                                   |
+| `hatchet_tenant_failed_tasks`                                | Counter   | The total number of tasks that failed (in a final state, not including retries)                                                                                                                                                                                                            |
+| `hatchet_tenant_skipped_tasks`                               | Counter   | The total number of tasks that were skipped                                                                                                                                                                                                                                                |
+| `hatchet_tenant_cancelled_tasks`                             | Counter   | The total number of tasks cancelled                                                                                                                                                                                                                                                        |
+| `hatchet_tenant_assigned_tasks`                              | Counter   | The total number of tasks assigned to a worker                                                                                                                                                                                                                                             |
+| `hatchet_tenant_scheduling_timed_out`                        | Counter   | The total number of tasks that timed out while waiting to be scheduled                                                                                                                                                                                                                     |
+| `hatchet_tenant_rate_limited`                                | Counter   | The total number of tasks that were rate limited                                                                                                                                                                                                                                           |
+| `hatchet_tenant_queued_to_assigned`                          | Counter   | The total number of unique tasks that were queued and later got assigned to a worker                                                                                                                                                                                                       |
+| `hatchet_tenant_queued_to_assigned_time_seconds`             | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker                                                                                                                                                                                                            |
+| `hatchet_tenant_queued_to_assigned_by_workflow`              | Counter   | The total number of unique tasks that were queued and later got assigned to a worker, by workflow name                                                                                                                                                                                     |
+| `hatchet_tenant_queued_to_assigned_time_seconds_by_workflow` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker, by workflow name                                                                                                                                                                                          |
+| `hatchet_tenant_reassigned_tasks`                            | Counter   | The total number of tasks that were reassigned to a worker                                                                                                                                                                                                                                 |
+| `hatchet_tenant_used_worker_slots`                           | Gauge     | The current number of worker slots being used                                                                                                                                                                                                                                              |
+| `hatchet_tenant_available_worker_slots`                      | Gauge     | The current number of worker slots available (free)                                                                                                                                                                                                                                        |
+| `hatchet_tenant_worker_slots`                                | Gauge     | The total number of worker slots (free + used)                                                                                                                                                                                                                                             |
+| `hatchet_tenant_used_worker_label_slots`                     | Gauge     | The current number of worker slots being used, by worker label pair and slot type                                                                                                                                                                                                          |
+| `hatchet_tenant_available_worker_label_slots`                | Gauge     | The current number of free worker slots, by worker label pair and slot type                                                                                                                                                                                                                |
+| `hatchet_tenant_worker_label_slots`                          | Gauge     | The total number of worker slots (free + used), by worker label pair and slot type                                                                                                                                                                                                         |
+| `hatchet_tenant_queue_size`                                  | Gauge     | The current number of queued items, by queue and workflow name. Polled from the database every 15 seconds; items queued behind a concurrency strategy are not counted. Safe to sum                                                                                                         |
+| `hatchet_tenant_additional_metadata_queue_size`              | Gauge     | The current number of queued items, by queue and additional metadata key-value pair. Only keys prefixed with `prom_` are exported (scalar values only). Polled from the database every 15 seconds; an item counts towards every exported key it carries, so do not sum across `key` values |
+
+The `hatchet_tenant_*_worker_label_slots` metrics expose gauges for each unique worker label `(key, value)` pair and slot type, using the `label_key`, `label_value`, and `slot_type` Prometheus labels. A worker's slots count towards every label pair the worker carries, so a worker labeled `pool=gpu, region=us-east` contributes its slots to both the `{label_key="pool", label_value="gpu"}` and `{label_key="region", label_value="us-east"}` series.
+
+The `slot_type` label separates the worker's slot pools (e.g. `default` and `durable`), which have independent capacities. Filter to the slot type you care about — usually `default` — when computing utilization; a worker's large durable slot pool would otherwise mask saturation of its default slots. Summing across `slot_type` values is safe (the pools are disjoint), unlike summing across `label_key` values.
+
+<Callout type="warning">
+  Because a worker contributes to one series per label key, summing these
+  metrics across different `label_key` values counts the same slots multiple
+  times. Always filter to a single `(label_key, label_value)` pair when
+  querying.
+</Callout>
+
+<Callout type="warning">
+  The metadata queue size gauge only exports additional metadata keys prefixed
+  with `prom_` (e.g. `prom_pool`) — prefix a key to opt it in. Every distinct
+  value of an exported key creates its own Prometheus series, so only prefix
+  keys whose values are low-cardinality (pool names, customer tiers), never
+  per-run identifiers.
+</Callout>
+
+#### Example PromQL Queries
+
+##### 1. Workflow Duration by Tenant and Status
+
+```promql
+rate(hatchet_tenant_workflow_duration_milliseconds_sum[5m])
+by (tenant_id, workflow_name, status)
+/
+rate(hatchet_tenant_workflow_duration_milliseconds_count[5m])
+by (tenant_id, workflow_name, status)
+```
+
+##### 2. Tenant Queue Performance (95th percentile)
+
+```promql
+histogram_quantile(0.95,
+  rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket[5m])
+) by (tenant_id)
+```
+
+##### 3. Tenant Error Rate by Workflow
+
+```promql
+rate(hatchet_tenant_failed_tasks[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
+```
+
+##### 4. Tenant Task Throughput
+
+```promql
+rate(hatchet_tenant_succeeded_tasks[5m]) by (tenant_id)
+```
+
+##### 5. Tenant Retry Rate
+
+```promql
+rate(hatchet_tenant_retried_tasks[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
+```
+
+##### 6. Workflow Duration Distribution by Tenant
+
+```promql
+sum by (tenant_id, le) (
+  rate(hatchet_tenant_workflow_duration_milliseconds_bucket[5m])
+)
+```
+
+##### 7. Tenant Rate Limiting Impact
+
+```promql
+rate(hatchet_tenant_rate_limited[5m]) by (tenant_id)
+```
+
+##### 8. Per-Tenant Queue Utilization
+
+```promql
+rate(hatchet_tenant_queue_invocations[5m]) by (tenant_id)
+```
+
+##### 9. Tenant Scheduling Timeouts
+
+```promql
+rate(hatchet_tenant_scheduling_timed_out[5m]) by (tenant_id)
+```
+
+##### 10. Tenant Task Assignment Success Rate
+
+```promql
+rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
+```
+
+##### 11. Tenant Task Reassignment Rate
+
+```promql
+rate(hatchet_tenant_reassigned_tasks[5m]) by (tenant_id)
+```
+
+##### 12. Worker Slot Utilization by Label Pair
+
+```promql
+hatchet_tenant_used_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
+/
+hatchet_tenant_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
+```
+
+##### 13. Queue Backlog by Additional Metadata Tag
+
+```promql
+sum(hatchet_tenant_additional_metadata_queue_size{key="prom_pool", value="gpu"}) or vector(0)
+```
+
+##### 14. Queue Latency (p95) by Workflow
+
+```promql
+histogram_quantile(0.95,
+  sum by (workflow_name, le) (
+    rate(hatchet_tenant_queued_to_assigned_time_seconds_by_workflow_bucket[5m])
+  )
+)
+```
+
+The worker slot and queue size gauges are designed to drive autoscalers — see [Autoscaling Workers](/v1/autoscaling-workers#scaling-based-on-worker-slot-utilization) for how to use them with KEDA.
+
+### Cross-Tenant Analysis
+
+#### Example PromQL Queries
+
+##### 1. Top 5 Tenants by Task Volume
+
+```promql
+topk(5,
+  sum by (tenant_id) (
+    rate(hatchet_tenant_created_tasks[1h])
+  )
+)
+```
+
+##### 2. Slowest Workflows Across All Tenants
+
+```promql
+topk(10,
+  rate(hatchet_tenant_workflow_duration_milliseconds_sum[5m])
+  /
+  rate(hatchet_tenant_workflow_duration_milliseconds_count[5m])
+) by (tenant_id, workflow_name)
+```
+
+##### 3. Tenant Resource Consumption Comparison
+
+```promql
+sum by (tenant_id) (
+  rate(hatchet_tenant_workflow_duration_milliseconds_sum[1h])
+)
+/ 1000 / 60  # Convert to minutes
+```
+
+### Integration with Prometheus
+
+This endpoint can be used to configure Prometheus to scrape tenant-specific metrics:
+
+```yaml
+scrape_configs:
+  - job_name: "hatchet-tenant-metrics"
+    static_configs:
+      - targets: ["cloud.onhatchet.run"]
+    metrics_path: "/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics"
+    scheme: "https"
+    authorization:
+      credentials: "your-api-token-here"
+```
+
+**Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
+
+This provides tenant-isolated metrics that can be scraped directly by Prometheus or consumed by other monitoring tools that support the Prometheus text format.

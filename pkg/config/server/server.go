@@ -26,7 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -87,6 +87,8 @@ type ServerConfigFile struct {
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+
+	VersionOverride string `mapstructure:"versionOverride" json:"versionOverride,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -730,7 +732,7 @@ type ServerConfig struct {
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPoolV1 *v1.SchedulingPool
+	SchedulingPoolV1 scheduling.Pool
 
 	Sampling ConfigFileSampling
 
@@ -1045,4 +1047,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
+
+	// misc options
+	_ = v.BindEnv("versionOverride", "SERVER_VERSION_OVERRIDE")
 }

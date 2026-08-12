@@ -95,6 +95,7 @@ type RunsContextType = {
   rowSelection: RowSelectionState;
   showTriggerWorkflow: boolean;
   showQueueMetrics: boolean;
+  fetchTimedOut: boolean;
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
@@ -203,6 +204,7 @@ export const RunsProvider = ({
     pagination,
     setPagination,
     setPageSize,
+    fetchTimedOut,
   } = useRuns({
     key: tableKey,
     rowSelection,
@@ -299,6 +301,7 @@ export const RunsProvider = ({
         setShowQueueMetrics,
         setShowTriggerWorkflow,
       },
+      fetchTimedOut,
     }),
     [
       filters,
@@ -340,6 +343,7 @@ export const RunsProvider = ({
       setColumnVisibility,
       rowSelection,
       showTriggerWorkflow,
+      fetchTimedOut,
     ],
   );
 

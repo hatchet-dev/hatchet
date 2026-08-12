@@ -1,5 +1,4 @@
 import React from "react";
-import { useRouter } from "next/router";
 
 /** Maps highlight language abbreviation to logo filename in public/ */
 const LOGO_BY_LANG: Record<string, string> = {
@@ -44,8 +43,7 @@ export function LanguageLogo({
   className?: string;
   size?: number;
 }) {
-  const router = useRouter();
-  const basePath = router.basePath || "";
+  const basePath = "";
   const filename = LOGO_BY_LANG[language?.toLowerCase()];
   if (!filename) return null;
   const src = `${basePath}/${filename}`.replace(/\/+/g, "/");
