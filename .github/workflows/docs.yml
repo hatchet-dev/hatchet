@@ -32,7 +32,7 @@ jobs:
         run: python3 generate.py
       - name: Lint
         working-directory: frontend/docs
-        run: npm run lint:check
+        run: pnpm run lint:check
 
   search-quality:
     runs-on: ubuntu-latest
@@ -93,4 +93,10 @@ jobs:
         run: python3 generate.py
       - name: Build
         working-directory: frontend/docs
-        run: npm run build
+        run: pnpm run build
+      - name: Check for broken links
+        working-directory: frontend/docs
+        run: |
+          pnpm run start &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/v1 > /dev/null && break; sleep 1; done
+          pnpm dlx linkinator@6 http://localhost:3000 --recurse --skip "^(?!http://localhost:3000)" --verbosity error
