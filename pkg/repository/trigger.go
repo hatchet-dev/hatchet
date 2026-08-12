@@ -1697,22 +1697,31 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+	// only need to hit the payload store for events created before the child_external_id column existed
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(matchingEvents))
 
-	for i, event := range matchingEvents {
-		retrievePayloadOpts[i] = RetrievePayloadOpts{
+	for _, event := range matchingEvents {
+		if event.ChildExternalID != nil {
+			continue
+		}
+
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
-		}
+		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	var payloads map[RetrievePayloadOpts][]byte
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+	if len(retrievePayloadOpts) > 0 {
+		payloads, err = r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+		}
 	}
 
 	// parse the event match data, and determine whether the child external ID has already been written
@@ -1720,27 +1729,35 @@ func (r *sharedRepository) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload, ok := payloads[RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
-		}]
+		var childExternalId uuid.UUID
 
-		if !ok {
-			payload = event.Data
+		if event.ChildExternalID != nil {
+			childExternalId = *event.ChildExternalID
+		} else {
+			payload, ok := payloads[RetrievePayloadOpts{
+				Id:         event.ID,
+				InsertedAt: event.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+				TenantId:   tenantId,
+				ExternalId: event.ExternalID,
+			}]
+
+			if !ok {
+				payload = event.Data
+			}
+
+			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+
+			if err != nil {
+				r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
+				continue
+			}
+
+			childExternalId = c.ChildExternalId
 		}
 
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
-
-		if err != nil {
-			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
-			continue
-		}
-
-		if c.ChildExternalId != uuid.Nil {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, c.ChildExternalId)
+		if childExternalId != uuid.Nil {
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, childExternalId)
 		}
 	}
 

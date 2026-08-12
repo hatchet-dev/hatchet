@@ -413,6 +413,7 @@ CREATE TABLE v1_task_event (
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    child_external_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
