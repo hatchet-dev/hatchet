@@ -94,3 +94,13 @@ jobs:
       - name: Build
         working-directory: frontend/docs
         run: npm run build
+      - name: Start server
+        working-directory: frontend/docs
+        run: |
+          npm run start &
+          timeout 60 bash -c 'until curl -sf -o /dev/null http://localhost:3000/v1; do sleep 2; done'
+      - name: Check internal links
+        # Crawls the rendered site so route-level links (which don't map 1:1 to
+        # content files) are validated. External links are skipped to avoid
+        # flaky-network failures; anchors are not validated by linkinator.
+        run: npx --yes linkinator@6.1.4 http://localhost:3000/ --recurse --skip "^(?!http://localhost:3000)" --verbosity error

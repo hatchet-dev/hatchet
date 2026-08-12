@@ -472,7 +472,7 @@ def generate_client_page(pages)
     [
       frontmatter("Client"),
       "# Hatchet Ruby SDK Reference",
-      "This is the Ruby SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction for getting your first tasks running.",
+      "This is the Ruby SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running.",
       "## The Hatchet Ruby Client",
       r.class_intro,
       "The constructor accepts keyword options. Anything not passed explicitly is read from `HATCHET_CLIENT_*` environment variables.",

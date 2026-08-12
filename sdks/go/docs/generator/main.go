@@ -858,7 +858,7 @@ func optionTable(p *pkgDocs, fns []*doc.Func) string {
 	return table([]string{"Name", "Signature", "Description"}, rows)
 }
 
-const clientIntro = `This is the Go SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction for getting your first tasks running. For complete, generated API documentation, see the [Go package docs on pkg.go.dev](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go).
+const clientIntro = `This is the Go SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running. For complete, generated API documentation, see the [Go package docs on pkg.go.dev](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go).
 
 By default, the client reads its configuration (token, host, TLS settings, and so on) from the ` + "`HATCHET_CLIENT_*`" + ` environment variables. Configuration can be overridden with client options from the ` + "`github.com/hatchet-dev/hatchet/pkg/client`" + ` package, such as ` + "`WithToken`" + `, ` + "`WithHostPort`" + `, and ` + "`WithNamespace`" + `.
 `

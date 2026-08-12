@@ -138,6 +138,9 @@ function fixLinks(content: string, document: Document): string {
     result = result.split(`(${from}`).join(`(${target}`);
   }
 
+  // Browsers resolve .mdx hrefs literally and 404 — link to the extensionless route.
+  result = result.replace(/\(([^)\s]+)\.mdx(#[^)]*)?\)/g, '($1$2)');
+
   return result;
 }
 
