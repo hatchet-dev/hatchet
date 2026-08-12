@@ -3243,10 +3243,14 @@ func (r *sharedRepository) createTaskEvents(
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
 	taskIdToIdempotencyKey map[int64]string,
-	taskIdToChildExternalId map[int64]*uuid.UUID,
+	childExternalIdsByIndex []*uuid.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
+	}
+
+	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
+		return nil, fmt.Errorf("mismatched task and child external id lengths")
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -3272,10 +3276,8 @@ func (r *sharedRepository) createTaskEvents(
 		externalId := uuid.New()
 		externalIds[i] = externalId
 
-		childExternalId, ok := taskIdToChildExternalId[task.Id]
-
-		if ok && childExternalId != nil {
-			childExternalIds[i] = *childExternalId
+		if childExternalIdsByIndex != nil && childExternalIdsByIndex[i] != nil {
+			childExternalIds[i] = *childExternalIdsByIndex[i]
 		} else {
 			childExternalIds[i] = uuid.Nil
 		}

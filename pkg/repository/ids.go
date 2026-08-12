@@ -242,7 +242,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	taskExternalIds := make([]uuid.UUID, 0, len(opts))
 	datas := make([][]byte, 0, len(opts))
 	newEventKeys := make([]string, 0, len(opts))
-	taskIdToChildExternalId := make(map[int64]*uuid.UUID)
+	childExternalIds := make([]*uuid.UUID, 0, len(opts))
 
 	// for all other opts, write the events to the database
 	for i := range opts {
@@ -271,7 +271,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID)
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
-		taskIdToChildExternalId[lookupRow.TaskID.Int64] = &generatedId
+		childExternalIds = append(childExternalIds, &generatedId)
 	}
 
 	// create the relevant events
@@ -285,7 +285,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCREATED, len(taskIds)),
 		newEventKeys,
 		nil,
-		taskIdToChildExternalId,
+		childExternalIds,
 	)
 
 	if err != nil {
