@@ -1,6 +1,6 @@
 ## [0.101.18] - 2026-08-12
 
-Hatchet v0.101.18 launches idempotency keys and batch tasks, and replaces the task scheduler with a new event-loop implementation. It is otherwise a performance and operations release, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, new queue depth metrics, and safer batch migrations.
+Hatchet v0.101.18 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, new queue depth metrics, and safer batch migrations.
 
 ### Highlights
 
@@ -10,11 +10,10 @@ Hatchet v0.101.18 launches idempotency keys and batch tasks, and replaces the ta
 - `hatchet_tenant_queued_to_assigned` and `hatchet_tenant_queued_to_assigned_time_seconds` are now also exported broken down by workflow name, and `hatchet_tenant_queue_size` carries a `workflow_name` label.
 - A new `hatchet_tenant_additional_metadata_queue_size` gauge reports queue depth per additional metadata key-value pair. Only keys prefixed with `prom_` are exported, so opting a key in is explicit and cardinality stays bounded. An item counts towards every metadata key it carries, so series should not be summed across keys.
 - Task error messages containing invalid Unicode are rejected before reaching Postgres, rather than failing the write.
-- The task scheduler has been rewritten around an event loop, replacing the previous lock-based implementation. No configuration changes are needed.
 - Per-tenant operation timers are now jittered across their full interval on startup, and persisted intervals are loaded lazily. This avoids query storms when controllers restart on deployments with many tenants. The idempotency lookup is also skipped when a task carries no keys.
-- Requests abandoned by the client now return 499 rather than surfacing as server errors
 - `/api/v1/stable/tasks/{task}/task-events` endpoint no longer ignores its limit and offset parameters.
-- Dispatcher bulk-send failures that are requeued now log as warnings rather than errors. The Go SDK warns when a child workflow result is still pending after its parent task context is cancelled.
+- Dispatcher bulk-send failures that are requeued now log as warnings rather than errors.
+- The Go SDK warns when a child workflow result is still pending after its parent task context is cancelled.
 - Dashboard: onboarding use case selection, wider labels in the trace view, and a restored domain redirect modal.
 
 ## [0.98.9] - 2026-07-28
