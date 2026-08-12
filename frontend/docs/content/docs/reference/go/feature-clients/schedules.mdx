@@ -1,0 +1,125 @@
+---
+title: "Schedules"
+---
+
+# Schedules Client
+
+Accessed via `client.Schedules()` on the [Hatchet client](../client).
+
+## SchedulesClient
+
+SchedulesClient provides methods for interacting with workflow schedules
+
+Methods:
+
+| Name     | Description                                                                              |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `Create` | Create creates a new scheduled workflow run.                                             |
+| `Delete` | Delete removes a scheduled workflow run.                                                 |
+| `Get`    | Get retrieves a specific scheduled workflow run by its ID.                               |
+| `List`   | List retrieves a collection of scheduled workflow runs based on the provided parameters. |
+
+### Functions
+
+#### `Create`
+
+Create creates a new scheduled workflow run.
+
+```go
+func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error)
+```
+
+Parameters:
+
+| Name           | Type                        |
+| -------------- | --------------------------- |
+| `ctx`          | `context.Context`           |
+| `workflowName` | `string`                    |
+| `trigger`      | `CreateScheduledRunTrigger` |
+
+Returns:
+
+| Type                       |
+| -------------------------- |
+| `*rest.ScheduledWorkflows` |
+| `error`                    |
+
+#### `Delete`
+
+Delete removes a scheduled workflow run.
+
+```go
+func (s *SchedulesClient) Delete(ctx context.Context, scheduledRunId string) error
+```
+
+Parameters:
+
+| Name             | Type              |
+| ---------------- | ----------------- |
+| `ctx`            | `context.Context` |
+| `scheduledRunId` | `string`          |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `Get`
+
+Get retrieves a specific scheduled workflow run by its ID.
+
+```go
+func (s *SchedulesClient) Get(ctx context.Context, scheduledRunId string) (*rest.ScheduledWorkflows, error)
+```
+
+Parameters:
+
+| Name             | Type              |
+| ---------------- | ----------------- |
+| `ctx`            | `context.Context` |
+| `scheduledRunId` | `string`          |
+
+Returns:
+
+| Type                       |
+| -------------------------- |
+| `*rest.ScheduledWorkflows` |
+| `error`                    |
+
+#### `List`
+
+List retrieves a collection of scheduled workflow runs based on the provided parameters.
+
+```go
+func (s *SchedulesClient) List(ctx context.Context, opts rest.WorkflowScheduledListParams) (*rest.ScheduledWorkflowsList, error)
+```
+
+Parameters:
+
+| Name   | Type                               |
+| ------ | ---------------------------------- |
+| `ctx`  | `context.Context`                  |
+| `opts` | `rest.WorkflowScheduledListParams` |
+
+Returns:
+
+| Type                           |
+| ------------------------------ |
+| `*rest.ScheduledWorkflowsList` |
+| `error`                        |
+
+## Related types
+
+### CreateScheduledRunTrigger
+
+CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
+
+Fields:
+
+| Name                 | Type                     | Description                                                                  |
+| -------------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| `TriggerAt`          | `time.Time`              | TriggerAt specifies when the workflow should be triggered.                   |
+| `Input`              | `map[string]interface{}` | Input is the optional input data for the workflow.                           |
+| `AdditionalMetadata` | `map[string]interface{}` | AdditionalMetadata is optional metadata to associate with the scheduled run. |
+| `Priority`           | `*RunPriority`           |                                                                              |

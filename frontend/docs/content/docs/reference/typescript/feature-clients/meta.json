@@ -1,5 +1,6 @@
 {
   "pages": [
+    "cel",
     "crons",
     "filters",
     "logs",
@@ -7,6 +8,7 @@
     "ratelimits",
     "runs",
     "schedules",
+    "tenant",
     "webhooks",
     "workers",
     "workflows"

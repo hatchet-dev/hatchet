@@ -1,21 +1,8 @@
 import asyncio
 import shutil
-from typing import Coroutine, ParamSpec, TypeVar
-
-from openai import AsyncOpenAI
-from pydantic_settings import BaseSettings
+from typing import Coroutine, TypeVar
 
 T = TypeVar("T")
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-class Settings(BaseSettings):
-    openai_api_key: str = "fake-key"
-
-
-settings = Settings()
-client = AsyncOpenAI(api_key=settings.openai_api_key)
 
 
 async def gather_max_concurrency(

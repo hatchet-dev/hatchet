@@ -76,6 +76,7 @@ interface DocPage {
   href: string;
   filepath: string;
   section: string;
+  unlisted?: boolean;
 }
 
 interface MetaJson {
@@ -109,16 +110,37 @@ function collectPagesFromDir(
   urlPrefix: string,
   sectionTitle: string,
   pages: DocPage[],
+  unlisted = false,
 ): void {
   const meta = readMeta(dir);
-  if (!meta?.pages) return;
 
-  for (const key of meta.pages) {
+  // fumadocs routes every content file even when meta.json omits it, so
+  // unlisted pages still need /llms mirrors for their markdown links
+  const listed = new Set(meta?.pages ?? []);
+  const keys: string[] = [...listed];
+  const onDisk = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() || e.name.endsWith(".mdx"))
+    .map((e) => e.name.replace(/\.mdx$/, ""))
+    .sort();
+  for (const key of onDisk) {
+    if (!listed.has(key)) keys.push(key);
+  }
+
+  for (const key of keys) {
     if (SEPARATOR_RE.test(key) || LINK_RE.test(key)) continue;
+
+    const keyUnlisted = unlisted || !listed.has(key);
 
     const subDir = path.join(dir, key);
     if (fs.existsSync(subDir) && fs.statSync(subDir).isDirectory()) {
-      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
+      collectPagesFromDir(
+        subDir,
+        `${urlPrefix}/${key}`,
+        sectionTitle,
+        pages,
+        keyUnlisted,
+      );
       continue;
     }
 
@@ -131,6 +153,7 @@ function collectPagesFromDir(
       href: `${DOCS_BASE_URL}/${urlPrefix}/${key}`,
       filepath: mdxPath,
       section: sectionTitle,
+      unlisted: keyUnlisted || undefined,
     });
   }
 }
@@ -823,6 +846,7 @@ function generatePerPageMarkdown(
   languages: string[] | null,
 ): void {
   const llmsDir = path.join(OUTPUT_DIR, "llms");
+  fs.rmSync(llmsDir, { recursive: true, force: true });
 
   for (const page of pages) {
     const raw = fs.readFileSync(page.filepath, "utf-8");
@@ -875,19 +899,22 @@ function main(): void {
 
   console.log("Collecting pages from _meta.js files...");
   const pages = collectPages();
-  console.log(`  Found ${pages.length} pages`);
+  const listedPages = pages.filter((p) => !p.unlisted);
+  console.log(
+    `  Found ${pages.length} pages (${pages.length - listedPages.length} unlisted)`,
+  );
 
   console.log("Generating llms.txt...");
-  const llmsTxt = generateLlmsTxt(pages);
+  const llmsTxt = generateLlmsTxt(listedPages);
 
   console.log("Generating llms-full.txt...");
-  const llmsFullTxt = generateLlmsFullTxt(pages, snippetTree, languages);
+  const llmsFullTxt = generateLlmsFullTxt(listedPages, snippetTree, languages);
 
   console.log("Generating per-page markdown files...");
   generatePerPageMarkdown(pages, snippetTree, languages);
 
   console.log("Building MiniSearch index...");
-  const searchIndexJson = buildSearchIndex(pages, snippetTree, languages);
+  const searchIndexJson = buildSearchIndex(listedPages, snippetTree, languages);
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 

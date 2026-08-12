@@ -1,0 +1,243 @@
+---
+title: "Client"
+---
+
+# Hatchet Ruby SDK Reference
+
+This is the Ruby SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running.
+
+## The Hatchet Ruby Client
+
+The main client for interacting with Hatchet services.
+
+```ruby
+hatchet = Hatchet::Client.new()
+```
+
+```ruby
+hatchet = Hatchet::Client.new(
+  token: "your-jwt-token",
+  namespace: "production"
+)
+```
+
+```ruby
+wf = hatchet.workflow(name: "MyWorkflow")
+step1 = wf.task(:step1) { |input, ctx| { "result" => 42 } }
+```
+
+```ruby
+my_task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
+```
+
+The constructor accepts keyword options. Anything not passed explicitly is read from `HATCHET_CLIENT_*` environment variables.
+
+Options:
+
+| Name                   | Type      | Description                                                               |
+| ---------------------- | --------- | ------------------------------------------------------------------------- |
+| `debug`                | `Boolean` | Enable debug logging (default: false)                                     |
+| `token`                | `String`  | The JWT token for authentication (required)                               |
+| `tenant_id`            | `String`  | Override tenant ID (extracted from JWT token 'sub' field if not provided) |
+| `host_port`            | `String`  | gRPC server host and port (default: "localhost:7070")                     |
+| `server_url`           | `String`  | Server URL for HTTP requests.                                             |
+| `namespace`            | `String`  | Namespace prefix for resource names (default: "")                         |
+| `logger`               | `Logger`  | Custom logger instance.                                                   |
+| `worker_preset_labels` | `Hash`    | Default labels applied to all workers.                                    |
+
+Methods:
+
+| Name           | Description                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| `worker`       | Create a Hatchet worker on which to run workflows.                                                      |
+| `workflow`     | Define a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.               |
+| `task`         | Create a standalone Hatchet task.                                                                       |
+| `durable_task` | Create a standalone _durable_ Hatchet task, which works using Hatchet's durable execution capabilities. |
+| `batch_task`   | Create a standalone batch task (auto-wraps in a single-task workflow).                                  |
+
+### Attributes
+
+#### `cel`
+
+The CEL client is a client for debugging CEL expressions within Hatchet. See the [CEL client](./feature-clients/cel).
+
+#### `config`
+
+The configuration object used by this client.
+
+#### `cron`
+
+The cron client is a client for managing cron workflow triggers within Hatchet. See the [Cron client](./feature-clients/cron).
+
+#### `events`
+
+The events client, which you can use to push events to Hatchet to trigger event-driven workflows. See the [Events client](./feature-clients/events).
+
+#### `filters`
+
+The filters client is a client for managing filters within Hatchet, which scope event triggers to workflows using CEL expressions. See the [Filters client](./feature-clients/filters).
+
+#### `logger`
+
+Convenience accessor for the logger.
+
+#### `logs`
+
+The logs client is a client for interacting with Hatchet's logs API. See the [Logs client](./feature-clients/logs).
+
+#### `metrics`
+
+The metrics client is a client for reading metrics out of Hatchet's metrics API. See the [Metrics client](./feature-clients/metrics).
+
+#### `rate_limits`
+
+The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet. See the [Rate Limits client](./feature-clients/rate_limits).
+
+#### `runs`
+
+The runs client is a client for interacting with task and workflow runs within Hatchet. See the [Runs client](./feature-clients/runs).
+
+#### `scheduled`
+
+The scheduled client is a client for managing scheduled workflow runs within Hatchet. See the [Scheduled client](./feature-clients/scheduled).
+
+#### `tenant`
+
+The tenant client is a client for reading information about the tenant you're operating in. See the [Tenant client](./feature-clients/tenant).
+
+#### `tenant_id`
+
+The tenant ID.
+
+#### `workers`
+
+The workers client is a client for managing workers programmatically within Hatchet. See the [Workers client](./feature-clients/workers).
+
+#### `workflows`
+
+The workflows client is a client for managing workflow declarations programmatically within Hatchet. Note that workflows are the declaration, _not_ the individual runs; if you're looking for runs, use the runs client instead. See the [Workflows client](./feature-clients/workflows).
+
+### Functions
+
+#### `worker`
+
+Create a Hatchet worker on which to run workflows.
+
+```ruby
+worker = hatchet.worker("my-worker", workflows: [wf], slots: 10)
+worker.start
+```
+
+Parameters:
+
+| Name            | Type                    | Description                                                                                                              | Default    |
+| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `name`          | `String`                | The name of the worker.                                                                                                  | _required_ |
+| `workflows`     | `Array<Workflow, Task>` | A list of workflows (or standalone tasks) to register on the worker.                                                     | `[]`       |
+| `slots`         | `Integer`               | Slot count for standard tasks, i.e. the number of tasks the worker can run concurrently.                                 | `10`       |
+| `durable_slots` | `Integer \| nil`        | Slot count for durable tasks; defaults to `slots` if not provided.                                                       | `nil`      |
+| `labels`        | `Hash`                  | A hash of labels to assign to the worker, for use with worker affinity; merged with the client's `worker_preset_labels`. | `{}`       |
+
+Returns:
+
+| Type              | Description                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Hatchet::Worker` | The created worker object, which exposes an instance method `start` which can be called to start the worker (blocking until shutdown), and `stop` to request a graceful shutdown. |
+
+#### `workflow`
+
+Define a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
+
+```ruby
+wf = hatchet.workflow(name: "MyWorkflow")
+wf.task(:step1) { |input, ctx| { "value" => 42 } }
+```
+
+Parameters:
+
+| Name               | Type                                                               | Description                                                                                                                                          | Default    |
+| ------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `name`             | `String`                                                           | The name of the workflow.                                                                                                                            | _required_ |
+| `on_events`        | `Array<String>`                                                    | A list of event triggers for the workflow - events which cause the workflow to be run.                                                               | `[]`       |
+| `on_crons`         | `Array<String>`                                                    | A list of cron triggers for the workflow.                                                                                                            | `[]`       |
+| `concurrency`      | `ConcurrencyExpression \| Array<ConcurrencyExpression> \| nil`     | A concurrency object (or list of them) controlling the concurrency settings for this workflow.                                                       | `nil`      |
+| `default_priority` | `Integer \| nil`                                                   | The default priority of the workflow. Higher values will cause runs of this workflow to have priority in scheduling over other, lower priority ones. | `nil`      |
+| `task_defaults`    | `Hash \| nil`                                                      | Default task settings for this workflow.                                                                                                             | `nil`      |
+| `default_filters`  | `Array<DefaultFilter>`                                             | A list of filters to create when the workflow is created.                                                                                            | `[]`       |
+| `sticky`           | `Symbol \| nil`                                                    | A sticky strategy for the workflow, either `:soft` or `:hard`.                                                                                       | `nil`      |
+| `idempotency`      | `TTLBasedIdempotencyConfig \| StatusBasedIdempotencyConfig \| nil` | An idempotency configuration for the workflow.                                                                                                       | `nil`      |
+
+Returns:
+
+| Type                | Description                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `Hatchet::Workflow` | The created workflow object, which can be used to declare tasks, run the workflow, and so on. |
+
+#### `task`
+
+Create a standalone Hatchet task. The task is automatically wrapped in a single-task workflow, so it can be run, scheduled, and registered on a worker just like a workflow. The block receives the run's input and a `Context` object.
+
+```ruby
+my_task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
+```
+
+Parameters:
+
+| Name              | Type                                                               | Description                                                                    | Default    |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------- |
+| `name`            | `String`                                                           | The name of the task.                                                          | _required_ |
+| `on_events`       | `Array<String>`                                                    | A list of event triggers for the task - events which cause the task to be run. | `[]`       |
+| `default_filters` | `Array<DefaultFilter>`                                             | A list of filters to create when the task is created.                          | `[]`       |
+| `idempotency`     | `TTLBasedIdempotencyConfig \| StatusBasedIdempotencyConfig \| nil` | An idempotency configuration for the task.                                     | `nil`      |
+
+Returns:
+
+| Type            | Description                                                                       |
+| --------------- | --------------------------------------------------------------------------------- |
+| `Hatchet::Task` | The created task object, which can be run, scheduled, and registered on a worker. |
+
+#### `durable_task`
+
+Create a standalone _durable_ Hatchet task, which works using Hatchet's durable execution capabilities. Durable tasks receive a `DurableContext` with additional methods like `sleep_for` and `wait_for`.
+
+Parameters:
+
+| Name              | Type                             | Description                                                                                                                                                                                           | Default                                         |
+| ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `name`            | `String`                         | The name of the task.                                                                                                                                                                                 | _required_                                      |
+| `eviction_policy` | `Hatchet::EvictionPolicy \| nil` | Eviction policy for this durable task. Defaults to `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` (15-minute TTL, capacity-eviction enabled). Pass `nil` to disable eviction entirely for this task. | `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
+| `**opts`          | `Hash`                           | Any other keyword arguments (`retries:`, `execution_timeout:`, and so on) are forwarded to the task declaration - see `Workflow#task` for the full list.                                              | `{}`                                            |
+
+Returns:
+
+| Type            | Description                      |
+| --------------- | -------------------------------- |
+| `Hatchet::Task` | The created durable task object. |
+
+#### `batch_task`
+
+Create a standalone batch task (auto-wraps in a single-task workflow).
+
+Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or flush interval), then invoke the block once with all buffered inputs keyed by each run's task-run external id. The block must return a Hash mapping each id to its output, or use `broadcast_output` on the batch config to return the same result to all callers. retries is always forced to 0 for batch tasks.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+```ruby
+batch = hatchet.batch_task(name: "my_batch", batch: Hatchet::BatchTaskConfig.new(max_size: 3)) do |inputs, ctx|
+  inputs.transform_values { |input| { "result" => input["message"].upcase } }
+end
+```
+
+Parameters:
+
+| Name     | Type                       | Description                                                                                    | Default    |
+| -------- | -------------------------- | ---------------------------------------------------------------------------------------------- | ---------- |
+| `name`   | `String`                   | The name of the task.                                                                          | _required_ |
+| `batch`  | `Hatchet::BatchTaskConfig` | The batch configuration (`max_size`, flush interval, `broadcast_output`)                       | _required_ |
+| `**opts` | `Hash`                     | Any other keyword arguments (`on_events:`, `idempotency:`, and so on) are forwarded to `task`. | `{}`       |
+
+Returns:
+
+| Type            | Description                    |
+| --------------- | ------------------------------ |
+| `Hatchet::Task` | The created batch task object. |

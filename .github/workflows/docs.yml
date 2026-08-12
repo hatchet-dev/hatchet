@@ -32,7 +32,7 @@ jobs:
         run: python3 generate.py
       - name: Lint
         working-directory: frontend/docs
-        run: npm run lint:check
+        run: pnpm run lint:check
 
   search-quality:
     runs-on: ubuntu-latest
@@ -93,4 +93,14 @@ jobs:
         run: python3 generate.py
       - name: Build
         working-directory: frontend/docs
-        run: npm run build
+        run: pnpm run build
+      - name: Start server
+        working-directory: frontend/docs
+        run: |
+          pnpm run start &
+          timeout 60 bash -c 'until curl -sf -o /dev/null http://localhost:3000/v1; do sleep 2; done'
+      - name: Check internal links
+        # Crawls the rendered site so route-level links (which don't map 1:1 to
+        # content files) are validated. External links are skipped to avoid
+        # flaky-network failures; anchors are not validated by linkinator.
+        run: pnpm dlx linkinator@6.1.4 http://localhost:3000/ --recurse --skip "^(?!http://localhost:3000)" --verbosity error

@@ -13,7 +13,7 @@ R = TypeVar("R")
 
 SYSTEM_PROMPT = """
 You're an SDK documentation expert working on improving the readability of Hatchet's Python SDK documentation. You will be given
-a markdown file, and your task is to fix any broken MDX so it can be used as a page on our Nextra documentation site.
+a markdown file, and your task is to fix any broken MDX so it can be used as a page on our Fumadocs documentation site.
 
 In your work, follow these instructions:
 
@@ -21,6 +21,7 @@ In your work, follow these instructions:
 2. Return only the content. You should not enclode the markdown in backticks or any other formatting.
 3. You must ensure that MDX will render any tables correctly. One thing in particular to be on the lookout for is the use of the pipe `|` in type hints in the tables. For example, `int | None` is the Python type `Optional[int]` and should render in a single column with an escaped pipe character.
 4. All code blocks should be formatted as `python`.
+5. Do not add YAML frontmatter to the page. It is added separately.
 """
 
 

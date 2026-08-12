@@ -5,16 +5,16 @@ export interface Document {
   sourcePath: string;
   readableSourcePath: string;
   mdxOutputPath: string;
-  mdxOutputMetaJsPath: string;
   isIndex: boolean;
   directory: string;
   basename: string;
   title: string;
-  metaJsEntry: string;
 }
 
-const FILENAME_REMAP: Record<string, string> = {
+export const FILENAME_REMAP: Record<string, string> = {
   'Hatchet-TypeScript-SDK-Reference.mdx': 'client.mdx',
+  'Context.mdx': 'context.mdx',
+  'Runnables.mdx': 'runnables.mdx',
 };
 
 function remapFilename(filename: string): { outRelative: string; basename: string; directory: string } {
@@ -54,24 +54,14 @@ export function documentFromPath(filePath: string): Document {
 
   const title = toTitle(basename);
   const outFull = path.join(FRONTEND_DOCS_RELATIVE_PATH, outRelative);
-  const outDir = path.dirname(outFull);
-
-  const metaJsEntry = `  "${basename}": {
-    title: "${title}",
-    theme: {
-      toc: true,
-    },
-  },`;
 
   return {
     directory,
     basename,
     title,
-    metaJsEntry,
     sourcePath: filePath,
     readableSourcePath: filename,
     mdxOutputPath: outFull,
-    mdxOutputMetaJsPath: path.join(outDir, '_meta.js'),
     isIndex: basename === 'index' || basename === 'README',
   };
 }
