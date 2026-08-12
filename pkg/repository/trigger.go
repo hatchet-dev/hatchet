@@ -384,7 +384,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil)
+	return s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
@@ -691,8 +691,17 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	tenantId uuid.UUID,
 	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
+	ownsTx bool,
 ) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
+	if optTx == nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
+	}
+
 	preflightTx := optTx.tx
+
+	if ownsTx {
+		preflightTx = r.pool
+	}
 
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
 
@@ -1453,7 +1462,7 @@ func (r *sharedRepository) triggerWorkflows(
 		ownsTx = true
 	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents, ownsTx)
 
 	if err != nil {
 		return nil, nil, nil, nil, err
