@@ -83,8 +83,10 @@ export default function CookieConsent({
   }, [accept, demo]);
 
   useEffect(() => {
-    const consented = consentGiven === "yes";
-    posthog.capture("accept-cookies", { accepted: consented });
+    // Only capture an actual choice; with cookieless capture active, an
+    // unguarded capture here would fire on every page load.
+    if (consentGiven === "") return;
+    posthog.capture("accept-cookies", { accepted: consentGiven === "yes" });
   }, [consentGiven]);
 
   // Default banner
@@ -107,9 +109,9 @@ export default function CookieConsent({
             </div>
             <div className="p-4">
               <p className="text-sm font-normal text-start">
-                We use cookies to ensure you get the best experience on our
-                website. For more information on how we use cookies, please see
-                our cookie policy.
+                We use cookies and similar technologies for analytics and
+                marketing. You can allow these cookies or continue with only
+                essential cookies.
                 <br />
                 <br />
                 <span className="text-xs">
@@ -158,9 +160,8 @@ export default function CookieConsent({
         </div>
         <div className="p-3 -mt-2">
           <p className="text-sm text-left text-muted-foreground">
-            We use cookies to ensure you get the best experience on our website.
-            For more information on how we use cookies, please see our cookie
-            policy.
+            We use cookies and similar technologies for analytics and marketing.
+            You can allow these cookies or continue with only essential cookies.
           </p>
         </div>
         <div className="p-3 flex items-center gap-2 mt-2 border-t">
