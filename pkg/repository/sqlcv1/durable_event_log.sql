@@ -1,10 +1,18 @@
--- name: GetAndLockLogFile :one
+-- name: GetAndLockLogFiles :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
 SELECT *
 FROM v1_durable_event_log_file
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
+WHERE (durable_task_id, durable_task_inserted_at, tenant_id) IN (
+    SELECT durable_task_id, durable_task_inserted_at, tenant_id
+    FROM inputs
+)
+ORDER BY durable_task_id, durable_task_inserted_at
 FOR UPDATE
 ;
 
@@ -53,6 +61,19 @@ SET
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
+
+-- name: BulkUpdateLogFileLatestNodeId :exec
+UPDATE v1_durable_event_log_file lf
+SET latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
+FROM (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+) i
+WHERE lf.durable_task_id = i.durable_task_id
+  AND lf.durable_task_inserted_at = i.durable_task_inserted_at
+;
 
 -- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
@@ -202,22 +223,37 @@ RETURNING *
 WITH inputs AS (
     SELECT
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@nodeIds::BIGINT[]) AS node_id
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
 )
+
 SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-WHERE e.durable_task_id = @durableTaskId::BIGINT
-  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
+WHERE (e.durable_task_id, e.durable_task_inserted_at) IN (
+    SELECT durable_task_id, durable_task_inserted_at
+    FROM inputs
+)
+;
 
 -- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
 SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
-    e.durable_task_id = @durableTaskId::BIGINT
-    AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+    (e.durable_task_id, e.durable_task_inserted_at, e.tenant_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, tenant_id
+        FROM inputs
+    )
     AND e.child_task_external_id = ANY(@childTaskExternalIds::UUID[])
 ORDER BY e.child_task_external_id, e.node_id ASC;
 
@@ -294,12 +330,19 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
 ;
 
 -- name: ListDurableEventLogBranchPoints :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
 SELECT *
 FROM v1_durable_event_log_branch_point
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
+WHERE (durable_task_id, durable_task_inserted_at, tenant_id) IN (
+    SELECT durable_task_id, durable_task_inserted_at, tenant_id
+    FROM inputs
+)
 ORDER BY id ASC
 ;
 

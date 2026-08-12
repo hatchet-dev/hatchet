@@ -231,14 +231,18 @@ WITH inputs AS (
     SELECT
         UNNEST(@keys::text[]) AS key,
         UNNEST(@seenSinces::timestamptz[]) AS since,
-        UNNEST(@scopes::text[]) AS scope
+        UNNEST(@scopes::text[]) AS scope,
+        UNNEST(@tenantIds::uuid[]) AS tenant_id
 )
 
 SELECT e.*
 FROM v1_event e
-JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
-WHERE tenant_id = @tenantId::uuid
-ORDER BY e.seen_at DESC
+JOIN inputs i
+    ON i.key = e.key
+    AND e.seen_at >= i.since
+    AND e.scope = i.scope
+    AND e.tenant_id = i.tenant_id
+ORDER BY e.tenant_id, e.seen_at DESC, e.id DESC
 ;
 
 -- name: CleanupMatchWithMatchConditions :exec
