@@ -314,6 +314,7 @@ func init() {
 	// Add flags to profile add command
 	profileAddCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
 	profileAddCmd.Flags().StringP("name", "n", "", "Name of the profile (defaults to tenant name)")
+	profileAddCmd.Flags().String("tls-strategy", "", "TLS strategy for the gRPC connection: tls, mtls, or none (default: auto-detect)")
 
 	// Add flags to profile remove command
 	profileRemoveCmd.Flags().StringP("name", "n", "", "Name of the profile to remove (prompted if not provided)")
@@ -325,6 +326,7 @@ func init() {
 	// Add flags to profile update command
 	profileUpdateCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
 	profileUpdateCmd.Flags().StringP("name", "n", "", "Name of the profile to update (prompted if not provided)")
+	profileUpdateCmd.Flags().String("tls-strategy", "", "TLS strategy for the gRPC connection: tls, mtls, or none (default: auto-detect)")
 
 	// Add flags to profile set-default command
 	profileSetDefaultCmd.Flags().StringP("name", "n", "", "Name of the profile to set as default (prompted if not provided)")
