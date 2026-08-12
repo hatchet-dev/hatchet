@@ -76,11 +76,13 @@ import { DeleteTenantModal } from '@/pages/organizations/$organization/component
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
 import { EditMemberRoleModal } from '@/pages/organizations/$organization/components/edit-member-role-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
+import { TransferTenantModal } from '@/pages/organizations/$organization/components/transfer-tenant-modal';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
   ArrowRightIcon,
+  ArrowsRightLeftIcon,
   CheckIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
@@ -271,6 +273,8 @@ export function CloudOrganizationSettings({
   const [memberToEditRole, setMemberToEditRole] =
     useState<OrganizationMember | null>(null);
   const [tenantToEditTags, setTenantToEditTags] =
+    useState<OrganizationTenantWithRegion | null>(null);
+  const [tenantToTransfer, setTenantToTransfer] =
     useState<OrganizationTenantWithRegion | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
   const [tokenToDelete, setTokenToDelete] = useState<ManagementToken | null>(
@@ -942,6 +946,11 @@ export function CloudOrganizationSettings({
                   ? setTenantToEditTags
                   : undefined
               }
+              onTransfer={
+                isControlPlaneEnabled && isOrganizationOwner
+                  ? setTenantToTransfer
+                  : undefined
+              }
               defaultOrganizationId={orgId}
               canManageOrganization={isOrganizationOwner}
             />
@@ -1366,6 +1375,25 @@ export function CloudOrganizationSettings({
           }
         />
       )}
+
+      {isOrganizationOwner && isControlPlaneEnabled && tenantToTransfer && (
+        <TransferTenantModal
+          open={!!tenantToTransfer}
+          onOpenChange={(open) => !open && setTenantToTransfer(null)}
+          organizationId={orgId}
+          organizationName={organizationName}
+          tenantId={tenantToTransfer.id}
+          tenantName={tenantToTransfer.name || tenantToTransfer.id}
+          ownedDestinationOrganizations={organizations.filter(
+            (o) => o.isOwner && o.metadata.id !== orgId,
+          )}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ['organization:get', orgId],
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1448,12 +1476,14 @@ function TenantsSection({
   tenants,
   onArchive,
   onEditTags,
+  onTransfer,
   defaultOrganizationId,
   canManageOrganization,
 }: {
   tenants: OrganizationTenantWithRegion[];
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
+  onTransfer?: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
@@ -1570,6 +1600,7 @@ function TenantsSection({
           row={{ ...tenant, metadata: { id: tenant.id } }}
           onArchive={onArchive}
           onEditTags={onEditTags}
+          onTransfer={onTransfer}
           canManageOrganization={canManageOrganization}
         />
       ),
@@ -1665,11 +1696,13 @@ function TenantActions({
   row,
   onArchive,
   onEditTags,
+  onTransfer,
   canManageOrganization,
 }: {
   row: OrganizationTenantWithRegion & { metadata: { id: string } };
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
+  onTransfer?: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const navigate = useNavigate();
@@ -1697,6 +1730,12 @@ function TenantActions({
           <DropdownMenuItem onClick={() => onEditTags(row)}>
             <PencilSquareIcon className="mr-2 size-4" />
             Edit Tags
+          </DropdownMenuItem>
+        )}
+        {canManageOrganization && onTransfer && (
+          <DropdownMenuItem onClick={() => onTransfer(row)}>
+            <ArrowsRightLeftIcon className="mr-2 size-4" />
+            Move to another Organization
           </DropdownMenuItem>
         )}
         {canManageOrganization && (

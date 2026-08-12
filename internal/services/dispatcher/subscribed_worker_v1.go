@@ -158,6 +158,7 @@ func (worker *subscribedWorker) CancelTask(
 	tenantId uuid.UUID,
 	task *sqlcv1.V1Task,
 	retryCount int32,
+	durableTaskInvocationCount *int32,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before cancelling task: %w", ctx.Err())
@@ -166,7 +167,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, nil, retryCount, nil)
+	action := populateAssignedAction(tenantId, task, nil, retryCount, durableTaskInvocationCount)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
