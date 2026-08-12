@@ -21,8 +21,10 @@ export default function CookieConsent({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [hide, setHide] = useState(false);
-  const [consentGiven, setConsentGiven] = useState("");
 
+  // Also called on mount for returning visitors (to sync localStorage from
+  // the cross-subdomain cookie), so the consent event is captured in the
+  // click handlers below, not here.
   const accept = useCallback(() => {
     setIsOpen(false);
     // eslint-disable-next-line no-restricted-syntax
@@ -30,7 +32,6 @@ export default function CookieConsent({
       "cookieConsent=true; expires=Fri, 31 Dec 9999 23:59:59 GMT";
 
     localStorage.setItem("cookie_consent", "yes");
-    setConsentGiven("yes");
 
     // Dispatch custom event to notify other components
     window.dispatchEvent(new Event("cookie-consent-change"));
@@ -44,7 +45,6 @@ export default function CookieConsent({
   const decline = useCallback(() => {
     setIsOpen(false);
     localStorage.setItem("cookie_consent", "no");
-    setConsentGiven("no");
 
     // Dispatch custom event to notify other components
     window.dispatchEvent(new Event("cookie-consent-change"));
@@ -54,6 +54,16 @@ export default function CookieConsent({
     }, 700);
     onDeclineCallback();
   }, [onDeclineCallback]);
+
+  const acceptClick = useCallback(() => {
+    posthog.capture("accept-cookies", { accepted: true });
+    accept();
+  }, [accept]);
+
+  const declineClick = useCallback(() => {
+    posthog.capture("accept-cookies", { accepted: false });
+    decline();
+  }, [decline]);
 
   useEffect(() => {
     try {
@@ -81,13 +91,6 @@ export default function CookieConsent({
       console.error("Error checking cookie consent:", e);
     }
   }, [accept, demo]);
-
-  useEffect(() => {
-    // Only capture an actual choice; with cookieless capture active, an
-    // unguarded capture here would fire on every page load.
-    if (consentGiven === "") return;
-    posthog.capture("accept-cookies", { accepted: consentGiven === "yes" });
-  }, [consentGiven]);
 
   // Default banner
   if (variant === "default") {
@@ -129,10 +132,14 @@ export default function CookieConsent({
               </p>
             </div>
             <div className="flex gap-2 p-4 py-5 border-t border-border dark:bg-background/20">
-              <Button onClick={accept} className="w-full">
+              <Button onClick={acceptClick} className="w-full">
                 Accept
               </Button>
-              <Button onClick={decline} className="w-full" variant="secondary">
+              <Button
+                onClick={declineClick}
+                className="w-full"
+                variant="secondary"
+              >
                 Decline
               </Button>
             </div>
@@ -165,11 +172,11 @@ export default function CookieConsent({
           </p>
         </div>
         <div className="p-3 flex items-center gap-2 mt-2 border-t">
-          <Button onClick={accept} className="w-full h-9 rounded-full">
+          <Button onClick={acceptClick} className="w-full h-9 rounded-full">
             accept
           </Button>
           <Button
-            onClick={decline}
+            onClick={declineClick}
             className="w-full h-9 rounded-full"
             variant="outline"
           >
