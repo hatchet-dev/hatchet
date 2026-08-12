@@ -1,3 +1,26 @@
+## [0.101.18] - 2026-08-12
+
+Hatchet v0.101.18 takes idempotency keys and batch tasks out of beta, and replaces the task scheduler with a new event-loop implementation. It is otherwise a performance and operations release, adding a NATS backend for pub/sub and allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, new queue depth metrics, and safer batch migrations.
+
+### Highlights
+
+- Idempotency keys and batch tasks are out of beta and generally available. Idempotency keys guarantee a task runs only once, even when triggered multiple times from multiple locations. Batch tasks aggregate multiple tasks and spawn them as a single batch, reducing API calls and downstream resource usage. See [Launching Idempotency Keys and Batch Tasks](https://hatchet.run/announcement/idempotency-keys-and-batch-tasks).
+- Best-effort pub/sub can now run on NATS, alongside the existing RabbitMQ and Postgres backends. Set `SERVER_MSGQUEUE_PUBSUB_KIND=nats` and `SERVER_MSGQUEUE_PUBSUB_NATS_URL`, with credentials in `SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME` and `SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD`.
+- The dashboard can be served from a subpath rather than the domain root, via `BASE_PATH` on the static file server or `LITE_FRONTEND_BASE_PATH` on `hatchet-lite`.
+- Durable task performance improvements, order guarantees on durable satisfied callbacks, and result subscriptions in the Go SDK are now preserved across a reconnect.
+- `hatchet_tenant_queued_to_assigned` and `hatchet_tenant_queued_to_assigned_time_seconds` are now also exported broken down by workflow name, and `hatchet_tenant_queue_size` carries a `workflow_name` label.
+- A new `hatchet_tenant_additional_metadata_queue_size` gauge reports queue depth per additional metadata key-value pair. Only keys prefixed with `prom_` are exported, so opting a key in is explicit and cardinality stays bounded. An item counts towards every metadata key it carries, so series should not be summed across keys.
+- The pub/sub layer is instrumented with Prometheus histograms, and publishes that have already exceeded their deadline are dropped rather than sent.
+- Batch tasks now handle the dead letter queue correctly, and the batch scheduler flushes several times per tick with a higher new-item limit and excludes already buffered items from its query. See [Batch Tasks](https://docs.hatchet.run/v1/batch-tasks).
+- `v1_event` now carries a unique index, and `v1_event_lookup_table` and `v1_event_to_run` have been removed.
+- Task error messages containing invalid Unicode are rejected before reaching Postgres, rather than failing the write.
+- Idle message queue buffer flushers are parked and evicted, `RefreshTimeout` updates are buffered and coalesced, and the modification order of `v1_task` and `v1_task_runtime` was changed to avoid a deadlock.
+- The task scheduler has been rewritten around an event loop, replacing the previous lock-based implementation. No configuration changes are needed.
+- Per-tenant operation timers are now jittered across their full interval on startup, and persisted intervals are loaded lazily. This avoids query storms when controllers restart on deployments with many tenants. The idempotency lookup is also skipped when a task carries no keys.
+- Requests abandoned by the client now return 499 rather than surfacing as server errors, and `ListTaskRunEvents` no longer ignores its limit and offset parameters.
+- Dispatcher bulk-send failures that are requeued now log as warnings rather than errors. The Go SDK warns when a child workflow result is still pending after its parent task context is cancelled.
+- Dashboard: onboarding use case selection, wider labels in the trace view, and a restored domain redirect modal.
+
 ## [0.98.9] - 2026-07-28
 
 Hatchet v0.98.9 is a feature release. It adds idempotency keys for tasks and workflows, task batching, and an embedded engine the Go SDK can run in-process, alongside a new default for concurrency scheduling and a batch of dashboard and hardening fixes.
