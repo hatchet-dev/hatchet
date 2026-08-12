@@ -2085,23 +2085,25 @@ func (r *sharedRepository) listWorkflowsByNames(ctx context.Context, tx sqlcv1.D
 		workflowNamesToLookup = append(workflowNamesToLookup, name)
 	}
 
-	// look up the workflow versions for the workflow names
-	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, tx, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      tenantId,
-		Workflownames: workflowNamesToLookup,
-	})
+	if len(workflowNamesToLookup) > 0 {
+		// look up the workflow versions for the workflow names
+		workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, tx, sqlcv1.ListWorkflowsByNamesParams{
+			Tenantid:      tenantId,
+			Workflownames: workflowNamesToLookup,
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workflows by names: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workflows by names: %w", err)
+		}
 
-	for _, workflowVersion := range workflowVersions {
-		// store in the cache
-		k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
+		for _, workflowVersion := range workflowVersions {
+			// store in the cache
+			k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
 
-		r.tenantIdWorkflowNameCache.Add(k, workflowVersion)
+			r.tenantIdWorkflowNameCache.Add(k, workflowVersion)
 
-		res = append(res, workflowVersion)
+			res = append(res, workflowVersion)
+		}
 	}
 
 	return res, nil
