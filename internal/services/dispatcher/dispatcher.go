@@ -570,7 +570,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		if outerErr != nil {
-			d.l.Error().Ctx(ctx).Err(outerErr).Msg("failed to handle task assigned bulk message")
+			d.l.Warn().Ctx(ctx).Err(outerErr).Msg("failed to handle task assigned bulk message")
 		}
 	}()
 

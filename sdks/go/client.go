@@ -840,11 +840,21 @@ type WorkflowRunRef struct {
 
 // Result blocks until the workflow run completes and returns its result.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	return wr.resultWithContext(nil)
+}
+
+func (wr *WorkflowRunRef) resultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	if wr.resultFn != nil {
 		return wr.resultFn()
 	}
 
-	result, err := wr.v0Workflow.Result()
+	var result *v0Client.WorkflowResult
+	var err error
+	if ctx == nil {
+		result, err = wr.v0Workflow.Result()
+	} else {
+		result, err = wr.v0Workflow.ResultWithContext(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}

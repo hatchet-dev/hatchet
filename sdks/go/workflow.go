@@ -846,8 +846,10 @@ func (w *Workflow) OnFailure(fn any) {
 func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
+	var resultWaitContext context.Context
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
+		resultWaitContext = otelCtx
 	}
 	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
@@ -863,7 +865,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	workflowResult, err := workflowRunRef.Result()
+	workflowResult, err := workflowRunRef.resultWithContext(resultWaitContext)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
