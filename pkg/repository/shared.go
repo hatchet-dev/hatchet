@@ -39,6 +39,7 @@ type sharedRepository struct {
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
 	workflowIdNameCache         *expirable.LRU[uuid.UUID, string]
 	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
+	stepIdConfigCache           *expirable.LRU[uuid.UUID, *sqlcv1.ListStepsByIdsRow]
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
@@ -71,6 +72,7 @@ func newSharedRepository(
 	// a workflow id always maps to the same name, so a long TTL is safe
 	workflowIdNameCache := expirable.NewLRU(10000, func(key uuid.UUID, value string) {}, time.Hour)
 	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
+	stepIdConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
 	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
@@ -110,6 +112,7 @@ func newSharedRepository(
 		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
 		workflowIdNameCache:         workflowIdNameCache,
 		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
+		stepIdConfigCache:           stepIdConfigCache,
 		stepIdLabelsCache:           stepIdLabelsCache,
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
