@@ -84,7 +84,8 @@ func run() error {
 	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", eventkeys.WorkflowDurableChildName)
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
-	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
+	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 500)
+	slots := envInt("HATCHET_LOADTEST_SLOTS", 500)
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
@@ -155,6 +156,7 @@ func run() error {
 		workerName,
 		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask),
 		hatchet.WithDurableSlots(durableSlots),
+		hatchet.WithSlots(slots),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)
