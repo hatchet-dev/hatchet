@@ -38,28 +38,41 @@ export type OrganizationOnboardingAnswers = {
 
 type OrganizationOnboardingQuestionsFormProps = {
   isSaving: boolean;
+  defaultAnswers?: OrganizationOnboardingAnswers;
   onSubmit: (values: OrganizationOnboardingAnswers) => void;
-  onBack: () => void;
+  // Receives the current answers so the parent can restore them if the user
+  // comes back to this step.
+  onBack: (values: OrganizationOnboardingAnswers) => void;
 };
 
 export function OrganizationOnboardingQuestionsForm({
   isSaving,
+  defaultAnswers,
   onSubmit,
   onBack,
 }: OrganizationOnboardingQuestionsFormProps) {
-  const [whatToBuild, setWhatToBuild] = useState('');
-  const [sdk, setSdk] = useState<OrganizationOnboardingSDK | undefined>();
+  const [whatToBuild, setWhatToBuild] = useState(
+    defaultAnswers?.whatToBuild ?? '',
+  );
+  const [sdk, setSdk] = useState<OrganizationOnboardingSDK | undefined>(
+    defaultAnswers?.sdk,
+  );
+
+  const answers = useCallback((): OrganizationOnboardingAnswers => {
+    const trimmedWhatToBuild = whatToBuild.trim();
+
+    return {
+      ...(trimmedWhatToBuild ? { whatToBuild: trimmedWhatToBuild } : {}),
+      ...(sdk ? { sdk } : {}),
+    };
+  }, [whatToBuild, sdk]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      const trimmedWhatToBuild = whatToBuild.trim();
-      onSubmit({
-        ...(trimmedWhatToBuild ? { whatToBuild: trimmedWhatToBuild } : {}),
-        ...(sdk ? { sdk } : {}),
-      });
+      onSubmit(answers());
     },
-    [whatToBuild, sdk, onSubmit],
+    [answers, onSubmit],
   );
 
   return (
@@ -83,8 +96,9 @@ export function OrganizationOnboardingQuestionsForm({
       </div>
 
       <div className="grid gap-2">
-        <Label>Which SDK are you planning to use?</Label>
+        <Label id="sdk-question">Which SDK are you planning to use?</Label>
         <RadioGroup
+          aria-labelledby="sdk-question"
           value={sdk ?? ''}
           onValueChange={(value) => setSdk(value as OrganizationOnboardingSDK)}
           disabled={isSaving}
@@ -104,7 +118,7 @@ export function OrganizationOnboardingQuestionsForm({
         <Button
           type="button"
           variant="outline"
-          onClick={onBack}
+          onClick={() => onBack(answers())}
           disabled={isSaving}
         >
           <ArrowLeftIcon className="mr-2 size-4" />

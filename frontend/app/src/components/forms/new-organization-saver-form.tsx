@@ -112,9 +112,8 @@ export function NewOrganizationSaverForm({
 
   const saveOrganizationMutation = useSaveOrganization({ afterSave });
 
-  // Control-plane-only two-step flow: the details form stores its values
-  // here and advances to the onboarding questions, which trigger the save.
   const [details, setDetails] = useState<OrganizationDetails | null>(null);
+  const [answers, setAnswers] = useState<OrganizationOnboardingAnswers>({});
   const [step, setStep] = useState<'details' | 'questions'>('details');
 
   if (!isUserUniverseLoaded) {
@@ -135,9 +134,13 @@ export function NewOrganizationSaverForm({
     return (
       <OrganizationOnboardingQuestionsForm
         isSaving={isSaving}
-        onBack={() => setStep('details')}
-        onSubmit={(answers) =>
-          saveOrganizationMutation.mutate({ ...details, ...answers })
+        defaultAnswers={answers}
+        onBack={(current) => {
+          setAnswers(current);
+          setStep('details');
+        }}
+        onSubmit={(current) =>
+          saveOrganizationMutation.mutate({ ...details, ...current })
         }
       />
     );
