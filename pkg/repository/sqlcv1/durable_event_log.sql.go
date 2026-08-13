@@ -253,6 +253,61 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
+WITH inputs AS (
+    SELECT
+        UNNEST($3::BIGINT[]) AS node_id,
+        UNNEST($4::BIGINT[]) AS branch_id
+)
+
+UPDATE v1_durable_event_log_entry e
+SET triggered_at = NOW()
+FROM inputs i
+WHERE e.durable_task_id = $1::BIGINT
+  AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
+  AND e.node_id = i.node_id
+  AND e.branch_id = i.branch_id
+  AND e.triggered_at IS NULL
+RETURNING e.node_id, e.branch_id
+`
+
+type ClaimDurableEventLogEntriesForTriggerParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Nodeids               []int64            `json:"nodeids"`
+	Branchids             []int64            `json:"branchids"`
+}
+
+type ClaimDurableEventLogEntriesForTriggerRow struct {
+	NodeID   int64 `json:"node_id"`
+	BranchID int64 `json:"branch_id"`
+}
+
+func (q *Queries) ClaimDurableEventLogEntriesForTrigger(ctx context.Context, db DBTX, arg ClaimDurableEventLogEntriesForTriggerParams) ([]*ClaimDurableEventLogEntriesForTriggerRow, error) {
+	rows, err := db.Query(ctx, claimDurableEventLogEntriesForTrigger,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Nodeids,
+		arg.Branchids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ClaimDurableEventLogEntriesForTriggerRow
+	for rows.Next() {
+		var i ClaimDurableEventLogEntriesForTriggerRow
+		if err := rows.Scan(&i.NodeID, &i.BranchID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createDurableEventLogBranchPoint = `-- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
     tenant_id,
@@ -877,39 +932,6 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 		return nil, err
 	}
 	return items, nil
-}
-
-const markDurableEventLogEntriesTriggered = `-- name: MarkDurableEventLogEntriesTriggered :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id
-)
-UPDATE v1_durable_event_log_entry e
-SET triggered_at = NOW()
-FROM inputs i
-WHERE e.durable_task_id = $1::BIGINT
-  AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
-  AND e.node_id = i.node_id
-  AND e.branch_id = i.branch_id
-  AND e.triggered_at IS NULL
-`
-
-type MarkDurableEventLogEntriesTriggeredParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Nodeids               []int64            `json:"nodeids"`
-	Branchids             []int64            `json:"branchids"`
-}
-
-func (q *Queries) MarkDurableEventLogEntriesTriggered(ctx context.Context, db DBTX, arg MarkDurableEventLogEntriesTriggeredParams) error {
-	_, err := db.Exec(ctx, markDurableEventLogEntriesTriggered,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Nodeids,
-		arg.Branchids,
-	)
-	return err
 }
 
 const markDurableEventLogEntrySatisfied = `-- name: MarkDurableEventLogEntrySatisfied :one

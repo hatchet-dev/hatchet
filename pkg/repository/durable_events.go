@@ -1475,15 +1475,34 @@ func (r *durableEventsRepository) triggerPendingRunEntries(ctx context.Context, 
 
 	tx := optTx.tx
 
-	triggerOpts := make([]*WorkflowNameTriggerOpts, len(pending))
-	externalIdToNodeBranch := make(map[uuid.UUID]NodeIdBranchIdTuple, len(pending))
-	entryKeys := make([]NodeIdBranchIdTuple, len(pending))
+	nodesToClaim := make([]NodeIdBranchIdTuple, len(pending))
 
 	for i, p := range pending {
-		triggerOpts[i] = p.triggerOpts
-		key := NodeIdBranchIdTuple{NodeId: p.entry.Entry.NodeID, BranchId: p.entry.Entry.BranchID}
-		externalIdToNodeBranch[p.triggerOpts.ExternalId] = key
-		entryKeys[i] = key
+		nodesToClaim[i] = NodeIdBranchIdTuple{NodeId: p.entry.Entry.NodeID, BranchId: p.entry.Entry.BranchID}
+	}
+
+	claimedSet, err := r.claimDurableEventLogEntriesForTrigger(ctx, tx, task.ID, task.InsertedAt, nodesToClaim)
+
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to claim durable run entries for trigger: %w", err)
+	}
+
+	if len(claimedSet) == 0 {
+		return nil, nil, nil, nil
+	}
+
+	triggerOpts := make([]*WorkflowNameTriggerOpts, 0, len(claimedSet))
+	externalIdToNodeBranch := make(map[uuid.UUID]NodeIdBranchIdTuple, len(claimedSet))
+
+	for _, p := range pending {
+		nodeIdBranchIdTuple := NodeIdBranchIdTuple{NodeId: p.entry.Entry.NodeID, BranchId: p.entry.Entry.BranchID}
+
+		if _, ok := claimedSet[nodeIdBranchIdTuple]; !ok {
+			continue
+		}
+
+		triggerOpts = append(triggerOpts, p.triggerOpts)
+		externalIdToNodeBranch[p.triggerOpts.ExternalId] = nodeIdBranchIdTuple
 	}
 
 	createdTasks, createdDags, _, celFailures, triggerStorePayloadOpts, err := r.triggerFromWorkflowNames(ctx, optTx, tenantId, triggerOpts)
@@ -1637,10 +1656,6 @@ func (r *durableEventsRepository) triggerPendingRunEntries(ctx context.Context, 
 		}
 	}
 
-	if err := r.markDurableEventLogEntriesTriggered(ctx, tx, task.ID, task.InsertedAt, entryKeys); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to mark durable run entries as triggered: %w", err)
-	}
-
 	if err := optTx.Commit(ctx); err != nil {
 		return nil, nil, nil, err
 	}
@@ -1659,32 +1674,49 @@ func (r *durableEventsRepository) triggerPendingWaitFor(ctx context.Context, ten
 	}
 	defer rollback()
 
-	if err := r.handleWaitFor(ctx, tx, tenantId, branchId, nodeId, waitForConditions, task); err != nil {
-		return err
+	claimedSet, err := r.claimDurableEventLogEntriesForTrigger(ctx, tx, task.ID, task.InsertedAt, []NodeIdBranchIdTuple{{NodeId: nodeId, BranchId: branchId}})
+	if err != nil {
+		return fmt.Errorf("failed to claim durable wait for entry for trigger: %w", err)
 	}
 
-	if err := r.markDurableEventLogEntriesTriggered(ctx, tx, task.ID, task.InsertedAt, []NodeIdBranchIdTuple{{NodeId: nodeId, BranchId: branchId}}); err != nil {
-		return fmt.Errorf("failed to mark durable wait for entry as triggered: %w", err)
+	if len(claimedSet) == 0 {
+		return nil
+	}
+
+	if err := r.handleWaitFor(ctx, tx, tenantId, branchId, nodeId, waitForConditions, task); err != nil {
+		return err
 	}
 
 	return commit(ctx)
 }
 
-func (r *durableEventsRepository) markDurableEventLogEntriesTriggered(ctx context.Context, tx sqlcv1.DBTX, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, keys []NodeIdBranchIdTuple) error {
-	nodeIds := make([]int64, len(keys))
-	branchIds := make([]int64, len(keys))
+func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx context.Context, tx sqlcv1.DBTX, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz, nodesToClaim []NodeIdBranchIdTuple) (map[NodeIdBranchIdTuple]struct{}, error) {
+	nodeIds := make([]int64, len(nodesToClaim))
+	branchIds := make([]int64, len(nodesToClaim))
 
-	for i, k := range keys {
+	for i, k := range nodesToClaim {
 		nodeIds[i] = k.NodeId
 		branchIds[i] = k.BranchId
 	}
 
-	return r.queries.MarkDurableEventLogEntriesTriggered(ctx, tx, sqlcv1.MarkDurableEventLogEntriesTriggeredParams{
+	claimed, err := r.queries.ClaimDurableEventLogEntriesForTrigger(ctx, tx, sqlcv1.ClaimDurableEventLogEntriesForTriggerParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Nodeids:               nodeIds,
 		Branchids:             branchIds,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	claimedSet := make(map[NodeIdBranchIdTuple]struct{}, len(claimed))
+
+	for _, c := range claimed {
+		claimedSet[NodeIdBranchIdTuple{NodeId: c.NodeID, BranchId: c.BranchID}] = struct{}{}
+	}
+
+	return claimedSet, nil
 }
 
 func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
