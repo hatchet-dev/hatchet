@@ -41,12 +41,14 @@ func upV10141(ctx context.Context, db *sql.DB) error {
 					UPDATE %s e
 					SET triggered_at = e.inserted_at
 					FROM batch
-					WHERE (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (batch.durable_task_id, batch.durable_task_inserted_at, batch.branch_id, batch.node_id)
+					WHERE
+						(e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (batch.durable_task_id, batch.durable_task_inserted_at, batch.branch_id, batch.node_id)
+						AND e.triggered_at IS NULL
 					RETURNING e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
 				)
 
 				SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
-				FROM updates
+				FROM batch
 				ORDER BY durable_task_id DESC, durable_task_inserted_at DESC, branch_id DESC, node_id DESC
 				`,
 				quoteIdent(partition),
