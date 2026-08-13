@@ -14,6 +14,7 @@ export enum TenantMemberRoleType {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum AuditLogActorType {
@@ -67,6 +68,7 @@ export enum OrganizationAvailableShardClass {
 export enum OrganizationInviteTenantRole {
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum OrganizationInviteStatus {

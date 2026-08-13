@@ -33,6 +33,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import {
@@ -124,6 +125,7 @@ export default function UpdateWorkerForm({
   managedWorker,
 }: UpdateWorkerFormProps) {
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
 
   const {
     watch,
@@ -1053,6 +1055,7 @@ export default function UpdateWorkerForm({
         <Button
           onClick={handleSubmit(onSubmit)}
           disabled={
+            !canWrite ||
             !managedWorker.canUpdate ||
             !installation ||
             !repoOwnerName ||
