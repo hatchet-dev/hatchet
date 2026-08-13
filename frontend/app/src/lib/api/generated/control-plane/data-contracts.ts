@@ -92,6 +92,13 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
+export enum OrganizationOnboardingSDK {
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+  GO = "GO",
+  RUBY = "RUBY",
+}
+
 export interface APIControlPlaneMetadata {
   /**
    * the inactivity timeout to log out for user sessions in milliseconds
@@ -200,6 +207,13 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+  /**
+   * What the user would like to build with Hatchet
+   * @maxLength 1000
+   */
+  whatToBuild?: string;
+  /** Which SDK the user is planning to use */
+  sdk?: OrganizationOnboardingSDK;
 }
 
 export interface UpdateOrganizationRequest {

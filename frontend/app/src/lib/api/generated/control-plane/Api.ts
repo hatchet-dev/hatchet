@@ -530,7 +530,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Transfer a tenant to a different organization. Requires organization OWNER permissions on both source and destination organizations. Every user who is currently a member of the tenant is automatically added to the destination organization as a MEMBER (their existing tenant-level role is preserved).
+   * @description Transfer a tenant to a different organization. Requires organization OWNER permissions on both source and destination organizations. Every user who is currently a member of the tenant is automatically added to the destination organization as a MEMBER (their existing tenant-level role is preserved). Returns 404 when the destination organization doesn't exist or the caller isn't an owner there.
    *
    * @tags Management
    * @name OrganizationTenantTransfer
@@ -554,7 +554,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Preview which of this tenant's current members would be newly added to destinationOrganizationId if the tenant were transferred there right now (members who already belong to the destination org are omitted, since they wouldn't actually change). Requires the same OWNER-of-both-orgs permission as the transfer itself.
+   * @description Preview which of this tenant's current members would be newly added to destinationOrganizationId if the tenant were transferred there right now (members who already belong to the destination org are omitted, since they wouldn't actually change). Requires the same OWNER-of-both-orgs permission as the transfer itself. Returns 404, not 403, when the destination organization doesn't exist or the caller isn't an owner there, so a caller can't distinguish "no such organization" from "not yours" and enumerate organization IDs.
    *
    * @tags Management
    * @name OrganizationTenantTransferPreview

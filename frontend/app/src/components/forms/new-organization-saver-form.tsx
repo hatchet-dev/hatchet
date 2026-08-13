@@ -1,6 +1,10 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewOrganizationInputForm } from './new-organization-input-form';
 import {
+  OrganizationOnboardingAnswers,
+  OrganizationOnboardingQuestionsForm,
+} from './organization-onboarding-questions-form';
+import {
   WELCOME_KEY,
   WELCOME_TRIGGER,
 } from '@/components/modals/welcome-modal-state';
@@ -14,6 +18,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import invariant from 'tiny-invariant';
 
 interface NewOrganizationSaverFormProps {
@@ -43,14 +48,20 @@ const useSaveOrganization = ({
       organizationName,
       tenantName,
       region,
+      whatToBuild,
+      sdk,
     }: {
       organizationName: string;
       tenantName: string;
       region?: string;
-    }) => {
+    } & OrganizationOnboardingAnswers) => {
       const organization = await orgApi
         .organizationCreateMutation()
-        .mutationFn({ name: organizationName });
+        .mutationFn({
+          name: organizationName,
+          ...(isControlPlaneEnabled && whatToBuild ? { whatToBuild } : {}),
+          ...(isControlPlaneEnabled && sdk ? { sdk } : {}),
+        });
       const tenant = await orgApi
         .organizationCreateTenantMutation(organization.metadata.id)
         .mutationFn({
@@ -79,6 +90,12 @@ const useSaveOrganization = ({
   });
 };
 
+type OrganizationDetails = {
+  organizationName: string;
+  tenantName: string;
+  region?: string;
+};
+
 export function NewOrganizationSaverForm({
   defaultOrganizationName,
   defaultTenantName,
@@ -95,6 +112,11 @@ export function NewOrganizationSaverForm({
 
   const saveOrganizationMutation = useSaveOrganization({ afterSave });
 
+  // Control-plane-only two-step flow: the details form stores its values
+  // here and advances to the onboarding questions, which trigger the save.
+  const [details, setDetails] = useState<OrganizationDetails | null>(null);
+  const [step, setStep] = useState<'details' | 'questions'>('details');
+
   if (!isUserUniverseLoaded) {
     return <></>;
   }
@@ -104,19 +126,43 @@ export function NewOrganizationSaverForm({
     'NewOrganizationSaverForm requires the control plane',
   );
 
+  const isSaving =
+    // Stay in the saving state after success too: the component only
+    // unmounts once the post-save navigation commits.
+    saveOrganizationMutation.isPending || saveOrganizationMutation.isSuccess;
+
+  if (isControlPlaneEnabled && step === 'questions' && details) {
+    return (
+      <OrganizationOnboardingQuestionsForm
+        isSaving={isSaving}
+        onBack={() => setStep('details')}
+        onSubmit={(answers) =>
+          saveOrganizationMutation.mutate({ ...details, ...answers })
+        }
+      />
+    );
+  }
+
   return (
     <NewOrganizationInputForm
-      defaultOrganizationName={defaultOrganizationName}
-      defaultTenantName={defaultTenantName}
-      isSaving={
-        // Stay in the saving state after success too: the component only
-        // unmounts once the post-save navigation commits.
-        saveOrganizationMutation.isPending || saveOrganizationMutation.isSuccess
+      defaultOrganizationName={
+        details?.organizationName ?? defaultOrganizationName
       }
-      onSubmit={saveOrganizationMutation.mutate}
+      defaultTenantName={details?.tenantName ?? defaultTenantName}
+      defaultRegion={details?.region}
+      isSaving={isSaving}
+      onSubmit={
+        isControlPlaneEnabled
+          ? (values) => {
+              setDetails(values);
+              setStep('questions');
+            }
+          : saveOrganizationMutation.mutate
+      }
       showRegionSelect={isControlPlaneEnabled}
       availableShards={shardsQuery.data?.rows}
       isShardsLoading={shardsQuery.isLoading}
+      submitLabel={isControlPlaneEnabled ? 'Continue' : 'Get started'}
     />
   );
 }
