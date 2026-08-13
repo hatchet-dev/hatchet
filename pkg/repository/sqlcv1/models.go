@@ -3276,6 +3276,7 @@ type V1DurableEventLogEntry struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 }
 
 type V1DurableEventLogFile struct {

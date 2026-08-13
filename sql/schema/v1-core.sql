@@ -2537,6 +2537,8 @@ CREATE TABLE v1_durable_event_log_entry (
     user_message TEXT,
     wait_data JSONB,
 
+    triggered_at TIMESTAMPTZ,
+
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
