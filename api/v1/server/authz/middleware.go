@@ -205,11 +205,6 @@ func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteIn
 		return nil
 	}
 
-	// AllowedWriteOperations bypasses the RBAC check the same way, except for VIEWER: these are
-	// mutating extension operations unknown to rbac.yaml (so a.rbac.IsAuthorized would otherwise
-	// deny them to every role, not just VIEWER), but VIEWER must still be denied. Every other role
-	// bypasses as normal; VIEWER falls through to the IsAuthorized check below, which denies it
-	// since VIEWER also has no rbac.yaml entry for these operations.
 	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedWriteOperations) &&
 		roleName != string(sqlcv1.TenantMemberRoleVIEWER) {
 		return nil
