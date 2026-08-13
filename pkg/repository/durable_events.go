@@ -1094,7 +1094,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	tenantId := opts.TenantId
 	task := opts.Task
 
-	logEntries, externalIdToTriggerOpts, err := r.appendDurableEventLog(ctx, opts)
+	logEntries, nodeIdBranchIdToTriggerOpts, err := r.appendDurableEventLog(ctx, opts)
 
 	if err != nil {
 		return nil, err
@@ -1156,13 +1156,14 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				return nil, fmt.Errorf("untriggered RUN log entry at nodeId %d branchId %d is missing child_task_external_id", le.Entry.NodeID, le.Entry.BranchID)
 			}
 
-			triggerOpts, ok := externalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
+			key := NodeIdBranchIdTuple{NodeId: le.Entry.NodeID, BranchId: le.Entry.BranchID}
+			triggerOpts, ok := nodeIdBranchIdToTriggerOpts[key]
 			if !ok {
-				continue
+				return nil, fmt.Errorf("untriggered RUN log entry at nodeId %d branchId %d has no matching trigger in the request", le.Entry.NodeID, le.Entry.BranchID)
 			}
 
-			// always trigger using the id already committed on the entry -- the caller's
-			// replayed request isn't guaranteed to regenerate the same external id
+			// trigger using the child external id already committed on the entry so re-triggering
+			// reuses the same child instead of spawning a new one
 			triggerOptsCopy := *triggerOpts
 			triggerOptsCopy.ExternalId = *le.Entry.ChildTaskExternalID
 
@@ -1238,7 +1239,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
-func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opts IngestDurableTaskEventOpts) ([]*EventLogEntryWithPayloads, map[uuid.UUID]*WorkflowNameTriggerOpts, error) {
+func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opts IngestDurableTaskEventOpts) ([]*EventLogEntryWithPayloads, map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts, error) {
 	tenantId := opts.TenantId
 	task := opts.Task
 
@@ -1273,7 +1274,7 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 
 	var getOrCreateOpts GetOrCreateLogEntryOpts
 
-	externalIdToTriggerOpts := make(map[uuid.UUID]*WorkflowNameTriggerOpts)
+	nodeIdBranchIdToTriggerOpts := make(map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts)
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
@@ -1285,8 +1286,6 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 
 		nonSkipOffset := int64(0)
 		for i, triggerOpts := range opts.TriggerRuns.TriggerOpts {
-			externalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
-
 			if triggerOpts.ShouldSkip {
 				// only index-based dedupe is validated against the existing entry's
 				// idempotency key: an explicit child_key intentionally reuses the
@@ -1312,6 +1311,8 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 			nodeId := baseNodeId + nonSkipOffset
 			nonSkipOffset++
 			branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
+
+			nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}] = triggerOpts
 
 			inputPayload, marshalErr := json.Marshal(triggerOpts)
 			if marshalErr != nil {
@@ -1458,7 +1459,7 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 		return nil, nil, err
 	}
 
-	return logEntries, externalIdToTriggerOpts, nil
+	return logEntries, nodeIdBranchIdToTriggerOpts, nil
 }
 
 func (r *durableEventsRepository) triggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, pending []pendingRunTrigger) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error) {
