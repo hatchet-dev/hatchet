@@ -948,6 +948,9 @@ CREATE TABLE v1_workflow_concurrency_slot (
 
 CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, sort_id ASC);
 
+CREATE INDEX v1_workflow_concurrency_slot_filled_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id, workflow_version_id, workflow_run_id)
+    WHERE is_filled = TRUE;
+
 -- CreateTable
 CREATE TABLE v1_concurrency_slot (
     sort_id BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -973,6 +976,9 @@ CREATE TABLE v1_concurrency_slot (
 );
 
 CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, sort_id ASC);
+
+CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
+    WHERE is_filled = FALSE;
 
 -- When concurrency slot is CREATED, we should check whether the parent concurrency slot exists; if not, we should create
 -- the parent concurrency slot as well.
