@@ -1117,9 +1117,11 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	return err
 }
 
-// handleProcessDurableRunTrigger triggers child tasks / dags from durable run triggers (pretty similar to handleProcessTaskTrigger)
+// handleProcessDurableRunTrigger triggers child tasks / dags from durable run triggers (pretty similar to handleProcessTaskTrigger).
 func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.DurableRunTriggerMessage](payloads)
+
+	tasks := make([]v1.TriggerPendingRunEntriesOpt, 0, len(msgs))
 
 	for _, msg := range msgs {
 		task := &sqlcv1.FlattenExternalIdsRow{
@@ -1138,22 +1140,27 @@ func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Contex
 			}
 		}
 
-		createdTasks, createdDags, celFailures, err := tc.repov1.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, task, pending)
+		tasks = append(tasks, v1.TriggerPendingRunEntriesOpt{
+			Task:        task,
+			PendingRuns: pending,
+		})
+	}
 
-		if err != nil {
-			return fmt.Errorf("failed to trigger pending durable run entries: %w", err)
+	createdTasks, createdDags, celFailures, err := tc.repov1.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, tasks)
+
+	if err != nil {
+		return fmt.Errorf("failed to trigger pending durable run entries: %w", err)
+	}
+
+	if len(createdTasks) > 0 || len(createdDags) > 0 {
+		if sigErr := tc.signaler.SignalCreated(ctx, tenantId, createdTasks, createdDags); sigErr != nil {
+			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
 		}
+	}
 
-		if len(createdTasks) > 0 || len(createdDags) > 0 {
-			if sigErr := tc.signaler.SignalCreated(ctx, tenantId, createdTasks, createdDags); sigErr != nil {
-				tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
-			}
-		}
-
-		if len(celFailures) > 0 {
-			if sigErr := tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, celFailures); sigErr != nil {
-				tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
-			}
+	if len(celFailures) > 0 {
+		if sigErr := tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, celFailures); sigErr != nil {
+			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
 		}
 	}
 
