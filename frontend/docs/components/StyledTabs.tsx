@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useId, useRef, useState } from "react";
 
 interface TabProps {
@@ -5,7 +7,7 @@ interface TabProps {
   children?: React.ReactNode;
 }
 
-function Tab({ children }: TabProps) {
+export function Tab({ children }: TabProps) {
   return <>{children}</>;
 }
 

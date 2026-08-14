@@ -13,9 +13,9 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-const (
-	gaugeInterval = time.Second * 5
-)
+// gaugeInterval is the period between activity-gauge polls. It is a var so
+// tests can shrink it; production always uses the 5s default.
+var gaugeInterval = 5 * time.Second
 
 // IntervalGauge is a function that determines whether or not to increase or reset the interval.
 // If the returned integer is >0, the interval is reset to the start interval. If 0, the no-rows count is increased,
@@ -35,6 +35,15 @@ type Interval struct {
 	noActivityCount int
 	incBackoffCount int
 	intervalMu      sync.RWMutex
+
+	// firstTrigger is true until the first getNextTrigger call, which uses a
+	// full-window random phase instead of currInterval+jitter so ops created
+	// together at startup do not all fire within a narrow band.
+	firstTrigger bool
+
+	// needsIntervalLoad is true when NewInterval deferred the persisted-interval
+	// DB read; RunInterval loads it lazily before the first trigger.
+	needsIntervalLoad bool
 }
 
 func NewInterval(
@@ -49,38 +58,62 @@ func NewInterval(
 		maxInterval = time.Minute
 	}
 
-	// read the current interval from the database
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Do not block the constructor on a per-tenant DB read. Thousands of
+	// intervals are created in a tight loop when a controller discovers tenants;
+	// the persisted value is loaded lazily in RunInterval instead.
+	return &Interval{
+		l:                 l,
+		repo:              repo,
+		operationId:       operationId,
+		resourceId:        resourceId,
+		maxJitter:         maxJitter,
+		startInterval:     startInterval,
+		currInterval:      startInterval,
+		maxInterval:       maxInterval,
+		noActivityCount:   0,
+		incBackoffCount:   incBackoffCount,
+		gauge:             gauge,
+		firstTrigger:      true,
+		needsIntervalLoad: true,
+	}
+}
+
+// loadPersistedInterval reads the stored interval for this resource (if any)
+// and clamps it into [startInterval, maxInterval]. Safe to call concurrently
+// with getNextTrigger / SetIntervalGauge.
+func (i *Interval) loadPersistedInterval(ctx context.Context) {
+	i.intervalMu.Lock()
+	needsLoad := i.needsIntervalLoad
+	i.needsIntervalLoad = false
+	i.intervalMu.Unlock()
+
+	if !needsLoad || i.repo == nil {
+		return
+	}
+
+	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	currInterval, err := repo.ReadInterval(ctx, operationId, uuid.MustParse(resourceId))
-
+	currInterval, err := i.repo.ReadInterval(readCtx, i.operationId, uuid.MustParse(i.resourceId))
 	if err != nil {
-		l.Error().Err(err).Msg(fmt.Sprintf("error reading interval for resource %s, defaulting to start interval", resourceId))
-		currInterval = 0
+		if i.l != nil {
+			i.l.Error().Err(err).Msg(fmt.Sprintf("error reading interval for resource %s, defaulting to start interval", i.resourceId))
+		}
+		return
 	}
 
-	if currInterval < startInterval {
-		currInterval = startInterval
+	i.intervalMu.Lock()
+	defer i.intervalMu.Unlock()
+
+	if currInterval < i.startInterval {
+		currInterval = i.startInterval
 	}
 
-	if currInterval > maxInterval {
-		currInterval = maxInterval
+	if currInterval > i.maxInterval {
+		currInterval = i.maxInterval
 	}
 
-	return &Interval{
-		l:               l,
-		repo:            repo,
-		operationId:     operationId,
-		resourceId:      resourceId,
-		maxJitter:       maxJitter,
-		startInterval:   startInterval,
-		currInterval:    currInterval,
-		maxInterval:     maxInterval,
-		noActivityCount: 0,
-		incBackoffCount: incBackoffCount,
-		gauge:           gauge,
-	}
+	i.currInterval = currInterval
 }
 
 // runInterval sends a struct{} on the returned channel at the configured interval,
@@ -91,6 +124,17 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 	// run the gauge at a regular interval to adjust the current interval if needed
 	if i.gauge != nil {
 		go func() {
+			// Randomize start phase so gauges created together at startup do not
+			// all hit the DB on the same 5s boundary forever.
+			phase := safeRandomDuration(gaugeInterval)
+			if phase > 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(phase):
+				}
+			}
+
 			ticker := time.NewTicker(gaugeInterval)
 			defer ticker.Stop()
 
@@ -103,7 +147,9 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 					rowsModified, err := i.gauge(ctx, i.resourceId)
 
 					if err != nil {
-						i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
+						if i.l != nil {
+							i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
+						}
 					} else {
 						i.SetIntervalGauge(rowsModified)
 					}
@@ -113,6 +159,8 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 	}
 
 	go func() {
+		i.loadPersistedInterval(ctx)
+
 		trigger := i.getNextTrigger()
 
 		for {
@@ -130,12 +178,21 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 	return res
 }
 
-// gets the next trigger time, applying jitter if configured.
+// gets the next trigger time. The first call uses a random phase in
+// [0, currInterval+maxJitter); subsequent calls use currInterval + jitter.
 func (i *Interval) getNextTrigger() <-chan time.Time {
-	i.intervalMu.RLock()
-	defer i.intervalMu.RUnlock()
+	i.intervalMu.Lock()
+	defer i.intervalMu.Unlock()
 
-	return time.After(i.currInterval + safeRandomDuration(i.maxJitter))
+	var delay time.Duration
+	if i.firstTrigger {
+		i.firstTrigger = false
+		delay = safeRandomDuration(i.currInterval + i.maxJitter)
+	} else {
+		delay = i.currInterval + safeRandomDuration(i.maxJitter)
+	}
+
+	return time.After(delay)
 }
 
 func safeRandomDuration(maxJitter time.Duration) time.Duration {
@@ -175,7 +232,9 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 		newInterval, err := i.repo.SetInterval(ctx, i.operationId, uuid.MustParse(i.resourceId), i.currInterval)
 
 		if err != nil {
-			i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
+			if i.l != nil {
+				i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
+			}
 		} else {
 			i.currInterval = newInterval
 		}

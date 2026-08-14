@@ -762,22 +762,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		LogUserAgent: true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			statusCode := v.Status
-
-			// note that the status code is not set yet as it gets picked up by the global err handler
-			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
-			if v.Error != nil && statusCode == 200 {
-				statusCode = 500
+			if v.Error != nil && statusCode == http.StatusOK {
+				statusCode = http.StatusInternalServerError
 			}
 
-			var e *zerolog.Event
+			level := accessLogLevel(statusCode)
 
-			switch {
-			case statusCode >= 500:
-				e = t.config.Logger.Error().Err(v.Error)
-			case statusCode >= 400:
-				e = t.config.Logger.Warn()
-			default:
-				e = t.config.Logger.Info()
+			e := t.config.Logger.WithLevel(level)
+
+			if level == zerolog.ErrorLevel {
+				e = e.Err(v.Error)
 			}
 
 			e.
@@ -814,4 +808,20 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	)
 
 	return populatorMW, nil
+}
+
+// accessLogLevel resolves the log level for an API access log entry.
+// A 499 (client closed request) is the client's outcome, not a server fault, so it logs
+// at info.
+func accessLogLevel(status int) zerolog.Level {
+	switch {
+	case status == hatchetmiddleware.StatusClientClosedRequest:
+		return zerolog.InfoLevel
+	case status >= http.StatusInternalServerError:
+		return zerolog.ErrorLevel
+	case status >= http.StatusBadRequest:
+		return zerolog.WarnLevel
+	default:
+		return zerolog.InfoLevel
+	}
 }

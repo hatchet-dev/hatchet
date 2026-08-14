@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "sticky-assignment",
+    "worker-affinity",
+    "slot-cost",
+    "manual-slot-release"
+  ],
+  "title": "Advanced Assignment",
+  "defaultOpen": false
+}

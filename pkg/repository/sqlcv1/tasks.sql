@@ -538,7 +538,8 @@ WITH input AS (
 		e.task_id,
 		e.task_inserted_at,
         e.inserted_at,
-        e.external_id
+        e.external_id,
+        e.child_external_id
     FROM
         v1_task_event e
     JOIN
@@ -554,7 +555,8 @@ SELECT
     e.inserted_at,
 	e.event_key,
 	e.data,
-    e.external_id
+    e.external_id,
+    e.child_external_id
 FROM
 	events_to_lock e
 WHERE
