@@ -21,7 +21,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// upsertAffectedFields are the columns UpsertTenantResourceLimits updates on conflict.
+// upsertAffectedFields are the columns UpsertTenantResourceLimits updates on conflict
+// (limit/alarm/updatedAt). Window/customValueMeter are also updated on upsert, but
+// insert-only self-heal tests only need these fields to detect a DO UPDATE clobber.
 type upsertAffectedFields struct {
 	LimitValue int32
 	AlarmValue pgtype.Int4

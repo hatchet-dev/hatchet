@@ -11,6 +11,7 @@ const (
 	EventKeyDefault EventKey = "load-test:event"
 	EventKeyBatch   EventKey = "load-test:batch-event"
 	EventKeyDurable EventKey = "load-test:durable-event"
+	EventKeyDag     EventKey = "load-test:dag-event"
 )
 
 const workflowNamePrefix = "load-test-"
@@ -21,13 +22,14 @@ const (
 	WorkflowBatchName        = workflowNamePrefix + "batch"
 	WorkflowDurableName      = workflowNamePrefix + "durable"
 	WorkflowDurableChildName = workflowNamePrefix + "durable-child"
+	WorkflowDagName          = workflowNamePrefix + "dag"
 )
 
 func WorkflowStandardName(i int) string {
 	return fmt.Sprintf("%s%d", workflowNamePrefix, i)
 }
 
-var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable}
+var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag}
 
 func IsKnown(key EventKey) bool {
 	return slices.Contains(All, key)
@@ -41,6 +43,8 @@ func (k EventKey) Name() string {
 		return "batch"
 	case EventKeyDurable:
 		return "durable"
+	case EventKeyDag:
+		return "dag"
 	default:
 		return string(k)
 	}
