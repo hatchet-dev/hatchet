@@ -114,12 +114,32 @@ support a subset of languages.`,
 	},
 }
 
+const devDefaultVersion = "v0.1.0-alpha.0"
+
+const fallbackHatchetVersion = "v0.98.9"
+
+// hatchetSDKVersion returns the Go SDK version go templates pin: the SDK
+// module and the CLI are released from the same tag, so the CLI's own version
+// is the SDK version, except in unstamped dev builds.
+func hatchetSDKVersion() string {
+	v := Version
+	if !strings.HasPrefix(v, "v") {
+		// goreleaser stamps the version without the leading v
+		v = "v" + v
+	}
+	if v == devDefaultVersion {
+		return fallbackHatchetVersion
+	}
+	return v
+}
+
 // GenerateQuickstart generates a quickstart project without interactive forms.
 // Returns the post-quickstart content that should be displayed to the user.
 func GenerateQuickstart(selection templater.Selection, projectName, dir string) (string, error) {
 	templateData := templater.Data{
 		Name:           projectName,
 		PackageManager: selection.PackageManager,
+		HatchetVersion: hatchetSDKVersion(),
 	}
 
 	templatesFS := quickstarts.TemplatesFS()

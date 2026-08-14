@@ -12,6 +12,8 @@ on:
       - "cmd/hatchet-cli/cli/tui/**"
       - "cmd/hatchet-cli/cli/testharness/**"
   push:
+    tags:
+      - "v*"
     branches:
       - main
     paths:
@@ -69,9 +71,12 @@ jobs:
       - name: Build CLI
         run: |
           cd cmd/hatchet-cli
-          go build -o hatchet-cli
+          go build -ldflags "-X github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli.Version=${CLI_VERSION}" -o hatchet-cli
           sudo mv hatchet-cli /usr/local/bin/hatchet
           hatchet --version
+        env:
+          # On release tags, quickstart templates pin the SDK release under test
+          CLI_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0-alpha.0' }}
 
       - name: Start Hatchet server
         run: |
@@ -87,9 +92,14 @@ jobs:
       - name: Run template E2E tests
         run: |
           cd cmd/hatchet-cli/cli
-          go test -tags e2e_cli -run TestQuickstartTemplates -v -timeout 15m
+          go test -tags e2e_cli \
+            -ldflags "-X github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli.Version=${CLI_VERSION}" \
+            -run TestQuickstartTemplates -v -timeout 15m
         env:
           CI: true
+          CLI_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0-alpha.0' }}
+          # A just-pushed release tag may not be on the module proxy yet
+          GOPROXY: https://proxy.golang.org,direct
 
       - name: Run resource E2E tests
         run: |
