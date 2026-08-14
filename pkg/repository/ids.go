@@ -177,46 +177,64 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(lockedEvents))
+	// only need to hit the payload store for events created before the child_external_id column existed
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(lockedEvents))
 
-	for i, lockedEvent := range lockedEvents {
-		retrievePayloadOpts[i] = RetrievePayloadOpts{
+	for _, lockedEvent := range lockedEvents {
+		if lockedEvent.ChildExternalID != nil {
+			continue
+		}
+
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: lockedEvent.ExternalID,
-		}
+		})
 	}
 
-	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	var payloads map[RetrievePayloadOpts][]byte
 
-	if err != nil {
-		return err
+	if len(retrievePayloadOpts) > 0 {
+		payloads, err = s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	// for each locked event, write the correct external id to the opt
 	for _, lockedEvent := range lockedEvents {
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
-		payload, ok := payloads[RetrievePayloadOpts{
-			Id:         lockedEvent.ID,
-			InsertedAt: lockedEvent.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
-			ExternalId: lockedEvent.ExternalID,
-		}]
 
-		if !ok {
-			payload = lockedEvent.Data
+		var childExternalId uuid.UUID
+
+		if lockedEvent.ChildExternalID != nil {
+			childExternalId = *lockedEvent.ChildExternalID
+		} else {
+			payload, ok := payloads[RetrievePayloadOpts{
+				Id:         lockedEvent.ID,
+				InsertedAt: lockedEvent.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+				TenantId:   tenantId,
+				ExternalId: lockedEvent.ExternalID,
+			}]
+
+			if !ok {
+				payload = lockedEvent.Data
+			}
+
+			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+
+			if err != nil {
+				return err
+			}
+
+			childExternalId = c.ChildExternalId
 		}
 
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
-
-		if err != nil {
-			return err
-		}
-
-		opt.ExternalId = c.ChildExternalId
+		opt.ExternalId = childExternalId
 		opt.ShouldSkip = true
 	}
 
@@ -224,6 +242,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	taskExternalIds := make([]uuid.UUID, 0, len(opts))
 	datas := make([][]byte, 0, len(opts))
 	newEventKeys := make([]string, 0, len(opts))
+	childExternalIds := make([]*uuid.UUID, 0, len(opts))
 
 	// for all other opts, write the events to the database
 	for i := range opts {
@@ -252,6 +271,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID)
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
+		childExternalIds = append(childExternalIds, &generatedId)
 	}
 
 	// create the relevant events
@@ -265,6 +285,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCREATED, len(taskIds)),
 		newEventKeys,
 		nil,
+		childExternalIds,
 	)
 
 	if err != nil {

@@ -3722,17 +3722,18 @@ type V1Task struct {
 }
 
 type V1TaskEvent struct {
-	ID             int64              `json:"id"`
-	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	EventType      V1TaskEventType    `json:"event_type"`
-	EventKey       pgtype.Text        `json:"event_key"`
-	CreatedAt      pgtype.Timestamp   `json:"created_at"`
-	Data           []byte             `json:"data"`
-	ExternalID     uuid.UUID          `json:"external_id"`
+	ID              int64              `json:"id"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount      int32              `json:"retry_count"`
+	EventType       V1TaskEventType    `json:"event_type"`
+	EventKey        pgtype.Text        `json:"event_key"`
+	CreatedAt       pgtype.Timestamp   `json:"created_at"`
+	Data            []byte             `json:"data"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	ChildExternalID *uuid.UUID         `json:"child_external_id"`
 }
 
 type V1TaskEventsOlap struct {
