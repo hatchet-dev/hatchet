@@ -265,7 +265,7 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END
+        NULLIF(i.wait_data, '')::JSONB
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *
