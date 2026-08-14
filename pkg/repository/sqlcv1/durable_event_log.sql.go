@@ -41,7 +41,8 @@ WITH inputs AS (
         idempotency_key,
         is_satisfied,
         user_message,
-        wait_data
+        wait_data,
+        triggered_at
     )
     SELECT
         i.tenant_id,
@@ -56,13 +57,15 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END
+        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END,
+        -- entry + trigger commit in one transaction here, so the entry is triggered as soon as it exists
+        NOW()
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
-    RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
+    RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 )
 
-SELECT i.tenant_id, i.external_id, i.result_payload_external_id, i.child_task_external_id, i.child_task_is_failure, i.child_task_error_message, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.satisfied_at, i.satisfied_order, i.user_message, i.wait_data, lf.latest_invocation_count AS invocation_count
+SELECT i.tenant_id, i.external_id, i.result_payload_external_id, i.child_task_external_id, i.child_task_is_failure, i.child_task_error_message, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.satisfied_at, i.satisfied_order, i.user_message, i.wait_data, i.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 `
@@ -102,6 +105,7 @@ type BulkCreateDurableEventLogEntriesRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
@@ -147,6 +151,7 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
@@ -165,7 +170,7 @@ WITH inputs AS (
         UNNEST($3::BIGINT[]) AS branch_id,
         UNNEST($4::BIGINT[]) AS node_id
 )
-SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, lf.latest_invocation_count AS invocation_count
+SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
@@ -200,6 +205,7 @@ type BulkGetDurableEventLogEntriesRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
@@ -237,6 +243,7 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
@@ -323,7 +330,7 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 }
 
 const getDurableEventLogEntriesByChildTaskExternalIds = `-- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
-SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, lf.latest_invocation_count AS invocation_count
+SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE
@@ -359,6 +366,7 @@ type GetDurableEventLogEntriesByChildTaskExternalIdsRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
@@ -391,6 +399,7 @@ func (q *Queries) GetDurableEventLogEntriesByChildTaskExternalIds(ctx context.Co
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
@@ -404,7 +413,7 @@ func (q *Queries) GetDurableEventLogEntriesByChildTaskExternalIds(ctx context.Co
 }
 
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
-SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
+SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -447,6 +456,7 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 		&i.SatisfiedOrder,
 		&i.UserMessage,
 		&i.WaitData,
+		&i.TriggeredAt,
 	)
 	return &i, err
 }
@@ -616,7 +626,7 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 }
 
 const listDurableEventLogEntriesBeforeNode = `-- name: ListDurableEventLogEntriesBeforeNode :many
-SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
+SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 FROM v1_durable_event_log_entry
 WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
@@ -666,6 +676,7 @@ func (q *Queries) ListDurableEventLogEntriesBeforeNode(ctx context.Context, db D
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -678,7 +689,7 @@ func (q *Queries) ListDurableEventLogEntriesBeforeNode(ctx context.Context, db D
 }
 
 const listDurableEventLogForTask = `-- name: ListDurableEventLogForTask :many
-SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, t.external_id AS durable_task_external_id, t.display_name AS durable_task_display_name
+SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at, t.external_id AS durable_task_external_id, t.display_name AS durable_task_display_name
 FROM v1_durable_event_log_entry e
 JOIN v1_task t ON (t.id, t.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
 WHERE e.durable_task_id = $1::BIGINT
@@ -717,6 +728,7 @@ type ListDurableEventLogForTaskRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	DurableTaskExternalID   uuid.UUID             `json:"durable_task_external_id"`
 	DurableTaskDisplayName  string                `json:"durable_task_display_name"`
 }
@@ -756,6 +768,7 @@ func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg L
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.DurableTaskExternalID,
 			&i.DurableTaskDisplayName,
 		); err != nil {
@@ -783,7 +796,7 @@ WITH inputs AS (
 )
 
 SELECT
-    e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data,
+    e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
     twn.external_id AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
@@ -821,6 +834,7 @@ type ListSatisfiedEntriesRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	TaskExternalID          uuid.UUID             `json:"task_external_id"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
@@ -854,6 +868,7 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.TaskExternalID,
 			&i.InvocationCount,
 		); err != nil {
@@ -876,7 +891,7 @@ WHERE durable_task_id = $1::BIGINT
   AND durable_task_inserted_at = $2::TIMESTAMPTZ
   AND branch_id = $3::BIGINT
   AND node_id = $4::BIGINT
-RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
+RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 `
 
 type MarkDurableEventLogEntrySatisfiedParams struct {
@@ -914,6 +929,7 @@ func (q *Queries) MarkDurableEventLogEntrySatisfied(ctx context.Context, db DBTX
 		&i.SatisfiedOrder,
 		&i.UserMessage,
 		&i.WaitData,
+		&i.TriggeredAt,
 	)
 	return &i, err
 }
@@ -968,7 +984,7 @@ WITH inputs AS (
       AND e.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
-    RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data
+    RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at
 ), max_satisfied_orders_to_apply AS (
     SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
     FROM satisfied_orders_to_apply
@@ -980,7 +996,7 @@ WITH inputs AS (
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
-SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, lf.latest_invocation_count AS invocation_count
+SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM updated
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 `
@@ -1014,6 +1030,7 @@ type UpdateDurableEventLogEntriesSatisfiedRow struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
@@ -1053,6 +1070,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 			&i.SatisfiedOrder,
 			&i.UserMessage,
 			&i.WaitData,
+			&i.TriggeredAt,
 			&i.InvocationCount,
 		); err != nil {
 			return nil, err
