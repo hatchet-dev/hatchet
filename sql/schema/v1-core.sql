@@ -2547,7 +2547,7 @@ CREATE TABLE v1_durable_event_log_entry (
     -- conditions) has committed. In this atomic-write version it is always stamped at insert time,
     -- since the entry and its trigger commit together; a later change splits those into separate
     -- transactions and uses a null value to mark an entry whose trigger has not yet run.
-    triggered_at TIMESTAMPTZ,
+    triggered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
