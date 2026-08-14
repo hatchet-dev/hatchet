@@ -27,6 +27,7 @@ const (
 	MsgIDUserEvent                    = "user-event"
 	MsgIDWorkflowRunFinished          = "workflow-run-finished"
 	MsgIDWorkflowRunFinishedCandidate = "workflow-run-finished-candidate"
+	MsgIDDurableRunTrigger            = "durable-run-trigger"
 	MsgIDCronCreate                   = "cron-create"
 	MsgIDCronUpdate                   = "cron-update"
 	MsgIDCronDelete                   = "cron-delete"
