@@ -1020,27 +1020,38 @@ func (s *Scheduler) assignSingleton(
 	candidates := a.workerIds
 	offset := a.ringOffset
 	a.ringOffset++
+	tiedLen := len(candidates)
 
 	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
-		candidates = s.rankWorkerIds(qi, labels, a.workerIds)
-		offset = 0
+		candidates, tiedLen = s.rankWorkerIds(qi, labels, a.workerIds)
 	}
 
-	if len(candidates) == 0 {
+	if len(candidates) == 0 || tiedLen == 0 {
 		r.noSlots = true
 		return
 	}
 
-	offset %= len(candidates)
+	offset %= tiedLen
 
 	var selected []*slot
 
-	for i := 0; i < len(candidates); i++ {
-		workerId := candidates[(offset+i)%len(candidates)]
+	for i := 0; i < tiedLen; i++ {
+		workerId := candidates[(offset+i)%tiedLen]
 
 		if sel, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests, now); ok {
 			selected = sel
 			break
+		}
+	}
+
+	if selected == nil {
+		for i := tiedLen; i < len(candidates); i++ {
+			workerId := candidates[i]
+
+			if sel, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests, now); ok {
+				selected = sel
+				break
+			}
 		}
 	}
 
@@ -1146,11 +1157,13 @@ func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]
 }
 
 // rankWorkerIds runs on the run loop (it reads s.workers for label affinity).
+// The returned int is the length of the highest-rank prefix, so assignment can
+// round-robin ties without skipping a better match.
 func (s *Scheduler) rankWorkerIds(
 	qi *sqlcv1.V1QueueItem,
 	labels []*sqlcv1.GetDesiredLabelsRow,
 	workerIds []uuid.UUID,
-) []uuid.UUID {
+) ([]uuid.UUID, int) {
 	type rankedWorker struct {
 		id   uuid.UUID
 		rank int
@@ -1187,15 +1200,31 @@ func (s *Scheduler) rankWorkerIds(
 		ranked = append(ranked, rankedWorker{id: workerId, rank: rank})
 	}
 
-	slices.SortStableFunc(ranked, func(left, right rankedWorker) int {
-		return right.rank - left.rank
-	})
+	if len(ranked) == 0 {
+		return []uuid.UUID{}, 0
+	}
+
+	tiedLen := len(ranked)
+	for i := 1; i < len(ranked); i++ {
+		if ranked[i].rank != ranked[0].rank {
+			slices.SortStableFunc(ranked, func(left, right rankedWorker) int {
+				return right.rank - left.rank
+			})
+
+			tiedLen = 1
+			topRank := ranked[0].rank
+			for tiedLen < len(ranked) && ranked[tiedLen].rank == topRank {
+				tiedLen++
+			}
+			break
+		}
+	}
 
 	result := make([]uuid.UUID, len(ranked))
 	for index := range ranked {
 		result[index] = ranked[index].id
 	}
-	return result
+	return result, tiedLen
 }
 
 type assignedQueueItem struct {

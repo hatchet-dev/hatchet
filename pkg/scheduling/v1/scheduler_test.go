@@ -490,6 +490,48 @@ func TestScheduler_AssignSingleton_StickyHardForcesRanking(t *testing.T) {
 	require.Equal(t, desiredWorkerId, res.workerId)
 }
 
+func TestScheduler_AssignSingleton_EqualLabelsRoundRobin(t *testing.T) {
+	tenantId := uuid.New()
+	workerIds := []uuid.UUID{uuid.New(), uuid.New()}
+
+	regionLabel := &sqlcv1.ListManyWorkerLabelsRow{
+		Key:      "region",
+		StrValue: pgtype.Text{String: "us-east-1", Valid: true},
+	}
+	desired := []*sqlcv1.GetDesiredLabelsRow{{
+		Key:        "region",
+		StrValue:   pgtype.Text{String: "us-east-1", Valid: true},
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Weight:     10,
+	}}
+
+	workers := make([]*repo.ListActiveWorkersResult, len(workerIds))
+	slots := make([]*slot, 0, len(workerIds)*2)
+
+	for i, id := range workerIds {
+		w := &repo.ListActiveWorkersResult{
+			ID:     id,
+			Name:   "w",
+			Labels: []*sqlcv1.ListManyWorkerLabelsRow{regionLabel},
+		}
+		workers[i] = w
+		ww := &worker{ListActiveWorkersResult: w}
+		// Extra capacity so packing onto the first worker is not forced by slots.
+		slots = append(slots, newSlot(ww, repo.SlotTypeDefault), newSlot(ww, repo.SlotTypeDefault))
+	}
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	s.setWorkers(workers)
+	a := seedActionPools(t, s, "A", slots...)
+
+	first := assignOne(t, s, a, testQI(tenantId, "A", 1), desired, defaultRequest(), nil, nil)
+	require.True(t, first.succeeded)
+
+	second := assignOne(t, s, a, testQI(tenantId, "A", 2), desired, defaultRequest(), nil, nil)
+	require.True(t, second.succeeded)
+	require.NotEqual(t, first.workerId, second.workerId, "equal-affinity workers with free slots must not pack onto the same worker")
+}
+
 func TestScheduler_RankWorkerIds_StickyDoesNotRequirePoolsByWorker(t *testing.T) {
 	tenantId := uuid.New()
 	desiredWorkerId := uuid.New()
@@ -504,7 +546,7 @@ func TestScheduler_RankWorkerIds_StickyDoesNotRequirePoolsByWorker(t *testing.T)
 
 	var ranked []uuid.UUID
 	onLoop(t, s, func() {
-		ranked = s.rankWorkerIds(qi, nil, []uuid.UUID{desiredWorkerId})
+		ranked, _ = s.rankWorkerIds(qi, nil, []uuid.UUID{desiredWorkerId})
 	})
 	require.Equal(t, []uuid.UUID{desiredWorkerId}, ranked)
 }
@@ -536,7 +578,7 @@ func TestScheduler_RankWorkerIds_LabelsUseWorkersMap(t *testing.T) {
 	// No poolsByWorker entry — label ranking must still resolve the worker via s.workers.
 	var ranked []uuid.UUID
 	onLoop(t, s, func() {
-		ranked = s.rankWorkerIds(qi, labels, []uuid.UUID{workerId})
+		ranked, _ = s.rankWorkerIds(qi, labels, []uuid.UUID{workerId})
 	})
 	require.Equal(t, []uuid.UUID{workerId}, ranked)
 }
