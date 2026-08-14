@@ -158,6 +158,39 @@ function collectPages(): DocPage[] {
   return pages;
 }
 
+// Collect every page from the filesystem, regardless of meta.json listings.
+// Fumadocs renders pages that are not listed in any meta.json, and every
+// rendered page links to its /llms/<path>.md export, so the per-page markdown
+// must cover the full content tree — not just the sidebar.
+function collectAllPagesFromFs(): DocPage[] {
+  const pages: DocPage[] = [];
+
+  const walk = (dir: string, urlPrefix: string): void => {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, urlPrefix ? `${urlPrefix}/${entry.name}` : entry.name);
+        continue;
+      }
+      if (!entry.name.endsWith(".mdx")) continue;
+      const key = entry.name.slice(0, -".mdx".length);
+      pages.push({
+        title: readFrontmatterTitle(full) ?? key,
+        slug: key,
+        href: `${DOCS_BASE_URL}/${urlPrefix ? `${urlPrefix}/` : ""}${key}`,
+        filepath: full,
+        section: "",
+      });
+    }
+  };
+
+  walk(CONTENT_DIR, "");
+  return pages;
+}
+
 // ---------------------------------------------------------------------------
 // MDX -> Markdown conversion
 // ---------------------------------------------------------------------------
@@ -884,7 +917,7 @@ function main(): void {
   const llmsFullTxt = generateLlmsFullTxt(pages, snippetTree, languages);
 
   console.log("Generating per-page markdown files...");
-  generatePerPageMarkdown(pages, snippetTree, languages);
+  generatePerPageMarkdown(collectAllPagesFromFs(), snippetTree, languages);
 
   console.log("Building MiniSearch index...");
   const searchIndexJson = buildSearchIndex(pages, snippetTree, languages);
