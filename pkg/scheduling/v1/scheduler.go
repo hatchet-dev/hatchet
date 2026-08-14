@@ -1035,6 +1035,9 @@ func (s *Scheduler) assignSingleton(
 
 	var selected []*slot
 
+	// NOTE: ringOffset increments each assign, so we start at that worker and
+	// wrap with % if it has no free slot, instead of always packing onto the
+	// first worker in the tied group.
 	for i := 0; i < topRankCount; i++ {
 		workerId := candidates[(offset+i)%topRankCount]
 
@@ -1045,6 +1048,7 @@ func (s *Scheduler) assignSingleton(
 	}
 
 	if selected == nil {
+		// Lower ranks are only considered after the top-rank group has no slots.
 		for i := topRankCount; i < len(candidates); i++ {
 			workerId := candidates[i]
 
