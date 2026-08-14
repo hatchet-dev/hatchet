@@ -4,14 +4,18 @@ import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOr
 import type {
   CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest as ControlPlaneCreateOrganizationInviteRequest,
+  CreateOrganizationRequest as ControlPlaneCreateOrganizationRequest,
   OrganizationMemberRoleType as ControlPlaneOrganizationMemberRoleType,
   UpdateOrganizationMemberRequest as ControlPlaneUpdateOrganizationMemberRequest,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
+// The cloud request plus the control-plane-only onboarding fields.
+// `whatToBuild`/`sdk` must only be sent when the control plane is enabled.
 type OrganizationCreateRequest = Parameters<
   typeof cloudApi.organizationCreate
->[0];
+>[0] &
+  Pick<ControlPlaneCreateOrganizationRequest, 'whatToBuild' | 'sdk'>;
 type OrganizationUpdateRequest = {
   name?: string;
   inactivity_timeout?: string;
@@ -172,7 +176,9 @@ export function useOrganizationApi() {
           (
             await (isControlPlaneEnabled
               ? controlPlaneApi.organizationCreate(data)
-              : cloudApi.organizationCreate(data))
+              : // The legacy cloud API does not accept the onboarding
+                // fields, so only the name is forwarded.
+                cloudApi.organizationCreate({ name: data.name }))
           ).data,
       }),
 

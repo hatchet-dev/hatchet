@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from 'react';
 type NewOrganizationInputFormProps = {
   defaultOrganizationName?: string;
   defaultTenantName?: string;
+  defaultRegion?: string;
   isSaving: boolean;
   onSubmit: (values: {
     organizationName: string;
@@ -20,16 +21,19 @@ type NewOrganizationInputFormProps = {
   showRegionSelect?: boolean;
   availableShards?: OrganizationAvailableShard[];
   isShardsLoading?: boolean;
+  submitLabel?: string;
 };
 
 export function NewOrganizationInputForm({
   defaultOrganizationName = '',
   defaultTenantName = '',
+  defaultRegion,
   onSubmit,
   isSaving,
   showRegionSelect = false,
   availableShards = [],
   isShardsLoading = false,
+  submitLabel = 'Get started',
 }: NewOrganizationInputFormProps) {
   const [organizationName, setOrganizationName] = useState(
     defaultOrganizationName,
@@ -37,7 +41,7 @@ export function NewOrganizationInputForm({
   const [tenantName, setTenantName] = useState(defaultTenantName);
   const [selectedDeploymentRegion, setSelectedDeploymentRegion] = useState<
     string | undefined
-  >();
+  >(defaultRegion);
 
   const shardKeys = useMemo(
     () => availableShards.map(shardDeploymentKey),
@@ -139,7 +143,7 @@ export function NewOrganizationInputForm({
           </>
         ) : (
           <>
-            Get started
+            {submitLabel}
             <ArrowRightIcon className="ml-2 size-4" />
           </>
         )}
