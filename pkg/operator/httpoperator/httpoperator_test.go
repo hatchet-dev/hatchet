@@ -8,14 +8,34 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/signature"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/httpoperator/safeclient"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+// fakeTaskEventWriter captures every reported step action event.
+type fakeTaskEventWriter struct {
+	events []*contracts.StepActionEvent
+}
+
+func (f *fakeTaskEventWriter) SendStepActionEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	f.events = append(f.events, request)
+	return &contracts.ActionEventResponse{}, nil
+}
+
+func (f *fakeTaskEventWriter) RegisterDurableTask(_ context.Context, _ uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
+	return nil, nil, nil
+}
 
 // fakeSender captures the last delivery and returns a configurable result/error.
 type fakeSender struct {
@@ -132,4 +152,73 @@ func TestBuildPayload_RoundTrips(t *testing.T) {
 	require.NoError(t, protojson.Unmarshal(body, &got))
 	assert.Equal(t, a.ActionId, got.ActionId)
 	assert.Equal(t, a.ActionPayload, got.ActionPayload)
+}
+
+// newTestHTTPOperator builds an HTTPOperator whose shared state is wired to a fake sender and
+// fake event writer, without going through NewHTTPOperator (which would start a real
+// healthcheck-polling goroutine and require a real safeclient sender). configJSON is the raw
+// HTTPOperatorConfig JSON stored on the operator row.
+func newTestHTTPOperator(t *testing.T, workerId uuid.UUID, sender requestSender, writer operator.TaskEventWriter, configJSON string) *HTTPOperator {
+	t.Helper()
+
+	l := zerolog.Nop()
+
+	shared, err := operator.NewSharedOperator(&sqlcv1.V1Operator{
+		ID:       uuid.New(),
+		TenantID: uuid.New(),
+		Config:   []byte(configJSON),
+	}, &l, nil, writer, workerId, HTTPOperatorConfig{})
+	require.NoError(t, err)
+
+	return &HTTPOperator{
+		SharedOperator: shared,
+		sender:         sender,
+	}
+}
+
+func TestHandleAction_CancelStepRun_ReportsCancelledWithoutDelivering(t *testing.T) {
+	f := &fakeSender{result: &safeclient.DeliveryResult{StatusCode: 200}}
+	writer := &fakeTaskEventWriter{}
+	workerId := uuid.New()
+
+	h := newTestHTTPOperator(t, workerId, f, writer, `{"triggerEndpoint":"https://example.com/hook"}`)
+
+	action := testAction()
+	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
+
+	err := h.HandleAction(context.Background(), action)
+	require.NoError(t, err)
+
+	assert.Empty(t, f.gotEndpoint, "cancelling a task must not deliver the HTTP request")
+
+	require.Len(t, writer.events, 1, "cancelling a task must report exactly one step action event")
+	got := writer.events[0]
+	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED, got.EventType)
+	assert.Equal(t, action.TaskRunExternalId, got.TaskRunExternalId)
+	assert.Equal(t, action.TaskId, got.TaskId)
+	assert.Equal(t, workerId.String(), got.WorkerId)
+}
+
+func TestHandleAction_StartStepRun_StillDelivers(t *testing.T) {
+	f := &fakeSender{result: &safeclient.DeliveryResult{StatusCode: 200}}
+	writer := &fakeTaskEventWriter{}
+	workerId := uuid.New()
+
+	h := newTestHTTPOperator(t, workerId, f, writer, `{"triggerEndpoint":"https://example.com/hook"}`)
+
+	action := testAction()
+
+	err := h.HandleAction(context.Background(), action)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://example.com/hook", f.gotEndpoint, "starting a task must still deliver the HTTP request")
+
+	var sawStarted bool
+	for _, e := range writer.events {
+		if e.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED {
+			sawStarted = true
+		}
+		assert.NotEqual(t, contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED, e.EventType, "starting a task must not report cancelled")
+	}
+	assert.True(t, sawStarted, "starting a task must report started")
 }

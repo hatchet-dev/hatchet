@@ -3,6 +3,7 @@ package httpoperator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -299,10 +300,16 @@ func (h *HTTPOperator) HandleAction(ctx context.Context, action *contracts.Assig
 
 	switch action.ActionType {
 	case contracts.ActionType_START_STEP_RUN:
-		return h.deliver(ctx, action)
+		cctx, release := h.RegisterCancellableContext(ctx, action.TaskRunExternalId)
+		defer release()
+
+		return h.deliver(cctx, action)
+	case contracts.ActionType_CANCEL_STEP_RUN:
+		// Interrupt the in-flight delivery, if any is still running for this task;
+		h.CancelTask(action.TaskRunExternalId)
+
+		return h.SendCancelled(action)
 	default:
-		// TODO: support CANCEL_STEP_RUN (e.g. a configurable cancel endpoint) and
-		// START_GET_GROUP_KEY. Until then, acknowledge without delivering.
 		h.Logger().Warn().
 			Str("action_type", action.ActionType.String()).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -326,6 +333,12 @@ func (h *HTTPOperator) deliver(ctx context.Context, action *contracts.AssignedAc
 	res, err := deliverAction(ctx, h.sender, h.Logger(), cfg, action)
 
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			// A CANCEL_STEP_RUN for this task already reported the terminal event via
+			// SendCancelled; reporting a failure here too would contradict it.
+			return nil
+		}
+
 		// Delivery failed (transport error or non-2xx): report the failure.
 		if reportErr := h.SendFailed(action, err.Error(), false); reportErr != nil {
 			h.Logger().Error().Err(reportErr).

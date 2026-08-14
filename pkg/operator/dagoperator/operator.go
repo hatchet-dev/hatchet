@@ -3,6 +3,7 @@ package dagoperator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -187,10 +188,15 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 
 	switch action.ActionType {
 	case contracts.ActionType_START_STEP_RUN:
-		return d.run(ctx, action)
+		cctx, release := d.RegisterCancellableContext(ctx, action.TaskRunExternalId)
+		defer release()
+
+		return d.run(cctx, action)
+	case contracts.ActionType_CANCEL_STEP_RUN:
+		d.CancelTask(action.TaskRunExternalId)
+
+		return d.SendCancelled(action)
 	default:
-		// TODO: support CANCEL_STEP_RUN and START_GET_GROUP_KEY. Until then, acknowledge
-		// without doing anything.
 		d.Logger().Warn().
 			Str("action_type", action.ActionType.String()).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -237,6 +243,12 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 	dagDurableTask(ctx, tasks, requestCh, responseCh)
 
 	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			// A CANCEL_STEP_RUN for this task already reported the terminal event via
+			// SendCancelled; reporting a failure here too would contradict it.
+			return nil
+		}
+
 		return d.fail(action, fmt.Errorf("dag did not complete: %w", err))
 	}
 

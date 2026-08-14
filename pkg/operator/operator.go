@@ -61,6 +61,8 @@ type SharedOperator[T any] struct {
 	workerId        uuid.UUID
 	tenantId        uuid.UUID
 	shutdown        bool
+
+	inFlight map[string]context.CancelFunc
 }
 
 // NewSharedOperator constructs the shared operator state.
@@ -124,6 +126,11 @@ func (s *SharedOperator[T]) SendStarted(action *contracts.AssignedAction) error 
 // SendCompleted reports a successful result. output should be the task's JSON output.
 func (s *SharedOperator[T]) SendCompleted(action *contracts.AssignedAction, output []byte) error {
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED, string(output), nil)
+}
+
+// SendCancelled reports a cancelled task
+func (s *SharedOperator[T]) SendCancelled(action *contracts.AssignedAction) error {
+	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED, "cancelled", nil)
 }
 
 // SendFailed reports a failure with the given error message. shouldNotRetry, when true,
@@ -190,6 +197,37 @@ func (s *SharedOperator[T]) RecordTask() func() {
 	return func() {
 		once.Do(s.tasks.Done)
 	}
+}
+
+func (s *SharedOperator[T]) RegisterCancellableContext(ctx context.Context, taskRunExternalId string) (context.Context, func()) {
+	cctx, cancel := context.WithCancel(ctx)
+
+	s.mu.Lock()
+	if s.inFlight == nil {
+		s.inFlight = make(map[string]context.CancelFunc)
+	}
+	s.inFlight[taskRunExternalId] = cancel
+	s.mu.Unlock()
+
+	return cctx, func() {
+		s.mu.Lock()
+		delete(s.inFlight, taskRunExternalId)
+		s.mu.Unlock()
+
+		cancel()
+	}
+}
+
+func (s *SharedOperator[T]) CancelTask(taskRunExternalId string) bool {
+	s.mu.Lock()
+	cancel, ok := s.inFlight[taskRunExternalId]
+	s.mu.Unlock()
+
+	if ok {
+		cancel()
+	}
+
+	return ok
 }
 
 func (s *SharedOperator[T]) Cleanup() {
