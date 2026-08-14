@@ -41,7 +41,10 @@ WITH inputs AS (
         idempotency_key,
         is_satisfied,
         user_message,
-        wait_data
+        wait_data,
+        -- !!IMPORTANT: Writing the ` + "`" + `triggered_at` + "`" + ` explicitly as ` + "`" + `NULL` + "`" + ` since it has a ` + "`" + `DEFAULT CURRENT_TIMESTAMP` + "`" + `,
+        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        triggered_at
     )
     SELECT
         i.tenant_id,
@@ -56,7 +59,8 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        NULLIF(i.wait_data, '')::JSONB
+        NULLIF(i.wait_data, '')::JSONB,
+        NULL::TIMESTAMPTZ
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
