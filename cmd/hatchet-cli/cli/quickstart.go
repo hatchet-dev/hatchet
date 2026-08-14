@@ -118,13 +118,9 @@ const devDefaultVersion = "v0.1.0-alpha.0"
 
 const fallbackHatchetVersion = "v0.98.9"
 
-// hatchetSDKVersion returns the Go SDK version go templates pin: the SDK
-// module and the CLI are released from the same tag, so the CLI's own version
-// is the SDK version, except in unstamped dev builds.
 func hatchetSDKVersion() string {
 	v := Version
 	if !strings.HasPrefix(v, "v") {
-		// goreleaser stamps the version without the leading v
 		v = "v" + v
 	}
 	if v == devDefaultVersion {

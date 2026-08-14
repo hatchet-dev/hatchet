@@ -75,7 +75,6 @@ jobs:
           sudo mv hatchet-cli /usr/local/bin/hatchet
           hatchet --version
         env:
-          # On release tags, quickstart templates pin the SDK release under test
           CLI_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0-alpha.0' }}
 
       - name: Start Hatchet server
@@ -98,7 +97,6 @@ jobs:
         env:
           CI: true
           CLI_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0-alpha.0' }}
-          # A just-pushed release tag may not be on the module proxy yet
           GOPROXY: https://proxy.golang.org,direct
 
       - name: Run resource E2E tests
