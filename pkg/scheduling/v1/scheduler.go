@@ -1020,23 +1020,23 @@ func (s *Scheduler) assignSingleton(
 	candidates := a.workerIds
 	offset := a.ringOffset
 	a.ringOffset++
-	tiedLen := len(candidates)
+	topRankCount := len(candidates)
 
 	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
-		candidates, tiedLen = s.rankWorkerIds(qi, labels, a.workerIds)
+		candidates, topRankCount = s.rankWorkerIds(qi, labels, a.workerIds)
 	}
 
-	if len(candidates) == 0 || tiedLen == 0 {
+	if len(candidates) == 0 || topRankCount == 0 {
 		r.noSlots = true
 		return
 	}
 
-	offset %= tiedLen
+	offset %= topRankCount
 
 	var selected []*slot
 
-	for i := 0; i < tiedLen; i++ {
-		workerId := candidates[(offset+i)%tiedLen]
+	for i := 0; i < topRankCount; i++ {
+		workerId := candidates[(offset+i)%topRankCount]
 
 		if sel, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests, now); ok {
 			selected = sel
@@ -1045,7 +1045,7 @@ func (s *Scheduler) assignSingleton(
 	}
 
 	if selected == nil {
-		for i := tiedLen; i < len(candidates); i++ {
+		for i := topRankCount; i < len(candidates); i++ {
 			workerId := candidates[i]
 
 			if sel, ok := selectSlotsFromPools(s.poolsByWorker[workerId], requests, now); ok {
@@ -1204,17 +1204,17 @@ func (s *Scheduler) rankWorkerIds(
 		return []uuid.UUID{}, 0
 	}
 
-	tiedLen := len(ranked)
+	topRankCount := len(ranked)
 	for i := 1; i < len(ranked); i++ {
 		if ranked[i].rank != ranked[0].rank {
 			slices.SortStableFunc(ranked, func(left, right rankedWorker) int {
 				return right.rank - left.rank
 			})
 
-			tiedLen = 1
+			topRankCount = 1
 			topRank := ranked[0].rank
-			for tiedLen < len(ranked) && ranked[tiedLen].rank == topRank {
-				tiedLen++
+			for topRankCount < len(ranked) && ranked[topRankCount].rank == topRank {
+				topRankCount++
 			}
 			break
 		}
@@ -1224,7 +1224,7 @@ func (s *Scheduler) rankWorkerIds(
 	for index := range ranked {
 		result[index] = ranked[index].id
 	}
-	return result, tiedLen
+	return result, topRankCount
 }
 
 type assignedQueueItem struct {
