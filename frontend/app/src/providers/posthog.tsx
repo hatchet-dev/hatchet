@@ -1,5 +1,5 @@
-import type { User } from '@/lib/api';
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from '@/lib/referral';
+import { consumeUtmParams } from '@/lib/utm';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
@@ -15,7 +15,6 @@ const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
 
 interface PostHogProviderProps {
   children: React.ReactNode;
-  user?: User;
 }
 
 /**
@@ -27,9 +26,9 @@ interface PostHogProviderProps {
  * - Tenant-level analytics opt-out
  * - Session recording with input masking
  */
-export function PostHogProvider({ children, user }: PostHogProviderProps) {
+export function PostHogProvider({ children }: PostHogProviderProps) {
   const { meta } = useApiMeta();
-  const { tenant } = useAppContext();
+  const { tenant, user } = useAppContext();
   const [initialized, setInitialized] = useState(false);
 
   const config = useMemo(() => {
@@ -54,8 +53,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       return;
     }
 
-    // Need config and tenant to initialize
-    if (!config?.apiKey || !tenant) {
+    if (!config?.apiKey) {
       return;
     }
 
@@ -72,6 +70,11 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       persistence: 'localStorage+cookie',
       cross_subdomain_cookie: true,
     });
+
+    const utms = consumeUtmParams();
+    if (utms) {
+      posthog.register(utms);
+    }
 
     setInitialized(true);
   }, [config, tenant, initialized]);

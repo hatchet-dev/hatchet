@@ -1,5 +1,6 @@
 import './index.css';
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from './lib/referral';
+import { captureUtmParams } from './lib/utm';
 import queryClient from './query-client.tsx';
 import Router from './router.tsx';
 import * as Sentry from '@sentry/react';
@@ -33,6 +34,8 @@ const referralCode = sanitizeReferralCode(urlParams.get(REFERRAL_CODE_KEY));
 if (referralCode) {
   localStorage.setItem(REFERRAL_CODE_KEY, referralCode);
 }
+
+captureUtmParams(window.location.search);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
