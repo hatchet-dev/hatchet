@@ -2175,18 +2175,33 @@ const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce($1::boolean, "isPaused")
-WHERE "id" = $2::uuid
+    "isPaused" = coalesce($1::boolean, "isPaused"),
+    "pausedWorkflowCronRunQueueBehavior" = coalesce(
+        $2::"WorkflowPauseQueueBehavior",
+        "pausedWorkflowCronRunQueueBehavior"
+    ),
+    "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
+        $3::"WorkflowPauseQueueBehavior",
+        "pausedWorkflowScheduledRunQueueBehavior"
+    )
+WHERE "id" = $4::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior"
 `
 
 type UpdateWorkflowParams struct {
-	IsPaused pgtype.Bool `json:"isPaused"`
-	ID       uuid.UUID   `json:"id"`
+	IsPaused                                pgtype.Bool                    `json:"isPaused"`
+	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+	ID                                      uuid.UUID                      `json:"id"`
 }
 
 func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, updateWorkflow, arg.IsPaused, arg.ID)
+	row := db.QueryRow(ctx, updateWorkflow,
+		arg.IsPaused,
+		arg.PausedWorkflowCronRunQueueBehavior,
+		arg.PausedWorkflowScheduledRunQueueBehavior,
+		arg.ID,
+	)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,
