@@ -42,7 +42,7 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	}
 
 	if hasPauseChanges && result.IsPaused.Valid {
-		msg, err := tasktypes.NewPauseWorkflowMessage(tenant.ID, workflow.Workflow.ID, result.IsPaused.Bool)
+		msg, err := tasktypes.NewTogglePauseWorkflowMessage(tenant.ID, workflow.Workflow.ID, result.IsPaused.Bool)
 
 		if err != nil {
 			t.config.Logger.Err(err).Msg("failed to create pause workflow message")

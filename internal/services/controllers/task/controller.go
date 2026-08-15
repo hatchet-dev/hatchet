@@ -478,7 +478,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessDurableRunTrigger(ctx, tenantId, payloads)
 	case msgqueue.MsgIDDurableRestoreTask:
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
-	case msgqueue.MsgIDPauseWorkflow:
+	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
 	}
 
@@ -1170,7 +1170,7 @@ func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Contex
 }
 
 func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.PauseWorkflowPayload](payloads)
+	msgs := msgqueue.JSONConvert[tasktypes.TogglePauseWorkflowPayload](payloads)
 
 	newlyPausedWorkflows := make([]uuid.UUID, 0)
 	newlyUnpausedWorkflows := make([]uuid.UUID, 0)

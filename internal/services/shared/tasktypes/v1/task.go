@@ -288,18 +288,18 @@ func DurableCallbackCompletedMessage(
 	)
 }
 
-type PauseWorkflowPayload struct {
+type TogglePauseWorkflowPayload struct {
 	WorkflowID uuid.UUID
 	IsPaused   bool
 }
 
-func NewPauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool) (*msgqueue.Message, error) {
+func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		msgqueue.MsgIDPauseWorkflow,
+		msgqueue.MsgIDTogglePauseWorkflow,
 		false,
 		true,
-		PauseWorkflowPayload{
+		TogglePauseWorkflowPayload{
 			WorkflowID: workflowId,
 			IsPaused:   isPaused,
 		},
