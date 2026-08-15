@@ -2073,10 +2073,10 @@ export interface WorkflowRunsCancelRequest {
 export interface WorkflowUpdateRequest {
   /** Whether the workflow is paused. */
   isPaused?: boolean;
-  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
-  queueCronOnPause?: boolean;
-  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
-  queueScheduledOnPause?: boolean;
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
 }
 
 export interface WorkflowConcurrency {
