@@ -4441,6 +4441,37 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		return nil
 	}))
 
+	// CleanupExpiredPausedWorkflowQueueItems
+	eg.Go(runCleanup("cleanup-v1-paused-workflow-queue-item-ttl", func(ctx context.Context, tx sqlcv1.DBTX) error {
+		expiredItems, err := r.queries.ListExpiredPausedWorkflowQueueItems(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error listing expired v1_paused_workflow_queue_items: %v", err)
+		}
+
+		tasksByTenant := make(map[uuid.UUID][]TaskIdInsertedAtRetryCount)
+
+		for _, item := range expiredItems {
+			tasksByTenant[item.TenantID] = append(tasksByTenant[item.TenantID], TaskIdInsertedAtRetryCount{
+				Id:         item.TaskID,
+				InsertedAt: item.TaskInsertedAt,
+				RetryCount: item.RetryCount,
+			})
+		}
+
+		for tenantId, tasks := range tasksByTenant {
+			if _, err := r.cancelTasks(ctx, tx, tenantId, tasks); err != nil {
+				return fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
+			}
+		}
+
+		if len(expiredItems) == int(batchSize) {
+			mu.Lock()
+			shouldContinue = true
+			mu.Unlock()
+		}
+		return nil
+	}))
+
 	// ReactivateInactiveQueuesWithItems
 	eg.Go(runCleanup("cleanup-reactivate-queues", func(ctx context.Context, tx sqlcv1.DBTX) error {
 		result, err := r.queries.ReactivateInactiveQueuesWithItems(ctx, tx)

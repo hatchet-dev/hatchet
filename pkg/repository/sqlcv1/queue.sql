@@ -1169,3 +1169,19 @@ WHERE (task_id, task_inserted_at) IN (
     SELECT task_id, task_inserted_at
     FROM locked_qis
 );
+
+-- name: ListExpiredPausedWorkflowQueueItems :many
+SELECT
+    qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.retry_count
+FROM
+    v1_paused_workflow_queue_item qi
+JOIN
+    "Workflow" w ON w.id = qi.workflow_id
+WHERE
+    w."pausedWorkflowQueueTTL" IS NOT NULL
+    AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
+ORDER BY
+    qi.task_id, qi.task_inserted_at, qi.retry_count
+LIMIT
+    @batchSize::INT
+FOR UPDATE OF qi SKIP LOCKED;

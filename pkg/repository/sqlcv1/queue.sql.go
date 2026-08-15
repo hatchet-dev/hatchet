@@ -1028,6 +1028,55 @@ func (q *Queries) ListExistingBatchedQueueItemIds(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listExpiredPausedWorkflowQueueItems = `-- name: ListExpiredPausedWorkflowQueueItems :many
+SELECT
+    qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.retry_count
+FROM
+    v1_paused_workflow_queue_item qi
+JOIN
+    "Workflow" w ON w.id = qi.workflow_id
+WHERE
+    w."pausedWorkflowQueueTTL" IS NOT NULL
+    AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
+ORDER BY
+    qi.task_id, qi.task_inserted_at, qi.retry_count
+LIMIT
+    $1::INT
+FOR UPDATE OF qi SKIP LOCKED
+`
+
+type ListExpiredPausedWorkflowQueueItemsRow struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) ListExpiredPausedWorkflowQueueItems(ctx context.Context, db DBTX, batchsize int32) ([]*ListExpiredPausedWorkflowQueueItemsRow, error) {
+	rows, err := db.Query(ctx, listExpiredPausedWorkflowQueueItems, batchsize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListExpiredPausedWorkflowQueueItemsRow
+	for rows.Next() {
+		var i ListExpiredPausedWorkflowQueueItemsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveWorkerActionHashes = `-- name: ListLiveWorkerActionHashes :many
 SELECT
     w."id",
