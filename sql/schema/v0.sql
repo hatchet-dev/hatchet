@@ -895,6 +895,8 @@ CREATE TABLE "WorkerLabel" (
     CONSTRAINT "WorkerLabel_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TYPE "WorkflowPauseQueueBehavior" AS ENUM ('QUEUE', 'DROP');
+
 -- CreateTable
 CREATE TABLE "Workflow" (
     "id" UUID NOT NULL,
@@ -905,6 +907,8 @@ CREATE TABLE "Workflow" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isPaused" BOOLEAN DEFAULT false,
+    "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
 );
