@@ -833,6 +833,17 @@ type PaginationResponse struct {
 	NumPages *int64 `json:"num_pages,omitempty"`
 }
 
+// PauseWorkflowRequest defines model for PauseWorkflowRequest.
+type PauseWorkflowRequest struct {
+	// IsPaused Whether the workflow is paused.
+	IsPaused                           bool                                       `json:"isPaused"`
+	PausedWorkflowCronRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+
+	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
+	PausedWorkflowQueueTTL                  string                                     `json:"pausedWorkflowQueueTTL"`
+	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+}
+
 // QueueMetrics defines model for QueueMetrics.
 type QueueMetrics struct {
 	// NumPending The number of items pending.
@@ -2657,13 +2668,7 @@ type WorkflowTriggers struct {
 
 // WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
 type WorkflowUpdateRequest struct {
-	// IsPaused Whether the workflow is paused.
-	IsPaused                           *bool                                       `json:"isPaused,omitempty"`
-	PausedWorkflowCronRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
-
-	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
-	PausedWorkflowQueueTTL                  *string                                     `json:"pausedWorkflowQueueTTL,omitempty" validate:"omitnil,durationWithDays"`
-	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
+	Pause *PauseWorkflowRequest `json:"pause,omitempty"`
 }
 
 // WorkflowVersion defines model for WorkflowVersion.

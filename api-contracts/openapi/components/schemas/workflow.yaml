@@ -46,7 +46,7 @@ Workflow:
     - tenantId
   type: object
 
-WorkflowUpdateRequest:
+PauseWorkflowRequest:
   type: object
   properties:
     isPaused:
@@ -63,6 +63,18 @@ WorkflowUpdateRequest:
       description: >-
         The TTL for queued runs while the workflow is paused before they get
         dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
+  required:
+    - isPaused
+    - pausedWorkflowCronRunQueueBehavior
+    - pausedWorkflowScheduledRunQueueBehavior
+    - pausedWorkflowQueueTTL
+
+WorkflowUpdateRequest:
+  type: object
+  properties:
+    pause:
+      $ref: "#/PauseWorkflowRequest"
+      description: The pause settings for the workflow.
 
 WorkflowTag:
   type: object

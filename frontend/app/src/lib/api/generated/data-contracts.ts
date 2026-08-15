@@ -2068,15 +2068,20 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
-export interface WorkflowUpdateRequest {
+export interface PauseWorkflowRequest {
   /** Whether the workflow is paused. */
-  isPaused?: boolean;
+  isPaused: boolean;
   /** The behavior of cron runs triggered while the workflow is paused. */
-  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */
-  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m"). */
-  pausedWorkflowQueueTTL?: string;
+  pausedWorkflowQueueTTL: string;
+}
+
+export interface WorkflowUpdateRequest {
+  /** The pause settings for the workflow. */
+  pause?: PauseWorkflowRequest;
 }
 
 export interface WorkflowConcurrency {
