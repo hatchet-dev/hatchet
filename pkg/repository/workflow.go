@@ -247,6 +247,8 @@ type WorkflowRepository interface {
 	GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error)
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error)
 }
 
 type workflowRepository struct {
@@ -1348,6 +1350,14 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	}
 
 	return versions[0], nil
+}
+
+type UpdateWorkflowOpts struct {
+	IsPaused *bool
+}
+
+func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
+	return nil, nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
