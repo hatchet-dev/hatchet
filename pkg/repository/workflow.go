@@ -1375,7 +1375,9 @@ type UpdateWorkflowOpts struct {
 }
 
 func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
-	var params sqlcv1.UpdateWorkflowParams
+	params := sqlcv1.UpdateWorkflowParams{
+		ID: workflowId,
+	}
 
 	if opts.PauseOpts != nil {
 		params.IsPaused = sqlchelpers.BoolFromBoolean(opts.PauseOpts.IsPaused)
