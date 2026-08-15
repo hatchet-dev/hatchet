@@ -36,6 +36,6 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	}
 
 	return gen.WorkflowUpdate200JSONResponse(
-		*transformers.ToWorkflow(result, nil),
+		*transformers.ToWorkflowFromSQLC(result),
 	), nil
 }
