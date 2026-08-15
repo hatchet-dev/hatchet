@@ -15,7 +15,7 @@ import (
 
 func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.WorkflowUpdateRequestObject) (gen.WorkflowUpdateResponseObject, error) {
 	tenant := echoCtx.Get("tenant").(*sqlcv1.Tenant)
-	workflow := echoCtx.Get("workflow").(*sqlcv1.Workflow)
+	workflow := echoCtx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
 	ctx := echoCtx.Request().Context()
 
 	hasPauseChanges := request.Body.Pause != nil
@@ -34,7 +34,7 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 		}
 	}
 
-	result, err := t.config.V1.Workflows().UpdateWorkflow(ctx, tenant.ID, workflow.ID, updateOpts)
+	result, err := t.config.V1.Workflows().UpdateWorkflow(ctx, tenant.ID, workflow.Workflow.ID, updateOpts)
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("failed to update workflow")
@@ -42,7 +42,7 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	}
 
 	if hasPauseChanges && result.IsPaused.Valid {
-		msg, err := tasktypes.NewPauseWorkflowMessage(tenant.ID, workflow.ID, result.IsPaused.Bool)
+		msg, err := tasktypes.NewPauseWorkflowMessage(tenant.ID, workflow.Workflow.ID, result.IsPaused.Bool)
 
 		if err != nil {
 			t.config.Logger.Err(err).Msg("failed to create pause workflow message")
