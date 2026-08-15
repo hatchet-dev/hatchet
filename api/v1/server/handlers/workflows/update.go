@@ -16,17 +16,20 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	workflow := echoCtx.Get("workflow").(*sqlcv1.Workflow)
 	ctx := echoCtx.Request().Context()
 
-	var pauseOpt repository.WorkflowPauseOpts
+	var updateOpts repository.UpdateWorkflowOpts
 
-	if request.Body.IsPaused != nil && request.Body.QueueCronOnPause != nil && request.Body.QueueScheduledOnPause != nil {
-		pauseOpt := repository.WorkflowPauseOpts{
-			IsPaused: *request.Body.IsPaused,
-			QueueCronsIfPaused: *request.Body.QueueCronOnPause,
-			
+	if request.Body.IsPaused != nil && request.Body.PausedWorkflowCronRunQueueBehavior != nil && request.Body.PausedWorkflowScheduledRunQueueBehavior != nil {
+		cronBehavior := string(*request.Body.PausedWorkflowCronRunQueueBehavior)
+		scheduledBehavior := string(*request.Body.PausedWorkflowScheduledRunQueueBehavior)
+
+		updateOpts.PauseOpts = &repository.WorkflowPauseOpts{
+			IsPaused:                                *request.Body.IsPaused,
+			PausedWorkflowCronRunQueueBehavior:      repository.WorkflowPauseScheduledCronRunQueueBehavior(cronBehavior),
+			PausedWorkflowScheduledRunQueueBehavior: repository.WorkflowPauseScheduledCronRunQueueBehavior(scheduledBehavior),
 		}
 	}
 
-	result, err := t.config.V1.Workflows().UpdateWorkflow(ctx, tenant.ID, workflow.ID, repository.UpdateWorkflowOpts{})
+	result, err := t.config.V1.Workflows().UpdateWorkflow(ctx, tenant.ID, workflow.ID, updateOpts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update workflow")
