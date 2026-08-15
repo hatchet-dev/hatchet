@@ -296,7 +296,7 @@ type PauseWorkflowPayload struct {
 func NewPauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		msgqueue.MsgIDDurableRestoreTask,
+		msgqueue.MsgIDPauseWorkflow,
 		false,
 		true,
 		PauseWorkflowPayload{
