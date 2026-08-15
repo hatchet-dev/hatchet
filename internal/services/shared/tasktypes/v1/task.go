@@ -287,3 +287,21 @@ func DurableCallbackCompletedMessage(
 		},
 	)
 }
+
+type PauseWorkflowPayload struct {
+	WorkflowID uuid.UUID
+	IsPaused   bool
+}
+
+func PauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDDurableRestoreTask,
+		false,
+		true,
+		PauseWorkflowPayload{
+			WorkflowID: workflowId,
+			IsPaused:   isPaused,
+		},
+	)
+}

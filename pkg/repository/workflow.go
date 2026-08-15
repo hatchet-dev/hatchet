@@ -249,6 +249,10 @@ type WorkflowRepository interface {
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
 	UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error)
+
+	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
+
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 }
 
 type workflowRepository struct {
@@ -1371,6 +1375,26 @@ type UpdateWorkflowOpts struct {
 
 func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
 	return nil, nil
+}
+
+func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
+	defer span.End()
+
+	return r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	})
+}
+
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
+	defer span.End()
+
+	return r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	})
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

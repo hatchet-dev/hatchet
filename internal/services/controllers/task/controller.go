@@ -478,6 +478,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessDurableRunTrigger(ctx, tenantId, payloads)
 	case msgqueue.MsgIDDurableRestoreTask:
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
+	case msgqueue.MsgIDPauseWorkflow:
+		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1162,6 +1164,31 @@ func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Contex
 		if sigErr := tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, celFailures); sigErr != nil {
 			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
 		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.PauseWorkflowPayload](payloads)
+
+	newlyPausedWorkflows := make([]uuid.UUID, 0)
+	newlyUnpausedWorkflows := make([]uuid.UUID, 0)
+
+	for _, msg := range msgs {
+		if msg.IsPaused {
+			newlyPausedWorkflows = append(newlyPausedWorkflows, msg.WorkflowID)
+		} else {
+			newlyUnpausedWorkflows = append(newlyUnpausedWorkflows, msg.WorkflowID)
+		}
+	}
+
+	if err := tc.repov1.Workflows().MovePausedWorkflowQueueItems(ctx, tenantId, newlyPausedWorkflows); err != nil {
+		return fmt.Errorf("failed to move newly paused workflows: %w", err)
+	}
+
+	if err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows); err != nil {
+		return fmt.Errorf("failed to requeued tasks for newly unpaused workflows: %w", err)
 	}
 
 	return nil
