@@ -44,6 +44,7 @@ export default function ExpandedWorkflow() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
   const [pauseWorkflow, setPauseWorkflow] = useState(false);
+  const [unpauseWorkflow, setUnpauseWorkflow] = useState(false);
   const { refetchInterval } = useRefetchInterval();
   const queryClient = useQueryClient();
 
@@ -179,18 +180,7 @@ export default function ExpandedWorkflow() {
                 }
 
                 if (workflow.isPaused) {
-                  togglePauseMutation.mutate({
-                    pause: {
-                      isPaused: false,
-                      pausedWorkflowCronRunQueueBehavior:
-                        workflow.pausedWorkflowCronRunQueueBehavior ||
-                        WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
-                      pausedWorkflowScheduledRunQueueBehavior:
-                        workflow.pausedWorkflowScheduledRunQueueBehavior ||
-                        WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
-                      pausedWorkflowQueueTTL: DEFAULT_QUEUE_TTL,
-                    },
-                  });
+                  setUnpauseWorkflow(true);
                 } else {
                   setPauseWorkflow(true);
                 }
@@ -237,6 +227,31 @@ export default function ExpandedWorkflow() {
                 { onSuccess: () => setPauseWorkflow(false) },
               );
             }}
+          />
+          <ConfirmDialog
+            title="Unpause workflow"
+            description={`Are you sure you want to unpause the workflow ${workflow.name}? New runs will start executing immediately.`}
+            submitLabel="Unpause"
+            onSubmit={() => {
+              togglePauseMutation.mutate(
+                {
+                  pause: {
+                    isPaused: false,
+                    pausedWorkflowCronRunQueueBehavior:
+                      workflow.pausedWorkflowCronRunQueueBehavior ||
+                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+                    pausedWorkflowScheduledRunQueueBehavior:
+                      workflow.pausedWorkflowScheduledRunQueueBehavior ||
+                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+                    pausedWorkflowQueueTTL: DEFAULT_QUEUE_TTL,
+                  },
+                },
+                { onSuccess: () => setUnpauseWorkflow(false) },
+              );
+            }}
+            onCancel={() => setUnpauseWorkflow(false)}
+            isLoading={togglePauseMutation.isPending}
+            isOpen={unpauseWorkflow}
           />
         </div>
         <div className="mt-4 flex flex-row items-center justify-start">
