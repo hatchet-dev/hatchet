@@ -18,19 +18,19 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	workflow := echoCtx.Get("workflow").(*sqlcv1.Workflow)
 	ctx := echoCtx.Request().Context()
 
-	hasPauseChanges := request.Body.IsPaused != nil && request.Body.PausedWorkflowCronRunQueueBehavior != nil && request.Body.PausedWorkflowScheduledRunQueueBehavior != nil && request.Body.PausedWorkflowQueueTTL != nil
+	hasPauseChanges := request.Body.Pause != nil
 
 	var updateOpts repository.UpdateWorkflowOpts
 
 	if hasPauseChanges {
-		cronBehavior := string(*request.Body.PausedWorkflowCronRunQueueBehavior)
-		scheduledBehavior := string(*request.Body.PausedWorkflowScheduledRunQueueBehavior)
+		cronBehavior := string(request.Body.Pause.PausedWorkflowCronRunQueueBehavior)
+		scheduledBehavior := string(request.Body.Pause.PausedWorkflowScheduledRunQueueBehavior)
 
 		updateOpts.PauseOpts = &repository.WorkflowPauseOpts{
-			IsPaused:                                *request.Body.IsPaused,
+			IsPaused:                                request.Body.Pause.IsPaused,
 			PausedWorkflowCronRunQueueBehavior:      repository.WorkflowPauseScheduledCronRunQueueBehavior(cronBehavior),
 			PausedWorkflowScheduledRunQueueBehavior: repository.WorkflowPauseScheduledCronRunQueueBehavior(scheduledBehavior),
-			PausedWorkflowQueueTTL:                  *request.Body.PausedWorkflowQueueTTL,
+			PausedWorkflowQueueTTL:                  request.Body.Pause.PausedWorkflowQueueTTL,
 		}
 	}
 
