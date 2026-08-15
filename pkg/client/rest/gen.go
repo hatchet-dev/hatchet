@@ -373,6 +373,12 @@ const (
 	FUNCTION WorkflowKind = "FUNCTION"
 )
 
+// Defines values for WorkflowPauseScheduledCronRunQueueBehavior.
+const (
+	DROP  WorkflowPauseScheduledCronRunQueueBehavior = "DROP"
+	QUEUE WorkflowPauseScheduledCronRunQueueBehavior = "QUEUE"
+)
+
 // Defines values for WorkflowRunOrderByDirection.
 const (
 	WorkflowRunOrderByDirectionASC  WorkflowRunOrderByDirection = "ASC"
@@ -2472,13 +2478,9 @@ type Workflow struct {
 	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the workflow.
-	Name string `json:"name"`
-
-	// QueueCronOnPause Whether the cron tasks should be queued or dropped when the workflow is paused.
-	QueueCronOnPause *bool `json:"queueCronOnPause,omitempty"`
-
-	// QueueScheduledOnPause Whether the scheduled tasks should be queued or dropped when the workflow is paused.
-	QueueScheduledOnPause *bool `json:"queueScheduledOnPause,omitempty"`
+	Name                                    string                                      `json:"name"`
+	PausedWorkflowCronRunQueueBehavior      *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
+	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
 
 	// Tags The tags of the workflow.
 	Tags *[]WorkflowTag `json:"tags,omitempty"`
@@ -2522,6 +2524,9 @@ type WorkflowMetrics struct {
 	// GroupKeyRunsCount The number of runs for a specific group key (passed via filter)
 	GroupKeyRunsCount *int `json:"groupKeyRunsCount,omitempty"`
 }
+
+// WorkflowPauseScheduledCronRunQueueBehavior defines model for WorkflowPauseScheduledCronRunQueueBehavior.
+type WorkflowPauseScheduledCronRunQueueBehavior string
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {

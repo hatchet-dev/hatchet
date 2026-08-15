@@ -177,6 +177,11 @@ export enum ScheduledWorkflowsMethod {
   API = "API",
 }
 
+export enum WorkflowPauseScheduledCronRunQueueBehavior {
+  DROP = "DROP",
+  QUEUE = "QUEUE",
+}
+
 export enum RateLimitOrderByDirection {
   Asc = "asc",
   Desc = "desc",
@@ -1817,10 +1822,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
-  /** Whether the cron tasks should be queued or dropped when the workflow is paused. */
-  queueCronOnPause?: boolean;
-  /** Whether the scheduled tasks should be queued or dropped when the workflow is paused. */
-  queueScheduledOnPause?: boolean;
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
