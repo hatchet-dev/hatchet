@@ -2660,8 +2660,11 @@ type WorkflowTriggers struct {
 // WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
 type WorkflowUpdateRequest struct {
 	// IsPaused Whether the workflow is paused.
-	IsPaused                                *bool                                       `json:"isPaused,omitempty"`
-	PausedWorkflowCronRunQueueBehavior      *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
+	IsPaused                           *bool                                       `json:"isPaused,omitempty"`
+	PausedWorkflowCronRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
+
+	// PausedWorkflowQueueTTLMs The TTL for queued runs while the workflow is paused before they get dropped
+	PausedWorkflowQueueTTLMs                *int                                        `json:"pausedWorkflowQueueTTLMs,omitempty"`
 	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
 }
 

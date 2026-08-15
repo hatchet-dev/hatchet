@@ -2077,6 +2077,8 @@ export interface WorkflowUpdateRequest {
   pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */
   pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The TTL for queued runs while the workflow is paused before they get dropped */
+  pausedWorkflowQueueTTLMs?: number;
 }
 
 export interface WorkflowConcurrency {

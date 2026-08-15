@@ -830,6 +830,10 @@ SET
     "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
         sqlc.narg('pausedWorkflowScheduledRunQueueBehavior')::"WorkflowPauseQueueBehavior",
         "pausedWorkflowScheduledRunQueueBehavior"
+    ),
+    "pausedWorkflowQueueTTLMs" = coalesce(
+        sqlc.narg('pausedWorkflowQueueTTLMs')::bigint,
+        "pausedWorkflowQueueTTLMs"
     )
 WHERE "id" = @id::uuid
 RETURNING *;

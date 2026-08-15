@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -1367,6 +1368,7 @@ type WorkflowPauseOpts struct {
 	IsPaused                                bool
 	PausedWorkflowCronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
 	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
+	PausedWorkflowQueueTTL                  time.Duration
 }
 
 type UpdateWorkflowOpts struct {
@@ -1374,7 +1376,23 @@ type UpdateWorkflowOpts struct {
 }
 
 func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
-	return nil, nil
+	var params sqlcv1.UpdateWorkflowParams
+
+	if opts.PauseOpts != nil {
+		params.IsPaused = sqlchelpers.BoolFromBoolean(opts.PauseOpts.IsPaused)
+		params.PausedWorkflowCronRunQueueBehavior = sqlcv1.NullWorkflowPauseQueueBehavior{
+			WorkflowPauseQueueBehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.PauseOpts.PausedWorkflowCronRunQueueBehavior),
+			Valid:                      true,
+		}
+		params.PausedWorkflowScheduledRunQueueBehavior = sqlcv1.NullWorkflowPauseQueueBehavior{
+			WorkflowPauseQueueBehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.PauseOpts.PausedWorkflowScheduledRunQueueBehavior),
+			Valid:                      true,
+		}
+		ttlMs := opts.PauseOpts.PausedWorkflowQueueTTL.Milliseconds()
+		params.PausedWorkflowQueueTTLMs = sqlchelpers.ToBigInt(&ttlMs)
+	}
+
+	return r.queries.UpdateWorkflow(ctx, r.pool, params)
 }
 
 func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
