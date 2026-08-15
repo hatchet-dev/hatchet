@@ -16,6 +16,16 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	workflow := echoCtx.Get("workflow").(*sqlcv1.Workflow)
 	ctx := echoCtx.Request().Context()
 
+	var pauseOpt repository.WorkflowPauseOpts
+
+	if request.Body.IsPaused != nil && request.Body.QueueCronOnPause != nil && request.Body.QueueScheduledOnPause != nil {
+		pauseOpt := repository.WorkflowPauseOpts{
+			IsPaused: *request.Body.IsPaused,
+			QueueCronsIfPaused: *request.Body.QueueCronOnPause,
+			
+		}
+	}
+
 	result, err := t.config.V1.Workflows().UpdateWorkflow(ctx, tenant.ID, workflow.ID, repository.UpdateWorkflowOpts{})
 
 	if err != nil {

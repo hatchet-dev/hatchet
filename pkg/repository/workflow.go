@@ -1352,8 +1352,21 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	return versions[0], nil
 }
 
+type WorkflowPauseScheduledCronRunQueueBehavior string
+
+const (
+	WorkflowPauseScheduledCronRunQueueBehaviorDROP  = "DROP"
+	WorkflowPauseScheduledCronRunQueueBehaviorQUEUE = "QUEUE"
+)
+
+type WorkflowPauseOpts struct {
+	IsPaused                                bool
+	PausedWorkflowCronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
+	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
+}
+
 type UpdateWorkflowOpts struct {
-	IsPaused *bool
+	PauseOpts *WorkflowPauseOpts
 }
 
 func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
