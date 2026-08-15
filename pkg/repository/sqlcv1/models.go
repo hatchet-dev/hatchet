@@ -4021,7 +4021,7 @@ type Workflow struct {
 	IsPaused                                pgtype.Bool                    `json:"isPaused"`
 	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
 	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
-	PausedWorkflowQueueTTLMs                pgtype.Int8                    `json:"pausedWorkflowQueueTTLMs"`
+	PausedWorkflowQueueTTL                  pgtype.Interval                `json:"pausedWorkflowQueueTTL"`
 }
 
 type WorkflowConcurrency struct {

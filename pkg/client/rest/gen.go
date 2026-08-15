@@ -293,8 +293,6 @@ const (
 	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
 	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
 	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
-	V1TaskEventTypeWORKFLOWPAUSED       V1TaskEventType = "WORKFLOW_PAUSED"
-	V1TaskEventTypeWORKFLOWUNPAUSED     V1TaskEventType = "WORKFLOW_UNPAUSED"
 )
 
 // Defines values for V1TaskStatus.
@@ -2663,8 +2661,8 @@ type WorkflowUpdateRequest struct {
 	IsPaused                           *bool                                       `json:"isPaused,omitempty"`
 	PausedWorkflowCronRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
 
-	// PausedWorkflowQueueTTLMs The TTL for queued runs while the workflow is paused before they get dropped
-	PausedWorkflowQueueTTLMs                *int                                        `json:"pausedWorkflowQueueTTLMs,omitempty"`
+	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
+	PausedWorkflowQueueTTL                  *string                                     `json:"pausedWorkflowQueueTTL,omitempty" validate:"omitnil,durationWithDays"`
 	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
 }
 

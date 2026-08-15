@@ -831,9 +831,9 @@ SET
         sqlc.narg('pausedWorkflowScheduledRunQueueBehavior')::"WorkflowPauseQueueBehavior",
         "pausedWorkflowScheduledRunQueueBehavior"
     ),
-    "pausedWorkflowQueueTTLMs" = coalesce(
-        sqlc.narg('pausedWorkflowQueueTTLMs')::bigint,
-        "pausedWorkflowQueueTTLMs"
+    "pausedWorkflowQueueTTL" = coalesce(
+        convert_duration_to_interval(sqlc.narg('pausedWorkflowQueueTTL')::text),
+        "pausedWorkflowQueueTTL"
     )
 WHERE "id" = @id::uuid
 RETURNING *;

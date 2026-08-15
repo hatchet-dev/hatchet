@@ -350,8 +350,6 @@ export enum V1TaskEventType {
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
   DURABLE_EVICTED = "DURABLE_EVICTED",
   DURABLE_RESTORING = "DURABLE_RESTORING",
-  WORKFLOW_PAUSED = "WORKFLOW_PAUSED",
-  WORKFLOW_UNPAUSED = "WORKFLOW_UNPAUSED",
 }
 
 export enum V1WorkflowType {
@@ -2077,8 +2075,8 @@ export interface WorkflowUpdateRequest {
   pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */
   pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
-  /** The TTL for queued runs while the workflow is paused before they get dropped */
-  pausedWorkflowQueueTTLMs?: number;
+  /** The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m"). */
+  pausedWorkflowQueueTTL?: string;
 }
 
 export interface WorkflowConcurrency {

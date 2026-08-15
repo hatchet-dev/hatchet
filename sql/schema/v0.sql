@@ -909,7 +909,7 @@ CREATE TABLE "Workflow" (
     "isPaused" BOOLEAN DEFAULT false,
     "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
-    "pausedWorkflowQueueTTLMs" BIGINT,
+    "pausedWorkflowQueueTTL" INTERVAL,
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
 );

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -1368,7 +1367,7 @@ type WorkflowPauseOpts struct {
 	IsPaused                                bool
 	PausedWorkflowCronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
 	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
-	PausedWorkflowQueueTTL                  time.Duration
+	PausedWorkflowQueueTTL                  string
 }
 
 type UpdateWorkflowOpts struct {
@@ -1388,8 +1387,7 @@ func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workf
 			WorkflowPauseQueueBehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.PauseOpts.PausedWorkflowScheduledRunQueueBehavior),
 			Valid:                      true,
 		}
-		ttlMs := opts.PauseOpts.PausedWorkflowQueueTTL.Milliseconds()
-		params.PausedWorkflowQueueTTLMs = sqlchelpers.ToBigInt(&ttlMs)
+		params.PausedWorkflowQueueTTL = sqlchelpers.TextFromStr(opts.PauseOpts.PausedWorkflowQueueTTL)
 	}
 
 	return r.queries.UpdateWorkflow(ctx, r.pool, params)

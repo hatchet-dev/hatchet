@@ -33,6 +33,8 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
 
+const DEFAULT_QUEUE_TTL = '24h';
+
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
@@ -85,8 +87,9 @@ export default function ExpandedWorkflow() {
     mutationKey: ['workflow:pause:toggle', params.workflow],
     mutationFn: async (opts: {
       isPaused: boolean;
-      pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
-      pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+      pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+      pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+      pausedWorkflowQueueTTL: string;
     }) => {
       const res = await api.workflowUpdate(params.workflow, opts);
 
@@ -174,7 +177,16 @@ export default function ExpandedWorkflow() {
                 }
 
                 if (workflow.isPaused) {
-                  togglePauseMutation.mutate({ isPaused: false });
+                  togglePauseMutation.mutate({
+                    isPaused: false,
+                    pausedWorkflowCronRunQueueBehavior:
+                      workflow.pausedWorkflowCronRunQueueBehavior ||
+                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+                    pausedWorkflowScheduledRunQueueBehavior:
+                      workflow.pausedWorkflowScheduledRunQueueBehavior ||
+                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+                    pausedWorkflowQueueTTL: DEFAULT_QUEUE_TTL,
+                  });
                 } else {
                   setPauseWorkflow(true);
                 }
@@ -203,13 +215,18 @@ export default function ExpandedWorkflow() {
             isOpen={pauseWorkflow}
             isLoading={togglePauseMutation.isPending}
             onCancel={() => setPauseWorkflow(false)}
-            onSubmit={({ cronRunQueueBehavior, scheduledRunQueueBehavior }) => {
+            onSubmit={({
+              cronRunQueueBehavior,
+              scheduledRunQueueBehavior,
+              queueTtl,
+            }) => {
               togglePauseMutation.mutate(
                 {
                   isPaused: true,
                   pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
                   pausedWorkflowScheduledRunQueueBehavior:
                     scheduledRunQueueBehavior,
+                  pausedWorkflowQueueTTL: queueTtl,
                 },
                 { onSuccess: () => setPauseWorkflow(false) },
               );

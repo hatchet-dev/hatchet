@@ -58,9 +58,11 @@ WorkflowUpdateRequest:
     pausedWorkflowScheduledRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
       description: The behavior of scheduled runs triggered while the workflow is paused.
-    pausedWorkflowQueueTTLMs:
-      type: integer
-      description: The TTL for queued runs while the workflow is paused before they get dropped
+    pausedWorkflowQueueTTL:
+      type: string
+      description: >-
+        The TTL for queued runs while the workflow is paused before they get
+        dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
 
 WorkflowTag:
   type: object

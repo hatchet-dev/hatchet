@@ -2,7 +2,6 @@ package workflows
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -19,7 +18,7 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 	workflow := echoCtx.Get("workflow").(*sqlcv1.Workflow)
 	ctx := echoCtx.Request().Context()
 
-	hasPauseChanges := request.Body.IsPaused != nil && request.Body.PausedWorkflowCronRunQueueBehavior != nil && request.Body.PausedWorkflowScheduledRunQueueBehavior != nil && request.Body.PausedWorkflowQueueTTLMs != nil
+	hasPauseChanges := request.Body.IsPaused != nil && request.Body.PausedWorkflowCronRunQueueBehavior != nil && request.Body.PausedWorkflowScheduledRunQueueBehavior != nil && request.Body.PausedWorkflowQueueTTL != nil
 
 	var updateOpts repository.UpdateWorkflowOpts
 
@@ -31,7 +30,7 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 			IsPaused:                                *request.Body.IsPaused,
 			PausedWorkflowCronRunQueueBehavior:      repository.WorkflowPauseScheduledCronRunQueueBehavior(cronBehavior),
 			PausedWorkflowScheduledRunQueueBehavior: repository.WorkflowPauseScheduledCronRunQueueBehavior(scheduledBehavior),
-			PausedWorkflowQueueTTL:                  time.Duration(*request.Body.PausedWorkflowQueueTTLMs) * time.Millisecond,
+			PausedWorkflowQueueTTL:                  *request.Body.PausedWorkflowQueueTTL,
 		}
 	}
 

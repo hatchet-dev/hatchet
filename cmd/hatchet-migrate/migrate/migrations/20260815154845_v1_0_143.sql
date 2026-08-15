@@ -5,7 +5,7 @@ CREATE TYPE "WorkflowPauseQueueBehavior" AS ENUM ('QUEUE', 'DROP');
 ALTER TABLE "Workflow"
     ADD COLUMN "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
     ADD COLUMN "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
-    ADD COLUMN "pausedWorkflowQueueTTLMs" BIGINT
+    ADD COLUMN "pausedWorkflowQueueTTL" INTERVAL
 ;
 
 -- v1_paused_workflow_queue_item stores queue items for workflows that are currently paused.
