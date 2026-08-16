@@ -1,12 +1,15 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TYPE "WorkflowPauseQueueBehavior" AS ENUM ('QUEUE', 'DROP');
+CREATE TYPE paused_workflow_queue_strategy AS ENUM ('QUEUE', 'DROP');
 
-ALTER TABLE "Workflow"
-    ADD COLUMN "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
-    ADD COLUMN "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
-    ADD COLUMN "pausedWorkflowQueueTTL" INTERVAL
-;
+CREATE TABLE v1_paused_workflow_config (
+    workflow_id UUID NOT NULL,
+    is_paused BOOLEAN NOT NULL DEFAULT FALSE,
+    cron_run_queue_strategy paused_workflow_queue_strategy NOT NULL DEFAULT 'QUEUE',
+    scheduled_run_queue_strategy paused_workflow_queue_strategy NOT NULL DEFAULT 'QUEUE',
+
+    CONSTRAINT v1_paused_workflow_config_pkey PRIMARY KEY (workflow_id)
+);
 
 -- v1_paused_workflow_queue_item stores queue items for workflows that are currently paused.
 CREATE TABLE v1_paused_workflow_queue_item (
@@ -48,11 +51,6 @@ ALTER TABLE v1_paused_workflow_queue_item SET (
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE v1_paused_workflow_queue_item;
-
-ALTER TABLE "Workflow"
-    DROP COLUMN "pausedWorkflowCronRunQueueBehavior",
-    DROP COLUMN "pausedWorkflowScheduledRunQueueBehavior"
-;
-
-DROP TYPE "WorkflowPauseQueueBehavior";
+DROP TABLE v1_paused_workflow_config;
+DROP TYPE paused_workflow_queue_strategy;
 -- +goose StatementEnd

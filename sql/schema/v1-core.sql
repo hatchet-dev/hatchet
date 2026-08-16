@@ -723,6 +723,18 @@ CREATE INDEX v1_batched_queue_item_step_priority_idx ON v1_batched_queue_item (
     id ASC
 );
 
+
+CREATE TYPE paused_workflow_queue_strategy AS ENUM ('QUEUE', 'DROP');
+
+CREATE TABLE v1_paused_workflow_config (
+    workflow_id UUID NOT NULL,
+    is_paused BOOLEAN NOT NULL DEFAULT FALSE,
+    cron_run_queue_strategy paused_workflow_queue_strategy NOT NULL DEFAULT 'QUEUE',
+    scheduled_run_queue_strategy paused_workflow_queue_strategy NOT NULL DEFAULT 'QUEUE',
+
+    CONSTRAINT v1_paused_workflow_config_pkey PRIMARY KEY (workflow_id)
+);
+
 -- v1_paused_workflow_queue_item stores queue items for workflows that are currently paused.
 CREATE TABLE v1_paused_workflow_queue_item (
     paused_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
