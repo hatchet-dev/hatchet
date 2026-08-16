@@ -2072,8 +2072,8 @@ export interface WorkflowRunsCancelRequest {
 export type WorkflowUpdateRequest = object;
 
 export interface PauseWorkflowRequestPause {
-  /** Whether the workflow is paused. */
-  isPaused: true;
+  /** Discriminator indicating this request pauses the workflow. */
+  action: "pause";
   /** The behavior of cron runs triggered while the workflow is paused. */
   pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */
@@ -2083,8 +2083,8 @@ export interface PauseWorkflowRequestPause {
 }
 
 export interface PauseWorkflowRequestUnpause {
-  /** Whether the workflow is paused. */
-  isPaused: false;
+  /** Discriminator indicating this request unpauses the workflow. */
+  action: "unpause";
 }
 
 export type PauseWorkflowRequest =

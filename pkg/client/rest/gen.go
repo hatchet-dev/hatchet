@@ -95,14 +95,14 @@ const (
 	OtelStatusCodeUNSET OtelStatusCode = "UNSET"
 )
 
-// Defines values for PauseWorkflowRequestPauseIsPaused.
+// Defines values for PauseWorkflowRequestPauseAction.
 const (
-	True PauseWorkflowRequestPauseIsPaused = true
+	Pause PauseWorkflowRequestPauseAction = "pause"
 )
 
-// Defines values for PauseWorkflowRequestUnpauseIsPaused.
+// Defines values for PauseWorkflowRequestUnpauseAction.
 const (
-	False PauseWorkflowRequestUnpauseIsPaused = false
+	Unpause PauseWorkflowRequestUnpauseAction = "unpause"
 )
 
 // Defines values for RateLimitOrderByDirection.
@@ -850,8 +850,8 @@ type PauseWorkflowRequest struct {
 
 // PauseWorkflowRequestPause defines model for PauseWorkflowRequestPause.
 type PauseWorkflowRequestPause struct {
-	// IsPaused Whether the workflow is paused.
-	IsPaused                           PauseWorkflowRequestPauseIsPaused          `json:"isPaused"`
+	// Action Discriminator indicating this request pauses the workflow.
+	Action                             PauseWorkflowRequestPauseAction            `json:"action"`
 	PausedWorkflowCronRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
 
 	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
@@ -859,17 +859,17 @@ type PauseWorkflowRequestPause struct {
 	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
 }
 
-// PauseWorkflowRequestPauseIsPaused Whether the workflow is paused.
-type PauseWorkflowRequestPauseIsPaused bool
+// PauseWorkflowRequestPauseAction Discriminator indicating this request pauses the workflow.
+type PauseWorkflowRequestPauseAction string
 
 // PauseWorkflowRequestUnpause defines model for PauseWorkflowRequestUnpause.
 type PauseWorkflowRequestUnpause struct {
-	// IsPaused Whether the workflow is paused.
-	IsPaused PauseWorkflowRequestUnpauseIsPaused `json:"isPaused"`
+	// Action Discriminator indicating this request unpauses the workflow.
+	Action PauseWorkflowRequestUnpauseAction `json:"action"`
 }
 
-// PauseWorkflowRequestUnpauseIsPaused Whether the workflow is paused.
-type PauseWorkflowRequestUnpauseIsPaused bool
+// PauseWorkflowRequestUnpauseAction Discriminator indicating this request unpauses the workflow.
+type PauseWorkflowRequestUnpauseAction string
 
 // QueueMetrics defines model for QueueMetrics.
 type QueueMetrics struct {

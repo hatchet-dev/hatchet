@@ -92,7 +92,7 @@ export default function ExpandedWorkflow() {
         queryClient.getQueryData<Workflow>(workflowQueryKey);
 
       queryClient.setQueryData<Workflow>(workflowQueryKey, (old) =>
-        old ? { ...old, isPaused: opts.isPaused } : old,
+        old ? { ...old, action: opts.action } : old,
       );
 
       return { previousWorkflow };
@@ -203,7 +203,7 @@ export default function ExpandedWorkflow() {
             }) => {
               togglePauseMutation.mutate(
                 {
-                  isPaused: true,
+                  action: 'pause',
                   pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
                   pausedWorkflowScheduledRunQueueBehavior:
                     scheduledRunQueueBehavior,
@@ -219,7 +219,7 @@ export default function ExpandedWorkflow() {
             submitLabel="Unpause"
             onSubmit={() => {
               togglePauseMutation.mutate(
-                { isPaused: false },
+                { action: 'unpause' },
                 { onSuccess: () => setUnpauseWorkflow(false) },
               );
             }}

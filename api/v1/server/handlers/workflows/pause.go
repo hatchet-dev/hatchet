@@ -29,19 +29,26 @@ func extractIsPaused(request gen.PauseWorkflowRequest) (bool, error) {
 		return false, fmt.Errorf("failed to unmarshal request body: %w", err)
 	}
 
-	unparsedDiscriminator, ok := parsedBody["isPaused"]
+	unparsedDiscriminator, ok := parsedBody["action"]
 
 	if !ok {
-		return false, fmt.Errorf("isPaused field is missing in the request body")
+		return false, fmt.Errorf("action field is missing in the request body")
 	}
 
-	isPaused, ok := unparsedDiscriminator.(bool)
+	action, ok := unparsedDiscriminator.(string)
 
 	if !ok {
-		return false, fmt.Errorf("invalid isPaused value: %v", unparsedDiscriminator)
+		return false, fmt.Errorf("invalid action value: %v", unparsedDiscriminator)
 	}
 
-	return isPaused, nil
+	switch action {
+	case "pause":
+		return true, nil
+	case "unpause":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid action value: %v", action)
+	}
 }
 
 func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantId, workflowId uuid.UUID, request gen.PauseWorkflowRequest) (*sqlcv1.Workflow, error) {

@@ -159,7 +159,7 @@ class WorkflowsClient(BaseRestClient):
     def pause(
         self,
         workflow_id: str,
-        paused_workflow_queue_ttl: timedelta,
+        queue_ttl: timedelta,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -169,12 +169,12 @@ class WorkflowsClient(BaseRestClient):
         Pause a workflow.
 
         :param workflow_id: The ID of the workflow to pause.
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
-        :param paused_workflow_queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :return: The updated workflow.
         """
-        ttl_expr = timedelta_to_expr(paused_workflow_queue_ttl)
+        ttl_expr = timedelta_to_expr(queue_ttl)
 
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
@@ -184,7 +184,7 @@ class WorkflowsClient(BaseRestClient):
                 workflow_id,
                 PauseWorkflowRequest(
                     PauseWorkflowRequestPause(
-                        isPaused=True,
+                        action="pause",
                         pausedWorkflowCronRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
                             paused_workflow_cron_run_queue_behavior
                         ),
@@ -199,7 +199,7 @@ class WorkflowsClient(BaseRestClient):
     async def aio_pause(
         self,
         workflow_id: str,
-        paused_workflow_queue_ttl: timedelta,
+        queue_ttl: timedelta,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -209,16 +209,16 @@ class WorkflowsClient(BaseRestClient):
         Pause a workflow.
 
         :param workflow_id: The ID of the workflow to pause.
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
-        :param paused_workflow_queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :return: The updated workflow.
         """
 
         return await asyncio.to_thread(
             self.pause,
             workflow_id,
-            paused_workflow_queue_ttl,
+            queue_ttl,
             paused_workflow_cron_run_queue_behavior,
             paused_workflow_scheduled_run_queue_behavior,
         )
@@ -236,7 +236,7 @@ class WorkflowsClient(BaseRestClient):
             )
             return workflow_update_pause(
                 workflow_id,
-                PauseWorkflowRequest(PauseWorkflowRequestUnpause(isPaused=False)),
+                PauseWorkflowRequest(PauseWorkflowRequestUnpause(action="unpause")),
             )
 
     async def aio_unpause(self, workflow_id: str) -> Workflow:

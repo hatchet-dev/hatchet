@@ -49,10 +49,10 @@ Workflow:
 PauseWorkflowRequestPause:
   type: object
   properties:
-    isPaused:
-      type: boolean
-      enum: [true]
-      description: Whether the workflow is paused.
+    action:
+      type: string
+      enum: [pause]
+      description: Discriminator indicating this request pauses the workflow.
     pausedWorkflowCronRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
       description: The behavior of cron runs triggered while the workflow is paused.
@@ -65,7 +65,7 @@ PauseWorkflowRequestPause:
         The TTL for queued runs while the workflow is paused before they get
         dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
   required:
-    - isPaused
+    - action
     - pausedWorkflowCronRunQueueBehavior
     - pausedWorkflowScheduledRunQueueBehavior
     - pausedWorkflowQueueTTL
@@ -73,12 +73,12 @@ PauseWorkflowRequestPause:
 PauseWorkflowRequestUnpause:
   type: object
   properties:
-    isPaused:
-      type: boolean
-      enum: [false]
-      description: Whether the workflow is paused.
+    action:
+      type: string
+      enum: [unpause]
+      description: Discriminator indicating this request unpauses the workflow.
   required:
-    - isPaused
+    - action
 
 PauseWorkflowRequest:
   oneOf:

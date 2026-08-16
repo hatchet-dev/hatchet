@@ -16,14 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StrictBool,
-    StrictStr,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
@@ -37,8 +30,8 @@ class PauseWorkflowRequestPause(BaseModel):
     PauseWorkflowRequestPause
     """  # noqa: E501
 
-    is_paused: StrictBool = Field(
-        description="Whether the workflow is paused.", alias="isPaused"
+    action: StrictStr = Field(
+        description="Discriminator indicating this request pauses the workflow."
     )
     paused_workflow_cron_run_queue_behavior: (
         WorkflowPauseScheduledCronRunQueueBehavior
@@ -57,17 +50,17 @@ class PauseWorkflowRequestPause(BaseModel):
         alias="pausedWorkflowQueueTTL",
     )
     __properties: ClassVar[List[str]] = [
-        "isPaused",
+        "action",
         "pausedWorkflowCronRunQueueBehavior",
         "pausedWorkflowScheduledRunQueueBehavior",
         "pausedWorkflowQueueTTL",
     ]
 
-    @field_validator("is_paused")
-    def is_paused_validate_enum(cls, value):
+    @field_validator("action")
+    def action_validate_enum(cls, value):
         """Validates the enum"""
-        if value not in set(["true"]):
-            raise ValueError("must be one of enum values ('true')")
+        if value not in set(["pause"]):
+            raise ValueError("must be one of enum values ('pause')")
         return value
 
     model_config = ConfigDict(
@@ -120,7 +113,7 @@ class PauseWorkflowRequestPause(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "isPaused": obj.get("isPaused"),
+                "action": obj.get("action"),
                 "pausedWorkflowCronRunQueueBehavior": obj.get(
                     "pausedWorkflowCronRunQueueBehavior"
                 ),

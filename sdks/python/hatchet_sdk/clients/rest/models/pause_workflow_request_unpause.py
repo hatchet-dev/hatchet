@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
@@ -27,16 +27,16 @@ class PauseWorkflowRequestUnpause(BaseModel):
     PauseWorkflowRequestUnpause
     """  # noqa: E501
 
-    is_paused: StrictBool = Field(
-        description="Whether the workflow is paused.", alias="isPaused"
+    action: StrictStr = Field(
+        description="Discriminator indicating this request unpauses the workflow."
     )
-    __properties: ClassVar[List[str]] = ["isPaused"]
+    __properties: ClassVar[List[str]] = ["action"]
 
-    @field_validator("is_paused")
-    def is_paused_validate_enum(cls, value):
+    @field_validator("action")
+    def action_validate_enum(cls, value):
         """Validates the enum"""
-        if value not in set(["false"]):
-            raise ValueError("must be one of enum values ('false')")
+        if value not in set(["unpause"]):
+            raise ValueError("must be one of enum values ('unpause')")
         return value
 
     model_config = ConfigDict(
@@ -87,5 +87,5 @@ class PauseWorkflowRequestUnpause(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"isPaused": obj.get("isPaused")})
+        _obj = cls.model_validate({"action": obj.get("action")})
         return _obj
