@@ -1147,29 +1147,6 @@ JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_in
 RETURNING tenant_id, task_id, task_inserted_at, retry_count
 ;
 
-
--- name: CleanupV1PausedWorkflowQueueItem :exec
--- todo: figure out what behavior we want here
-WITH locked_qis as (
-    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
-    FROM v1_paused_workflow_queue_item qi
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE qi.task_id = vt.id
-        AND qi.task_inserted_at = vt.inserted_at
-    )
-    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
-    LIMIT @batchSize::INT
-    FOR UPDATE SKIP LOCKED
-)
-
-DELETE FROM v1_paused_workflow_queue_item
-WHERE (task_id, task_inserted_at) IN (
-    SELECT task_id, task_inserted_at
-    FROM locked_qis
-);
-
 -- name: ListExpiredPausedWorkflowQueueItems :many
 SELECT
     qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.retry_count
@@ -1178,10 +1155,12 @@ FROM
 JOIN
     "Workflow" w ON w.id = qi.workflow_id
 WHERE
-    w."pausedWorkflowQueueTTL" IS NOT NULL
+    qi.tenant_id = @tenantId::UUID
+    AND w."pausedWorkflowQueueTTL" IS NOT NULL
     AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
 ORDER BY
     qi.task_id, qi.task_inserted_at, qi.retry_count
 LIMIT
     @batchSize::INT
-FOR UPDATE OF qi SKIP LOCKED;
+FOR UPDATE OF qi SKIP LOCKED
+;

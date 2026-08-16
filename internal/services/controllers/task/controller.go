@@ -62,6 +62,7 @@ type TasksControllerImpl struct {
 	emitSleepOperations                      *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
+	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
 
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
@@ -309,6 +310,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
+	t.expirePausedWorkflowQueueItemsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "expire-paused-workflow-queue-items", timeout, "expire paused workflow queue items", t.processPausedWorkflowQueueItemTTL, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	return t, nil
 }
 
@@ -425,6 +435,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.emitSleepOperations.Cleanup()
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
 		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
+		tc.expirePausedWorkflowQueueItemsOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 

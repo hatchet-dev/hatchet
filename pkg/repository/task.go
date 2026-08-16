@@ -315,6 +315,8 @@ type TaskRepository interface {
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
 
+	ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error)
+
 	GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
@@ -1562,6 +1564,56 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	return res, len(toReassign) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error) {
+	const batchSize = 1000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	expiredItems, err := r.queries.ListExpiredPausedWorkflowQueueItems(ctx, tx, sqlcv1.ListExpiredPausedWorkflowQueueItemsParams{
+		Tenantid:  tenantId,
+		Batchsize: batchSize,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error listing expired v1_paused_workflow_queue_items: %w", err)
+	}
+
+	if len(expiredItems) == 0 {
+		return &FinalizedTaskResponse{
+			ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+			InternalEvents: make([]InternalTaskEvent, 0),
+		}, false, nil
+	}
+
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(expiredItems))
+
+	for _, item := range expiredItems {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         item.TaskID,
+			InsertedAt: item.TaskInsertedAt,
+			RetryCount: item.RetryCount,
+		})
+	}
+
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(expiredItems) == batchSize, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
@@ -4434,37 +4486,6 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
 		}
 		if result.RowsAffected() == batchSize {
-			mu.Lock()
-			shouldContinue = true
-			mu.Unlock()
-		}
-		return nil
-	}))
-
-	// CleanupExpiredPausedWorkflowQueueItems
-	eg.Go(runCleanup("cleanup-v1-paused-workflow-queue-item-ttl", func(ctx context.Context, tx sqlcv1.DBTX) error {
-		expiredItems, err := r.queries.ListExpiredPausedWorkflowQueueItems(ctx, tx, batchSize)
-		if err != nil {
-			return fmt.Errorf("error listing expired v1_paused_workflow_queue_items: %v", err)
-		}
-
-		tasksByTenant := make(map[uuid.UUID][]TaskIdInsertedAtRetryCount)
-
-		for _, item := range expiredItems {
-			tasksByTenant[item.TenantID] = append(tasksByTenant[item.TenantID], TaskIdInsertedAtRetryCount{
-				Id:         item.TaskID,
-				InsertedAt: item.TaskInsertedAt,
-				RetryCount: item.RetryCount,
-			})
-		}
-
-		for tenantId, tasks := range tasksByTenant {
-			if _, err := r.cancelTasks(ctx, tx, tenantId, tasks); err != nil {
-				return fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
-			}
-		}
-
-		if len(expiredItems) == int(batchSize) {
 			mu.Lock()
 			shouldContinue = true
 			mu.Unlock()

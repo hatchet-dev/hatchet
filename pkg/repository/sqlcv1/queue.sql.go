@@ -53,34 +53,6 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 	return items, nil
 }
 
-const cleanupV1PausedWorkflowQueueItem = `-- name: CleanupV1PausedWorkflowQueueItem :exec
-WITH locked_qis as (
-    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
-    FROM v1_paused_workflow_queue_item qi
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE qi.task_id = vt.id
-        AND qi.task_inserted_at = vt.inserted_at
-    )
-    ORDER BY qi.task_id, qi.task_inserted_at, qi.retry_count
-    LIMIT $1::INT
-    FOR UPDATE SKIP LOCKED
-)
-
-DELETE FROM v1_paused_workflow_queue_item
-WHERE (task_id, task_inserted_at) IN (
-    SELECT task_id, task_inserted_at
-    FROM locked_qis
-)
-`
-
-// todo: figure out what behavior we want here
-func (q *Queries) CleanupV1PausedWorkflowQueueItem(ctx context.Context, db DBTX, batchsize int32) error {
-	_, err := db.Exec(ctx, cleanupV1PausedWorkflowQueueItem, batchsize)
-	return err
-}
-
 const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
@@ -1036,14 +1008,20 @@ FROM
 JOIN
     "Workflow" w ON w.id = qi.workflow_id
 WHERE
-    w."pausedWorkflowQueueTTL" IS NOT NULL
+    qi.tenant_id = $1::UUID
+    AND w."pausedWorkflowQueueTTL" IS NOT NULL
     AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
 ORDER BY
     qi.task_id, qi.task_inserted_at, qi.retry_count
 LIMIT
-    $1::INT
+    $2::INT
 FOR UPDATE OF qi SKIP LOCKED
 `
+
+type ListExpiredPausedWorkflowQueueItemsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Batchsize int32     `json:"batchsize"`
+}
 
 type ListExpiredPausedWorkflowQueueItemsRow struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
@@ -1052,8 +1030,8 @@ type ListExpiredPausedWorkflowQueueItemsRow struct {
 	RetryCount     int32              `json:"retry_count"`
 }
 
-func (q *Queries) ListExpiredPausedWorkflowQueueItems(ctx context.Context, db DBTX, batchsize int32) ([]*ListExpiredPausedWorkflowQueueItemsRow, error) {
-	rows, err := db.Query(ctx, listExpiredPausedWorkflowQueueItems, batchsize)
+func (q *Queries) ListExpiredPausedWorkflowQueueItems(ctx context.Context, db DBTX, arg ListExpiredPausedWorkflowQueueItemsParams) ([]*ListExpiredPausedWorkflowQueueItemsRow, error) {
+	rows, err := db.Query(ctx, listExpiredPausedWorkflowQueueItems, arg.Tenantid, arg.Batchsize)
 	if err != nil {
 		return nil, err
 	}
