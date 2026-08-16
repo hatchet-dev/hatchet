@@ -818,6 +818,26 @@ WHERE
     )
 ;
 
+-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused"),
+    "pausedWorkflowCronRunQueueBehavior" = coalesce(
+        sqlc.narg('pausedWorkflowCronRunQueueBehavior')::"WorkflowPauseQueueBehavior",
+        "pausedWorkflowCronRunQueueBehavior"
+    ),
+    "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
+        sqlc.narg('pausedWorkflowScheduledRunQueueBehavior')::"WorkflowPauseQueueBehavior",
+        "pausedWorkflowScheduledRunQueueBehavior"
+    ),
+    "pausedWorkflowQueueTTL" = coalesce(
+        convert_duration_to_interval(sqlc.narg('pausedWorkflowQueueTTL')::text),
+        "pausedWorkflowQueueTTL"
+    )
+WHERE "id" = @id::uuid
+RETURNING *;
+
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT
     wtc.*
@@ -870,13 +890,3 @@ WHERE
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1;
-
--- name: ToggleWorkflowPaused :one
-UPDATE v1_paused_workflow_config
-SET
-    is_paused = @isPaused::boolean,
-    cron_run_queue_strategy = @cronRunQueueStrategy::paused_workflow_queue_strategy,
-    scheduled_run_queue_strategy = @scheduledRunQueueStrategy::paused_workflow_queue_strategy
-WHERE workflow_id = @workflowId::uuid
-RETURNING *
-;
