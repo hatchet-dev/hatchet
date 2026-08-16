@@ -119,11 +119,13 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex w-full flex-row items-center gap-2 overflow-x-auto">
-        <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
-          {!leftActions && isLoading && <Spinner />}
-          {leftActions}
-        </div>
+      <div className="flex w-full flex-row items-center overflow-x-auto gap-2">
+        {(leftActions || isLoading) && (
+          <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
+            {!leftActions && isLoading && <Spinner />}
+            {leftActions}
+          </div>
+        )}
         {searchBar && <div className="min-w-0 flex-1">{searchBar}</div>}
         <div className="ml-auto flex flex-shrink-0 flex-row items-center gap-2">
           {rightActions}

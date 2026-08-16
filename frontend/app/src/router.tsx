@@ -565,6 +565,10 @@ const tenantWorkflowsRoute = createRoute({
   ),
 });
 
+const workflowSearchSchema = z.object({
+  tab: z.enum(['runs', 'settings']).optional(),
+});
+
 const tenantWorkflowRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'workflows/$workflow',
@@ -572,6 +576,7 @@ const tenantWorkflowRoute = createRoute({
     () => import('./pages/main/v1/workflows/$workflow'),
     'default',
   ),
+  validateSearch: workflowSearchSchema,
 });
 
 const tenantOverviewRoute = createRoute({

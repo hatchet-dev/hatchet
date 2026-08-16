@@ -4,9 +4,17 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { WorkflowTags } from '../components/workflow-tags';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
+import WorkflowTasksCard from './components/workflow-tasks-card';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import {
   Tabs,
@@ -23,8 +31,9 @@ import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
+import { CopyIcon, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
 export default function ExpandedWorkflow() {
@@ -37,6 +46,7 @@ export default function ExpandedWorkflow() {
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const { tab } = useSearch({ from: appRoutes.tenantWorkflowRoute.to });
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
@@ -104,8 +114,21 @@ export default function ExpandedWorkflow() {
 
   const currVersion = workflow.versions && workflow.versions[0].version;
 
+  const activeTab = tab ?? 'runs';
+  const setTab = (value: 'runs' | 'settings') =>
+    navigate({
+      to: appRoutes.tenantWorkflowRoute.to,
+      params: { tenant: tenantId, workflow: params.workflow },
+      search: { tab: value },
+      replace: true,
+    });
+
   return (
-    <div className="flex h-full w-full flex-grow flex-col gap-y-4 overflow-hidden">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setTab(value as 'runs' | 'settings')}
+      className="flex h-full w-full flex-grow flex-col overflow-hidden"
+    >
       <div className="flex-shrink-0 p-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -123,13 +146,43 @@ export default function ExpandedWorkflow() {
             </Badge>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
-          <div className="flex flex-row gap-2">
+          <div className="flex flex-row items-center gap-2">
             <Button
               className="text-sm"
               onClick={() => setTriggerWorkflow(true)}
             >
               Trigger Workflow
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-40">
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={!workflowVersionQuery.data}
+                  onSelect={() =>
+                    navigator.clipboard.writeText(
+                      JSON.stringify(
+                        workflowVersionQuery.data?.workflowConfig ?? {},
+                      ),
+                    )
+                  }
+                >
+                  <CopyIcon className="mr-2 size-3" />
+                  Copy Config
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  onSelect={() => setDeleteWorkflow(true)}
+                >
+                  Delete Workflow
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <TriggerWorkflowForm
             show={triggerWorkflow}
@@ -145,84 +198,48 @@ export default function ExpandedWorkflow() {
             )}
           </div>
         </div>
-        {workflow.description && (
-          <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
-            {workflow.description}
-          </div>
-        )}
+        <TabsList layout="underlined" className="mt-4">
+          <TabsTrigger variant="underlined" value="runs">
+            Runs
+          </TabsTrigger>
+          <TabsTrigger variant="underlined" value="settings">
+            Settings
+          </TabsTrigger>
+        </TabsList>
       </div>
-      <div className="min-h-0 flex-1 px-4 sm:px-6 lg:px-8">
-        <Tabs defaultValue="runs" className="flex h-full flex-col">
-          <TabsList layout="underlined" className="mb-4">
-            <TabsTrigger variant="underlined" value="runs">
-              Runs
-            </TabsTrigger>
-            <TabsTrigger variant="underlined" value="settings">
-              Settings
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="runs" className="min-h-0 flex-1">
-            <RecentRunsList />
-          </TabsContent>
-          <TabsContent
-            value="settings"
-            className="min-h-0 flex-1 overflow-y-auto pt-4 pb-8"
-          >
-            {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
-              <Loading />
-            ) : (
+      <div className="flex min-h-0 flex-1 flex-col px-6">
+        <TabsContent value="runs" className="min-h-0 flex-1 overflow-hidden">
+          <RecentRunsList />
+        </TabsContent>
+        <TabsContent
+          value="settings"
+          className="min-h-0 flex-1 overflow-y-auto pt-4 pb-8"
+        >
+          {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
+            <Loading />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <WorkflowTasksCard workflow={workflowVersionQuery.data} />
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
-            )}
-
-            <div className="mt-8">
-              <div className="space-y-3">
-                <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-                  Danger Zone
-                </h3>
-                <div className="pl-1">
-                  <div className="max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          Delete Workflow
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                          Permanently delete this workflow and all its data.
-                          This action cannot be undone.
-                        </p>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteWorkflow(true);
-                        }}
-                      >
-                        Delete Workflow
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
+          )}
 
-            <ConfirmDialog
-              title={`Delete workflow`}
-              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
-              submitLabel={'Delete'}
-              onSubmit={function (): void {
-                deleteWorkflowMutation.mutate();
-              }}
-              onCancel={function (): void {
-                setDeleteWorkflow(false);
-              }}
-              isLoading={deleteWorkflowMutation.isPending}
-              isOpen={deleteWorkflow}
-            />
-          </TabsContent>
-        </Tabs>
+          <ConfirmDialog
+            title={`Delete workflow`}
+            description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
+            submitLabel={'Delete'}
+            onSubmit={function (): void {
+              deleteWorkflowMutation.mutate();
+            }}
+            onCancel={function (): void {
+              setDeleteWorkflow(false);
+            }}
+            isLoading={deleteWorkflowMutation.isPending}
+            isOpen={deleteWorkflow}
+          />
+        </TabsContent>
       </div>
-    </div>
+    </Tabs>
   );
 }
 

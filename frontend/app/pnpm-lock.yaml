@@ -168,6 +168,9 @@ importers:
       lucide-react:
         specifier: ^1.8.0
         version: 1.8.0(react@18.3.1)
+      markdown-to-jsx:
+        specifier: ^9.8.2
+        version: 9.10.1(react@18.3.1)(solid-js@1.9.10)
       monaco-themes:
         specifier: ^0.4.8
         version: 0.4.8
@@ -3662,6 +3665,24 @@ packages:
   magic-string@0.30.8:
     resolution: {integrity: sha512-ISQTe55T2ao7XtlAStud6qwYPZjE4GK1S/BeVPus4jrq6JuOnQ00YKQC581RWhR122W7msZV263KzVeLoqidyQ==}
     engines: {node: '>=12'}
+
+  markdown-to-jsx@9.10.1:
+    resolution: {integrity: sha512-/fVJ8tKefGDQP40IONtD8O39V0sP0KkJmgkkFH1RBmPWKgnS6ljcOyUZ/ahEnQ3a3GsNZynM8KTR6b1n/6gFaQ==}
+    engines: {node: '>= 18'}
+    peerDependencies:
+      react: '>= 16.0.0'
+      react-native: '*'
+      solid-js: '>=1.0.0'
+      vue: '>=3.0.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-native:
+        optional: true
+      solid-js:
+        optional: true
+      vue:
+        optional: true
 
   marked@14.0.0:
     resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
@@ -8416,6 +8437,11 @@ snapshots:
   magic-string@0.30.8:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  markdown-to-jsx@9.10.1(react@18.3.1)(solid-js@1.9.10):
+    optionalDependencies:
+      react: 18.3.1
+      solid-js: 1.9.10
 
   marked@14.0.0: {}
 

@@ -84,6 +84,14 @@ FROM
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
 
+-- name: ListStepDesiredWorkerLabels :many
+SELECT
+    *
+FROM
+    "StepDesiredWorkerLabel"
+WHERE
+    "stepId" = ANY(@stepIds::uuid[]);
+
 -- name: ListWorkflowNamesByIds :many
 SELECT id, name
 FROM "Workflow"
