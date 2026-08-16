@@ -11,6 +11,8 @@ import (
 //go:embed rbac.yaml
 var yamlFile []byte
 
+const bearerTokenRole = "BEARER_TOKEN"
+
 func newHatchetAuthorizer() (*rbac.Authorizer, error) {
 	permMap, err := rbac.LoadPermissionMap(yamlFile)
 	if err != nil {
