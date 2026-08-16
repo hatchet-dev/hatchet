@@ -818,25 +818,29 @@ WHERE
     )
 ;
 
--- name: UpdateWorkflow :one
+-- name: PauseWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused"),
-    "pausedWorkflowCronRunQueueBehavior" = coalesce(
-        sqlc.narg('pausedWorkflowCronRunQueueBehavior')::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowCronRunQueueBehavior"
-    ),
-    "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
-        sqlc.narg('pausedWorkflowScheduledRunQueueBehavior')::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowScheduledRunQueueBehavior"
-    ),
-    "pausedWorkflowQueueTTL" = coalesce(
-        convert_duration_to_interval(sqlc.narg('pausedWorkflowQueueTTL')::text),
-        "pausedWorkflowQueueTTL"
-    )
-WHERE "id" = @id::uuid
-RETURNING *;
+    "updatedAt" = NOW(),
+    "isPaused" = TRUE,
+    "pausedWorkflowCronRunQueueBehavior" = @cronRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = @scheduledRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval(@queueTtl::TEXT)
+WHERE "id" = @id::UUID
+RETURNING *
+;
+
+-- name: UnpauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = FALSE,
+    "pausedWorkflowCronRunQueueBehavior" = NULL,
+    "pausedWorkflowScheduledRunQueueBehavior" = NULL,
+    "pausedWorkflowQueueTTL" = NULL
+WHERE "id" = @id::UUID
+RETURNING *
+;
 
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT

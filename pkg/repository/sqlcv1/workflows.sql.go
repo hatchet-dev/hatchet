@@ -2126,6 +2126,49 @@ func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context,
 	return err
 }
 
+const pauseWorkflow = `-- name: PauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = TRUE,
+    "pausedWorkflowCronRunQueueBehavior" = $1::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = $2::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval($3::TEXT)
+WHERE "id" = $4::UUID
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
+`
+
+type PauseWorkflowParams struct {
+	Cronrunqueuebehavior      WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
+	Scheduledrunqueuebehavior WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
+	Queuettl                  string                     `json:"queuettl"`
+	ID                        uuid.UUID                  `json:"id"`
+}
+
+func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, pauseWorkflow,
+		arg.Cronrunqueuebehavior,
+		arg.Scheduledrunqueuebehavior,
+		arg.Queuettl,
+		arg.ID,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
+	)
+	return &i, err
+}
+
 const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one
 WITH versions AS (
     UPDATE "WorkflowVersion"
@@ -2160,60 +2203,20 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id uuid.UUID)
 	return &i, err
 }
 
-const updateCronTrigger = `-- name: UpdateCronTrigger :exec
-UPDATE "WorkflowTriggerCronRef"
-SET
-    "enabled" = COALESCE($1::BOOLEAN, "enabled")
-WHERE "id" = $2::uuid
-`
-
-type UpdateCronTriggerParams struct {
-	Enabled       pgtype.Bool `json:"enabled"`
-	Crontriggerid uuid.UUID   `json:"crontriggerid"`
-}
-
-func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
-	_, err := db.Exec(ctx, updateCronTrigger, arg.Enabled, arg.Crontriggerid)
-	return err
-}
-
-const updateWorkflow = `-- name: UpdateWorkflow :one
+const unpauseWorkflow = `-- name: UnpauseWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce($1::boolean, "isPaused"),
-    "pausedWorkflowCronRunQueueBehavior" = coalesce(
-        $2::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowCronRunQueueBehavior"
-    ),
-    "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
-        $3::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowScheduledRunQueueBehavior"
-    ),
-    "pausedWorkflowQueueTTL" = coalesce(
-        convert_duration_to_interval($4::text),
-        "pausedWorkflowQueueTTL"
-    )
-WHERE "id" = $5::uuid
+    "updatedAt" = NOW(),
+    "isPaused" = FALSE,
+    "pausedWorkflowCronRunQueueBehavior" = NULL,
+    "pausedWorkflowScheduledRunQueueBehavior" = NULL,
+    "pausedWorkflowQueueTTL" = NULL
+WHERE "id" = $1::UUID
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 `
 
-type UpdateWorkflowParams struct {
-	IsPaused                                pgtype.Bool                    `json:"isPaused"`
-	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
-	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
-	PausedWorkflowQueueTTL                  pgtype.Text                    `json:"pausedWorkflowQueueTTL"`
-	ID                                      uuid.UUID                      `json:"id"`
-}
-
-func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, updateWorkflow,
-		arg.IsPaused,
-		arg.PausedWorkflowCronRunQueueBehavior,
-		arg.PausedWorkflowScheduledRunQueueBehavior,
-		arg.PausedWorkflowQueueTTL,
-		arg.ID,
-	)
+func (q *Queries) UnpauseWorkflow(ctx context.Context, db DBTX, id uuid.UUID) (*Workflow, error) {
+	row := db.QueryRow(ctx, unpauseWorkflow, id)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,
@@ -2229,6 +2232,23 @@ func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflo
 		&i.PausedWorkflowQueueTTL,
 	)
 	return &i, err
+}
+
+const updateCronTrigger = `-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE($1::BOOLEAN, "enabled")
+WHERE "id" = $2::uuid
+`
+
+type UpdateCronTriggerParams struct {
+	Enabled       pgtype.Bool `json:"enabled"`
+	Crontriggerid uuid.UUID   `json:"crontriggerid"`
+}
+
+func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
+	_, err := db.Exec(ctx, updateCronTrigger, arg.Enabled, arg.Crontriggerid)
+	return err
 }
 
 const updateWorkflowConcurrencyWithChildStrategyIds = `-- name: UpdateWorkflowConcurrencyWithChildStrategyIds :exec

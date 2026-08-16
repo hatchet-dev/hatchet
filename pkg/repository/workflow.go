@@ -248,7 +248,9 @@ type WorkflowRepository interface {
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
-	UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error)
+	PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
+
+	UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
 
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
@@ -1363,36 +1365,23 @@ const (
 	WorkflowPauseScheduledCronRunQueueBehaviorQUEUE = "QUEUE"
 )
 
-type WorkflowPauseOpts struct {
-	IsPaused                                bool
-	PausedWorkflowCronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
-	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
-	PausedWorkflowQueueTTL                  string
+type PauseWorkflowOpts struct {
+	CronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
+	ScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
+	QueueTTL                  string
 }
 
-type UpdateWorkflowOpts struct {
-	PauseOpts *WorkflowPauseOpts
+func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
+	return r.queries.PauseWorkflow(ctx, r.pool, sqlcv1.PauseWorkflowParams{
+		ID:                        workflowId,
+		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
+		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
+		Queuettl:                  opts.QueueTTL,
+	})
 }
 
-func (r *workflowRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId uuid.UUID, opts UpdateWorkflowOpts) (*sqlcv1.Workflow, error) {
-	params := sqlcv1.UpdateWorkflowParams{
-		ID: workflowId,
-	}
-
-	if opts.PauseOpts != nil {
-		params.IsPaused = sqlchelpers.BoolFromBoolean(opts.PauseOpts.IsPaused)
-		params.PausedWorkflowCronRunQueueBehavior = sqlcv1.NullWorkflowPauseQueueBehavior{
-			WorkflowPauseQueueBehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.PauseOpts.PausedWorkflowCronRunQueueBehavior),
-			Valid:                      true,
-		}
-		params.PausedWorkflowScheduledRunQueueBehavior = sqlcv1.NullWorkflowPauseQueueBehavior{
-			WorkflowPauseQueueBehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.PauseOpts.PausedWorkflowScheduledRunQueueBehavior),
-			Valid:                      true,
-		}
-		params.PausedWorkflowQueueTTL = sqlchelpers.TextFromStr(opts.PauseOpts.PausedWorkflowQueueTTL)
-	}
-
-	return r.queries.UpdateWorkflow(ctx, r.pool, params)
+func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
+	return r.queries.UnpauseWorkflow(ctx, r.pool, workflowId)
 }
 
 func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {

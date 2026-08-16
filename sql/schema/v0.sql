@@ -913,10 +913,17 @@ CREATE TABLE "Workflow" (
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Workflow_PausedWorkflowCheck" CHECK (
-        "isPaused" = FALSE OR (
-            "pausedWorkflowCronRunQueueBehavior" IS NOT NULL AND
-            "pausedWorkflowScheduledRunQueueBehavior" IS NOT NULL AND
-            "pausedWorkflowQueueTTL" IS NOT NULL
+        (
+            "isPaused" = FALSE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NULL
+            AND "pausedWorkflowQueueTTL" IS NULL
+        )
+        OR (
+            "isPaused" = TRUE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowQueueTTL" IS NOT NULL
         )
     )
 );

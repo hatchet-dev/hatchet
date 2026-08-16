@@ -2693,10 +2693,8 @@ type WorkflowTriggers struct {
 	WorkflowVersionId *string                    `json:"workflow_version_id,omitempty"`
 }
 
-// WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
-type WorkflowUpdateRequest struct {
-	Pause *PauseWorkflowRequest `json:"pause,omitempty"`
-}
+// WorkflowUpdateRequest Deprecated: this request no longer accepts any fields. Use the dedicated pause endpoint to toggle a workflow's paused state.
+type WorkflowUpdateRequest = map[string]interface{}
 
 // WorkflowVersion defines model for WorkflowVersion.
 type WorkflowVersion struct {
