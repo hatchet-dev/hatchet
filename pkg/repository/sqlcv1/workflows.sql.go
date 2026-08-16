@@ -2159,57 +2159,6 @@ func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCron
 	return err
 }
 
-const updateWorkflow = `-- name: UpdateWorkflow :one
-UPDATE "Workflow"
-SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce($1::boolean, "isPaused"),
-    "pausedWorkflowCronRunQueueBehavior" = coalesce(
-        $2::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowCronRunQueueBehavior"
-    ),
-    "pausedWorkflowScheduledRunQueueBehavior" = coalesce(
-        $3::"WorkflowPauseQueueBehavior",
-        "pausedWorkflowScheduledRunQueueBehavior"
-    ),
-    "pausedWorkflowQueueTTL" = coalesce(
-        convert_duration_to_interval($4::text),
-        "pausedWorkflowQueueTTL"
-    )
-WHERE "id" = $5::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
-`
-
-type UpdateWorkflowParams struct {
-	IsPaused                                pgtype.Bool `json:"isPaused"`
-	PausedWorkflowCronRunQueueBehavior      interface{} `json:"pausedWorkflowCronRunQueueBehavior"`
-	PausedWorkflowScheduledRunQueueBehavior interface{} `json:"pausedWorkflowScheduledRunQueueBehavior"`
-	PausedWorkflowQueueTTL                  pgtype.Text `json:"pausedWorkflowQueueTTL"`
-	ID                                      uuid.UUID   `json:"id"`
-}
-
-func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, updateWorkflow,
-		arg.IsPaused,
-		arg.PausedWorkflowCronRunQueueBehavior,
-		arg.PausedWorkflowScheduledRunQueueBehavior,
-		arg.PausedWorkflowQueueTTL,
-		arg.ID,
-	)
-	var i Workflow
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.Name,
-		&i.Description,
-		&i.IsPaused,
-	)
-	return &i, err
-}
-
 const updateWorkflowConcurrencyWithChildStrategyIds = `-- name: UpdateWorkflowConcurrencyWithChildStrategyIds :exec
 UPDATE v1_workflow_concurrency
 SET child_strategy_ids = $1::bigint[]
