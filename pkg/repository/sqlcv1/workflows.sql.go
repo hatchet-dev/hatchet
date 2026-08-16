@@ -2142,6 +2142,40 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id uuid.UUID)
 	return &i, err
 }
 
+const toggleWorkflowPaused = `-- name: ToggleWorkflowPaused :one
+UPDATE v1_paused_workflow_config
+SET
+    is_paused = $1::boolean,
+    cron_run_queue_strategy = $2::paused_workflow_queue_strategy,
+    scheduled_run_queue_strategy = $3::paused_workflow_queue_strategy
+WHERE workflow_id = $4::uuid
+RETURNING workflow_id, is_paused, cron_run_queue_strategy, scheduled_run_queue_strategy
+`
+
+type ToggleWorkflowPausedParams struct {
+	Ispaused                  bool                        `json:"ispaused"`
+	Cronrunqueuestrategy      PausedWorkflowQueueStrategy `json:"cronrunqueuestrategy"`
+	Scheduledrunqueuestrategy PausedWorkflowQueueStrategy `json:"scheduledrunqueuestrategy"`
+	Workflowid                uuid.UUID                   `json:"workflowid"`
+}
+
+func (q *Queries) ToggleWorkflowPaused(ctx context.Context, db DBTX, arg ToggleWorkflowPausedParams) (*V1PausedWorkflowConfig, error) {
+	row := db.QueryRow(ctx, toggleWorkflowPaused,
+		arg.Ispaused,
+		arg.Cronrunqueuestrategy,
+		arg.Scheduledrunqueuestrategy,
+		arg.Workflowid,
+	)
+	var i V1PausedWorkflowConfig
+	err := row.Scan(
+		&i.WorkflowID,
+		&i.IsPaused,
+		&i.CronRunQueueStrategy,
+		&i.ScheduledRunQueueStrategy,
+	)
+	return &i, err
+}
+
 const updateCronTrigger = `-- name: UpdateCronTrigger :exec
 UPDATE "WorkflowTriggerCronRef"
 SET
