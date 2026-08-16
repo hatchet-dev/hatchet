@@ -3021,13 +3021,12 @@ export class Api<
       xResources: ["tenant", "workflow"],
     }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
-   * @description Update a workflow for a tenant. Deprecated: use the dedicated pause endpoint to toggle a workflow's paused state instead.
+   * @description Update a workflow for a tenant
    *
    * @tags Workflow
    * @name WorkflowUpdate
    * @summary Update workflow
    * @request PATCH:/api/v1/workflows/{workflow}
-   * @deprecated
    * @secure
    */
   workflowUpdate = Object.assign((
