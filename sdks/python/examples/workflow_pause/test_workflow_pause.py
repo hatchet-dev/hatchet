@@ -1,11 +1,12 @@
 import pytest
 
 from hatchet_sdk import Hatchet, RunStatus
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 
 from examples.simple.worker import simple
 import asyncio
 import time
+from uuid import uuid4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -73,3 +74,41 @@ async def test_workflow_unpause(hatchet: Hatchet) -> None:
         ], f"Run {run_id} is not queued or running."
 
         await asyncio.sleep(1)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None:
+    test_run_id = str(uuid4())
+
+    await simple.aio_pause(
+        queue_ttl=timedelta(minutes=1),
+        paused_workflow_scheduled_run_queue_behavior="DROP",
+        paused_workflow_cron_run_queue_behavior="DROP",
+    )
+
+    cron = await simple.aio_create_cron(
+        cron_name=test_run_id + "_cron",
+        expression="* * * * * *",
+        additional_metadata={
+            "test_run_id": test_run_id,
+        },
+    )
+
+    await simple.aio_schedule(
+        run_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+        additional_metadata={
+            "test_run_id": test_run_id,
+        },
+    )
+
+    for _ in range(10):
+        runs = await simple.aio_list_runs(
+            additional_metadata={"test_run_id": test_run_id}
+        )
+
+        assert len(runs) == 0, f"Expected no runs, got {len(runs)}"
+
+        await asyncio.sleep(1)
+
+    await hatchet.cron.aio_delete(cron.metadata.id)
+    await simple.aio_unpause()
