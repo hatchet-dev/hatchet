@@ -18,11 +18,7 @@ import {
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, {
-  queries,
-  Workflow,
-  WorkflowPauseScheduledCronRunQueueBehavior,
-} from '@/lib/api';
+import api, { PauseWorkflowRequest, queries, Workflow } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
 import { relativeDate } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
@@ -32,8 +28,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
-
-const DEFAULT_QUEUE_TTL = '24h';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -86,15 +80,8 @@ export default function ExpandedWorkflow() {
 
   const togglePauseMutation = useMutation({
     mutationKey: ['workflow:pause:toggle', params.workflow],
-    mutationFn: async (opts: {
-      pause: {
-        isPaused: boolean;
-        pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
-        pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
-        pausedWorkflowQueueTTL: string;
-      };
-    }) => {
-      const res = await api.workflowUpdate(params.workflow, opts);
+    mutationFn: async (opts: PauseWorkflowRequest) => {
+      const res = await api.workflowUpdatePause(params.workflow, opts);
 
       return res.data;
     },
@@ -105,7 +92,7 @@ export default function ExpandedWorkflow() {
         queryClient.getQueryData<Workflow>(workflowQueryKey);
 
       queryClient.setQueryData<Workflow>(workflowQueryKey, (old) =>
-        old ? { ...old, isPaused: opts.pause.isPaused } : old,
+        old ? { ...old, isPaused: opts.isPaused } : old,
       );
 
       return { previousWorkflow };
@@ -216,13 +203,11 @@ export default function ExpandedWorkflow() {
             }) => {
               togglePauseMutation.mutate(
                 {
-                  pause: {
-                    isPaused: true,
-                    pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
-                    pausedWorkflowScheduledRunQueueBehavior:
-                      scheduledRunQueueBehavior,
-                    pausedWorkflowQueueTTL: queueTtl,
-                  },
+                  isPaused: true,
+                  pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
+                  pausedWorkflowScheduledRunQueueBehavior:
+                    scheduledRunQueueBehavior,
+                  pausedWorkflowQueueTTL: queueTtl,
                 },
                 { onSuccess: () => setPauseWorkflow(false) },
               );
@@ -234,18 +219,7 @@ export default function ExpandedWorkflow() {
             submitLabel="Unpause"
             onSubmit={() => {
               togglePauseMutation.mutate(
-                {
-                  pause: {
-                    isPaused: false,
-                    pausedWorkflowCronRunQueueBehavior:
-                      workflow.pausedWorkflowCronRunQueueBehavior ||
-                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
-                    pausedWorkflowScheduledRunQueueBehavior:
-                      workflow.pausedWorkflowScheduledRunQueueBehavior ||
-                      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
-                    pausedWorkflowQueueTTL: DEFAULT_QUEUE_TTL,
-                  },
-                },
+                { isPaused: false },
                 { onSuccess: () => setUnpauseWorkflow(false) },
               );
             }}

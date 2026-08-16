@@ -44,6 +44,7 @@ import {
   ListSNSIntegrations,
   ListSlackWebhooks,
   OtelSpanList,
+  PauseWorkflowRequest,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -3020,12 +3021,13 @@ export class Api<
       xResources: ["tenant", "workflow"],
     }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
-   * @description Update a workflow for a tenant
+   * @description Update a workflow for a tenant. Deprecated: use the dedicated pause endpoint to toggle a workflow's paused state instead.
    *
    * @tags Workflow
    * @name WorkflowUpdate
    * @summary Update workflow
    * @request PATCH:/api/v1/workflows/{workflow}
+   * @deprecated
    * @secure
    */
   workflowUpdate = Object.assign((
@@ -3035,6 +3037,30 @@ export class Api<
   ) =>
     this.request<Workflow, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "workflow"],
+    }), { resources: new Set<string>(["tenant", "workflow"]) });
+  /**
+   * @description Pause or unpause a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowUpdatePause
+   * @summary Toggle workflow paused state
+   * @request PATCH:/api/v1/workflows/{workflow}/pause
+   * @secure
+   */
+  workflowUpdatePause = Object.assign((
+    workflow: string,
+    data: PauseWorkflowRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<Workflow, APIErrors>({
+      path: `/api/v1/workflows/${workflow}/pause`,
       method: "PATCH",
       body: data,
       secure: true,
@@ -3571,7 +3597,7 @@ export class Api<
     stepRun: string,
     params: RequestParams = {},
   ) =>
-    this.request<object, APIErrors>({
+    this.request<WorkflowUpdateRequest, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
       method: "GET",
       secure: true,

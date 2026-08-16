@@ -46,11 +46,12 @@ Workflow:
     - tenantId
   type: object
 
-PauseWorkflowRequest:
+PauseWorkflowRequestPause:
   type: object
   properties:
     isPaused:
       type: boolean
+      enum: [true]
       description: Whether the workflow is paused.
     pausedWorkflowCronRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
@@ -69,12 +70,27 @@ PauseWorkflowRequest:
     - pausedWorkflowScheduledRunQueueBehavior
     - pausedWorkflowQueueTTL
 
-WorkflowUpdateRequest:
+PauseWorkflowRequestUnpause:
   type: object
   properties:
-    pause:
-      $ref: "#/PauseWorkflowRequest"
-      description: The pause settings for the workflow.
+    isPaused:
+      type: boolean
+      enum: [false]
+      description: Whether the workflow is paused.
+  required:
+    - isPaused
+
+PauseWorkflowRequest:
+  oneOf:
+    - $ref: "#/PauseWorkflowRequestPause"
+    - $ref: "#/PauseWorkflowRequestUnpause"
+
+WorkflowUpdateRequest:
+  type: object
+  description: >-
+    Deprecated: this request no longer accepts any fields. Use the dedicated
+    pause endpoint to toggle a workflow's paused state.
+  properties: {}
 
 WorkflowTag:
   type: object

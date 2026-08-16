@@ -2068,9 +2068,12 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
-export interface PauseWorkflowRequest {
+/** Deprecated: this request no longer accepts any fields. Use the dedicated pause endpoint to toggle a workflow's paused state. */
+export type WorkflowUpdateRequest = object;
+
+export interface PauseWorkflowRequestPause {
   /** Whether the workflow is paused. */
-  isPaused: boolean;
+  isPaused: true;
   /** The behavior of cron runs triggered while the workflow is paused. */
   pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */
@@ -2079,10 +2082,14 @@ export interface PauseWorkflowRequest {
   pausedWorkflowQueueTTL: string;
 }
 
-export interface WorkflowUpdateRequest {
-  /** The pause settings for the workflow. */
-  pause?: PauseWorkflowRequest;
+export interface PauseWorkflowRequestUnpause {
+  /** Whether the workflow is paused. */
+  isPaused: false;
 }
+
+export type PauseWorkflowRequest =
+  | PauseWorkflowRequestPause
+  | PauseWorkflowRequestUnpause;
 
 export interface WorkflowConcurrency {
   /**

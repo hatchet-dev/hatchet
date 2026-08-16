@@ -201,6 +201,8 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/cancelWorkflowRuns"
   /api/v1/workflows/{workflow}:
     $ref: "./paths/workflow/workflow.yaml#/withWorkflow"
+  /api/v1/workflows/{workflow}/pause:
+    $ref: "./paths/workflow/workflow.yaml#/workflowPause"
   /api/v1/workflows/{workflow}/versions:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersion"
   /api/v1/workflows/{workflow}/trigger:
