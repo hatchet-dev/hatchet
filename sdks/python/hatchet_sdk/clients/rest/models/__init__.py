@@ -109,6 +109,13 @@ from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
 from hatchet_sdk.clients.rest.models.otel_span_list import OtelSpanList
 from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
+from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
+from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
+    PauseWorkflowRequestPause,
+)
+from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
+    PauseWorkflowRequestUnpause,
+)
 from hatchet_sdk.clients.rest.models.pull_request import PullRequest
 from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
 from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
@@ -384,6 +391,9 @@ from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurr
 from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
+from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+    WorkflowPauseScheduledCronRunQueueBehavior,
+)
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
@@ -415,9 +425,6 @@ from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
     WorkflowTriggerEventRef,
 )
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
-from hatchet_sdk.clients.rest.models.workflow_update_request import (
-    WorkflowUpdateRequest,
-)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
