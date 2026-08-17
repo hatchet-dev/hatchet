@@ -1248,7 +1248,6 @@ func (r *durableEventsRepository) resolveChildExternalIds(ctx context.Context, t
 	childExternalIds := make([]uuid.UUID, 0, len(opts))
 
 	for _, opt := range opts {
-		// without a child index there's nothing to dedupe against, so the child is always new
 		spawnKey := opt.childSpawnKey()
 
 		if spawnKey == "" {
@@ -1304,8 +1303,6 @@ func (r *durableEventsRepository) resolveChildExternalIds(ctx context.Context, t
 			return fmt.Errorf("no child external id resolved for spawn key %s", spawnKey)
 		}
 
-		// this opt spawns the child only if its id won the upsert and no earlier opt in the batch
-		// already claimed it
 		opt.ExternalId = resolvedId
 		opt.ShouldSkip = resolvedId != candidateIdByKey[spawnKey] || claimed[spawnKey]
 		claimed[spawnKey] = true
