@@ -1404,8 +1404,23 @@ BEGIN
             nt.inserted_at,
             nt.retry_count,
             nt.tenant_id,
-            -- Convert the retry_after based on min(retry_backoff_factor ^ retry_count, retry_max_backoff)
-            NOW() + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
+            -- NOTE: cap in log space before POWER. POWER(backoff_factor, app_retry_count)
+            -- overflows float8 (SQLSTATE 22003) for large retry counts, and LEAST cannot
+            -- prevent that because POWER is evaluated first.
+            NOW() + (
+                LEAST(
+                    COALESCE(nt.retry_max_backoff, 86400)::double precision,
+                    CASE
+                        WHEN nt.retry_backoff_factor <= 1 THEN
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                        WHEN LN(nt.retry_backoff_factor) * nt.app_retry_count
+                            >= LN(GREATEST(COALESCE(nt.retry_max_backoff, 86400), 1)::double precision) THEN
+                            COALESCE(nt.retry_max_backoff, 86400)::double precision
+                        ELSE
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                    END
+                ) * interval '1 second'
+            ) AS retry_after
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
