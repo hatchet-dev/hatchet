@@ -1,5 +1,5 @@
-import type { User } from '@/lib/api';
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from '@/lib/referral';
+import { clearUtmParams, readUtmParams } from '@/lib/utm';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
@@ -15,7 +15,6 @@ const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
 
 interface PostHogProviderProps {
   children: React.ReactNode;
-  user?: User;
 }
 
 /**
@@ -27,9 +26,9 @@ interface PostHogProviderProps {
  * - Tenant-level analytics opt-out
  * - Session recording with input masking
  */
-export function PostHogProvider({ children, user }: PostHogProviderProps) {
+export function PostHogProvider({ children }: PostHogProviderProps) {
   const { meta } = useApiMeta();
-  const { tenant } = useAppContext();
+  const { tenant, user } = useAppContext();
   const [initialized, setInitialized] = useState(false);
 
   const config = useMemo(() => {
@@ -54,8 +53,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       return;
     }
 
-    // Need config and tenant to initialize
-    if (!config?.apiKey || !tenant) {
+    if (!config?.apiKey) {
       return;
     }
 
@@ -63,7 +61,10 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
 
     posthog.init(config.apiKey, {
       api_host: config.apiHost || 'https://us.i.posthog.com',
+      cookieless_mode: 'on_reject',
+      opt_out_capturing_by_default: true,
       person_profiles: 'identified_only',
+      capture_pageview: false,
       capture_pageleave: true,
       session_recording: {
         maskAllInputs: true,
@@ -73,18 +74,52 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       cross_subdomain_cookie: true,
     });
 
+    if (posthog.get_explicit_consent_status() === 'pending') {
+      posthog.opt_out_capturing();
+    }
+
+    const utms = readUtmParams();
+    if (utms) {
+      posthog.register(utms);
+    }
+
     setInitialized(true);
   }, [config, tenant, initialized]);
 
-  // Handle user identification
   useEffect(() => {
-    if (!initialized || !user) {
+    if (!initialized || !tenant) {
       return;
     }
 
-    const referralCode = sanitizeReferralCode(
-      localStorage.getItem(REFERRAL_CODE_KEY),
-    );
+    if (tenant.analyticsOptOut) {
+      if (posthog.get_explicit_consent_status() !== 'denied') {
+        posthog.set_config({ cookieless_mode: undefined });
+        posthog.opt_out_capturing();
+        posthog.stopSessionRecording?.();
+      }
+      return;
+    }
+
+    if (posthog.get_explicit_consent_status() !== 'granted') {
+      posthog.opt_in_capturing();
+    }
+
+    if (!user) {
+      return;
+    }
+
+    let referralCode: string | null = null;
+    try {
+      referralCode = sanitizeReferralCode(
+        localStorage.getItem(REFERRAL_CODE_KEY),
+      );
+    } catch {
+      // noop
+    }
+    const utms = readUtmParams();
+    if (utms) {
+      posthog.register(utms);
+    }
 
     posthog.identify(`$user_${user.metadata.id}`, {
       email: user.email,
@@ -95,21 +130,10 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     if (referralCode) {
       localStorage.removeItem(REFERRAL_CODE_KEY);
     }
-  }, [user, initialized]);
-
-  // Handle opt-out changes
-  useEffect(() => {
-    if (!initialized) {
-      return;
+    if (utms) {
+      clearUtmParams();
     }
-
-    if (tenant?.analyticsOptOut) {
-      posthog.opt_out_capturing();
-      posthog.stopSessionRecording?.();
-    } else {
-      posthog.opt_in_capturing();
-    }
-  }, [tenant?.analyticsOptOut, initialized]);
+  }, [user, tenant, initialized]);
 
   const contextValue: PostHogContextValue = {
     isReady: initialized,
