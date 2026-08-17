@@ -51,12 +51,12 @@ type UpdateTenantOpts struct {
 }
 
 type CreateTenantMemberOpts struct {
-	Role   string    `validate:"required,oneof=OWNER ADMIN MEMBER"`
+	Role   string    `validate:"required,oneof=OWNER ADMIN MEMBER VIEWER"`
 	UserId uuid.UUID `validate:"required"`
 }
 
 type UpdateTenantMemberOpts struct {
-	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
+	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
 }
 
 type GetQueueMetricsOpts struct {

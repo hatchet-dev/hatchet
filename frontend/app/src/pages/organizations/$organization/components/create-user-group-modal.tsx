@@ -142,6 +142,9 @@ export function CreateUserGroupModal({
                 <SelectItem value={TenantMemberRoleType.OWNER}>
                   Owner
                 </SelectItem>
+                <SelectItem value={TenantMemberRoleType.VIEWER}>
+                  Viewer
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

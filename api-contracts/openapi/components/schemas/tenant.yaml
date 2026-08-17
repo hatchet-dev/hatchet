@@ -228,6 +228,7 @@ TenantMemberRole:
     - "OWNER"
     - "ADMIN"
     - "MEMBER"
+    - "VIEWER"
   type: string
 
 TenantList:

@@ -37,6 +37,7 @@ export const columns = ({
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
   onRowClick,
+  canWrite,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
@@ -45,6 +46,7 @@ export const columns = ({
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
   onRowClick?: (row: ScheduledWorkflows) => void;
+  canWrite: boolean;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
@@ -206,33 +208,37 @@ export const columns = ({
         <div className="flex flex-row justify-center">
           <TableRowActions
             row={row.original}
-            actions={[
-              {
-                label: 'Reschedule',
-                onClick: () => onRescheduleClick(row.original),
-                disabled:
-                  row.original.method !== 'API'
-                    ? 'Cannot reschedule scheduled run created via code definition'
-                    : row.original.workflowRunId
-                      ? 'Cannot reschedule a scheduled run that has already been triggered'
-                      : undefined,
-              },
-              {
-                label: 'Trigger Now',
-                onClick: () => onTriggerClick(row.original),
-                disabled: row.original.workflowRunId
-                  ? 'Cannot trigger a scheduled run that has already been triggered'
-                  : undefined,
-              },
-              {
-                label: 'Delete',
-                onClick: () => onDeleteClick(row.original),
-                disabled:
-                  row.original.method !== 'API'
-                    ? 'Cannot delete scheduled run created via code definition'
-                    : undefined,
-              },
-            ]}
+            actions={
+              canWrite
+                ? [
+                    {
+                      label: 'Reschedule',
+                      onClick: () => onRescheduleClick(row.original),
+                      disabled:
+                        row.original.method !== 'API'
+                          ? 'Cannot reschedule scheduled run created via code definition'
+                          : row.original.workflowRunId
+                            ? 'Cannot reschedule a scheduled run that has already been triggered'
+                            : undefined,
+                    },
+                    {
+                      label: 'Trigger Now',
+                      onClick: () => onTriggerClick(row.original),
+                      disabled: row.original.workflowRunId
+                        ? 'Cannot trigger a scheduled run that has already been triggered'
+                        : undefined,
+                    },
+                    {
+                      label: 'Delete',
+                      onClick: () => onDeleteClick(row.original),
+                      disabled:
+                        row.original.method !== 'API'
+                          ? 'Cannot delete scheduled run created via code definition'
+                          : undefined,
+                    },
+                  ]
+                : []
+            }
           />
         </div>
       ),

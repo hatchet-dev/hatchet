@@ -209,6 +209,9 @@ export function EditUserGroupModal({
                   <SelectItem value={TenantMemberRoleType.OWNER}>
                     OWNER
                   </SelectItem>
+                  <SelectItem value={TenantMemberRoleType.VIEWER}>
+                    VIEWER
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

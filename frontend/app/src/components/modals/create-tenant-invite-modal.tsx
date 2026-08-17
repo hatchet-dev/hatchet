@@ -150,11 +150,16 @@ const CreateTenantInviteForm = ({
 
   const schema = useMemo(() => {
     const availableRoles = props.isControlPlaneEnabled
-      ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
+      ? [
+          TenantMemberRole.ADMIN,
+          TenantMemberRole.MEMBER,
+          TenantMemberRole.VIEWER,
+        ]
       : [
           TenantMemberRole.OWNER,
           TenantMemberRole.ADMIN,
           TenantMemberRole.MEMBER,
+          TenantMemberRole.VIEWER,
         ];
     const roleSchema = z.enum(
       availableRoles as [TenantMemberRole, ...TenantMemberRole[]],
@@ -325,6 +330,7 @@ const CreateTenantInviteForm = ({
                           )}
                           <SelectItem value="ADMIN">Admin</SelectItem>
                           <SelectItem value="MEMBER">Member</SelectItem>
+                          <SelectItem value="VIEWER">Viewer</SelectItem>
                         </SelectContent>
                       </Select>
                     );
