@@ -47,6 +47,9 @@ module HatchetSdkRest
     # The name of the webhook that triggered this event, if applicable.
     attr_accessor :triggering_webhook_name
 
+    # True when payload fields were omitted because the caller cannot view payloads.
+    attr_accessor :payloads_restricted
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -60,7 +63,8 @@ module HatchetSdkRest
         :'scope' => :'scope',
         :'seen_at' => :'seenAt',
         :'triggered_runs' => :'triggeredRuns',
-        :'triggering_webhook_name' => :'triggeringWebhookName'
+        :'triggering_webhook_name' => :'triggeringWebhookName',
+        :'payloads_restricted' => :'payloadsRestricted'
       }
     end
 
@@ -87,7 +91,8 @@ module HatchetSdkRest
         :'scope' => :'String',
         :'seen_at' => :'Time',
         :'triggered_runs' => :'Array<V1EventTriggeredRun>',
-        :'triggering_webhook_name' => :'String'
+        :'triggering_webhook_name' => :'String',
+        :'payloads_restricted' => :'Boolean'
       }
     end
 
@@ -165,6 +170,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'triggering_webhook_name')
         self.triggering_webhook_name = attributes[:'triggering_webhook_name']
+      end
+
+      if attributes.key?(:'payloads_restricted')
+        self.payloads_restricted = attributes[:'payloads_restricted']
       end
     end
 
@@ -258,7 +267,8 @@ module HatchetSdkRest
           scope == o.scope &&
           seen_at == o.seen_at &&
           triggered_runs == o.triggered_runs &&
-          triggering_webhook_name == o.triggering_webhook_name
+          triggering_webhook_name == o.triggering_webhook_name &&
+          payloads_restricted == o.payloads_restricted
     end
 
     # @see the `==` method
@@ -270,7 +280,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, key, tenant_id, workflow_run_summary, tenant, additional_metadata, payload, scope, seen_at, triggered_runs, triggering_webhook_name].hash
+      [metadata, key, tenant_id, workflow_run_summary, tenant, additional_metadata, payload, scope, seen_at, triggered_runs, triggering_webhook_name, payloads_restricted].hash
     end
 
     # Builds the object from hash

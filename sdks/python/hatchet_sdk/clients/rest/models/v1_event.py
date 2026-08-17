@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
@@ -74,6 +74,11 @@ class V1Event(BaseModel):
         description="The name of the webhook that triggered this event, if applicable.",
         alias="triggeringWebhookName",
     )
+    payloads_restricted: Optional[StrictBool] = Field(
+        default=None,
+        description="True when payload fields were omitted because the caller cannot view payloads.",
+        alias="payloadsRestricted",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "key",
@@ -86,6 +91,7 @@ class V1Event(BaseModel):
         "seenAt",
         "triggeredRuns",
         "triggeringWebhookName",
+        "payloadsRestricted",
     ]
 
     model_config = ConfigDict(
@@ -184,6 +190,7 @@ class V1Event(BaseModel):
                     else None
                 ),
                 "triggeringWebhookName": obj.get("triggeringWebhookName"),
+                "payloadsRestricted": obj.get("payloadsRestricted"),
             }
         )
         return _obj

@@ -56,6 +56,9 @@ module HatchetSdkRest
 
     attr_accessor :parent_task_external_id
 
+    # True when payload fields were omitted because the caller cannot view payloads.
+    attr_accessor :payloads_restricted
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -95,7 +98,8 @@ module HatchetSdkRest
         :'error_message' => :'errorMessage',
         :'workflow_version_id' => :'workflowVersionId',
         :'created_at' => :'createdAt',
-        :'parent_task_external_id' => :'parentTaskExternalId'
+        :'parent_task_external_id' => :'parentTaskExternalId',
+        :'payloads_restricted' => :'payloadsRestricted'
       }
     end
 
@@ -126,7 +130,8 @@ module HatchetSdkRest
         :'error_message' => :'String',
         :'workflow_version_id' => :'String',
         :'created_at' => :'Time',
-        :'parent_task_external_id' => :'String'
+        :'parent_task_external_id' => :'String',
+        :'payloads_restricted' => :'Boolean'
       }
     end
 
@@ -224,6 +229,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'parent_task_external_id')
         self.parent_task_external_id = attributes[:'parent_task_external_id']
+      end
+
+      if attributes.key?(:'payloads_restricted')
+        self.payloads_restricted = attributes[:'payloads_restricted']
       end
     end
 
@@ -412,7 +421,8 @@ module HatchetSdkRest
           error_message == o.error_message &&
           workflow_version_id == o.workflow_version_id &&
           created_at == o.created_at &&
-          parent_task_external_id == o.parent_task_external_id
+          parent_task_external_id == o.parent_task_external_id &&
+          payloads_restricted == o.payloads_restricted
     end
 
     # @see the `==` method
@@ -424,7 +434,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, status, tenant_id, display_name, workflow_id, output, input, started_at, finished_at, duration, additional_metadata, error_message, workflow_version_id, created_at, parent_task_external_id].hash
+      [metadata, status, tenant_id, display_name, workflow_id, output, input, started_at, finished_at, duration, additional_metadata, error_message, workflow_version_id, created_at, parent_task_external_id, payloads_restricted].hash
     end
 
     # Builds the object from hash
