@@ -464,8 +464,9 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}
 
 	return &Workflow{
-		workflowRunId: res.WorkflowRunId,
-		listener:      listener,
+		workflowRunId:   res.WorkflowRunId,
+		listener:        listener,
+		fetchRunDetails: a.GetRunDetails,
 	}, nil
 }
 

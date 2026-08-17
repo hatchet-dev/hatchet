@@ -6,9 +6,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+)
+
+const (
+	defaultResultPollGrace    = 5 * time.Second
+	defaultResultPollInterval = time.Second
 )
 
 // Workflow represents a running workflow instance and provides methods to retrieve its results.
@@ -17,17 +25,27 @@ import (
 // and provides robust recovery from temporary connection issues like brief DB downtime
 // or network interruptions without requiring manual intervention.
 type Workflow struct {
-	workflowRunId string
-	listener      *WorkflowRunsListener
+	workflowRunId      string
+	listener           *WorkflowRunsListener
+	fetchRunDetails    func(context.Context, uuid.UUID) (*RunDetails, error)
+	resultPollGrace    time.Duration
+	resultPollInterval time.Duration
 }
 
 func NewWorkflow(
 	workflowRunId string,
 	listener *WorkflowRunsListener,
+	fetchers ...func(context.Context, uuid.UUID) (*RunDetails, error),
 ) *Workflow {
+	var fetchRunDetails func(context.Context, uuid.UUID) (*RunDetails, error)
+	if len(fetchers) > 0 {
+		fetchRunDetails = fetchers[0]
+	}
+
 	return &Workflow{
-		workflowRunId: workflowRunId,
-		listener:      listener,
+		workflowRunId:   workflowRunId,
+		listener:        listener,
+		fetchRunDetails: fetchRunDetails,
 	}
 }
 
@@ -134,15 +152,38 @@ func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 		contextDone = ctx.Done()
 	}
 
+	var (
+		poll          <-chan time.Time
+		ticker        *time.Ticker
+		workflowRunId uuid.UUID
+	)
+	if r.fetchRunDetails != nil {
+		workflowRunId, err = uuid.Parse(r.workflowRunId)
+		if err != nil {
+			r.listener.l.Debug().
+				Err(err).
+				Str("workflow_run_id", r.workflowRunId).
+				Msg("workflow result polling disabled for invalid workflow run id")
+		} else {
+			grace := r.resultPollGrace
+			if grace == 0 {
+				grace = defaultResultPollGrace
+			}
+			graceTimer := time.NewTimer(grace)
+			defer graceTimer.Stop()
+			poll = graceTimer.C
+		}
+	}
+	defer func() {
+		if ticker != nil {
+			ticker.Stop()
+		}
+	}()
+
 	for {
 		select {
 		case res := <-resChan:
-			for _, stepRunResult := range res.workflowRun.Results {
-				if stepRunResult.Error != nil {
-					return nil, fmt.Errorf("%s", *stepRunResult.Error)
-				}
-			}
-			return res, nil
+			return resultFromEvent(res)
 		case err := <-failChan:
 			return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", r.workflowRunId, err)
 		case <-contextDone:
@@ -152,6 +193,102 @@ func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 				Dur("wait_duration", time.Since(waitStarted)).
 				Msg("workflow result still pending after subscription send succeeded")
 			contextDone = nil
+		case <-poll:
+			if ticker == nil {
+				interval := r.resultPollInterval
+				if interval == 0 {
+					interval = defaultResultPollInterval
+				}
+				ticker = time.NewTicker(interval)
+				poll = ticker.C
+			}
+
+			select {
+			case res := <-resChan:
+				return resultFromEvent(res)
+			default:
+			}
+
+			fetchCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			details, err := r.fetchRunDetails(fetchCtx, workflowRunId)
+			cancel()
+			if err != nil {
+				r.listener.l.Debug().
+					Err(err).
+					Str("workflow_run_id", r.workflowRunId).
+					Msg("workflow result polling failed")
+				continue
+			}
+			if details == nil || !details.Done {
+				continue
+			}
+
+			return runDetailsToResult(details)
 		}
+	}
+}
+
+func resultFromEvent(res *WorkflowResult) (*WorkflowResult, error) {
+	for _, stepRunResult := range res.workflowRun.Results {
+		if stepRunResult.Error != nil {
+			return nil, fmt.Errorf("%s", *stepRunResult.Error)
+		}
+	}
+	return res, nil
+}
+
+func runDetailsToResult(details *RunDetails) (*WorkflowResult, error) {
+	if details.Status == rest.V1TaskStatusCOMPLETED {
+		return runDetailsToWorkflowResult(details), nil
+	}
+
+	if msg := firstTaskError(details); msg != "" {
+		return nil, fmt.Errorf("%s", msg)
+	}
+	if details.Status == rest.V1TaskStatusCANCELLED {
+		return nil, fmt.Errorf("workflow run %s was cancelled", details.ExternalId)
+	}
+	return nil, fmt.Errorf("workflow run %s failed", details.ExternalId)
+}
+
+func firstTaskError(details *RunDetails) string {
+	ids := make([]string, 0, len(details.TaskRuns))
+	for id := range details.TaskRuns {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		taskRun := details.TaskRuns[id]
+		if taskRun != nil && taskRun.Error != nil && *taskRun.Error != "" {
+			return *taskRun.Error
+		}
+	}
+	return ""
+}
+
+func runDetailsToWorkflowResult(details *RunDetails) *WorkflowResult {
+	results := make([]*StepRunResult, 0, len(details.TaskRuns))
+	for _, taskRun := range details.TaskRuns {
+		if taskRun == nil {
+			continue
+		}
+
+		result := &StepRunResult{
+			StepRunId:      taskRun.ExternalId.String(),
+			StepReadableId: taskRun.ReadableId,
+		}
+		if len(taskRun.Output) > 0 {
+			output := string(taskRun.Output)
+			result.Output = &output
+		}
+		results = append(results, result)
+	}
+
+	return &WorkflowResult{
+		workflowRun: &workflowRunEvent{
+			WorkflowRunId: details.ExternalId.String(),
+			Results:       results,
+			EventType:     WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+		},
 	}
 }

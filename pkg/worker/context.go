@@ -698,7 +698,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
 
-	return client.NewWorkflow(workflowRunId, listener), nil
+	return client.NewWorkflow(workflowRunId, listener, h.client().Admin().GetRunDetails), nil
 }
 
 // Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
@@ -774,7 +774,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
 
 	for i, workflowRunId := range workflowRunIds {
-		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
+		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener, h.client().Admin().GetRunDetails)
 	}
 
 	return createdWorkflows, nil
