@@ -42,7 +42,6 @@ import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -530,120 +529,118 @@ function AuthenticatedInner() {
   }
 
   return (
-    <PostHogProvider user={currentUser}>
-      <SupportChat user={currentUser}>
-        <AppLayout
-          banner={
-            meta &&
-            'authDisabled' in meta &&
-            meta.authDisabled &&
-            !authBannerDismissed ? (
-              <AuthDisabledBanner
-                onDismiss={() => {
-                  try {
-                    localStorage.setItem(
-                      'auth-disabled-banner-dismissed',
-                      'true',
-                    );
-                  } catch {
-                    /* empty */
-                  }
-                  setAuthBannerDismissed(true);
-                }}
-              />
-            ) : undefined
-          }
-          header={
-            <TopNav
-              user={currentUser}
-              tenantMemberships={tenantMemberships || []}
+    <SupportChat user={currentUser}>
+      <AppLayout
+        banner={
+          meta &&
+          'authDisabled' in meta &&
+          meta.authDisabled &&
+          !authBannerDismissed ? (
+            <AuthDisabledBanner
+              onDismiss={() => {
+                try {
+                  localStorage.setItem(
+                    'auth-disabled-banner-dismissed',
+                    'true',
+                  );
+                } catch {
+                  /* empty */
+                }
+                setAuthBannerDismissed(true);
+              }}
             />
-          }
-          footer={
-            isTenantPage && DevtoolsFooter ? (
-              <Suspense fallback={null}>
-                <DevtoolsFooter />
-              </Suspense>
-            ) : undefined
-          }
-          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
-          contentScroll={!isTenantPage}
-        >
-          <OutletWithContext context={ctx} />
-        </AppLayout>
-
-        <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
-          <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
-            <DialogHeader>
-              <DialogTitle>Create New Tenant</DialogTitle>
-            </DialogHeader>
-            <div className="flex justify-center">
-              <NewTenantSaverForm
-                defaultOrganizationId={defaultOrganizationId}
-                allTenantTags={newTenantAllTags}
-                afterSave={(result) => {
-                  setDefaultOrganizationId(undefined);
-                  setNewTenantAllTags([]);
-                  setNewTenantModalOpen(false);
-                  const tenantId =
-                    result.type === 'cloud'
-                      ? result.tenant.id
-                      : result.tenant.metadata.id;
-
-                  if (result.type === 'cloud') {
-                    void queryClient.prefetchQuery(
-                      queries.controlPlane.subscriptionPlans(),
-                    );
-                  }
-
-                  navigate({
-                    to: appRoutes.tenantOverviewRoute.to,
-                    params: { tenant: tenantId },
-                  });
-                }}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-        {inviteModalOptions && (
-          <CreateTenantInviteModal
-            tenantId={inviteModalOptions.tenantId}
-            organizationId={inviteModalOptions.organizationId}
-            defaultEmail={inviteModalOptions.defaultEmail}
-            onClose={() => setInviteModalOptions(undefined)}
-            onCreated={(tenantId, invite) => {
-              globalEmitter.emit('tenant-invite-created', {
-                tenantId,
-                invite,
-              });
-            }}
+          ) : undefined
+        }
+        header={
+          <TopNav
+            user={currentUser}
+            tenantMemberships={tenantMemberships || []}
           />
-        )}
-        {orgInviteModal && (
-          <OrganizationInviteMemberModal
-            organizationId={orgInviteModal.organizationId}
-            organizationName={orgInviteModal.organizationName}
-            onClose={() => setOrgInviteModal(undefined)}
-            onCreated={(invite) => {
-              globalEmitter.emit('organization-invite-created', {
-                organizationId: orgInviteModal.organizationId,
-                invite,
-              });
-            }}
-          />
-        )}
-        <WelcomeModal
-          tenantId={tenant?.metadata.id}
-          organizationId={organizationId}
-          open={showWelcome}
-          onClose={() => setShowWelcome(false)}
+        }
+        footer={
+          isTenantPage && DevtoolsFooter ? (
+            <Suspense fallback={null}>
+              <DevtoolsFooter />
+            </Suspense>
+          ) : undefined
+        }
+        // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+        contentScroll={!isTenantPage}
+      >
+        <OutletWithContext context={ctx} />
+      </AppLayout>
+
+      <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
+        <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
+          <DialogHeader>
+            <DialogTitle>Create New Tenant</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            <NewTenantSaverForm
+              defaultOrganizationId={defaultOrganizationId}
+              allTenantTags={newTenantAllTags}
+              afterSave={(result) => {
+                setDefaultOrganizationId(undefined);
+                setNewTenantAllTags([]);
+                setNewTenantModalOpen(false);
+                const tenantId =
+                  result.type === 'cloud'
+                    ? result.tenant.id
+                    : result.tenant.metadata.id;
+
+                if (result.type === 'cloud') {
+                  void queryClient.prefetchQuery(
+                    queries.controlPlane.subscriptionPlans(),
+                  );
+                }
+
+                navigate({
+                  to: appRoutes.tenantOverviewRoute.to,
+                  params: { tenant: tenantId },
+                });
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+      {inviteModalOptions && (
+        <CreateTenantInviteModal
+          tenantId={inviteModalOptions.tenantId}
+          organizationId={inviteModalOptions.organizationId}
+          defaultEmail={inviteModalOptions.defaultEmail}
+          onClose={() => setInviteModalOptions(undefined)}
+          onCreated={(tenantId, invite) => {
+            globalEmitter.emit('tenant-invite-created', {
+              tenantId,
+              invite,
+            });
+          }}
         />
-        <InviteModal
-          isOpen={inviteModalOpen}
-          onClose={() => setInviteModalOpen(false)}
+      )}
+      {orgInviteModal && (
+        <OrganizationInviteMemberModal
+          organizationId={orgInviteModal.organizationId}
+          organizationName={orgInviteModal.organizationName}
+          onClose={() => setOrgInviteModal(undefined)}
+          onCreated={(invite) => {
+            globalEmitter.emit('organization-invite-created', {
+              organizationId: orgInviteModal.organizationId,
+              invite,
+            });
+          }}
         />
-      </SupportChat>
-    </PostHogProvider>
+      )}
+      <WelcomeModal
+        tenantId={tenant?.metadata.id}
+        organizationId={organizationId}
+        open={showWelcome}
+        onClose={() => setShowWelcome(false)}
+      />
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+      />
+    </SupportChat>
   );
 }
 
