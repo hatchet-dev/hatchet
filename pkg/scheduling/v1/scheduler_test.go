@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -272,7 +273,7 @@ func testQI(tenantId uuid.UUID, actionId string, taskId int64) *sqlcv1.V1QueueIt
 }
 
 func ts(tm time.Time) pgtype.Timestamp {
-	return pgtype.Timestamp{Time: tm, Valid: true}
+	return sqlchelpers.TimestampFromTime(tm)
 }
 
 func defaultRequest() map[string]int32 {
@@ -490,6 +491,48 @@ func TestScheduler_AssignSingleton_StickyHardForcesRanking(t *testing.T) {
 	require.Equal(t, desiredWorkerId, res.workerId)
 }
 
+func TestScheduler_AssignSingleton_EqualLabelsRoundRobin(t *testing.T) {
+	tenantId := uuid.New()
+	workerIds := []uuid.UUID{uuid.New(), uuid.New()}
+
+	regionLabel := &sqlcv1.ListManyWorkerLabelsRow{
+		Key:      "region",
+		StrValue: sqlchelpers.TextFromStr("us-east-1"),
+	}
+	desired := []*sqlcv1.GetDesiredLabelsRow{{
+		Key:        "region",
+		StrValue:   sqlchelpers.TextFromStr("us-east-1"),
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Weight:     10,
+	}}
+
+	workers := make([]*repo.ListActiveWorkersResult, len(workerIds))
+	slots := make([]*slot, 0, len(workerIds)*2)
+
+	for i, id := range workerIds {
+		w := &repo.ListActiveWorkersResult{
+			ID:     id,
+			Name:   "w",
+			Labels: []*sqlcv1.ListManyWorkerLabelsRow{regionLabel},
+		}
+		workers[i] = w
+		ww := &worker{ListActiveWorkersResult: w}
+		// Extra capacity so packing onto the first worker is not forced by slots.
+		slots = append(slots, newSlot(ww, repo.SlotTypeDefault), newSlot(ww, repo.SlotTypeDefault))
+	}
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	s.setWorkers(workers)
+	a := seedActionPools(t, s, "A", slots...)
+
+	first := assignOne(t, s, a, testQI(tenantId, "A", 1), desired, defaultRequest(), nil, nil)
+	require.True(t, first.succeeded)
+
+	second := assignOne(t, s, a, testQI(tenantId, "A", 2), desired, defaultRequest(), nil, nil)
+	require.True(t, second.succeeded)
+	require.NotEqual(t, first.workerId, second.workerId, "equal-affinity workers with free slots must not pack onto the same worker")
+}
+
 func TestScheduler_RankWorkerIds_StickyDoesNotRequirePoolsByWorker(t *testing.T) {
 	tenantId := uuid.New()
 	desiredWorkerId := uuid.New()
@@ -504,7 +547,7 @@ func TestScheduler_RankWorkerIds_StickyDoesNotRequirePoolsByWorker(t *testing.T)
 
 	var ranked []uuid.UUID
 	onLoop(t, s, func() {
-		ranked = s.rankWorkerIds(qi, nil, []uuid.UUID{desiredWorkerId})
+		ranked, _ = s.rankWorkerIds(qi, nil, []uuid.UUID{desiredWorkerId})
 	})
 	require.Equal(t, []uuid.UUID{desiredWorkerId}, ranked)
 }
@@ -520,7 +563,7 @@ func TestScheduler_RankWorkerIds_LabelsUseWorkersMap(t *testing.T) {
 		Labels: []*sqlcv1.ListManyWorkerLabelsRow{
 			{
 				Key:      "region",
-				StrValue: pgtype.Text{String: "us-east-1", Valid: true},
+				StrValue: sqlchelpers.TextFromStr("us-east-1"),
 			},
 		},
 	}})
@@ -528,7 +571,7 @@ func TestScheduler_RankWorkerIds_LabelsUseWorkersMap(t *testing.T) {
 	qi := testQI(tenantId, "A", 1)
 	labels := []*sqlcv1.GetDesiredLabelsRow{{
 		Key:        "region",
-		StrValue:   pgtype.Text{String: "us-east-1", Valid: true},
+		StrValue:   sqlchelpers.TextFromStr("us-east-1"),
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
 		Weight:     10,
 	}}
@@ -536,7 +579,7 @@ func TestScheduler_RankWorkerIds_LabelsUseWorkersMap(t *testing.T) {
 	// No poolsByWorker entry — label ranking must still resolve the worker via s.workers.
 	var ranked []uuid.UUID
 	onLoop(t, s, func() {
-		ranked = s.rankWorkerIds(qi, labels, []uuid.UUID{workerId})
+		ranked, _ = s.rankWorkerIds(qi, labels, []uuid.UUID{workerId})
 	})
 	require.Equal(t, []uuid.UUID{workerId}, ranked)
 }
@@ -824,7 +867,7 @@ func TestScheduler_GetSnapshotInput_DerivesUsedSlotsFromCapacity(t *testing.T) {
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
@@ -1153,7 +1196,7 @@ func TestScheduler_Replenish_MultipleSlotTypes_CallsRepoPerTypeAndPopulatesSlots
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
@@ -1210,7 +1253,7 @@ func TestScheduler_Replenish_UnackedCountsPerSlotType(t *testing.T) {
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
@@ -1287,7 +1330,7 @@ func TestScheduler_Replenish_SubtractsAcksDuringReplenish(t *testing.T) {
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
@@ -1360,7 +1403,7 @@ func TestScheduler_Replenish_PropagatesRepoErrors(t *testing.T) {
 		s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
 			listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 				return []*sqlcv1.ListActionsForWorkersRow{
-					{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+					{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 				}, nil
 			},
 			listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
@@ -1377,7 +1420,7 @@ func TestScheduler_Replenish_PropagatesRepoErrors(t *testing.T) {
 		s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
 			listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 				return []*sqlcv1.ListActionsForWorkersRow{
-					{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+					{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 				}, nil
 			},
 			listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
@@ -1407,7 +1450,7 @@ func TestScheduler_Replenish_CreatesActionAndSlots(t *testing.T) {
 			require.Equal(t, workerId, workerIds[0])
 
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
@@ -1446,7 +1489,7 @@ func TestScheduler_Replenish_RemovesActionWhenWorkerPoolHasNoCapacity(t *testing
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
 			}, nil
 		},
 		// simulate no rows returned => no new slots written
@@ -1490,12 +1533,12 @@ func TestScheduler_Replenish_RefreshesAllWorkerPoolsWhenTriggered(t *testing.T) 
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: w1Id, ActionId: pgtype.Text{String: "A", Valid: true}},
-				{WorkerId: w1Id, ActionId: pgtype.Text{String: "B", Valid: true}},
-				{WorkerId: w2Id, ActionId: pgtype.Text{String: "B", Valid: true}},
-				{WorkerId: w2Id, ActionId: pgtype.Text{String: "C", Valid: true}},
-				{WorkerId: w3Id, ActionId: pgtype.Text{String: "C", Valid: true}},
-				{WorkerId: w3Id, ActionId: pgtype.Text{String: "D", Valid: true}},
+				{WorkerId: w1Id, ActionId: sqlchelpers.TextFromStr("A")},
+				{WorkerId: w1Id, ActionId: sqlchelpers.TextFromStr("B")},
+				{WorkerId: w2Id, ActionId: sqlchelpers.TextFromStr("B")},
+				{WorkerId: w2Id, ActionId: sqlchelpers.TextFromStr("C")},
+				{WorkerId: w3Id, ActionId: sqlchelpers.TextFromStr("C")},
+				{WorkerId: w3Id, ActionId: sqlchelpers.TextFromStr("D")},
 			}, nil
 		},
 		// no new slots available, so replenish clears out all pools
@@ -1579,7 +1622,7 @@ func TestScheduler_Replenish_DenseSharedActions(t *testing.T) {
 				for _, aid := range actionIds {
 					rows = append(rows, &sqlcv1.ListActionsForWorkersRow{
 						WorkerId: wid,
-						ActionId: pgtype.Text{String: aid, Valid: true},
+						ActionId: sqlchelpers.TextFromStr(aid),
 					})
 				}
 			}
@@ -1638,7 +1681,7 @@ func BenchmarkScheduler_Replenish_DenseSharedActions(b *testing.B) {
 		for _, aid := range actionIds {
 			actionRows = append(actionRows, &sqlcv1.ListActionsForWorkersRow{
 				WorkerId: wid,
-				ActionId: pgtype.Text{String: aid, Valid: true},
+				ActionId: sqlchelpers.TextFromStr(aid),
 			})
 		}
 	}
@@ -1682,8 +1725,8 @@ func TestScheduler_Replenish_UpdatesAllActionIndexes(t *testing.T) {
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			return []*sqlcv1.ListActionsForWorkersRow{
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
-				{WorkerId: workerId, ActionId: pgtype.Text{String: "B", Valid: true}},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")},
+				{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("B")},
 			}, nil
 		},
 		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
