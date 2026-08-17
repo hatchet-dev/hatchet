@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 
@@ -439,6 +441,27 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	return name, nil
 }
 
+// cliSourceEditor tags an outgoing REST request as coming from the CLI, so the
+// server can record that this CLI was attached to the tenant. Every caller of
+// getProfileFromToken is a point where a token gets bound to this machine, which
+// is the moment worth recording.
+//
+// This honors the same opt-out as the anonymous version-check ping, so
+// telemetry.enabled=false stays a single switch from a user's point of view.
+func cliSourceEditor(cmd *cobra.Command) func(context.Context, *http.Request) error {
+	return func(_ context.Context, req *http.Request) error {
+		if !cli.TelemetryEnabled() {
+			return nil
+		}
+
+		req.Header.Set(analytics.SourceMetadataKey, string(analytics.SourceCLI))
+		req.Header.Set(analytics.CLIVersionMetadataKey, Version)
+		req.Header.Set(analytics.CLICommandMetadataKey, cmd.CommandPath())
+
+		return nil
+	}
+}
+
 func getProfileFromToken(cmd *cobra.Command, token, nameOverride, tlsOverride string) (*cliconfig.Profile, error) {
 	name := nameOverride
 	parsedTokenConf, err := loaderutils.GetConfFromJWT(token)
@@ -455,7 +478,7 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride, tlsOverride st
 		cli.Logger.Fatalf("could not create client with provided token: %v", err)
 	}
 
-	tenant, err := client.API().TenantGetWithResponse(cmd.Context(), uuid.MustParse(client.TenantId()))
+	tenant, err := client.API().TenantGetWithResponse(cmd.Context(), uuid.MustParse(client.TenantId()), cliSourceEditor(cmd))
 
 	if err != nil {
 		cli.Logger.Fatalf("could not connect to Hatchet server with provided token: %v", err)

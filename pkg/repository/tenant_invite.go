@@ -27,7 +27,7 @@ type CreateTenantInviteOpts struct {
 	ExpiresAt time.Time `validate:"required,future"`
 
 	// (required) the role of the invitee
-	Role string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
+	Role string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
 
 	// (optional) the maximum number pending of invites the inviter can have
 
@@ -38,7 +38,7 @@ type UpdateTenantInviteOpts struct {
 	Status *string `validate:"omitempty,oneof=ACCEPTED REJECTED"`
 
 	// (optional) the role of the invitee
-	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
+	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
 }
 
 type ListTenantInvitesOpts struct {

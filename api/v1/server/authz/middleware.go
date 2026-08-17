@@ -205,6 +205,11 @@ func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteIn
 		return nil
 	}
 
+	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedWriteOperations) &&
+		roleName != string(sqlcv1.TenantMemberRoleVIEWER) {
+		return nil
+	}
+
 	// at the moment, tenant members are only restricted from creating other tenant users.
 	if !a.rbac.IsAuthorized(roleName, r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")

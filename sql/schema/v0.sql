@@ -104,7 +104,7 @@ CREATE TYPE "StepRunStatus" AS ENUM (
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 
 -- CreateEnum
-CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER');
 
 -- CreateEnum
 -- IMPORTANT: keep values in sync with api-contracts/openapi/components/schemas/tenant.yaml#TenantEnvironment

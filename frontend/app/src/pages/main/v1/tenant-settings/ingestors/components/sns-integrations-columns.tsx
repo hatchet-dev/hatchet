@@ -1,5 +1,6 @@
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Button } from '@/components/v1/ui/button';
+import useCanWrite from '@/hooks/use-can-write';
 import { SNSIntegration } from '@/lib/api';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { CopyIcon } from '@radix-ui/react-icons';
@@ -37,15 +38,21 @@ export function SNSActions({
   integration: SNSIntegration;
   onDeleteClick: (integration: SNSIntegration) => void;
 }) {
+  const canWrite = useCanWrite();
+
   return (
     <TableRowActions
       row={integration}
-      actions={[
-        {
-          label: 'Delete',
-          onClick: () => onDeleteClick(integration),
-        },
-      ]}
+      actions={
+        canWrite
+          ? [
+              {
+                label: 'Delete',
+                onClick: () => onDeleteClick(integration),
+              },
+            ]
+          : []
+      }
     />
   );
 }
