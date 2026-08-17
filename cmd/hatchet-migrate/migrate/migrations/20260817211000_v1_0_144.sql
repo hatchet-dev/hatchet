@@ -12,7 +12,9 @@ BEGIN
             nt.tenant_id,
             -- NOTE: cap in log space before POWER. POWER(backoff_factor, app_retry_count)
             -- overflows float8 (SQLSTATE 22003) for large retry counts, and LEAST cannot
-            -- prevent that because POWER is evaluated first.
+            -- prevent that because POWER is evaluated first. b^n > cap iff
+            -- n * ln(b) > ln(cap), so compare logs and skip POWER when the result
+            -- would exceed retry_max_backoff.
             NOW() + (
                 LEAST(
                     COALESCE(nt.retry_max_backoff, 86400)::double precision,
