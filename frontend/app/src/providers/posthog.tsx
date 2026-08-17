@@ -5,15 +5,27 @@ import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
-import { useContext, useEffect, useMemo, useState, createContext } from 'react';
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  createContext,
+} from 'react';
 
 let tenantAnalyticsOptOut = false;
+let capturePaused = false;
 
 interface PostHogContextValue {
   isReady: boolean;
+  isCapturePaused: boolean;
 }
 
-const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
+const PostHogContext = createContext<PostHogContextValue>({
+  isReady: false,
+  isCapturePaused: false,
+});
 
 interface PostHogProviderProps {
   children: React.ReactNode;
@@ -30,8 +42,20 @@ interface PostHogProviderProps {
  */
 export function PostHogProvider({ children }: PostHogProviderProps) {
   const { meta } = useApiMeta();
-  const { tenant, user } = useAppContext();
+  const { tenant, tenantId, user, isUserLoading, isUserUniverseLoaded } =
+    useAppContext();
   const [initialized, setInitialized] = useState(false);
+  const [syncedTenantId, setSyncedTenantId] = useState<string>();
+  const hadUserRef = useRef(false);
+
+  tenantAnalyticsOptOut = !!tenant?.analyticsOptOut;
+  const isCapturePaused =
+    isUserLoading ||
+    (!!user &&
+      (!isUserUniverseLoaded ||
+        (!!tenantId && tenant?.metadata.id !== tenantId) ||
+        (!!tenant && tenant.metadata.id !== syncedTenantId)));
+  capturePaused = isCapturePaused;
 
   const config = useMemo(() => {
     if (import.meta.env.DEV) {
@@ -74,7 +98,8 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
       },
       persistence: 'localStorage+cookie',
       cross_subdomain_cookie: true,
-      before_send: (event) => (tenantAnalyticsOptOut ? null : event),
+      before_send: (event) =>
+        tenantAnalyticsOptOut || capturePaused ? null : event,
     });
 
     if (posthog.get_explicit_consent_status() === 'pending') {
@@ -95,13 +120,14 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
     }
 
     if (tenant.analyticsOptOut) {
-      tenantAnalyticsOptOut = true;
-      posthog.opt_out_capturing();
+      if (posthog.get_explicit_consent_status() !== 'denied') {
+        posthog.opt_out_capturing();
+      }
       posthog.stopSessionRecording?.();
+      setSyncedTenantId(tenant.metadata.id);
       return;
     }
 
-    tenantAnalyticsOptOut = false;
     if (posthog.get_explicit_consent_status() !== 'granted') {
       posthog.opt_in_capturing();
     }
@@ -135,10 +161,27 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
     if (utms) {
       clearUtmParams();
     }
+    setSyncedTenantId(tenant.metadata.id);
   }, [user, tenant, initialized]);
+
+  useEffect(() => {
+    if (user) {
+      hadUserRef.current = true;
+      return;
+    }
+    if (!initialized || isUserLoading || !hadUserRef.current) {
+      return;
+    }
+    hadUserRef.current = false;
+    setSyncedTenantId(undefined);
+    if (posthog.get_explicit_consent_status() !== 'denied') {
+      posthog.opt_out_capturing();
+    }
+  }, [user, isUserLoading, initialized]);
 
   const contextValue: PostHogContextValue = {
     isReady: initialized,
+    isCapturePaused,
   };
 
   return (
@@ -154,10 +197,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
 function PostHogPageView() {
   const location = useLocation();
   const posthogClient = usePostHog();
-  const { isReady } = useContext(PostHogContext);
+  const { isReady, isCapturePaused } = useContext(PostHogContext);
 
   useEffect(() => {
-    if (!isReady || !posthogClient) {
+    if (!isReady || isCapturePaused || !posthogClient) {
       return;
     }
 
@@ -168,7 +211,7 @@ function PostHogPageView() {
 
     posthogClient.capture('$pageview', { $current_url: url });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude location.search to avoid firing pageviews on query param changes
-  }, [isReady, location.pathname, posthogClient]);
+  }, [isReady, isCapturePaused, location.pathname, posthogClient]);
 
   return null;
 }
