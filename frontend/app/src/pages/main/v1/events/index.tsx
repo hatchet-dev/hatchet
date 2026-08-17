@@ -264,25 +264,24 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 }
 
 function EventDataSection({ event }: { event: V1Event }) {
-  if (event.payloadsRestricted) {
-    return <RestrictedPayloads />;
-  }
-
   const dataToDisplay = {
     id: event.metadata.id,
     seenAt: event.seenAt,
     key: event.key,
     additionalMetadata: event.additionalMetadata,
     scope: event.scope,
-    payload: event.payload,
+    ...(event.payloadsRestricted ? {} : { payload: event.payload }),
   };
 
   return (
-    <CodeHighlighter
-      language="json"
-      className="text-xs"
-      code={JSON.stringify(dataToDisplay, null, 2)}
-    />
+    <div className="space-y-3">
+      {event.payloadsRestricted && <RestrictedPayloads />}
+      <CodeHighlighter
+        language="json"
+        className="text-xs"
+        code={JSON.stringify(dataToDisplay, null, 2)}
+      />
+    </div>
   );
 }
 

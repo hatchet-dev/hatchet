@@ -79,10 +79,11 @@ func ToV1Event(event *v1.EventWithPayload, opts ...PayloadOption) gen.V1Event {
 		TriggeringWebhookName: event.TriggeringWebhookName,
 	}
 
+	additionalMetadata := jsonToMap(event.EventAdditionalMetadata)
+	res.AdditionalMetadata = &additionalMetadata
+
 	if o.includePayloads {
-		additionalMetadata := jsonToMap(event.EventAdditionalMetadata)
 		payload := jsonToMap(event.Payload)
-		res.AdditionalMetadata = &additionalMetadata
 		res.Payload = &payload
 	} else {
 		res.PayloadsRestricted = boolPtr(true)

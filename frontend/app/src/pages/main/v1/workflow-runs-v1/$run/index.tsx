@@ -460,17 +460,13 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 value="additional-metadata"
                 className="flex min-h-0 flex-1 flex-col py-4"
               >
-                {workflowRun.payloadsRestricted ? (
-                  <RestrictedPayloads />
-                ) : (
-                  <CodeHighlighter
-                    className="flex-1 min-h-0 overflow-hidden"
-                    maxHeight="100%"
-                    minHeight="100%"
-                    language="json"
-                    code={JSON.stringify(additionalMetadata, null, 2)}
-                  />
-                )}
+                <CodeHighlighter
+                  className="flex-1 min-h-0 overflow-hidden"
+                  maxHeight="100%"
+                  minHeight="100%"
+                  language="json"
+                  code={JSON.stringify(additionalMetadata, null, 2)}
+                />
               </TabsContent>
             </Tabs>
           </TabsContent>

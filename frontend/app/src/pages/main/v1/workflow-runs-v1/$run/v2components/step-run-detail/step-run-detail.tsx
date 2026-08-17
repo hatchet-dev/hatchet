@@ -310,19 +310,15 @@ export const TaskRunDetail = ({
               value={TabOption.AdditionalMetadata}
               className="flex-1 min-h-0 overflow-y-auto"
             >
-              {taskRun.payloadsRestricted ? (
-                <RestrictedPayloads />
-              ) : (
-                <CodeHighlighter
-                  className="my-4"
-                  language="json"
-                  code={JSON.stringify(
-                    taskRun.additionalMetadata ?? {},
-                    null,
-                    2,
-                  )}
-                />
-              )}
+              <CodeHighlighter
+                className="my-4"
+                language="json"
+                code={JSON.stringify(
+                  taskRun.additionalMetadata ?? {},
+                  null,
+                  2,
+                )}
+              />
             </TabsContent>
           </Tabs>
         </TabsContent>

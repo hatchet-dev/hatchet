@@ -66,7 +66,6 @@ func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskS
 	if !o.includePayloads {
 		input = emptyJSON()
 		output = emptyJSON()
-		additionalMetadataPtr = nil
 		payloadsRestricted = boolPtr(true)
 	}
 
@@ -295,7 +294,8 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 
 	output := emptyJSON()
 	input := emptyJSON()
-	var additionalMetadataPtr *map[string]interface{}
+	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
+	additionalMetadataPtr := &additionalMetadata
 	var payloadsRestricted *bool
 
 	if o.includePayloads {
@@ -314,9 +314,6 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 				}
 			}
 		}
-
-		additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
-		additionalMetadataPtr = &additionalMetadata
 	} else {
 		payloadsRestricted = boolPtr(true)
 	}
@@ -411,7 +408,6 @@ func ToWorkflowRunDetails(
 	} else {
 		input = emptyJSON()
 		output = emptyJSON()
-		additionalMetadataPtr = nil
 		payloadsRestricted = boolPtr(true)
 	}
 

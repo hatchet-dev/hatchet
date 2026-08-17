@@ -126,7 +126,7 @@ V1TaskSummary:
       description: The idempotency key that was claimed by the task run
     payloadsRestricted:
       type: boolean
-      description: True when payload fields were omitted because the caller cannot view payloads.
+      description: True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
   required:
     - metadata
     - createdAt

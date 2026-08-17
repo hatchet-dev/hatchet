@@ -6,8 +6,8 @@ type payloadOptions struct {
 
 type PayloadOption func(*payloadOptions)
 
-// WithPayloads includes or omits payload fields on the constructed resource.
-// Omitted options default to including payloads.
+// WithPayloads includes or omits input, output, and event payload fields.
+// Additional metadata is always included. Omitted options default to including payloads.
 func WithPayloads(include bool) PayloadOption {
 	return func(o *payloadOptions) {
 		o.includePayloads = include

@@ -46,7 +46,6 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	} else {
 		input = emptyJSON()
 		output = emptyJSON()
-		additionalMetadataPtr = nil
 		payloadsRestricted = boolPtr(true)
 	}
 
@@ -203,7 +202,6 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	if !o.includePayloads {
 		input = emptyJSON()
 		output = emptyJSON()
-		additionalMetadataPtr = nil
 		payloadsRestricted = boolPtr(true)
 	}
 
