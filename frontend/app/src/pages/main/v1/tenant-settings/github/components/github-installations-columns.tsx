@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/v1/ui/avatar';
 import { Button } from '@/components/v1/ui/button';
+import useCanWrite from '@/hooks/use-can-write';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import { GearIcon } from '@radix-ui/react-icons';
@@ -27,6 +28,8 @@ export function GithubLinkCell({
   installation: GithubAppInstallation;
   onLinkToTenant: (installationId: string) => void;
 }) {
+  const canWrite = useCanWrite();
+
   if (installation.is_linked_to_tenant) {
     return (
       <Button
@@ -43,6 +46,7 @@ export function GithubLinkCell({
       variant="outline"
       onClick={() => onLinkToTenant(installation.metadata.id)}
       leftIcon={<PlusCircleIcon className="size-4" />}
+      disabled={!canWrite}
     >
       Link to tenant
     </Button>

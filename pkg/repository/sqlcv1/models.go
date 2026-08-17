@@ -866,6 +866,7 @@ const (
 	TenantMemberRoleOWNER  TenantMemberRole = "OWNER"
 	TenantMemberRoleADMIN  TenantMemberRole = "ADMIN"
 	TenantMemberRoleMEMBER TenantMemberRole = "MEMBER"
+	TenantMemberRoleVIEWER TenantMemberRole = "VIEWER"
 )
 
 func (e *TenantMemberRole) Scan(src interface{}) error {

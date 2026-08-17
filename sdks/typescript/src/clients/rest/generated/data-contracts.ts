@@ -211,6 +211,7 @@ export enum TenantMemberRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
   MEMBER = 'MEMBER',
+  VIEWER = 'VIEWER',
 }
 
 export enum TenantResource {
