@@ -250,7 +250,8 @@ WITH inputs AS (
         idempotency_key,
         is_satisfied,
         user_message,
-        wait_data
+        wait_data,
+        triggered_at
     )
     SELECT
         i.tenant_id,
@@ -265,7 +266,9 @@ WITH inputs AS (
         i.idempotency_key,
         i.is_satisfied,
         NULLIF(i.user_message, ''),
-        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END
+        CASE WHEN i.wait_data = '' THEN NULL ELSE i.wait_data::JSONB END,
+        -- entry + trigger commit in one transaction here, so the entry is triggered as soon as it exists
+        NOW()
     FROM inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *
