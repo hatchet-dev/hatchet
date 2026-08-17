@@ -21,16 +21,20 @@ export function captureUtmParams(search: string) {
     }
   }
   if (Object.keys(utms).length > 0) {
-    localStorage.setItem(UTM_PARAMS_KEY, JSON.stringify(utms));
+    try {
+      localStorage.setItem(UTM_PARAMS_KEY, JSON.stringify(utms));
+    } catch {
+      return;
+    }
   }
 }
 
 export function readUtmParams(): Record<string, string> | null {
-  const raw = localStorage.getItem(UTM_PARAMS_KEY);
-  if (!raw) {
-    return null;
-  }
   try {
+    const raw = localStorage.getItem(UTM_PARAMS_KEY);
+    if (!raw) {
+      return null;
+    }
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) {
       return null;
@@ -49,5 +53,9 @@ export function readUtmParams(): Record<string, string> | null {
 }
 
 export function clearUtmParams() {
-  localStorage.removeItem(UTM_PARAMS_KEY);
+  try {
+    localStorage.removeItem(UTM_PARAMS_KEY);
+  } catch {
+    return;
+  }
 }

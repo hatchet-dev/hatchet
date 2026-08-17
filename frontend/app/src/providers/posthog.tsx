@@ -74,6 +74,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
       cross_subdomain_cookie: true,
     });
 
+    if (posthog.get_explicit_consent_status() === 'pending') {
+      posthog.opt_out_capturing();
+    }
+
     const utms = readUtmParams();
     if (utms) {
       posthog.register(utms);
@@ -104,9 +108,14 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
       return;
     }
 
-    const referralCode = sanitizeReferralCode(
-      localStorage.getItem(REFERRAL_CODE_KEY),
-    );
+    let referralCode: string | null = null;
+    try {
+      referralCode = sanitizeReferralCode(
+        localStorage.getItem(REFERRAL_CODE_KEY),
+      );
+    } catch {
+      // noop
+    }
     const utms = readUtmParams();
     if (utms) {
       posthog.register(utms);

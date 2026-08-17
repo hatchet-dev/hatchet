@@ -32,7 +32,11 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 const urlParams = new URLSearchParams(window.location.search);
 const referralCode = sanitizeReferralCode(urlParams.get(REFERRAL_CODE_KEY));
 if (referralCode) {
-  localStorage.setItem(REFERRAL_CODE_KEY, referralCode);
+  try {
+    localStorage.setItem(REFERRAL_CODE_KEY, referralCode);
+  } catch {
+    // noop
+  }
 }
 
 captureUtmParams(window.location.search);
