@@ -125,6 +125,7 @@ func (s *SharedOperator[T]) SendStarted(action *contracts.AssignedAction) error 
 
 // SendCompleted reports a successful result. output should be the task's JSON output.
 func (s *SharedOperator[T]) SendCompleted(action *contracts.AssignedAction, output []byte) error {
+	delete(s.inFlight, action.TaskRunExternalId)
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED, string(output), nil)
 }
 
@@ -225,8 +226,9 @@ func (s *SharedOperator[T]) CancelTask(taskRunExternalId string) bool {
 
 	if ok {
 		cancel()
+		delete(s.inFlight, taskRunExternalId)
 	}
-
+	// if we didn't find it in the map, that means the task has either completed, or already been cancelled
 	return ok
 }
 
