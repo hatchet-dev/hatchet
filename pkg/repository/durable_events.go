@@ -1224,7 +1224,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
-		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+		waitForResult, err = r.handleEventLookback(ctx, tenantId, task, waitForResult, opts.WaitFor.WaitForConditions)
 
 		if err != nil {
 			return nil, err
@@ -1720,7 +1720,11 @@ func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx cont
 	return claimedSet, nil
 }
 
-func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+	if initialWaitForResult.IsSatisfied {
+		return initialWaitForResult, nil
+	}
+
 	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
 
 	if err != nil {
@@ -1751,6 +1755,28 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	if len(previousEventsFound) == 0 {
 		return initialWaitForResult, nil
+	}
+
+	targetMatchIDs, err := r.queries.ListActiveMatchesForDurableWait(ctx, lookbackTx, sqlcv1.ListActiveMatchesForDurableWaitParams{
+		Tenantid:              tenantId,
+		Eventkeys:             lookbackParams.Keys,
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Durabletaskexternalid: task.ExternalID,
+		Nodeid:                initialWaitForResult.NodeId,
+		Branchid:              initialWaitForResult.BranchId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find active match for durable wait: %w", err)
+	}
+
+	if len(targetMatchIDs) == 0 {
+		return initialWaitForResult, nil
+	}
+
+	if len(targetMatchIDs) != 1 {
+		return nil, fmt.Errorf("expected exactly one active match for durable wait, got %d", len(targetMatchIDs))
 	}
 
 	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
@@ -1789,40 +1815,50 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			payload = nil
 		}
 
+		var resourceHint *string
+		if row.Scope.Valid {
+			resourceHint = &row.Scope.String
+		}
+
 		retroCandidates = append(retroCandidates, CandidateEventMatch{
 			ID:             row.ExternalID,
 			EventTimestamp: row.SeenAt.Time,
 			Key:            row.Key,
+			ResourceHint:   resourceHint,
 			Data:           payload,
 		})
 	}
 
-	if len(retroCandidates) > 0 {
-		retroMatchResults, err := r.processEventMatches(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
+	targetMatchID := targetMatchIDs[0]
+	retroMatchResults, err := r.processEventMatchesForTarget(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER, &targetMatchID)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+	}
+
+	if len(retroMatchResults.SatisfiedDurableEventLogEntries) > 1 {
+		return nil, fmt.Errorf("expected at most one satisfied durable wait from targeted lookback, got %d", len(retroMatchResults.SatisfiedDurableEventLogEntries))
+	}
+
+	if len(retroMatchResults.SatisfiedDurableEventLogEntries) == 1 {
+		entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+		if entry.DurableTaskExternalId != task.ExternalID || entry.NodeId != initialWaitForResult.NodeId || entry.BranchId != initialWaitForResult.BranchId {
+			return nil, fmt.Errorf("targeted lookback satisfied an unexpected durable wait")
 		}
 
-		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
-			// note: this might be buggy but I _think_ it's okay to grab the first match here
-			// the main assumption is that we only ever get one entry back
-			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
-
-			if err := lookbackOptTx.Commit(ctx); err != nil {
-				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
-			}
-
-			return &IngestWaitForResult{
-				IsSatisfied:     true,
-				ResultPayload:   entry.Data,
-				InvocationCount: entry.InvocationCount,
-				NodeId:          initialWaitForResult.NodeId,
-				BranchId:        initialWaitForResult.BranchId,
-				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
-				SatisfiedOrder:  entry.SatisfiedOrder,
-			}, nil
+		if err := lookbackOptTx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
 		}
+
+		return &IngestWaitForResult{
+			IsSatisfied:     true,
+			ResultPayload:   entry.Data,
+			InvocationCount: entry.InvocationCount,
+			NodeId:          initialWaitForResult.NodeId,
+			BranchId:        initialWaitForResult.BranchId,
+			AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+			SatisfiedOrder:  entry.SatisfiedOrder,
+		}, nil
 	}
 
 	if err := lookbackOptTx.Commit(ctx); err != nil {

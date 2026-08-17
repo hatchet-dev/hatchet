@@ -230,13 +230,15 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 					return fmt.Errorf("user event condition requires a user event key")
 				}
 
-				conditions = append(conditions, r.userEventCondition(
+				userEventCondition := r.userEventCondition(
 					condition.OrGroupId,
 					condition.ReadableDataKey,
 					*condition.UserEventKey,
 					condition.Expression,
 					sqlcv1.V1MatchConditionActionCREATE,
-				))
+				)
+				userEventCondition.EventResourceHint = condition.UserEventScope
+				conditions = append(conditions, userEventCondition)
 			}
 		}
 
@@ -380,6 +382,10 @@ type DurableTaskNodeIdKey struct {
 }
 
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
+	return m.processEventMatchesForTarget(ctx, tx, tenantId, events, eventType, nil)
+}
+
+func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType, targetMatchID *int64) (*EventMatchResults, error) {
 	start := time.Now()
 
 	res := &EventMatchResults{}
@@ -387,25 +393,35 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	eventKeysWithHints := make([]string, 0, len(events))
 	eventKeysWithoutHints := make([]string, 0, len(events))
 	resourceHints := make([]string, 0, len(events))
-	uniqueEventKeys := make(map[string]struct{})
+	type eventKeyWithHint struct {
+		key  string
+		hint string
+	}
+
+	uniqueEventKeysWithHints := make(map[eventKeyWithHint]struct{})
+	uniqueEventKeysWithoutHints := make(map[string]struct{})
 	idsToEvents := make(map[uuid.UUID]CandidateEventMatch)
 
 	for _, event := range events {
 		idsToEvents[event.ID] = event
 
-		if event.ResourceHint == nil {
-			if _, ok := uniqueEventKeys[event.Key]; ok {
-				continue
+		// User event conditions without a resource hint match every scope.
+		if eventType == sqlcv1.V1EventTypeUSER || event.ResourceHint == nil {
+			if _, ok := uniqueEventKeysWithoutHints[event.Key]; !ok {
+				uniqueEventKeysWithoutHints[event.Key] = struct{}{}
+				eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 			}
 		}
 
-		uniqueEventKeys[event.Key] = struct{}{}
-
 		if event.ResourceHint != nil {
+			keyWithHint := eventKeyWithHint{key: event.Key, hint: *event.ResourceHint}
+			if _, ok := uniqueEventKeysWithHints[keyWithHint]; ok {
+				continue
+			}
+
+			uniqueEventKeysWithHints[keyWithHint] = struct{}{}
 			eventKeysWithHints = append(eventKeysWithHints, event.Key)
 			resourceHints = append(resourceHints, *event.ResourceHint)
-		} else {
-			eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 		}
 	}
 
@@ -446,6 +462,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 
 		matchConditions = append(matchConditions, matchConditionsWithoutHints...)
+	}
+
+	if targetMatchID != nil {
+		matchConditions = slices.DeleteFunc(matchConditions, func(condition *sqlcv1.ListMatchConditionsForEventRow) bool {
+			return condition.V1MatchID != *targetMatchID
+		})
 	}
 
 	// pass match conditions through CEL expressions parser
@@ -1044,7 +1066,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				continue
 			}
 
-			if condition.EventResourceHint.Valid && condition.EventResourceHint.String != *event.ResourceHint {
+			if condition.EventResourceHint.Valid {
+				if event.ResourceHint == nil || condition.EventResourceHint.String != *event.ResourceHint {
+					continue
+				}
+			} else if eventType != sqlcv1.V1EventTypeUSER && event.ResourceHint != nil {
 				continue
 			}
 

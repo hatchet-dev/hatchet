@@ -241,6 +241,24 @@ WHERE tenant_id = @tenantId::uuid
 ORDER BY e.seen_at DESC
 ;
 
+-- name: ListActiveMatchesForDurableWait :many
+SELECT DISTINCT m.id
+FROM v1_match m
+JOIN v1_match_condition mc ON mc.v1_match_id = m.id
+WHERE mc.tenant_id = @tenantId::uuid
+  AND mc.event_type = 'USER'
+  AND mc.event_key = ANY(@eventKeys::text[])
+  AND mc.is_satisfied = FALSE
+  AND m.tenant_id = @tenantId::uuid
+  AND m.kind = 'SIGNAL'
+  AND m.signal_task_id = @durableTaskId::bigint
+  AND m.signal_task_inserted_at = @durableTaskInsertedAt::timestamptz
+  AND m.signal_task_external_id = @durableTaskExternalId::uuid
+  AND m.durable_event_log_entry_node_id = @nodeId::bigint
+  AND m.durable_event_log_entry_branch_id = @branchId::bigint
+  AND m.is_satisfied = FALSE
+;
+
 -- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM
