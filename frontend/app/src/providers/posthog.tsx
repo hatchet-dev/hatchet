@@ -5,7 +5,9 @@ import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
-import { useEffect, useMemo, useState, createContext } from 'react';
+import { useContext, useEffect, useMemo, useState, createContext } from 'react';
+
+let tenantAnalyticsOptOut = false;
 
 interface PostHogContextValue {
   isReady: boolean;
@@ -72,6 +74,7 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
       },
       persistence: 'localStorage+cookie',
       cross_subdomain_cookie: true,
+      before_send: (event) => (tenantAnalyticsOptOut ? null : event),
     });
 
     if (posthog.get_explicit_consent_status() === 'pending') {
@@ -92,14 +95,13 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
     }
 
     if (tenant.analyticsOptOut) {
-      if (posthog.get_explicit_consent_status() !== 'denied') {
-        posthog.set_config({ cookieless_mode: undefined });
-        posthog.opt_out_capturing();
-        posthog.stopSessionRecording?.();
-      }
+      tenantAnalyticsOptOut = true;
+      posthog.opt_out_capturing();
+      posthog.stopSessionRecording?.();
       return;
     }
 
+    tenantAnalyticsOptOut = false;
     if (posthog.get_explicit_consent_status() !== 'granted') {
       posthog.opt_in_capturing();
     }
@@ -152,9 +154,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
 function PostHogPageView() {
   const location = useLocation();
   const posthogClient = usePostHog();
+  const { isReady } = useContext(PostHogContext);
 
   useEffect(() => {
-    if (!posthogClient) {
+    if (!isReady || !posthogClient) {
       return;
     }
 
@@ -165,7 +168,7 @@ function PostHogPageView() {
 
     posthogClient.capture('$pageview', { $current_url: url });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude location.search to avoid firing pageviews on query param changes
-  }, [location.pathname, posthogClient]);
+  }, [isReady, location.pathname, posthogClient]);
 
   return null;
 }
