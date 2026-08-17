@@ -11,12 +11,20 @@ const UTM_KEYS = [
 const MAX_LENGTH = 128;
 const ALLOWED_PATTERN = /^[a-zA-Z0-9 ._-]+$/;
 
+function isValidUtmValue(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= MAX_LENGTH &&
+    ALLOWED_PATTERN.test(value)
+  );
+}
+
 export function captureUtmParams(search: string) {
   const params = new URLSearchParams(search);
   const utms: Record<string, string> = {};
   for (const key of UTM_KEYS) {
     const value = params.get(key)?.trim();
-    if (value && value.length <= MAX_LENGTH && ALLOWED_PATTERN.test(value)) {
+    if (value && isValidUtmValue(value)) {
       utms[key] = value;
     }
   }
@@ -42,7 +50,7 @@ export function readUtmParams(): Record<string, string> | null {
     const utms: Record<string, string> = {};
     for (const key of UTM_KEYS) {
       const value = (parsed as Record<string, unknown>)[key];
-      if (typeof value === 'string') {
+      if (typeof value === 'string' && isValidUtmValue(value)) {
         utms[key] = value;
       }
     }
