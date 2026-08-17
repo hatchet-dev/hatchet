@@ -2,6 +2,7 @@ import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,7 @@ type SelectedTenant = {
 const schema = z.object({
   email: z.string().email('Invalid email address'),
   role: z.nativeEnum(OrganizationMemberRoleType),
+  canViewPayloads: z.boolean(),
 });
 
 type OrganizationInviteMemberModalProps = {
@@ -97,6 +99,7 @@ export const OrganizationInviteMemberModal = ({
       role: isControlPlaneEnabled
         ? OrganizationMemberRoleType.MEMBER
         : OrganizationMemberRoleType.OWNER,
+      canViewPayloads: true,
     },
   });
 
@@ -182,6 +185,7 @@ export const OrganizationInviteMemberModal = ({
     mutationFn: async (data: {
       email: string;
       role: OrganizationMemberRoleType;
+      canViewPayloads: boolean;
     }) => {
       // Never send tenants/userGroupIds for OWNER invites — the server
       // rejects them (owners automatically get access to all tenants).
@@ -191,11 +195,15 @@ export const OrganizationInviteMemberModal = ({
       const request: OrganizationInviteCreateRequest = {
         inviteeEmail: data.email,
         role: data.role,
+        ...(isControlPlaneEnabled
+          ? { canViewPayloads: data.canViewPayloads }
+          : {}),
         ...(grantsAllowed && selectedTenants.length > 0
           ? {
               tenants: selectedTenants.map(({ tenantId, tenantRole }) => ({
                 tenantId,
                 tenantRole,
+                canViewPayloads: data.canViewPayloads,
               })),
             }
           : {}),
@@ -307,6 +315,34 @@ export const OrganizationInviteMemberModal = ({
                 Members access tenants based on their tags or can be added
                 directly. Owners have full access to all tenants.
               </p>
+            </div>
+          )}
+
+          {isControlPlaneEnabled && (
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="canViewPayloads"
+                render={({ field }) => (
+                  <Checkbox
+                    id="org-invite-canViewPayloads"
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={inviteMemberMutation.isPending}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="org-invite-canViewPayloads">
+                  Can view payloads
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Uncheck to hide task inputs, outputs, and events. Owners and
+                  admins always see payloads.
+                </p>
+              </div>
             </div>
           )}
 

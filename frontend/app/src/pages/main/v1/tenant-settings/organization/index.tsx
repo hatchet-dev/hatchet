@@ -489,6 +489,18 @@ export function CloudOrganizationSettings({
       columnLabel: 'Role',
       cellRenderer: (row: OrganizationMember) => <RoleBadge role={row.role} />,
     },
+    {
+      columnLabel: 'Payloads',
+      cellRenderer: (row: OrganizationMember) => (
+        <span className="text-sm text-muted-foreground">
+          {row.role === 'OWNER' ||
+          (row as OrganizationMember & { canViewPayloads?: boolean })
+            .canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
+      ),
+    },
     ...(isOrganizationOwner
       ? [
           {
@@ -522,6 +534,18 @@ export function CloudOrganizationSettings({
       columnLabel: 'Role',
       cellRenderer: (row: OrganizationInviteWithTenants) => (
         <RoleBadge role={row.role} />
+      ),
+    },
+    {
+      columnLabel: 'Payloads',
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
+        <span className="text-sm text-muted-foreground">
+          {row.role === 'OWNER' ||
+          (row as OrganizationInviteWithTenants & { canViewPayloads?: boolean })
+            .canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
       ),
     },
     {

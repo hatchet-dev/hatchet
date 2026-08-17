@@ -592,6 +592,9 @@ type CreateTenantAlertEmailGroupRequest struct {
 
 // CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
 type CreateTenantInviteRequest struct {
+	// CanViewPayloads Whether the invited user can view payloads. Defaults to true.
+	CanViewPayloads *bool `json:"canViewPayloads,omitempty"`
+
 	// Email The email of the user to invite.
 	Email string           `json:"email" validate:"required,email"`
 	Role  TenantMemberRole `json:"role"`
@@ -1241,6 +1244,9 @@ type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {
+	// CanViewPayloads Whether the invited user can view payloads. Defaults to true.
+	CanViewPayloads *bool `json:"canViewPayloads,omitempty"`
+
 	// Email The email of the user to invite.
 	Email string `json:"email"`
 
@@ -1264,6 +1270,9 @@ type TenantInviteList struct {
 
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
+	// CanViewPayloads Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true.
+	CanViewPayloads *bool `json:"canViewPayloads,omitempty"`
+
 	// ManuallyAdded Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
 	ManuallyAdded *bool            `json:"manually_added,omitempty"`
 	Metadata      APIResourceMeta  `json:"metadata"`
@@ -1355,12 +1364,16 @@ type UpdateTenantAlertEmailGroupRequest struct {
 
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
 type UpdateTenantInviteRequest struct {
-	Role TenantMemberRole `json:"role"`
+	// CanViewPayloads Whether the invited user can view payloads.
+	CanViewPayloads *bool            `json:"canViewPayloads,omitempty"`
+	Role            TenantMemberRole `json:"role"`
 }
 
 // UpdateTenantMemberRequest defines model for UpdateTenantMemberRequest.
 type UpdateTenantMemberRequest struct {
-	Role TenantMemberRole `json:"role"`
+	// CanViewPayloads Whether this member can view payloads. Ignored for OWNER and ADMIN, who always can.
+	CanViewPayloads *bool            `json:"canViewPayloads,omitempty"`
+	Role            TenantMemberRole `json:"role"`
 }
 
 // UpdateTenantRequest defines model for UpdateTenantRequest.
@@ -1712,6 +1725,9 @@ type V1Event struct {
 	// Payload The payload of the event, which can be any JSON-serializable object.
 	Payload *map[string]interface{} `json:"payload,omitempty"`
 
+	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
+
 	// Scope The scope of the event, which can be used to filter or categorize events.
 	Scope *string `json:"scope,omitempty"`
 
@@ -1984,6 +2000,9 @@ type V1TaskSummary struct {
 	// ParentTaskExternalId The external ID of the parent task.
 	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
 
+	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
+
 	// RetryCount The number of retries of the task.
 	RetryCount *int `json:"retryCount,omitempty"`
 
@@ -2243,6 +2262,9 @@ type V1WorkflowRun struct {
 	// Output The output of the task run (for the latest run)
 	Output               openapi.NonNullableJSON `json:"output"`
 	ParentTaskExternalId *openapi_types.UUID     `json:"parentTaskExternalId,omitempty"`
+
+	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`

@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
@@ -263,6 +264,10 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 }
 
 function EventDataSection({ event }: { event: V1Event }) {
+  if (event.payloadsRestricted) {
+    return <RestrictedPayloads />;
+  }
+
   const dataToDisplay = {
     id: event.metadata.id,
     seenAt: event.seenAt,

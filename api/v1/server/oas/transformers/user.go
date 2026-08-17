@@ -50,5 +50,11 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 		Role: gen.TenantMemberRole(tenantMember.Role),
 	}
 
+	canView := tenantMember.CanViewPayloads
+	if tenantMember.Role == sqlcv1.TenantMemberRoleOWNER || tenantMember.Role == sqlcv1.TenantMemberRoleADMIN {
+		canView = true
+	}
+	res.CanViewPayloads = &canView
+
 	return res
 }

@@ -63,6 +63,9 @@ V1WorkflowRun:
       format: uuid
       minLength: 36
       maxLength: 36
+    payloadsRestricted:
+      type: boolean
+      description: True when payload fields were omitted because the caller cannot view payloads.
   required:
     - metadata
     - id

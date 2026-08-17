@@ -50,10 +50,8 @@ func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error)
 	return result, nil
 }
 
-func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
-	additionalMetadata := jsonToMap(event.EventAdditionalMetadata)
-
-	payload := jsonToMap(event.Payload)
+func ToV1Event(event *v1.EventWithPayload, opts ...PayloadOption) gen.V1Event {
+	o := applyPayloadOptions(opts)
 
 	triggeredRuns, err := parseTriggeredRuns(event.TriggeredRuns)
 
@@ -61,9 +59,8 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		triggeredRuns = []gen.V1EventTriggeredRun{}
 	}
 
-	return gen.V1Event{
-		AdditionalMetadata: &additionalMetadata,
-		Key:                event.EventKey,
+	res := gen.V1Event{
+		Key: event.EventKey,
 		Metadata: gen.APIResourceMeta{
 			CreatedAt: event.EventSeenAt.Time,
 			UpdatedAt: event.EventSeenAt.Time,
@@ -76,15 +73,25 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 			Failed:    event.FailedCount,
 			Running:   event.RunningCount,
 		},
-		Payload:               &payload,
 		SeenAt:                &event.EventSeenAt.Time,
 		Scope:                 event.EventScope,
 		TriggeredRuns:         &triggeredRuns,
 		TriggeringWebhookName: event.TriggeringWebhookName,
 	}
+
+	if o.includePayloads {
+		additionalMetadata := jsonToMap(event.EventAdditionalMetadata)
+		payload := jsonToMap(event.Payload)
+		res.AdditionalMetadata = &additionalMetadata
+		res.Payload = &payload
+	} else {
+		res.PayloadsRestricted = boolPtr(true)
+	}
+
+	return res
 }
 
-func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64) gen.V1EventList {
+func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64, opts ...PayloadOption) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
@@ -104,7 +111,7 @@ func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64) ge
 	}
 
 	for i, row := range events {
-		rows[i] = ToV1Event(row)
+		rows[i] = ToV1Event(row, opts...)
 	}
 
 	return gen.V1EventList{

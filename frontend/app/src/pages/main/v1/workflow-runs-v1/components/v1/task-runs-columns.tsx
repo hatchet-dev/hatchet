@@ -386,6 +386,10 @@ export const columns: (
       />
     ),
     cell: ({ row }) => {
+      if (row.original.payloadsRestricted) {
+        return <div className="text-xs text-muted-foreground">Hidden</div>;
+      }
+
       if (!row.original.additionalMetadata) {
         return <div></div>;
       }

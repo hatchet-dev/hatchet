@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface EditMemberRoleModalProps {
   open: boolean;
@@ -45,10 +46,25 @@ export function EditMemberRoleModal({
   isLastOwner,
   onSuccess,
 }: EditMemberRoleModalProps) {
+  const memberCanViewPayloads =
+    (member as OrganizationMember & { canViewPayloads?: boolean })
+      .canViewPayloads ?? true;
   const [role, setRole] = useState<OrganizationMemberRoleType>(member.role);
+  const [canViewPayloads, setCanViewPayloads] = useState(memberCanViewPayloads);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const orgApi = useOrganizationApi();
+
+  useEffect(() => {
+    if (open) {
+      setRole(member.role);
+      setCanViewPayloads(
+        (member as OrganizationMember & { canViewPayloads?: boolean })
+          .canViewPayloads ?? true,
+      );
+      setFormErrors([]);
+    }
+  }, [open, member]);
 
   const memberUpdate = orgApi.organizationMemberUpdateMutation(
     member.metadata.id,
@@ -66,7 +82,7 @@ export function EditMemberRoleModal({
 
   const handleSubmit = () => {
     setFormErrors([]);
-    updateMutation.mutate({ role });
+    updateMutation.mutate({ role, canViewPayloads });
   };
 
   return (
@@ -119,9 +135,33 @@ export function EditMemberRoleModal({
               </p>
             )}
           </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="org-member-canViewPayloads"
+              checked={canViewPayloads}
+              onCheckedChange={(checked) =>
+                setCanViewPayloads(checked === true)
+              }
+              disabled={updateMutation.isPending}
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="org-member-canViewPayloads">
+                Can view payloads
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Owners and admins always see payloads. Uncheck to hide inputs,
+                outputs, and events on tenant rows created from org-owner
+                bypass.
+              </p>
+            </div>
+          </div>
           <Button
             onClick={handleSubmit}
-            disabled={updateMutation.isPending || role === member.role}
+            disabled={
+              updateMutation.isPending ||
+              (role === member.role &&
+                canViewPayloads === memberCanViewPayloads)
+            }
           >
             {updateMutation.isPending && <Spinner />}
             Update member

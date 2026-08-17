@@ -478,6 +478,8 @@ export interface V1TaskSummary {
   parentTaskExternalId?: string;
   /** The idempotency key that was claimed by the task run */
   idempotencyKey?: string;
+  /** True when payload fields were omitted because the caller cannot view payloads. */
+  payloadsRestricted?: boolean;
 }
 
 export interface APIError {
@@ -723,6 +725,8 @@ export interface V1WorkflowRun {
    * @maxLength 36
    */
   parentTaskExternalId?: string;
+  /** True when payload fields were omitted because the caller cannot view payloads. */
+  payloadsRestricted?: boolean;
 }
 
 export interface WorkflowRunShapeItemForWorkflowRunDetails {
@@ -1067,6 +1071,8 @@ export interface V1Event {
   triggeredRuns?: V1EventTriggeredRun[];
   /** The name of the webhook that triggered this event, if applicable. */
   triggeringWebhookName?: string;
+  /** True when payload fields were omitted because the caller cannot view payloads. */
+  payloadsRestricted?: boolean;
 }
 
 export interface V1EventList {
@@ -1491,6 +1497,8 @@ export interface TenantMember {
   user: UserTenantPublic;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true. */
+  canViewPayloads?: boolean;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
   /** Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed. */
@@ -1508,6 +1516,8 @@ export interface TenantInvite {
   email: string;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. Defaults to true. */
+  canViewPayloads?: boolean;
   /** The tenant id associated with this tenant invite. */
   tenantId: string;
   /** The tenant name for the tenant. */
@@ -1598,11 +1608,15 @@ export interface CreateTenantInviteRequest {
   email: string;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UpdateTenantInviteRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. */
+  canViewPayloads?: boolean;
 }
 
 export interface APIToken {
@@ -1784,6 +1798,8 @@ export interface TenantMemberList {
 export interface UpdateTenantMemberRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether this member can view payloads. Ignored for OWNER and ADMIN, who always can. */
+  canViewPayloads?: boolean;
 }
 
 export interface EventData {
