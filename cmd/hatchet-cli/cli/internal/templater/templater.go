@@ -14,6 +14,7 @@ import (
 type Data struct {
 	Name           string
 	PackageManager string
+	HatchetVersion string
 }
 
 // Process reads all files from the specified directory within the provided filesystem,
