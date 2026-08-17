@@ -1,4 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
+import useCanWrite from '@/hooks/use-can-write';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
 import { BillingContext } from '@/lib/atoms';
@@ -23,6 +25,10 @@ export function BillingRequired({
   portalLoading,
 }: BillingRequiredProps) {
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
+  const { getOrganizationForTenant } = useOrganizations();
+  const isOrganizationOwner =
+    getOrganizationForTenant(tenantId)?.isOwner ?? false;
 
   return (
     <div className="h-full w-full flex-grow">
@@ -88,39 +94,55 @@ export function BillingRequired({
             </div>
 
             <div className="flex w-full flex-col gap-4">
-              <Button
-                onClick={manageClicked}
-                disabled={portalLoading}
-                className="min-w-40 px-8 py-6 text-base"
-                size="lg"
-              >
-                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
-              </Button>
+              {canWrite ? (
+                <>
+                  {isOrganizationOwner ? (
+                    <Button
+                      onClick={manageClicked}
+                      disabled={portalLoading}
+                      className="min-w-40 px-8 py-6 text-base"
+                      size="lg"
+                    >
+                      {portalLoading ? 'Loading...' : 'Set Up Billing →'}
+                    </Button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Only the organization owner can set up billing. Ask your
+                      organization owner, or deploy a free demo template below.
+                    </p>
+                  )}
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    Not ready yet?
-                  </span>
-                </div>
-              </div>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        Not ready yet?
+                      </span>
+                    </div>
+                  </div>
 
-              <Link
-                to={appRoutes.tenantManagedWorkersTemplateRoute.to}
-                params={{ tenant: tenantId }}
-                className="w-full"
-              >
-                <Button
-                  variant="outline"
-                  className="w-full min-w-40 px-8 py-6 text-base"
-                  size="lg"
-                >
-                  Deploy a Demo Template for Free
-                </Button>
-              </Link>
+                  <Link
+                    to={appRoutes.tenantManagedWorkersTemplateRoute.to}
+                    params={{ tenant: tenantId }}
+                    className="w-full"
+                  >
+                    <Button
+                      variant="outline"
+                      className="w-full min-w-40 px-8 py-6 text-base"
+                      size="lg"
+                    >
+                      Deploy a Demo Template for Free
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  You must be an owner, admin, or member of this tenant to set
+                  up Managed Compute. Contact a tenant admin if you need access.
+                </p>
+              )}
 
               <div className="relative mt-4">
                 <div className="absolute inset-0 flex items-center">
