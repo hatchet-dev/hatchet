@@ -166,10 +166,13 @@ export function TransferTenantModal({
               ) : previewQuery.data && previewQuery.data.rows.length > 0 ? (
                 <>
                   <p className="mb-2">
-                    {previewQuery.data.rows.length} users
-                    {previewQuery.data.rows.length !== 1 ? 's' : ''} currently
-                    have access to <strong>{tenantName}</strong> and will be
-                    added to <strong>{selectedOrgName}</strong> as members:
+                    {previewQuery.data.rows.length} user
+                    {previewQuery.data.rows.length !== 1
+                      ? 's'
+                      : ''} currently{' '}
+                    {previewQuery.data.rows.length !== 1 ? 'have' : 'has'}{' '}
+                    access to <strong>{tenantName}</strong> and will be added to{' '}
+                    <strong>{selectedOrgName}</strong> as members:
                   </p>
                   <ul className="list-inside list-disc space-y-0.5">
                     {previewQuery.data.rows.map((member) => (

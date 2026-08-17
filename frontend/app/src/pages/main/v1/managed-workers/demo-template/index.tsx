@@ -1,4 +1,5 @@
 import { ManagedWorkersGate } from '../components/managed-workers-gate';
+import { RequireManagedComputeWriteAccess } from '../components/require-write-access';
 import { Button } from '@/components/v1/ui/button';
 import { Card } from '@/components/v1/ui/card';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -940,7 +941,9 @@ func main() {
 export default function DemoTemplate() {
   return (
     <ManagedWorkersGate>
-      <DemoTemplateImpl />
+      <RequireManagedComputeWriteAccess>
+        <DemoTemplateImpl />
+      </RequireManagedComputeWriteAccess>
     </ManagedWorkersGate>
   );
 }
