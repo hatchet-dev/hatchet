@@ -234,6 +234,7 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 					condition.OrGroupId,
 					condition.ReadableDataKey,
 					*condition.UserEventKey,
+					condition.UserEventScope,
 					condition.Expression,
 					sqlcv1.V1MatchConditionActionCREATE,
 				))
@@ -1467,6 +1468,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						condition.OrGroupID,
 						condition.ReadableDataKey,
 						condition.EventKey.String,
+						nil,
 						condition.Expression.String,
 						condition.Action,
 					))
@@ -1520,14 +1522,15 @@ func (m *sharedRepository) durableSleepCondition(ctx context.Context, tx sqlcv1.
 	}, nil
 }
 
-func (m *sharedRepository) userEventCondition(orGroupId uuid.UUID, readableDataKey, eventKey, expression string, action sqlcv1.V1MatchConditionAction) GroupMatchCondition {
+func (m *sharedRepository) userEventCondition(orGroupId uuid.UUID, readableDataKey, eventKey string, resourceHint *string, expression string, action sqlcv1.V1MatchConditionAction) GroupMatchCondition {
 	return GroupMatchCondition{
-		GroupId:         orGroupId,
-		EventType:       sqlcv1.V1EventTypeUSER,
-		EventKey:        eventKey,
-		ReadableDataKey: readableDataKey,
-		Expression:      expression,
-		Action:          action,
+		GroupId:           orGroupId,
+		EventType:         sqlcv1.V1EventTypeUSER,
+		EventKey:          eventKey,
+		EventResourceHint: resourceHint,
+		ReadableDataKey:   readableDataKey,
+		Expression:        expression,
+		Action:            action,
 	}
 }
 

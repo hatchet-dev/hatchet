@@ -1081,6 +1081,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 								condition.OrGroupID,
 								condition.ReadableDataKey,
 								condition.EventKey.String,
+								nil,
 								condition.Expression.String,
 								condition.Action,
 							))

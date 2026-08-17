@@ -97,13 +97,14 @@ type IngestTriggerRunsResult struct {
 }
 
 type IngestWaitForResult struct {
-	ResultPayload   []byte
-	SatisfiedOrder  *int64
-	NodeId          int64
-	BranchId        int64
-	InvocationCount int32
-	IsSatisfied     bool
-	AlreadyExisted  bool
+	DurableTaskExternalId uuid.UUID
+	ResultPayload         []byte
+	SatisfiedOrder        *int64
+	NodeId                int64
+	BranchId              int64
+	InvocationCount       int32
+	IsSatisfied           bool
+	AlreadyExisted        bool
 }
 
 type IngestDurableTaskEventResult struct {
@@ -1504,13 +1505,14 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		waitForResult = &IngestWaitForResult{
-			InvocationCount: opts.InvocationCount,
-			IsSatisfied:     le.Entry.IsSatisfied,
-			NodeId:          le.Entry.NodeID,
-			BranchId:        le.Entry.BranchID,
-			AlreadyExisted:  le.AlreadyExisted,
-			ResultPayload:   le.ResultPayload,
-			SatisfiedOrder:  satisfiedOrderPtr(le.Entry.SatisfiedOrder),
+			DurableTaskExternalId: task.ExternalID,
+			InvocationCount:       opts.InvocationCount,
+			IsSatisfied:           le.Entry.IsSatisfied,
+			NodeId:                le.Entry.NodeID,
+			BranchId:              le.Entry.BranchID,
+			AlreadyExisted:        le.AlreadyExisted,
+			ResultPayload:         le.ResultPayload,
+			SatisfiedOrder:        satisfiedOrderPtr(le.Entry.SatisfiedOrder),
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
@@ -1645,10 +1647,16 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			payload = nil
 		}
 
+		var resourceHint *string
+		if row.Scope.Valid {
+			resourceHint = &row.Scope.String
+		}
+
 		retroCandidates = append(retroCandidates, CandidateEventMatch{
 			ID:             row.ExternalID,
 			EventTimestamp: row.SeenAt.Time,
 			Key:            row.Key,
+			ResourceHint:   resourceHint,
 			Data:           payload,
 		})
 	}
@@ -1661,22 +1669,32 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		}
 
 		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
-			// note: this might be buggy but I _think_ it's okay to grab the first match here
-			// the main assumption is that we only ever get one entry back
-			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+			var entry *SatisfiedEntry
+			for i := range retroMatchResults.SatisfiedDurableEventLogEntries {
+				candidate := &retroMatchResults.SatisfiedDurableEventLogEntries[i]
+				if candidate.DurableTaskExternalId == initialWaitForResult.DurableTaskExternalId && candidate.NodeId == initialWaitForResult.NodeId && candidate.BranchId == initialWaitForResult.BranchId {
+					entry = candidate
+					break
+				}
+			}
+
+			if entry == nil {
+				return initialWaitForResult, nil
+			}
 
 			if err := lookbackOptTx.Commit(ctx); err != nil {
 				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
 			}
 
 			return &IngestWaitForResult{
-				IsSatisfied:     true,
-				ResultPayload:   entry.Data,
-				InvocationCount: entry.InvocationCount,
-				NodeId:          initialWaitForResult.NodeId,
-				BranchId:        initialWaitForResult.BranchId,
-				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
-				SatisfiedOrder:  entry.SatisfiedOrder,
+				DurableTaskExternalId: initialWaitForResult.DurableTaskExternalId,
+				IsSatisfied:           true,
+				ResultPayload:         entry.Data,
+				InvocationCount:       entry.InvocationCount,
+				NodeId:                initialWaitForResult.NodeId,
+				BranchId:              initialWaitForResult.BranchId,
+				AlreadyExisted:        initialWaitForResult.AlreadyExisted,
+				SatisfiedOrder:        entry.SatisfiedOrder,
 			}, nil
 		}
 	}
