@@ -1,5 +1,5 @@
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from '@/lib/referral';
-import { consumeUtmParams } from '@/lib/utm';
+import { clearUtmParams, readUtmParams } from '@/lib/utm';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
@@ -61,7 +61,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
 
     posthog.init(config.apiKey, {
       api_host: config.apiHost || 'https://us.i.posthog.com',
+      cookieless_mode: 'on_reject',
+      opt_out_capturing_by_default: true,
       person_profiles: 'identified_only',
+      capture_pageview: false,
       capture_pageleave: true,
       session_recording: {
         maskAllInputs: true,
@@ -71,7 +74,7 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
       cross_subdomain_cookie: true,
     });
 
-    const utms = consumeUtmParams();
+    const utms = readUtmParams();
     if (utms) {
       posthog.register(utms);
     }
@@ -79,15 +82,35 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
     setInitialized(true);
   }, [config, tenant, initialized]);
 
-  // Handle user identification
   useEffect(() => {
-    if (!initialized || !user) {
+    if (!initialized || !tenant) {
+      return;
+    }
+
+    if (tenant.analyticsOptOut) {
+      if (posthog.get_explicit_consent_status() !== 'denied') {
+        posthog.set_config({ cookieless_mode: undefined });
+        posthog.opt_out_capturing();
+        posthog.stopSessionRecording?.();
+      }
+      return;
+    }
+
+    if (posthog.get_explicit_consent_status() !== 'granted') {
+      posthog.opt_in_capturing();
+    }
+
+    if (!user) {
       return;
     }
 
     const referralCode = sanitizeReferralCode(
       localStorage.getItem(REFERRAL_CODE_KEY),
     );
+    const utms = readUtmParams();
+    if (utms) {
+      posthog.register(utms);
+    }
 
     posthog.identify(`$user_${user.metadata.id}`, {
       email: user.email,
@@ -98,21 +121,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
     if (referralCode) {
       localStorage.removeItem(REFERRAL_CODE_KEY);
     }
-  }, [user, initialized]);
-
-  // Handle opt-out changes
-  useEffect(() => {
-    if (!initialized) {
-      return;
+    if (utms) {
+      clearUtmParams();
     }
-
-    if (tenant?.analyticsOptOut) {
-      posthog.opt_out_capturing();
-      posthog.stopSessionRecording?.();
-    } else {
-      posthog.opt_in_capturing();
-    }
-  }, [tenant?.analyticsOptOut, initialized]);
+  }, [user, tenant, initialized]);
 
   const contextValue: PostHogContextValue = {
     isReady: initialized,

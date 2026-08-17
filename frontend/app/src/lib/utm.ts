@@ -25,12 +25,11 @@ export function captureUtmParams(search: string) {
   }
 }
 
-export function consumeUtmParams(): Record<string, string> | null {
+export function readUtmParams(): Record<string, string> | null {
   const raw = localStorage.getItem(UTM_PARAMS_KEY);
   if (!raw) {
     return null;
   }
-  localStorage.removeItem(UTM_PARAMS_KEY);
   try {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) {
@@ -47,4 +46,8 @@ export function consumeUtmParams(): Record<string, string> | null {
   } catch {
     return null;
   }
+}
+
+export function clearUtmParams() {
+  localStorage.removeItem(UTM_PARAMS_KEY);
 }
