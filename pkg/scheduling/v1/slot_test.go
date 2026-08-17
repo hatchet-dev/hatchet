@@ -195,7 +195,7 @@ func TestRankWorkerIds(t *testing.T) {
 
 			var ranked []uuid.UUID
 			onLoop(t, s, func() {
-				ranked = s.rankWorkerIds(tt.qi, tt.labels, tt.candidates)
+				ranked, _ = s.rankWorkerIds(tt.qi, tt.labels, tt.candidates)
 			})
 
 			assert.Equal(t, tt.expected, ranked)

@@ -14,7 +14,8 @@ type action struct {
 	workerIds []uuid.UUID
 
 	// ringOffset rotates the starting worker between assignments so load spreads
-	// across the action's workers.
+	// across the action's workers. Sticky and label ranking keep higher scores
+	// first; the offset only rotates within the highest-rank tied group.
 	ringOffset int
 }
 
