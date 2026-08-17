@@ -1,8 +1,7 @@
 on:
-  workflow_run:
-    workflows: ["Create prerelease w/ binaries and static assets"]
+  release:
     types:
-      - completed
+      - released
   workflow_dispatch:
     inputs:
       tag:
@@ -12,7 +11,6 @@ name: Release
 jobs:
   verify:
       runs-on: ubuntu-latest
-      if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
       outputs:
         tag: ${{ steps.tag_name.outputs.tag }}
         should_publish: ${{ steps.skip.outputs.should_publish }}
@@ -22,7 +20,7 @@ jobs:
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
             else
-              echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+              echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
             fi
 
         - id: skip
