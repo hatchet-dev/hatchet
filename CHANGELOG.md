@@ -1,16 +1,17 @@
-## [0.101.18] - 2026-08-12
+## [0.101.24] - 2026-08-17
 
-Hatchet v0.101.18 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
+Hatchet v0.101.24 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
 
 ### Highlights
 
-- [Launching Idempotency Keys and Batch Tasks](https://hatchet.run/announcement/idempotency-keys-and-batch-tasks). Batch tasks aggregate multiple tasks and spawn them as a single batch, reducing API calls and downstream resource usage. See documentation on [Idempotency](https://docs.hatchet.run/v1/idempotency) and [Batch Tasks](https://docs.hatchet.run/v1/batch-tasks).
+- [Launching Idempotency Keys and Batch Tasks](https://hatchet.run/announcement/idempotency-keys-and-batch-tasks?utm_source=changelog&utm_campaign=v0.101.24). Batch tasks aggregate multiple tasks and spawn them as a single batch, reducing API calls and downstream resource usage. See documentation on [Idempotency](https://docs.hatchet.run/v1/idempotency?utm_source=changelog&utm_campaign=v0.101.24) and [Batch Tasks](https://docs.hatchet.run/v1/batch-tasks?utm_source=changelog&utm_campaign=v0.101.24).
 - The dashboard can be served from a subpath rather than the domain root, via `BASE_PATH` on the static file server or `LITE_FRONTEND_BASE_PATH` on `hatchet-lite`.
 - Durable task performance improvements, order guarantees on durable satisfied callbacks, and result subscriptions in the Go SDK are now preserved across a reconnect.
 - `hatchet_tenant_queued_to_assigned` and `hatchet_tenant_queued_to_assigned_time_seconds` are now also exported broken down by workflow name, and `hatchet_tenant_queue_size` carries a `workflow_name` label.
 - A new `hatchet_tenant_additional_metadata_queue_size` gauge reports queue depth per additional metadata key-value pair. Only keys prefixed with `prom_` are exported, so opting a key in is explicit and cardinality stays bounded. An item counts towards every metadata key it carries, so series should not be summed across keys.
 - Per-tenant operation timers are now jittered across their full interval on startup, and persisted intervals are loaded lazily. This avoids query storms when controllers restart on deployments with many tenants. The idempotency lookup is also skipped when a task carries no keys.
 - `/api/v1/stable/tasks/{task}/task-events` endpoint no longer ignores its limit and offset parameters.
+- Tasks with equal worker label affinity are now round-robined across the tied workers instead of packing onto one worker until its slots fill.
 - The Go SDK warns when a child workflow result is still pending after its parent task context is cancelled.
 - Dashboard: onboarding use case selection, wider labels in the trace view, and a restored domain redirect modal.
 
