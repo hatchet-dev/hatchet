@@ -207,6 +207,15 @@ SELECT
 FROM
     tasks_from_dags;
 
+-- name: GetTaskByExternalId :one
+SELECT t.*
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = @externalId::uuid
+    AND l.tenant_id = @tenantId::uuid
+;
+
 -- name: GetTaskForActionEvent :one
 -- Narrow lookup for the dispatcher's step action event path, which is the hottest path in
 -- the engine and needs only identifiers plus retry_count / is_durable. The external id on

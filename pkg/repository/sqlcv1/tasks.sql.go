@@ -897,6 +897,71 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 	return items, nil
 }
 
+const getTaskByExternalId = `-- name: GetTaskByExternalId :one
+SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = $1::uuid
+    AND l.tenant_id = $2::uuid
+`
+
+type GetTaskByExternalIdParams struct {
+	Externalid uuid.UUID `json:"externalid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*V1Task, error) {
+	row := db.QueryRow(ctx, getTaskByExternalId, arg.Externalid, arg.Tenantid)
+	var i V1Task
+	err := row.Scan(
+		&i.ID,
+		&i.InsertedAt,
+		&i.TenantID,
+		&i.Queue,
+		&i.ActionID,
+		&i.StepID,
+		&i.StepReadableID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
+		&i.ScheduleTimeout,
+		&i.StepTimeout,
+		&i.Priority,
+		&i.Sticky,
+		&i.DesiredWorkerID,
+		&i.ExternalID,
+		&i.DisplayName,
+		&i.Input,
+		&i.RetryCount,
+		&i.InternalRetryCount,
+		&i.AppRetryCount,
+		&i.StepIndex,
+		&i.AdditionalMetadata,
+		&i.DagID,
+		&i.DagInsertedAt,
+		&i.ParentTaskExternalID,
+		&i.ParentTaskID,
+		&i.ParentTaskInsertedAt,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.InitialState,
+		&i.InitialStateReason,
+		&i.ConcurrencyParentStrategyIds,
+		&i.ConcurrencyStrategyIds,
+		&i.ConcurrencyKeys,
+		&i.BatchKey,
+		&i.RetryBackoffFactor,
+		&i.RetryMaxBackoff,
+		&i.IsDurable,
+		&i.DesiredWorkerLabel,
+		&i.TriggeringEventExternalID,
+		&i.TriggeringEventKey,
+		&i.IdempotencyKey,
+	)
+	return &i, err
+}
+
 const getTaskForActionEvent = `-- name: GetTaskForActionEvent :one
 SELECT
     t.id,

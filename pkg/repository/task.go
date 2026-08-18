@@ -525,7 +525,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
 	defer span.End()
 
@@ -545,34 +544,42 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	span.SetAttributes(attribute.Bool("cache_hit", false))
 
 	// lookup the task
-	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
-		Tenantid:    tenantId,
-		Externalids: []uuid.UUID{taskExternalId},
+	res, err := r.queries.GetTaskByExternalId(ctx, r.pool, sqlcv1.GetTaskByExternalIdParams{
+		Tenantid:   tenantId,
+		Externalid: taskExternalId,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(dbTasks) == 0 {
-		return nil, pgx.ErrNoRows
-	}
-
-	if len(dbTasks) > 1 {
-		return nil, fmt.Errorf("found more than one task for %s", taskExternalId)
-	}
-
-	// set the cache
-	res := dbTasks[0]
-
 	key := taskExternalIdTenantIdTuple{
 		externalId: taskExternalId,
 		tenantId:   tenantId,
 	}
 
-	r.taskLookupCache.Add(key, res)
+	row := sqlcv1.FlattenExternalIdsRow{
+		ID:                    res.ID,
+		InsertedAt:            res.InsertedAt,
+		RetryCount:            res.RetryCount,
+		ExternalID:            res.ExternalID,
+		WorkflowRunID:         res.WorkflowRunID,
+		AdditionalMetadata:    res.AdditionalMetadata,
+		DagID:                 res.DagID,
+		DagInsertedAt:         res.DagInsertedAt,
+		ParentTaskID:          res.ParentTaskID,
+		ChildIndex:            res.ChildIndex,
+		ChildKey:              res.ChildKey,
+		StepReadableID:        res.StepReadableID,
+		WorkflowRunExternalID: res.WorkflowRunID,
+		WorkflowID:            res.WorkflowID,
+		StepID:                res.StepID,
+		IsDurable:             res.IsDurable,
+	}
 
-	return res, nil
+	r.taskLookupCache.Add(key, &row)
+
+	return &row, nil
 }
 
 func (r *sharedRepository) GetTaskForActionEvent(ctx context.Context, tenantId, taskExternalId uuid.UUID) (*sqlcv1.GetTaskForActionEventRow, error) {
