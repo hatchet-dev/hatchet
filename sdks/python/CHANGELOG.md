@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Correctly passes TLS config through to the API client
+- Passes the configured TLS server name (SNI) through to the REST client
 
 ## [1.37.2] - 2026-08-12
 

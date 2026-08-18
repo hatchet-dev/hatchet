@@ -38,6 +38,7 @@ class BaseRestClient:
             access_token=config.token,
             ssl_ca_cert=config.tls_config.root_ca_file,
         )
+        self.api_config.tls_server_name = config.tls_config.server_name
 
         if config.tls_config.strategy == "none":
             self.api_config.verify_ssl = False
