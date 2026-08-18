@@ -2178,7 +2178,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
         )
-        return await asyncio.to_thread(self._extract_result, res)
+        # Deliberately not asyncio.to_thread: _extract_result is pure, GIL-bound
+        # pydantic validation, so a thread buys no concurrency, and the suspension
+        # point reorders durable branches. A durable task resumes its branches in
+        # satisfaction order, and each branch must reach its next durable call in
+        # that order for node ids to be reassigned to the same branches on a replay.
+        # Handing off to a thread pool here lets branches resume in whatever order
+        # the pool finishes, which surfaces later as a NonDeterminismError.
+        return self._extract_result(res)
 
     def run_no_wait(
         self,

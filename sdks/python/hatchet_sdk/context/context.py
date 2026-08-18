@@ -1041,7 +1041,18 @@ class DurableContext(Context):
 
         await self._ensure_stream_started()
 
+        print(  # noqa: T201
+            f"[DUR] spawn-queue inv={self.invocation_count} "
+            f"inputs={[c.input for c in configs]}",
+            flush=True,
+        )
+
         async with self._send_event_lock:
+            print(  # noqa: T201
+                f"[DUR] spawn-lock inv={self.invocation_count} "
+                f"inputs={[c.input for c in configs]}",
+                flush=True,
+            )
             ack = await listener.send_event(
                 durable_task_external_id=self.step_run_id,
                 invocation_count=self.invocation_count,
@@ -1059,6 +1070,13 @@ class DurableContext(Context):
 
         if not isinstance(ack, DurableTaskEventRunAck):
             raise TypeError(f"Expected run ack, got {type(ack).__name__}")
+
+        print(  # noqa: T201
+            f"[DUR] spawn-assigned inv={self.invocation_count} "
+            f"nodes={[e.node_id for e in ack.run_entries]} "
+            f"inputs={[c.input for c in configs]}",
+            flush=True,
+        )
 
         return [
             DurableSpawnResult(
