@@ -1513,7 +1513,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 				DurableTaskExternalId: t.Task.ExternalID,
 			}
 
-			if _, ok := claimedSet[k]; !ok {
+			if _, ok := claimedSet[k.claim()]; !ok {
 				continue
 			}
 
@@ -1722,19 +1722,31 @@ type DurableTaskEventLogEntryKey struct {
 	BranchID              int64
 }
 
-func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx context.Context, tx sqlcv1.DBTX, nodesToClaim []DurableTaskEventLogEntryKey) (map[DurableTaskEventLogEntryKey]struct{}, error) {
+type durableEventLogEntryClaim struct {
+	DurableTaskID int64
+	NodeID        int64
+	BranchID      int64
+}
+
+func (k DurableTaskEventLogEntryKey) claim() durableEventLogEntryClaim {
+	return durableEventLogEntryClaim{
+		DurableTaskID: k.DurableTaskID,
+		NodeID:        k.NodeID,
+		BranchID:      k.BranchID,
+	}
+}
+
+func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx context.Context, tx sqlcv1.DBTX, nodesToClaim []DurableTaskEventLogEntryKey) (map[durableEventLogEntryClaim]struct{}, error) {
 	nodeIds := make([]int64, len(nodesToClaim))
 	branchIds := make([]int64, len(nodesToClaim))
 	durableTaskIds := make([]int64, len(nodesToClaim))
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, len(nodesToClaim))
-	taskIdToExternalId := make(map[int64]uuid.UUID)
 
 	for i, k := range nodesToClaim {
 		nodeIds[i] = k.NodeID
 		branchIds[i] = k.BranchID
 		durableTaskIds[i] = k.DurableTaskID
 		durableTaskInsertedAts[i] = k.DurableTaskInsertedAt
-		taskIdToExternalId[k.DurableTaskID] = k.DurableTaskExternalId
 	}
 
 	claimed, err := r.queries.ClaimDurableEventLogEntriesForTrigger(ctx, tx, sqlcv1.ClaimDurableEventLogEntriesForTriggerParams{
@@ -1748,21 +1760,13 @@ func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx cont
 		return nil, err
 	}
 
-	claimedSet := make(map[DurableTaskEventLogEntryKey]struct{}, len(claimed))
+	claimedSet := make(map[durableEventLogEntryClaim]struct{}, len(claimed))
 
 	for _, c := range claimed {
-		externalId, ok := taskIdToExternalId[c.DurableTaskID]
-
-		if !ok {
-			return nil, fmt.Errorf("claimed durable event log entry for task id %d but could not find external id", c.DurableTaskID)
-		}
-
-		claimedSet[DurableTaskEventLogEntryKey{
-			NodeID:                c.NodeID,
-			BranchID:              c.BranchID,
-			DurableTaskID:         c.DurableTaskID,
-			DurableTaskInsertedAt: c.DurableTaskInsertedAt,
-			DurableTaskExternalId: externalId,
+		claimedSet[durableEventLogEntryClaim{
+			DurableTaskID: c.DurableTaskID,
+			NodeID:        c.NodeID,
+			BranchID:      c.BranchID,
 		}] = struct{}{}
 	}
 
