@@ -32,7 +32,6 @@ type OrganizationMemberDeleteRequest = Parameters<
 // compile against it.
 type OrganizationMemberUpdateRequest = {
   role: `${ControlPlaneOrganizationMemberRoleType}`;
-  canViewPayloads?: boolean;
 };
 type ManagementTokenCreateRequest = Parameters<
   typeof cloudApi.managementTokenCreate
@@ -49,10 +48,7 @@ type OrganizationInviteRejectRequest = Parameters<
 export type OrganizationInviteCreateRequest = Parameters<
   typeof cloudApi.organizationInviteCreate
 >[1] &
-  Pick<
-    ControlPlaneCreateOrganizationInviteRequest,
-    'tenants' | 'userGroupIds' | 'canViewPayloads'
-  >;
+  Pick<ControlPlaneCreateOrganizationInviteRequest, 'tenants' | 'userGroupIds'>;
 type OrganizationTenantMembersAddRequest = Parameters<
   typeof cloudApi.organizationTenantMembersAdd
 >[2] & { canViewPayloads?: boolean };

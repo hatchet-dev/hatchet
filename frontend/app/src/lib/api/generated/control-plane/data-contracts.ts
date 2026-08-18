@@ -238,8 +238,6 @@ export interface OrganizationMember {
    * @format email
    */
   email: string;
-  /** Whether this org member's ORG_OWNER_BYPASS tenant rows can view payloads. OWNER tenant roles always see payloads regardless of this flag. Defaults to true. */
-  canViewPayloads?: boolean;
 }
 
 export interface OrganizationMemberList {
@@ -258,8 +256,6 @@ export interface RemoveOrganizationMembersRequest {
 export interface UpdateOrganizationMemberRequest {
   /** The new role for the member in the organization */
   role: OrganizationMemberRoleType;
-  /** Whether this org member's ORG_OWNER_BYPASS tenant rows can view payloads. Defaults to unchanged. */
-  canViewPayloads?: boolean;
 }
 
 export interface OrganizationTenant {
@@ -379,8 +375,6 @@ export interface OrganizationInvite {
   status: OrganizationInviteStatus;
   /** The role of the invitee */
   role: OrganizationMemberRoleType;
-  /** Whether the invitee can view payloads on tenant rows created from this invite's org-owner bypass. Defaults to true. */
-  canViewPayloads?: boolean;
   /**
    * Tenants the invitee will join on accept, as manually-added members.
    * Omitted/empty when the invite carries no tenant grants. Tenants deleted
@@ -427,8 +421,6 @@ export interface CreateOrganizationInviteRequest {
   inviteeEmail: string;
   /** The role of the invitee */
   role: OrganizationMemberRoleType;
-  /** Whether the invitee can view payloads on tenant rows created from this invite. Defaults to true. */
-  canViewPayloads?: boolean;
   /**
    * Tenants the invitee is added to when the invite is accepted, as
    * manually-added members, each with its own role. Each tenant must belong
