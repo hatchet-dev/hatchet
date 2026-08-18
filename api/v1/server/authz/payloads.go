@@ -10,6 +10,7 @@ import (
 // API tokens (no tenant-member in context) are unrestricted. OWNER and ADMIN always can.
 func CanViewPayloads(c echo.Context) bool {
 	member, ok := c.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
+	// NOTE: this is the api token case, not the user case
 	if !ok || member == nil {
 		return true
 	}
