@@ -304,16 +304,32 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+), to_claim AS (
+    SELECT
+        e.durable_task_id,
+        e.durable_task_inserted_at,
+        e.branch_id,
+        e.node_id
+    FROM
+        v1_durable_event_log_entry e
+    JOIN
+        inputs i ON e.durable_task_id = i.durable_task_id
+            AND e.durable_task_inserted_at = i.durable_task_inserted_at
+            AND e.node_id = i.node_id
+            AND e.branch_id = i.branch_id
+    WHERE
+        e.triggered_at IS NULL
+    ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
+    FOR UPDATE
 )
 
 UPDATE v1_durable_event_log_entry e
 SET triggered_at = NOW()
-FROM inputs i
-WHERE e.durable_task_id = i.durable_task_id
-  AND e.durable_task_inserted_at = i.durable_task_inserted_at
-  AND e.node_id = i.node_id
-  AND e.branch_id = i.branch_id
-  AND e.triggered_at IS NULL
+FROM to_claim c
+WHERE e.durable_task_id = c.durable_task_id
+  AND e.durable_task_inserted_at = c.durable_task_inserted_at
+  AND e.branch_id = c.branch_id
+  AND e.node_id = c.node_id
 RETURNING e.*
 ;
 
