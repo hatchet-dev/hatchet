@@ -183,3 +183,8 @@ style = "sphinx"
 exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"
 arg-type-hints-in-docstring = false
 check-return-types = false
+
+[dependency-groups]
+test = [
+    "pytest-timeout (>=2.4.0,<3.0.0)"
+]
