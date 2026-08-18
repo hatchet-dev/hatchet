@@ -1,6 +1,7 @@
 import { useFilters } from '../filters/hooks/use-filters';
 import { RunsEmptyGraphic } from '../workflow-runs-v1/components/runs-empty-graphic';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
+import { RequestTimeoutCloudCTAEmptyState } from '../workflow-runs-v1/components/runs-timeout-empty-state';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import {
   columns,
@@ -60,6 +61,7 @@ function EventsTable() {
     isLoading,
     refetch,
     error,
+    fetchTimedOut,
     pagination,
     setPagination,
     setPageSize,
@@ -166,7 +168,9 @@ function EventsTable() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          hasActiveFilters ? (
+          fetchTimedOut ? (
+            <RequestTimeoutCloudCTAEmptyState utmCampaign="events" />
+          ) : hasActiveFilters ? (
             <EmptyState
               graphic={<RunsEmptyGraphic />}
               title="No events matching your filters"

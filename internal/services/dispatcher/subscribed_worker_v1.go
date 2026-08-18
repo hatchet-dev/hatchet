@@ -12,11 +12,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
+
+var errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
@@ -131,10 +135,9 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 	encodeSpan.End()
 
 	if !worker.sendLock.Acquire() {
-		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
-		span.RecordError(err)
+		span.RecordError(errFlowControlActive)
 		span.SetStatus(codes.Error, "flow control is active")
-		return err
+		return errFlowControlActive
 	}
 
 	lockBegin := time.Now()
@@ -185,6 +188,7 @@ func (worker *subscribedWorker) CancelTask(
 	tenantId uuid.UUID,
 	task *sqlcv1.V1Task,
 	retryCount int32,
+	durableTaskInvocationCount *int32,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before cancelling task: %w", ctx.Err())
@@ -193,7 +197,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, nil, retryCount, nil)
+	action := populateAssignedAction(tenantId, task, nil, retryCount, durableTaskInvocationCount)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -207,57 +211,29 @@ func (worker *subscribedWorker) CancelTask(
 			return nil
 		}
 
-		return fmt.Errorf("could not send start action to worker: %w", err)
+		if errors.Is(err, errFlowControlActive) {
+			msg, merr := tasktypesv1.MonitoringEventMessageFromInternal(
+				task.TenantID,
+				tasktypesv1.CreateMonitoringEventPayload{
+					TaskId:         task.ID,
+					RetryCount:     task.RetryCount,
+					WorkerId:       &worker.workerId,
+					EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+					EventTimestamp: time.Now().UTC(),
+					EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s", worker.sendLock.Timeout),
+				},
+			)
+			if merr != nil {
+				return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, merr)
+			}
+
+			return worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		}
+
+		return fmt.Errorf("could not send cancel action to worker: %w", err)
 	}
 
 	return nil
-
-	// TODO: verify correctness here?
-
-	// sentCh := make(chan error, 1)
-	// acquiredLock := worker.sendLock.Acquire()
-	// if !acquiredLock {
-	// 	msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-	// 		task.TenantID,
-	// 		tasktypesv1.CreateMonitoringEventPayload{
-	// 			TaskId:         task.ID,
-	// 			RetryCount:     task.RetryCount,
-	// 			WorkerId:       &worker.workerId,
-	// 			EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
-	// 			EventTimestamp: time.Now().UTC(),
-	// 			EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
-	// 		},
-	// 	)
-	// 	if err != nil {
-	// 		return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err)
-	// 	}
-
-	// 	err = worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-	// 	if err != nil {
-	// 		return fmt.Errorf("could not publish monitoring event for task %d: %w", task.ID, err)
-	// 	}
-
-	// 	return nil
-	// }
-
-	// go func() {
-	// 	defer close(sentCh)
-	// 	defer worker.sendLock.Release()
-
-	// 	sentCh <- worker.stream.Send(action)
-	// }()
-
-	// select {
-	// case <-ctx.Done():
-	// 	return fmt.Errorf("context done before send could complete: %w", ctx.Err())
-	// case err := <-sentCh:
-	// 	if err != nil {
-	// 		span.RecordError(err)
-	// 		return fmt.Errorf("could not send cancel action to worker: %w", err)
-	// 	}
-	// }
-
-	// return nil
 }
 
 func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, runtime *sqlcv1.V1TaskRuntime, retryCount int32, invocationCount *int32) *contracts.AssignedAction {

@@ -440,8 +440,31 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	return workflowVersion[0], nil
 }
 
+// mergeWorkflowConcurrencyOntoSingleTask moves workflow-level concurrency onto the
+// sole DEFAULT task when the workflow is a single-task DAG (one task, no on-failure).
+// Workflow concurrency creates a parent strategy that forces the DAG concurrency path;
+// a one-task workflow is a standalone task, so those strategies belong on the task
+// (workflow strategies first, then any existing task strategies).
+func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
+	if opts == nil || len(opts.Concurrency) == 0 {
+		return
+	}
+
+	if len(opts.Tasks) != 1 || opts.OnFailure != nil {
+		return
+	}
+
+	merged := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency)+len(opts.Tasks[0].Concurrency))
+	merged = append(merged, opts.Concurrency...)
+	merged = append(merged, opts.Tasks[0].Concurrency...)
+	opts.Tasks[0].Concurrency = merged
+	opts.Concurrency = nil
+}
+
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
+
+	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
 	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
 

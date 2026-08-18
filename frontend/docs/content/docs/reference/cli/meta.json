@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "---Get started---",
+    "index",
+    "profiles",
+    "---Local Development---",
+    "running-hatchet-locally",
+    "quickstarts",
+    "running-workers-locally",
+    "triggering-workflows",
+    "---TUI---",
+    "tui"
+  ],
+  "title": "CLI Reference"
+}

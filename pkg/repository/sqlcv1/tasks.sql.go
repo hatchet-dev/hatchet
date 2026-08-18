@@ -1240,7 +1240,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
 FROM
     v1_task_event e
 JOIN
@@ -1285,6 +1285,7 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 			&i.CreatedAt,
 			&i.Data,
 			&i.ExternalID,
+			&i.ChildExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -1310,7 +1311,7 @@ WITH input AS (
 )
 SELECT
     t.external_id as task_external_id,
-    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
 FROM
     v1_lookup_table l
 JOIN
@@ -1332,18 +1333,19 @@ type ListMatchingTaskEventsParams struct {
 }
 
 type ListMatchingTaskEventsRow struct {
-	TaskExternalID uuid.UUID          `json:"task_external_id"`
-	ID             int64              `json:"id"`
-	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	EventType      V1TaskEventType    `json:"event_type"`
-	EventKey       pgtype.Text        `json:"event_key"`
-	CreatedAt      pgtype.Timestamp   `json:"created_at"`
-	Data           []byte             `json:"data"`
-	ExternalID     uuid.UUID          `json:"external_id"`
+	TaskExternalID  uuid.UUID          `json:"task_external_id"`
+	ID              int64              `json:"id"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount      int32              `json:"retry_count"`
+	EventType       V1TaskEventType    `json:"event_type"`
+	EventKey        pgtype.Text        `json:"event_key"`
+	CreatedAt       pgtype.Timestamp   `json:"created_at"`
+	Data            []byte             `json:"data"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	ChildExternalID *uuid.UUID         `json:"child_external_id"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1370,6 +1372,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 			&i.CreatedAt,
 			&i.Data,
 			&i.ExternalID,
+			&i.ChildExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -2495,7 +2498,8 @@ WITH input AS (
 		e.task_id,
 		e.task_inserted_at,
         e.inserted_at,
-        e.external_id
+        e.external_id,
+        e.child_external_id
     FROM
         v1_task_event e
     JOIN
@@ -2511,7 +2515,8 @@ SELECT
     e.inserted_at,
 	e.event_key,
 	e.data,
-    e.external_id
+    e.external_id,
+    e.child_external_id
 FROM
 	events_to_lock e
 WHERE
@@ -2526,11 +2531,12 @@ type LockSignalCreatedEventsParams struct {
 }
 
 type LockSignalCreatedEventsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	EventKey   pgtype.Text        `json:"event_key"`
-	Data       []byte             `json:"data"`
-	ExternalID uuid.UUID          `json:"external_id"`
+	ID              int64              `json:"id"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	EventKey        pgtype.Text        `json:"event_key"`
+	Data            []byte             `json:"data"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	ChildExternalID *uuid.UUID         `json:"child_external_id"`
 }
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -2555,6 +2561,7 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 			&i.EventKey,
 			&i.Data,
 			&i.ExternalID,
+			&i.ChildExternalID,
 		); err != nil {
 			return nil, err
 		}

@@ -359,7 +359,9 @@ new_alerts AS (
             FROM "TenantResourceLimitAlert" AS trla
             WHERE trla."resourceLimitId" = arl."resourceLimitId"
             AND trla."alertType" = arl."alertType"::"TenantResourceLimitAlertType"
-            AND trla."createdAt" >= NOW() - arl."window"::INTERVAL
+            -- Gauge resources (WORKER / WORKER_SLOT) have a null window; default to
+            -- 24h so Exhausted/Alarm alerts cannot re-fire on every ticker poll.
+            AND trla."createdAt" >= NOW() - COALESCE(NULLIF(arl."window", '')::INTERVAL, INTERVAL '24 hours')
         ) AS "existingAlert"
     FROM
         alerting_resource_limits AS arl

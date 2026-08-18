@@ -1318,7 +1318,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
 		if isValidUnicode := v1.IsUnicodeValid([]byte(request.EventPayload)); !isValidUnicode {
-			request.EventPayload = fmt.Sprintf("invalid unicode in error message: %q", request.EventPayload)
+			request.EventPayload = "error message contains invalid null character \\u0000. you likely need to either escape the character or strip it out of the error. this generally is the result of an LLM producing this unicode sequence in its output."
 		}
 	}
 
@@ -1346,9 +1346,49 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, durableInvCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return s.handleTaskCancelledEvent(ctx, task, retryCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
+}
+
+// handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single
+// task by publishing the same MsgIDCancelTasks message the batch path
+// (handleBatchTaskCancelled) publishes, so the task cancellation state machine (owned by the
+// tasks controller) runs identically regardless of which RPC reported it.
+func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{
+			Tasks: []v1.TaskIdInsertedAtRetryCount{
+				{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					RetryCount: retryCount,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

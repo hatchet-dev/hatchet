@@ -43,32 +43,6 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
-func buildAdditionalMetadataContains(metadata map[string]interface{}, operator AdditionalMetadataOperator) (containsAny [][]byte, containsAll []byte, err error) {
-	if operator == AdditionalMetadataOperatorAnd {
-		containsAll, err = json.Marshal(metadata)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return nil, containsAll, nil
-	}
-
-	containsAny = make([][]byte, 0, len(metadata))
-
-	for key, value := range metadata {
-		pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
-
-		if marshalErr != nil {
-			return nil, nil, marshalErr
-		}
-
-		containsAny = append(containsAny, pairFilter)
-	}
-
-	return containsAny, nil, nil
-}
-
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -83,11 +57,6 @@ type ListTaskRunOpts struct {
 	FinishedBefore *time.Time
 
 	AdditionalMetadata map[string]interface{}
-
-	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
-	// which is backed by the GIN indexes on the OLAP tables. See
-	// AdditionalMetadataOperator for how multiple pairs are combined.
-	UseGinIndex bool
 
 	AdditionalMetadataOperator AdditionalMetadataOperator
 
@@ -114,11 +83,6 @@ type ListWorkflowRunOpts struct {
 	FinishedBefore *time.Time
 
 	AdditionalMetadata map[string]interface{}
-
-	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
-	// which is backed by the GIN indexes on the OLAP tables. See
-	// AdditionalMetadataOperator for how multiple pairs are combined.
-	UseGinIndex bool
 
 	AdditionalMetadataOperator AdditionalMetadataOperator
 
@@ -292,7 +256,7 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
-	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
+	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
@@ -921,16 +885,14 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
-		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
+		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
 
 		if marshalErr != nil {
 			return nil, 0, marshalErr
 		}
 
-		params.AdditionalMetadataContainsAny = containsAny
 		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAny = containsAny
 		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
 		for key, value := range opts.AdditionalMetadata {
@@ -1285,16 +1247,14 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
-		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
+		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
 
 		if marshalErr != nil {
 			return nil, 0, marshalErr
 		}
 
-		params.AdditionalMetadataContainsAny = containsAny
 		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAny = containsAny
 		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
 		for key, value := range opts.AdditionalMetadata {
@@ -1606,12 +1566,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 	return externalIds, nil
 }
 
-func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
-	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, sqlcv1.ListTaskEventsParams{
+func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit *int64, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error) {
+	args := sqlcv1.ListTaskEventsParams{
 		Tenantid:       tenantId,
 		Taskid:         taskId,
 		Taskinsertedat: taskInsertedAt,
-	})
+	}
+	if limit != nil {
+		args.Eventlimit = *limit
+	}
+	if offset != nil {
+		args.Eventoffset = *offset
+	}
+	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, args)
 
 	if err != nil {
 		return nil, err

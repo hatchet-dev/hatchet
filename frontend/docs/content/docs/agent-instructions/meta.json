@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "setup-cli",
+    "start-worker",
+    "trigger-and-watch",
+    "debug-run",
+    "replay-run"
+  ],
+  "title": "Agent Instructions",
+  "root": true
+}

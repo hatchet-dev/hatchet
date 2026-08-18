@@ -112,12 +112,14 @@ class ActionListener:
                 self.missed_heartbeats = self.missed_heartbeats + 1
                 self.last_heartbeat_succeeded = False
 
-                if (
-                    e.code() == grpc.StatusCode.UNAVAILABLE
-                    or e.code() == grpc.StatusCode.FAILED_PRECONDITION
-                ):
+                if e.code() in [
+                    grpc.StatusCode.UNAVAILABLE,
+                    grpc.StatusCode.FAILED_PRECONDITION,
+                    grpc.StatusCode.CANCELLED,
+                    grpc.StatusCode.DEADLINE_EXCEEDED,
+                ]:
                     # todo case on "recvmsg:Connection reset by peer" for updates?
-                    if self.missed_heartbeats >= 3:
+                    if self.missed_heartbeats >= 5:
                         # we don't reraise the error here, as we don't want to stop the heartbeat thread
                         logger.exception(
                             f"⛔️ failed heartbeat ({self.missed_heartbeats})"
@@ -285,8 +287,8 @@ class ActionListener:
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("deadline exceeded, retrying subscription")
                 else:
-                    # TODO retry
-                    logger.error("action listener error - reconnecting")
+                    # falls through to retry
+                    logger.debug("action listener error - reconnecting")
 
                     self.retries = self.retries + 1
 

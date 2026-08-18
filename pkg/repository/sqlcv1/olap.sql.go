@@ -1679,9 +1679,9 @@ WITH aggregated_events AS (
     MIN(id) AS first_id
   FROM v1_task_events_olap
   WHERE
-    tenant_id = $1::uuid
-    AND task_id = $2::bigint
-    AND task_inserted_at = $3::timestamptz
+    tenant_id = $3::uuid
+    AND task_id = $4::bigint
+    AND task_inserted_at = $5::timestamptz
   GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
 )
 SELECT
@@ -1712,9 +1712,12 @@ JOIN v1_task_events_olap t
   AND t.id = a.first_id
 JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
+LIMIT $2::bigint OFFSET $1::bigint
 `
 
 type ListTaskEventsParams struct {
+	Eventoffset    int64              `json:"eventoffset"`
+	Eventlimit     int64              `json:"eventlimit"`
 	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
@@ -1743,7 +1746,13 @@ type ListTaskEventsRow struct {
 }
 
 func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEventsParams) ([]*ListTaskEventsRow, error) {
-	rows, err := db.Query(ctx, listTaskEvents, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
+	rows, err := db.Query(ctx, listTaskEvents,
+		arg.Eventoffset,
+		arg.Eventlimit,
+		arg.Tenantid,
+		arg.Taskid,
+		arg.Taskinsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

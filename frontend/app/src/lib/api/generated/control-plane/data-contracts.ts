@@ -92,6 +92,13 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
+export enum OrganizationOnboardingSDK {
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+  GO = "GO",
+  RUBY = "RUBY",
+}
+
 export interface APIControlPlaneMetadata {
   /**
    * the inactivity timeout to log out for user sessions in milliseconds
@@ -200,6 +207,13 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+  /**
+   * What the user would like to build with Hatchet
+   * @maxLength 1000
+   */
+  whatToBuild?: string;
+  /** Which SDK the user is planning to use */
+  sdk?: OrganizationOnboardingSDK;
 }
 
 export interface UpdateOrganizationRequest {
@@ -432,6 +446,28 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export interface TransferTenantRequest {
+  /**
+   * The organization to transfer this tenant to. The caller must be an OWNER of this organization (in addition to being an OWNER of the tenant's current organization).
+   * @format uuid
+   */
+  destinationOrganizationId: string;
+}
+
+export interface TenantTransferMemberPreview {
+  /** @format uuid */
+  userId: string;
+  /** @format email */
+  email: string;
+  name?: string;
+  /** The user's current role on the tenant, which is preserved by the transfer */
+  tenantRole: TenantMemberRoleType;
+}
+
+export interface TenantTransferMemberPreviewList {
+  rows: TenantTransferMemberPreview[];
 }
 
 import type { TenantMemberRole } from '@/lib/api/generated/data-contracts';

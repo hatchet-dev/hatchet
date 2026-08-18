@@ -70,7 +70,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to create hatchet client: %w", err)
 	}
-
 	taskName := envOr("HATCHET_LOADTEST_WORKFLOW_NAME", eventkeys.WorkflowStandardName(0))
 	eventKey := envOr("HATCHET_LOADTEST_EVENT_KEY", eventkeys.EventKeyDefault.String())
 	batchTaskEventKey := envOr("HATCHET_LOADTEST_BATCH_EVENT_KEY", eventkeys.EventKeyBatch.String())
@@ -85,6 +84,20 @@ func run() error {
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
 	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
+	dagTaskName := envOr("HATCHET_LOADTEST_DAG_WORKFLOW_NAME", eventkeys.WorkflowDagName)
+	dagTaskEventKey := envOr("HATCHET_LOADTEST_DAG_EVENT_KEY", eventkeys.EventKeyDag.String())
+
+	dagWorkflow := client.NewWorkflow(dagTaskName, hatchet.WithWorkflowEvents(dagTaskEventKey))
+	step1 := dagWorkflow.NewTask(dagTaskName+"-step1", func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return LoadTestOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	})
+	_ = dagWorkflow.NewTask(dagTaskName+"-step2", func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return LoadTestOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	}, hatchet.WithParents(step1))
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
@@ -153,7 +166,7 @@ func run() error {
 
 	worker, err := client.NewWorker(
 		workerName,
-		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask),
+		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask, dagWorkflow),
 		hatchet.WithDurableSlots(durableSlots),
 	)
 	if err != nil {

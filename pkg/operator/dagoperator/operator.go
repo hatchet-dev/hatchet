@@ -213,7 +213,10 @@ func (d *DAGOperator) cancelRun(action *contracts.AssignedAction) error {
 		d.Logger().Warn().
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("dag operator received cancel for a run it has no record of; it may have already finished")
-		return nil
+
+		// No in-flight run() goroutine exists to report the terminal event via
+		// handleRunCancellation, so report it here instead.
+		return d.SendCancelled(action)
 	}
 
 	cancel()
@@ -449,7 +452,7 @@ func (d *DAGOperator) fail(action *contracts.AssignedAction, err error, shouldNo
 }
 
 func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) error {
-	if reportErr := d.SendCancelled(action, msg); reportErr != nil {
+	if reportErr := d.SendCancelledWithMessage(action, msg); reportErr != nil {
 		return fmt.Errorf("could not report task cancellation for task run id %s: %w", action.TaskRunExternalId, reportErr)
 	}
 

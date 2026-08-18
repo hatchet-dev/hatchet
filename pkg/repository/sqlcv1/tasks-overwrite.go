@@ -332,7 +332,8 @@ WITH locked_tasks AS (
 		UNNEST(CAST($5::TEXT[] as v1_task_event_type[])) AS event_type,
 		UNNEST($6::TEXT[]) AS event_key,
 		UNNEST($7::JSONB[]) AS data,
-		UNNEST($8::UUID[]) as external_id
+		UNNEST($8::UUID[]) as external_id,
+		UNNEST($9::UUID[]) as child_external_id
 )
 INSERT INTO v1_task_event (
     tenant_id,
@@ -342,7 +343,8 @@ INSERT INTO v1_task_event (
     event_type,
     event_key,
     data,
-	external_id
+	external_id,
+	child_external_id
 )
 SELECT
     $1::uuid,
@@ -352,7 +354,8 @@ SELECT
     i.event_type,
     i.event_key,
     i.data,
-	i.external_id
+	i.external_id,
+	NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
@@ -367,19 +370,21 @@ RETURNING
 	v1_task_event.event_key,
 	v1_task_event.created_at,
 	v1_task_event.data,
-	v1_task_event.external_id
+	v1_task_event.external_id,
+	v1_task_event.child_external_id
 ;
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Eventtypes      []string             `json:"eventtypes"`
-	Eventkeys       []pgtype.Text        `json:"eventkeys"`
-	Datas           [][]byte             `json:"datas"`
-	Externalids     []uuid.UUID          `json:"externalids"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Taskids          []int64              `json:"taskids"`
+	Taskinsertedats  []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts      []int32              `json:"retrycounts"`
+	Eventtypes       []string             `json:"eventtypes"`
+	Eventkeys        []pgtype.Text        `json:"eventkeys"`
+	Datas            [][]byte             `json:"datas"`
+	Externalids      []uuid.UUID          `json:"externalids"`
+	Childexternalids []uuid.UUID          `json:"childexternalids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -394,6 +399,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Eventkeys,
 		arg.Datas,
 		arg.Externalids,
+		arg.Childexternalids,
 	)
 
 	if err != nil {
@@ -417,6 +423,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 			&i.CreatedAt,
 			&i.Data,
 			&i.ExternalID,
+			&i.ChildExternalID,
 		); err != nil {
 			return nil, err
 		}
