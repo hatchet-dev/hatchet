@@ -41,9 +41,6 @@ class BaseRestClient:
 
         if config.tls_config.strategy == "none":
             self.api_config.verify_ssl = False
-        elif config.tls_config.strategy == "mtls":
-            self.api_config.cert_file = config.tls_config.cert_file
-            self.api_config.key_file = config.tls_config.key_file
 
         self.api_config.datetime_format = "%Y-%m-%dT%H:%M:%S.%fZ"
 
