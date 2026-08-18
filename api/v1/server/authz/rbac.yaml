@@ -64,6 +64,12 @@ roles:
       - WorkflowCronUpdate
       - WorkflowCronTrigger
       - WorkflowScheduledTrigger
+      - V1FilterUpdate
+      - V1HttpOperatorList
+      - V1HttpOperatorCreate
+      - V1HttpOperatorGet
+      - V1HttpOperatorUpdate
+      - V1HttpOperatorDelete
   VIEWER:
     permissions:
       - TenantAlertingSettingsGet
@@ -129,12 +135,6 @@ roles:
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet
-      - V1FilterUpdate
-      - V1HttpOperatorList
-      - V1HttpOperatorCreate
-      - V1HttpOperatorGet
-      - V1HttpOperatorUpdate
-      - V1HttpOperatorDelete
       - TenantResourcePolicyGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
