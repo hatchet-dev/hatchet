@@ -76,7 +76,7 @@ class V1Event(BaseModel):
     )
     payloads_restricted: Optional[StrictBool] = Field(
         default=None,
-        description="True when payload fields were omitted because the caller cannot view payloads.",
+        description="True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included.",
         alias="payloadsRestricted",
     )
     __properties: ClassVar[List[str]] = [

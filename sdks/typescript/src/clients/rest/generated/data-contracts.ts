@@ -478,7 +478,7 @@ export interface V1TaskSummary {
   parentTaskExternalId?: string;
   /** The idempotency key that was claimed by the task run */
   idempotencyKey?: string;
-  /** True when payload fields were omitted because the caller cannot view payloads. */
+  /** True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included. */
   payloadsRestricted?: boolean;
 }
 
@@ -725,7 +725,7 @@ export interface V1WorkflowRun {
    * @maxLength 36
    */
   parentTaskExternalId?: string;
-  /** True when payload fields were omitted because the caller cannot view payloads. */
+  /** True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included. */
   payloadsRestricted?: boolean;
 }
 
@@ -1070,7 +1070,7 @@ export interface V1Event {
   triggeredRuns?: V1EventTriggeredRun[];
   /** The name of the webhook that triggered this event, if applicable. */
   triggeringWebhookName?: string;
-  /** True when payload fields were omitted because the caller cannot view payloads. */
+  /** True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included. */
   payloadsRestricted?: boolean;
 }
 

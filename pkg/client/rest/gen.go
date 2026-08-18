@@ -1725,7 +1725,7 @@ type V1Event struct {
 	// Payload The payload of the event, which can be any JSON-serializable object.
 	Payload *map[string]interface{} `json:"payload,omitempty"`
 
-	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	// PayloadsRestricted True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included.
 	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
 
 	// Scope The scope of the event, which can be used to filter or categorize events.
@@ -2000,7 +2000,7 @@ type V1TaskSummary struct {
 	// ParentTaskExternalId The external ID of the parent task.
 	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
 
-	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	// PayloadsRestricted True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
 	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
 
 	// RetryCount The number of retries of the task.
@@ -2263,7 +2263,7 @@ type V1WorkflowRun struct {
 	Output               openapi.NonNullableJSON `json:"output"`
 	ParentTaskExternalId *openapi_types.UUID     `json:"parentTaskExternalId,omitempty"`
 
-	// PayloadsRestricted True when payload fields were omitted because the caller cannot view payloads.
+	// PayloadsRestricted True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
 	PayloadsRestricted *bool `json:"payloadsRestricted,omitempty"`
 
 	// StartedAt The timestamp the task run started.

@@ -313,11 +313,7 @@ export const TaskRunDetail = ({
               <CodeHighlighter
                 className="my-4"
                 language="json"
-                code={JSON.stringify(
-                  taskRun.additionalMetadata ?? {},
-                  null,
-                  2,
-                )}
+                code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
               />
             </TabsContent>
           </Tabs>

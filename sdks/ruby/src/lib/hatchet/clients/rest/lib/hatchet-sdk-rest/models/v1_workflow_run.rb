@@ -56,7 +56,7 @@ module HatchetSdkRest
 
     attr_accessor :parent_task_external_id
 
-    # True when payload fields were omitted because the caller cannot view payloads.
+    # True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
     attr_accessor :payloads_restricted
 
     class EnumAttributeValidator

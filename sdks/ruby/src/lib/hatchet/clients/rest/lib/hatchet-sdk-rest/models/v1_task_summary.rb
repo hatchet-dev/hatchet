@@ -103,7 +103,7 @@ module HatchetSdkRest
     # The idempotency key that was claimed by the task run
     attr_accessor :idempotency_key
 
-    # True when payload fields were omitted because the caller cannot view payloads.
+    # True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
     attr_accessor :payloads_restricted
 
     class EnumAttributeValidator

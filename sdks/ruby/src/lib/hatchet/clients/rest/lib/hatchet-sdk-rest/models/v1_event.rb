@@ -47,7 +47,7 @@ module HatchetSdkRest
     # The name of the webhook that triggered this event, if applicable.
     attr_accessor :triggering_webhook_name
 
-    # True when payload fields were omitted because the caller cannot view payloads.
+    # True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included.
     attr_accessor :payloads_restricted
 
     # Attribute mapping from ruby-style variable name to JSON key.
