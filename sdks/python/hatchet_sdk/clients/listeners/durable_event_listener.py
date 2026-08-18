@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Annotated, Literal, cast
 
@@ -117,6 +117,7 @@ class DurableTaskEventLogEntryResult(BaseModel):
     payload: JSONSerializableMapping | None
     is_failure: bool = False
     error_message: str | None = None
+    satisfied_order: int | None = None
 
     @classmethod
     def from_proto(cls, proto: DurableTaskEventLogEntryCompletedResponse) -> Self:
@@ -130,6 +131,9 @@ class DurableTaskEventLogEntryResult(BaseModel):
             payload=payload,
             is_failure=proto.is_failure,
             error_message=proto.error_message or None,
+            satisfied_order=(
+                proto.satisfied_order if proto.HasField("satisfied_order") else None
+            ),
         )
 
 
@@ -147,6 +151,17 @@ InvocationCount = int
 PendingCallback = tuple[TaskExternalId, InvocationCount, BranchId, NodeId]
 PendingEventAck = tuple[TaskExternalId, InvocationCount]
 PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
+SatisfiedOrder = int
+
+
+@dataclass
+class ReleaseSequence:
+    """Tracks how far a task's completions have been released to their waiters."""
+
+    next_order: SatisfiedOrder | None = None
+    held: dict[
+        SatisfiedOrder, tuple[PendingCallback, DurableTaskEventLogEntryResult]
+    ] = field(default_factory=dict)
 
 
 class DurableEventListener:
@@ -184,6 +199,14 @@ class DurableEventListener:
         self._buffered_completions: TTLCache[
             PendingCallback, DurableTaskEventLogEntryResult
         ] = TTLCache(ttl=timedelta(seconds=10))
+
+        # Completions must reach their waiters in the order the server satisfied them.
+        # On a replay the engine hands out node ids in the order branches resume and
+        # spawn, so releasing out of order gives a branch the node id that belonged to
+        # a different branch in the original run, which surfaces as a
+        # NonDeterminismError. The server already sends completions in ascending
+        # satisfied_order; this keeps that order intact on the way to the waiters.
+        self._release_sequences: dict[PendingEventAck, ReleaseSequence] = {}
 
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
@@ -386,6 +409,115 @@ class DurableEventListener:
                     except Exception:
                         logger.exception("failed to reconnect durable event listener")
 
+    def _hand_to_waiter(
+        self, key: PendingCallback, result: DurableTaskEventLogEntryResult
+    ) -> None:
+        future = self._pending_callbacks.pop(key, None)
+
+        print(  # noqa: T201
+            f"[DUR] hand inv={key[1]} node={key[3]} order={result.satisfied_order} "
+            f"via={'future' if future is not None else 'buffer'}",
+            flush=True,
+        )
+
+        if future is not None:
+            if not future.done():
+                future.set_result(result)
+            return
+
+        self._buffered_completions[key] = result
+
+    def _release_completion(
+        self, key: PendingCallback, result: DurableTaskEventLogEntryResult
+    ) -> None:
+        order = result.satisfied_order
+
+        print(  # noqa: T201
+            f"[DUR] arrive inv={key[1]} node={key[3]} order={order} "
+            f"pending={key in self._pending_callbacks}",
+            flush=True,
+        )
+
+        if order is None:
+            # Memos carry no ordering token, and neither do entries satisfied before
+            # the server tracked satisfaction order. The server sends these without
+            # sequencing them, so there is nothing here to preserve.
+            self._hand_to_waiter(key, result)
+            return
+
+        task_external_id, invocation_count = key[0], key[1]
+        sequence = self._release_sequences.setdefault(
+            (task_external_id, invocation_count), ReleaseSequence()
+        )
+
+        if sequence.next_order is None:
+            sequence.next_order = order
+            print(  # noqa: T201
+                f"[DUR] anchor inv={key[1]} at_order={order} node={key[3]}",
+                flush=True,
+            )
+
+        if order < sequence.next_order:
+            # A reconnect or worker-status poll can re-deliver a completion the
+            # sequence has already moved past. The waiter dedupes by node id, so pass
+            # it straight through rather than holding it behind a closed sequence.
+            self._hand_to_waiter(key, result)
+            return
+
+        if order > sequence.next_order:
+            logger.error(
+                f"durable task {task_external_id} (invocation {invocation_count}): "
+                f"received satisfied_order {order} while waiting to release "
+                f"{sequence.next_order}; holding it back to keep replay ordering intact. "
+                "the server is expected to deliver these in order, so this indicates a "
+                "gap in the ordering guarantee"
+            )
+
+        if order > sequence.next_order:
+            print(  # noqa: T201
+                f"[DUR] hold inv={key[1]} node={key[3]} order={order} "
+                f"waiting_for={sequence.next_order}",
+                flush=True,
+            )
+
+        sequence.held[order] = (key, result)
+        self._drain_release_sequence((task_external_id, invocation_count))
+
+    def _drain_release_sequence(self, sequence_key: PendingEventAck) -> None:
+        """Hand out completions in satisfaction order, one parked waiter at a time.
+
+        A completion is only handed over once its branch is parked on a future. A
+        branch that is still mid-spawn has not reached its await yet, and handing it
+        a result early means it collects that result whenever it happens to get
+        there, which is lock order rather than satisfaction order. Holding here is
+        what forces the branch to resume, and therefore spawn, in the recorded order.
+        """
+        sequence = self._release_sequences.get(sequence_key)
+
+        if sequence is None or sequence.next_order is None:
+            return
+
+        while sequence.next_order in sequence.held:
+            held_key, held_result = sequence.held[sequence.next_order]
+            future = self._pending_callbacks.get(held_key)
+
+            if future is None:
+                return
+
+            del sequence.held[sequence.next_order]
+            del self._pending_callbacks[held_key]
+
+            print(  # noqa: T201
+                f"[DUR] hand inv={held_key[1]} node={held_key[3]} "
+                f"order={held_result.satisfied_order} via=future",
+                flush=True,
+            )
+
+            if not future.done():
+                future.set_result(held_result)
+
+            sequence.next_order += 1
+
     async def _handle_response(self, response: DurableTaskResponse) -> None:
         if response.HasField("register_worker"):
             pass
@@ -453,14 +585,9 @@ class DurableEventListener:
                 completed.ref.branch_id,
                 completed.ref.node_id,
             )
-            result = DurableTaskEventLogEntryResult.from_proto(completed)
-            if completed_key in self._pending_callbacks:
-                completed_future = self._pending_callbacks[completed_key]
-                if not completed_future.done():
-                    completed_future.set_result(result)
-                del self._pending_callbacks[completed_key]
-            else:
-                self._buffered_completions[completed_key] = result
+            self._release_completion(
+                completed_key, DurableTaskEventLogEntryResult.from_proto(completed)
+            )
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -668,13 +795,38 @@ class DurableEventListener:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
         if key in self._buffered_completions:
+            # resumes with zero event-loop turns
+            print(  # noqa: T201
+                f"[DUR] pickup inv={invocation_count} node={node_id} path=buffer",
+                flush=True,
+            )
             return self._buffered_completions.pop(key)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
+            print(  # noqa: T201
+                f"[DUR] park inv={invocation_count} node={node_id}",
+                flush=True,
+            )
+
+            # A completion for this branch may already be held, waiting for the branch
+            # to park. Drain on the next loop iteration rather than inline: resolving
+            # inline would let this branch return without yielding and so overtake
+            # branches that were released ahead of it.
+            asyncio.get_running_loop().call_soon(
+                self._drain_release_sequence,
+                (durable_task_external_id, invocation_count),
+            )
+
             await self._poll_worker_status()
-            return await future
+            result = await future
+            # resumes one call_soon turn after the completion arrived
+            print(  # noqa: T201
+                f"[DUR] pickup inv={invocation_count} node={node_id} path=future",
+                flush=True,
+            )
+            return result
 
         return await self._pending_callbacks[key]
 
@@ -709,6 +861,14 @@ class DurableEventListener:
         ]
         for ek in stale_early_keys:
             del self._buffered_completions[ek]
+
+        stale_sequence_keys = [
+            sk
+            for sk in self._release_sequences
+            if sk[0] == durable_task_external_id and sk[1] <= invocation_count
+        ]
+        for sk in stale_sequence_keys:
+            del self._release_sequences[sk]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 

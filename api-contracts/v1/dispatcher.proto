@@ -57,6 +57,11 @@ message DurableTaskEventLogEntryCompletedResponse {
     bytes payload = 2;
     bool is_failure = 3;
     optional string error_message = 4;
+    // Position of this entry in the log's total satisfaction order. The server sends
+    // completions in ascending satisfied_order, and the SDK must release them to waiters
+    // in that order so that a replay reassigns node ids to the same branches as the
+    // original run. Unset for entries satisfied before the column existed, and for memos.
+    optional int64 satisfied_order = 5;
 }
 
 message DurableTaskEvictInvocationRequest {

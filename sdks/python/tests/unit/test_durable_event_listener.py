@@ -12,11 +12,13 @@ import pytest
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DEFAULT_RECONNECT_INTERVAL,
     DurableEventListener,
+    DurableTaskEventLogEntryResult,
     DurableTaskEventWaitForAck,
     WaitForEvent,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableEventLogEntryRef,
+    DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEventWaitForAckResponse,
     DurableTaskRequest,
     DurableTaskResponse,
@@ -442,3 +444,127 @@ async def test_send_event_eviction_cancel_propagates_not_timeout(
 
     with pytest.raises(asyncio.CancelledError):
         await send_task
+
+
+def _result(
+    node_id: int, satisfied_order: int | None
+) -> DurableTaskEventLogEntryResult:
+    return DurableTaskEventLogEntryResult.from_proto(
+        DurableTaskEventLogEntryCompletedResponse(
+            ref=DurableEventLogEntryRef(
+                durable_task_external_id="task-1",
+                invocation_count=1,
+                branch_id=1,
+                node_id=node_id,
+            ),
+            payload=b"{}",
+            satisfied_order=satisfied_order,
+        )
+    )
+
+
+def _park(
+    listener: DurableEventListener, node_id: int
+) -> asyncio.Future[DurableTaskEventLogEntryResult]:
+    future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
+    listener._pending_callbacks[("task-1", 1, 1, node_id)] = future
+    return future
+
+
+@pytest.mark.asyncio
+async def test_completions_are_released_in_satisfied_order() -> None:
+    """A completion that arrives ahead of its turn waits for the gap to fill.
+
+    Node ids on a replay are handed out in the order branches resume and spawn, so
+    releasing node 2 before node 3 here would give node 2's branch the node id that
+    belonged to node 3's branch in the original run.
+    """
+    listener = DurableEventListener(MagicMock(), MagicMock())
+    first, second, third = (_park(listener, n) for n in (1, 2, 3))
+
+    listener._release_completion(("task-1", 1, 1, 1), _result(1, 1))
+    assert first.done()
+
+    # node 2 was satisfied third, so it cannot go before node 3
+    listener._release_completion(("task-1", 1, 1, 2), _result(2, 3))
+    assert not second.done()
+
+    listener._release_completion(("task-1", 1, 1, 3), _result(3, 2))
+    assert third.done()
+    assert second.done()
+
+
+@pytest.mark.asyncio
+async def test_completion_waits_for_its_branch_to_park() -> None:
+    """The regression: a completion must not be handed over before its branch parks.
+
+    A branch still mid-spawn has not reached its await, so handing it a result early
+    means it collects that result in lock order rather than satisfaction order, and
+    then spawns out of order.
+    """
+    listener = DurableEventListener(MagicMock(), MagicMock())
+    first = _park(listener, 1)
+
+    listener._release_completion(("task-1", 1, 1, 1), _result(1, 1))
+    assert first.done()
+
+    listener._release_completion(("task-1", 1, 1, 2), _result(2, 2))
+    assert ("task-1", 1, 1, 2) not in listener._buffered_completions
+
+    second = _park(listener, 2)
+    listener._drain_release_sequence(("task-1", 1))
+    assert second.done()
+
+
+@pytest.mark.asyncio
+async def test_an_unparked_branch_blocks_later_orders() -> None:
+    """Order N+1 may not overtake order N just because its branch parked first."""
+    listener = DurableEventListener(MagicMock(), MagicMock())
+    third = _park(listener, 3)
+
+    listener._release_completion(("task-1", 1, 1, 2), _result(2, 1))
+    listener._release_completion(("task-1", 1, 1, 3), _result(3, 2))
+
+    assert not third.done()
+
+    second = _park(listener, 2)
+    listener._drain_release_sequence(("task-1", 1))
+
+    assert second.done()
+    assert third.done()
+
+
+@pytest.mark.asyncio
+async def test_completions_without_satisfied_order_are_released_immediately() -> None:
+    """Memos and pre-column entries carry no ordering token, so nothing to sequence."""
+    listener = DurableEventListener(MagicMock(), MagicMock())
+
+    listener._release_completion(("task-1", 1, 1, 5), _result(5, None))
+
+    assert ("task-1", 1, 1, 5) in listener._buffered_completions
+
+
+@pytest.mark.asyncio
+async def test_redelivered_completion_is_passed_through() -> None:
+    """A reconnect can replay an order the sequence has already moved past."""
+    listener = DurableEventListener(MagicMock(), MagicMock())
+    first, second = _park(listener, 1), _park(listener, 2)
+
+    listener._release_completion(("task-1", 1, 1, 1), _result(1, 1))
+    listener._release_completion(("task-1", 1, 1, 2), _result(2, 2))
+    assert first.done() and second.done()
+
+    redelivered = _park(listener, 1)
+    listener._release_completion(("task-1", 1, 1, 1), _result(1, 1))
+    assert redelivered.done()
+
+
+@pytest.mark.asyncio
+async def test_release_sequence_is_dropped_on_cleanup() -> None:
+    listener = DurableEventListener(MagicMock(), MagicMock())
+
+    listener._release_completion(("task-1", 1, 1, 1), _result(1, 1))
+    assert listener._release_sequences
+
+    listener.cleanup_task_state("task-1", 1)
+    assert not listener._release_sequences
