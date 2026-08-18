@@ -301,18 +301,20 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
 WITH inputs AS (
     SELECT
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
 )
 
 UPDATE v1_durable_event_log_entry e
 SET triggered_at = NOW()
 FROM inputs i
-WHERE e.durable_task_id = @durableTaskId::BIGINT
-  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+WHERE e.durable_task_id = i.durable_task_id
+  AND e.durable_task_inserted_at = i.durable_task_inserted_at
   AND e.node_id = i.node_id
   AND e.branch_id = i.branch_id
   AND e.triggered_at IS NULL
-RETURNING e.node_id, e.branch_id
+RETURNING e.*
 ;
 
 -- name: ListDurableEventLogBranchPoints :many

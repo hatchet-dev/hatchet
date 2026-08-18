@@ -260,48 +260,66 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id
+        UNNEST($1::BIGINT[]) AS node_id,
+        UNNEST($2::BIGINT[]) AS branch_id,
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at
 )
 
 UPDATE v1_durable_event_log_entry e
 SET triggered_at = NOW()
 FROM inputs i
-WHERE e.durable_task_id = $1::BIGINT
-  AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
+WHERE e.durable_task_id = i.durable_task_id
+  AND e.durable_task_inserted_at = i.durable_task_inserted_at
   AND e.node_id = i.node_id
   AND e.branch_id = i.branch_id
   AND e.triggered_at IS NULL
-RETURNING e.node_id, e.branch_id
+RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at
 `
 
 type ClaimDurableEventLogEntriesForTriggerParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Nodeids               []int64            `json:"nodeids"`
-	Branchids             []int64            `json:"branchids"`
+	Nodeids                []int64              `json:"nodeids"`
+	Branchids              []int64              `json:"branchids"`
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 }
 
-type ClaimDurableEventLogEntriesForTriggerRow struct {
-	NodeID   int64 `json:"node_id"`
-	BranchID int64 `json:"branch_id"`
-}
-
-func (q *Queries) ClaimDurableEventLogEntriesForTrigger(ctx context.Context, db DBTX, arg ClaimDurableEventLogEntriesForTriggerParams) ([]*ClaimDurableEventLogEntriesForTriggerRow, error) {
+func (q *Queries) ClaimDurableEventLogEntriesForTrigger(ctx context.Context, db DBTX, arg ClaimDurableEventLogEntriesForTriggerParams) ([]*V1DurableEventLogEntry, error) {
 	rows, err := db.Query(ctx, claimDurableEventLogEntriesForTrigger,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
 		arg.Nodeids,
 		arg.Branchids,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ClaimDurableEventLogEntriesForTriggerRow
+	var items []*V1DurableEventLogEntry
 	for rows.Next() {
-		var i ClaimDurableEventLogEntriesForTriggerRow
-		if err := rows.Scan(&i.NodeID, &i.BranchID); err != nil {
+		var i V1DurableEventLogEntry
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.ResultPayloadExternalID,
+			&i.ChildTaskExternalID,
+			&i.ChildTaskIsFailure,
+			&i.ChildTaskErrorMessage,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.BranchID,
+			&i.IdempotencyKey,
+			&i.IsSatisfied,
+			&i.SatisfiedAt,
+			&i.SatisfiedOrder,
+			&i.UserMessage,
+			&i.WaitData,
+			&i.TriggeredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
