@@ -52,6 +52,7 @@ const (
 	Branch    Action = "branch"
 	Memo      Action = "memo"
 	WaitFor   Action = "wait-for"
+	Connect   Action = "connect"
 )
 
 type Properties map[string]interface{}
@@ -75,6 +76,13 @@ const (
 	SourceKey         = contextKey("source")
 
 	SourceMetadataKey = "x-hatchet-source"
+
+	// CLIVersionMetadataKey and CLICommandMetadataKey carry CLI build and
+	// subcommand details alongside SourceMetadataKey. They are advisory: a client
+	// can set them to anything, so treat the values as reporting detail rather
+	// than as anything to branch on.
+	CLIVersionMetadataKey = "x-hatchet-cli-version"
+	CLICommandMetadataKey = "x-hatchet-cli-command"
 )
 
 type Analytics interface {

@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { Switch } from '@/components/v1/ui/switch';
+import useCanWrite from '@/hooks/use-can-write';
 import { TenantAlertingSettings } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,6 +35,7 @@ export function UpdateTenantAlertingSettings({
   className,
   ...props
 }: UpdateTenantAlertingSettingsProps) {
+  const canWrite = useCanWrite();
   const [enabledWorkflowAlerting, setEnabledWorkflowAlerting] = useState(
     props.alertingSettings.enableWorkflowRunFailureAlerts,
   );
@@ -79,6 +81,7 @@ export function UpdateTenantAlertingSettings({
           id="eta"
           checked={enabledExpiringTokenAlerting}
           onClick={() => setEnabledExpiringTokenAlerting((s) => !s)}
+          disabled={!canWrite}
         />
       </AlertSettingRow>
 
@@ -90,6 +93,7 @@ export function UpdateTenantAlertingSettings({
           id="atrl"
           checked={enableTenantResourceLimitAlerts}
           onClick={() => setEnableTenantResourceLimitAlerts((s) => !s)}
+          disabled={!canWrite}
         />
       </AlertSettingRow>
 
@@ -101,6 +105,7 @@ export function UpdateTenantAlertingSettings({
           id="awrf"
           checked={enabledWorkflowAlerting}
           onClick={() => setEnabledWorkflowAlerting((s) => !s)}
+          disabled={!canWrite}
         />
       </AlertSettingRow>
 
@@ -133,12 +138,14 @@ export function UpdateTenantAlertingSettings({
         </AlertSettingRow>
       )}
 
-      <div className="flex justify-end pt-4">
-        <Button disabled={props.isLoading} className="w-fit">
-          {props.isLoading && <Spinner />}
-          Save
-        </Button>
-      </div>
+      {canWrite && (
+        <div className="flex justify-end pt-4">
+          <Button disabled={props.isLoading} className="w-fit">
+            {props.isLoading && <Spinner />}
+            Save
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

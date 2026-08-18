@@ -106,16 +106,24 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 		return []string{applyNamespace(eventkeys.WorkflowBatchName, namespace)}
 	case eventkeys.EventKeyDurable:
 		return []string{applyNamespace(eventkeys.WorkflowDurableName, namespace)}
+	case eventkeys.EventKeyDag:
+		return []string{applyNamespace(eventkeys.WorkflowDagName, namespace)}
 	default:
 		return nil
 	}
 }
 
+const dagWorkflowSteps = 2
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
-	if key == eventkeys.EventKeyDefault {
+	switch key {
+	case eventkeys.EventKeyDefault:
 		return int64(fanout) * int64(dagSteps)
+	case eventkeys.EventKeyDag:
+		return dagWorkflowSteps
+	default:
+		return 1
 	}
-	return 1
 }
 
 // phaseAccumulator computes a simple running mean per phase from a stream of

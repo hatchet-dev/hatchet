@@ -184,6 +184,7 @@ const (
 	ADMIN  TenantMemberRole = "ADMIN"
 	MEMBER TenantMemberRole = "MEMBER"
 	OWNER  TenantMemberRole = "OWNER"
+	VIEWER TenantMemberRole = "VIEWER"
 )
 
 // Defines values for TenantResource.

@@ -5,6 +5,7 @@ import { Toaster } from '@/components/v1/ui/toaster';
 import { RefetchIntervalProvider } from '@/contexts/refetch-interval-context';
 import { SidePanelProvider } from '@/hooks/use-side-panel';
 import { AppContextProvider } from '@/providers/app-context';
+import { PostHogProvider } from '@/providers/posthog';
 import { UserUniverseProvider } from '@/providers/user-universe';
 import { Outlet } from '@tanstack/react-router';
 import { PropsWithChildren } from 'react';
@@ -14,18 +15,20 @@ function Root({ children }: PropsWithChildren) {
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <UserUniverseProvider>
         <AppContextProvider>
-          <SidePanelProvider>
-            <RefetchIntervalProvider>
-              <SidebarProvider>
-                {/* Root should not own scrolling; route shells decide their scroll behavior. */}
-                <div className="h-full w-full overflow-hidden">
-                  <Toaster />
-                  <DomainRedirectModal />
-                  {children ?? <Outlet />}
-                </div>
-              </SidebarProvider>
-            </RefetchIntervalProvider>
-          </SidePanelProvider>
+          <PostHogProvider>
+            <SidePanelProvider>
+              <RefetchIntervalProvider>
+                <SidebarProvider>
+                  {/* Root should not own scrolling; route shells decide their scroll behavior. */}
+                  <div className="h-full w-full overflow-hidden">
+                    <Toaster />
+                    <DomainRedirectModal />
+                    {children ?? <Outlet />}
+                  </div>
+                </SidebarProvider>
+              </RefetchIntervalProvider>
+            </SidePanelProvider>
+          </PostHogProvider>
         </AppContextProvider>
       </UserUniverseProvider>
     </ThemeProvider>
