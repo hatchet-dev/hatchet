@@ -9,6 +9,7 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import useCanWrite from '@/hooks/use-can-write';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 
 export function CreateApiTokenSection({
@@ -32,6 +33,7 @@ export function CreateApiTokenSection({
   isGenerating: boolean;
   onGenerateToken: () => void;
 }) {
+  const canWrite = useCanWrite();
   const selectedLabel =
     Object.entries(expiresInOptions).find(
       ([, value]) => value === expiresIn,
@@ -94,7 +96,7 @@ export function CreateApiTokenSection({
             variant="default"
             size="default"
             onClick={onGenerateToken}
-            disabled={isGenerating}
+            disabled={isGenerating || !canWrite}
           >
             {isGenerating && <Spinner />}
             Generate Token

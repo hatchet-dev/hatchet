@@ -7,6 +7,7 @@ import { useMetrics } from './use-metrics';
 import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
+import useCanWrite from '@/hooks/use-can-write';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
@@ -170,6 +171,8 @@ export const RunsProvider = ({
     triggeringEventExternalId,
   } = runFilters ?? {};
 
+  const canWrite = useCanWrite();
+
   const {
     hideMetrics = false,
     hideCounts = false,
@@ -179,6 +182,10 @@ export const RunsProvider = ({
     hideColumnToggle = false,
     hiddenFilters = [],
   } = display ?? {};
+
+  const effectiveHideTriggerRunButton = hideTriggerRunButton || !canWrite;
+  const effectiveHideCancelAndReplayButtons =
+    hideCancelAndReplayButtons || !canWrite;
 
   const filters = useRunsTableFilters(tableKey, {
     workflowIds: workflowId ? [workflowId] : undefined,
@@ -283,8 +290,8 @@ export const RunsProvider = ({
         hideMetrics,
         hideCounts,
         hideDateFilter,
-        hideTriggerRunButton,
-        hideCancelAndReplayButtons,
+        hideTriggerRunButton: effectiveHideTriggerRunButton,
+        hideCancelAndReplayButtons: effectiveHideCancelAndReplayButtons,
         hideColumnToggle,
         hiddenFilters,
       },
@@ -320,7 +327,7 @@ export const RunsProvider = ({
       hideMetrics,
       hideCounts,
       hideDateFilter,
-      hideTriggerRunButton,
+      effectiveHideTriggerRunButton,
       hiddenFilters,
       actionModalParams,
       selectedActionType,
@@ -332,7 +339,7 @@ export const RunsProvider = ({
       setPageSize,
       pagination,
       setPagination,
-      hideCancelAndReplayButtons,
+      effectiveHideCancelAndReplayButtons,
       hideColumnToggle,
       isRefetching,
       setShowQueueMetrics,

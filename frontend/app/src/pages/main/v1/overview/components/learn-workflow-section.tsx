@@ -26,6 +26,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import useCanWrite from '@/hooks/use-can-write';
 import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
 import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { useState, type ReactNode } from 'react';
@@ -98,6 +99,7 @@ export function LearnWorkflowSection({
   authDisabled?: boolean;
   authDisabledToken?: string;
 }) {
+  const canWrite = useCanWrite();
   const profileName = tenantName?.trim() || 'local';
 
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
@@ -299,7 +301,7 @@ export function LearnWorkflowSection({
               size="default"
               className={`w-fit gap-2 bg-muted/70 ${focusRing}`}
               onClick={onGenerateProfileToken}
-              disabled={isGeneratingProfileToken}
+              disabled={isGeneratingProfileToken || !canWrite}
             >
               {isGeneratingProfileToken && <Spinner />}
               Generate token for this command

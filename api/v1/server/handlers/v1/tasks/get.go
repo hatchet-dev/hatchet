@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -65,7 +66,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion)
+	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1TaskGet200JSONResponse(
 		result,

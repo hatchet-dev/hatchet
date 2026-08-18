@@ -84,6 +84,7 @@ func run() error {
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
 	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
+	slots := envInt("HATCHET_LOADTEST_SLOTS", 100)
 	dagTaskName := envOr("HATCHET_LOADTEST_DAG_WORKFLOW_NAME", eventkeys.WorkflowDagName)
 	dagTaskEventKey := envOr("HATCHET_LOADTEST_DAG_EVENT_KEY", eventkeys.EventKeyDag.String())
 
@@ -168,6 +169,7 @@ func run() error {
 		workerName,
 		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask, dagWorkflow),
 		hatchet.WithDurableSlots(durableSlots),
+		hatchet.WithSlots(slots),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)

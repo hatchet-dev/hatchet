@@ -36,6 +36,11 @@ class TenantMember(BaseModel):
         description="The user associated with this tenant member."
     )
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
+    can_view_payloads: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true.",
+        alias="canViewPayloads",
+    )
     tenant: Optional[Tenant] = Field(
         default=None, description="The tenant associated with this tenant member."
     )
@@ -47,6 +52,7 @@ class TenantMember(BaseModel):
         "metadata",
         "user",
         "role",
+        "canViewPayloads",
         "tenant",
         "manually_added",
     ]
@@ -121,6 +127,7 @@ class TenantMember(BaseModel):
                     else None
                 ),
                 "role": obj.get("role"),
+                "canViewPayloads": obj.get("canViewPayloads"),
                 "tenant": (
                     Tenant.from_dict(obj["tenant"])
                     if obj.get("tenant") is not None

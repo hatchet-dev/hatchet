@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
@@ -33,6 +33,11 @@ class TenantInvite(BaseModel):
     metadata: APIResourceMeta
     email: StrictStr = Field(description="The email of the user to invite.")
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
+    can_view_payloads: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the invited user can view payloads. Defaults to true.",
+        alias="canViewPayloads",
+    )
     tenant_id: StrictStr = Field(
         description="The tenant id associated with this tenant invite.",
         alias="tenantId",
@@ -45,6 +50,7 @@ class TenantInvite(BaseModel):
         "metadata",
         "email",
         "role",
+        "canViewPayloads",
         "tenantId",
         "tenantName",
         "expires",
@@ -110,6 +116,7 @@ class TenantInvite(BaseModel):
                 ),
                 "email": obj.get("email"),
                 "role": obj.get("role"),
+                "canViewPayloads": obj.get("canViewPayloads"),
                 "tenantId": obj.get("tenantId"),
                 "tenantName": obj.get("tenantName"),
                 "expires": obj.get("expires"),

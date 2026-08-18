@@ -9,6 +9,7 @@ import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Dialog } from '@/components/v1/ui/dialog';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -18,6 +19,7 @@ import { useState, useMemo } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
   const authDisabled = useAuthDisabled();
   const { meta } = useApiMeta();
   const authDisabledToken =
@@ -92,14 +94,16 @@ export default function APITokens() {
           description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
         />
 
-        <div className="mb-4 flex flex-row items-baseline justify-end">
-          <Button
-            key="create-api-token"
-            onClick={() => setShowTokenDialog(true)}
-          >
-            Create API Token
-          </Button>
-        </div>
+        {canWrite && (
+          <div className="mb-4 flex flex-row items-baseline justify-end">
+            <Button
+              key="create-api-token"
+              onClick={() => setShowTokenDialog(true)}
+            >
+              Create API Token
+            </Button>
+          </div>
+        )}
         {(listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
             columns={tokenColumns}

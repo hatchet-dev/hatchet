@@ -1405,8 +1405,25 @@ BEGIN
             nt.inserted_at,
             nt.retry_count,
             nt.tenant_id,
-            -- Convert the retry_after based on min(retry_backoff_factor ^ retry_count, retry_max_backoff)
-            NOW() + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
+            -- NOTE: cap in log space before POWER. POWER(backoff_factor, app_retry_count)
+            -- overflows float8 (SQLSTATE 22003) for large retry counts, and LEAST cannot
+            -- prevent that because POWER is evaluated first. b^n > cap iff
+            -- n * ln(b) > ln(cap), so compare logs and skip POWER when the result
+            -- would exceed retry_max_backoff.
+            NOW() + (
+                LEAST(
+                    COALESCE(nt.retry_max_backoff, 86400)::double precision,
+                    CASE
+                        WHEN nt.retry_backoff_factor <= 1 THEN
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                        WHEN LN(nt.retry_backoff_factor) * nt.app_retry_count
+                            >= LN(GREATEST(COALESCE(nt.retry_max_backoff, 86400), 1)::double precision) THEN
+                            COALESCE(nt.retry_max_backoff, 86400)::double precision
+                        ELSE
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                    END
+                ) * interval '1 second'
+            ) AS retry_after
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
@@ -2543,6 +2560,12 @@ CREATE TABLE v1_durable_event_log_entry (
 
     user_message TEXT,
     wait_data JSONB,
+
+    -- Set when the entry's trigger side effect (spawning a child RUN / registering WAIT_FOR match
+    -- conditions) has committed. In this atomic-write version it is always stamped at insert time,
+    -- since the entry and its trigger commit together; a later change splits those into separate
+    -- transactions and uses a null value to mark an entry whose trigger has not yet run.
+    triggered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);

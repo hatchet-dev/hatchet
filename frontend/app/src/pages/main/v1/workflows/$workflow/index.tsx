@@ -15,6 +15,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
@@ -31,6 +32,7 @@ export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -123,14 +125,16 @@ export default function ExpandedWorkflow() {
             </Badge>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
-          <div className="flex flex-row gap-2">
-            <Button
-              className="text-sm"
-              onClick={() => setTriggerWorkflow(true)}
-            >
-              Trigger Workflow
-            </Button>
-          </div>
+          {canWrite && (
+            <div className="flex flex-row gap-2">
+              <Button
+                className="text-sm"
+                onClick={() => setTriggerWorkflow(true)}
+              >
+                Trigger Workflow
+              </Button>
+            </div>
+          )}
           <TriggerWorkflowForm
             show={triggerWorkflow}
             defaultWorkflow={workflow}
@@ -174,37 +178,39 @@ export default function ExpandedWorkflow() {
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
             )}
 
-            <div className="mt-8">
-              <div className="space-y-3">
-                <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-                  Danger Zone
-                </h3>
-                <div className="pl-1">
-                  <div className="max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {canWrite && (
+              <div className="mt-8">
+                <div className="space-y-3">
+                  <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+                    Danger Zone
+                  </h3>
+                  <div className="pl-1">
+                    <div className="max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            Delete Workflow
+                          </h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            Permanently delete this workflow and all its data.
+                            This action cannot be undone.
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setDeleteWorkflow(true);
+                          }}
+                        >
                           Delete Workflow
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                          Permanently delete this workflow and all its data.
-                          This action cannot be undone.
-                        </p>
+                        </Button>
                       </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteWorkflow(true);
-                        }}
-                      >
-                        Delete Workflow
-                      </Button>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <ConfirmDialog
               title={`Delete workflow`}

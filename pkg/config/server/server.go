@@ -667,10 +667,18 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// Operations listed here bypass the tenant RBAC check. Use this for
-	// extension operations (e.g. cloud) that handle their own authorization
-	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	// Operations listed here bypass the tenant RBAC check for every role. Use this for read-only
+	// extension operations (e.g. cloud) that aren't known to the base OpenAPI spec / rbac.yaml and
+	// so would otherwise be denied to every role, including OWNER. OSS operations in rbac.yaml are
+	// still fully checked.
 	AllowedOperations []string
+
+	// AllowedWriteOperations behaves like AllowedOperations (bypasses the tenant RBAC check for
+	// operations unknown to rbac.yaml) except for the VIEWER role, which is denied - VIEWER must
+	// stay read-only even for extension operations the base RBAC system has no knowledge of. Use
+	// this for mutating extension operations (create/update/delete); use AllowedOperations for
+	// read-only ones.
+	AllowedWriteOperations []string
 }
 
 type PylonConfig struct {
