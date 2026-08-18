@@ -255,6 +255,10 @@ type TaskRepository interface {
 	// GetTaskByExternalId is a heavily cached method to return task metadata by its external id
 	GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error)
 
+	// GetTaskForActionEvent returns the subset of task metadata needed to handle a step action
+	// event. It exists so the dispatcher's hottest path can avoid the FlattenExternalIds union.
+	GetTaskForActionEvent(ctx context.Context, tenantId, taskExternalId uuid.UUID) (*sqlcv1.GetTaskForActionEventRow, error)
+
 	// FlattenExternalIds is a non-cached method to look up all tasks in a workflow run by their external ids.
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
 	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
@@ -569,6 +573,22 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	r.taskLookupCache.Add(key, res)
 
 	return res, nil
+}
+
+func (r *sharedRepository) GetTaskForActionEvent(ctx context.Context, tenantId, taskExternalId uuid.UUID) (*sqlcv1.GetTaskForActionEventRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskForActionEvent")
+	defer span.End()
+
+	task, err := r.queries.GetTaskForActionEvent(ctx, r.pool, sqlcv1.GetTaskForActionEventParams{
+		Externalid: taskExternalId,
+		Tenantid:   tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
