@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-17T07:07:52Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-18T07:07:33Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 80% (1527/1913) · main: 48% (42/87)
+**Gating-CI pass rate** — PR: 81% (1626/2007) · main: 52% (46/89)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+  x-axis [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [76, 90, 81, 65, 72, 94, 88, 84, 86, 74, 88, 82, 61, 66, 83]
-  line "main" [67, 100, 50, 17, 100, 100, 50, 33, 35, 25, 50, 60, 60, 60, 60]
+  line "CI" [90, 81, 65, 72, 94, 88, 84, 86, 74, 88, 82, 61, 67, 85, 95]
+  line "main" [100, 50, 17, 100, 100, 50, 33, 35, 25, 50, 60, 60, 60, 82, 82]
 ```
 
-_X-axis = day of month (Aug 03 → Aug 17). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Aug 04 → Aug 18). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `unit` | test | 5 | 0 | 8 | 62% | flaky | PR | **product bug** — TestGetTaskStats fails on task stats SQL UNION column mismatch |
-| 2 | `lint` | ruby | 4 | 0 | 7 | 57% | flaky | PR | **infra/CI** — Ruby SDK generated bindings or rubocop check drift in lint job |
-| 3 | `lint` | typescript | 4 | 0 | 8 | 50% | flaky | PR | **infra/CI** — TypeScript generated protobuf/REST bindings out of date (check-for-diff step) |
-| 4 | `e2e` | test | 4 | 0 | 8 | 50% | flaky | PR | **infra/CI** — e2e job timed out waiting for Hatchet engine/API readiness |
-| 5 | `e2e-pgmq` | test | 4 | 0 | 8 | 50% | flaky | PR | **infra/CI** — e2e-pgmq job timed out waiting for Hatchet engine/API readiness |
-| 6 | `test-templates` | cli-e2e-tests | 3 | 0 | 3 | 100% | deterministic | PR | **timeout** — TestQuickstartTemplates exceeded ~733s CLI template E2E budget |
-| 7 | `cypress` | frontend / app | 1 | 0 | 6 | 17% | flaky | PR | **flaky test** — Cypress tenant-switcher/onboarding selectors timing out (auth redirect flake) |
-| 8 | `build` | frontend / app | 1 | 0 | 6 | 17% | flaky | PR | **product bug** — Frontend TS2339: use-runs.tsx accesses rows on timeout\|V1TaskSummaryList union |
-| 9 | `rampup` | test | 1 | 0 | 8 | 12% | flaky | PR | **infra/CI** — TestRampUp: engine connection refused during workflow registration (service not ready) |
-| 10 | `engine` | build | 1 | 0 | 10 | 10% | flaky | PR | **infra/CI** — Alpine APK index TLS error during Docker engine build (transient registry/network) |
+| 1 | `e2e` | test | 5 | 0 | 43 | 12% | flaky | PR | **infra/CI** — e2e engine/API readiness timeout waiting for Hatchet to start in CI |
+| 2 | `load-online-migrate` | test | 5 | 0 | 43 | 12% | flaky | PR | **infra/CI** — load-online-migrate engine gRPC port 7077 readiness timeout in CI |
+| 3 | `unit` | test | 5 | 0 | 43 | 12% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails in unit job |
+| 4 | `e2e-pgmq` | test | 5 | 0 | 43 | 12% | flaky | PR | **infra/CI** — e2e-pgmq engine/API readiness timeout waiting for Hatchet to start in CI |
+| 5 | `lint` | ruby | 4 | 0 | 28 | 14% | flaky | PR | **infra/CI** — Ruby SDK generated bindings out of date (check-for-diff step) |
+| 6 | `generate` | test | 3 | 0 | 43 | 7% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-protoc action during generate job setup |
+| 7 | `rampup` | test | 2 | 0 | 43 | 5% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-task action during rampup job setup |
+| 8 | `cypress` | frontend / app | 1 | 0 | 18 | 6% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-go action during cypress job setup |
+| 9 | `lint` | frontend / app | 1 | 0 | 18 | 6% | flaky | PR | **infra/CI** — Frontend prettier drift on taskRun.additionalMetadata formatting in lint job |
+| 10 | `test-e2e` | typescript | 1 | 0 | 28 | 4% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-protoc action during test-e2e job setup |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `lint` | 4 | 7 | 57% | flaky | PR | **infra/CI** — Ruby SDK generated bindings or rubocop check drift in lint job |
-| 2 | `(unparsed)` | `lint` | 4 | 8 | 50% | flaky | PR | **infra/CI** — TypeScript generated protobuf/REST bindings out of date (check-for-diff step) |
-| 3 | `(unparsed)` | `e2e` | 4 | 8 | 50% | flaky | PR | **infra/CI** — e2e job timed out waiting for Hatchet engine/API readiness |
-| 4 | `(unparsed)` | `e2e-pgmq` | 4 | 8 | 50% | flaky | PR | **infra/CI** — e2e-pgmq job timed out waiting for Hatchet engine/API readiness |
-| 5 | `TestQuickstartTemplates` | `test-templates` | 3 | 3 | 100% | deterministic | PR | **timeout** — TestQuickstartTemplates exceeded ~733s CLI template E2E budget |
-| 6 | `TestQuickstartTemplates/simple_go_go` | `test-templates` | 3 | 3 | 100% | deterministic | PR | **timeout** — TestQuickstartTemplates/simple_go_go exceeded ~321s CLI template E2E budget |
-| 7 | `(unparsed)` | `lint` | 2 | 8 | 25% | flaky | PR | **infra/CI** — Python SDK black/format or generated bindings drift in lint check |
-| 8 | `TestGetTaskStats` | `unit` | 2 | 8 | 25% | flaky | PR | **product bug** — TestGetTaskStats fails on task stats SQL UNION column mismatch |
-| 9 | `TestGetTaskStats/duplicate_strategies_count_one_running_attempt` | `unit` | 2 | 8 | 25% | flaky | PR | **product bug** — TestGetTaskStats SQL UNION column mismatch in task stats repository query |
-| 10 | `(unparsed)` | `cypress` | 1 | 6 | 17% | flaky | PR | **flaky test** — Cypress tenant-switcher/onboarding selectors timing out (auth redirect flake) |
+| 1 | `(unparsed)` | `load-online-migrate` | 4 | 43 | 9% | flaky | PR | **infra/CI** — load-online-migrate engine gRPC port 7077 readiness timeout in CI |
+| 2 | `(unparsed)` | `e2e` | 4 | 43 | 9% | flaky | PR | **infra/CI** — e2e engine/API readiness timeout waiting for Hatchet to start in CI |
+| 3 | `(unparsed)` | `e2e-pgmq` | 4 | 43 | 9% | flaky | PR | **infra/CI** — e2e-pgmq engine/API readiness timeout waiting for Hatchet to start in CI |
+| 4 | `(unparsed)` | `lint` | 3 | 28 | 11% | flaky | PR | **infra/CI** — Ruby SDK generated bindings out of date (check-for-diff step) |
+| 5 | `(unparsed)` | `lint` | 2 | 28 | 7% | flaky | PR | **infra/CI** — TypeScript SDK generated bindings out of date (check-for-diff step) |
+| 6 | `(unparsed)` | `lint` | 2 | 29 | 7% | flaky | PR | **infra/CI** — Python SDK generated bindings out of date (check-for-diff step) |
+| 7 | `TestMsgIdBufferMemoryLeak` | `unit` | 2 | 43 | 5% | flaky | main | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails in unit job |
+| 8 | `(unparsed)` | `cypress` | 1 | 18 | 6% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-go action during cypress job setup |
+| 9 | `(unparsed)` | `lint` | 1 | 18 | 6% | flaky | PR | **infra/CI** — Frontend prettier drift on taskRun.additionalMetadata formatting in lint job |
+| 10 | `(unparsed)` | `test-unit` | 1 | 28 | 4% | flaky | PR | **infra/CI** — GitHub 429 rate limit downloading setup-bun action during job setup |
 
 ## Recent CI-health wins (`ci-health`)
 
