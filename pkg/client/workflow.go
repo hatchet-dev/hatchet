@@ -223,6 +223,12 @@ func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 				continue
 			}
 
+			r.listener.l.Warn().
+				Str("workflow_run_id", r.workflowRunId).
+				Dur("wait_duration", time.Since(waitStarted)).
+				Str("status", string(details.Status)).
+				Msg("returning workflow result from status poll; listener did not deliver a terminal event")
+
 			return runDetailsToResult(details)
 		}
 	}
