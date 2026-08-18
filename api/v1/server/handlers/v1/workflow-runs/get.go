@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -26,6 +27,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 		requestContext,
 		tenantId,
 		rawWorkflowRun,
+		authz.CanViewPayloads(ctx),
 	)
 
 	if err != nil {
@@ -41,6 +43,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	rawWorkflowRun *v1.V1WorkflowRunPopulator,
+	includePayloads bool,
 ) (*gen.V1WorkflowRunDetails, error) {
 	workflowRun := rawWorkflowRun.WorkflowRun
 	taskMetadata := rawWorkflowRun.TaskMetadata
@@ -60,7 +63,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		ctx,
 		tenantId,
 		taskMetadata,
-		true,
+		includePayloads,
 	)
 
 	if err != nil {
@@ -90,7 +93,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
+	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion, transformers.WithPayloads(includePayloads))
 
 	if err != nil {
 		return nil, err

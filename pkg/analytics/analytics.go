@@ -52,6 +52,7 @@ const (
 	Branch    Action = "branch"
 	Memo      Action = "memo"
 	WaitFor   Action = "wait-for"
+	Connect   Action = "connect"
 )
 
 type Properties map[string]interface{}
@@ -71,10 +72,18 @@ const (
 	APITokenIDKey     = contextKey("api_token_id")
 	TenantIDKey       = contextKey("tenant_id")
 	OrganizationIDKey = contextKey("organization_id")
+	AccountIDKey      = contextKey("account_id")
 	UserIDKey         = contextKey("user_id")
 	SourceKey         = contextKey("source")
 
 	SourceMetadataKey = "x-hatchet-source"
+
+	// CLIVersionMetadataKey and CLICommandMetadataKey carry CLI build and
+	// subcommand details alongside SourceMetadataKey. They are advisory: a client
+	// can set them to anything, so treat the values as reporting detail rather
+	// than as anything to branch on.
+	CLIVersionMetadataKey = "x-hatchet-cli-version"
+	CLICommandMetadataKey = "x-hatchet-cli-command"
 )
 
 type Analytics interface {
@@ -103,6 +112,17 @@ func TenantIDFromContext(ctx context.Context) *uuid.UUID {
 
 func OrganizationIDFromContext(ctx context.Context) *uuid.UUID {
 	if id, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+// AccountIDFromContext returns the account an event belongs to, if one was set.
+// An account groups the users, organizations and tenants of a single customer.
+// Unlike a tenant or token it is not an actor, so it never contributes a
+// distinct id — see DistinctID.
+func AccountIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(AccountIDKey).(uuid.UUID); ok && id != uuid.Nil {
 		return &id
 	}
 	return nil

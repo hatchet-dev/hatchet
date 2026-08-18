@@ -133,6 +133,11 @@ class V1TaskSummary(BaseModel):
         description="The idempotency key that was claimed by the task run",
         alias="idempotencyKey",
     )
+    payloads_restricted: Optional[StrictBool] = Field(
+        default=None,
+        description="True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.",
+        alias="payloadsRestricted",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "actionId",
@@ -165,6 +170,7 @@ class V1TaskSummary(BaseModel):
         "workflowConfig",
         "parentTaskExternalId",
         "idempotencyKey",
+        "payloadsRestricted",
     ]
 
     model_config = ConfigDict(
@@ -266,6 +272,7 @@ class V1TaskSummary(BaseModel):
                 "workflowConfig": obj.get("workflowConfig"),
                 "parentTaskExternalId": obj.get("parentTaskExternalId"),
                 "idempotencyKey": obj.get("idempotencyKey"),
+                "payloadsRestricted": obj.get("payloadsRestricted"),
             }
         )
         return _obj

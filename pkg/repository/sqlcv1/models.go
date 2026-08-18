@@ -866,6 +866,7 @@ const (
 	TenantMemberRoleOWNER  TenantMemberRole = "OWNER"
 	TenantMemberRoleADMIN  TenantMemberRole = "ADMIN"
 	TenantMemberRoleMEMBER TenantMemberRole = "MEMBER"
+	TenantMemberRoleVIEWER TenantMemberRole = "VIEWER"
 )
 
 func (e *TenantMemberRole) Scan(src interface{}) error {
@@ -3044,24 +3045,26 @@ type TenantEntitlement struct {
 }
 
 type TenantInviteLink struct {
-	ID           uuid.UUID        `json:"id"`
-	CreatedAt    pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
-	TenantId     uuid.UUID        `json:"tenantId"`
-	InviterEmail string           `json:"inviterEmail"`
-	InviteeEmail string           `json:"inviteeEmail"`
-	Expires      pgtype.Timestamp `json:"expires"`
-	Status       InviteLinkStatus `json:"status"`
-	Role         TenantMemberRole `json:"role"`
+	ID              uuid.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	InviterEmail    string           `json:"inviterEmail"`
+	InviteeEmail    string           `json:"inviteeEmail"`
+	Expires         pgtype.Timestamp `json:"expires"`
+	Status          InviteLinkStatus `json:"status"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads bool             `json:"canViewPayloads"`
 }
 
 type TenantMember struct {
-	ID        uuid.UUID        `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	TenantId  uuid.UUID        `json:"tenantId"`
-	UserId    uuid.UUID        `json:"userId"`
-	Role      TenantMemberRole `json:"role"`
+	ID              uuid.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	UserId          uuid.UUID        `json:"userId"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads bool             `json:"canViewPayloads"`
 }
 
 type TenantResourceLimit struct {
@@ -3318,6 +3321,7 @@ type V1DurableEventLogEntry struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 }
 
 type V1DurableEventLogFile struct {

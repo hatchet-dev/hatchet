@@ -30,7 +30,8 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 
 	// construct the database query
 	updateOpts := &v1.UpdateTenantInviteOpts{
-		Role: v1.StringPtr(string(request.Body.Role)),
+		Role:            v1.StringPtr(string(request.Body.Role)),
+		CanViewPayloads: request.Body.CanViewPayloads,
 	}
 
 	// update the invite

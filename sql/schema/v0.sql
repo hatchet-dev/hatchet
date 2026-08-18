@@ -104,7 +104,7 @@ CREATE TYPE "StepRunStatus" AS ENUM (
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 
 -- CreateEnum
-CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER');
 
 -- CreateEnum
 -- IMPORTANT: keep values in sync with api-contracts/openapi/components/schemas/tenant.yaml#TenantEnvironment
@@ -666,6 +666,7 @@ CREATE TABLE "TenantInviteLink" (
     "expires" TIMESTAMP(3) NOT NULL,
     "status" "InviteLinkStatus" NOT NULL DEFAULT 'PENDING',
     "role" "TenantMemberRole" NOT NULL DEFAULT 'OWNER',
+    "canViewPayloads" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantInviteLink_pkey" PRIMARY KEY ("id")
 );
@@ -678,6 +679,7 @@ CREATE TABLE "TenantMember" (
     "tenantId" UUID NOT NULL,
     "userId" UUID NOT NULL,
     "role" "TenantMemberRole" NOT NULL,
+    "canViewPayloads" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantMember_pkey" PRIMARY KEY ("id")
 );
