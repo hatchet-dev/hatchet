@@ -561,14 +561,17 @@ INSERT INTO "TenantMember" (
     "id",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     @tenantId::uuid,
     @userId::uuid,
-    @role::"TenantMemberRole"
+    @role::"TenantMemberRole",
+    COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
-    "role" = @role::"TenantMemberRole"
+    "role" = @role::"TenantMemberRole",
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads")
 RETURNING *;
 
 -- name: GetTenantMemberByID :one
@@ -633,7 +636,8 @@ WHERE
 -- name: UpdateTenantMember :one
 UPDATE "TenantMember"
 SET
-    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role")
+    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
 WHERE "id" = @id::uuid
 RETURNING *;
 

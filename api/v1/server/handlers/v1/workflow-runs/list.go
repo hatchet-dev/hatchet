@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -97,7 +98,7 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -224,7 +225,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		}
 	}
 
-	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
+	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, transformers.WithPayloads(canViewPayloads))
 
 	dagChildren := make(map[uuid.UUID][]gen.V1TaskSummary)
 
@@ -239,7 +240,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		}
 	}
 
-	result := transformers.ToWorkflowRunMany(dags, dagChildren, taskIdToActionId, workflowNames, total, limit, offset)
+	result := transformers.ToWorkflowRunMany(dags, dagChildren, taskIdToActionId, workflowNames, total, limit, offset, transformers.WithPayloads(canViewPayloads))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(
@@ -247,7 +248,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -349,7 +350,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		}
 	}
 
-	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
+	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, transformers.WithPayloads(canViewPayloads))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(
@@ -377,11 +378,13 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 		useGinIndex = enabled || len(*request.Params.AdditionalMetadata) == 1
 	}
 
+	canViewPayloads := authz.CanViewPayloads(ctx)
+
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex)
+		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex, canViewPayloads)
 	}
 
-	return t.WithDags(spanContext, request, tenantId, useGinIndex)
+	return t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query

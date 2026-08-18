@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   DialogContent,
   DialogHeader,
@@ -24,6 +25,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   role: z.nativeEnum(TenantMemberRole),
+  canViewPayloads: z.boolean(),
 });
 
 interface UpdateMemberFormProps {
@@ -48,6 +50,7 @@ export function UpdateMemberForm({
     resolver: zodResolver(schema),
     defaultValues: {
       role: props.member.role,
+      canViewPayloads: props.member.canViewPayloads ?? true,
     },
   });
 
@@ -115,6 +118,33 @@ export function UpdateMemberForm({
               {roleError && (
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
+            </div>
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="canViewPayloads"
+                render={({ field }) => (
+                  <Checkbox
+                    id="canViewPayloads"
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={
+                      props.isLoading ||
+                      props.member.role === TenantMemberRole.OWNER ||
+                      props.member.role === TenantMemberRole.ADMIN
+                    }
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="canViewPayloads">Can view payloads</Label>
+                <p className="text-xs text-muted-foreground">
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from this member.
+                </p>
+              </div>
             </div>
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
