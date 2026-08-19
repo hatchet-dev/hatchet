@@ -177,6 +177,11 @@ export enum ScheduledWorkflowsMethod {
   API = 'API',
 }
 
+export enum WorkflowPauseScheduledCronRunQueueBehavior {
+  DROP = 'DROP',
+  QUEUE = 'QUEUE',
+}
+
 export enum RateLimitOrderByDirection {
   Asc = 'asc',
   Desc = 'desc',
@@ -1812,6 +1817,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
@@ -2056,9 +2065,26 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface PauseWorkflowRequestPause {
+  /** Discriminator indicating this request pauses the workflow. */
+  action: 'pause';
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m"). */
+  pausedWorkflowQueueTTL: string;
+}
+
+export interface PauseWorkflowRequestUnpause {
+  /** Discriminator indicating this request unpauses the workflow. */
+  action: 'unpause';
+}
+
+export type PauseWorkflowRequest = PauseWorkflowRequestPause | PauseWorkflowRequestUnpause;
+
 export interface WorkflowUpdateRequest {
-  /** Whether the workflow is paused. */
-  isPaused?: boolean;
+  pause?: PauseWorkflowRequest;
 }
 
 export interface WorkflowConcurrency {

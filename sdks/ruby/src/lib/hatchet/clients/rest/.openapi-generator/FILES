@@ -94,6 +94,9 @@ lib/hatchet-sdk-rest/models/otel_span_kind.rb
 lib/hatchet-sdk-rest/models/otel_span_list.rb
 lib/hatchet-sdk-rest/models/otel_status_code.rb
 lib/hatchet-sdk-rest/models/pagination_response.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request_pause.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request_unpause.rb
 lib/hatchet-sdk-rest/models/pull_request.rb
 lib/hatchet-sdk-rest/models/pull_request_state.rb
 lib/hatchet-sdk-rest/models/queue_metrics.rb
@@ -257,6 +260,7 @@ lib/hatchet-sdk-rest/models/workflow_concurrency.rb
 lib/hatchet-sdk-rest/models/workflow_kind.rb
 lib/hatchet-sdk-rest/models/workflow_list.rb
 lib/hatchet-sdk-rest/models/workflow_metrics.rb
+lib/hatchet-sdk-rest/models/workflow_pause_scheduled_cron_run_queue_behavior.rb
 lib/hatchet-sdk-rest/models/workflow_run.rb
 lib/hatchet-sdk-rest/models/workflow_run_list.rb
 lib/hatchet-sdk-rest/models/workflow_run_order_by_direction.rb
