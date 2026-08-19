@@ -1887,7 +1887,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
 					return d.flushRefreshTimeout(flushCtx, k)
 				})
-				if err != nil {
+				if err != nil && status.Code(err) != codes.NotFound {
 					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
 				}
 			})
@@ -1914,6 +1914,11 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			IncrementTimeoutBy: sum.String(),
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Runtime is already gone (completed, cancelled, or timed out).
+				return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
+			}
+
 			// Put the failed sum back so a retry can flush it.
 			d.refreshTimeoutBuf.add(key, sum)
 			return time.Time{}, err
