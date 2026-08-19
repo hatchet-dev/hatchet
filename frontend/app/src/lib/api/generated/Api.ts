@@ -44,7 +44,6 @@ import {
   ListSNSIntegrations,
   ListSlackWebhooks,
   OtelSpanList,
-  PauseWorkflowRequest,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -3045,30 +3044,6 @@ export class Api<
       xResources: ["tenant", "workflow"],
     }), { resources: new Set<string>(["tenant", "workflow"]) });
   /**
-   * @description Pause or unpause a workflow for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowUpdatePause
-   * @summary Toggle workflow paused state
-   * @request PATCH:/api/v1/workflows/{workflow}/pause
-   * @secure
-   */
-  workflowUpdatePause = Object.assign((
-    workflow: string,
-    data: PauseWorkflowRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<Workflow, APIErrors>({
-      path: `/api/v1/workflows/${workflow}/pause`,
-      method: "PATCH",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant", "workflow"],
-    }), { resources: new Set<string>(["tenant", "workflow"]) });
-  /**
    * @description Get a workflow version for a tenant
    *
    * @tags Workflow
@@ -3596,7 +3571,7 @@ export class Api<
     stepRun: string,
     params: RequestParams = {},
   ) =>
-    this.request<WorkflowUpdateRequest, APIErrors>({
+    this.request<object, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
       method: "GET",
       secure: true,

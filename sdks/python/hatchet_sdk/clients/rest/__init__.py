@@ -465,6 +465,9 @@ from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
     WorkflowTriggerEventRef,
 )
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
+from hatchet_sdk.clients.rest.models.workflow_update_request import (
+    WorkflowUpdateRequest,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,

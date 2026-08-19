@@ -17,6 +17,9 @@ from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
 )
+from hatchet_sdk.clients.rest.models.workflow_update_request import (
+    WorkflowUpdateRequest,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
@@ -178,20 +181,22 @@ class WorkflowsClient(BaseRestClient):
 
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
-                self._wa(client).workflow_update_pause, self.client_config.tenacity
+                self._wa(client).workflow_update, self.client_config.tenacity
             )
             return workflow_update_pause(
                 workflow_id,
-                PauseWorkflowRequest(
-                    PauseWorkflowRequestPause(
-                        action="pause",
-                        pausedWorkflowCronRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
-                            paused_workflow_cron_run_queue_behavior
-                        ),
-                        pausedWorkflowScheduledRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
-                            paused_workflow_scheduled_run_queue_behavior
-                        ),
-                        pausedWorkflowQueueTTL=ttl_expr,
+                WorkflowUpdateRequest(
+                    pause=PauseWorkflowRequest(
+                        PauseWorkflowRequestPause(
+                            action="pause",
+                            pausedWorkflowCronRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
+                                paused_workflow_cron_run_queue_behavior
+                            ),
+                            pausedWorkflowScheduledRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
+                                paused_workflow_scheduled_run_queue_behavior
+                            ),
+                            pausedWorkflowQueueTTL=ttl_expr,
+                        )
                     )
                 ),
             )
@@ -232,11 +237,15 @@ class WorkflowsClient(BaseRestClient):
         """
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
-                self._wa(client).workflow_update_pause, self.client_config.tenacity
+                self._wa(client).workflow_update, self.client_config.tenacity
             )
             return workflow_update_pause(
                 workflow_id,
-                PauseWorkflowRequest(PauseWorkflowRequestUnpause(action="unpause")),
+                WorkflowUpdateRequest(
+                    pause=PauseWorkflowRequest(
+                        PauseWorkflowRequestUnpause(action="unpause")
+                    )
+                ),
             )
 
     async def aio_unpause(self, workflow_id: str) -> Workflow:

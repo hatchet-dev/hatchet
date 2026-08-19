@@ -87,10 +87,9 @@ PauseWorkflowRequest:
 
 WorkflowUpdateRequest:
   type: object
-  description: >-
-    Deprecated: this request no longer accepts any fields. Use the dedicated
-    pause endpoint to toggle a workflow's paused state.
-  properties: {}
+  properties:
+    pause:
+      $ref: "#/PauseWorkflowRequest"
 
 WorkflowTag:
   type: object

@@ -81,7 +81,9 @@ export default function ExpandedWorkflow() {
   const togglePauseMutation = useMutation({
     mutationKey: ['workflow:pause:toggle', params.workflow],
     mutationFn: async (opts: PauseWorkflowRequest) => {
-      const res = await api.workflowUpdatePause(params.workflow, opts);
+      const res = await api.workflowUpdate(params.workflow, {
+        pause: opts,
+      });
 
       return res.data;
     },

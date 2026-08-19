@@ -6,10 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -95,21 +93,4 @@ func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantI
 	}
 
 	return result, nil
-}
-
-func (t *WorkflowService) WorkflowUpdatePause(echoCtx echo.Context, request gen.WorkflowUpdatePauseRequestObject) (gen.WorkflowUpdatePauseResponseObject, error) {
-	tenant := echoCtx.Get("tenant").(*sqlcv1.Tenant)
-	workflow := echoCtx.Get("workflow").(*sqlcv1.GetWorkflowByIdRow)
-	ctx := echoCtx.Request().Context()
-
-	result, err := t.applyPauseWorkflowRequest(ctx, tenant.ID, workflow.Workflow.ID, *request.Body)
-
-	if err != nil {
-		t.config.Logger.Err(err).Msg("failed to update workflow pause state")
-		return nil, fmt.Errorf("failed to update workflow")
-	}
-
-	return gen.WorkflowUpdatePause200JSONResponse(
-		*transformers.ToWorkflowFromSQLC(result),
-	), nil
 }

@@ -2068,9 +2068,6 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
-/** Deprecated: this request no longer accepts any fields. Use the dedicated pause endpoint to toggle a workflow's paused state. */
-export type WorkflowUpdateRequest = object;
-
 export interface PauseWorkflowRequestPause {
   /** Discriminator indicating this request pauses the workflow. */
   action: "pause";
@@ -2090,6 +2087,10 @@ export interface PauseWorkflowRequestUnpause {
 export type PauseWorkflowRequest =
   | PauseWorkflowRequestPause
   | PauseWorkflowRequestUnpause;
+
+export interface WorkflowUpdateRequest {
+  pause?: PauseWorkflowRequest;
+}
 
 export interface WorkflowConcurrency {
   /**

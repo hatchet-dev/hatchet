@@ -2693,8 +2693,10 @@ type WorkflowTriggers struct {
 	WorkflowVersionId *string                    `json:"workflow_version_id,omitempty"`
 }
 
-// WorkflowUpdateRequest Deprecated: this request no longer accepts any fields. Use the dedicated pause endpoint to toggle a workflow's paused state.
-type WorkflowUpdateRequest = map[string]interface{}
+// WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
+type WorkflowUpdateRequest struct {
+	Pause *PauseWorkflowRequest `json:"pause,omitempty"`
+}
 
 // WorkflowVersion defines model for WorkflowVersion.
 type WorkflowVersion struct {
@@ -3448,9 +3450,6 @@ type WorkerUpdateJSONRequestBody = UpdateWorkerRequest
 // WorkflowUpdateJSONRequestBody defines body for WorkflowUpdate for application/json ContentType.
 type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
-// WorkflowUpdatePauseJSONRequestBody defines body for WorkflowUpdatePause for application/json ContentType.
-type WorkflowUpdatePauseJSONRequestBody = PauseWorkflowRequest
-
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
 
@@ -4177,11 +4176,6 @@ type ClientInterface interface {
 
 	// WorkflowGetMetrics request
 	WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// WorkflowUpdatePauseWithBody request with any body
-	WorkflowUpdatePauseWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	WorkflowUpdatePause(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdatePauseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCreateWithBody request with any body
 	WorkflowRunCreateWithBody(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6342,30 +6336,6 @@ func (c *Client) WorkflowUpdate(ctx context.Context, workflow openapi_types.UUID
 
 func (c *Client) WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowGetMetricsRequest(c.Server, workflow, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WorkflowUpdatePauseWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowUpdatePauseRequestWithBody(c.Server, workflow, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WorkflowUpdatePause(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdatePauseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowUpdatePauseRequest(c.Server, workflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14503,53 +14473,6 @@ func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, pa
 	return req, nil
 }
 
-// NewWorkflowUpdatePauseRequest calls the generic WorkflowUpdatePause builder with application/json body
-func NewWorkflowUpdatePauseRequest(server string, workflow openapi_types.UUID, body WorkflowUpdatePauseJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewWorkflowUpdatePauseRequestWithBody(server, workflow, "application/json", bodyReader)
-}
-
-// NewWorkflowUpdatePauseRequestWithBody generates requests for WorkflowUpdatePause with any type of body
-func NewWorkflowUpdatePauseRequestWithBody(server string, workflow openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/workflows/%s/pause", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewWorkflowRunCreateRequest calls the generic WorkflowRunCreate builder with application/json body
 func NewWorkflowRunCreateRequest(server string, workflow openapi_types.UUID, params *WorkflowRunCreateParams, body WorkflowRunCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -15218,11 +15141,6 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowGetMetricsWithResponse request
 	WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error)
-
-	// WorkflowUpdatePauseWithBodyWithResponse request with any body
-	WorkflowUpdatePauseWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdatePauseResponse, error)
-
-	WorkflowUpdatePauseWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdatePauseJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdatePauseResponse, error)
 
 	// WorkflowRunCreateWithBodyWithResponse request with any body
 	WorkflowRunCreateWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCreateResponse, error)
@@ -18660,30 +18578,6 @@ func (r WorkflowGetMetricsResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowUpdatePauseResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Workflow
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WorkflowUpdatePauseResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowUpdatePauseResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type WorkflowRunCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -20314,23 +20208,6 @@ func (c *ClientWithResponses) WorkflowGetMetricsWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseWorkflowGetMetricsResponse(rsp)
-}
-
-// WorkflowUpdatePauseWithBodyWithResponse request with arbitrary body returning *WorkflowUpdatePauseResponse
-func (c *ClientWithResponses) WorkflowUpdatePauseWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdatePauseResponse, error) {
-	rsp, err := c.WorkflowUpdatePauseWithBody(ctx, workflow, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowUpdatePauseResponse(rsp)
-}
-
-func (c *ClientWithResponses) WorkflowUpdatePauseWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdatePauseJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdatePauseResponse, error) {
-	rsp, err := c.WorkflowUpdatePause(ctx, workflow, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowUpdatePauseResponse(rsp)
 }
 
 // WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *WorkflowRunCreateResponse
@@ -26240,46 +26117,6 @@ func ParseWorkflowGetMetricsResponse(rsp *http.Response) (*WorkflowGetMetricsRes
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseWorkflowUpdatePauseResponse parses an HTTP response from a WorkflowUpdatePauseWithResponse call
-func ParseWorkflowUpdatePauseResponse(rsp *http.Response) (*WorkflowUpdatePauseResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WorkflowUpdatePauseResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Workflow
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

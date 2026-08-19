@@ -57,6 +57,7 @@ withTenant:
     summary: Get workflows
     tags:
       - Workflow
+
 withWorkflow:
   get:
     x-resources: ["tenant", "workflow"]
