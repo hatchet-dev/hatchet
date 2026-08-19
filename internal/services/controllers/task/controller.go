@@ -474,6 +474,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessInternalEvents(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskTrigger:
 		return tc.handleProcessTaskTrigger(ctx, tenantId, payloads)
+	case msgqueue.MsgIDDurableRunTrigger:
+		return tc.handleProcessDurableRunTrigger(ctx, tenantId, payloads)
 	case msgqueue.MsgIDDurableRestoreTask:
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	}
@@ -1113,6 +1115,56 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	_, err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
 	return err
+}
+
+// handleProcessDurableRunTrigger triggers child tasks / dags from durable run triggers (pretty similar to handleProcessTaskTrigger).
+func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.DurableRunTriggerMessage](payloads)
+
+	tasks := make([]v1.TriggerPendingRunEntriesOpt, 0, len(msgs))
+
+	for _, msg := range msgs {
+		task := &sqlcv1.FlattenExternalIdsRow{
+			ID:         msg.DurableTaskId,
+			InsertedAt: msg.DurableTaskInsertedAt,
+			ExternalID: msg.DurableTaskExternalId,
+		}
+
+		pending := make([]v1.PendingDurableRunTrigger, len(msg.Entries))
+
+		for i, e := range msg.Entries {
+			pending[i] = v1.PendingDurableRunTrigger{
+				NodeId:      e.NodeId,
+				BranchId:    e.BranchId,
+				TriggerOpts: e.TriggerOpts,
+			}
+		}
+
+		tasks = append(tasks, v1.TriggerPendingRunEntriesOpt{
+			Task:        task,
+			PendingRuns: pending,
+		})
+	}
+
+	createdTasks, createdDags, celFailures, err := tc.repov1.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, tasks)
+
+	if err != nil {
+		return fmt.Errorf("failed to trigger pending durable run entries: %w", err)
+	}
+
+	if len(createdTasks) > 0 || len(createdDags) > 0 {
+		if sigErr := tc.signaler.SignalCreated(ctx, tenantId, createdTasks, createdDags); sigErr != nil {
+			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
+		}
+	}
+
+	if len(celFailures) > 0 {
+		if sigErr := tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, celFailures); sigErr != nil {
+			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
+		}
+	}
+
+	return nil
 }
 
 // processUserEventMatches looks for user event matches
