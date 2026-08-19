@@ -7,12 +7,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Migrating from Temporal to Hatchet
 
-Temporal and Hatchet are both platforms which allow developers to write _durable workflows_. These are workflows whose intermediate state is persisted, which means that if your worker crashes or fails halfway through a workflow, it automatically picks up where it left off. This can be particularly useful for AI agents, long-running jobs, or business-critical workflows.
+Temporal and Hatchet are both platforms which allow developers to write [_durable workflows_](/v1/durable-execution). These are workflows whose intermediate state is persisted, which means that if your worker crashes or fails halfway through a workflow, it automatically picks up where it left off. This can be particularly useful for AI agents, long-running jobs, or business-critical workflows.
 
 This guide assumes you have already decided to migrate a project from Temporal to Hatchet and want to understand what code and configuration need to change. Each section starts with a common Temporal pattern, then shows what replaces it in Hatchet and what to watch out for.
 
 <Callout type="info">
-  Code examples are given in Python, TypeScript, Go and Ruby — the four Hatchet
+  Code examples are given in Python, TypeScript, Go and Ruby, the four Hatchet
   SDKs. Temporal also ships Java, .NET and PHP SDKs, plus a Rust SDK in public
   preview; Hatchet has no equivalent for any of those, so if your project is on
   one of them this migration is not available to you today.
@@ -24,12 +24,12 @@ Let's start with what's the same. The Temporal and Hatchet long-lived worker mod
 
 However, there are a few important conceptual differences when you decide to migrate to Hatchet. In Temporal, everything operates as either a _workflow_ or an _activity_. The equivalent concepts in Hatchet are _durable tasks_ and _tasks_:
 
-- A **task** is ordinary code. It runs on a worker, retries on failure, and has no determinism constraints. This is what most Temporal activities and most short Temporal workflows become. It is `@hatchet.task()` in Python, `hatchet.task()` in TypeScript, `client.NewStandaloneTask` in Go, and `HATCHET.task` in Ruby.
-- A **durable task** is the durable-execution primitive. It checkpoints every time it waits or spawns a child, and it carries the same determinism rules a Temporal workflow does. It is `@hatchet.durable_task()`, `hatchet.durableTask()`, `client.NewStandaloneDurableTask`, and `HATCHET.durable_task` respectively.
+- A [**task**](/v1/tasks) is ordinary code. It runs on a [worker](/v1/workers), retries on failure, and has no determinism constraints. This is what most Temporal activities and most short Temporal workflows become. It is `@hatchet.task()` in Python, `hatchet.task()` in TypeScript, `client.NewStandaloneTask` in Go, and `HATCHET.task` in Ruby.
+- A [**durable task**](/v1/durable-tasks) is the durable-execution primitive. It checkpoints every time it waits or spawns a child, and it carries the same determinism rules a Temporal workflow does. It is `@hatchet.durable_task()`, `hatchet.durableTask()`, `client.NewStandaloneDurableTask`, and `HATCHET.durable_task` respectively.
 
 Not every Temporal workflow needs to become a Hatchet durable task. Only workflows which need strong durable execution guarantees need to become a durable task. Remember, Hatchet is designed as a general-purpose task queue, so there are lots of cases where it makes sense to write a task instead.
 
-Second, workers in Hatchet have a built-in notion of concurrency limits, instead of per-activity or per-workflow rate limits. This makes it very easy to reason about the amount of work that a worker is able to accept.
+Second, workers in Hatchet have a built-in notion of [concurrency limits](/v1/concurrency), instead of per-activity or per-workflow rate limits. This makes it very easy to reason about the amount of work that a worker is able to accept.
 
 ## Migration Steps
 
@@ -91,7 +91,7 @@ gem install hatchet-sdk
 </Tabs.Tab>
 </UniversalTabs>
 
-Temporal clients are configured with a server address, a namespace, and — on Temporal Cloud — mTLS certificates or an API key. Hatchet replaces all of that with a single token, read from the environment by every SDK:
+Temporal clients are configured with a server address, a namespace, and, on Temporal Cloud, mTLS certificates or an API key. Hatchet replaces all of that with a single token, read from the environment by every SDK:
 
 ```bash
 export HATCHET_CLIENT_TOKEN="your-token-here"
@@ -660,7 +660,7 @@ end
 </Tabs.Tab>
 </UniversalTabs>
 
-Upstream results are read off the context — `ctx.task_output` in Python and Ruby, `ctx.parentOutput` in TypeScript, `ctx.ParentOutput` in Go — rather than returned through local variables. Tasks with no parents run in parallel; that is the replacement for whatever you used to run activities concurrently inside a workflow. See [DAGs](/v1/directed-acyclic-graphs).
+Upstream results are read off the context (`ctx.task_output` in Python and Ruby, `ctx.parentOutput` in TypeScript, `ctx.ParentOutput` in Go) rather than returned through local variables. Tasks with no parents run in parallel; that is the replacement for whatever you used to run activities concurrently inside a workflow. See [DAGs](/v1/directed-acyclic-graphs).
 
 There is no determinism constraint on a DAG task. Each one is ordinary code that can read a database, call an API, or use the clock.
 
@@ -978,7 +978,7 @@ ctx.sleep_for(duration: 86_400)
 
 While a Hatchet durable task is sleeping it is [evicted](/v1/task-eviction) and its worker slot is released, so a million sleeping runs cost no worker capacity. See [durable sleep](/v1/durable-sleep).
 
-For a _task_ — not a durable task — that should simply start later, create a scheduled run rather than sleeping. There is no reason to hold a durable task open for a fixed future start.
+For a _task_ (not a durable task) that should simply start later, create a scheduled run rather than sleeping. There is no reason to hold a durable task open for a fixed future start.
 
 ## Step 8: Signals, queries, and updates
 
@@ -1098,13 +1098,13 @@ end
 </Tabs.Tab>
 </UniversalTabs>
 
-This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled — anything can emit one, and any number of runs can wait on the same event — but they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable business key in their input and filter on it.
+This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled. Anything can emit one, and any number of runs can wait on the same event. But they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable business key in their input and filter on it.
 
 Three related mappings:
 
 - **A wait-for-condition inside a workflow** (`workflow.wait_condition`, `wf.condition`, `workflow.Await`) is usually a wait condition on a DAG task instead: a sleep condition, a user-event condition, or a parent condition, composed with an or-group. That moves the wait out of your code and into the workflow definition, where the engine can see it. See [conditions](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups).
-- **Queries** have no direct equivalent, because Hatchet does not run your code to answer a question about a run. Run inputs, outputs, and history are already queryable through the API and dashboard. For live progress, stream it from the task — `ctx.aio_put_stream` in Python, `ctx.putStream` in TypeScript, `ctx.PutStream` in Go, `ctx.put_stream` in Ruby — and consume it from the caller. See [streaming](/v1/streaming).
-- **Updates** — a synchronous, validated mutation of running workflow state — have no equivalent. Model this as an event the durable task waits on, plus a child task that performs the mutation and returns a result.
+- **Queries** have no direct equivalent, because Hatchet does not run your code to answer a question about a run. Run inputs, outputs, and history are already queryable through the API and dashboard. For live progress, stream it from the task (`ctx.aio_put_stream` in Python, `ctx.putStream` in TypeScript, `ctx.PutStream` in Go, `ctx.put_stream` in Ruby) and consume it from the caller. See [streaming](/v1/streaming).
+- **Updates**, a synchronous and validated mutation of running workflow state, have no equivalent. Model this as an event the durable task waits on, plus a child task that performs the mutation and returns a result.
 
 ## Step 9: Child workflows and fan-out
 
@@ -1209,7 +1209,7 @@ results = PROCESS_ITEM_WF.run_many(
 
 Spawning from a durable task checkpoints each child, so a crash mid-fan-out resumes without re-running completed children. See [child spawning](/v1/child-spawning).
 
-Hatchet places no cap on the number of children spawned from a durable run. Temporal enforces a limit on pending child executions and pending activities per run — 51,200 by default, tunable in server dynamic config — which is the constraint behind most Temporal "continue-as-new to keep the history small" batching code. That batching code can usually be deleted; for large fan-outs, see [bulk run](/v1/bulk-run).
+Hatchet places no cap on the number of children spawned from a durable run. Temporal enforces a limit on pending child executions and pending activities per run (51,200 by default, tunable in server dynamic config), which is the constraint behind most Temporal "continue-as-new to keep the history small" batching code. That batching code can usually be deleted; for large fan-outs, see [bulk run](/v1/bulk-run).
 
 ## Step 10: Schedules and crons
 
@@ -1278,7 +1278,7 @@ end
   Ruby, crons are declared on a workflow rather than on a standalone task.
 </Callout>
 
-For schedules created at runtime — the equivalent of programmatic Temporal schedules — use the API:
+For schedules created at runtime (the equivalent of programmatic Temporal schedules), use the API:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
@@ -1374,10 +1374,10 @@ See [cron runs](/v1/cron-runs) and [scheduled runs](/v1/scheduled-runs).
 
 Be aware of this one before you start, because it is a genuine trade-off rather than a straight win.
 
-Temporal gives you patching APIs — `workflow.patched` / `GetVersion` and their per-SDK equivalents — to branch on workflow version, so a deployment can change the code path of workflows that are already running. Hatchet has no equivalent API in any SDK. Its answer is to shrink the surface that needs versioning at all:
+Temporal gives you patching APIs (`workflow.patched` / `GetVersion` and their per-SDK equivalents) to branch on workflow version, so a deployment can change the code path of workflows that are already running. Hatchet has no equivalent API in any SDK. Its answer is to shrink the surface that needs versioning at all:
 
 - Most of what was a Temporal workflow becomes a plain task or a DAG in Hatchet, and those have no replay history to stay compatible with. You can change their bodies freely.
-- What remains a durable task is usually small — wait, spawn, wait again — and small durable tasks are the ones that are easy to keep replay-compatible.
+- What remains a durable task is usually small (wait, spawn, wait again), and small durable tasks are the ones that are easy to keep replay-compatible.
 - For a durable task whose shape genuinely has to change, deploy the new version under a new task name and let in-flight runs drain on the old one. This is the same technique as Temporal's "new workflow type" escape hatch, minus the in-place patching.
 
 If you have durable workflows that are routinely patched in place while running for weeks, understand this cost before committing to the migration.
@@ -1386,7 +1386,7 @@ DAG shape changes are safer but not free: adding a task to a workflow affects ru
 
 ## Step 12: Flow control you no longer have to build
 
-Several things that Temporal projects build by hand — partitioned task queues, worker-side semaphores, external rate limiters in front of activities — are engine features in Hatchet:
+Several things that Temporal projects build by hand (partitioned task queues, worker-side semaphores, external rate limiters in front of activities) are engine features in Hatchet:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
