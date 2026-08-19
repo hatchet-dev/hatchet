@@ -592,6 +592,19 @@ def patch_workflow_run_metrics_counts_return_type(content: str) -> str:
     return apply_patch(content, pattern, replacement)
 
 
+def patch_configuration_tls_server_name_type(content: str) -> str:
+    """Annotate tls_server_name so mypy allows assigning a str to it.
+
+    openapi-generator emits `self.tls_server_name = None` with no annotation,
+    which makes mypy infer the attribute's type as `None`.
+    """
+    return apply_patch(
+        content,
+        r"self\.tls_server_name = None\n",
+        "self.tls_server_name: Optional[str] = None\n",
+    )
+
+
 def patch_workflows_pb2_reexport(content: str) -> str:
     """Re-export types that moved to v1/shared/trigger.proto for backwards compatibility."""
     reexport = (
@@ -641,6 +654,10 @@ if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/clients/rest/rest.py",
         [patch_rest_imports, patch_rest_error_diagnostics],
+    )
+    atomically_patch_file(
+        "hatchet_sdk/clients/rest/configuration.py",
+        [patch_configuration_tls_server_name_type],
     )
 
     grpc_patches: list[Callable[[str], str]] = [
