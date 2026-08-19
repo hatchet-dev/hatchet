@@ -36,7 +36,12 @@ class BaseRestClient:
         self.api_config = Configuration(
             host=config.server_url,
             access_token=config.token,
+            ssl_ca_cert=config.tls_config.root_ca_file,
         )
+        self.api_config.tls_server_name = config.tls_config.server_name
+
+        if config.tls_config.strategy == "none":
+            self.api_config.verify_ssl = False
 
         self.api_config.datetime_format = "%Y-%m-%dT%H:%M:%S.%fZ"
 

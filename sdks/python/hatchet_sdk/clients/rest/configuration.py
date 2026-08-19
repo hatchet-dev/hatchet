@@ -300,7 +300,7 @@ class Configuration:
         self.assert_hostname = None
         """Set this to True/False to enable/disable SSL hostname verification.
         """
-        self.tls_server_name = None
+        self.tls_server_name: Optional[str] = None
         """SSL/TLS Server Name Indication (SNI)
            Set this to the SNI value expected by the server.
         """
