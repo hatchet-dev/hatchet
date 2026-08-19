@@ -315,6 +315,8 @@ type TaskRepository interface {
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
 
+	ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error)
+
 	GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
@@ -521,7 +523,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
 	defer span.End()
 
@@ -541,34 +542,42 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	span.SetAttributes(attribute.Bool("cache_hit", false))
 
 	// lookup the task
-	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
-		Tenantid:    tenantId,
-		Externalids: []uuid.UUID{taskExternalId},
+	res, err := r.queries.GetTaskByExternalId(ctx, r.pool, sqlcv1.GetTaskByExternalIdParams{
+		Tenantid:   tenantId,
+		Externalid: taskExternalId,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(dbTasks) == 0 {
-		return nil, pgx.ErrNoRows
-	}
-
-	if len(dbTasks) > 1 {
-		return nil, fmt.Errorf("found more than one task for %s", taskExternalId)
-	}
-
-	// set the cache
-	res := dbTasks[0]
-
 	key := taskExternalIdTenantIdTuple{
 		externalId: taskExternalId,
 		tenantId:   tenantId,
 	}
 
-	r.taskLookupCache.Add(key, res)
+	row := sqlcv1.FlattenExternalIdsRow{
+		ID:                    res.ID,
+		InsertedAt:            res.InsertedAt,
+		RetryCount:            res.RetryCount,
+		ExternalID:            res.ExternalID,
+		WorkflowRunID:         res.WorkflowRunID,
+		AdditionalMetadata:    res.AdditionalMetadata,
+		DagID:                 res.DagID,
+		DagInsertedAt:         res.DagInsertedAt,
+		ParentTaskID:          res.ParentTaskID,
+		ChildIndex:            res.ChildIndex,
+		ChildKey:              res.ChildKey,
+		StepReadableID:        res.StepReadableID,
+		WorkflowRunExternalID: res.WorkflowRunID,
+		WorkflowID:            res.WorkflowID,
+		StepID:                res.StepID,
+		IsDurable:             res.IsDurable,
+	}
 
-	return res, nil
+	r.taskLookupCache.Add(key, &row)
+
+	return &row, nil
 }
 
 func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
@@ -1557,6 +1566,56 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	return res, len(toReassign) == limit, nil
 }
 
+func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error) {
+	const batchSize = 1000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	expiredItems, err := r.queries.ListExpiredPausedWorkflowQueueItems(ctx, tx, sqlcv1.ListExpiredPausedWorkflowQueueItemsParams{
+		Tenantid:  tenantId,
+		Batchsize: batchSize,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error listing expired v1_paused_workflow_queue_items: %w", err)
+	}
+
+	if len(expiredItems) == 0 {
+		return &FinalizedTaskResponse{
+			ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+			InternalEvents: make([]InternalTaskEvent, 0),
+		}, false, nil
+	}
+
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(expiredItems))
+
+	for _, item := range expiredItems {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         item.TaskID,
+			InsertedAt: item.TaskInsertedAt,
+			RetryCount: item.RetryCount,
+		})
+	}
+
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(expiredItems) == batchSize, nil
+}
+
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -1696,8 +1755,17 @@ func (r *TaskRepositoryImpl) GetQueueSizes(ctx context.Context, tenantId uuid.UU
 	return r.queries.GetQueueSizes(ctx, r.pool, tenantId)
 }
 
+// PrometheusMetadataKeyPrefix is the additional metadata key prefix which opts a key into
+// the metadata queue size gauge. Unprefixed keys are unbounded in practice (per-run ids
+// and the like) and blow up series cardinality, so only explicitly prefixed keys are
+// exported.
+const PrometheusMetadataKeyPrefix = "prom_"
+
 func (r *TaskRepositoryImpl) GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error) {
-	return r.queries.GetQueueSizesByMetadata(ctx, r.pool, tenantId)
+	return r.queries.GetQueueSizesByMetadata(ctx, r.pool, sqlcv1.GetQueueSizesByMetadataParams{
+		Tenantid:  tenantId,
+		Keyprefix: PrometheusMetadataKeyPrefix,
+	})
 }
 
 func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error) {
@@ -1815,6 +1883,15 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	defer rollback()
+
+	_, err = r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
+		Durabletaskid:         task.Id,
+		Durabletaskinsertedat: task.InsertedAt,
+		Tenantid:              tenantId,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
 
 	evicted, err := r.queries.EvictTask(ctx, tx, sqlcv1.EvictTaskParams{
 		Tenantid:       tenantId,
@@ -1960,6 +2037,41 @@ func getQueueCacheKey(tenantId uuid.UUID, queue string) string {
 	return fmt.Sprintf("%s:%s", tenantId, queue)
 }
 
+func (r *sharedRepository) listStepsByIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) (map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, error) {
+	res := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow, len(stepIds))
+
+	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
+
+	for _, id := range stepIds {
+		if step, found := r.stepIdConfigCache.Get(id); found {
+			res[id] = step
+			continue
+		}
+
+		stepIdsToLookup = append(stepIdsToLookup, id)
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return res, nil
+	}
+
+	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
+		Ids:      stepIdsToLookup,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, step := range steps {
+		res[step.ID] = step
+		r.stepIdConfigCache.Add(step.ID, step)
+	}
+
+	return res, nil
+}
+
 func (r *sharedRepository) createTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -1979,19 +2091,10 @@ func (r *sharedRepository) createTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]CreateTaskOpts, 0, len(tasks))
@@ -2537,6 +2640,7 @@ func (r *sharedRepository) insertTasks(
 	eventTaskExternalIds := make([]uuid.UUID, 0)
 	eventDatas := make([][]byte, 0)
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+	taskIdToIdempotencyKey := make(map[int64]string)
 
 	for stepId, params := range stepIdsToParams {
 		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
@@ -2545,9 +2649,7 @@ func (r *sharedRepository) insertTasks(
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
 		}
 
-		createdTasksWithPayloads := make([]*V1TaskWithPayload, len(createdTasks))
-
-		for i, task := range createdTasks {
+		for _, task := range createdTasks {
 			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
@@ -2556,31 +2658,32 @@ func (r *sharedRepository) insertTasks(
 			}
 
 			res = append(res, &withPayload)
-			createdTasksWithPayloads[i] = &withPayload
-		}
 
-		for _, createdTask := range createdTasksWithPayloads {
 			idRetryCount := TaskIdInsertedAtRetryCount{
-				Id:         createdTask.ID,
-				InsertedAt: createdTask.InsertedAt,
-				RetryCount: createdTask.RetryCount,
+				Id:         withPayload.ID,
+				InsertedAt: withPayload.InsertedAt,
+				RetryCount: withPayload.RetryCount,
 			}
 
-			switch createdTask.InitialState {
+			if task.IdempotencyKey.Valid {
+				taskIdToIdempotencyKey[withPayload.ID] = task.IdempotencyKey.String
+			}
+
+			switch withPayload.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, createdTask.ExternalID)
-				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
 		}
@@ -2595,6 +2698,8 @@ func (r *sharedRepository) insertTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		taskIdToIdempotencyKey,
+		nil,
 	)
 
 	if err != nil {
@@ -2653,19 +2758,10 @@ func (r *sharedRepository) replayTasks(
 		}
 	}
 
-	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
-		Ids:      stepIds,
-		Tenantid: tenantId,
-	})
+	stepIdsToConfig, err := r.listStepsByIds(ctx, tx, tenantId, stepIds)
 
 	if err != nil {
 		return nil, err
-	}
-
-	stepIdsToConfig := make(map[uuid.UUID]*sqlcv1.ListStepsByIdsRow)
-
-	for _, step := range steps {
-		stepIdsToConfig[step.ID] = step
 	}
 
 	filteredTasks := make([]ReplayTaskOpts, 0, len(tasks))
@@ -2890,6 +2986,7 @@ func (r *sharedRepository) replayTasks(
 	eventTaskExternalIds := make([]uuid.UUID, 0)
 	eventDatas := make([][]byte, 0)
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+	taskIdToIdempotencyKey := make(map[int64]string)
 
 	for stepId, params := range stepIdsToParams {
 		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
@@ -2910,40 +3007,40 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
 		}
 
-		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
-		for i, task := range replayRes {
+		for _, task := range replayRes {
 			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
 				Runtime: nil,
 				Payload: input,
 			}
-			replayResWithPayloads[i] = &withPayload
 			res = append(res, &withPayload)
-		}
 
-		for _, replayedTask := range replayResWithPayloads {
-			idRetryCount := TaskIdInsertedAtRetryCount{
-				Id:         replayedTask.ID,
-				InsertedAt: replayedTask.InsertedAt,
-				RetryCount: replayedTask.RetryCount,
+			if task.IdempotencyKey.Valid {
+				taskIdToIdempotencyKey[withPayload.ID] = task.IdempotencyKey.String
 			}
 
-			switch replayedTask.InitialState {
+			idRetryCount := TaskIdInsertedAtRetryCount{
+				Id:         withPayload.ID,
+				InsertedAt: withPayload.InsertedAt,
+				RetryCount: withPayload.RetryCount,
+			}
+
+			switch withPayload.InitialState {
 			case sqlcv1.V1TaskInitialStateFAILED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, replayedTask.ExternalID)
-				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			}
 		}
@@ -2958,6 +3055,8 @@ func (r *sharedRepository) replayTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		taskIdToIdempotencyKey,
+		nil,
 	)
 
 	if err != nil {
@@ -3124,11 +3223,15 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	datas := make([][]byte, len(releasedTasks))
 	externalIds := make([]uuid.UUID, len(releasedTasks))
 	isCurrentRetry := make([]bool, len(releasedTasks))
+	taskIdToIdempotencyKey := make(map[int64]string, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
 		datas[i] = outputs[i]
 		externalIds[i] = releasedTask.ExternalID
 		isCurrentRetry[i] = releasedTask.IsCurrentRetry
+		if releasedTask.IdempotencyKey.Valid {
+			taskIdToIdempotencyKey[releasedTask.ID] = releasedTask.IdempotencyKey.String
+		}
 	}
 
 	// filter out any rows which are not the current retry
@@ -3155,6 +3258,8 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredDatas,
 		makeEventTypeArr(eventType, len(filteredExternalIds)),
 		make([]string, len(filteredExternalIds)),
+		taskIdToIdempotencyKey,
+		nil,
 	)
 }
 
@@ -3196,9 +3301,15 @@ func (r *sharedRepository) createTaskEvents(
 	eventDatas [][]byte,
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
+	taskIdToIdempotencyKey map[int64]string,
+	childExternalIdsByIndex []*uuid.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
+	}
+
+	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
+		return nil, fmt.Errorf("mismatched task and child external id lengths")
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -3208,11 +3319,12 @@ func (r *sharedRepository) createTaskEvents(
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
+	childExternalIds := make([]uuid.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
 	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
-	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, len(tasks))
+	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, 0, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -3222,6 +3334,12 @@ func (r *sharedRepository) createTaskEvents(
 
 		externalId := uuid.New()
 		externalIds[i] = externalId
+
+		if childExternalIdsByIndex != nil && childExternalIdsByIndex[i] != nil {
+			childExternalIds[i] = *childExternalIdsByIndex[i]
+		} else {
+			childExternalIds[i] = uuid.Nil
+		}
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
 		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
@@ -3245,33 +3363,40 @@ func (r *sharedRepository) createTaskEvents(
 			Data:           eventDatas[i],
 		}
 
-		releaseIdempotencyKeysOpts[i] = ReleaseIdempotencyKeysOpt{
-			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
-				Id:         task.Id,
-				InsertedAt: task.InsertedAt,
-				RetryCount: task.RetryCount,
-			},
-			EventType: eventTypes[i],
+		if idempotencyKey, ok := taskIdToIdempotencyKey[task.Id]; ok && idempotencyKey != "" {
+			releaseIdempotencyKeysOpts = append(
+				releaseIdempotencyKeysOpts, ReleaseIdempotencyKeysOpt{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         task.Id,
+						InsertedAt: task.InsertedAt,
+						RetryCount: task.RetryCount,
+					},
+					EventType: eventTypes[i],
+				},
+			)
 		}
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Eventtypes:      eventTypesStrs,
-		Datas:           paramDatas,
-		Eventkeys:       paramKeys,
-		Externalids:     externalIds,
+		Tenantid:         tenantId,
+		Taskids:          taskIds,
+		Taskinsertedats:  taskInsertedAts,
+		Retrycounts:      retryCounts,
+		Eventtypes:       eventTypesStrs,
+		Datas:            paramDatas,
+		Eventkeys:        paramKeys,
+		Externalids:      externalIds,
+		Childexternalids: childExternalIds,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
-		return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
+	if len(releaseIdempotencyKeysOpts) > 0 {
+		if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
+			return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
+		}
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))

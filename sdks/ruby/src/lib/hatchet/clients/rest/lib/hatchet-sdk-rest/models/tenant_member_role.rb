@@ -18,9 +18,10 @@ module HatchetSdkRest
     OWNER = "OWNER".freeze
     ADMIN = "ADMIN".freeze
     MEMBER = "MEMBER".freeze
+    VIEWER = "VIEWER".freeze
 
     def self.all_vars
-      @all_vars ||= [OWNER, ADMIN, MEMBER].freeze
+      @all_vars ||= [OWNER, ADMIN, MEMBER, VIEWER].freeze
     end
 
     # Builds the enum from string

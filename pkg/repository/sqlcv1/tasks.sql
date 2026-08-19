@@ -6,8 +6,6 @@ SELECT
     create_v1_range_partition('v1_log_line', @date::date),
     create_v1_range_partition('v1_payload', @date::date),
     create_v1_range_partition('v1_event', @date::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table', @date::date),
-    create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
@@ -62,10 +60,6 @@ WITH task_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
 ), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', @date::date) AS p
-), event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
-), event_to_run_partitions AS (
-    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
 ), durable_event_log_file_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
 ), durable_event_log_entry_partitions AS (
@@ -113,20 +107,6 @@ SELECT
     *
 FROM
     event_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    event_lookup_table_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    event_to_run_partitions
 
 UNION ALL
 
@@ -184,7 +164,8 @@ WITH lookup_rows AS (
         t.step_readable_id,
         l.external_id AS workflow_run_external_id,
         t.workflow_id,
-        t.step_id
+        t.step_id,
+        t.is_durable
     FROM
         lookup_rows l
     JOIN
@@ -210,7 +191,8 @@ SELECT
     t.step_readable_id,
     t.external_id AS workflow_run_external_id,
     t.workflow_id,
-    t.step_id
+    t.step_id,
+    t.is_durable
 FROM
     lookup_rows l
 JOIN
@@ -224,6 +206,15 @@ SELECT
     *
 FROM
     tasks_from_dags;
+
+-- name: GetTaskByExternalId :one
+SELECT t.*
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = @externalId::uuid
+    AND l.tenant_id = @tenantId::uuid
+;
 
 -- name: LookupExternalIds :many
 SELECT
@@ -558,7 +549,8 @@ WITH input AS (
 		e.task_id,
 		e.task_inserted_at,
         e.inserted_at,
-        e.external_id
+        e.external_id,
+        e.child_external_id
     FROM
         v1_task_event e
     JOIN
@@ -574,7 +566,8 @@ SELECT
     e.inserted_at,
 	e.event_key,
 	e.data,
-    e.external_id
+    e.external_id,
+    e.child_external_id
 FROM
 	events_to_lock e
 WHERE
@@ -1291,6 +1284,21 @@ WITH queued_tasks AS (
     GROUP BY
         t.step_readable_id,
         t.queue
+), paused_workflow_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_paused_workflow_queue_item pqi
+    JOIN
+        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+    WHERE
+        pqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1428,6 +1436,19 @@ FROM concurrency_queued_tasks
 UNION ALL
 
 SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM paused_workflow_queued_tasks
+
+UNION ALL
+
+SELECT
     'running_total' as row_kind,
     step_readable_id,
     ''::text as queue,
@@ -1535,27 +1556,6 @@ JOIN
 WHERE
     tr.tenant_id = @tenantId::uuid
 ;
-
--- name: CreateEventToRuns :many
-WITH input AS (
-    SELECT
-        UNNEST(@runExternalIds::uuid[]) AS run_external_id,
-        UNNEST(@eventIds::bigint[]) AS event_id,
-        UNNEST(@eventSeenAts::timestamptz[]) AS event_seen_at,
-        UNNEST(@filterIds::uuid[]) AS filter_id
-)
-INSERT INTO v1_event_to_run (run_external_id, event_id, event_seen_at, filter_id)
-SELECT
-    run_external_id,
-    event_id,
-    event_seen_at,
-    CASE WHEN filter_id = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
-        ELSE filter_id
-    END AS filter_id
-FROM
-    input
-RETURNING
-    *;
 
 -- name: FilterValidTasks :many
 WITH inputs AS (

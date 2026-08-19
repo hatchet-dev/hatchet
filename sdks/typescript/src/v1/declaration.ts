@@ -1147,7 +1147,12 @@ export class TaskWorkflowDeclaration<
   _standalone_task_name: string;
 
   constructor(options: CreateTaskWorkflowOpts<any, any>, client?: IHatchetClient) {
-    super({ ...options }, client);
+    // strip out the concurrency options, because those do not need to be provided to the workflow options.
+    // if they are, it will cause the concurrency strategy to have a parentId (from the workflow that doesn't really exist)
+    // causing a fallback to the slow concurrency evaluation
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { concurrency, ...workflowOpts } = options;
+    super({ ...workflowOpts }, client);
 
     this._standalone_task_name = options.name;
 

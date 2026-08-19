@@ -13,7 +13,7 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubicloud-standard-8
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       pull-requests: write
     steps:
@@ -49,13 +49,27 @@ jobs:
 
       - name: Run benchmarks on PR branch
         if: steps.packages.outputs.found == 'true'
-        run: go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ${{ steps.packages.outputs.pkgs }} 2>/dev/null | tee /tmp/new.txt
+        run: go test -run='^$' -bench=. -benchmem -count=6 -timeout=12m ${{ steps.packages.outputs.pkgs }} 2>/dev/null | tee /tmp/new.txt
 
       - name: Run benchmarks on base branch
         if: steps.packages.outputs.found == 'true'
         run: |
           git checkout ${{ github.event.pull_request.base.sha }}
-          go test -run='^$' -bench=. -benchmem -count=6 -timeout=10m ${{ steps.packages.outputs.pkgs }} 2>/dev/null | tee /tmp/old.txt
+
+          # packages added by the PR don't exist on the base branch; skip them
+          BASE_PKGS=""
+          for pkg in ${{ steps.packages.outputs.pkgs }}; do
+            if [ -d "$pkg" ]; then
+              BASE_PKGS="$BASE_PKGS $pkg"
+            fi
+          done
+
+          if [ -n "$BASE_PKGS" ]; then
+            go test -run='^$' -bench=. -benchmem -count=6 -timeout=12m $BASE_PKGS 2>/dev/null | tee /tmp/old.txt
+          else
+            : > /tmp/old.txt
+          fi
+
           git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Compare with benchstat

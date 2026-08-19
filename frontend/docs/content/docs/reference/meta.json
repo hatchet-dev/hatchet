@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "changelog",
+    "python",
+    "typescript",
+    "cli",
+    "[Go SDK](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go)"
+  ],
+  "title": "Reference",
+  "root": true,
+  "description": "SDK & CLI reference",
+  "icon": "Code"
+}

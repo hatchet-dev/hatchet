@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "cpu",
+    "gpu",
+    "git-ops",
+    "auto-scaling",
+    "environment-variables"
+  ],
+  "title": "Managed Compute"
+}

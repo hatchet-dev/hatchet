@@ -60,7 +60,7 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	var shutdown func(context.Context) error
 	if embeddedCfg != nil {
 		if embeddedBackend == nil {
-			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet-embedded")
 		}
 		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
 		if err != nil {
@@ -838,11 +838,21 @@ type WorkflowRunRef struct {
 
 // V0Workflow returns the underlying v0Client.Workflow.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	return wr.resultWithContext(nil)
+}
+
+func (wr *WorkflowRunRef) resultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	if wr.resultFn != nil {
 		return wr.resultFn()
 	}
 
-	result, err := wr.v0Workflow.Result()
+	var result *v0Client.WorkflowResult
+	var err error
+	if ctx == nil {
+		result, err = wr.v0Workflow.Result()
+	} else {
+		result, err = wr.v0Workflow.ResultWithContext(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}

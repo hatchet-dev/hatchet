@@ -384,6 +384,11 @@ export const OrganizationInviteMemberModal = ({
                             >
                               Admin
                             </SelectItem>
+                            <SelectItem
+                              value={OrganizationInviteTenantRole.VIEWER}
+                            >
+                              Viewer
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       ),

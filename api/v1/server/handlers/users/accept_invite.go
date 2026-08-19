@@ -92,8 +92,9 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	// add the user to the tenant
 	member, err := u.config.V1.Tenant().CreateTenantMember(ctx.Request().Context(), invite.TenantId, &v1.CreateTenantMemberOpts{
-		UserId: userId,
-		Role:   string(invite.Role),
+		UserId:          userId,
+		Role:            string(invite.Role),
+		CanViewPayloads: &invite.CanViewPayloads,
 	})
 
 	if err != nil {

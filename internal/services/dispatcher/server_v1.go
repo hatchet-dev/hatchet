@@ -20,11 +20,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.register-durable-event")
+	defer span.End()
+
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 	d.analytics.Count(ctx, analytics.Worker, analytics.Register)
 	taskId, err := uuid.Parse(req.TaskId)
 
@@ -319,12 +325,164 @@ type durableTaskInvocation struct {
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
+
+	releasesMu sync.Mutex
+	releases   map[orderedReleaseKey]*orderedRelease
+}
+
+type orderedReleaseKey struct {
+	taskExternalId  uuid.UUID
+	invocationCount int32
+}
+
+type orderedRelease struct {
+	mu                           sync.Mutex
+	maxSatisfiedOrderSentAlready int64
+	bufferedCompletions          map[int64]*contracts.DurableTaskResponse
+	oldestBufferedAt             time.Time
+	lastActivityAt               time.Time
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
 	return s.server.Send(resp)
+}
+
+func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedRelease {
+	if s.releases == nil {
+		s.releases = make(map[orderedReleaseKey]*orderedRelease)
+	}
+
+	if rel, ok := s.releases[key]; ok {
+		return rel
+	}
+
+	for existing := range s.releases {
+		if existing.taskExternalId == key.taskExternalId && existing.invocationCount < key.invocationCount {
+			delete(s.releases, existing)
+		}
+	}
+
+	rel := &orderedRelease{
+		bufferedCompletions: make(map[int64]*contracts.DurableTaskResponse),
+		lastActivityAt:      time.Now(),
+	}
+	s.releases[key] = rel
+	return rel
+}
+
+func (s *durableTaskInvocation) clearRelease(key orderedReleaseKey) {
+	s.releasesMu.Lock()
+	defer s.releasesMu.Unlock()
+
+	delete(s.releases, key)
+}
+
+func (s *durableTaskInvocation) pruneIdleReleases(idle time.Duration) {
+	s.releasesMu.Lock()
+	defer s.releasesMu.Unlock()
+
+	now := time.Now()
+
+	for key, rel := range s.releases {
+		rel.mu.Lock()
+		idleEnough := len(rel.bufferedCompletions) == 0 && now.Sub(rel.lastActivityAt) > idle
+		rel.mu.Unlock()
+
+		if idleEnough {
+			delete(s.releases, key)
+		}
+	}
+}
+
+func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocationCount int32, satisfiedOrder *int64, resp *contracts.DurableTaskResponse) error {
+	if satisfiedOrder == nil {
+		return s.send(resp)
+	}
+
+	order := *satisfiedOrder
+
+	s.releasesMu.Lock()
+	rel := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
+	s.releasesMu.Unlock()
+
+	rel.mu.Lock()
+	defer rel.mu.Unlock()
+
+	rel.lastActivityAt = time.Now()
+
+	var toSend []*contracts.DurableTaskResponse
+
+	switch {
+	case order <= rel.maxSatisfiedOrderSentAlready:
+		// already released (e.g. reconnect / worker-status re-delivery); the worker
+		// dedupes by node id, so send it through again.
+		toSend = []*contracts.DurableTaskResponse{resp}
+	case order == rel.maxSatisfiedOrderSentAlready+1:
+		toSend = append(toSend, resp)
+		rel.maxSatisfiedOrderSentAlready++
+
+		for {
+			next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
+			if !ok {
+				break
+			}
+			delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
+			toSend = append(toSend, next)
+			rel.maxSatisfiedOrderSentAlready++
+		}
+
+		if len(rel.bufferedCompletions) == 0 {
+			rel.oldestBufferedAt = time.Time{}
+		}
+	default:
+		if buffered, exists := rel.bufferedCompletions[order]; exists {
+			existingRef := buffered.GetEntryCompleted().GetRef()
+			incomingRef := resp.GetEntryCompleted().GetRef()
+			if existingRef.GetNodeId() != incomingRef.GetNodeId() || existingRef.GetBranchId() != incomingRef.GetBranchId() {
+				s.l.Error().Msgf(
+					"durable task %s (invocation %d): satisfied_order %d claimed by two different entries (buffered node %d/branch %d vs incoming node %d/branch %d); dropping the newer one",
+					taskExternalId, invocationCount, order,
+					existingRef.GetNodeId(), existingRef.GetBranchId(), incomingRef.GetNodeId(), incomingRef.GetBranchId(),
+				)
+			}
+			return nil
+		}
+
+		rel.bufferedCompletions[order] = resp
+		if rel.oldestBufferedAt.IsZero() {
+			rel.oldestBufferedAt = time.Now()
+		}
+	}
+
+	for _, r := range toSend {
+		if err := s.send(r); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []orderedReleaseKey {
+	s.releasesMu.Lock()
+	defer s.releasesMu.Unlock()
+
+	now := time.Now()
+	var stale []orderedReleaseKey
+
+	for key, rel := range s.releases {
+		rel.mu.Lock()
+		isStale := len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout
+		rel.mu.Unlock()
+
+		if isStale {
+			stale = append(stale, key)
+		}
+	}
+
+	return stale
 }
 
 func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
@@ -345,6 +503,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
+	var reqWg sync.WaitGroup
+
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(durableInvocationsKey{
@@ -354,6 +514,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		}
 		d.workerInvocations.Delete(invocation.workerId)
 	}()
+
+	defer reqWg.Wait()
 
 	registerTask := func(externalIdStr string) {
 		taskExtId, err := uuid.Parse(externalIdStr)
@@ -414,6 +576,13 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				return r.err
 			}
 
+			if msg, isRegisterWorker := r.req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
+				if err := d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+				continue
+			}
+
 			switch msg := r.req.GetMessage().(type) {
 			case *contracts.DurableTaskRequest_Memo:
 				registerTask(msg.Memo.DurableTaskExternalId)
@@ -423,9 +592,14 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
-			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
-				d.l.Error().Err(err).Msg("error handling durable task request")
-			}
+			reqWg.Add(1)
+			go func(req *contracts.DurableTaskRequest) {
+				defer reqWg.Done()
+
+				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+					d.l.Error().Err(err).Msg("error handling durable task request")
+				}
+			}(r.req)
 		}
 	}
 }
@@ -435,9 +609,16 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
 ) error {
+	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "worker_id", Value: invocation.workerId},
+		telemetry.AttributeKV{Key: "message_type", Value: fmt.Sprintf("%T", req.GetMessage())},
+	)
+
 	switch msg := req.GetMessage().(type) {
-	case *contracts.DurableTaskRequest_RegisterWorker:
-		return d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker)
 	case *contracts.DurableTaskRequest_Memo:
 		return d.handleMemo(ctx, invocation, msg.Memo)
 	case *contracts.DurableTaskRequest_TriggerRuns:
@@ -535,6 +716,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 					entry.BranchId,
 					entry.NodeId,
 					entry.ResultPayload,
+					entry.SatisfiedOrder,
 					entry.ChildTaskIsFailure,
 					entry.ChildTaskErrorMessage,
 				); err != nil {
@@ -552,6 +734,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				result.MemoResult.BranchId,
 				result.MemoResult.NodeId,
 				result.MemoResult.ResultPayload,
+				nil,
 				false,
 				nil,
 			); err != nil {
@@ -568,6 +751,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				result.WaitForResult.BranchId,
 				result.WaitForResult.NodeId,
 				result.WaitForResult.ResultPayload,
+				result.WaitForResult.SatisfiedOrder,
 				false,
 				nil,
 			); err != nil {
@@ -585,6 +769,15 @@ func (d *DispatcherServiceImpl) handleMemo(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskMemoRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-memo")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -646,6 +839,16 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskTriggerRunsRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-trigger-runs")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+		telemetry.AttributeKV{Key: "trigger_opts_count", Value: len(req.TriggerOpts)},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -715,12 +918,32 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		})
 	}
 
-	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
-	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+	if pending := ingestionResult.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
+		entries := make([]tasktypes.PendingDurableRunTriggerPayload, len(pending))
 
-	if len(dags) > 0 || len(tasks) > 0 {
-		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, tasks, dags); sigErr != nil {
-			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
+		for i, p := range pending {
+			entries[i] = tasktypes.PendingDurableRunTriggerPayload{
+				NodeId:      p.NodeId,
+				BranchId:    p.BranchId,
+				TriggerOpts: p.TriggerOpts,
+			}
+		}
+
+		msg, msgErr := tasktypes.DurableRunTriggerTaskMessage(invocation.tenantId, tasktypes.DurableRunTriggerMessage{
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			DurableTaskExternalId: task.ExternalID,
+			Entries:               entries,
+		})
+		if msgErr != nil {
+			return status.Errorf(codes.Internal, "failed to build durable run trigger message: %v", msgErr)
+		}
+
+		// publish before acking: if this is lost, the child task never gets created and the
+		// durable task would hang forever with no other recovery path, so treat it as fatal
+		// to the RPC rather than best-effort
+		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); sendErr != nil {
+			return status.Errorf(codes.Internal, "failed to enqueue durable run trigger: %v", sendErr)
 		}
 	}
 
@@ -741,6 +964,15 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWaitForRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-wait-for")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
@@ -853,6 +1085,11 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskCompleteMemoRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-complete-memo")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId})
+
 	if req.Ref == nil {
 		return status.Errorf(codes.InvalidArgument, "ref is required")
 	}
@@ -900,6 +1137,15 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskEvictInvocationRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-evict-invocation")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "durable_task_external_id", Value: req.DurableTaskExternalId},
+		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
+	)
+
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
@@ -967,6 +1213,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskWorkerStatusRequest,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dispatcher.handle-worker-status")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId},
+		telemetry.AttributeKV{Key: "waiting_entries_count", Value: len(req.WaitingEntries)},
+	)
+
 	if len(req.WaitingEntries) == 0 {
 		return nil
 	}
@@ -1056,7 +1310,39 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		}
 	}
 
+	d.evictStalledOrderedReleases(invocation)
+	invocation.pruneIdleReleases(durableReleaseIdleTTL)
+
 	return nil
+}
+
+// durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a
+// missing lower satisfied_order before the invocation is evicted to restart cleanly.
+const durableOrderedReleaseGapTimeout = 60 * time.Second
+const durableReleaseIdleTTL = 24 * time.Hour
+
+func (d *DispatcherServiceImpl) evictStalledOrderedReleases(invocation *durableTaskInvocation) {
+	for _, key := range invocation.staleReleaseHolds(durableOrderedReleaseGapTimeout) {
+		d.l.Error().Msgf(
+			"durable task %s (invocation %d): ordered release stalled waiting for a missing satisfied_order for over %s; evicting to restart. "+
+				"if this repeats, the task was likely forked with BranchDurableTask across an out-of-order satisfaction, which is not supported",
+			key.taskExternalId, key.invocationCount, durableOrderedReleaseGapTimeout,
+		)
+
+		if err := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_ServerEvict{
+				ServerEvict: &contracts.DurableTaskServerEvictNotice{
+					DurableTaskExternalId: key.taskExternalId.String(),
+					InvocationCount:       key.invocationCount,
+					Reason:                "ordered durable completion release stalled on a missing entry",
+				},
+			},
+		}); err != nil {
+			d.l.Error().Err(err).Msgf("failed to send server eviction for stalled ordered release on task %s", key.taskExternalId)
+		}
+
+		invocation.clearRelease(key)
+	}
 }
 
 func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInvocation, cb *v1.SatisfiedEventWithPayload) error {
@@ -1075,18 +1361,19 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 		resp.IsFailure = true
 		resp.ErrorMessage = cb.ChildTaskErrorMessage
 	}
-	return invocation.send(&contracts.DurableTaskResponse{
+	return invocation.deliverOrdered(cb.TaskExternalId, cb.InvocationCount, cb.SatisfiedOrder, &contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_EntryCompleted{
 			EntryCompleted: resp,
 		},
 	})
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, isFailure bool, errorMessage *string) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, isFailure bool, errorMessage *string) error {
 	inv, ok := d.durableInvocations.Load(durableInvocationsKey{
 		tenantId: tenantId,
 		taskId:   taskExternalId,
 	})
+
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
 	}
@@ -1106,7 +1393,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 		resp.IsFailure = true
 		resp.ErrorMessage = errorMessage
 	}
-	return inv.send(&contracts.DurableTaskResponse{
+	return inv.deliverOrdered(taskExternalId, invocationCount, satisfiedOrder, &contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_EntryCompleted{
 			EntryCompleted: resp,
 		},

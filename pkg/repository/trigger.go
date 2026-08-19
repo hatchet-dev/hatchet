@@ -377,14 +377,14 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
 	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+	return s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
@@ -396,10 +396,16 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 	defer tx.Rollback()
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
 
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+
+	if len(storePayloadOpts) > 0 {
+		if err := r.payloadStore.Store(ctx, tx.tx, storePayloadOpts...); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -629,6 +635,7 @@ type triggerTuple struct {
 	workflowVersionId         uuid.UUID
 	workflowName              string
 	workflowId                uuid.UUID
+	isPaused                  bool
 	additionalMetadata        []byte
 	filterPayload             []byte
 	input                     []byte
@@ -679,17 +686,22 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 	return key, nil
 }
 
-func (r *sharedRepository) triggerWorkflows(
+func (r *sharedRepository) triggerWorkflowsCore(
 	ctx context.Context,
-	existingTx *OptimisticTx,
+	optTx *OptimisticTx,
 	tenantId uuid.UUID,
 	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
-) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	var preflightTx sqlcv1.DBTX = r.pool
+	ownsTx bool,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
+	if optTx == nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
+	}
 
-	if existingTx != nil {
-		preflightTx = existingTx.tx
+	preflightTx := optTx.tx
+
+	if ownsTx {
+		preflightTx = r.pool
 	}
 
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
@@ -738,7 +750,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 		}
 
 		idempotencyKeyToLockHolder := make(map[string]uuid.UUID, len(claims))
@@ -772,10 +784,15 @@ func (r *sharedRepository) triggerWorkflows(
 
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
+	pausedWorkflowIds := make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 		uniqueWorkflowVersionIds[tuple.workflowVersionId] = struct{}{}
+
+		if tuple.isPaused {
+			pausedWorkflowIds[tuple.workflowId] = struct{}{}
+		}
 	}
 
 	// get all data for triggering tasks in this workflow
@@ -788,7 +805,7 @@ func (r *sharedRepository) triggerWorkflows(
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -823,7 +840,7 @@ func (r *sharedRepository) triggerWorkflows(
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
@@ -835,7 +852,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
 
 		for _, match := range additionalMatches {
@@ -908,28 +925,14 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	var commit func(context.Context) error
-	var rollback func()
-	var tx sqlcv1.DBTX
-
-	if existingTx == nil {
-		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-
-		defer rollback()
-	} else {
-		tx = existingTx.tx
-	}
+	tx := optTx.tx
 
 	// check if we should skip the creation of any workflows if they're child workflows which
 	// already have a signal registered
 	tuplesToSkip, err := r.registerChildWorkflows(ctx, tx, tenantId, tuples, stepsToExternalIds, workflowVersionToSteps)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
 	}
 
 	for i, tuple := range tuples {
@@ -1075,7 +1078,7 @@ func (r *sharedRepository) triggerWorkflows(
 							)
 
 							if err != nil {
-								return nil, nil, nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
+								return nil, nil, nil, nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
 							}
 
 							groupConditions = append(groupConditions, *c)
@@ -1344,7 +1347,7 @@ func (r *sharedRepository) triggerWorkflows(
 	dags, err := r.createDAGs(ctx, tx, tenantId, dagOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
 	}
 
 	// populate taskOpts with inserted DAG data
@@ -1369,7 +1372,22 @@ func (r *sharedRepository) triggerWorkflows(
 	tasks, err := r.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create tasks: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create tasks: %w", err)
+	}
+
+	if len(pausedWorkflowIds) > 0 {
+		workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+
+		for id := range pausedWorkflowIds {
+			workflowIds = append(workflowIds, id)
+		}
+
+		if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
+		}
 	}
 
 	for _, dag := range dags {
@@ -1386,10 +1404,10 @@ func (r *sharedRepository) triggerWorkflows(
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
@@ -1414,88 +1432,10 @@ func (r *sharedRepository) triggerWorkflows(
 	}
 
 	if coreEvents != nil {
-		eventExternalIdsToIds := make(map[uuid.UUID]EventIds)
-
 		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
 
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
-		}
-
-		for _, createdEvent := range createdEvents {
-			eventExternalIdsToIds[createdEvent.ExternalID] = EventIds{
-				Id:     createdEvent.ID,
-				SeenAt: createdEvent.SeenAt,
-			}
-		}
-
-		eventToRunExternalIds := []uuid.UUID{}
-		eventToRunEventIds := []int64{}
-		eventToRunEventSeenAts := []pgtype.Timestamptz{}
-		eventToRunRunFilterIds := []uuid.UUID{}
-
-		for _, task := range tasks {
-			externalId := task.ExternalID
-
-			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId]
-
-			if !ok {
-				continue
-			}
-
-			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
-
-			if !ok {
-				continue
-			}
-
-			eventToRunExternalIds = append(eventToRunExternalIds, task.ExternalID)
-			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
-			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
-
-			if eventIdAndFilterId.FilterId != nil {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, *eventIdAndFilterId.FilterId)
-			} else {
-				// fixme: this will write a bunch of nil ids into the filter id column (which is nullable)
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.Nil)
-			}
-		}
-
-		for _, dag := range dags {
-			externalId := dag.ExternalID
-
-			eventIdAndFilterId, ok := coreEvents.externalIdToEventIdAndFilterId[externalId]
-
-			if !ok {
-				continue
-			}
-
-			eventIds, ok := eventExternalIdsToIds[eventIdAndFilterId.ExternalId]
-
-			if !ok {
-				continue
-			}
-
-			eventToRunExternalIds = append(eventToRunExternalIds, dag.ExternalID)
-			eventToRunEventIds = append(eventToRunEventIds, eventIds.Id)
-			eventToRunEventSeenAts = append(eventToRunEventSeenAts, eventIds.SeenAt)
-
-			if eventIdAndFilterId.FilterId != nil {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, *eventIdAndFilterId.FilterId)
-			} else {
-				eventToRunRunFilterIds = append(eventToRunRunFilterIds, uuid.Nil)
-			}
-		}
-
-		_, err = r.queries.CreateEventToRuns(ctx, tx, sqlcv1.CreateEventToRunsParams{
-			Runexternalids: eventToRunExternalIds,
-			Eventids:       eventToRunEventIds,
-			Eventseenats:   eventToRunEventSeenAts,
-			Filterids:      eventToRunRunFilterIds,
-		})
-
-		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
 		}
 
 		for _, e := range createdEvents {
@@ -1516,22 +1456,49 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+	optTx.AddPostCommit(postTask)
 
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
-	}
+	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, nil
+}
 
-	// commit if we started the transaction
-	if existingTx == nil {
-		if err := commit(ctx); err != nil {
+func (r *sharedRepository) triggerWorkflows(
+	ctx context.Context,
+	existingTx *OptimisticTx,
+	tenantId uuid.UUID,
+	triggerCandidateTuples []triggerTuple,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+	tx := existingTx
+	ownsTx := false
+
+	if tx == nil {
+		var err error
+		tx, err = r.PrepareOptimisticTx(ctx)
+
+		if err != nil {
 			return nil, nil, nil, nil, err
 		}
 
-		postTask()
+		defer tx.Rollback()
+		ownsTx = true
+	}
 
-	} else {
-		existingTx.AddPostCommit(postTask)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents, ownsTx)
+
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	if len(storePayloadOpts) > 0 {
+		if err := r.payloadStore.Store(ctx, tx.tx, storePayloadOpts...); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+		}
+	}
+
+	if ownsTx {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
 	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
@@ -1760,22 +1727,31 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+	// only need to hit the payload store for events created before the child_external_id column existed
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(matchingEvents))
 
-	for i, event := range matchingEvents {
-		retrievePayloadOpts[i] = RetrievePayloadOpts{
+	for _, event := range matchingEvents {
+		if event.ChildExternalID != nil {
+			continue
+		}
+
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
-		}
+		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	var payloads map[RetrievePayloadOpts][]byte
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+	if len(retrievePayloadOpts) > 0 {
+		payloads, err = r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+		}
 	}
 
 	// parse the event match data, and determine whether the child external ID has already been written
@@ -1783,27 +1759,35 @@ func (r *sharedRepository) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload, ok := payloads[RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
-		}]
+		var childExternalId uuid.UUID
 
-		if !ok {
-			payload = event.Data
+		if event.ChildExternalID != nil {
+			childExternalId = *event.ChildExternalID
+		} else {
+			payload, ok := payloads[RetrievePayloadOpts{
+				Id:         event.ID,
+				InsertedAt: event.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+				TenantId:   tenantId,
+				ExternalId: event.ExternalID,
+			}]
+
+			if !ok {
+				payload = event.Data
+			}
+
+			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+
+			if err != nil {
+				r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
+				continue
+			}
+
+			childExternalId = c.ChildExternalId
 		}
 
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
-
-		if err != nil {
-			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
-			continue
-		}
-
-		if c.ChildExternalId != uuid.Nil {
-			rootExternalIdsToLookup = append(rootExternalIdsToLookup, c.ChildExternalId)
+		if childExternalId != uuid.Nil {
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, childExternalId)
 		}
 	}
 
@@ -2163,23 +2147,25 @@ func (r *sharedRepository) listWorkflowsByNames(ctx context.Context, tx sqlcv1.D
 		workflowNamesToLookup = append(workflowNamesToLookup, name)
 	}
 
-	// look up the workflow versions for the workflow names
-	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, tx, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      tenantId,
-		Workflownames: workflowNamesToLookup,
-	})
+	if len(workflowNamesToLookup) > 0 {
+		// look up the workflow versions for the workflow names
+		workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, tx, sqlcv1.ListWorkflowsByNamesParams{
+			Tenantid:      tenantId,
+			Workflownames: workflowNamesToLookup,
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list workflows by names: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workflows by names: %w", err)
+		}
 
-	for _, workflowVersion := range workflowVersions {
-		// store in the cache
-		k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
+		for _, workflowVersion := range workflowVersions {
+			// store in the cache
+			k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
 
-		r.tenantIdWorkflowNameCache.Add(k, workflowVersion)
+			r.tenantIdWorkflowNameCache.Add(k, workflowVersion)
 
-		res = append(res, workflowVersion)
+			res = append(res, workflowVersion)
+		}
 	}
 
 	return res, nil
@@ -2202,26 +2188,28 @@ func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx
 		workflowVersionsToLookup = append(workflowVersionsToLookup, id)
 	}
 
-	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
-		Tenantid: tenantId,
-		Ids:      workflowVersionsToLookup,
-	})
+	if len(workflowVersionsToLookup) > 0 {
+		steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+			Tenantid: tenantId,
+			Ids:      workflowVersionsToLookup,
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list steps by workflow version ids: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list steps by workflow version ids: %w", err)
+		}
 
-	for _, step := range steps {
-		k := step.WorkflowVersionId
-		res[k] = append(res[k], step)
-	}
+		for _, step := range steps {
+			k := step.WorkflowVersionId
+			res[k] = append(res[k], step)
+		}
 
-	// update the cache with all entries we looked up
-	for _, id := range workflowVersionsToLookup {
-		k := id
+		// update the cache with all entries we looked up
+		for _, id := range workflowVersionsToLookup {
+			k := id
 
-		if steps, ok := res[k]; ok {
-			r.stepsInWorkflowVersionCache.Add(k, steps)
+			if steps, ok := res[k]; ok {
+				r.stepsInWorkflowVersionCache.Add(k, steps)
+			}
 		}
 	}
 
@@ -2259,17 +2247,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
 		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
-		if opt.Scope != nil {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{String: *opt.Scope, Valid: true})
-		} else {
-			createCoreEventsScopes = append(createCoreEventsScopes, pgtype.Text{Valid: false})
-		}
-
-		if opt.TriggeringWebhookName != nil {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{String: *opt.TriggeringWebhookName, Valid: true})
-		} else {
-			createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, pgtype.Text{Valid: false})
-		}
+		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
+		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -2422,6 +2401,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					workflowVersionId:         workflow.WorkflowVersionId,
 					workflowId:                workflow.WorkflowId,
 					workflowName:              workflow.WorkflowName,
+					isPaused:                  workflow.WorkflowIsPaused.Bool,
 					externalId:                externalId,
 					input:                     opt.Data,
 					additionalMetadata:        additionalMetadata,
@@ -2505,6 +2485,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				workflowVersionId:    workflowVersion.WorkflowVersionId,
 				workflowId:           workflowVersion.WorkflowId,
 				workflowName:         workflowVersion.WorkflowName,
+				isPaused:             workflowVersion.WorkflowIsPaused.Bool,
 				externalId:           opt.ExternalId,
 				input:                opt.Data,
 				additionalMetadata:   opt.AdditionalMetadata,

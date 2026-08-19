@@ -128,18 +128,18 @@ func TestQueueMetricsPollerLifecycle(t *testing.T) {
 		{Queue: "default", WorkflowName: "my-workflow", Count: 5},
 	})
 	p.applyMetadataSizes(tenantId, []*sqlcv1.GetQueueSizesByMetadataRow{
-		{Queue: "default", Key: "product", Value: "search", Count: 3},
+		{Queue: "default", Key: "prom_product", Value: "search", Count: 3},
 	})
 
 	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 5}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 3}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=prom_product,queue=default,value=search": 3}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	// a drained queue reports zero for one poll
 	p.applyQueueSizes(tenantId, nil)
 	p.applyMetadataSizes(tenantId, nil)
 
 	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=prom_product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	// and is deleted on the poll after
 	p.applyQueueSizes(tenantId, nil)
@@ -149,6 +149,28 @@ func TestQueueMetricsPollerLifecycle(t *testing.T) {
 	assert.Empty(t, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 	assert.Empty(t, p.knownQueueSizes)
 	assert.Empty(t, p.knownMetadataSizes)
+}
+
+func TestQueueMetricsPollerDropsUnprefixedMetadataKeys(t *testing.T) {
+	l := zerolog.Nop()
+	p := newQueueMetricsPoller(nil, &l)
+
+	tenantId := uuid.New()
+	tenantIdStr := tenantId.String()
+
+	// only prom_-prefixed keys may allocate series and tracking state; the query filters
+	// on the same prefix, but applyMetadataSizes is the allocation site and enforces it too
+	p.applyMetadataSizes(tenantId, []*sqlcv1.GetQueueSizesByMetadataRow{
+		{Queue: "default", Key: "run_id", Value: "8b2f", Count: 1},
+		{Queue: "default", Key: "prom_pool", Value: "gpu", Count: 2},
+	})
+
+	assert.Equal(t, map[string]float64{"key=prom_pool,queue=default,value=gpu": 2}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[metadataQueueSizeKey]bool{{queue: "default", key: "prom_pool", value: "gpu"}: true}, p.knownMetadataSizes[tenantId])
+
+	// drain so this test leaves no series behind for others reading the global gauge
+	p.applyMetadataSizes(tenantId, nil)
+	p.applyMetadataSizes(tenantId, nil)
 }
 
 func TestQueueMetricsPollerDrainsRemovedTenants(t *testing.T) {
@@ -162,7 +184,7 @@ func TestQueueMetricsPollerDrainsRemovedTenants(t *testing.T) {
 		{Queue: "default", WorkflowName: "my-workflow", Count: 2},
 	})
 	p.applyMetadataSizes(tenantId, []*sqlcv1.GetQueueSizesByMetadataRow{
-		{Queue: "default", Key: "product", Value: "search", Count: 2},
+		{Queue: "default", Key: "prom_product", Value: "search", Count: 2},
 	})
 
 	// the tenant is no longer on the partition: its series drain to zero, then delete.
@@ -170,7 +192,7 @@ func TestQueueMetricsPollerDrainsRemovedTenants(t *testing.T) {
 	p.poll(context.Background(), nil)
 
 	assert.Equal(t, map[string]float64{"queue=default,workflow_name=my-workflow": 0}, collectGaugeSeries(t, prometheus.TenantQueueSize, tenantIdStr))
-	assert.Equal(t, map[string]float64{"key=product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
+	assert.Equal(t, map[string]float64{"key=prom_product,queue=default,value=search": 0}, collectGaugeSeries(t, prometheus.TenantQueueSizeByMetadata, tenantIdStr))
 
 	p.poll(context.Background(), nil)
 

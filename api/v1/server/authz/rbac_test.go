@@ -23,6 +23,58 @@ var adminAndOwnerOnly = []string{
 	"ApiTokenUpdateRevoke",
 }
 
+// memberOnlyOps are operations available to MEMBER (and above) that VIEWER should not have -
+// anything that triggers, creates, updates, deletes, cancels, replays, or reruns tenant state.
+// Keep this in sync with the exclusions applied when building the VIEWER permission list in rbac.yaml.
+var memberOnlyOps = []string{
+	"StepRunUpdateCancel",
+	"TenantUpdate",
+	"WorkflowRunUpdateReplay",
+	"WorkflowScheduledBulkUpdate",
+	"SnsCreate",
+	"V1TaskCancel",
+	"V1WebhookDelete",
+	"V1WebhookUpdate",
+	"CronWorkflowTriggerCreate",
+	"WorkerUpdate",
+	"WorkflowRunCreate",
+	"EventCreateBulk",
+	"ScheduledWorkflowRunCreate",
+	"AlertEmailGroupCreate",
+	"SnsDelete",
+	"RateLimitDelete",
+	"EventUpdateCancel",
+	"TenantCreate",
+	"WebhookCreate",
+	"V1WorkflowRunCreate",
+	"SnsUpdate",
+	"EventUpdateReplay",
+	"V1DurableTaskBranch",
+	"V1WebhookCreate",
+	"V1FilterCreate",
+	"WorkflowScheduledBulkDelete",
+	"V1FilterDelete",
+	"V1FilterUpdate",
+	"SlackWebhookDelete",
+	"TenantMemberDelete",
+	"WorkflowScheduledDelete",
+	"WorkflowScheduledUpdate",
+	"WorkflowUpdate",
+	"WorkflowDelete",
+	"V1TaskReplay",
+	"V1TaskRestore",
+	"WorkflowRunCancel",
+	"WebhookDelete",
+	"AlertEmailGroupUpdate",
+	"AlertEmailGroupDelete",
+	"EventCreate",
+	"StepRunUpdateRerun",
+	"WorkflowCronDelete",
+	"WorkflowCronUpdate",
+	"WorkflowCronTrigger",
+	"WorkflowScheduledTrigger",
+}
+
 func operationIdsFromSpec() []string {
 	spec, _ := gen.GetSwagger()
 	allOperationIds := make([]string, 0)
@@ -46,6 +98,57 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 		} else {
 			assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), true)
 		}
+	}
+}
+
+func TestAuthorizeTenantOperationsViewer(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+	allOperations := operationIdsFromSpec()
+	for _, operationId := range allOperations {
+		expectAuthorized := !rbac.OperationIn(operationId, adminAndOwnerOnly) && !rbac.OperationIn(operationId, memberOnlyOps)
+		assert.Equal(
+			t,
+			expectAuthorized,
+			r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId),
+			"operationId: %s", operationId,
+		)
+	}
+}
+
+func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+
+	deniedForViewer := []string{
+		"WorkflowRunCreate",
+		"V1TaskCancel",
+		"V1TaskReplay",
+		"EventCreate",
+		"WorkflowCronTrigger",
+		"WorkflowScheduledTrigger",
+		"RateLimitDelete",
+		"TenantUpdate",
+		"TenantMemberDelete",
+		"TenantCreate",
+	}
+	for _, operationId := range deniedForViewer {
+		assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+	}
+
+	allowedForViewer := []string{
+		"WorkflowRunList",
+		"WorkflowRunGet",
+		"V1TaskGet",
+		"TenantGet",
+		"EventList",
+		"TenantInviteAccept",
+		"TenantInviteReject",
+		"UserUpdateLogin",
+		"UserUpdateLogout",
+	}
+	for _, operationId := range allowedForViewer {
+		assert.True(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
 	}
 }
 

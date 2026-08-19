@@ -326,7 +326,8 @@ WITH locked_tasks AS (
 		UNNEST(CAST($5::TEXT[] as v1_task_event_type[])) AS event_type,
 		UNNEST($6::TEXT[]) AS event_key,
 		UNNEST($7::JSONB[]) AS data,
-		UNNEST($8::UUID[]) as external_id
+		UNNEST($8::UUID[]) as external_id,
+		UNNEST($9::UUID[]) as child_external_id
 )
 INSERT INTO v1_task_event (
     tenant_id,
@@ -336,7 +337,8 @@ INSERT INTO v1_task_event (
     event_type,
     event_key,
     data,
-	external_id
+	external_id,
+	child_external_id
 )
 SELECT
     $1::uuid,
@@ -346,7 +348,8 @@ SELECT
     i.event_type,
     i.event_key,
     i.data,
-	i.external_id
+	i.external_id,
+	NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
@@ -361,19 +364,21 @@ RETURNING
 	v1_task_event.event_key,
 	v1_task_event.created_at,
 	v1_task_event.data,
-	v1_task_event.external_id
+	v1_task_event.external_id,
+	v1_task_event.child_external_id
 ;
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Eventtypes      []string             `json:"eventtypes"`
-	Eventkeys       []pgtype.Text        `json:"eventkeys"`
-	Datas           [][]byte             `json:"datas"`
-	Externalids     []uuid.UUID          `json:"externalids"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Taskids          []int64              `json:"taskids"`
+	Taskinsertedats  []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts      []int32              `json:"retrycounts"`
+	Eventtypes       []string             `json:"eventtypes"`
+	Eventkeys        []pgtype.Text        `json:"eventkeys"`
+	Datas            [][]byte             `json:"datas"`
+	Externalids      []uuid.UUID          `json:"externalids"`
+	Childexternalids []uuid.UUID          `json:"childexternalids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -388,6 +393,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Eventkeys,
 		arg.Datas,
 		arg.Externalids,
+		arg.Childexternalids,
 	)
 
 	if err != nil {
@@ -411,6 +417,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 			&i.CreatedAt,
 			&i.Data,
 			&i.ExternalID,
+			&i.ChildExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -741,6 +748,30 @@ WHERE
     )
 `
 
+const releasePausedWorkflowQueueItems = `-- name: ReleasePausedWorkflowQueueItems :batchexec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), paused_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_paused_workflow_queue_item
+    WHERE
+        (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM input)
+    ORDER BY
+        task_inserted_at, task_id, retry_count
+    FOR UPDATE
+)
+
+DELETE FROM
+    v1_paused_workflow_queue_item
+WHERE
+    (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM paused_items_to_delete)
+`
+
 const releaseTasks = `-- name: ReleaseTasks :batchmany
 WITH input AS (
     SELECT
@@ -867,6 +898,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
+	batch.Queue(releasePausedWorkflowQueueItems, vals...)
 
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()
@@ -1004,6 +1036,7 @@ WITH to_insert AS (
         -- Webhook names are nullable
         UNNEST($7::TEXT[]) AS triggering_webhook_name
 )
+
 INSERT INTO v1_event (
     tenant_id,
     external_id,
@@ -1013,8 +1046,10 @@ INSERT INTO v1_event (
     scope,
 	triggering_webhook_name
 )
+
 SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
+ON CONFLICT (external_id, seen_at) DO NOTHING
 RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 `
 

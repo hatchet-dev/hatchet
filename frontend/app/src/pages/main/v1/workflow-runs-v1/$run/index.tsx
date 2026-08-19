@@ -9,6 +9,7 @@ import {
 } from '../hooks/use-workflow-details';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
+import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
 import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
   TASK_RUN_TERMINAL_STATUSES,
@@ -21,6 +22,7 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -384,6 +386,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Logs
             </TabsTrigger>
           </TabsList>
+          <PausedWorkflowNotice
+            workflowId={workflowRun.workflowId}
+            status={workflowRun.status}
+          />
           <TabsContent
             value="overview"
             className="flex min-h-0 flex-1 flex-col"
@@ -429,23 +435,31 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                 value="output"
                 className="flex min-h-0 flex-1 flex-col py-4"
               >
-                <CodeHighlighter
-                  className="flex-1 min-h-0 overflow-hidden"
-                  maxHeight="100%"
-                  minHeight="100%"
-                  language="json"
-                  code={
-                    workflowRun.status === V1TaskStatus.FAILED
-                      ? workflowRun.errorMessage || ''
-                      : JSON.stringify(workflowRun.output, null, 2)
-                  }
-                />
+                {workflowRun.payloadsRestricted ? (
+                  <RestrictedPayloads />
+                ) : (
+                  <CodeHighlighter
+                    className="flex-1 min-h-0 overflow-hidden"
+                    maxHeight="100%"
+                    minHeight="100%"
+                    language="json"
+                    code={
+                      workflowRun.status === V1TaskStatus.FAILED
+                        ? workflowRun.errorMessage || ''
+                        : JSON.stringify(workflowRun.output, null, 2)
+                    }
+                  />
+                )}
               </TabsContent>
               <TabsContent
                 value="input"
                 className="flex min-h-0 flex-1 flex-col py-4"
               >
-                <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+                {workflowRun.payloadsRestricted ? (
+                  <RestrictedPayloads />
+                ) : (
+                  <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+                )}
               </TabsContent>
               <TabsContent
                 value="additional-metadata"

@@ -1,0 +1,44 @@
+---
+title: "Overview"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Hatchet Managed Compute
+
+## Overview
+
+Hatchet Managed Compute provides the simplicity of serverless while delivering the performance and control of traditional infrastructure, making it ideal for long lived, or data intensive AI applications and background job processing. It enables dynamic scaling while eliminating common serverless limitations like cold starts and timeouts.
+
+### High-Availability Computing
+
+- **Sub-100ms Instance Provisioning**: Pre-warms instances before resource demands
+- **Distributed Architecture**: Built on [Hatchet Queue](../home/) for reliable workload distribution
+- **[Multi-Region Support](/v1/compute/cpu#available-regions)**: Deploy across regions for fault tolerance and data locality
+- **[Auto-Scaling](/v1/compute/auto-scaling)**: Automatically scale your compute resources based on workload demand
+
+### Available Compute Classes
+
+- [Shared CPUs](/v1/compute/cpu#shared-cpu)
+- [Performance CPUs](/v1/compute/cpu#performance-cpu)
+- [GPU instances](/v1/compute/gpu)
+
+### Smart Workload Management
+
+- **State-Aware**: Routes tasks to instances with preloaded models/resources using [worker labels](/v1/advanced-assignment/worker-affinity)
+- **Burstable Capacity**: Scales dynamically based on queue depth
+- **Sticky Assignment**: Routes tasks to the same instance when possible using [sticky assignments](/v1/advanced-assignment/sticky-assignment)
+
+## Deployment
+
+- **[GitOps Integration](/v1/compute/git-ops)**: Automatic builds and deployments on commit
+- **Zero-Ops**: Managed infrastructure eliminates operational overhead
+- **Version Control**: Infrastructure changes tracked in code
+
+## Advantages Over Serverless
+
+1. No cold starts or execution timeouts
+2. Predictable performance
+3. Cost-effective for sustained workloads
+4. Fine-grained control over compute resources
+5. Better suited for AI and data processing tasks

@@ -450,6 +450,10 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 		override(cf)
 	}
 
+	if cf.VersionOverride != "" {
+		version = cf.VersionOverride
+	}
+
 	return createControllerLayer(dc, cf, version)
 }
 
@@ -850,7 +854,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
+	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")

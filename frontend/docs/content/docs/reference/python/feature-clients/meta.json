@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "cron",
+    "filters",
+    "logs",
+    "metrics",
+    "rate_limits",
+    "runs",
+    "scheduled",
+    "webhooks",
+    "workers",
+    "workflows"
+  ],
+  "title": "Feature Clients"
+}

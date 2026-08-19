@@ -44,6 +44,18 @@ export function PendingInvitesSection({
       cellRenderer: (invite: TenantInvite) => <RoleBadge role={invite.role} />,
     },
     {
+      columnLabel: 'Payloads',
+      cellRenderer: (invite: TenantInvite) => (
+        <span className="text-sm text-muted-foreground">
+          {invite.role === 'OWNER' ||
+          invite.role === 'ADMIN' ||
+          invite.canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
+      ),
+    },
+    {
       columnLabel: 'Created',
       cellRenderer: (invite: TenantInvite) => (
         <RelativeDate date={invite.metadata.createdAt} />

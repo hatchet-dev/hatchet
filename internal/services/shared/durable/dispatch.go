@@ -75,6 +75,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 			cb.BranchId,
 			cb.NodeId,
 			cb.Data,
+			cb.SatisfiedOrder,
 			cb.ChildTaskIsFailure,
 			cb.ChildTaskErrorMessage,
 		)

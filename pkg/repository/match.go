@@ -175,6 +175,7 @@ type SatisfiedEntry struct {
 	DurableTaskId         int64
 	NodeId                int64
 	BranchId              int64
+	SatisfiedOrder        *int64
 	InvocationCount       int32
 	DurableTaskExternalId uuid.UUID
 }
@@ -858,6 +859,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		initialEntry.InvocationCount = cb.InvocationCount
 
+		initialEntry.SatisfiedOrder = satisfiedOrderPtr(cb.SatisfiedOrder)
+
 		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
 				Id:         cb.ID,
@@ -916,6 +919,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			datas,
 			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
+			nil,
+			nil,
 		)
 
 		if err != nil {

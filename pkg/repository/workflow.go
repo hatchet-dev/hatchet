@@ -247,6 +247,14 @@ type WorkflowRepository interface {
 	GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error)
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
+	PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
+
+	UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
+
+	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
+
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 }
 
 type workflowRepository struct {
@@ -411,8 +419,31 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	return workflowVersion[0], nil
 }
 
+// mergeWorkflowConcurrencyOntoSingleTask moves workflow-level concurrency onto the
+// sole DEFAULT task when the workflow is a single-task DAG (one task, no on-failure).
+// Workflow concurrency creates a parent strategy that forces the DAG concurrency path;
+// a one-task workflow is a standalone task, so those strategies belong on the task
+// (workflow strategies first, then any existing task strategies).
+func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
+	if opts == nil || len(opts.Concurrency) == 0 {
+		return
+	}
+
+	if len(opts.Tasks) != 1 || opts.OnFailure != nil {
+		return
+	}
+
+	merged := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency)+len(opts.Tasks[0].Concurrency))
+	merged = append(merged, opts.Concurrency...)
+	merged = append(merged, opts.Tasks[0].Concurrency...)
+	opts.Tasks[0].Concurrency = merged
+	opts.Concurrency = nil
+}
+
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
+
+	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
 	cs, modifiedOpts, err := checksumV1(opts)
 
@@ -1325,6 +1356,52 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	}
 
 	return versions[0], nil
+}
+
+type WorkflowPauseScheduledCronRunQueueBehavior string
+
+const (
+	WorkflowPauseScheduledCronRunQueueBehaviorDROP  = "DROP"
+	WorkflowPauseScheduledCronRunQueueBehaviorQUEUE = "QUEUE"
+)
+
+type PauseWorkflowOpts struct {
+	CronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
+	ScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
+	QueueTTL                  string
+}
+
+func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
+	return r.queries.PauseWorkflow(ctx, r.pool, sqlcv1.PauseWorkflowParams{
+		ID:                        workflowId,
+		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
+		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
+		Queuettl:                  opts.QueueTTL,
+	})
+}
+
+func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
+	return r.queries.UnpauseWorkflow(ctx, r.pool, workflowId)
+}
+
+func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
+	defer span.End()
+
+	return r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	})
+}
+
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
+	defer span.End()
+
+	return r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	})
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

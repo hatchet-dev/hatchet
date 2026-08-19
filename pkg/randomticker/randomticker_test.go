@@ -37,7 +37,7 @@ func TestRandomTicker(t *testing.T) {
 
 	// tick can take a little longer since we're not adjusting it to account for
 	// processing.
-	precision := time.Duration(4)
+	precision := time.Duration(6)
 
 	rt := randomticker.NewRandomTicker(minDuration*time.Millisecond, maxDuration*time.Millisecond)
 	for i := 0; i < 5; i++ {

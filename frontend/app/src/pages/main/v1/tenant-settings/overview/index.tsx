@@ -5,6 +5,7 @@ import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switche
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
+import useCanWrite from '@/hooks/use-can-write';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -240,6 +241,7 @@ const UpdateTenant: React.FC = () => {
 };
 
 const AnalyticsOptOut: React.FC = () => {
+  const canWrite = useCanWrite();
   const { tenant } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
   const [changed, setChanged] = useState(false);
@@ -267,8 +269,10 @@ const AnalyticsOptOut: React.FC = () => {
           setChecked((s) => !s);
           setChanged(true);
         }}
+        disabled={!canWrite}
       />
-      {changed &&
+      {canWrite &&
+        changed &&
         (isLoading ? (
           <Spinner />
         ) : (

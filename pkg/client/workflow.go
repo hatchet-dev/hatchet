@@ -3,8 +3,10 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -93,6 +95,17 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 // (StreamSyncMaxAttempts) for send and subscribe failures. The background
 // listen loop reconnects unboundedly while the listener remains open.
 func (r *Workflow) Result() (*WorkflowResult, error) {
+	return r.result(nil)
+}
+
+// ResultWithContext waits for the workflow run to complete and logs if the
+// caller's context ends after the result subscription was sent successfully.
+// Context cancellation is diagnostic only and does not change Result behavior.
+func (r *Workflow) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
+	return r.result(ctx)
+}
+
+func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 	failChan := make(chan error, 1)
 	sessionId := uuid.NewString()
@@ -115,15 +128,30 @@ func (r *Workflow) Result() (*WorkflowResult, error) {
 	}
 	defer r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 
-	select {
-	case res := <-resChan:
-		for _, stepRunResult := range res.workflowRun.Results {
-			if stepRunResult.Error != nil {
-				return nil, fmt.Errorf("%s", *stepRunResult.Error)
+	waitStarted := time.Now()
+	var contextDone <-chan struct{}
+	if ctx != nil {
+		contextDone = ctx.Done()
+	}
+
+	for {
+		select {
+		case res := <-resChan:
+			for _, stepRunResult := range res.workflowRun.Results {
+				if stepRunResult.Error != nil {
+					return nil, fmt.Errorf("%s", *stepRunResult.Error)
+				}
 			}
+			return res, nil
+		case err := <-failChan:
+			return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", r.workflowRunId, err)
+		case <-contextDone:
+			r.listener.l.Warn().
+				Err(ctx.Err()).
+				Str("workflow_run_id", r.workflowRunId).
+				Dur("wait_duration", time.Since(waitStarted)).
+				Msg("workflow result still pending after subscription send succeeded")
+			contextDone = nil
 		}
-		return res, nil
-	case err := <-failChan:
-		return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", r.workflowRunId, err)
 	}
 }

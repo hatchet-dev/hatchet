@@ -1,0 +1,209 @@
+---
+title: "Hatchet Lite"
+---
+
+import { Steps, Callout } from "@/components/nextra-compat";
+import { Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+import LatestImageTags from "@/components/LatestImageTags";
+
+<LatestImageTags />
+
+# Hatchet Lite Deployment
+
+To get up and running quickly, you can deploy via the `hatchet-lite` image. This image is designed for development and low-volume use-cases.
+
+<Steps>
+
+### Prerequisites
+
+This deployment requires [Docker](https://docs.docker.com/engine/install/) installed locally to work.
+
+### Getting Hatchet Lite Running
+
+<Tabs items={['Hatchet CLI', 'With Postgres (Default)', 'With Postgres + RabbitMQ']}>
+<Tabs.Tab>
+The easiest way to get Hatchet Lite running is via the Hatchet CLI. Simply run the following command:
+
+```sh
+hatchet server start
+```
+
+<Callout type="info">
+  For local development you can add `--disable-auth` to run the
+  `hatchet-lite-dev` image, which has authentication compiled out. Workers still
+  authenticate over gRPC with the fixed worker token the dev image ships
+  (viewable from the dashboard banner). See [Running Hatchet
+  Locally](/reference/cli/running-hatchet-locally#running-without-authentication)
+  for details.
+</Callout>
+
+</Tabs.Tab>
+
+  <Tabs.Tab>
+To use Postgres as both your DB and message queue, copy the following `docker-compose.hatchet.yml` file to the root of your repository:
+
+<Callout type="info">
+  If you have an existing Postgres instance already running, you can simply
+  point `DATABASE_URL` to that instance and ignore the `postgres` service
+  deployment in the following docker-compose file.
+</Callout>
+
+```yaml filename="docker-compose.hatchet.yml" copy
+version: "3.8"
+name: hatchet-lite
+services:
+  postgres:
+    image: postgres:15.6
+    command: postgres -c 'max_connections=200'
+    restart: always
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    volumes:
+      - hatchet_lite_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+  hatchet-lite:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+    ports:
+      - "8888:8888"
+      - "7077:7077"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Refer to https://docs.hatchet.run/self-hosting/configuration-options
+      # for a list of all supported environment variables
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_PORT: "7077"
+      SERVER_URL: http://localhost:8888
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
+    volumes:
+      - "hatchet_lite_config:/config"
+
+volumes:
+  hatchet_lite_postgres_data:
+  hatchet_lite_config:
+```
+
+Then run `docker-compose -f docker-compose.hatchet.yml up` to get the Hatchet Lite instance running.
+
+      </Tabs.Tab>
+      <Tabs.Tab>
+
+To use Postgres as your DB and RabbitMQ as the message queue, copy the following `docker-compose.hatchet.yml` file to the root of your repository:
+
+<Callout type="info">
+  If you have an existing Postgres instance already running, you can simply
+  point `DATABASE_URL` to that instance and ignore the `postgres` service
+  deployment in the following docker-compose file.
+</Callout>
+
+```yaml filename="docker-compose.hatchet.yml" copy
+version: "3.8"
+name: hatchet-lite
+services:
+  postgres:
+    image: postgres:15.6
+    command: postgres -c 'max_connections=200'
+    restart: always
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    volumes:
+      - hatchet_lite_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    hostname: "rabbitmq"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+    volumes:
+      - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
+      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  hatchet-lite:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+    ports:
+      - "8888:8888"
+      - "7077:7077"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_MSGQUEUE_KIND: rabbitmq
+      SERVER_MSGQUEUE_RABBITMQ_URL: "amqp://user:password@rabbitmq:5672/"
+      # Refer to https://docs.hatchet.run/self-hosting/configuration-options
+      # for a list of all supported environment variables
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_PORT: "7077"
+      SERVER_URL: http://localhost:8888
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+    volumes:
+      - "hatchet_lite_config:/config"
+
+volumes:
+  hatchet_lite_postgres_data:
+  hatchet_lite_config:
+  hatchet_rabbitmq_data:
+  hatchet_rabbitmq.conf:
+```
+
+Then run `docker-compose -f docker-compose.hatchet.yml up` to get the Hatchet Lite instance running.
+
+      </Tabs.Tab>
+
+</Tabs>
+
+### Accessing Hatchet Lite
+
+Once the Hatchet Lite instance is running, you can access the Hatchet Lite UI at [http://localhost:8888](http://localhost:8888).
+
+By default, a user is created with the following credentials:
+
+```
+Email: admin@example.com
+Password: Admin123!!
+```
+
+After logging in, follow the steps in the UI to create your first tenant and run your first workflow!
+
+<Callout type="info">
+  To serve the dashboard behind a reverse proxy under a URL subpath, set
+  `LITE_FRONTEND_BASE_PATH` (for example `/hatchet/`) and configure your proxy
+  as described in [Serving Hatchet under a URL
+  subpath](/self-hosting/networking#serving-hatchet-under-a-url-subpath).
+</Callout>
+
+</Steps>
