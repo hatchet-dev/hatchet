@@ -1575,7 +1575,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             backoff_factor=backoff_factor,
             retries=0,
             backoff_max_seconds=backoff_max_seconds,
-            task_defaults=self.config.task_defaults,
+            task_defaults=self._config.task_defaults,
         )
 
         def inner(
