@@ -1,4 +1,6 @@
 import './index.css';
+import { captureAttribution, clearAttribution } from './lib/attribution';
+import { readConsentDecision } from './lib/consent';
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from './lib/referral';
 import { captureUtmParams } from './lib/utm';
 import queryClient from './query-client.tsx';
@@ -40,6 +42,17 @@ if (referralCode) {
 }
 
 captureUtmParams(window.location.search);
+
+// Records the ad click / campaign that brought this visitor to Hatchet in a
+// cookie on `.hatchet.run`, which the control plane reads back at signup.
+// A 90-day marketing cookie, so it follows the consent carried over from
+// hatchet.run / docs.hatchet.run: nothing is written for a visitor in a
+// consent-required region who has not accepted, and a decline clears it.
+if (readConsentDecision().status === 'granted') {
+  captureAttribution();
+} else {
+  clearAttribution();
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
