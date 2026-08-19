@@ -2178,7 +2178,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
         )
-        return await asyncio.to_thread(self._extract_result, res)
+        return self._extract_result(res)
 
     def run_no_wait(
         self,

@@ -5,12 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.37.3] - 2026-08-17
+## [1.37.3] - 2026-08-19
 
 ### Fixed
 
 - Correctly passes TLS config through to the API client
 - Passes the configured TLS server name (SNI) through to the REST client
+- Removes a call to `asyncio.to_thread` that was causing durable callback ordering to end up out-of-ordering, causing non-determinism errors.
 
 ## [1.37.2] - 2026-08-12
 
