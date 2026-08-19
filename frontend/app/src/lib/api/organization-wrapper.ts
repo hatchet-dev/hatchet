@@ -51,7 +51,7 @@ export type OrganizationInviteCreateRequest = Parameters<
   Pick<ControlPlaneCreateOrganizationInviteRequest, 'tenants' | 'userGroupIds'>;
 type OrganizationTenantMembersAddRequest = Parameters<
   typeof cloudApi.organizationTenantMembersAdd
->[2];
+>[2] & { canViewPayloads?: boolean };
 
 export function useOrganizationApi() {
   const { isControlPlaneEnabled } = useControlPlane();
@@ -398,11 +398,16 @@ export function useOrganizationApi() {
 
       userGroupCreateMutation: (organization: string) => ({
         mutationKey: ['organization:user-groups:create', organization] as const,
-        mutationFn: async (data: { name: string; role: string }) =>
+        mutationFn: async (data: {
+          name: string;
+          role: string;
+          canViewPayloads?: boolean;
+        }) =>
           (
             await controlPlaneApi.organizationUserGroupsCreate(organization, {
               name: data.name,
               role: data.role as import('@/lib/api/generated/control-plane/data-contracts').TenantMemberRoleType,
+              canViewPayloads: data.canViewPayloads,
             })
           ).data,
       }),
@@ -428,7 +433,11 @@ export function useOrganizationApi() {
           organization,
           userGroup,
         ] as const,
-        mutationFn: async (data: { name?: string; role?: string }) =>
+        mutationFn: async (data: {
+          name?: string;
+          role?: string;
+          canViewPayloads?: boolean;
+        }) =>
           (
             await controlPlaneApi.organizationUserGroupUpdate(
               organization,

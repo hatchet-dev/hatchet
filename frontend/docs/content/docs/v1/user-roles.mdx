@@ -1,0 +1,47 @@
+---
+title: "User Roles"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# User Roles
+
+Every user in a tenant has a role that controls what they can do in the dashboard and REST API. Roles are hierarchical: each role can do everything the roles below it can.
+
+## Tenant roles
+
+| Role       | Description                                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OWNER**  | Full control of the tenant, including assigning the OWNER role to other members. Only owners can change another owner's role or remove members.          |
+| **ADMIN**  | Everything MEMBER can do, plus managing tenant members, invites, and API tokens.                                                                         |
+| **MEMBER** | Everything VIEWER can do, plus mutating actions: triggering, replaying, and cancelling runs, managing workflows, crons, schedules, webhooks, and alerts. |
+| **VIEWER** | Read-only access. Can view runs, workflows, workers, events, logs, and metrics, but cannot trigger or modify anything.                                   |
+
+Roles are assigned when a member is invited and can be changed later from **Settings > Members**. A member cannot change their own role.
+
+## Organization roles
+
+Organizations (Hatchet Cloud) have two roles:
+
+| Role       | Description                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **OWNER**  | Manages the organization: members, invites, tenants, SSO, and [user groups](/v1/user-groups). Added to every tenant as tenant OWNER. |
+| **MEMBER** | Gets tenant access through explicit grants or [user groups](/v1/user-groups), with the tenant role each grant specifies.             |
+
+## Payload visibility
+
+Members with the MEMBER or VIEWER tenant role can additionally be restricted from viewing payloads. When the **Can view payloads** flag is disabled for a member, they can still see runs, statuses, and errors, but task inputs and outputs, event payloads, and log payloads are hidden in the dashboard and REST API.
+
+A few rules:
+
+- **OWNER and ADMIN always see payloads**, regardless of the flag.
+- **API tokens are not restricted.** Workers need payloads to run tasks, so programmatic access through an API token always includes them.
+- The flag **defaults to true** everywhere it can be set.
+
+The flag can be set in the following places:
+
+- On a tenant member, from **Settings > Members**.
+- On a tenant or organization invite, so the restriction applies as soon as the invite is accepted.
+- On a [user group](/v1/user-groups), applying to every member synced by that group. If a user matches multiple groups, the most restrictive group wins.
+
+Changes to member roles and payload visibility are recorded in [audit logs](/v1/security/audit-logs).

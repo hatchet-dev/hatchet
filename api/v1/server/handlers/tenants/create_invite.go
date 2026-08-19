@@ -57,11 +57,12 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	// construct the database query
 	createOpts := &v1.CreateTenantInviteOpts{
-		InviteeEmail: inviteeEmail,
-		InviterEmail: user.Email,
-		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
-		Role:         string(request.Body.Role),
-		MaxPending:   t.config.Runtime.MaxPendingInvites,
+		InviteeEmail:    inviteeEmail,
+		InviterEmail:    user.Email,
+		ExpiresAt:       time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
+		Role:            string(request.Body.Role),
+		CanViewPayloads: request.Body.CanViewPayloads,
+		MaxPending:      t.config.Runtime.MaxPendingInvites,
 	}
 
 	// create the invite

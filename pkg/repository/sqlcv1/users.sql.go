@@ -303,7 +303,7 @@ func (q *Queries) GetUserSession(ctx context.Context, db DBTX, id uuid.UUID) (*U
 
 const listTenantMemberships = `-- name: ListTenantMemberships :many
 SELECT
-    "TenantMember".id, "TenantMember"."createdAt", "TenantMember"."updatedAt", "TenantMember"."tenantId", "TenantMember"."userId", "TenantMember".role
+    "TenantMember".id, "TenantMember"."createdAt", "TenantMember"."updatedAt", "TenantMember"."tenantId", "TenantMember"."userId", "TenantMember".role, "TenantMember"."canViewPayloads"
 FROM
     "TenantMember"
 JOIN
@@ -329,6 +329,7 @@ func (q *Queries) ListTenantMemberships(ctx context.Context, db DBTX, userid uui
 			&i.TenantId,
 			&i.UserId,
 			&i.Role,
+			&i.CanViewPayloads,
 		); err != nil {
 			return nil, err
 		}

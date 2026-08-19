@@ -5,14 +5,16 @@ INSERT INTO "TenantInviteLink" (
     "inviterEmail",
     "inviteeEmail",
     "expires",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     @tenantId::uuid,
     @inviterEmail::text,
     @inviteeEmail::text,
     @expires::timestamp,
-    @role::"TenantMemberRole"
+    @role::"TenantMemberRole",
+    COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) RETURNING *;
 
 -- name: CountActiveInvites :one
@@ -80,7 +82,8 @@ UPDATE
     "TenantInviteLink"
 SET
     "status" = COALESCE(sqlc.narg('status')::"InviteLinkStatus", "status"),
-    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role")
+    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
 WHERE
     "id" = @id::uuid
 RETURNING *;

@@ -397,6 +397,8 @@ export interface OrganizationInviteTenant {
   tenantRole: OrganizationInviteTenantRole;
   /** The name of the tenant */
   tenantName: string;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteTenant {
@@ -407,6 +409,8 @@ export interface CreateOrganizationInviteTenant {
   tenantId: string;
   /** The tenant role the invitee is granted. Defaults to MEMBER. */
   tenantRole?: OrganizationInviteTenantRole;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteRequest {
@@ -855,6 +859,8 @@ export type ShardRegionKey = string;
 export interface AddOrgMembersToTenantRequest {
   /** IDs of org members to add to the tenant. */
   memberIds: string[];
+  /** Whether the added members can view payloads on this tenant. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface AuditLog {
@@ -908,6 +914,8 @@ export interface UserGroup {
   tags: string[];
   /** Number of organization members in this group */
   memberCount: number;
+  /** Whether members of this group can view payloads on tag-synced tenants. Most restrictive matching group wins. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export type UserGroupList = UserGroup[];
@@ -920,6 +928,8 @@ export interface CreateUserGroupRequest {
   name: string;
   /** Tenant role to grant members when synced to a matching tenant */
   role: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UpdateUserGroupRequest {
@@ -930,6 +940,8 @@ export interface UpdateUserGroupRequest {
   name?: string;
   /** New tenant role to grant members */
   role?: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. */
+  canViewPayloads?: boolean;
 }
 
 export interface UserGroupMemberList {
