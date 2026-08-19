@@ -2,8 +2,18 @@
 
 import { useEffect } from "react";
 
-const IMAGE_TAG_REGEX =
-  /(ghcr\.io\/hatchet-dev\/hatchet\/hatchet-[a-z-]+:)latest\b/g;
+const SWAPS: { guard: string; pattern: RegExp; replacement: string }[] = [
+  {
+    guard: "ghcr.io/hatchet-dev/hatchet/",
+    pattern: /(ghcr\.io\/hatchet-dev\/hatchet\/hatchet-[a-z-]+:)latest\b/g,
+    replacement: "$1{tag}",
+  },
+  {
+    guard: "vX.Y.Z",
+    pattern: /\bvX\.Y\.Z\b/g,
+    replacement: "{tag}",
+  },
+];
 
 let latestTag: Promise<string | undefined> | undefined;
 
@@ -23,17 +33,16 @@ function fetchLatestTag() {
   return latestTag;
 }
 
-/**
- * Rewrites `ghcr.io/hatchet-dev/hatchet/*:latest` image references on the page
- * to the latest public release tag. Falls back to `:latest` if the GitHub API
- * is unreachable.
- */
 function swapTags(root: Node, tag: string) {
   const swap = (node: Node) => {
-    if (!node.nodeValue?.includes("ghcr.io/hatchet-dev/hatchet/")) return;
-    const swapped = node.nodeValue.replace(IMAGE_TAG_REGEX, `$1${tag}`);
-    if (swapped !== node.nodeValue) {
-      node.nodeValue = swapped;
+    let value = node.nodeValue;
+    if (!value) return;
+    for (const { guard, pattern, replacement } of SWAPS) {
+      if (!value.includes(guard)) continue;
+      value = value.replace(pattern, replacement.replace("{tag}", tag));
+    }
+    if (value !== node.nodeValue) {
+      node.nodeValue = value;
     }
   };
   if (root.nodeType === Node.TEXT_NODE) {
@@ -46,6 +55,12 @@ function swapTags(root: Node, tag: string) {
   }
 }
 
+/**
+ * Rewrites release-version placeholders on the page to the latest public
+ * release tag: `ghcr.io/hatchet-dev/hatchet/*:latest` image references and the
+ * literal `vX.Y.Z` placeholder. Falls back to the original text if the GitHub
+ * API is unreachable.
+ */
 export default function LatestImageTags() {
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +69,7 @@ export default function LatestImageTags() {
       if (!tag || cancelled) return;
       swapTags(document.body, tag);
       // Re-renders (hydration recovery, tab switches) can restore or remount
-      // text with the original `:latest`, so keep watching for it.
+      // text with the original placeholder, so keep watching for it.
       observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === "characterData") {

@@ -1,4 +1,5 @@
 import atexit
+import hashlib
 import json
 import os
 import platform
@@ -114,21 +115,58 @@ def _resolve_version(version: str | None) -> str:
     return tag
 
 
+def _expected_checksum(tag: str, asset: str) -> str:
+    url = f"{REPO_URL}/releases/download/{tag}/checksums.txt"
+    with urllib.request.urlopen(url) as res:
+        checksums: str = res.read().decode()
+
+    for line in checksums.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1] == asset:
+            return parts[0]
+
+    raise RuntimeError(f"no checksum for {asset} in {url}")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _ensure_sidecar_binary(version: str | None) -> Path:
     tag = _resolve_version(version)
     asset = _sidecar_asset_name()
     bin_path = Path.home() / ".hatchet" / "embedded" / tag / asset
 
-    if bin_path.exists():
+    # verified on every start, not just at download; a cached binary that no
+    # longer matches the release checksum is re-downloaded
+    expected = _expected_checksum(tag, asset)
+
+    if bin_path.exists() and _sha256_file(bin_path) == expected:
         return bin_path
 
     bin_path.parent.mkdir(parents=True, exist_ok=True)
     url = f"{REPO_URL}/releases/download/{tag}/{asset}"
-    tmp_path = bin_path.with_name(asset + ".download")
+    # pid-unique temp name so concurrent downloads of the same version never
+    # clobber each other; the final rename is atomic and last-writer-wins
+    tmp_path = bin_path.with_name(f"{asset}.{os.getpid()}.download")
 
-    urllib.request.urlretrieve(url, tmp_path)
-    tmp_path.chmod(0o755)
-    tmp_path.rename(bin_path)
+    try:
+        urllib.request.urlretrieve(url, tmp_path)
+
+        actual = _sha256_file(tmp_path)
+        if actual != expected:
+            raise RuntimeError(
+                f"checksum mismatch for {url}: expected {expected}, got {actual}"
+            )
+
+        tmp_path.chmod(0o755)
+        tmp_path.rename(bin_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     return bin_path
 

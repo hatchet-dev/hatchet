@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
-import { createWriteStream } from 'fs';
+import { createHash } from 'crypto';
+import { createReadStream, createWriteStream } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -74,16 +75,44 @@ async function resolveVersion(version?: string): Promise<string> {
   return tag;
 }
 
+async function expectedChecksum(tag: string, asset: string): Promise<string> {
+  const url = `${REPO_URL}/releases/download/${tag}/checksums.txt`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`could not download ${url}: ${res.status}`);
+  }
+  for (const line of (await res.text()).split('\n')) {
+    const parts = line.split(/\s+/).filter(Boolean);
+    if (parts.length === 2 && parts[1] === asset) {
+      return parts[0];
+    }
+  }
+  throw new Error(`no checksum for ${asset} in ${url}`);
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const digest = createHash('sha256');
+  for await (const chunk of createReadStream(filePath)) {
+    digest.update(chunk as Buffer);
+  }
+  return digest.digest('hex');
+}
+
 async function ensureSidecarBinary(version?: string): Promise<string> {
   const tag = await resolveVersion(version);
   const asset = sidecarAssetName();
   const binPath = path.join(os.homedir(), '.hatchet', 'embedded', tag, asset);
 
-  try {
-    await fs.access(binPath);
+  // verified on every start, not just at download; a cached binary that no
+  // longer matches the release checksum is re-downloaded
+  const expected = await expectedChecksum(tag, asset);
+
+  const cached = await fs.access(binPath).then(
+    () => true,
+    () => false
+  );
+  if (cached && (await sha256File(binPath)) === expected) {
     return binPath;
-  } catch {
-    // not cached yet
   }
 
   const url = `${REPO_URL}/releases/download/${tag}/${asset}`;
@@ -93,12 +122,24 @@ async function ensureSidecarBinary(version?: string): Promise<string> {
   }
 
   await fs.mkdir(path.dirname(binPath), { recursive: true });
-  const tmpPath = `${binPath}.download`;
-  await pipeline(
-    Readable.fromWeb(res.body as ReadableStream),
-    createWriteStream(tmpPath, { mode: 0o755 })
-  );
-  await fs.rename(tmpPath, binPath);
+  // pid-unique temp name so concurrent downloads of the same version never
+  // clobber each other; the final rename is atomic and last-writer-wins
+  const tmpPath = `${binPath}.${process.pid}.download`;
+  try {
+    await pipeline(
+      Readable.fromWeb(res.body as ReadableStream),
+      createWriteStream(tmpPath, { mode: 0o755 })
+    );
+
+    const actual = await sha256File(tmpPath);
+    if (actual !== expected) {
+      throw new Error(`checksum mismatch for ${url}: expected ${expected}, got ${actual}`);
+    }
+
+    await fs.rename(tmpPath, binPath);
+  } finally {
+    await fs.rm(tmpPath, { force: true });
+  }
   return binPath;
 }
 

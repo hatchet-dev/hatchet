@@ -1,8 +1,6 @@
 {
   "pages": [
     "index",
-    "---Embedded---",
-    "embedded",
     "---Docker---",
     "hatchet-lite",
     "docker-compose",
