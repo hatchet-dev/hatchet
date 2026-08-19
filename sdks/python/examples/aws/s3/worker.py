@@ -57,6 +57,7 @@ class ProcessObjectInput(BaseModel):
 
 fetch_buckets_workflow = hatchet.workflow(
     name="fetch_s3_buckets",
+    on_crons=["* * * * *"],
     concurrency=ConcurrencyExpression(
         expression="'singleton'",
         max_runs=1,
