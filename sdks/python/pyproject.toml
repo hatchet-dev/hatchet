@@ -29,6 +29,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+embedded = []
+
 otel = [
     "opentelemetry-api>=1.28.0,<2",
     "opentelemetry-sdk>=1.28.0,<2",

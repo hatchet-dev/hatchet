@@ -1,6 +1,7 @@
 import atexit
 import hashlib
 import json
+import multiprocessing
 import os
 import platform
 import subprocess
@@ -11,8 +12,12 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from hatchet_sdk.hatchet import Hatchet
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 DEFAULT_READY_TIMEOUT_SECONDS = 300.0
@@ -187,7 +192,7 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     Download (and cache) the hatchet-embedded sidecar binary, spawn it, and wait
     until the embedded engine is ready. The sidecar shuts down when this process
-    exits. Use `Hatchet.embedded()` unless you need the raw connection details.
+    exits. Use `HatchetEmbedded()` unless you need the raw connection details.
     """
     options = options or EmbeddedOptions()
 
@@ -262,4 +267,50 @@ def _wait_for_handshake(
     process.kill()
     raise TimeoutError(
         f"hatchet embedded sidecar did not become ready within {timeout_seconds}s"
+    )
+
+
+def HatchetEmbedded(options: EmbeddedOptions | None = None) -> "Hatchet":  # noqa: N802
+    """
+    Run a full Hatchet engine locally via the hatchet-embedded sidecar
+    (downloaded on first use) and return a client wired to it. By default
+    the sidecar starts a bundled Postgres; pass `database_url` in the
+    options to point it at your own instead.
+
+    :param options: Options for the embedded engine (version, ports, database, ...).
+    :return: A Hatchet client instance connected to the embedded engine.
+    """
+    from hatchet_sdk.config import ClientConfig, ClientTLSConfig
+    from hatchet_sdk.hatchet import Hatchet
+
+    # worker subprocesses re-import the main module; connect them to the
+    # parent's engine (via the env vars exported below) instead of booting
+    # a second one. parent_process() is None while a spawn child is still
+    # importing the main module, so also check the _inheriting flag set
+    # during that phase.
+    in_child = multiprocessing.parent_process() is not None or getattr(
+        multiprocessing.current_process(), "_inheriting", False
+    )
+    if in_child:
+        return Hatchet()
+
+    sidecar = start_embedded_sidecar(options)
+
+    os.environ["HATCHET_CLIENT_TOKEN"] = sidecar.token
+    os.environ["HATCHET_CLIENT_TENANT_ID"] = sidecar.tenant_id
+    os.environ["HATCHET_CLIENT_HOST_PORT"] = sidecar.grpc_address
+    os.environ["HATCHET_CLIENT_TLS_STRATEGY"] = "none"
+    if sidecar.api_url:
+        os.environ["HATCHET_CLIENT_SERVER_URL"] = sidecar.api_url
+
+    server_url = {"server_url": sidecar.api_url} if sidecar.api_url else {}
+
+    return Hatchet(
+        config=ClientConfig(
+            token=sidecar.token,
+            tenant_id=sidecar.tenant_id,
+            host_port=sidecar.grpc_address,
+            tls_config=ClientTLSConfig(strategy="none"),
+            **server_url,  # type: ignore[arg-type]
+        )
     )

@@ -1,4 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
+import type { AxiosRequestConfig } from 'axios';
+import type { ClientConfig, HatchetClientOptions } from '@hatchet/clients/hatchet-client';
+import { HatchetClient } from './client/client';
 import { createHash, randomUUID } from 'crypto';
 import { createReadStream, createWriteStream } from 'fs';
 import * as fs from 'fs/promises';
@@ -185,7 +188,7 @@ async function waitForHandshake(
 /**
  * Downloads (and caches) the hatchet-embedded sidecar binary, spawns it, and
  * waits until the embedded engine is ready. The sidecar shuts down when this
- * process exits. Use `HatchetClient.embedded()` unless you need the raw
+ * process exits. Use `HatchetEmbedded()` unless you need the raw
  * connection details.
  */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
@@ -268,4 +271,42 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
         child.kill();
       }),
   };
+}
+
+export class HatchetEmbeddedClient {
+  /**
+   * Runs a full Hatchet engine locally via the hatchet-embedded sidecar (downloaded
+   * on first use) and returns a client wired to it. By default the sidecar starts a
+   * bundled Postgres; pass `databaseUrl` to point it at your own instead.
+   * @param embeddedOpts - Options for the embedded engine (version, ports, database, ...).
+   * @param config - Optional configuration overrides for the client.
+   * @param options - Optional client options.
+   * @param axiosConfig - Optional Axios configuration for HTTP requests.
+   * @returns A new Hatchet client instance connected to the embedded engine.
+   */
+  static async init<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    T extends Record<string, any> = {},
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    U extends Record<string, any> = {},
+  >(
+    embeddedOpts?: EmbeddedOptions,
+    config?: Omit<Partial<ClientConfig>, 'middleware'>,
+    options?: HatchetClientOptions,
+    axiosConfig?: AxiosRequestConfig
+  ): Promise<HatchetClient<T, U>> {
+    const sidecar = await startEmbeddedSidecar(embeddedOpts);
+    return HatchetClient.init<T, U>(
+      {
+        token: sidecar.token,
+        tenant_id: sidecar.tenantId,
+        host_port: sidecar.grpcAddress,
+        ...(sidecar.apiUrl ? { api_url: sidecar.apiUrl } : {}),
+        tls_config: { tls_strategy: 'none' },
+        ...config,
+      },
+      options,
+      axiosConfig
+    );
+  }
 }
