@@ -1,6 +1,6 @@
 import asyncio
 from collections import OrderedDict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Generic, TypeVar
@@ -72,3 +72,26 @@ class TTLCache(Generic[K, V]):
 
             for key in expired:
                 del self.cache[key]
+
+
+class DurableInvocationCallbackCache(dict[tuple[str, int, int, int], V]):
+    def __init__(
+        self, on_evict: Callable[[tuple[str, int, int, int], V], None] | None = None
+    ) -> None:
+        super().__init__()
+        self._on_evict = on_evict
+
+    def __setitem__(self, key: tuple[str, int, int, int], value: V) -> None:
+        task_external_id, invocation_count = key[0], key[1]
+
+        superseded = [
+            k for k in self if k[0] == task_external_id and k[1] < invocation_count
+        ]
+
+        for stale_key in superseded:
+            stale_value = super().pop(stale_key)
+
+            if self._on_evict is not None:
+                self._on_evict(stale_key, stale_value)
+
+        super().__setitem__(key, value)

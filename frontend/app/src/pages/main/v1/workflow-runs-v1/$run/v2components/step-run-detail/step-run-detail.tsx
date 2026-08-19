@@ -5,6 +5,7 @@ import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
 import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
+import { PausedWorkflowNotice } from '../paused-workflow-notice';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
@@ -214,6 +215,10 @@ export const TaskRunDetail = ({
             Logs
           </TabsTrigger>
         </TabsList>
+        <PausedWorkflowNotice
+          workflowId={taskRun.workflowId}
+          status={taskRun.status}
+        />
         <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap

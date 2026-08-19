@@ -550,7 +550,7 @@ INSERT INTO "Workflow" (
     $5::uuid,
     $6::text,
     $7::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 `
 
 type CreateWorkflowParams struct {
@@ -583,6 +583,9 @@ func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflo
 		&i.Name,
 		&i.Description,
 		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
 	)
 	return &i, err
 }
@@ -1168,7 +1171,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 
 const getWorkflowById = `-- name: GetWorkflowById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused", w."pausedWorkflowCronRunQueueBehavior", w."pausedWorkflowScheduledRunQueueBehavior", w."pausedWorkflowQueueTTL",
     wv."id" as "workflowVersionId"
 FROM
     "Workflow" as w
@@ -1198,6 +1201,9 @@ func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, id uuid.UUID) (*
 		&i.Workflow.Name,
 		&i.Workflow.Description,
 		&i.Workflow.IsPaused,
+		&i.Workflow.PausedWorkflowCronRunQueueBehavior,
+		&i.Workflow.PausedWorkflowScheduledRunQueueBehavior,
+		&i.Workflow.PausedWorkflowQueueTTL,
 		&i.WorkflowVersionId,
 	)
 	return &i, err
@@ -1205,7 +1211,7 @@ func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, id uuid.UUID) (*
 
 const getWorkflowByName = `-- name: GetWorkflowByName :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 FROM
     "Workflow" as workflows
 WHERE
@@ -1231,6 +1237,9 @@ func (q *Queries) GetWorkflowByName(ctx context.Context, db DBTX, arg GetWorkflo
 		&i.Name,
 		&i.Description,
 		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
 	)
 	return &i, err
 }
@@ -1297,7 +1306,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs", wv."idempotencyMethod",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused", w."pausedWorkflowCronRunQueueBehavior", w."pausedWorkflowScheduledRunQueueBehavior", w."pausedWorkflowQueueTTL"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
@@ -1342,6 +1351,9 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.Workflow.Name,
 		&i.Workflow.Description,
 		&i.Workflow.IsPaused,
+		&i.Workflow.PausedWorkflowCronRunQueueBehavior,
+		&i.Workflow.PausedWorkflowScheduledRunQueueBehavior,
+		&i.Workflow.PausedWorkflowQueueTTL,
 	)
 	return &i, err
 }
@@ -1974,7 +1986,7 @@ func (q *Queries) ListWorkflowNamesByIds(ctx context.Context, db DBTX, ids []uui
 
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
-    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused", workflows."pausedWorkflowCronRunQueueBehavior", workflows."pausedWorkflowScheduledRunQueueBehavior", workflows."pausedWorkflowQueueTTL"
 FROM
     "Workflow" as workflows
 WHERE
@@ -2029,6 +2041,9 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 			&i.Workflow.Name,
 			&i.Workflow.Description,
 			&i.Workflow.IsPaused,
+			&i.Workflow.PausedWorkflowCronRunQueueBehavior,
+			&i.Workflow.PausedWorkflowScheduledRunQueueBehavior,
+			&i.Workflow.PausedWorkflowQueueTTL,
 		); err != nil {
 			return nil, err
 		}
@@ -2111,6 +2126,49 @@ func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context,
 	return err
 }
 
+const pauseWorkflow = `-- name: PauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = TRUE,
+    "pausedWorkflowCronRunQueueBehavior" = $1::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = $2::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval($3::TEXT)
+WHERE "id" = $4::UUID
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
+`
+
+type PauseWorkflowParams struct {
+	Cronrunqueuebehavior      WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
+	Scheduledrunqueuebehavior WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
+	Queuettl                  string                     `json:"queuettl"`
+	ID                        uuid.UUID                  `json:"id"`
+}
+
+func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, pauseWorkflow,
+		arg.Cronrunqueuebehavior,
+		arg.Scheduledrunqueuebehavior,
+		arg.Queuettl,
+		arg.ID,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
+	)
+	return &i, err
+}
+
 const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one
 WITH versions AS (
     UPDATE "WorkflowVersion"
@@ -2123,7 +2181,7 @@ SET
     "name" = "name" || '-' || gen_random_uuid(),
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 `
 
 func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id uuid.UUID) (*Workflow, error) {
@@ -2138,6 +2196,40 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id uuid.UUID)
 		&i.Name,
 		&i.Description,
 		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
+	)
+	return &i, err
+}
+
+const unpauseWorkflow = `-- name: UnpauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = FALSE,
+    "pausedWorkflowCronRunQueueBehavior" = NULL,
+    "pausedWorkflowScheduledRunQueueBehavior" = NULL,
+    "pausedWorkflowQueueTTL" = NULL
+WHERE "id" = $1::UUID
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
+`
+
+func (q *Queries) UnpauseWorkflow(ctx context.Context, db DBTX, id uuid.UUID) (*Workflow, error) {
+	row := db.QueryRow(ctx, unpauseWorkflow, id)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
+		&i.PausedWorkflowCronRunQueueBehavior,
+		&i.PausedWorkflowScheduledRunQueueBehavior,
+		&i.PausedWorkflowQueueTTL,
 	)
 	return &i, err
 }
@@ -2157,36 +2249,6 @@ type UpdateCronTriggerParams struct {
 func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
 	_, err := db.Exec(ctx, updateCronTrigger, arg.Enabled, arg.Crontriggerid)
 	return err
-}
-
-const updateWorkflow = `-- name: UpdateWorkflow :one
-UPDATE "Workflow"
-SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce($1::boolean, "isPaused")
-WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
-`
-
-type UpdateWorkflowParams struct {
-	IsPaused pgtype.Bool `json:"isPaused"`
-	ID       uuid.UUID   `json:"id"`
-}
-
-func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, updateWorkflow, arg.IsPaused, arg.ID)
-	var i Workflow
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.Name,
-		&i.Description,
-		&i.IsPaused,
-	)
-	return &i, err
 }
 
 const updateWorkflowConcurrencyWithChildStrategyIds = `-- name: UpdateWorkflowConcurrencyWithChildStrategyIds :exec

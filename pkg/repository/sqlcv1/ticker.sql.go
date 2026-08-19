@@ -241,6 +241,8 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
         "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
     JOIN
         "Tenant" as tenant ON tenant."id" = triggers."tenantId"
+    JOIN
+        "Workflow" as workflow ON workflow."id" = versions."workflowId"
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
@@ -250,6 +252,13 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
                 SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
             OR cronSchedule."tickerId" = $1::uuid
+        )
+        AND (
+            workflow."isPaused" IS NULL
+            OR workflow."isPaused" = FALSE
+            OR (
+                workflow."isPaused" = TRUE AND workflow."pausedWorkflowCronRunQueueBehavior" = 'QUEUE'
+            )
         )
     FOR UPDATE OF cronSchedule SKIP LOCKED
 ),
@@ -455,6 +464,13 @@ WITH latest_workflow_versions AS (
             SELECT 1
             FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
             WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
+        )
+        AND (
+            workflow."isPaused" IS NULL
+            OR workflow."isPaused" = FALSE
+            OR (
+                workflow."isPaused" = TRUE AND workflow."pausedWorkflowScheduledRunQueueBehavior" = 'QUEUE'
+            )
         )
     ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
 ),

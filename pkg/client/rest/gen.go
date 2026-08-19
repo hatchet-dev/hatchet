@@ -95,6 +95,16 @@ const (
 	OtelStatusCodeUNSET OtelStatusCode = "UNSET"
 )
 
+// Defines values for PauseWorkflowRequestPauseAction.
+const (
+	Pause PauseWorkflowRequestPauseAction = "pause"
+)
+
+// Defines values for PauseWorkflowRequestUnpauseAction.
+const (
+	Unpause PauseWorkflowRequestUnpauseAction = "unpause"
+)
+
 // Defines values for RateLimitOrderByDirection.
 const (
 	RateLimitOrderByDirectionAsc  RateLimitOrderByDirection = "asc"
@@ -369,6 +379,12 @@ const (
 	DAG      WorkflowKind = "DAG"
 	DURABLE  WorkflowKind = "DURABLE"
 	FUNCTION WorkflowKind = "FUNCTION"
+)
+
+// Defines values for WorkflowPauseScheduledCronRunQueueBehavior.
+const (
+	DROP  WorkflowPauseScheduledCronRunQueueBehavior = "DROP"
+	QUEUE WorkflowPauseScheduledCronRunQueueBehavior = "QUEUE"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -826,6 +842,34 @@ type PaginationResponse struct {
 	// NumPages the total number of pages for listing
 	NumPages *int64 `json:"num_pages,omitempty"`
 }
+
+// PauseWorkflowRequest defines model for PauseWorkflowRequest.
+type PauseWorkflowRequest struct {
+	union json.RawMessage
+}
+
+// PauseWorkflowRequestPause defines model for PauseWorkflowRequestPause.
+type PauseWorkflowRequestPause struct {
+	// Action Discriminator indicating this request pauses the workflow.
+	Action                             PauseWorkflowRequestPauseAction            `json:"action"`
+	PausedWorkflowCronRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+
+	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
+	PausedWorkflowQueueTTL                  string                                     `json:"pausedWorkflowQueueTTL"`
+	PausedWorkflowScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+}
+
+// PauseWorkflowRequestPauseAction Discriminator indicating this request pauses the workflow.
+type PauseWorkflowRequestPauseAction string
+
+// PauseWorkflowRequestUnpause defines model for PauseWorkflowRequestUnpause.
+type PauseWorkflowRequestUnpause struct {
+	// Action Discriminator indicating this request unpauses the workflow.
+	Action PauseWorkflowRequestUnpauseAction `json:"action"`
+}
+
+// PauseWorkflowRequestUnpauseAction Discriminator indicating this request unpauses the workflow.
+type PauseWorkflowRequestUnpauseAction string
 
 // QueueMetrics defines model for QueueMetrics.
 type QueueMetrics struct {
@@ -2528,7 +2572,9 @@ type Workflow struct {
 	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the workflow.
-	Name string `json:"name"`
+	Name                                    string                                      `json:"name"`
+	PausedWorkflowCronRunQueueBehavior      *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
+	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
 
 	// Tags The tags of the workflow.
 	Tags *[]WorkflowTag `json:"tags,omitempty"`
@@ -2572,6 +2618,9 @@ type WorkflowMetrics struct {
 	// GroupKeyRunsCount The number of runs for a specific group key (passed via filter)
 	GroupKeyRunsCount *int `json:"groupKeyRunsCount,omitempty"`
 }
+
+// WorkflowPauseScheduledCronRunQueueBehavior defines model for WorkflowPauseScheduledCronRunQueueBehavior.
+type WorkflowPauseScheduledCronRunQueueBehavior string
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {
@@ -2704,8 +2753,7 @@ type WorkflowTriggers struct {
 
 // WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
 type WorkflowUpdateRequest struct {
-	// IsPaused Whether the workflow is paused.
-	IsPaused *bool `json:"isPaused,omitempty"`
+	Pause *PauseWorkflowRequest `json:"pause,omitempty"`
 }
 
 // WorkflowVersion defines model for WorkflowVersion.
@@ -3477,6 +3525,68 @@ type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
+
+// AsPauseWorkflowRequestPause returns the union data inside the PauseWorkflowRequest as a PauseWorkflowRequestPause
+func (t PauseWorkflowRequest) AsPauseWorkflowRequestPause() (PauseWorkflowRequestPause, error) {
+	var body PauseWorkflowRequestPause
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPauseWorkflowRequestPause overwrites any union data inside the PauseWorkflowRequest as the provided PauseWorkflowRequestPause
+func (t *PauseWorkflowRequest) FromPauseWorkflowRequestPause(v PauseWorkflowRequestPause) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePauseWorkflowRequestPause performs a merge with any union data inside the PauseWorkflowRequest, using the provided PauseWorkflowRequestPause
+func (t *PauseWorkflowRequest) MergePauseWorkflowRequestPause(v PauseWorkflowRequestPause) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPauseWorkflowRequestUnpause returns the union data inside the PauseWorkflowRequest as a PauseWorkflowRequestUnpause
+func (t PauseWorkflowRequest) AsPauseWorkflowRequestUnpause() (PauseWorkflowRequestUnpause, error) {
+	var body PauseWorkflowRequestUnpause
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPauseWorkflowRequestUnpause overwrites any union data inside the PauseWorkflowRequest as the provided PauseWorkflowRequestUnpause
+func (t *PauseWorkflowRequest) FromPauseWorkflowRequestUnpause(v PauseWorkflowRequestUnpause) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePauseWorkflowRequestUnpause performs a merge with any union data inside the PauseWorkflowRequest, using the provided PauseWorkflowRequestUnpause
+func (t *PauseWorkflowRequest) MergePauseWorkflowRequestUnpause(v PauseWorkflowRequestUnpause) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PauseWorkflowRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PauseWorkflowRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsV1CreateWebhookRequestBasicAuth returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestBasicAuth
 func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestBasicAuth() (V1CreateWebhookRequestBasicAuth, error) {

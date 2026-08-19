@@ -1050,12 +1050,32 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		})
 	}
 
-	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
-	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+	if pending := ingestionResult.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
+		entries := make([]tasktypes.PendingDurableRunTriggerPayload, len(pending))
 
-	if len(dags) > 0 || len(tasks) > 0 {
-		if sigErr := d.triggerWriter.SignalCreated(ctx, invocation.tenantId, tasks, dags); sigErr != nil {
-			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/DAGs for durable run trigger")
+		for i, p := range pending {
+			entries[i] = tasktypes.PendingDurableRunTriggerPayload{
+				NodeId:      p.NodeId,
+				BranchId:    p.BranchId,
+				TriggerOpts: p.TriggerOpts,
+			}
+		}
+
+		msg, msgErr := tasktypes.DurableRunTriggerTaskMessage(invocation.tenantId, tasktypes.DurableRunTriggerMessage{
+			DurableTaskId:         task.ID,
+			DurableTaskInsertedAt: task.InsertedAt,
+			DurableTaskExternalId: task.ExternalID,
+			Entries:               entries,
+		})
+		if msgErr != nil {
+			return status.Errorf(codes.Internal, "failed to build durable run trigger message: %v", msgErr)
+		}
+
+		// publish before acking: if this is lost, the child task never gets created and the
+		// durable task would hang forever with no other recovery path, so treat it as fatal
+		// to the RPC rather than best-effort
+		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); sendErr != nil {
+			return status.Errorf(codes.Internal, "failed to enqueue durable run trigger: %v", sendErr)
 		}
 	}
 

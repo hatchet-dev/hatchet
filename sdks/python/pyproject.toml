@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.37.2"
+version = "1.37.3"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -183,3 +183,8 @@ style = "sphinx"
 exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"
 arg-type-hints-in-docstring = false
 check-return-types = false
+
+[dependency-groups]
+test = [
+    "pytest-timeout (>=2.4.0,<3.0.0)"
+]

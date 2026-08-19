@@ -12,21 +12,6 @@
 }
 
 @font-face {
-  font-family: "martina";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(./fonts/martina-plantijn-regular.woff2) format("woff2");
-}
-@font-face {
-  font-family: "martina";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url(./fonts/martina-plantijn-italic.woff2) format("woff2");
-}
-
-@font-face {
   font-family: "dm-mono";
   font-weight: 400;
   font-display: swap;
@@ -202,17 +187,18 @@
   --radius-sm: calc(var(--radius) - 4px);
   --font-mono: "dm-mono", ui-monospace, SFMono-Regular, monospace;
   --font-judge: "JudgeExtended", sans-serif;
-  --font-serif: "martina", ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
+  font-family: var(--font-sans);
   font-size: 0.9375rem;
 }
 
 #nd-page .prose {
-  font-family: var(--font-serif);
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.65;
 }
 
 #nd-page .prose :is(code, pre, kbd, samp),
@@ -221,7 +207,7 @@ body {
 }
 
 #nd-page .prose :not(pre) > code {
-  font-size: 0.82em;
+  font-size: 0.875em;
   padding: 0.12em 0.4em;
   border-radius: 5px;
   border: none;
