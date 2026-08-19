@@ -700,7 +700,7 @@ WITH input AS (
 DELETE FROM
     v1_batched_queue_item
 WHERE
-    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_queue_items_to_delete)
 `
 
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
