@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -8,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
@@ -120,14 +122,16 @@ func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureS
 		return parsed, false, ""
 	}
 
-	selectedProfile := profileFlag
-	if selectedProfile == "" {
-		selectedProfile = selectProfileForm(true)
+	if profileFlag == "" {
+		parsed, ok := defaultEmbeddedTarget()
+		if !ok {
+			configcli.Logger.Fatalf("no embedded instance found at %s. Pass --api-url (printed on the engine's ready line) or --profile.", defaultEmbeddedAPIURL)
+		}
+
+		return parsed, false, ""
 	}
 
-	if selectedProfile == "" {
-		configcli.Logger.Fatal("no profile selected. Configure a profile with 'hatchet profile' or pass --api-url.")
-	}
+	selectedProfile := profileFlag
 
 	profile, err := configcli.GetProfile(selectedProfile)
 	if err != nil {
@@ -144,6 +148,25 @@ func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureS
 	}
 
 	return parsed, profile.TLSStrategy == "none", selectedProfile
+}
+
+// defaultEmbeddedAPIURL is where the embedded engine binds its API when the
+// port is free (see hatchet-embedded's DefaultAPIPort).
+const defaultEmbeddedAPIURL = "http://localhost:28243"
+
+func defaultEmbeddedTarget() (*url.URL, bool) {
+	parsed, err := parseTargetURL(defaultEmbeddedAPIURL)
+	if err != nil {
+		return nil, false
+	}
+
+	if err := checkEmbedded(parsed, false); err != nil {
+		return nil, false
+	}
+
+	fmt.Printf("Using the embedded instance at %s\n", defaultEmbeddedAPIURL)
+
+	return parsed, true
 }
 
 const uiTokenCookie = "hatchet-ui-token"
@@ -308,18 +331,26 @@ func newSPAHandler() (http.Handler, error) {
 		return nil, err
 	}
 
+	// index.html is a template rendered by the server that hosts it (see
+	// cmd/hatchet-staticfileserver); the UI is always served at the root here
+	index, err := renderIndex(assets)
+	if err != nil {
+		return nil, err
+	}
+
 	fileServer := http.FileServer(http.FS(assets))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 
 		reqPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
-		if reqPath == "" {
-			reqPath = "index.html"
+		if reqPath == "" || reqPath == "index.html" {
+			serveIndex(w, index)
+			return
 		}
 
 		if _, err := fs.Stat(assets, reqPath); err != nil {
-			serveIndex(w, assets)
+			serveIndex(w, index)
 			return
 		}
 
@@ -331,13 +362,26 @@ func newSPAHandler() (http.Handler, error) {
 	}), nil
 }
 
-func serveIndex(w http.ResponseWriter, assets fs.FS) {
-	index, err := fs.ReadFile(assets, "index.html")
+func renderIndex(assets fs.FS) ([]byte, error) {
+	raw, err := fs.ReadFile(assets, "index.html")
 	if err != nil {
-		http.Error(w, "index.html not found", http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("index.html not found in the bundled UI: %w", err)
 	}
 
+	t, err := template.New("index.html").Parse(string(raw))
+	if err != nil {
+		return nil, fmt.Errorf("could not parse the bundled index.html: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, struct{ BasePath string }{"/"}); err != nil {
+		return nil, fmt.Errorf("could not render the bundled index.html: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func serveIndex(w http.ResponseWriter, index []byte) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(index)
@@ -400,7 +444,7 @@ func uiStartedView(localURL, targetURL, profileName string) string {
 func init() {
 	rootCmd.AddCommand(uiCmd)
 
-	uiCmd.Flags().StringP("profile", "n", "", "Profile whose API server the UI targets (default: default profile)")
+	uiCmd.Flags().StringP("profile", "n", "", "Profile whose API server the UI targets")
 	uiCmd.Flags().String("api-url", "", "API server URL to proxy to (overrides the profile's API server URL)")
 	uiCmd.Flags().IntP("port", "p", 0, "Port to serve the UI on (default: auto-detect starting at 8080)")
 	uiCmd.Flags().String("host", "localhost", "Host interface to bind the UI server to")

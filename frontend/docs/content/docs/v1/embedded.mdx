@@ -132,6 +132,26 @@ See runnable examples for all three SDKs in the [hatchet-embedded repo](https://
 
 \* `WithPostgresDataDir` is an option on the `embed` package directly; the remaining Go options are `hatchet.WithEmbedded*` client options. The `embed` package also offers `WithAdminUser(email, password)`, `WithKeysets(...)`, and `WithLogger(...)` when you drive the engine yourself via `embed.StartServer`.
 
+## Serve the dashboard
+
+Embedded instances do not ship a frontend. The `hatchet embedded-ui` CLI command serves the dashboard bundled in the CLI binary on your machine and proxies API requests to the instance's API server. With no flags it targets the default embedded API port (`http://localhost:28243`):
+
+```sh
+hatchet embedded-ui
+```
+
+This opens a browser to the locally served dashboard. The URL contains a one-time `ui_token` that is exchanged for a local session cookie; requests without the cookie are rejected, so other processes or machines cannot use the proxy port. The server binds to `localhost` unless you override `--host`.
+
+If your instance is not on the default port (for example, a second instance on the same machine), pass its API server explicitly with `--api-url`, using the address from the engine's ready line. The target must report itself as an embedded instance (via `/api/v1/meta`); the command errors out for any other deployment.
+
+| Flag        | Description                                                        |
+| ----------- | ------------------------------------------------------------------ |
+| `--api-url` | API server URL to proxy to (defaults to `http://localhost:28243`). |
+| `--profile` | Profile whose API server the UI targets.                           |
+| `--port`    | Port to serve the UI on (defaults to auto-detecting from `8080`).  |
+| `--host`    | Host interface to bind the UI server to (defaults to `localhost`). |
+| `--no-open` | Do not automatically open a browser.                               |
+
 ## Versioning
 
 hatchet-embedded release tags correspond to the publicly released [Hatchet engine](https://github.com/hatchet-dev/hatchet/releases) versions.
@@ -144,7 +164,7 @@ The TypeScript and Python SDKs resolve the version in this order:
 
 ## Running multiple instances
 
-Multiple embedded instances on one machine work out of the box: API, gRPC, and Postgres ports are auto-allocated, and the bundled Postgres keeps its data in a per-project directory (`~/.hatchet-embedded/<hash of working dir>`), which also persists across restarts.
+Multiple embedded instances on one machine work out of the box: the first instance's API binds to the default port `28243` and the rest get random free ports (printed on each engine's ready line), gRPC and Postgres ports are auto-allocated, and the bundled Postgres keeps its data in a per-project directory (`~/.hatchet-embedded/<hash of working dir>`), which also persists across restarts.
 
 Two instances started from the _same_ working directory cannot share the bundled Postgres data directory concurrently. Give each its own via the Postgres data dir option, or point them at an external Postgres.
 
