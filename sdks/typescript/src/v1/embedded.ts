@@ -21,6 +21,12 @@ export interface EmbeddedOptions {
   version?: string;
   /** path to an existing sidecar binary, skips the download */
   binaryPath?: string;
+  /**
+   * expected sha256 hex digest of the sidecar binary. When set, it replaces the
+   * release's checksums.txt as the trust anchor, so a compromised release
+   * channel cannot substitute the binary. Pin it together with `version`.
+   */
+  checksum?: string;
   /** use an existing Postgres instead of the bundled one */
   databaseUrl?: string;
   /** store the bundled Postgres runtime and data under this directory */
@@ -98,14 +104,14 @@ async function sha256File(filePath: string): Promise<string> {
   return digest.digest('hex');
 }
 
-async function ensureSidecarBinary(version?: string): Promise<string> {
+async function ensureSidecarBinary(version?: string, checksum?: string): Promise<string> {
   const tag = await resolveVersion(version);
   const asset = sidecarAssetName();
   const binPath = path.join(os.homedir(), '.hatchet', 'embedded', tag, asset);
 
   // verified on every start, not just at download; a cached binary that no
-  // longer matches the release checksum is re-downloaded
-  const expected = await expectedChecksum(tag, asset);
+  // longer matches the expected checksum is re-downloaded
+  const expected = checksum ?? (await expectedChecksum(tag, asset));
 
   const cached = await fs.access(binPath).then(
     () => true,
@@ -183,7 +189,7 @@ async function waitForHandshake(
  * connection details.
  */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
-  const binPath = opts.binaryPath ?? (await ensureSidecarBinary(opts.version));
+  const binPath = opts.binaryPath ?? (await ensureSidecarBinary(opts.version, opts.checksum));
 
   const handshakePath = path.join(
     await fs.mkdtemp(path.join(os.tmpdir(), 'hatchet-embedded-')),

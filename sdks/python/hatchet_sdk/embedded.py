@@ -29,6 +29,13 @@ class EmbeddedOptions(BaseModel):
     binary_path: str | None = None
     """path to an existing sidecar binary, skips the download"""
 
+    checksum: str | None = None
+    """
+    expected sha256 hex digest of the sidecar binary. When set, it replaces the
+    release's checksums.txt as the trust anchor, so a compromised release
+    channel cannot substitute the binary. Pin it together with `version`.
+    """
+
     database_url: str | None = None
     """use an existing Postgres instead of the bundled one"""
 
@@ -136,14 +143,14 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _ensure_sidecar_binary(version: str | None) -> Path:
+def _ensure_sidecar_binary(version: str | None, checksum: str | None) -> Path:
     tag = _resolve_version(version)
     asset = _sidecar_asset_name()
     bin_path = Path.home() / ".hatchet" / "embedded" / tag / asset
 
     # verified on every start, not just at download; a cached binary that no
-    # longer matches the release checksum is re-downloaded
-    expected = _expected_checksum(tag, asset)
+    # longer matches the expected checksum is re-downloaded
+    expected = checksum or _expected_checksum(tag, asset)
 
     if bin_path.exists() and _sha256_file(bin_path) == expected:
         return bin_path
@@ -184,7 +191,9 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     options = options or EmbeddedOptions()
 
-    bin_path = options.binary_path or str(_ensure_sidecar_binary(options.version))
+    bin_path = options.binary_path or str(
+        _ensure_sidecar_binary(options.version, options.checksum)
+    )
     handshake_path = (
         Path(tempfile.mkdtemp(prefix="hatchet-embedded-")) / "handshake.json"
     )

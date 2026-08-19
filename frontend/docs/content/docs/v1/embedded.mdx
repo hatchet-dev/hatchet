@@ -15,7 +15,7 @@ Run a full Hatchet engine from inside your application, with no Docker and no ex
 
 By default it also starts a bundled Postgres, so you need zero external services to get running. Point it at your own database to disable that.
 
-<Callout type="warn">
+<Callout type="warning">
   Embedded mode is designed for local development and testing only.
 </Callout>
 
@@ -109,17 +109,18 @@ See runnable examples for all three SDKs in the [hatchet-embedded repo](https://
 
 ## Options
 
-| Go                                                         | TypeScript             | Python                   | Effect                                                                   |
-| ---------------------------------------------------------- | ---------------------- | ------------------------ | ------------------------------------------------------------------------ |
-| `WithEmbeddedDatabaseURL(url)`                             | `databaseUrl`          | `database_url`           | Use your own Postgres instead of the bundled one                         |
-| `WithPostgresDataDir(dir)`\*                               | `postgresDataDir`      | `postgres_data_dir`      | Store the bundled Postgres runtime and data under this directory         |
-| `WithEmbeddedRabbitMQ(url)`                                | `rabbitmqUrl`          | `rabbitmq_url`           | Use RabbitMQ instead of the Postgres message queue                       |
-| `WithEmbeddedAPIPort(port)` / `WithEmbeddedGRPCPort(port)` | `apiPort` / `grpcPort` | `api_port` / `grpc_port` | Bind the API / gRPC servers to specific ports                            |
-| `WithoutEmbeddedAPI()`                                     | `startApi: false`      | `start_api=False`        | Start only the engine + gRPC, no REST API                                |
-| `WithoutEmbeddedMigrations()`                              | `runMigrations: false` | `run_migrations=False`   | Skip running migrations on startup                                       |
-| `WithEmbeddedLogLevel(level)`                              | `logLevel`             | `log_level`              | Engine log level (default `warn`)                                        |
-| N/A                                                        | `version`              | `version`                | hatchet-embedded release tag to download (see [Versioning](#versioning)) |
-| N/A                                                        | `binaryPath`           | `binary_path`            | Use an existing sidecar binary, skips the download                       |
+| Go                                                         | TypeScript             | Python                   | Effect                                                                          |
+| ---------------------------------------------------------- | ---------------------- | ------------------------ | ------------------------------------------------------------------------------- |
+| `WithEmbeddedDatabaseURL(url)`                             | `databaseUrl`          | `database_url`           | Use your own Postgres instead of the bundled one                                |
+| `WithPostgresDataDir(dir)`\*                               | `postgresDataDir`      | `postgres_data_dir`      | Store the bundled Postgres runtime and data under this directory                |
+| `WithEmbeddedRabbitMQ(url)`                                | `rabbitmqUrl`          | `rabbitmq_url`           | Use RabbitMQ instead of the Postgres message queue                              |
+| `WithEmbeddedAPIPort(port)` / `WithEmbeddedGRPCPort(port)` | `apiPort` / `grpcPort` | `api_port` / `grpc_port` | Bind the API / gRPC servers to specific ports                                   |
+| `WithoutEmbeddedAPI()`                                     | `startApi: false`      | `start_api=False`        | Start only the engine + gRPC, no REST API                                       |
+| `WithoutEmbeddedMigrations()`                              | `runMigrations: false` | `run_migrations=False`   | Skip running migrations on startup                                              |
+| `WithEmbeddedLogLevel(level)`                              | `logLevel`             | `log_level`              | Engine log level (default `warn`)                                               |
+| N/A                                                        | `version`              | `version`                | hatchet-embedded release tag to download (see [Versioning](#versioning))        |
+| N/A                                                        | `binaryPath`           | `binary_path`            | Use an existing sidecar binary, skips the download                              |
+| N/A                                                        | `checksum`             | `checksum`               | Pinned sha256 of the sidecar binary, replaces checksums.txt as the trust anchor |
 
 \* `WithPostgresDataDir` is an option on the `embed` package directly; the remaining Go options are `hatchet.WithEmbedded*` client options. The `embed` package also offers `WithAdminUser(email, password)`, `WithKeysets(...)`, and `WithLogger(...)` when you drive the engine yourself via `embed.StartServer`.
 
