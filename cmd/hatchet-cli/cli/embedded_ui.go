@@ -26,20 +26,20 @@ import (
 )
 
 var uiCmd = &cobra.Command{
-	Use:   "embed-ui",
+	Use:   "embedded-ui",
 	Short: "Serve the dashboard UI for an embedded Hatchet instance",
 	Long: `Serve the Hatchet dashboard UI for an embedded Hatchet instance. Embedded
 instances run inside your application and do not ship a frontend; this command
 serves the UI bundled in the CLI binary and proxies API requests to the
 instance's API server. Access is protected by a one-time token in the opened URL.`,
 	Example: `  # Serve the UI for an embedded instance's API server
-  hatchet embed-ui --api-url http://localhost:8080
+  hatchet embedded-ui --api-url http://localhost:8080
 
   # Serve the UI for a configured profile
-  hatchet embed-ui --profile local
+  hatchet embedded-ui --profile local
 
   # Serve on a fixed port without opening a browser
-  hatchet embed-ui --api-url http://localhost:8080 --port 9000 --no-open`,
+  hatchet embedded-ui --api-url http://localhost:8080 --port 9000 --no-open`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runUI(cmd)
 	},
@@ -179,7 +179,7 @@ func tokenGate(token string, next http.Handler) http.Handler {
 
 		c, err := r.Cookie(uiTokenCookie)
 		if err != nil || subtle.ConstantTimeCompare([]byte(c.Value), []byte(token)) != 1 {
-			http.Error(w, "access denied: open the URL printed by 'hatchet embed-ui'", http.StatusForbidden)
+			http.Error(w, "access denied: open the URL printed by 'hatchet embedded-ui'", http.StatusForbidden)
 			return
 		}
 
@@ -215,7 +215,7 @@ func checkEmbedded(target *url.URL, insecureSkipVerify bool) error {
 	}
 
 	if !meta.Embedded {
-		return fmt.Errorf("%s is not an embedded Hatchet instance; 'hatchet embed-ui' only serves the UI for embedded instances", target)
+		return fmt.Errorf("%s is not an embedded Hatchet instance; 'hatchet embedded-ui' only serves the UI for embedded instances", target)
 	}
 
 	return nil

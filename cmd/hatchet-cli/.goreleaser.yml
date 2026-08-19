@@ -4,7 +4,7 @@ project_name: hatchet
 
 before:
   hooks:
-    - bash ../../hack/build/embed-ui.sh
+    - bash ../../hack/build/embedded-ui.sh
 
 builds:
   - id: hatchet

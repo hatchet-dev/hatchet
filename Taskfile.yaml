@@ -167,7 +167,7 @@ tasks:
   embed-cli-ui:
     desc: Build the dashboard UI and embed it into the hatchet CLI binary assets.
     cmds:
-      - bash ./hack/build/embed-ui.sh
+      - bash ./hack/build/embedded-ui.sh
   build-cli:
     desc: Build the hatchet CLI with the dashboard UI embedded.
     deps: [embed-cli-ui]
