@@ -143,6 +143,7 @@ from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfi
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
+from hatchet_sdk.embedded import EmbeddedOptions
 from hatchet_sdk.exceptions import (
     BulkTriggerIdempotencyCollisionError,
     DedupeViolationError,
@@ -228,6 +229,7 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
+    "EmbeddedOptions",
     "EmptyModel",
     "Event",
     "EventData",

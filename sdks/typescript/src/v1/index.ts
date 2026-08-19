@@ -1,4 +1,5 @@
 export * from './client/client';
+export * from './embedded';
 export * from './client/features';
 export type { RunDetail, TaskRunDetail } from './client/features/runs';
 export * from './client/worker/worker';

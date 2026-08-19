@@ -1,0 +1,211 @@
+import atexit
+import json
+import os
+import platform
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+
+from pydantic import BaseModel
+
+REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
+DEFAULT_READY_TIMEOUT_SECONDS = 300.0
+
+
+class EmbeddedOptions(BaseModel):
+    version: str | None = None
+    """
+    hatchet-embedded release tag to download (defaults to HATCHET_EMBEDDED_VERSION or
+    latest). Tags correspond to the Hatchet engine version baked into the sidecar,
+    so pinning this pins the engine.
+    """
+
+    binary_path: str | None = None
+    """path to an existing sidecar binary, skips the download"""
+
+    database_url: str | None = None
+    """use an existing Postgres instead of the bundled one"""
+
+    postgres_data_dir: str | None = None
+    """store the bundled Postgres runtime and data under this directory"""
+
+    grpc_port: int | None = None
+    api_port: int | None = None
+
+    start_api: bool = True
+    """set to False to start only the engine + gRPC, no REST API"""
+
+    run_migrations: bool = True
+    """set to False to skip running migrations on startup"""
+
+    rabbitmq_url: str | None = None
+    """use RabbitMQ instead of the Postgres message queue"""
+
+    log_level: str | None = None
+    ready_timeout_seconds: float = DEFAULT_READY_TIMEOUT_SECONDS
+
+
+@dataclass
+class EmbeddedSidecar:
+    token: str
+    tenant_id: str
+    grpc_address: str
+    api_url: str
+    process: subprocess.Popen[bytes]
+
+    def stop(self) -> None:
+        if self.process.poll() is not None:
+            return
+
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait()
+
+
+def _sidecar_asset_name() -> str:
+    system = {"darwin": "darwin", "linux": "linux"}.get(sys.platform)
+    arch = {
+        "arm64": "arm64",
+        "aarch64": "arm64",
+        "x86_64": "amd64",
+        "amd64": "amd64",
+    }.get(platform.machine().lower())
+
+    if not system or not arch:
+        raise RuntimeError(
+            f"hatchet embedded is not supported on {sys.platform}/{platform.machine()}"
+        )
+
+    return f"hatchet-embedded-sidecar_{system}_{arch}"
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
+def _resolve_version(version: str | None) -> str:
+    requested = version or os.environ.get("HATCHET_EMBEDDED_VERSION") or "latest"
+    if requested != "latest":
+        return requested
+
+    opener = urllib.request.build_opener(_NoRedirectHandler)
+    location = ""
+
+    try:
+        opener.open(f"{REPO_URL}/releases/latest")
+    except urllib.error.HTTPError as e:
+        location = e.headers.get("Location") or ""
+
+    tag = location.rstrip("/").rsplit("/", 1)[-1]
+    if not tag.startswith("v"):
+        raise RuntimeError(
+            f"could not resolve the latest hatchet-embedded release from {REPO_URL}"
+        )
+
+    return tag
+
+
+def _ensure_sidecar_binary(version: str | None) -> Path:
+    tag = _resolve_version(version)
+    asset = _sidecar_asset_name()
+    bin_path = Path.home() / ".hatchet" / "embedded" / tag / asset
+
+    if bin_path.exists():
+        return bin_path
+
+    bin_path.parent.mkdir(parents=True, exist_ok=True)
+    url = f"{REPO_URL}/releases/download/{tag}/{asset}"
+    tmp_path = bin_path.with_name(asset + ".download")
+
+    urllib.request.urlretrieve(url, tmp_path)
+    tmp_path.chmod(0o755)
+    tmp_path.rename(bin_path)
+
+    return bin_path
+
+
+def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSidecar:
+    """
+    Download (and cache) the hatchet-embedded sidecar binary, spawn it, and wait
+    until the embedded engine is ready. The sidecar shuts down when this process
+    exits. Use `Hatchet.embedded()` unless you need the raw connection details.
+    """
+    options = options or EmbeddedOptions()
+
+    bin_path = options.binary_path or str(_ensure_sidecar_binary(options.version))
+    handshake_path = (
+        Path(tempfile.mkdtemp(prefix="hatchet-embedded-")) / "handshake.json"
+    )
+
+    args = [bin_path, "-handshake-file", str(handshake_path)]
+    if options.database_url:
+        args += ["-database-url", options.database_url]
+    if options.rabbitmq_url:
+        args += ["-rabbitmq-url", options.rabbitmq_url]
+    if options.postgres_data_dir:
+        args += ["-postgres-data-dir", options.postgres_data_dir]
+    if options.grpc_port:
+        args += ["-grpc-port", str(options.grpc_port)]
+    if options.api_port:
+        args += ["-api-port", str(options.api_port)]
+    if not options.start_api:
+        args += ["-no-api"]
+    if not options.run_migrations:
+        args += ["-no-migrations"]
+    if options.log_level:
+        args += ["-log-level", options.log_level]
+
+    # the sidecar shuts down when its stdin closes, so it never outlives this process
+    process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+    atexit.register(process.terminate)
+
+    try:
+        handshake = _wait_for_handshake(
+            process, handshake_path, options.ready_timeout_seconds
+        )
+    finally:
+        handshake_path.unlink(missing_ok=True)
+        handshake_path.parent.rmdir()
+
+    return EmbeddedSidecar(
+        token=handshake["token"],
+        tenant_id=handshake["tenant_id"],
+        grpc_address=handshake["grpc_address"],
+        api_url=handshake["api_url"],
+        process=process,
+    )
+
+
+def _wait_for_handshake(
+    process: subprocess.Popen[bytes], handshake_path: Path, timeout_seconds: float
+) -> dict[str, str]:
+    deadline = time.monotonic() + timeout_seconds
+
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"hatchet embedded sidecar exited with code {process.returncode} before becoming ready"
+            )
+
+        try:
+            handshake = json.loads(handshake_path.read_text())
+            if handshake.get("token"):
+                return dict(handshake)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+        time.sleep(0.2)
+
+    process.kill()
+    raise TimeoutError(
+        f"hatchet embedded sidecar did not become ready within {timeout_seconds}s"
+    )

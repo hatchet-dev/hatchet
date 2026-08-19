@@ -1,4 +1,6 @@
 import logging
+import multiprocessing
+import os
 import warnings
 from collections.abc import Callable
 from datetime import timedelta
@@ -11,7 +13,8 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, ClientTLSConfig
+from hatchet_sdk.embedded import EmbeddedOptions, start_embedded_sidecar
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -93,6 +96,49 @@ class Hatchet:
             )
 
         self._client = client if client else Client(config=_config, debug=_debug)
+
+    @classmethod
+    def embedded(cls, options: EmbeddedOptions | None = None) -> "Hatchet":
+        """
+        Run a full Hatchet engine locally via the hatchet-embedded sidecar
+        (downloaded on first use) and return a client wired to it. By default
+        the sidecar starts a bundled Postgres; pass `database_url` in the
+        options to point it at your own instead.
+
+        :param options: Options for the embedded engine (version, ports, database, ...).
+        :return: A Hatchet client instance connected to the embedded engine.
+        """
+        # worker subprocesses re-import the main module; connect them to the
+        # parent's engine (via the env vars exported below) instead of booting
+        # a second one. parent_process() is None while a spawn child is still
+        # importing the main module, so also check the _inheriting flag set
+        # during that phase.
+        in_child = multiprocessing.parent_process() is not None or getattr(
+            multiprocessing.current_process(), "_inheriting", False
+        )
+        if in_child:
+            return cls()
+
+        sidecar = start_embedded_sidecar(options)
+
+        os.environ["HATCHET_CLIENT_TOKEN"] = sidecar.token
+        os.environ["HATCHET_CLIENT_TENANT_ID"] = sidecar.tenant_id
+        os.environ["HATCHET_CLIENT_HOST_PORT"] = sidecar.grpc_address
+        os.environ["HATCHET_CLIENT_TLS_STRATEGY"] = "none"
+        if sidecar.api_url:
+            os.environ["HATCHET_CLIENT_SERVER_URL"] = sidecar.api_url
+
+        server_url = {"server_url": sidecar.api_url} if sidecar.api_url else {}
+
+        return cls(
+            config=ClientConfig(
+                token=sidecar.token,
+                tenant_id=sidecar.tenant_id,
+                host_port=sidecar.grpc_address,
+                tls_config=ClientTLSConfig(strategy="none"),
+                **server_url,  # type: ignore[arg-type]
+            )
+        )
 
     @property
     def cel(self) -> CELClient:

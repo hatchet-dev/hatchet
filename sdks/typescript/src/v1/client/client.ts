@@ -69,6 +69,7 @@ import {
 } from '../types';
 import { AdminClient } from './admin';
 import { DurableContext } from './worker/context';
+import { EmbeddedOptions, startEmbeddedSidecar } from '../embedded';
 
 type MergeIfNonEmpty<Base, Extra extends Record<string, any>> = keyof Extra extends never
   ? Base
@@ -214,6 +215,37 @@ export class HatchetClient<
     axiosConfig?: AxiosRequestConfig
   ): HatchetClient<T, U> {
     return new HatchetClient(config, options, axiosConfig) as unknown as HatchetClient<T, U>;
+  }
+
+  /**
+   * Runs a full Hatchet engine locally via the hatchet-embedded sidecar (downloaded
+   * on first use) and returns a client wired to it. By default the sidecar starts a
+   * bundled Postgres; pass `databaseUrl` to point it at your own instead.
+   * @param embeddedOpts - Options for the embedded engine (version, ports, database, ...).
+   * @param config - Optional configuration overrides for the client.
+   * @param options - Optional client options.
+   * @param axiosConfig - Optional Axios configuration for HTTP requests.
+   * @returns A new Hatchet client instance connected to the embedded engine.
+   */
+  static async embedded<T extends Record<string, any> = {}, U extends Record<string, any> = {}>(
+    embeddedOpts?: EmbeddedOptions,
+    config?: Omit<Partial<ClientConfig>, 'middleware'>,
+    options?: HatchetClientOptions,
+    axiosConfig?: AxiosRequestConfig
+  ): Promise<HatchetClient<T, U>> {
+    const sidecar = await startEmbeddedSidecar(embeddedOpts);
+    return HatchetClient.init<T, U>(
+      {
+        token: sidecar.token,
+        tenant_id: sidecar.tenantId,
+        host_port: sidecar.grpcAddress,
+        ...(sidecar.apiUrl ? { api_url: sidecar.apiUrl } : {}),
+        tls_config: { tls_strategy: 'none' },
+        ...config,
+      },
+      options,
+      axiosConfig
+    );
   }
 
   /**
