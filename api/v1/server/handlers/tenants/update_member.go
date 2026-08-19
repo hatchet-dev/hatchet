@@ -44,7 +44,8 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	updateOpts := &v1.UpdateTenantMemberOpts{
-		Role: v1.StringPtr(string(request.Body.Role)),
+		Role:            v1.StringPtr(string(request.Body.Role)),
+		CanViewPayloads: request.Body.CanViewPayloads,
 	}
 
 	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID, updateOpts)

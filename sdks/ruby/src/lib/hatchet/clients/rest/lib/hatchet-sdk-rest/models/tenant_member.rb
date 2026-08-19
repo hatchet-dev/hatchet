@@ -23,6 +23,9 @@ module HatchetSdkRest
     # The role of the user in the tenant.
     attr_accessor :role
 
+    # Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true.
+    attr_accessor :can_view_payloads
+
     # The tenant associated with this tenant member.
     attr_accessor :tenant
 
@@ -57,6 +60,7 @@ module HatchetSdkRest
         :'metadata' => :'metadata',
         :'user' => :'user',
         :'role' => :'role',
+        :'can_view_payloads' => :'canViewPayloads',
         :'tenant' => :'tenant',
         :'manually_added' => :'manually_added'
       }
@@ -78,6 +82,7 @@ module HatchetSdkRest
         :'metadata' => :'APIResourceMeta',
         :'user' => :'UserTenantPublic',
         :'role' => :'TenantMemberRole',
+        :'can_view_payloads' => :'Boolean',
         :'tenant' => :'Tenant',
         :'manually_added' => :'Boolean'
       }
@@ -121,6 +126,10 @@ module HatchetSdkRest
         self.role = attributes[:'role']
       else
         self.role = nil
+      end
+
+      if attributes.key?(:'can_view_payloads')
+        self.can_view_payloads = attributes[:'can_view_payloads']
       end
 
       if attributes.key?(:'tenant')
@@ -200,6 +209,7 @@ module HatchetSdkRest
           metadata == o.metadata &&
           user == o.user &&
           role == o.role &&
+          can_view_payloads == o.can_view_payloads &&
           tenant == o.tenant &&
           manually_added == o.manually_added
     end
@@ -213,7 +223,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, user, role, tenant, manually_added].hash
+      [metadata, user, role, can_view_payloads, tenant, manually_added].hash
     end
 
     # Builds the object from hash

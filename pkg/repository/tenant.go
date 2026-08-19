@@ -51,12 +51,14 @@ type UpdateTenantOpts struct {
 }
 
 type CreateTenantMemberOpts struct {
-	Role   string    `validate:"required,oneof=OWNER ADMIN MEMBER VIEWER"`
-	UserId uuid.UUID `validate:"required"`
+	Role            string    `validate:"required,oneof=OWNER ADMIN MEMBER VIEWER"`
+	UserId          uuid.UUID `validate:"required"`
+	CanViewPayloads *bool     `validate:"omitempty"`
 }
 
 type UpdateTenantMemberOpts struct {
-	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
+	Role            *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
+	CanViewPayloads *bool   `validate:"omitempty"`
 }
 
 type GetQueueMetricsOpts struct {
@@ -402,9 +404,10 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		ctx,
 		r.pool,
 		sqlcv1.CreateTenantMemberParams{
-			Tenantid: tenantId,
-			Userid:   opts.UserId,
-			Role:     sqlcv1.TenantMemberRole(opts.Role),
+			Tenantid:        tenantId,
+			Userid:          opts.UserId,
+			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
 
@@ -507,6 +510,10 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 			TenantMemberRole: sqlcv1.TenantMemberRole(*opts.Role),
 			Valid:            true,
 		}
+	}
+
+	if opts.CanViewPayloads != nil {
+		params.CanViewPayloads = sqlchelpers.BoolFromBoolean(*opts.CanViewPayloads)
 	}
 
 	updatedMember, err := r.queries.UpdateTenantMember(
@@ -920,4 +927,12 @@ func getPartitionName() pgtype.Text {
 	}
 
 	return sqlchelpers.TextFromStr(hostname)
+}
+
+func canViewPayloadsParam(v *bool) pgtype.Bool {
+	if v == nil {
+		return pgtype.Bool{}
+	}
+
+	return sqlchelpers.BoolFromBoolean(*v)
 }

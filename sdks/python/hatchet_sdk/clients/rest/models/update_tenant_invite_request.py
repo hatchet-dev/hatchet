@@ -16,8 +16,8 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
 from typing import Optional, Set
 from typing_extensions import Self
@@ -29,7 +29,12 @@ class UpdateTenantInviteRequest(BaseModel):
     """  # noqa: E501
 
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
-    __properties: ClassVar[List[str]] = ["role"]
+    can_view_payloads: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the invited user can view payloads.",
+        alias="canViewPayloads",
+    )
+    __properties: ClassVar[List[str]] = ["role", "canViewPayloads"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -79,5 +84,7 @@ class UpdateTenantInviteRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"role": obj.get("role")})
+        _obj = cls.model_validate(
+            {"role": obj.get("role"), "canViewPayloads": obj.get("canViewPayloads")}
+        )
         return _obj

@@ -29,6 +29,9 @@ type CreateTenantInviteOpts struct {
 	// (required) the role of the invitee
 	Role string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
 
+	// (optional) whether the invitee can view payloads
+	CanViewPayloads *bool `validate:"omitempty"`
+
 	// (optional) the maximum number pending of invites the inviter can have
 
 	MaxPending int `validate:"omitempty"`
@@ -39,6 +42,8 @@ type UpdateTenantInviteOpts struct {
 
 	// (optional) the role of the invitee
 	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER VIEWER"`
+
+	CanViewPayloads *bool `validate:"omitempty"`
 }
 
 type ListTenantInvitesOpts struct {
@@ -162,11 +167,12 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 		ctx,
 		tx,
 		sqlcv1.CreateTenantInviteParams{
-			Tenantid:     tenantId,
-			Inviteremail: opts.InviterEmail,
-			Inviteeemail: opts.InviteeEmail,
-			Expires:      sqlchelpers.TimestampFromTime(opts.ExpiresAt),
-			Role:         sqlcv1.TenantMemberRole(opts.Role),
+			Tenantid:        tenantId,
+			Inviteremail:    opts.InviterEmail,
+			Inviteeemail:    opts.InviteeEmail,
+			Expires:         sqlchelpers.TimestampFromTime(opts.ExpiresAt),
+			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
 
@@ -252,6 +258,10 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, id uuid
 			InviteLinkStatus: sqlcv1.InviteLinkStatus(*opts.Status),
 			Valid:            true,
 		}
+	}
+
+	if opts.CanViewPayloads != nil {
+		params.CanViewPayloads = sqlchelpers.BoolFromBoolean(*opts.CanViewPayloads)
 	}
 
 	updated, err := r.queries.UpdateTenantInvite(

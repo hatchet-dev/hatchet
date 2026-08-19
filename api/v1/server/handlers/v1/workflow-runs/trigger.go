@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -148,6 +149,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		ctx.Request().Context(),
 		tenantId,
 		rawWorkflowRun,
+		authz.CanViewPayloads(ctx),
 	)
 
 	if err != nil {

@@ -36,7 +36,7 @@ from hatchet_sdk.exceptions import NonDeterminismError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.cache import TTLCache
+from hatchet_sdk.utils.cache import DurableInvocationCallbackCache, TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
@@ -173,9 +173,9 @@ class DurableEventListener:
             PendingEventAck, asyncio.Future[DurableTaskEventAck]
         ] = {}
         self._pending_eviction_acks: dict[PendingEvictionAck, asyncio.Future[None]] = {}
-        self._pending_callbacks: dict[
-            PendingCallback, asyncio.Future[DurableTaskEventLogEntryResult]
-        ] = {}
+        self._pending_callbacks = DurableInvocationCallbackCache[
+            asyncio.Future[DurableTaskEventLogEntryResult]
+        ](on_evict=self._cancel_superseded_callback)
 
         # Completions that arrived before wait_for_callback() registered a
         # future in _pending_callbacks. This happens when the server delivers
@@ -195,6 +195,14 @@ class DurableEventListener:
     @property
     def worker_id(self) -> str | None:
         return self._worker_id
+
+    def _cancel_superseded_callback(
+        self,
+        _key: PendingCallback,
+        future: asyncio.Future[DurableTaskEventLogEntryResult],
+    ) -> None:
+        if not future.done():
+            future.cancel()
 
     async def _connect(self) -> None:
         if self._conn is not None:
