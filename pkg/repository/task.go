@@ -324,6 +324,8 @@ type TaskRepository interface {
 	// Returns (shouldContinue, error) where shouldContinue indicates if there's more work
 	Cleanup(ctx context.Context) (bool, error)
 
+	ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error)
+
 	GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error)
 
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
@@ -530,7 +532,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.GetTaskByExternalId")
 	defer span.End()
 
@@ -550,34 +551,42 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	span.SetAttributes(attribute.Bool("cache_hit", false))
 
 	// lookup the task
-	dbTasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
-		Tenantid:    tenantId,
-		Externalids: []uuid.UUID{taskExternalId},
+	res, err := r.queries.GetTaskByExternalId(ctx, r.pool, sqlcv1.GetTaskByExternalIdParams{
+		Tenantid:   tenantId,
+		Externalid: taskExternalId,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(dbTasks) == 0 {
-		return nil, pgx.ErrNoRows
-	}
-
-	if len(dbTasks) > 1 {
-		return nil, fmt.Errorf("found more than one task for %s", taskExternalId)
-	}
-
-	// set the cache
-	res := dbTasks[0]
-
 	key := taskExternalIdTenantIdTuple{
 		externalId: taskExternalId,
 		tenantId:   tenantId,
 	}
 
-	r.taskLookupCache.Add(key, res)
+	row := sqlcv1.FlattenExternalIdsRow{
+		ID:                    res.ID,
+		InsertedAt:            res.InsertedAt,
+		RetryCount:            res.RetryCount,
+		ExternalID:            res.ExternalID,
+		WorkflowRunID:         res.WorkflowRunID,
+		AdditionalMetadata:    res.AdditionalMetadata,
+		DagID:                 res.DagID,
+		DagInsertedAt:         res.DagInsertedAt,
+		ParentTaskID:          res.ParentTaskID,
+		ChildIndex:            res.ChildIndex,
+		ChildKey:              res.ChildKey,
+		StepReadableID:        res.StepReadableID,
+		WorkflowRunExternalID: res.WorkflowRunID,
+		WorkflowID:            res.WorkflowID,
+		StepID:                res.StepID,
+		IsDurable:             res.IsDurable,
+	}
 
-	return res, nil
+	r.taskLookupCache.Add(key, &row)
+
+	return &row, nil
 }
 
 func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
@@ -1582,6 +1591,56 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	return res, len(toReassign) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error) {
+	const batchSize = 1000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	expiredItems, err := r.queries.ListExpiredPausedWorkflowQueueItems(ctx, tx, sqlcv1.ListExpiredPausedWorkflowQueueItemsParams{
+		Tenantid:  tenantId,
+		Batchsize: batchSize,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error listing expired v1_paused_workflow_queue_items: %w", err)
+	}
+
+	if len(expiredItems) == 0 {
+		return &FinalizedTaskResponse{
+			ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+			InternalEvents: make([]InternalTaskEvent, 0),
+		}, false, nil
+	}
+
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(expiredItems))
+
+	for _, item := range expiredItems {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         item.TaskID,
+			InsertedAt: item.TaskInsertedAt,
+			RetryCount: item.RetryCount,
+		})
+	}
+
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(expiredItems) == batchSize, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error) {

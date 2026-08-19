@@ -9,6 +9,7 @@ import {
 } from '../hooks/use-workflow-details';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
+import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
 import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
   TASK_RUN_TERMINAL_STATUSES,
@@ -388,6 +389,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Logs
             </TabsTrigger>
           </TabsList>
+          <PausedWorkflowNotice
+            workflowId={workflowRun.workflowId}
+            status={workflowRun.status}
+          />
           <TabsContent
             value="overview"
             className="flex min-h-0 flex-1 flex-col"

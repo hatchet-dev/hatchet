@@ -754,7 +754,17 @@ class Worker:
             logger.warning("could not read worker_id; skipping pause")
             return
         logger.info("pausing task assignment...")
-        await self._client.workers.aio_pause(worker_id)
+        try:
+            await asyncio.wait_for(
+                self._client.workers.aio_pause(worker_id), timeout=10
+            )
+        except TimeoutError:
+            logger.warning("timeout while pausing task assignment; continuing shutdown")
+            return
+        except Exception:
+            logger.exception("error while pausing task assignment; continuing shutdown")
+            return
+
         logger.info("task assignment paused")
 
     def _stop_listener_action_loops(self) -> None:

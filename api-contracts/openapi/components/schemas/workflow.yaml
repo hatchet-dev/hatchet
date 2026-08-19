@@ -1,3 +1,9 @@
+WorkflowPauseScheduledCronRunQueueBehavior:
+  type: string
+  enum:
+    - DROP
+    - QUEUE
+
 Workflow:
   properties:
     metadata:
@@ -11,6 +17,12 @@ Workflow:
     isPaused:
       type: boolean
       description: Whether the workflow is paused.
+    pausedWorkflowCronRunQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of cron runs triggered while the workflow is paused.
+    pausedWorkflowScheduledRunQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of scheduled runs triggered while the workflow is paused.
     versions:
       type: array
       items:
@@ -34,12 +46,50 @@ Workflow:
     - tenantId
   type: object
 
+PauseWorkflowRequestPause:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [pause]
+      description: Discriminator indicating this request pauses the workflow.
+    pausedWorkflowCronRunQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of cron runs triggered while the workflow is paused.
+    pausedWorkflowScheduledRunQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of scheduled runs triggered while the workflow is paused.
+    pausedWorkflowQueueTTL:
+      type: string
+      description: >-
+        The TTL for queued runs while the workflow is paused before they get
+        dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
+  required:
+    - action
+    - pausedWorkflowCronRunQueueBehavior
+    - pausedWorkflowScheduledRunQueueBehavior
+    - pausedWorkflowQueueTTL
+
+PauseWorkflowRequestUnpause:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [unpause]
+      description: Discriminator indicating this request unpauses the workflow.
+  required:
+    - action
+
+PauseWorkflowRequest:
+  oneOf:
+    - $ref: "#/PauseWorkflowRequestPause"
+    - $ref: "#/PauseWorkflowRequestUnpause"
+
 WorkflowUpdateRequest:
   type: object
   properties:
-    isPaused:
-      type: boolean
-      description: Whether the workflow is paused.
+    pause:
+      $ref: "#/PauseWorkflowRequest"
 
 WorkflowTag:
   type: object

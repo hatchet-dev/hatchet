@@ -840,13 +840,29 @@ WHERE
     )
 ;
 
--- name: UpdateWorkflow :one
+-- name: PauseWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
-WHERE "id" = @id::uuid
-RETURNING *;
+    "updatedAt" = NOW(),
+    "isPaused" = TRUE,
+    "pausedWorkflowCronRunQueueBehavior" = @cronRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = @scheduledRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval(@queueTtl::TEXT)
+WHERE "id" = @id::UUID
+RETURNING *
+;
+
+-- name: UnpauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = FALSE,
+    "pausedWorkflowCronRunQueueBehavior" = NULL,
+    "pausedWorkflowScheduledRunQueueBehavior" = NULL,
+    "pausedWorkflowQueueTTL" = NULL
+WHERE "id" = @id::UUID
+RETURNING *
+;
 
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT

@@ -148,6 +148,7 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_a,
     spawn_index_child_b,
 )
+from examples.workflow_pause.worker import pausable_workflow
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -276,6 +277,7 @@ def main() -> None:
             error_raising_durable_parent,
             error_raising_task,
             cancel_if_workflow,
+            pausable_workflow,
         ],
         lifespan=lifespan,
     )

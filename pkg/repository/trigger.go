@@ -670,6 +670,7 @@ type triggerTuple struct {
 	workflowVersionId         uuid.UUID
 	workflowName              string
 	workflowId                uuid.UUID
+	isPaused                  bool
 	additionalMetadata        []byte
 	filterPayload             []byte
 	input                     []byte
@@ -833,10 +834,15 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
+	pausedWorkflowIds := make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 		uniqueWorkflowVersionIds[tuple.workflowVersionId] = struct{}{}
+
+		if tuple.isPaused {
+			pausedWorkflowIds[tuple.workflowId] = struct{}{}
+		}
 	}
 
 	// get all data for triggering tasks in this workflow
@@ -1501,6 +1507,21 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		if stamp, ok := olapDagStamps[task.ExternalID]; ok {
 			task.DagID = pgtype.Int8{Int64: stamp.dagId, Valid: true}
 			task.DagInsertedAt = sqlchelpers.TimestamptzFromTime(stamp.dagInsertedAt)
+		}
+	}
+
+	if len(pausedWorkflowIds) > 0 {
+		workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+
+		for id := range pausedWorkflowIds {
+			workflowIds = append(workflowIds, id)
+		}
+
+		if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
 		}
 	}
 
@@ -2574,6 +2595,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					workflowVersionId:         workflow.WorkflowVersionId,
 					workflowId:                workflow.WorkflowId,
 					workflowName:              workflow.WorkflowName,
+					isPaused:                  workflow.WorkflowIsPaused.Bool,
 					externalId:                externalId,
 					input:                     opt.Data,
 					additionalMetadata:        additionalMetadata,
@@ -2722,6 +2744,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				workflowVersionId:    workflowVersion.WorkflowVersionId,
 				workflowId:           workflowVersion.WorkflowId,
 				workflowName:         workflowVersion.WorkflowName,
+				isPaused:             workflowVersion.WorkflowIsPaused.Bool,
 				externalId:           opt.ExternalId,
 				input:                opt.Data,
 				additionalMetadata:   opt.AdditionalMetadata,
