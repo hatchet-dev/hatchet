@@ -2320,6 +2320,48 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 	return string(ns.WorkflowKind), nil
 }
 
+type WorkflowPauseQueueBehavior string
+
+const (
+	WorkflowPauseQueueBehaviorQUEUE WorkflowPauseQueueBehavior = "QUEUE"
+	WorkflowPauseQueueBehaviorDROP  WorkflowPauseQueueBehavior = "DROP"
+)
+
+func (e *WorkflowPauseQueueBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowPauseQueueBehavior(s)
+	case string:
+		*e = WorkflowPauseQueueBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowPauseQueueBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowPauseQueueBehavior struct {
+	WorkflowPauseQueueBehavior WorkflowPauseQueueBehavior `json:"WorkflowPauseQueueBehavior"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkflowPauseQueueBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowPauseQueueBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowPauseQueueBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowPauseQueueBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowPauseQueueBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowPauseQueueBehavior), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -3503,6 +3545,26 @@ type V1OtelTraceOlap struct {
 	StartTime             pgtype.Timestamptz `json:"start_time"`
 }
 
+type V1PausedWorkflowQueueItem struct {
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Queue              string             `json:"queue"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ActionID           string             `json:"action_id"`
+	StepID             uuid.UUID          `json:"step_id"`
+	WorkflowID         uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt  pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	Priority           int32              `json:"priority"`
+	Sticky             V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount         int32              `json:"retry_count"`
+	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
+	BatchKey           pgtype.Text        `json:"batch_key"`
+}
+
 type V1Payload struct {
 	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
@@ -3948,14 +4010,17 @@ type WorkerLabel struct {
 }
 
 type Workflow struct {
-	ID          uuid.UUID        `json:"id"`
-	CreatedAt   pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
-	TenantId    uuid.UUID        `json:"tenantId"`
-	Name        string           `json:"name"`
-	Description pgtype.Text      `json:"description"`
-	IsPaused    pgtype.Bool      `json:"isPaused"`
+	ID                                      uuid.UUID                      `json:"id"`
+	CreatedAt                               pgtype.Timestamp               `json:"createdAt"`
+	UpdatedAt                               pgtype.Timestamp               `json:"updatedAt"`
+	DeletedAt                               pgtype.Timestamp               `json:"deletedAt"`
+	TenantId                                uuid.UUID                      `json:"tenantId"`
+	Name                                    string                         `json:"name"`
+	Description                             pgtype.Text                    `json:"description"`
+	IsPaused                                pgtype.Bool                    `json:"isPaused"`
+	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+	PausedWorkflowQueueTTL                  pgtype.Interval                `json:"pausedWorkflowQueueTTL"`
 }
 
 type WorkflowConcurrency struct {

@@ -553,7 +553,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 }
 
 const getWorkerWorkflowsByWorkerId = `-- name: GetWorkerWorkflowsByWorkerId :many
-SELECT wf.id, wf."createdAt", wf."updatedAt", wf."deletedAt", wf."tenantId", wf.name, wf.description, wf."isPaused"
+SELECT wf.id, wf."createdAt", wf."updatedAt", wf."deletedAt", wf."tenantId", wf.name, wf.description, wf."isPaused", wf."pausedWorkflowCronRunQueueBehavior", wf."pausedWorkflowScheduledRunQueueBehavior", wf."pausedWorkflowQueueTTL"
 FROM "Worker" w
 JOIN "_ActionToWorker" aw ON w.id = aw."B"
 JOIN "Action" a ON aw."A" = a.id
@@ -589,6 +589,9 @@ func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, arg
 			&i.Name,
 			&i.Description,
 			&i.IsPaused,
+			&i.PausedWorkflowCronRunQueueBehavior,
+			&i.PausedWorkflowScheduledRunQueueBehavior,
+			&i.PausedWorkflowQueueTTL,
 		); err != nil {
 			return nil, err
 		}

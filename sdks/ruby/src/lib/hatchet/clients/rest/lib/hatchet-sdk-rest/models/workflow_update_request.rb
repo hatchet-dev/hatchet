@@ -15,13 +15,12 @@ require 'time'
 
 module HatchetSdkRest
   class WorkflowUpdateRequest
-    # Whether the workflow is paused.
-    attr_accessor :is_paused
+    attr_accessor :pause
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'is_paused' => :'isPaused'
+        :'pause' => :'pause'
       }
     end
 
@@ -38,7 +37,7 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'is_paused' => :'Boolean'
+        :'pause' => :'PauseWorkflowRequest'
       }
     end
 
@@ -64,8 +63,8 @@ module HatchetSdkRest
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'is_paused')
-        self.is_paused = attributes[:'is_paused']
+      if attributes.key?(:'pause')
+        self.pause = attributes[:'pause']
       end
     end
 
@@ -89,7 +88,7 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          is_paused == o.is_paused
+          pause == o.pause
     end
 
     # @see the `==` method
@@ -101,7 +100,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [is_paused].hash
+      [pause].hash
     end
 
     # Builds the object from hash

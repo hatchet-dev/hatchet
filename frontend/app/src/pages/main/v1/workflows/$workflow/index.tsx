@@ -2,6 +2,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { workflowKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { WorkflowTags } from '../components/workflow-tags';
+import { PauseWorkflowDialog } from './components/pause-workflow-dialog';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
@@ -17,13 +18,13 @@ import {
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { queries } from '@/lib/api';
+import api, { PauseWorkflowRequest, queries, Workflow } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
 import { relativeDate } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
@@ -36,9 +37,14 @@ export default function ExpandedWorkflow() {
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
+  const [pauseWorkflow, setPauseWorkflow] = useState(false);
+  const [unpauseWorkflow, setUnpauseWorkflow] = useState(false);
   const { refetchInterval } = useRefetchInterval();
+  const queryClient = useQueryClient();
 
   const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+
+  const workflowQueryKey = queries.workflows.get(params.workflow).queryKey;
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
@@ -70,6 +76,36 @@ export default function ExpandedWorkflow() {
         params: { tenant: tenantId },
       });
     },
+  });
+
+  const togglePauseMutation = useMutation({
+    mutationKey: ['workflow:pause:toggle', params.workflow],
+    mutationFn: async (opts: PauseWorkflowRequest) => {
+      const res = await api.workflowUpdate(params.workflow, {
+        pause: opts,
+      });
+
+      return res.data;
+    },
+    onMutate: async (opts) => {
+      await queryClient.cancelQueries({ queryKey: workflowQueryKey });
+
+      const previousWorkflow =
+        queryClient.getQueryData<Workflow>(workflowQueryKey);
+
+      queryClient.setQueryData<Workflow>(workflowQueryKey, (old) =>
+        old ? { ...old, action: opts.action } : old,
+      );
+
+      return { previousWorkflow };
+    },
+    onError: (_err, _opts, context) => {
+      if (context?.previousWorkflow) {
+        queryClient.setQueryData(workflowQueryKey, context.previousWorkflow);
+      }
+    },
+    onSettled: async () =>
+      queryClient.invalidateQueries({ queryKey: workflowQueryKey }),
   });
 
   const workflow = workflowQuery.data;
@@ -120,8 +156,26 @@ export default function ExpandedWorkflow() {
                 {currVersion}
               </Badge>
             )}
-            <Badge variant="successful" className="px-2">
-              Active
+            <Badge
+              variant={workflow.isPaused ? 'inProgress' : 'successful'}
+              className={
+                togglePauseMutation.isPending
+                  ? 'cursor-not-allowed px-2 opacity-50'
+                  : 'cursor-pointer px-2'
+              }
+              onClick={() => {
+                if (togglePauseMutation.isPending) {
+                  return;
+                }
+
+                if (workflow.isPaused) {
+                  setUnpauseWorkflow(true);
+                } else {
+                  setPauseWorkflow(true);
+                }
+              }}
+            >
+              {workflow.isPaused ? 'Paused' : 'Active'}
             </Badge>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
@@ -139,6 +193,41 @@ export default function ExpandedWorkflow() {
             show={triggerWorkflow}
             defaultWorkflow={workflow}
             onClose={() => setTriggerWorkflow(false)}
+          />
+          <PauseWorkflowDialog
+            isOpen={pauseWorkflow}
+            isLoading={togglePauseMutation.isPending}
+            onCancel={() => setPauseWorkflow(false)}
+            onSubmit={({
+              cronRunQueueBehavior,
+              scheduledRunQueueBehavior,
+              queueTtl,
+            }) => {
+              togglePauseMutation.mutate(
+                {
+                  action: 'pause',
+                  pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
+                  pausedWorkflowScheduledRunQueueBehavior:
+                    scheduledRunQueueBehavior,
+                  pausedWorkflowQueueTTL: queueTtl,
+                },
+                { onSuccess: () => setPauseWorkflow(false) },
+              );
+            }}
+          />
+          <ConfirmDialog
+            title="Unpause workflow"
+            description={`Are you sure you want to unpause the workflow ${workflow.name}? New runs will start executing immediately.`}
+            submitLabel="Unpause"
+            onSubmit={() => {
+              togglePauseMutation.mutate(
+                { action: 'unpause' },
+                { onSuccess: () => setUnpauseWorkflow(false) },
+              );
+            }}
+            onCancel={() => setUnpauseWorkflow(false)}
+            isLoading={togglePauseMutation.isPending}
+            isOpen={unpauseWorkflow}
           />
         </div>
         <div className="mt-4 flex flex-row items-center justify-start">

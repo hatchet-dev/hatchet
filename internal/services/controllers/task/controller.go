@@ -62,6 +62,7 @@ type TasksControllerImpl struct {
 	emitSleepOperations                      *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
+	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
 
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
@@ -309,6 +310,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
+	t.expirePausedWorkflowQueueItemsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "expire-paused-workflow-queue-items", timeout, "expire paused workflow queue items", t.processPausedWorkflowQueueItemTTL, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	return t, nil
 }
 
@@ -425,6 +435,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.emitSleepOperations.Cleanup()
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
 		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
+		tc.expirePausedWorkflowQueueItemsOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 
@@ -478,6 +489,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessDurableRunTrigger(ctx, tenantId, payloads)
 	case msgqueue.MsgIDDurableRestoreTask:
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
+	case msgqueue.MsgIDTogglePauseWorkflow:
+		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1162,6 +1175,31 @@ func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Contex
 		if sigErr := tc.signaler.SignalCELEvaluationFailures(ctx, tenantId, celFailures); sigErr != nil {
 			tc.l.Error().Ctx(ctx).Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
 		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.TogglePauseWorkflowPayload](payloads)
+
+	newlyPausedWorkflows := make([]uuid.UUID, 0)
+	newlyUnpausedWorkflows := make([]uuid.UUID, 0)
+
+	for _, msg := range msgs {
+		if msg.IsPaused {
+			newlyPausedWorkflows = append(newlyPausedWorkflows, msg.WorkflowID)
+		} else {
+			newlyUnpausedWorkflows = append(newlyUnpausedWorkflows, msg.WorkflowID)
+		}
+	}
+
+	if err := tc.repov1.Workflows().MovePausedWorkflowQueueItems(ctx, tenantId, newlyPausedWorkflows); err != nil {
+		return fmt.Errorf("failed to move newly paused workflows: %w", err)
+	}
+
+	if err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows); err != nil {
+		return fmt.Errorf("failed to requeued tasks for newly unpaused workflows: %w", err)
 	}
 
 	return nil

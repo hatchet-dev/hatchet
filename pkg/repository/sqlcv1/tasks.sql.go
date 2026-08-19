@@ -1011,6 +1011,21 @@ WITH queued_tasks AS (
     GROUP BY
         t.step_readable_id,
         t.queue
+), paused_workflow_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest
+    FROM
+        v1_paused_workflow_queue_item pqi
+    JOIN
+        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+    WHERE
+        pqi.tenant_id = $1::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1144,6 +1159,19 @@ SELECT
     oldest::TIMESTAMPTZ,
     oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as task_status,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ
+FROM paused_workflow_queued_tasks
 
 UNION ALL
 
