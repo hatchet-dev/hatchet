@@ -1010,9 +1010,9 @@ JOIN
 WHERE
     qi.tenant_id = $1::UUID
     AND w."pausedWorkflowQueueTTL" IS NOT NULL
-    AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
+    AND qi.task_inserted_at <= NOW() - w."pausedWorkflowQueueTTL"
 ORDER BY
-    qi.task_id, qi.task_inserted_at, qi.retry_count
+    qi.task_inserted_at, qi.task_id, qi.retry_count
 LIMIT
     $2::INT
 FOR UPDATE OF qi SKIP LOCKED
@@ -1745,18 +1745,18 @@ func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX
 
 const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :exec
 WITH ready_items AS (
-    SELECT paused_at, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
+    SELECT tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
     FROM v1_paused_workflow_queue_item
     WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
-    ORDER BY task_id, task_inserted_at, retry_count
+    ORDER BY task_inserted_at, task_id, retry_count
     FOR UPDATE SKIP LOCKED
 ), deleted_items AS (
     DELETE FROM v1_paused_workflow_queue_item
-    WHERE (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
+    WHERE (task_inserted_at, task_id, retry_count) IN (
+        SELECT task_inserted_at, task_id, retry_count
         FROM ready_items
     )
-    RETURNING paused_at, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
+    RETURNING tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
 )
 
 INSERT INTO v1_queue_item (

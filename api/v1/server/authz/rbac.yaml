@@ -64,7 +64,6 @@ roles:
       - WorkflowCronUpdate
       - WorkflowCronTrigger
       - WorkflowScheduledTrigger
-      - WorkflowUpdatePause
   VIEWER:
     permissions:
       - TenantAlertingSettingsGet

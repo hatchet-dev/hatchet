@@ -760,16 +760,16 @@ WITH input AS (
     FROM
         v1_paused_workflow_queue_item
     WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+        (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM input)
     ORDER BY
-        task_id, task_inserted_at, retry_count
+        task_inserted_at, task_id, retry_count
     FOR UPDATE
 )
 
 DELETE FROM
     v1_paused_workflow_queue_item
 WHERE
-    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM paused_items_to_delete)
+    (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM paused_items_to_delete)
 `
 
 const releaseTasks = `-- name: ReleaseTasks :batchmany

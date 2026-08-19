@@ -1020,7 +1020,7 @@ WITH queued_tasks AS (
     FROM
         v1_paused_workflow_queue_item pqi
     JOIN
-        v1_task t ON (pqi.task_id, pqi.task_inserted_at, pqi.retry_count) = (t.id, t.inserted_at, t.retry_count)
+        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
     WHERE
         pqi.tenant_id = $1::uuid
     GROUP BY

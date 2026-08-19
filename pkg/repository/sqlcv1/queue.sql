@@ -1093,12 +1093,12 @@ WITH ready_items AS (
     SELECT *
     FROM v1_paused_workflow_queue_item
     WHERE workflow_id = ANY(@workflowIds::UUID[]) AND tenant_id = @tenantId::UUID
-    ORDER BY task_id, task_inserted_at, retry_count
+    ORDER BY task_inserted_at, task_id, retry_count
     FOR UPDATE SKIP LOCKED
 ), deleted_items AS (
     DELETE FROM v1_paused_workflow_queue_item
-    WHERE (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
+    WHERE (task_inserted_at, task_id, retry_count) IN (
+        SELECT task_inserted_at, task_id, retry_count
         FROM ready_items
     )
     RETURNING *
@@ -1157,9 +1157,9 @@ JOIN
 WHERE
     qi.tenant_id = @tenantId::UUID
     AND w."pausedWorkflowQueueTTL" IS NOT NULL
-    AND qi.paused_at + w."pausedWorkflowQueueTTL" <= CURRENT_TIMESTAMP
+    AND qi.task_inserted_at <= NOW() - w."pausedWorkflowQueueTTL"
 ORDER BY
-    qi.task_id, qi.task_inserted_at, qi.retry_count
+    qi.task_inserted_at, qi.task_id, qi.retry_count
 LIMIT
     @batchSize::INT
 FOR UPDATE OF qi SKIP LOCKED

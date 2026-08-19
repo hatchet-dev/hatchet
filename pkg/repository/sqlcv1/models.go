@@ -3546,7 +3546,6 @@ type V1OtelTraceOlap struct {
 }
 
 type V1PausedWorkflowQueueItem struct {
-	PausedAt           pgtype.Timestamptz `json:"paused_at"`
 	TenantID           uuid.UUID          `json:"tenant_id"`
 	Queue              string             `json:"queue"`
 	TaskID             int64              `json:"task_id"`
