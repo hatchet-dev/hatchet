@@ -7,7 +7,7 @@ Key = tuple[str, int, int, int]
 
 def test_callback_cache() -> None:
     evicted: list[tuple[Key, str]] = []
-    cache = DurableInvocationCallbackCache(
+    cache = DurableInvocationCallbackCache[str](
         on_evict=lambda key, value: evicted.append((key, value))
     )
 
