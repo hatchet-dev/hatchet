@@ -993,7 +993,7 @@ handle = client.get_workflow_handle(workflow_id)
 await handle.signal(ApprovalWorkflow.approve, "approved")
 
 # Hatchet
-await hatchet.event.aio_push("approval:granted", {"order_id": "123"})
+await hatchet.event.aio_push("approval:granted", {"correlation_id": order.correlation_id})
 ```
 
 </Tabs.Tab>
@@ -1005,7 +1005,9 @@ const handle = client.workflow.getHandle(workflowId);
 await handle.signal(approveSignal, "approved");
 
 // Hatchet
-await hatchet.events.push("approval:granted", { orderId: "123" });
+await hatchet.events.push("approval:granted", {
+  correlationId: order.correlationId,
+});
 ```
 
 </Tabs.Tab>
@@ -1017,7 +1019,7 @@ err := c.SignalWorkflow(context.Background(), workflowID, runID, "approve", "app
 
 // Hatchet
 err := client.Events().Push(context.Background(), "approval:granted", map[string]any{
-	"order_id": "123",
+	"correlation_id": order.CorrelationID,
 })
 ```
 
@@ -1030,7 +1032,7 @@ handle = client.workflow_handle(workflow_id)
 handle.signal(ApprovalWorkflow.approve, "approved")
 
 # Hatchet
-HATCHET.events.push("approval:granted", { "order_id" => "123" })
+HATCHET.events.push("approval:granted", { "correlation_id" => order.correlation_id })
 ```
 
 </Tabs.Tab>
@@ -1044,7 +1046,9 @@ The waiting side uses a durable event wait, with a CEL expression to select the 
 ```python
 @hatchet.durable_task(name="ApprovalFlow")
 async def approval_flow(input: OrderInput, ctx: DurableContext) -> None:
-    await ctx.aio_wait_for_event("approval:granted", f"input.order_id == '{input.order_id}'")
+    await ctx.aio_wait_for_event(
+        "approval:granted", f"input.correlation_id == '{input.correlation_id}'"
+    )
 ```
 
 </Tabs.Tab>
@@ -1057,7 +1061,7 @@ export const approvalFlow = hatchet.durableTask({
   fn: async (input: OrderInput, ctx) => {
     await ctx.waitForEvent(
       "approval:granted",
-      `input.orderId == '${input.orderId}'`,
+      `input.correlationId == '${input.correlationId}'`,
     );
   },
 });
@@ -1069,7 +1073,7 @@ export const approvalFlow = hatchet.durableTask({
 ```go
 approvalFlow := client.NewStandaloneDurableTask("ApprovalFlow",
 	func(ctx hatchet.DurableContext, input OrderInput) (ApprovalOutput, error) {
-		expr := fmt.Sprintf("input.order_id == '%s'", input.OrderID)
+		expr := fmt.Sprintf("input.correlation_id == '%s'", input.CorrelationID)
 
 		if _, err := ctx.WaitForEvent("approval:granted", expr); err != nil {
 			return ApprovalOutput{}, err
@@ -1089,7 +1093,7 @@ APPROVAL_FLOW = HATCHET.durable_task(name: "ApprovalFlow") do |input, ctx|
     "event",
     Hatchet::UserEventCondition.new(
       event_key: "approval:granted",
-      expression: "input.order_id == '#{input['order_id']}'"
+      expression: "input.correlation_id == '#{input['correlation_id']}'"
     )
   )
 end
@@ -1098,7 +1102,14 @@ end
 </Tabs.Tab>
 </UniversalTabs>
 
-This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled. Anything can emit one, and any number of runs can wait on the same event. But they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable business key in their input and filter on it.
+The second argument is compiled as a CEL expression, and every SDK passes the
+string through unchanged. None of them offer parameter binding or an escaping
+helper, so the value you interpolate has to be one that cannot contain a quote.
+Correlate on an opaque identifier you generate, such as a UUID, rather than on
+user-supplied text: an order reference containing a single quote would fail to
+compile, and the durable task would then wait until it timed out.
+
+This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled. Anything can emit one, and any number of runs can wait on the same event. But they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable, CEL-safe correlation id in their input and filter on that.
 
 Three related mappings:
 
@@ -1159,23 +1170,33 @@ for _, f := range futures {
 
 // Hatchet — from inside a task, spawn children on goroutines.
 var wg sync.WaitGroup
+
+outputs := make([]ItemOutput, len(items))
+errs := make([]error, len(items))
+
 wg.Add(len(items))
 
-for _, item := range items {
-	go func(item Item) {
+for i, item := range items {
+	go func(i int, item Item) {
 		defer wg.Done()
 
 		result, err := processItem.Run(ctx, ItemInput{Item: item})
 		if err != nil {
+			errs[i] = fmt.Errorf("running item %d: %w", i, err)
 			return
 		}
 
-		var output ItemOutput
-		_ = result.Into(&output)
-	}(item)
+		if err := result.Into(&outputs[i]); err != nil {
+			errs[i] = fmt.Errorf("decoding result for item %d: %w", i, err)
+		}
+	}(i, item)
 }
 
 wg.Wait()
+
+if err := errors.Join(errs...); err != nil {
+	return err
+}
 ```
 
 </Tabs.Tab>
@@ -1209,7 +1230,9 @@ results = PROCESS_ITEM_WF.run_many(
 
 Spawning from a durable task checkpoints each child, so a crash mid-fan-out resumes without re-running completed children. See [child spawning](/v1/child-spawning).
 
-Hatchet places no cap on the number of children spawned from a durable run. Temporal enforces a limit on pending child executions and pending activities per run (51,200 by default, tunable in server dynamic config), which is the constraint behind most Temporal "continue-as-new to keep the history small" batching code. That batching code can usually be deleted; for large fan-outs, see [bulk run](/v1/bulk-run).
+Hatchet places no per-run cap on the number of children spawned from a durable run. Temporal enforces a limit on pending child executions and pending activities per run (51,200 by default, tunable in server dynamic config), which is the constraint behind most Temporal "continue-as-new to keep the history small" batching code. That batching code can usually be deleted. For large fan-outs, see [bulk run](/v1/bulk-run).
+
+Tenant limits are a separate matter, and they are what a very large fan-out actually runs into. Hatchet meters task runs and events per tenant over a rolling window, and caps worker and worker slot counts. Self-hosted, enforcement is off by default (`SERVER_ENFORCE_LIMITS`) and the ceilings are server configuration: 2,000 task runs per 24 hours, 1,000 events per 24 hours, and 2,000 worker slots. See [configuration options](/self-hosting/configuration-options) for the full list. On Hatchet Cloud these limits come from your plan and the current usage against them is shown in the dashboard. Size a fan-out against the tenant task run limit, not against the per-run cap you were working around in Temporal.
 
 ## Step 10: Schedules and crons
 
