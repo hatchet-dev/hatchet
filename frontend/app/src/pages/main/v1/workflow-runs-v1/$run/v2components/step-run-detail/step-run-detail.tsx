@@ -11,6 +11,7 @@ import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
@@ -293,12 +294,16 @@ export const TaskRunDetail = ({
               value={TabOption.Input}
               className="flex-1 min-h-0 overflow-y-auto"
             >
-              {taskRun.input && (
-                <CodeHighlighter
-                  className="my-4"
-                  language="json"
-                  code={JSON.stringify(taskRun.input, null, 2)}
-                />
+              {taskRun.payloadsRestricted ? (
+                <RestrictedPayloads />
+              ) : (
+                taskRun.input && (
+                  <CodeHighlighter
+                    className="my-4"
+                    language="json"
+                    code={JSON.stringify(taskRun.input, null, 2)}
+                  />
+                )
               )}
             </TabsContent>
             <TabsContent

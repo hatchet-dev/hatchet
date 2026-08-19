@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -122,7 +123,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		total = *maybeTotal
 	}
 
-	rows := transformers.ToV1EventList(events, limit, offset, total)
+	rows := transformers.ToV1EventList(events, limit, offset, total, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1EventList200JSONResponse(
 		rows,

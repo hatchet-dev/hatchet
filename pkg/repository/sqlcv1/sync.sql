@@ -100,7 +100,8 @@ INSERT INTO "TenantInviteLink" (
     "inviteeEmail",
     "expires",
     "role",
-    "status"
+    "status",
+    "canViewPayloads"
 ) VALUES (
     @id::uuid,
     @createdAt::timestamp,
@@ -110,14 +111,16 @@ INSERT INTO "TenantInviteLink" (
     @inviteeEmail::text,
     @expires::timestamp,
     @role::"TenantMemberRole",
-    @status::"InviteLinkStatus"
+    @status::"InviteLinkStatus",
+    COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = @updatedAt::timestamp,
     "inviterEmail" = @inviterEmail::text,
     "inviteeEmail" = @inviteeEmail::text,
     "expires" = @expires::timestamp,
     "role" = @role::"TenantMemberRole",
-    "status" = @status::"InviteLinkStatus"
+    "status" = @status::"InviteLinkStatus",
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantInviteLink"."canViewPayloads")
 RETURNING *;
 
 -- name: SyncUpdateTenantInvite :one
@@ -125,7 +128,8 @@ UPDATE "TenantInviteLink"
 SET
     "updatedAt" = @updatedAt::timestamp,
     "status" = COALESCE(sqlc.narg('status')::"InviteLinkStatus", "status"),
-    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role")
+    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
 WHERE "id" = @id::uuid
 RETURNING *;
 
@@ -136,24 +140,28 @@ INSERT INTO "TenantMember" (
     "updatedAt",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     @id::uuid,
     @createdAt::timestamp,
     @updatedAt::timestamp,
     @tenantId::uuid,
     @userId::uuid,
-    @role::"TenantMemberRole"
+    @role::"TenantMemberRole",
+    COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = @updatedAt::timestamp,
-    "role" = @role::"TenantMemberRole"
+    "role" = @role::"TenantMemberRole",
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads")
 RETURNING *;
 
 -- name: SyncUpdateTenantMember :one
 UPDATE "TenantMember"
 SET
     "updatedAt" = @updatedAt::timestamp,
-    "role" = @role::"TenantMemberRole"
+    "role" = @role::"TenantMemberRole",
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
 WHERE "id" = @id::uuid
 RETURNING *;
 
