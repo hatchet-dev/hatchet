@@ -1,0 +1,1570 @@
+---
+title: "From Temporal to Hatchet"
+---
+
+import { Callout, Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Migrating from Temporal to Hatchet
+
+Temporal and Hatchet are both platforms which allow developers to write _durable workflows_. These are workflows whose intermediate state is persisted, which means that if your worker crashes or fails halfway through a workflow, it automatically picks up where it left off. This can be particularly useful for AI agents, long-running jobs, or business-critical workflows.
+
+This guide assumes you have already decided to migrate a project from Temporal to Hatchet and want to understand what code and configuration need to change. Each section starts with a common Temporal pattern, then shows what replaces it in Hatchet and what to watch out for.
+
+<Callout type="info">
+  Code examples are given in Python, TypeScript, Go and Ruby — the four Hatchet
+  SDKs. Temporal also ships Java, .NET and PHP SDKs, plus a Rust SDK in public
+  preview; Hatchet has no equivalent for any of those, so if your project is on
+  one of them this migration is not available to you today.
+</Callout>
+
+## Conceptual similarities and differences
+
+Let's start with what's the same. The Temporal and Hatchet long-lived worker models are very similar. They both utilize client-instantiated, long-lived gRPC connections to connect to the Temporal or Hatchet engine, respectively. They also both implement primarily push-based scheduling: work is assigned from the engine to the worker, not the other way around.
+
+However, there are a few important conceptual differences when you decide to migrate to Hatchet. In Temporal, everything operates as either a _workflow_ or an _activity_. The equivalent concepts in Hatchet are _durable tasks_ and _tasks_:
+
+- A **task** is ordinary code. It runs on a worker, retries on failure, and has no determinism constraints. This is what most Temporal activities and most short Temporal workflows become. It is `@hatchet.task()` in Python, `hatchet.task()` in TypeScript, `client.NewStandaloneTask` in Go, and `HATCHET.task` in Ruby.
+- A **durable task** is the durable-execution primitive. It checkpoints every time it waits or spawns a child, and it carries the same determinism rules a Temporal workflow does. It is `@hatchet.durable_task()`, `hatchet.durableTask()`, `client.NewStandaloneDurableTask`, and `HATCHET.durable_task` respectively.
+
+Not every Temporal workflow needs to become a Hatchet durable task. Only workflows which need strong durable execution guarantees need to become a durable task. Remember, Hatchet is designed as a general-purpose task queue, so there are lots of cases where it makes sense to write a task instead.
+
+Second, workers in Hatchet have a built-in notion of concurrency limits, instead of per-activity or per-workflow rate limits. This makes it very easy to reason about the amount of work that a worker is able to accept.
+
+## Migration Steps
+
+| Step                                                    | Temporal                                         | Hatchet replacement                                       | Migration category  |
+| ------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------- | ------------------- |
+| [1](#step-1-dependencies-and-connection)                | `temporalio` + namespace / mTLS config           | `hatchet-sdk` + `HATCHET_CLIENT_TOKEN`                    | Operational change  |
+| [2](#step-2-replace-the-client-and-worker-bootstrap)    | `Client.connect(...)` + `Worker(task_queue=...)` | `Hatchet()` + `hatchet.worker(...)`                       | Small rewrite       |
+| [3](#step-3-convert-activities-to-tasks)                | `@activity.defn`                                 | `@hatchet.task()`                                         | Small rewrite       |
+| [4](#step-4-convert-workflows)                          | `@workflow.defn` + `execute_activity`            | DAG workflow with `parents=[...]`                         | Conceptual redesign |
+| [4](#step-4-convert-workflows)                          | `@workflow.defn` that waits or spawns            | `@hatchet.durable_task()`                                 | Conceptual redesign |
+| [5](#step-5-invoke-work)                                | `client.execute_workflow(...)`                   | `task.run()` / `await task.aio_run()`                     | Direct API swap     |
+| [5](#step-5-invoke-work)                                | `client.start_workflow(...)`                     | `task.run(wait_for_result=False)`                         | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                       | `RetryPolicy(...)`                               | `retries` / `backoff_factor` / `backoff_max_seconds`      | Small rewrite       |
+| [6](#step-6-retries-and-timeouts)                       | `ApplicationError(non_retryable=True)`           | `NonRetryableException`                                   | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                       | `start_to_close_timeout`                         | `execution_timeout`                                       | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                       | `schedule_to_start_timeout`                      | `schedule_timeout`                                        | Direct API swap     |
+| [7](#step-7-timers-and-sleeps)                          | `await asyncio.sleep(...)` inside a workflow     | `await ctx.aio_sleep_for(...)`                            | Direct API swap     |
+| [8](#step-8-signals-queries-and-updates)                | `@workflow.signal` + `handle.signal(...)`        | Events + `await ctx.aio_wait_for_event(...)`              | Conceptual redesign |
+| [8](#step-8-signals-queries-and-updates)                | `@workflow.query`                                | Run history / dashboard / `ctx.aio_put_stream`            | Conceptual redesign |
+| [8](#step-8-signals-queries-and-updates)                | `workflow.wait_condition(...)`                   | `wait_for=[...]` conditions, or a durable event wait      | Conceptual redesign |
+| [9](#step-9-child-workflows-and-fan-out)                | `workflow.execute_child_workflow(...)`           | `await child.aio_run(...)` from a durable task            | Small rewrite       |
+| [10](#step-10-schedules-and-crons)                      | `client.create_schedule(...)`                    | `on_crons=["..."]` or `hatchet.scheduled.aio_create(...)` | Small rewrite       |
+| [11](#step-11-versioning-and-determinism)               | `workflow.patched(...)` / `GetVersion`           | Fewer durable surfaces + additive DAG changes             | Conceptual redesign |
+| [12](#step-12-flow-control-you-no-longer-have-to-build) | Task queue partitioning / custom rate limiting   | `concurrency` / `rate_limits` / `priority` / worker slots | Simplification      |
+| [13](#step-13-observability)                            | Temporal Web UI + your own logging/tracing       | Hatchet dashboard + built-in log sink and OTel collector  | Simplification      |
+
+## Step 1: Dependencies and connection
+
+Install the Hatchet SDK:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```bash
+pip install hatchet-sdk
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```bash
+npm install @hatchet-dev/typescript-sdk
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```bash
+go get github.com/hatchet-dev/hatchet/sdks/go
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```bash
+gem install hatchet-sdk
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Temporal clients are configured with a server address, a namespace, and — on Temporal Cloud — mTLS certificates or an API key. Hatchet replaces all of that with a single token, read from the environment by every SDK:
+
+```bash
+export HATCHET_CLIENT_TOKEN="your-token-here"
+```
+
+The token encodes the tenant and the engine address, so there is no separate namespace or endpoint setting for [Hatchet Cloud](https://cloud.onhatchet.run). For [self-hosted](/self-hosting) deployments you may need environment-specific host and TLS settings.
+
+Temporal and Hatchet can run side by side during a migration. They share no runtime, so each workflow must be moved as a unit: once a workflow runs on Hatchet, update the callers that start it.
+
+## Step 2: Replace the client and worker bootstrap
+
+Temporal separates the client from the worker, and routes work with a task queue name:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from temporalio.client import Client
+from temporalio.worker import Worker
+
+client = await Client.connect("localhost:7233", namespace="default")
+
+worker = Worker(
+    client,
+    task_queue="my-task-queue",
+    workflows=[ProcessOrderWorkflow],
+    activities=[validate_order, charge_order, fulfill_order],
+)
+await worker.run()
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { NativeConnection, Worker } from "@temporalio/worker";
+import * as activities from "./activities";
+
+const connection = await NativeConnection.connect({
+  address: "localhost:7233",
+});
+
+const worker = await Worker.create({
+  connection,
+  namespace: "default",
+  taskQueue: "my-task-queue",
+  // Workflows are registered by path — they run in a separate JS context.
+  workflowsPath: require.resolve("./workflows"),
+  activities,
+});
+
+await worker.run();
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import (
+	"log"
+
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+)
+
+c, err := client.Dial(client.Options{HostPort: client.DefaultHostPort})
+if err != nil {
+	log.Fatalln("Unable to create client", err)
+}
+defer c.Close()
+
+w := worker.New(c, "my-task-queue", worker.Options{})
+
+w.RegisterWorkflow(ProcessOrderWorkflow)
+w.RegisterActivity(ChargeOrder)
+
+if err := w.Run(worker.InterruptCh()); err != nil {
+	log.Fatalln("Unable to start worker", err)
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+require "temporalio/client"
+require "temporalio/worker"
+
+client = Temporalio::Client.connect("localhost:7233", "default")
+
+worker = Temporalio::Worker.new(
+  client:,
+  task_queue: "my-task-queue",
+  workflows: [ProcessOrderWorkflow],
+  activities: [ChargeOrder]
+)
+
+worker.run(shutdown_signals: ["SIGINT"])
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+In Hatchet, one client object is both the client and the registry, and workers are named rather than addressed through a queue:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+
+def main() -> None:
+    worker = hatchet.worker(
+        "order-worker",
+        slots=10,
+        workflows=[validate_order, charge_order, fulfill_order, process_order],
+    )
+    worker.start()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { HatchetClient } from "@hatchet-dev/typescript-sdk/v1";
+
+export const hatchet = HatchetClient.init();
+
+async function main() {
+  const worker = await hatchet.worker("order-worker", {
+    workflows: [validateOrder, chargeOrder, fulfillOrder, processOrder],
+    slots: 10,
+  });
+
+  await worker.start();
+}
+
+if (require.main === module) {
+  main();
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import (
+	"log"
+
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+)
+
+client, err := hatchet.NewClient()
+if err != nil {
+	log.Fatalf("failed to create hatchet client: %v", err)
+}
+
+worker, err := client.NewWorker("order-worker",
+	hatchet.WithWorkflows(validateOrder, chargeOrder, fulfillOrder, processOrder),
+	hatchet.WithSlots(10),
+)
+if err != nil {
+	log.Fatalf("failed to create worker: %v", err)
+}
+
+interruptCtx, cancel := cmdutils.NewInterruptContext()
+defer cancel()
+
+if err := worker.StartBlocking(interruptCtx); err != nil {
+	log.Fatalf("failed to start worker: %v", err)
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+require "hatchet-sdk"
+
+HATCHET = Hatchet::Client.new
+
+def main
+  worker = HATCHET.worker(
+    "order-worker",
+    slots: 10,
+    workflows: [VALIDATE_ORDER, CHARGE_ORDER, FULFILL_ORDER, PROCESS_ORDER]
+  )
+  worker.start
+end
+
+main if __FILE__ == $PROGRAM_NAME
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Two differences worth noting:
+
+- There is no activity/workflow split in the registration list. Everything registered is a workflow or task in the same sense.
+- `slots` bounds how many task runs this worker will accept at once. Temporal's nearest equivalents are its worker-side executor limits (`max_concurrent_activity_task_executions` and friends); in Hatchet slot control is a first-class scheduling input, not just a worker-side limit. See [workers](/v1/workers).
+
+Routing that you would have done with multiple task queues is done with separate workers and, when you need finer control, [worker affinity](/v1/advanced-assignment/worker-affinity). **Note that each separate task definition in Hatchet get its own queue**.
+
+## Step 3: Convert activities to tasks
+
+A Temporal activity:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from temporalio import activity
+
+
+@activity.defn
+async def charge_order(order_id: str) -> bool:
+    return await payments.charge(order_id)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// activities.ts — activities are plain exported functions.
+export async function chargeOrder(orderId: string): Promise<boolean> {
+  return payments.charge(orderId);
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import "context"
+
+func ChargeOrder(ctx context.Context, orderID string) (bool, error) {
+	return payments.Charge(ctx, orderID)
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+require "temporalio/activity"
+
+class ChargeOrder < Temporalio::Activity::Definition
+  def execute(order_id)
+    Payments.charge(order_id)
+  end
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+becomes a Hatchet task. Inputs are a single structured value rather than positional arguments, and every task receives a context:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
+
+hatchet = Hatchet()
+
+
+class OrderInput(BaseModel):
+    order_id: str
+
+
+class ChargeOutput(BaseModel):
+    charged: bool
+
+
+@hatchet.task(input_validator=OrderInput)
+async def charge_order(input: OrderInput, ctx: Context) -> ChargeOutput:
+    return ChargeOutput(charged=await payments.charge(input.order_id))
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { hatchet } from "./hatchet-client";
+
+type OrderInput = {
+  orderId: string;
+};
+
+export const chargeOrder = hatchet.task({
+  name: "charge-order",
+  fn: async (input: OrderInput, ctx) => {
+    return { charged: await payments.charge(input.orderId) };
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+type OrderInput struct {
+	OrderID string `json:"order_id"`
+}
+
+type ChargeOutput struct {
+	Charged bool `json:"charged"`
+}
+
+chargeOrder := client.NewStandaloneTask("charge-order",
+	func(ctx hatchet.Context, input OrderInput) (ChargeOutput, error) {
+		charged, err := payments.Charge(input.OrderID)
+		if err != nil {
+			return ChargeOutput{}, err
+		}
+
+		return ChargeOutput{Charged: charged}, nil
+	},
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+CHARGE_ORDER = HATCHET.task(name: "charge-order") do |input, ctx|
+  { "charged" => Payments.charge(input["order_id"]) }
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+The important part is what you _gain_: a Hatchet task is directly runnable. Running `charge_order` with an order id is a valid, retryable, observable unit of work with no workflow wrapper around it. In Temporal an activity cannot be invoked on its own; it needs a workflow to orchestrate it, which is why Temporal projects accumulate single-activity workflows. Those wrappers can be deleted.
+
+Serialization moves from Temporal's converters (JSON by default, pickle or custom converters if configured) to JSON. Any workflow argument that relied on a custom data converter needs a JSON-serializable representation. The shape of the input type differs by SDK: Python uses Pydantic models, TypeScript uses TypeScript types (with optional Zod validation via `inputValidator`), Go uses structs with `json` tags, and Ruby passes plain string-keyed hashes.
+
+## Step 4: Convert workflows
+
+This is the step that requires judgment. Sort each Temporal workflow into one of three buckets.
+
+### 4a. Workflows that are just a sequence of activities → a DAG
+
+If the workflow only calls activities in order and passes results between them, it can be more simply represented as a DAG. Temporal:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+@workflow.defn
+class ProcessOrderWorkflow:
+    @workflow.run
+    async def run(self, order_id: str) -> dict:
+        valid = await workflow.execute_activity(
+            validate_order, order_id, start_to_close_timeout=timedelta(seconds=30)
+        )
+        charged = await workflow.execute_activity(
+            charge_order, order_id, start_to_close_timeout=timedelta(seconds=30)
+        )
+        return await workflow.execute_activity(
+            fulfill_order, order_id, start_to_close_timeout=timedelta(seconds=30)
+        )
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { proxyActivities } from "@temporalio/workflow";
+// Only import the activity types
+import type * as activities from "./activities";
+
+const { validateOrder, chargeOrder, fulfillOrder } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "30 seconds",
+});
+
+export async function processOrder(orderId: string): Promise<boolean> {
+  await validateOrder(orderId);
+  await chargeOrder(orderId);
+  return fulfillOrder(orderId);
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+func ProcessOrderWorkflow(ctx workflow.Context, orderID string) (bool, error) {
+	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+	})
+
+	if err := workflow.ExecuteActivity(ctx, ValidateOrder, orderID).Get(ctx, nil); err != nil {
+		return false, err
+	}
+
+	if err := workflow.ExecuteActivity(ctx, ChargeOrder, orderID).Get(ctx, nil); err != nil {
+		return false, err
+	}
+
+	var fulfilled bool
+	err := workflow.ExecuteActivity(ctx, FulfillOrder, orderID).Get(ctx, &fulfilled)
+
+	return fulfilled, err
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+require "temporalio/workflow"
+
+class ProcessOrderWorkflow < Temporalio::Workflow::Definition
+  def execute(order_id)
+    Temporalio::Workflow.execute_activity(
+      ValidateOrder, order_id, start_to_close_timeout: 30
+    )
+    Temporalio::Workflow.execute_activity(
+      ChargeOrder, order_id, start_to_close_timeout: 30
+    )
+    Temporalio::Workflow.execute_activity(
+      FulfillOrder, order_id, start_to_close_timeout: 30
+    )
+  end
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Hatchet expresses the same thing declaratively, and the shape is visible in the dashboard without running it:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from datetime import timedelta
+
+order_workflow = hatchet.workflow(name="ProcessOrder", input_validator=OrderInput)
+
+
+@order_workflow.task(execution_timeout=timedelta(seconds=30))
+async def validate(input: OrderInput, ctx: Context) -> ValidateOutput: ...
+
+
+@order_workflow.task(parents=[validate], execution_timeout=timedelta(seconds=30))
+async def charge(input: OrderInput, ctx: Context) -> ChargeOutput: ...
+
+
+@order_workflow.task(parents=[charge], execution_timeout=timedelta(seconds=30))
+async def fulfill(input: OrderInput, ctx: Context) -> FulfillOutput:
+    charged = ctx.task_output(charge)
+    ...
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+export const orderWorkflow = hatchet.workflow<OrderInput, OrderOutput>({
+  name: "ProcessOrder",
+});
+
+const validate = orderWorkflow.task({
+  name: "validate",
+  executionTimeout: "30s",
+  fn: async (input) => {
+    // ...
+  },
+});
+
+const charge = orderWorkflow.task({
+  name: "charge",
+  parents: [validate],
+  executionTimeout: "30s",
+  fn: async (input, ctx) => {
+    const validated = await ctx.parentOutput(validate);
+    // ...
+  },
+});
+
+orderWorkflow.task({
+  name: "fulfill",
+  parents: [charge],
+  executionTimeout: "30s",
+  fn: async (input, ctx) => {
+    const charged = await ctx.parentOutput(charge);
+    // ...
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+workflow := client.NewWorkflow("ProcessOrder")
+
+validate := workflow.NewTask("validate",
+	func(ctx hatchet.Context, input OrderInput) (ValidateOutput, error) {
+		// ...
+	},
+	hatchet.WithExecutionTimeout(30*time.Second),
+)
+
+charge := workflow.NewTask("charge",
+	func(ctx hatchet.Context, input OrderInput) (ChargeOutput, error) {
+		var validated ValidateOutput
+		if err := ctx.ParentOutput(validate, &validated); err != nil {
+			return ChargeOutput{}, err
+		}
+		// ...
+	},
+	hatchet.WithParents(validate),
+	hatchet.WithExecutionTimeout(30*time.Second),
+)
+
+_ = workflow.NewTask("fulfill",
+	func(ctx hatchet.Context, input OrderInput) (FulfillOutput, error) {
+		var charged ChargeOutput
+		if err := ctx.ParentOutput(charge, &charged); err != nil {
+			return FulfillOutput{}, err
+		}
+		// ...
+	},
+	hatchet.WithParents(charge),
+	hatchet.WithExecutionTimeout(30*time.Second),
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+ORDER_WORKFLOW = HATCHET.workflow(name: "ProcessOrder")
+
+VALIDATE = ORDER_WORKFLOW.task(:validate, execution_timeout: 30) do |input, ctx|
+  # ...
+end
+
+CHARGE = ORDER_WORKFLOW.task(:charge, parents: [VALIDATE], execution_timeout: 30) do |input, ctx|
+  validated = ctx.task_output(VALIDATE)
+  # ...
+end
+
+ORDER_WORKFLOW.task(:fulfill, parents: [CHARGE], execution_timeout: 30) do |input, ctx|
+  charged = ctx.task_output(CHARGE)
+  # ...
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Upstream results are read off the context — `ctx.task_output` in Python and Ruby, `ctx.parentOutput` in TypeScript, `ctx.ParentOutput` in Go — rather than returned through local variables. Tasks with no parents run in parallel; that is the replacement for whatever you used to run activities concurrently inside a workflow. See [DAGs](/v1/directed-acyclic-graphs).
+
+There is no determinism constraint on a DAG task. Each one is ordinary code that can read a database, call an API, or use the clock.
+
+### 4b. Workflows that wait or spawn dynamically → a durable task
+
+If the workflow sleeps for days, waits for a signal, or decides at runtime what to run next, it becomes a durable task:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+from hatchet_sdk import DurableContext, EmptyModel
+
+
+@hatchet.durable_task(name="OnboardingFlow")
+async def onboarding_flow(input: OrderInput, ctx: DurableContext) -> None:
+    await send_welcome_email.aio_run(input)
+
+    await ctx.aio_sleep_for(timedelta(days=3))
+
+    await send_followup_email.aio_run(input)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+export const onboardingFlow = hatchet.durableTask({
+  name: "OnboardingFlow",
+  executionTimeout: "168h",
+  fn: async (input: OrderInput, ctx) => {
+    await sendWelcomeEmail.run(input);
+
+    await ctx.sleepFor("72h");
+
+    await sendFollowupEmail.run(input);
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+onboardingFlow := client.NewStandaloneDurableTask("OnboardingFlow",
+	func(ctx hatchet.DurableContext, input OrderInput) (OnboardingOutput, error) {
+		if _, err := sendWelcomeEmail.Run(ctx, input); err != nil {
+			return OnboardingOutput{}, err
+		}
+
+		if _, err := ctx.SleepFor(72 * time.Hour); err != nil {
+			return OnboardingOutput{}, err
+		}
+
+		if _, err := sendFollowupEmail.Run(ctx, input); err != nil {
+			return OnboardingOutput{}, err
+		}
+
+		return OnboardingOutput{}, nil
+	},
+	hatchet.WithExecutionTimeout(168*time.Hour),
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+ONBOARDING_FLOW = HATCHET.durable_task(
+  name: "OnboardingFlow",
+  execution_timeout: 604_800
+) do |input, ctx|
+  SEND_WELCOME_EMAIL.run(input)
+
+  ctx.sleep_for(duration: 259_200)
+
+  SEND_FOLLOWUP_EMAIL.run(input)
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+The determinism rules here are the ones you already know from Temporal, and Hatchet states them the same way: a durable task may only wait on the durable context or spawn children, and the code between checkpoints must be reproducible on replay. Anything that touches the outside world belongs in a child task. See [durable tasks](/v1/durable-tasks).
+
+Note that a durable task's execution timeout has to cover the whole wall-clock span of the run, including its sleeps, so set it accordingly.
+
+### 4c. Single-activity workflows → delete the workflow
+
+A Temporal workflow that exists only to invoke one activity has no Hatchet equivalent, because it has no reason to exist. Delete it and call the task directly.
+
+## Step 5: Invoke work
+
+The mapping is the same in every SDK; names below use the Python spelling.
+
+| Temporal                                                             | Hatchet                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `await client.execute_workflow(Wf.run, arg, id=..., task_queue=...)` | `await my_task.aio_run(MyInput(...))`                        |
+| `await client.start_workflow(Wf.run, arg, ...)`                      | `await my_task.aio_run(MyInput(...), wait_for_result=False)` |
+| `handle.result()`                                                    | `await ref.aio_result()`                                     |
+| Synchronous client                                                   | `my_task.run(...)`                                           |
+
+Fire and forget, then collect the result later:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+ref = await process_order.aio_run(OrderInput(order_id="123"), wait_for_result=False)
+result = await ref.aio_result()
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+const run = await processOrder.runNoWait({ orderId: "123" });
+
+// It may be helpful to store this run id somewhere durable.
+const runId = await run.getWorkflowRunId();
+
+const result = await run.output;
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+runRef, err := processOrder.RunNoWait(context.Background(), OrderInput{OrderID: "123"})
+if err != nil {
+	return err
+}
+
+fmt.Println(runRef.RunId)
+
+result, err := runRef.Result()
+if err != nil {
+	return err
+}
+
+var output ChargeOutput
+if err := result.TaskOutput("charge-order").Into(&output); err != nil {
+	return err
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+ref = PROCESS_ORDER.run_no_wait({ "order_id" => "123" })
+result = ref.result
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+<Callout type="info">
+  The Ruby SDK has no separate async trigger API: `run_no_wait` is the enqueue
+  path and `ref.result` is a blocking read.
+</Callout>
+
+Note what is _not_ required: there is no workflow id and no task queue at the call site. Deduplication that you would have achieved with a Temporal workflow id reuse policy is expressed with an [idempotency key](/v1/idempotency) instead.
+
+## Step 6: Retries and timeouts
+
+Temporal attaches a `RetryPolicy` to activity and workflow options. Hatchet attaches retry settings to the task definition:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+@hatchet.task(
+    retries=10,
+    backoff_factor=2.0,
+    backoff_max_seconds=10,
+    execution_timeout=timedelta(seconds=30),
+    schedule_timeout=timedelta(minutes=10),
+)
+async def charge_order(input: OrderInput, ctx: Context) -> ChargeOutput: ...
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+export const chargeOrder = hatchet.task({
+  name: "charge-order",
+  retries: 10,
+  backoff: {
+    // Factor to increase the wait time between retries.
+    factor: 2,
+    // Maximum number of seconds to wait between retries.
+    maxSeconds: 10,
+  },
+  executionTimeout: "30s",
+  scheduleTimeout: "10m",
+  fn: async (input: OrderInput) => {
+    // ...
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+chargeOrder := client.NewStandaloneTask("charge-order",
+	func(ctx hatchet.Context, input OrderInput) (ChargeOutput, error) {
+		// ...
+	},
+	hatchet.WithRetries(10),
+	// factor, maxBackoffSeconds
+	hatchet.WithRetryBackoff(2, 10),
+	hatchet.WithExecutionTimeout(30*time.Second),
+	hatchet.WithScheduleTimeout(10*time.Minute),
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+CHARGE_ORDER = HATCHET.task(
+  name: "charge-order",
+  retries: 10,
+  backoff_factor: 2.0,
+  backoff_max_seconds: 10,
+  execution_timeout: 30,
+  schedule_timeout: 600
+) do |input, ctx|
+  # ...
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+The concept mapping is the same in every SDK. Names below use the Python spelling; the code above shows each SDK's exact form.
+
+| Temporal                          | Hatchet                                              |
+| --------------------------------- | ---------------------------------------------------- |
+| `maximum_attempts=N`              | `retries=N-1` (Hatchet counts retries, not attempts) |
+| `backoff_coefficient`             | `backoff_factor`                                     |
+| `maximum_interval`                | `backoff_max_seconds`                                |
+| `non_retryable_error_types=[...]` | raise a non-retryable error                          |
+| `start_to_close_timeout`          | `execution_timeout`                                  |
+| `schedule_to_start_timeout`       | `schedule_timeout`                                   |
+| `activity.info().attempt`         | retry count on the context                           |
+
+The non-retryable error type is `NonRetryableException` in Python (from `hatchet_sdk.exceptions`), `NonRetryableError` in TypeScript, `worker.NewNonRetryableError` in Go, and `Hatchet::NonRetryableError` in Ruby. The retry count is `ctx.retry_count` in Python and Ruby, `ctx.retryCount()` in TypeScript, and `ctx.RetryCount()` in Go.
+
+<Callout type="warning">
+  `retries` counts retries, not total attempts: `maximum_attempts=3` in Temporal
+  is `retries=2` in Hatchet. Copying the number across unchanged gives you one
+  extra attempt.
+</Callout>
+
+Defaults for every task in a workflow go in the workflow's task defaults (`task_defaults` in Python and Ruby, `taskDefaults` in TypeScript). See [retry policies](/v1/retry-policies) and [timeouts](/v1/timeouts).
+
+## Step 7: Timers and sleeps
+
+A durable sleep inside a Temporal workflow becomes a durable sleep on the Hatchet durable context:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Temporal
+await asyncio.sleep(60 * 60 * 24)
+
+# Hatchet
+await ctx.aio_sleep_for(timedelta(days=1))
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Temporal
+import { sleep } from "@temporalio/workflow";
+
+await sleep(24 * 60 * 60 * 1000);
+
+// Hatchet
+await ctx.sleepFor("24h");
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Temporal
+workflow.Sleep(ctx, 24*time.Hour)
+
+// Hatchet
+if _, err := ctx.SleepFor(24 * time.Hour); err != nil {
+	return err
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+# Temporal
+Temporalio::Workflow.sleep(86_400)
+
+# Hatchet
+ctx.sleep_for(duration: 86_400)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+While a Hatchet durable task is sleeping it is [evicted](/v1/task-eviction) and its worker slot is released, so a million sleeping runs cost no worker capacity. See [durable sleep](/v1/durable-sleep).
+
+For a _task_ — not a durable task — that should simply start later, create a scheduled run rather than sleeping. There is no reason to hold a durable task open for a fixed future start.
+
+## Step 8: Signals, queries, and updates
+
+Temporal signals become Hatchet [events](/v1/events), which are pushed to the tenant rather than to a specific run:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Temporal
+handle = client.get_workflow_handle(workflow_id)
+await handle.signal(ApprovalWorkflow.approve, "approved")
+
+# Hatchet
+await hatchet.event.aio_push("approval:granted", {"order_id": "123"})
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Temporal
+const handle = client.workflow.getHandle(workflowId);
+await handle.signal(approveSignal, "approved");
+
+// Hatchet
+await hatchet.events.push("approval:granted", { orderId: "123" });
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Temporal
+err := c.SignalWorkflow(context.Background(), workflowID, runID, "approve", "approved")
+
+// Hatchet
+err := client.Events().Push(context.Background(), "approval:granted", map[string]any{
+	"order_id": "123",
+})
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+# Temporal
+handle = client.workflow_handle(workflow_id)
+handle.signal(ApprovalWorkflow.approve, "approved")
+
+# Hatchet
+HATCHET.events.push("approval:granted", { "order_id" => "123" })
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+The waiting side uses a durable event wait, with a CEL expression to select the event that belongs to this run:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+@hatchet.durable_task(name="ApprovalFlow")
+async def approval_flow(input: OrderInput, ctx: DurableContext) -> None:
+    await ctx.aio_wait_for_event("approval:granted", f"input.order_id == '{input.order_id}'")
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+export const approvalFlow = hatchet.durableTask({
+  name: "ApprovalFlow",
+  executionTimeout: "10m",
+  fn: async (input: OrderInput, ctx) => {
+    await ctx.waitForEvent(
+      "approval:granted",
+      `input.orderId == '${input.orderId}'`,
+    );
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+approvalFlow := client.NewStandaloneDurableTask("ApprovalFlow",
+	func(ctx hatchet.DurableContext, input OrderInput) (ApprovalOutput, error) {
+		expr := fmt.Sprintf("input.order_id == '%s'", input.OrderID)
+
+		if _, err := ctx.WaitForEvent("approval:granted", expr); err != nil {
+			return ApprovalOutput{}, err
+		}
+
+		return ApprovalOutput{}, nil
+	},
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+APPROVAL_FLOW = HATCHET.durable_task(name: "ApprovalFlow") do |input, ctx|
+  ctx.wait_for(
+    "event",
+    Hatchet::UserEventCondition.new(
+      event_key: "approval:granted",
+      expression: "input.order_id == '#{input['order_id']}'"
+    )
+  )
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled — anything can emit one, and any number of runs can wait on the same event — but they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable business key in their input and filter on it.
+
+Three related mappings:
+
+- **A wait-for-condition inside a workflow** (`workflow.wait_condition`, `wf.condition`, `workflow.Await`) is usually a wait condition on a DAG task instead: a sleep condition, a user-event condition, or a parent condition, composed with an or-group. That moves the wait out of your code and into the workflow definition, where the engine can see it. See [conditions](/v1/directed-acyclic-graphs#waiting-on-conditions-with-or-groups).
+- **Queries** have no direct equivalent, because Hatchet does not run your code to answer a question about a run. Run inputs, outputs, and history are already queryable through the API and dashboard. For live progress, stream it from the task — `ctx.aio_put_stream` in Python, `ctx.putStream` in TypeScript, `ctx.PutStream` in Go, `ctx.put_stream` in Ruby — and consume it from the caller. See [streaming](/v1/streaming).
+- **Updates** — a synchronous, validated mutation of running workflow state — have no equivalent. Model this as an event the durable task waits on, plus a child task that performs the mutation and returns a result.
+
+## Step 9: Child workflows and fan-out
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Temporal
+results = await asyncio.gather(*[
+    workflow.execute_child_workflow(ProcessItem.run, item) for item in items
+])
+
+# Hatchet
+results = await asyncio.gather(*[
+    process_item.aio_run(ItemInput(item=item)) for item in items
+])
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Temporal
+import { executeChild } from "@temporalio/workflow";
+
+const results = await Promise.all(
+  items.map((item) => executeChild(processItem, { args: [item] })),
+);
+
+// Hatchet
+const results = await Promise.all(
+  items.map((item) => processItem.run({ item })),
+);
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Temporal — collect the child futures, then await them.
+var futures []workflow.Future
+for _, item := range items {
+	futures = append(futures, workflow.ExecuteChildWorkflow(ctx, ProcessItem, item))
+}
+
+for _, f := range futures {
+	var result ItemOutput
+	if err := f.Get(ctx, &result); err != nil {
+		return err
+	}
+}
+
+// Hatchet — from inside a task, spawn children on goroutines.
+var wg sync.WaitGroup
+wg.Add(len(items))
+
+for _, item := range items {
+	go func(item Item) {
+		defer wg.Done()
+
+		result, err := processItem.Run(ctx, ItemInput{Item: item})
+		if err != nil {
+			return
+		}
+
+		var output ItemOutput
+		_ = result.Into(&output)
+	}(item)
+}
+
+wg.Wait()
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+# Temporal
+results = items.map do |item|
+  Temporalio::Workflow.execute_child_workflow(
+    ProcessItem, item, schedule_to_close_timeout: 300
+  )
+end
+
+# Hatchet — bulk-spawn children in one call.
+results = PROCESS_ITEM_WF.run_many(
+  items.map do |item|
+    PROCESS_ITEM_WF.create_bulk_run_item(input: { "item" => item })
+  end
+)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+<Callout type="info">
+  The Ruby example above spawns children in bulk rather than concurrently,
+  because the Ruby SDK's trigger methods are synchronous. Python
+  (`aio_run_many`), TypeScript (`ctx.bulkRunChildren`) and Go
+  (`workflow.RunMany`) have the same bulk API if you prefer one call over N.
+</Callout>
+
+Spawning from a durable task checkpoints each child, so a crash mid-fan-out resumes without re-running completed children. See [child spawning](/v1/child-spawning).
+
+Hatchet places no cap on the number of children spawned from a durable run. Temporal enforces a limit on pending child executions and pending activities per run — 51,200 by default, tunable in server dynamic config — which is the constraint behind most Temporal "continue-as-new to keep the history small" batching code. That batching code can usually be deleted; for large fan-outs, see [bulk run](/v1/bulk-run).
+
+## Step 10: Schedules and crons
+
+A Temporal schedule created through the schedule client is usually a declaration on the task itself:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+@hatchet.task(on_crons=["0 9 * * 1"], cron_input=ReportInput(kind="weekly"))
+async def weekly_report(input: ReportInput, ctx: Context) -> None: ...
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+export const weeklyReport = hatchet.workflow<ReportInput, ReportOutput>({
+  name: "weekly-report",
+  on: {
+    cron: "0 9 * * 1",
+  },
+});
+
+weeklyReport.task({
+  name: "generate",
+  fn: async (input) => {
+    // ...
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+weeklyReport := client.NewStandaloneTask("weekly-report",
+	func(ctx hatchet.Context, input ReportInput) (ReportOutput, error) {
+		// ...
+	},
+	hatchet.WithWorkflowCron("0 9 * * 1"),
+	hatchet.WithWorkflowCronInput(ReportInput{Kind: "weekly"}),
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+WEEKLY_REPORT = HATCHET.workflow(
+  name: "WeeklyReport",
+  on_crons: ["0 9 * * 1"]
+)
+
+WEEKLY_REPORT.task(:generate) do |input, ctx|
+  # ...
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+<Callout type="info">
+  Two differences in the declarative form. Only Python and Go can attach a fixed
+  input to the cron schedule (`cron_input` and `WithWorkflowCronInput`). And in
+  Ruby, crons are declared on a workflow rather than on a standalone task.
+</Callout>
+
+For schedules created at runtime — the equivalent of programmatic Temporal schedules — use the API:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+# A recurring schedule, created at runtime.
+await hatchet.cron.aio_create(
+    workflow_name=weekly_report.name,
+    cron_name="weekly-report-acme",
+    expression="0 9 * * 1",
+    input={"kind": "weekly"},
+    additional_metadata={"customer_id": "acme"},
+)
+
+# A one-shot future run.
+await hatchet.scheduled.aio_create(
+    workflow_name=weekly_report.name,
+    trigger_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
+    input={"kind": "weekly"},
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// A recurring schedule, created at runtime.
+await hatchet.crons.create("weekly-report", {
+  name: "weekly-report-acme",
+  expression: "0 9 * * 1",
+  input: { kind: "weekly" },
+});
+
+// A one-shot future run.
+await hatchet.schedules.create("weekly-report", {
+  triggerAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  input: { kind: "weekly" },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// A recurring schedule, created at runtime.
+_, err := client.Crons().Create(context.Background(), "weekly-report", features.CreateCronTrigger{
+	Name:       "weekly-report-acme",
+	Expression: "0 9 * * 1",
+	Input:      map[string]interface{}{"kind": "weekly"},
+	AdditionalMetadata: map[string]interface{}{
+		"customer_id": "acme",
+	},
+})
+
+// A one-shot future run.
+_, err = client.Schedules().Create(
+	context.Background(),
+	"weekly-report",
+	features.CreateScheduledRunTrigger{
+		TriggerAt: time.Now().Add(24 * time.Hour),
+		Input:     map[string]interface{}{"kind": "weekly"},
+	},
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+# A recurring schedule, created at runtime.
+HATCHET.cron.create(
+  workflow_name: "WeeklyReport",
+  cron_name: "weekly-report-acme",
+  expression: "0 9 * * 1",
+  input: { "kind" => "weekly" }
+)
+
+# A one-shot future run.
+HATCHET.scheduled.create(
+  workflow_name: "WeeklyReport",
+  trigger_at: Time.now + 86_400,
+  input: { "kind" => "weekly" },
+  additional_metadata: { "customer_id" => "acme" }
+)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+See [cron runs](/v1/cron-runs) and [scheduled runs](/v1/scheduled-runs).
+
+## Step 11: Versioning and determinism
+
+Be aware of this one before you start, because it is a genuine trade-off rather than a straight win.
+
+Temporal gives you patching APIs — `workflow.patched` / `GetVersion` and their per-SDK equivalents — to branch on workflow version, so a deployment can change the code path of workflows that are already running. Hatchet has no equivalent API in any SDK. Its answer is to shrink the surface that needs versioning at all:
+
+- Most of what was a Temporal workflow becomes a plain task or a DAG in Hatchet, and those have no replay history to stay compatible with. You can change their bodies freely.
+- What remains a durable task is usually small — wait, spawn, wait again — and small durable tasks are the ones that are easy to keep replay-compatible.
+- For a durable task whose shape genuinely has to change, deploy the new version under a new task name and let in-flight runs drain on the old one. This is the same technique as Temporal's "new workflow type" escape hatch, minus the in-place patching.
+
+If you have durable workflows that are routinely patched in place while running for weeks, understand this cost before committing to the migration.
+
+DAG shape changes are safer but not free: adding a task to a workflow affects runs started after the deploy, and removing a task that in-flight runs reference will fail those runs. Prefer additive changes and let old runs finish.
+
+## Step 12: Flow control you no longer have to build
+
+Several things that Temporal projects build by hand — partitioned task queues, worker-side semaphores, external rate limiters in front of activities — are engine features in Hatchet:
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+# One in-flight run per customer, newest cancels the oldest.
+workflow = hatchet.workflow(
+    name="SyncCustomer",
+    concurrency=ConcurrencyExpression(
+        expression="input.customer_id",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+
+
+# A global budget shared by every worker, not per-process.
+@hatchet.task(rate_limits=[RateLimit(static_key="openai", units=1)])
+async def call_model(input: PromptInput, ctx: Context) -> ModelOutput: ...
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { ConcurrencyLimitStrategy } from "@hatchet-dev/typescript-sdk/v1";
+
+// One in-flight run per customer, newest cancels the oldest.
+export const syncCustomer = hatchet.workflow<SyncInput, SyncOutput>({
+  name: "SyncCustomer",
+  concurrency: {
+    expression: "input.customerId",
+    maxRuns: 1,
+    limitStrategy: ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+  },
+});
+
+// A global budget shared by every worker, not per-process.
+export const callModel = hatchet.task({
+  name: "call-model",
+  rateLimits: [
+    {
+      staticKey: "openai",
+      units: 1,
+    },
+  ],
+  fn: async (input: PromptInput) => {
+    // ...
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import "github.com/hatchet-dev/hatchet/pkg/client/types"
+
+// One in-flight run per customer, newest cancels the oldest.
+var maxRuns int32 = 1
+strategy := types.CancelInProgress
+
+syncCustomer := client.NewStandaloneTask("SyncCustomer",
+	func(ctx hatchet.Context, input SyncInput) (SyncOutput, error) {
+		// ...
+	},
+	hatchet.WithWorkflowConcurrency(types.Concurrency{
+		Expression:    "input.customer_id",
+		MaxRuns:       &maxRuns,
+		LimitStrategy: &strategy,
+	}),
+)
+
+// A global budget shared by every worker, not per-process.
+units := 1
+callModel := client.NewStandaloneTask("call-model",
+	func(ctx hatchet.Context, input PromptInput) (ModelOutput, error) {
+		// ...
+	},
+	hatchet.WithRateLimits(&types.RateLimit{
+		Key:   "openai",
+		Units: &units,
+	}),
+)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+# One in-flight run per customer, newest cancels the oldest.
+SYNC_CUSTOMER = HATCHET.workflow(
+  name: "SyncCustomer",
+  concurrency: Hatchet::ConcurrencyExpression.new(
+    expression: "input.customer_id",
+    max_runs: 1,
+    limit_strategy: :cancel_in_progress
+  )
+)
+
+# A global budget shared by every worker, not per-process.
+CALL_MODEL = HATCHET.task(
+  name: "call-model",
+  rate_limits: [Hatchet::RateLimit.new(static_key: "openai", units: 1)]
+) do |input, ctx|
+  # ...
+end
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Static rate limit keys have to be declared once before use, with the rate limits API: `hatchet.rate_limits.put` in Python, `hatchet.ratelimits.upsert` in TypeScript, `client.RateLimits().Upsert` in Go, `HATCHET.rate_limits.put` in Ruby.
+
+See [concurrency](/v1/concurrency), [rate limits](/v1/rate-limits), [priority](/v1/priority), and [worker slots](/v1/workers). Auditing what your Temporal deployment does with task queues and external limiters usually deletes a meaningful amount of infrastructure.
+
+## Step 13: Observability
+
+Temporal ships the Temporal Web UI, and both Temporal Cloud and self-hosted deployments give you run history and a workflow event view. You do not lose that.
+
+What changes is what comes with it. Temporal deliberately leaves logs and traces to your own stack: activity logs go wherever your logging is configured, and tracing requires the OpenTelemetry interceptor plus a collector you run. Hatchet bundles both:
+
+- Logging from the context writes to a built-in, searchable log sink attached to the run. See [logging](/v1/logging).
+- An OpenTelemetry collector ships with the platform; you can also instrument it yourself. See [OpenTelemetry](/v1/opentelemetry).
+- Prometheus metrics are exposed per tenant. See [Prometheus metrics](/v1/prometheus-metrics).
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+<Tabs.Tab title="Python">
+
+```python
+ctx.log("charging order")
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+ctx.logger.info("charging order");
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+ctx.Log("charging order")
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Ruby">
+
+```ruby
+ctx.log("charging order")
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+In practice this means the logging and tracing wiring around your Temporal activities can usually be removed rather than ported.
+
+## What does not map
+
+Be explicit with yourself about these before committing:
+
+| Temporal feature                      | Status in Hatchet                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Java, .NET, PHP and Rust SDKs         | Not available. Hatchet has Python, TypeScript, Go and Ruby.                                          |
+| `patched` / `GetVersion`              | No equivalent; see [step 11](#step-11-versioning-and-determinism).                                   |
+| Local activities                      | No equivalent. Short work runs as an ordinary task.                                                  |
+| Workflow updates                      | No equivalent; model as an event plus a child task.                                                  |
+| Workflow queries                      | No equivalent; use run history, the API, or streaming.                                               |
+| Side effects (`workflow.side_effect`) | No equivalent; move non-determinism into a child task.                                               |
+| Search attributes                     | Use [additional metadata](/v1/additional-metadata) for filterable run labels.                        |
+| Nexus                                 | No equivalent; use [events](/v1/events) or [inter-service triggering](/v1/inter-service-triggering). |
+| Multi-region namespace failover       | See [region availability](/v1/region-availability) for what Hatchet Cloud offers.                    |
+
+## Where to go next
+
+- [Tasks](/v1/tasks) and [running your task](/v1/running-your-task) for the basics you will use everywhere
+- [Durable execution](/v1/durable-execution) for the concepts behind durable tasks
+- [DAGs](/v1/directed-acyclic-graphs) for the declarative replacement for orchestration code
+- [Architecture and guarantees](/v1/architecture-and-guarantees) if you are evaluating rather than migrating
