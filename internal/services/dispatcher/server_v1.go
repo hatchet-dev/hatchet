@@ -371,6 +371,13 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 	req *contracts.DurableTaskRequest,
 	registerTask func(string),
 ) {
+	if msg, isRegisterWorker := req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
+		if err := d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker); err != nil {
+			d.l.Error().Err(err).Msg("error handling durable task request")
+		}
+		return
+	}
+
 	switch msg := req.GetMessage().(type) {
 	case *contracts.DurableTaskRequest_Memo:
 		registerTask(msg.Memo.DurableTaskExternalId)
