@@ -113,3 +113,29 @@ func TestHandlerRegistryConcurrentStoreAndSnapshotRace(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestListenGateReleaseKeepsReceiverForRegisteredWork(t *testing.T) {
+	var gate listenGate
+	reg := newHandlerRegistry[string, int]()
+	require.True(t, gate.tryStart(false))
+
+	started := make(chan struct{})
+	stored := make(chan struct{})
+	go func() {
+		<-started
+		reg.store("run-1", "session-1", func(int) error { return nil }, nil)
+		close(stored)
+	}()
+
+	require.False(t, gate.release(func() bool {
+		close(started)
+		<-stored
+		return reg.hasAny()
+	}))
+	require.True(t, gate.active())
+	require.True(t, reg.hasAny())
+
+	reg.removeSession("run-1", "session-1")
+	require.True(t, gate.release(reg.hasAny))
+	require.False(t, gate.active())
+}
