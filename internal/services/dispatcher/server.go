@@ -1242,14 +1242,14 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 
+	// if there's no retry count, we need to read it from the task, so we can't skip the cache
+	skipCache := request.RetryCount == nil
+
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
-
-	// if there's no retry count, we need to read it from the task, so we can't skip the cache
-	skipCache := request.RetryCount == nil
 
 	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
