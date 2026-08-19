@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds embedded mode: `Hatchet.embedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process.
 
+## [1.37.3] - 2026-08-19
+
+### Fixed
+
+- Correctly passes TLS config through to the API client
+- Passes the configured TLS server name (SNI) through to the REST client
+- Removes a call to `asyncio.to_thread` that was causing durable callback ordering to end up out-of-ordering, causing non-determinism errors.
+- Fixes a possible memory leak with satisfied (pending) durable callbacks not being removed when invocations get stale
+
 ## [1.37.2] - 2026-08-12
 
 ### Fixed
