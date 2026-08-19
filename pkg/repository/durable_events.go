@@ -1238,6 +1238,78 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
+func (r *durableEventsRepository) resolveChildExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, opts []*WorkflowNameTriggerOpts) error {
+	ctx, span := telemetry.NewSpan(ctx, "resolve-child-external-ids")
+	defer span.End()
+
+	candidateIdByKey := make(map[string]uuid.UUID, len(opts))
+	eventKeys := make([]string, 0, len(opts))
+	childExternalIds := make([]uuid.UUID, 0, len(opts))
+
+	for _, opt := range opts {
+		spawnKey := opt.childSpawnKey()
+
+		if spawnKey == "" {
+			opt.ExternalId = uuid.New()
+			continue
+		}
+
+		if _, seen := candidateIdByKey[spawnKey]; seen {
+			continue
+		}
+
+		childExternalId := uuid.New()
+		candidateIdByKey[spawnKey] = childExternalId
+
+		eventKeys = append(eventKeys, spawnKey)
+		childExternalIds = append(childExternalIds, childExternalId)
+	}
+
+	if len(eventKeys) == 0 {
+		return nil
+	}
+
+	rows, err := r.queries.UpsertDurableChildSignalCreatedEvents(ctx, tx, sqlcv1.UpsertDurableChildSignalCreatedEventsParams{
+		Tenantid:              tenantId,
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Eventkeys:             eventKeys,
+		Childexternalids:      childExternalIds,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert child signal created events: %w", err)
+	}
+
+	resolvedIdByKey := make(map[string]uuid.UUID, len(rows))
+
+	for _, row := range rows {
+		resolvedIdByKey[row.EventKey.String] = *row.ChildExternalID
+	}
+
+	claimed := make(map[string]bool, len(rows))
+
+	for _, opt := range opts {
+		spawnKey := opt.childSpawnKey()
+
+		if spawnKey == "" {
+			continue
+		}
+
+		resolvedId, ok := resolvedIdByKey[spawnKey]
+
+		if !ok {
+			return fmt.Errorf("no child external id resolved for spawn key %s", spawnKey)
+		}
+
+		opt.ExternalId = resolvedId
+		opt.ShouldSkip = resolvedId != candidateIdByKey[spawnKey] || claimed[spawnKey]
+		claimed[spawnKey] = true
+	}
+
+	return nil
+}
+
 func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opts IngestDurableTaskEventOpts) ([]*EventLogEntryWithPayloads, map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts, error) {
 	tenantId := opts.TenantId
 	task := opts.Task
@@ -1277,8 +1349,8 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
-		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
-			return nil, nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		if resolveErr := r.resolveChildExternalIds(ctx, tx, tenantId, task, opts.TriggerRuns.TriggerOpts); resolveErr != nil {
+			return nil, nil, fmt.Errorf("failed to resolve child external ids: %w", resolveErr)
 		}
 
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))

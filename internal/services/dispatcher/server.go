@@ -1244,13 +1244,14 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
+
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
 
-	task, err := s.getSingleTask(ctx, tenant.ID, taskExternalId, skipCache)
+	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
@@ -1278,12 +1279,15 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	}
 
 	var durableInvCount int32
-	invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
-		{ID: task.ID, InsertedAt: task.InsertedAt},
-	})
-	if err == nil {
-		if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
-			durableInvCount = *count
+
+	if task.IsDurable.Bool {
+		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
+			{ID: task.ID, InsertedAt: task.InsertedAt},
+		})
+		if err == nil {
+			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+				durableInvCount = *count
+			}
 		}
 	}
 
@@ -1830,10 +1834,6 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 	}
 
 	return resp, nil
-}
-
-func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
 func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {

@@ -164,7 +164,8 @@ WITH lookup_rows AS (
         t.step_readable_id,
         l.external_id AS workflow_run_external_id,
         t.workflow_id,
-        t.step_id
+        t.step_id,
+        t.is_durable
     FROM
         lookup_rows l
     JOIN
@@ -190,7 +191,8 @@ SELECT
     t.step_readable_id,
     t.external_id AS workflow_run_external_id,
     t.workflow_id,
-    t.step_id
+    t.step_id,
+    t.is_durable
 FROM
     lookup_rows l
 JOIN
@@ -204,6 +206,15 @@ SELECT
     *
 FROM
     tasks_from_dags;
+
+-- name: GetTaskByExternalId :one
+SELECT t.*
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = @externalId::uuid
+    AND l.tenant_id = @tenantId::uuid
+;
 
 -- name: LookupExternalIds :many
 SELECT

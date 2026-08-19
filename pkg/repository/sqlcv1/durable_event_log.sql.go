@@ -1218,3 +1218,74 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 	)
 	return &i, err
 }
+
+const upsertDurableChildSignalCreatedEvents = `-- name: UpsertDurableChildSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST($4::TEXT[]) AS event_key,
+        UNNEST($5::UUID[]) AS child_external_id
+)
+
+INSERT INTO v1_task_event (
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    event_key,
+    child_external_id
+)
+SELECT
+    $1::UUID,
+    $2::BIGINT,
+    $3::TIMESTAMPTZ,
+    -1,
+    'SIGNAL_CREATED',
+    i.event_key,
+    i.child_external_id
+FROM input i
+ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
+DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
+RETURNING
+    v1_task_event.event_key,
+    v1_task_event.child_external_id
+`
+
+type UpsertDurableChildSignalCreatedEventsParams struct {
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Eventkeys             []string           `json:"eventkeys"`
+	Childexternalids      []uuid.UUID        `json:"childexternalids"`
+}
+
+type UpsertDurableChildSignalCreatedEventsRow struct {
+	EventKey        pgtype.Text `json:"event_key"`
+	ChildExternalID *uuid.UUID  `json:"child_external_id"`
+}
+
+func (q *Queries) UpsertDurableChildSignalCreatedEvents(ctx context.Context, db DBTX, arg UpsertDurableChildSignalCreatedEventsParams) ([]*UpsertDurableChildSignalCreatedEventsRow, error) {
+	rows, err := db.Query(ctx, upsertDurableChildSignalCreatedEvents,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Eventkeys,
+		arg.Childexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpsertDurableChildSignalCreatedEventsRow
+	for rows.Next() {
+		var i UpsertDurableChildSignalCreatedEventsRow
+		if err := rows.Scan(&i.EventKey, &i.ChildExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
