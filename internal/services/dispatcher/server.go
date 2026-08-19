@@ -1248,7 +1248,10 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
 
-	task, err := s.repov1.Tasks().GetTaskForActionEvent(ctx, tenant.ID, taskExternalId)
+	// if there's no retry count, we need to read it from the task, so we can't skip the cache
+	skipCache := request.RetryCount == nil
+
+	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
@@ -1307,7 +1310,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
 }
 
-func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.GetTaskForActionEventRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -1335,7 +1338,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.GetTaskForActionEventRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	ctx := inputCtx
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
@@ -1392,7 +1395,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	return resp, nil
 }
 
-func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.GetTaskForActionEventRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 

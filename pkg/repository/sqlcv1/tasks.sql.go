@@ -962,57 +962,6 @@ func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskB
 	return &i, err
 }
 
-const getTaskForActionEvent = `-- name: GetTaskForActionEvent :one
-SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.workflow_run_id,
-    t.retry_count,
-    t.is_durable
-FROM
-    v1_lookup_table l
-JOIN
-    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = $1::uuid
-    AND l.tenant_id = $2::uuid
-    AND l.task_id IS NOT NULL
-`
-
-type GetTaskForActionEventParams struct {
-	Externalid uuid.UUID `json:"externalid"`
-	Tenantid   uuid.UUID `json:"tenantid"`
-}
-
-type GetTaskForActionEventRow struct {
-	ID            int64              `json:"id"`
-	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID    uuid.UUID          `json:"external_id"`
-	WorkflowRunID uuid.UUID          `json:"workflow_run_id"`
-	RetryCount    int32              `json:"retry_count"`
-	IsDurable     pgtype.Bool        `json:"is_durable"`
-}
-
-// Narrow lookup for the dispatcher's step action event path, which is the hottest path in
-// the engine and needs only identifiers plus retry_count / is_durable. The external id on
-// an action event is always a task external id, so this can hit v1_lookup_table's task
-// branch directly and skip the FlattenExternalIds union and its join through
-// v1_dag_to_task.
-func (q *Queries) GetTaskForActionEvent(ctx context.Context, db DBTX, arg GetTaskForActionEventParams) (*GetTaskForActionEventRow, error) {
-	row := db.QueryRow(ctx, getTaskForActionEvent, arg.Externalid, arg.Tenantid)
-	var i GetTaskForActionEventRow
-	err := row.Scan(
-		&i.ID,
-		&i.InsertedAt,
-		&i.ExternalID,
-		&i.WorkflowRunID,
-		&i.RetryCount,
-		&i.IsDurable,
-	)
-	return &i, err
-}
-
 const getTenantTaskStats = `-- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT

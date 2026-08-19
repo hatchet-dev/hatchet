@@ -216,28 +216,6 @@ WHERE
     AND l.tenant_id = @tenantId::uuid
 ;
 
--- name: GetTaskForActionEvent :one
--- Narrow lookup for the dispatcher's step action event path, which is the hottest path in
--- the engine and needs only identifiers plus retry_count / is_durable. The external id on
--- an action event is always a task external id, so this can hit v1_lookup_table's task
--- branch directly and skip the FlattenExternalIds union and its join through
--- v1_dag_to_task.
-SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.workflow_run_id,
-    t.retry_count,
-    t.is_durable
-FROM
-    v1_lookup_table l
-JOIN
-    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = @externalId::uuid
-    AND l.tenant_id = @tenantId::uuid
-    AND l.task_id IS NOT NULL;
-
 -- name: LookupExternalIds :many
 SELECT
     *
