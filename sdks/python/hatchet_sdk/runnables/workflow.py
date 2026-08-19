@@ -106,14 +106,44 @@ def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -
     return value
 
 
+def fall_back_to_default_optional(
+    value: T | None, param_default: T, fallback_value: T | None
+) -> T:
+    """Resolve a parameter whose "unset" sentinel is `None` rather than a real default.
+
+    `fall_back_to_default` treats `value == param_default` as "unset", which is wrong
+    for parameters where the default is itself a value a user may pass deliberately.
+    `retries=0` is the motivating case: it is indistinguishable from "not supplied"
+    when the sentinel is `0`, so a task could not opt out of `TaskDefaults(retries=N)`.
+    """
+    ## An explicit value always wins, including one equal to the param default
+    if value is not None:
+        return value
+
+    ## Otherwise fall back to the workflow-level default if one is set
+    if fallback_value is not None:
+        return fallback_value
+
+    ## Otherwise use the param default
+    return param_default
+
+
 class ComputedTaskParameters(BaseModel):
     schedule_timeout: Duration
     execution_timeout: Duration
-    retries: int
+    # `None` means "not supplied by the caller"; `validate_params` always resolves
+    # it to a concrete `int`, so use `resolved_retries` when reading it back.
+    retries: int | None
     backoff_factor: float | None
     backoff_max_seconds: int | None
 
     task_defaults: TaskDefaults
+
+    @property
+    def resolved_retries(self) -> int:
+        """The resolved retry count. Never `None` after validation."""
+        assert self.retries is not None, "retries must be resolved by validate_params"
+        return self.retries
 
     @model_validator(mode="after")
     def validate_params(self) -> "ComputedTaskParameters":
@@ -137,7 +167,7 @@ class ComputedTaskParameters(BaseModel):
             param_default=None,
             fallback_value=self.task_defaults.backoff_max_seconds,
         )
-        self.retries = fall_back_to_default(
+        self.retries = fall_back_to_default_optional(
             value=self.retries,
             param_default=0,
             fallback_value=self.task_defaults.retries,
@@ -1422,7 +1452,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1514,7 +1544,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
@@ -1681,7 +1711,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
@@ -1711,7 +1741,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1804,7 +1834,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,

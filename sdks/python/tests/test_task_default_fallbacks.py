@@ -184,3 +184,44 @@ def test_params_correctly_set_with_no_defaults(
     assert t.retries == 6
     assert t.backoff_factor == 3
     assert t.backoff_max_seconds == 5
+
+
+@pytest.mark.parametrize("is_durable", [False, True])
+def test_explicit_zero_retries_overrides_task_defaults(
+    hatchet: Hatchet, is_durable: bool
+) -> None:
+    """`retries=0` is a real value, not "unset", so it must win over `TaskDefaults`.
+
+    Regression test for a bug where the decorator's param default (`0`) doubled as
+    the "unset" sentinel, making it impossible to disable retries for a single task
+    when the workflow set `TaskDefaults(retries=N)`.
+
+    `standalone_task` is deliberately not covered: `hatchet.task` has no enclosing
+    workflow, so there is no `TaskDefaults` for an explicit `0` to lose to.
+    """
+    t = task(
+        hatchet=hatchet,
+        is_durable=is_durable,
+        task_defaults=TaskDefaults(retries=3),
+        retries=0,
+    )
+
+    assert t.retries == 0
+
+
+@pytest.mark.parametrize("is_durable", [False, True])
+def test_unset_retries_still_falls_back_to_task_defaults(
+    hatchet: Hatchet, is_durable: bool
+) -> None:
+    """The sentinel change must not break the fallback it guards.
+
+    Pairs with the test above: `0` supplied wins, `0` *not* supplied still loses to
+    `TaskDefaults`, so the two together pin both sides of the sentinel.
+    """
+    t = task(
+        hatchet=hatchet,
+        is_durable=is_durable,
+        task_defaults=TaskDefaults(retries=3),
+    )
+
+    assert t.retries == 3
