@@ -27,7 +27,7 @@ class EmbeddedOptions(BaseModel):
     """
 
     binary_path: str | None = None
-    """path to an existing sidecar binary, skips the download"""
+    """path to an existing sidecar binary, skips the download (or HATCHET_EMBEDDED_BINARY_PATH)"""
 
     checksum: str | None = None
     """
@@ -191,8 +191,10 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     options = options or EmbeddedOptions()
 
-    bin_path = options.binary_path or str(
-        _ensure_sidecar_binary(options.version, options.checksum)
+    bin_path = (
+        options.binary_path
+        or os.environ.get("HATCHET_EMBEDDED_BINARY_PATH")
+        or str(_ensure_sidecar_binary(options.version, options.checksum))
     )
     handshake_path = (
         Path(tempfile.mkdtemp(prefix="hatchet-embedded-")) / "handshake.json"

@@ -19,7 +19,7 @@ export interface EmbeddedOptions {
    * so pinning this pins the engine.
    */
   version?: string;
-  /** path to an existing sidecar binary, skips the download */
+  /** path to an existing sidecar binary, skips the download (or HATCHET_EMBEDDED_BINARY_PATH) */
   binaryPath?: string;
   /**
    * expected sha256 hex digest of the sidecar binary. When set, it replaces the
@@ -189,7 +189,10 @@ async function waitForHandshake(
  * connection details.
  */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
-  const binPath = opts.binaryPath ?? (await ensureSidecarBinary(opts.version, opts.checksum));
+  const binPath =
+    opts.binaryPath ??
+    process.env.HATCHET_EMBEDDED_BINARY_PATH ??
+    (await ensureSidecarBinary(opts.version, opts.checksum));
 
   const handshakePath = path.join(
     await fs.mkdtemp(path.join(os.tmpdir(), 'hatchet-embedded-')),
