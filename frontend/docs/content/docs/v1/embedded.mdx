@@ -11,14 +11,12 @@ import LatestImageTags from "@/components/LatestImageTags";
 
 # Embedded Hatchet
 
-Run a full Hatchet engine (migrations, API, and gRPC) from inside your application, with no Docker and no external services. [hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded) starts the engine, seeds an admin tenant, and hands the SDK a client wired to the embedded instance.
+Run a full Hatchet engine from inside your application, with no Docker and no external services. [hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded) starts the engine, seeds an admin tenant, and hands the SDK a client wired to the embedded instance.
 
 By default it also starts a bundled Postgres, so you need zero external services to get running. Point it at your own database to disable that.
 
-<Callout type="info">
-  Embedded mode is designed for local development, testing, and small
-  single-node deployments. For production deployments, see the other
-  <a href="/self-hosting">self-hosting options</a>.
+<Callout type="warn">
+  Embedded mode is designed for local development and testing only.
 </Callout>
 
 ## How it works
@@ -28,7 +26,7 @@ By default it also starts a bundled Postgres, so you need zero external services
 
 ## Usage
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 ```python
@@ -99,6 +97,12 @@ client, err := hatchet.NewClient(hatchet.WithEmbedded())
 Options are passed to `WithEmbedded`, e.g. `hatchet.WithEmbedded(hatchet.WithEmbeddedDatabaseURL("postgres://..."))`.
 
   </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Callout type="info">
+      Embedded mode for the Ruby SDK is coming soon. Join our
+      <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
+    </Callout>
+  </Tabs.Tab>
 </UniversalTabs>
 
 See runnable examples for all three SDKs in the [hatchet-embedded repo](https://github.com/hatchet-dev/hatchet-embedded/tree/main/examples).
@@ -121,7 +125,7 @@ See runnable examples for all three SDKs in the [hatchet-embedded repo](https://
 
 ## Versioning
 
-hatchet-embedded release tags correspond to the publicly released [Hatchet engine](https://github.com/hatchet-dev/hatchet/releases) version baked into the sidecar: `vX.Y.Z`, or `vX.Y.Z-N` for sidecar-only fixes on the same engine. Pinning `version` therefore pins the engine.
+hatchet-embedded release tags correspond to the publicly released [Hatchet engine](https://github.com/hatchet-dev/hatchet/releases) versions.
 
 The TypeScript and Python SDKs resolve the version in this order:
 
@@ -141,7 +145,7 @@ You can run many embedded engines as one fleet. Point each engine to the same ex
 
 Set the database URL when you create each client:
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
 ```python
@@ -172,6 +176,12 @@ client, err := hatchet.NewClient(
 )
 ```
 
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Callout type="info">
+      Embedded mode for the Ruby SDK is coming soon. Join our
+      <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
+    </Callout>
   </Tabs.Tab>
 </UniversalTabs>
 

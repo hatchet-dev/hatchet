@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { createReadStream, createWriteStream } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -122,9 +122,10 @@ async function ensureSidecarBinary(version?: string): Promise<string> {
   }
 
   await fs.mkdir(path.dirname(binPath), { recursive: true });
-  // pid-unique temp name so concurrent downloads of the same version never
-  // clobber each other; the final rename is atomic and last-writer-wins
-  const tmpPath = `${binPath}.${process.pid}.download`;
+  // unique temp name per call (not per process) so concurrent downloads of
+  // the same version never clobber each other, even within one process; the
+  // final rename is atomic and last-writer-wins
+  const tmpPath = `${binPath}.${randomUUID()}.download`;
   try {
     await pipeline(
       Readable.fromWeb(res.body as ReadableStream),

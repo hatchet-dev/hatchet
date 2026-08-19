@@ -150,9 +150,14 @@ def _ensure_sidecar_binary(version: str | None) -> Path:
 
     bin_path.parent.mkdir(parents=True, exist_ok=True)
     url = f"{REPO_URL}/releases/download/{tag}/{asset}"
-    # pid-unique temp name so concurrent downloads of the same version never
-    # clobber each other; the final rename is atomic and last-writer-wins
-    tmp_path = bin_path.with_name(f"{asset}.{os.getpid()}.download")
+    # unique temp file per call (not per process) so concurrent downloads of
+    # the same version never clobber each other, even across threads; the
+    # final rename is atomic and last-writer-wins
+    tmp_fd, tmp_name = tempfile.mkstemp(
+        prefix=f"{asset}.", suffix=".download", dir=bin_path.parent
+    )
+    os.close(tmp_fd)
+    tmp_path = Path(tmp_name)
 
     try:
         urllib.request.urlretrieve(url, tmp_path)
