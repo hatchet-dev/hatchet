@@ -35,7 +35,6 @@ const nextConfig = {
       { source: '/reference/python/feature-clients', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
       { source: '/reference/python/feature-clients/', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
       // --- Deleted v1 pages that were consolidated/renamed ---
-      { source: '/self-hosting/embedded', destination: '/v1/embedded', permanent: true, basePath: false },
       { source: '/v1/conditions', destination: '/v1/directed-acyclic-graphs#branching-with-parent-conditions', permanent: true, basePath: false },
       { source: '/v1/on-failure', destination: '/v1/error-handling', permanent: true, basePath: false },
       { source: '/v1/sleep', destination: '/v1/durable-sleep', permanent: true, basePath: false },
