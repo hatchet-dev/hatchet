@@ -201,9 +201,16 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     options = options or EmbeddedOptions()
 
-    bin_path = options.binary_path or str(
-        _ensure_sidecar_binary(options.version, options.checksum)
-    )
+    if options.binary_path:
+        if options.checksum:
+            actual = _sha256_file(Path(options.binary_path))
+            if actual != options.checksum:
+                raise RuntimeError(
+                    f"checksum mismatch for {options.binary_path}: expected {options.checksum}, got {actual}"
+                )
+        bin_path = options.binary_path
+    else:
+        bin_path = str(_ensure_sidecar_binary(options.version, options.checksum))
     handshake_path = (
         Path(tempfile.mkdtemp(prefix="hatchet-embedded-")) / "handshake.json"
     )

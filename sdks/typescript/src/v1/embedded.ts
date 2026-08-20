@@ -192,10 +192,22 @@ async function waitForHandshake(
  * connection details.
  */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
-  const binPath =
-    opts.binaryPath ??
-    process.env.HATCHET_CLIENT_EMBEDDED_BINARY_PATH ??
-    (await ensureSidecarBinary(opts.version, opts.checksum));
+  const suppliedPath = opts.binaryPath ?? process.env.HATCHET_CLIENT_EMBEDDED_BINARY_PATH;
+
+  let binPath: string;
+  if (suppliedPath) {
+    if (opts.checksum) {
+      const actual = await sha256File(suppliedPath);
+      if (actual !== opts.checksum) {
+        throw new Error(
+          `checksum mismatch for ${suppliedPath}: expected ${opts.checksum}, got ${actual}`
+        );
+      }
+    }
+    binPath = suppliedPath;
+  } else {
+    binPath = await ensureSidecarBinary(opts.version, opts.checksum);
+  }
 
   const handshakePath = path.join(
     await fs.mkdtemp(path.join(os.tmpdir(), 'hatchet-embedded-')),
