@@ -9,6 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	telemetry_codes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -17,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 // defaultOperatorSlots is the worker slot count used when a DAG operator does not configure one.
@@ -145,24 +149,36 @@ func (d *DAGOperator) pollWorkflows(ctx context.Context) {
 // refreshActions lists the tenant's DAG workflows and registers each workflow id as an action,
 // skipping the dispatcher write when the set is unchanged.
 func (d *DAGOperator) refreshActions(ctx context.Context) {
+	ctx, span := telemetry.NewSpan(ctx, "dagoperator.refreshActions")
+	defer span.End()
+
 	pollCtx, cancel := context.WithTimeout(ctx, workflowPollTimeout)
 	defer cancel()
 
 	actions, err := d.repo.Operators().ListDAGOrchestrationActions(pollCtx, d.TenantId())
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not list dag orchestration actions")
 		d.Logger().Error().Err(err).Msg("could not list dag orchestration actions for operator")
 		return
 	}
 
+	span.SetAttributes(attribute.Int("dagoperator.action_count", len(actions)))
+
 	if listutils.AreUnorderedEqual(actions, d.lastActions) {
+		span.SetAttributes(attribute.Bool("dagoperator.actions_changed", false))
 		return
 	}
 
 	if err := d.UpdateWorkerActions(ctx, actions); err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not update dag operator worker actions")
 		d.Logger().Error().Err(err).Msg("could not update dag operator worker actions")
 		return
 	}
+
+	span.SetAttributes(attribute.Bool("dagoperator.actions_changed", true))
 
 	d.lastActions = actions
 
@@ -170,14 +186,22 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 }
 
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
+	ctx, span := telemetry.NewSpan(ctx, "dagoperator.HandleAction")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dagoperator.action_type", action.ActionType.String()),
+		attribute.String("dagoperator.task_run_external_id", action.TaskRunExternalId),
+	)
+
 	switch action.ActionType {
 	case contracts.ActionType_START_STEP_RUN:
-		return d.startRun(action)
+		return d.startRun(ctx, action)
 	case contracts.ActionType_CANCEL_STEP_RUN:
 		release := d.RecordTask()
 		defer release()
 
-		return d.cancelRun(action)
+		return d.cancelRun(ctx, action)
 	default:
 		release := d.RecordTask()
 		defer release()
@@ -191,7 +215,12 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 	}
 }
 
-func (d *DAGOperator) startRun(action *contracts.AssignedAction) error {
+func (d *DAGOperator) startRun(ctx context.Context, action *contracts.AssignedAction) error {
+	_, span := telemetry.NewSpan(ctx, "dagoperator.startRun")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("dagoperator.task_run_external_id", action.TaskRunExternalId))
+
 	release := d.RecordTask()
 
 	go func() {
@@ -207,9 +236,16 @@ func (d *DAGOperator) startRun(action *contracts.AssignedAction) error {
 	return nil
 }
 
-func (d *DAGOperator) cancelRun(action *contracts.AssignedAction) error {
+func (d *DAGOperator) cancelRun(ctx context.Context, action *contracts.AssignedAction) error {
+	_, span := telemetry.NewSpan(ctx, "dagoperator.cancelRun")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("dagoperator.task_run_external_id", action.TaskRunExternalId))
+
 	cancel, ok := d.runCancels.Load(action.TaskRunExternalId)
 	if !ok {
+		span.SetAttributes(attribute.Bool("dagoperator.run_found", false))
+
 		d.Logger().Warn().
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("dag operator received cancel for a run it has no record of; it may have already finished")
@@ -219,12 +255,25 @@ func (d *DAGOperator) cancelRun(action *contracts.AssignedAction) error {
 		return d.SendCancelled(action)
 	}
 
+	span.SetAttributes(attribute.Bool("dagoperator.run_found", true))
+
 	cancel()
 
 	return nil
 }
 
 func (d *DAGOperator) run(action *contracts.AssignedAction) error {
+	// Rooted here rather than derived from the dispatcher's HandleAction context: run() outlives
+	// that context, driven instead by d.ctx/runCtx for the lifetime of the durable task session.
+	runSpanCtx, span := telemetry.NewSpan(d.ctx, "dagoperator.run")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dagoperator.task_run_external_id", action.TaskRunExternalId),
+		attribute.String("dagoperator.workflow_version_id", action.GetWorkflowVersionId()),
+		attribute.Int("dagoperator.durable_invocation_count", int(action.GetDurableTaskInvocationCount())),
+	)
+
 	if err := d.SendStarted(action); err != nil {
 		d.Logger().Error().Err(err).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -234,11 +283,13 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	externalId, err := uuid.Parse(action.TaskRunExternalId)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
+		return d.fail(span, action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
 	}
 
 	// Scoped to this run so a targeted cancel doesn't tear down every run on this operator.
-	runCtx, runCancel := context.WithCancel(d.ctx)
+	// Derived from runSpanCtx so buildDAG/RegisterDurableTask/dagDurableTask spans nest under
+	// dagoperator.run instead of starting new traces.
+	runCtx, runCancel := context.WithCancel(runSpanCtx)
 	d.runCancels.Store(action.TaskRunExternalId, runCancel)
 	defer func() {
 		d.runCancels.Delete(action.TaskRunExternalId)
@@ -248,19 +299,19 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	tasks, onFailureTask, err := d.buildDAG(runCtx, action)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not build dag: %w", err), false)
+		return d.fail(span, action, fmt.Errorf("could not build dag: %w", err), false)
 	}
 
 	workflowVersionId, err := uuid.Parse(action.GetWorkflowVersionId())
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("invalid workflow_version_id %q: %w", action.GetWorkflowVersionId(), err), false)
+		return d.fail(span, action, fmt.Errorf("invalid workflow_version_id %q: %w", action.GetWorkflowVersionId(), err), false)
 	}
 
 	requestCh, responseCh, err := d.RegisterDurableTask(runCtx, externalId)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not register durable task: %w", err), false)
+		return d.fail(span, action, fmt.Errorf("could not register durable task: %w", err), false)
 	}
 
 	defer close(requestCh)
@@ -274,15 +325,15 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		},
 	}:
 	case <-runCtx.Done():
-		return d.handleRunCancellation(action, nil, fmt.Errorf("run interrupted before register worker request could be sent: %w", runCtx.Err()))
+		return d.handleRunCancellation(span, action, nil, fmt.Errorf("run interrupted before register worker request could be sent: %w", runCtx.Err()))
 	}
 
 	select {
 	case <-runCtx.Done():
-		return d.handleRunCancellation(action, nil, fmt.Errorf("run interrupted waiting for register worker ack: %w", runCtx.Err()))
+		return d.handleRunCancellation(span, action, nil, fmt.Errorf("run interrupted waiting for register worker ack: %w", runCtx.Err()))
 	case _, ok := <-responseCh:
 		if !ok {
-			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"), false)
+			return d.fail(span, action, fmt.Errorf("response channel closed waiting for register worker ack"), false)
 		}
 	}
 
@@ -338,14 +389,14 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 
 	if dagErr != nil {
 		if isDagCancelledErr(dagErr) {
-			return d.cancelDAG(action, dagErr.Error())
+			return d.cancelDAG(span, action, dagErr.Error())
 		}
 		if errors.Is(dagErr, context.Canceled) {
-			return d.handleRunCancellation(action, tasks, dagErr)
+			return d.handleRunCancellation(span, action, tasks, dagErr)
 		}
 		// A child task failing is a terminal DAG outcome that replay reproduces deterministically,
 		// so it must not be retried; anything else (operational errors) remains retriable.
-		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr), isDagChildFailedErr(dagErr))
+		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), isDagChildFailedErr(dagErr))
 	}
 
 	output := make(map[string]json.RawMessage, len(tasks))
@@ -377,7 +428,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	if len(completedRefs) > 0 {
 		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs)
 		if err != nil {
-			return d.fail(action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
+			return d.fail(span, action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
 		}
 
 		for _, ev := range events {
@@ -398,23 +449,33 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		outputBytes = []byte("{}")
 	}
 
+	span.SetAttributes(
+		attribute.Int("dagoperator.completed_task_count", len(completedRefs)),
+		attribute.Int("dagoperator.output_key_count", len(output)),
+	)
+
 	if err := d.SendCompleted(action, outputBytes); err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not report task completion")
 		return fmt.Errorf("could not report task completion: %w", err)
 	}
 
 	return nil
 }
 
-func (d *DAGOperator) abortForShutdown(action *contracts.AssignedAction, err error) error {
+func (d *DAGOperator) abortForShutdown(span trace.Span, action *contracts.AssignedAction, err error) error {
+	span.RecordError(err)
+	span.SetStatus(telemetry_codes.Error, "operator shutting down mid-run")
+
 	d.Logger().Warn().Err(err).
 		Str("task_run_external_id", action.TaskRunExternalId).
 		Msg("dag operator shutting down mid-run; leaving task for reassignment")
 	return err
 }
 
-func (d *DAGOperator) handleRunCancellation(action *contracts.AssignedAction, tasks []*task, err error) error {
+func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.AssignedAction, tasks []*task, err error) error {
 	if d.ctx.Err() != nil {
-		return d.abortForShutdown(action, fmt.Errorf("dag orchestration interrupted by operator shutdown: %w", err))
+		return d.abortForShutdown(span, action, fmt.Errorf("dag orchestration interrupted by operator shutdown: %w", err))
 	}
 
 	// Already-triggered children keep running unless cancelled explicitly.
@@ -425,23 +486,33 @@ func (d *DAGOperator) handleRunCancellation(action *contracts.AssignedAction, ta
 		}
 	}
 
+	span.SetAttributes(attribute.Int("dagoperator.cancelled_children_count", len(childExternalIds)))
+
 	if len(childExternalIds) > 0 {
 		// runCtx/d.ctx may already be cancelled, but this cleanup should still run.
 		cancelCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		if cancelErr := d.CancelDAGChildren(cancelCtx, childExternalIds); cancelErr != nil {
+			span.RecordError(cancelErr)
+
 			d.Logger().Error().Err(cancelErr).
 				Str("task_run_external_id", action.TaskRunExternalId).
 				Msg("could not cancel dag children after run cancellation")
 		}
 	}
 
-	return d.cancelDAG(action, err.Error())
+	return d.cancelDAG(span, action, err.Error())
 }
 
-func (d *DAGOperator) fail(action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
+func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
+	span.RecordError(err)
+	span.SetStatus(telemetry_codes.Error, "dag run failed")
+	span.SetAttributes(attribute.Bool("dagoperator.should_not_retry", shouldNotRetry))
+
 	if reportErr := d.SendFailed(action, err.Error(), shouldNotRetry); reportErr != nil {
+		span.RecordError(reportErr)
+
 		d.Logger().Error().Err(reportErr).
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("could not report task failure")
@@ -451,8 +522,12 @@ func (d *DAGOperator) fail(action *contracts.AssignedAction, err error, shouldNo
 	return nil
 }
 
-func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) error {
+func (d *DAGOperator) cancelDAG(span trace.Span, action *contracts.AssignedAction, msg string) error {
+	span.SetStatus(telemetry_codes.Error, "dag run cancelled")
+	span.SetAttributes(attribute.String("dagoperator.cancel_message", msg))
+
 	if reportErr := d.SendCancelledWithMessage(action, msg); reportErr != nil {
+		span.RecordError(reportErr)
 		return fmt.Errorf("could not report task cancellation for task run id %s: %w", action.TaskRunExternalId, reportErr)
 	}
 
@@ -460,6 +535,9 @@ func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) er
 }
 
 func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAction) ([]*task, *task, error) {
+	ctx, span := telemetry.NewSpan(ctx, "dagoperator.buildDAG")
+	defer span.End()
+
 	versionIdStr := action.GetWorkflowVersionId()
 
 	if versionIdStr == "" {
@@ -472,11 +550,17 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 		return nil, nil, fmt.Errorf("invalid workflow_version_id %q: %w", versionIdStr, err)
 	}
 
+	span.SetAttributes(attribute.String("dagoperator.workflow_version_id", versionId.String()))
+
 	steps, err := d.repo.Workflows().ListStepsByWorkflowVersionId(ctx, d.TenantId(), versionId)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not list steps for workflow version")
 		return nil, nil, fmt.Errorf("could not list steps for workflow version %s: %w", versionId, err)
 	}
+
+	span.SetAttributes(attribute.Int("dagoperator.step_count", len(steps)))
 
 	tasksByStepId := make(map[uuid.UUID]*task, len(steps))
 	tasks := make([]*task, 0, len(steps))
@@ -524,8 +608,12 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 	if len(stepIds) > 0 {
 		stepConditions, err := d.repo.Workflows().ListStepMatchConditions(ctx, d.TenantId(), stepIds)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(telemetry_codes.Error, "could not list step match conditions")
 			return nil, nil, fmt.Errorf("could not list step match conditions for workflow version %s: %w", versionId, err)
 		}
+
+		span.SetAttributes(attribute.Int("dagoperator.step_condition_count", len(stepConditions)))
 
 		for _, cond := range stepConditions {
 			if t, ok := tasksByStepId[cond.StepID]; ok {
@@ -533,6 +621,11 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 			}
 		}
 	}
+
+	span.SetAttributes(
+		attribute.Int("dagoperator.task_count", len(tasks)),
+		attribute.Bool("dagoperator.has_on_failure", onFailureTask != nil),
+	)
 
 	return tasks, onFailureTask, nil
 }
