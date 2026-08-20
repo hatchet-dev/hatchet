@@ -1,0 +1,28 @@
+name: "Vouch - Check PR"
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: 'PR number to check'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mitchellh/vouch/action/check-pr@c6d80ead49839655b61b422700b7a3bc9d0804a9 # v1.4.2
+        with:
+          pr-number: ${{ github.event.pull_request.number || inputs.pr-number }}
+          auto-close: true
+          # NOTE: auto-close only for explicitly denounced users.
+          require-vouch: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
