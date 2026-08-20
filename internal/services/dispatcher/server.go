@@ -2035,7 +2035,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
 				return cached, nil
 			}
-			return time.Time{}, fmt.Errorf("no buffered refresh timeout for %s", key)
+			return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
 		}
 
 		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
@@ -2091,6 +2091,10 @@ func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant,
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "task run not found: %s", stepRunId)
+		}
+
 		return nil, err
 	}
 
