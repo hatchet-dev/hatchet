@@ -954,13 +954,11 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 }
 
 func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error {
-	_, err := w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
+	return w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
 		Workerid:     workerId,
 		Dispatcherid: dispatcherId,
 		Tenantid:     tenantId,
 	})
-
-	return err
 }
 
 func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error) {
