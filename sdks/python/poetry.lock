@@ -4232,7 +4232,6 @@ type = ["pytest-mypy"]
 [extras]
 claude = ["claude-agent-sdk", "mcp"]
 docs = ["bs4", "fastapi", "markdownify", "mkdocs", "mkdocstrings", "openai", "pydoclint", "types-beautifulsoup4", "uvicorn"]
-embedded = []
 lint = ["black", "click", "mypy", "psutil", "ruff", "types-grpcio", "types-grpcio-status", "types-protobuf", "types-psutil", "types-requests"]
 openai = ["openai-agents"]
 otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otlp", "opentelemetry-exporter-otlp-proto-http", "opentelemetry-instrumentation", "opentelemetry-sdk"]
@@ -4241,4 +4240,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "73c22234f2e68ee9b90bbb6e701c95fcba6a4e43e9b79da3b57298efb0f3ab08"
+content-hash = "a4c8fe6cdb2f368a24dcce5f3f3a3f6c89b948099a3bd09b7aef420de9c868e8"

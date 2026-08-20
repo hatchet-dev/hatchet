@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Adds embedded mode: `hatchet_sdk.embedded.HatchetEmbedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process. It lives in its own module so nothing loads unless you import it.
+- Adds embedded mode: `Hatchet.from_embedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process.
 
 ## [1.37.3] - 2026-08-19
 

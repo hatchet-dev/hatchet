@@ -29,24 +29,19 @@ By default it also starts a bundled Postgres, so you need zero external services
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
-Embedded mode lives in its own module (`hatchet_sdk.embedded`), so nothing loads unless you import it:
-
-```sh
-pip install hatchet-sdk[embedded]
-```
-
 ```python
-from hatchet_sdk.embedded import HatchetEmbedded
+from hatchet_sdk import Hatchet
 
-hatchet = HatchetEmbedded()
+hatchet = Hatchet.from_embedded()
 ```
 
 Pass options via `EmbeddedOptions`:
 
 ```python
-from hatchet_sdk.embedded import EmbeddedOptions, HatchetEmbedded
+from hatchet_sdk import Hatchet
+from hatchet_sdk.embedded import EmbeddedOptions
 
-hatchet = HatchetEmbedded(
+hatchet = Hatchet.from_embedded(
     EmbeddedOptions(
         version="vX.Y.Z",
         database_url="postgres://...",
@@ -57,10 +52,10 @@ hatchet = HatchetEmbedded(
 
 <Callout type="warning">
   Python workers run tasks in subprocesses that re-import your main module.
-  `HatchetEmbedded()` handles this automatically, and subprocesses connect to
-  the parent's engine instead of booting their own. Keep worker startup and task
-  triggering under an `if __name__ == "__main__":` guard, as with any Python
-  program that uses multiprocessing.
+  `Hatchet.from_embedded()` handles this automatically, and subprocesses connect
+  to the parent's engine instead of booting their own. Keep worker startup and
+  task triggering under an `if __name__ == "__main__":` guard, as with any
+  Python program that uses multiprocessing.
 </Callout>
 
   </Tabs.Tab>
@@ -178,9 +173,10 @@ Set the database URL when you create each client:
   <Tabs.Tab title="Python">
 
 ```python
-from hatchet_sdk.embedded import EmbeddedOptions, HatchetEmbedded
+from hatchet_sdk import Hatchet
+from hatchet_sdk.embedded import EmbeddedOptions
 
-hatchet = HatchetEmbedded(
+hatchet = Hatchet.from_embedded(
     EmbeddedOptions(database_url="postgres://user:pass@db.internal:5432/hatchet")
 )
 ```

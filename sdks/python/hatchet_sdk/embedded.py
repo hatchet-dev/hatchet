@@ -11,14 +11,11 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic_settings import BaseSettings
 
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, create_settings_config
-
-if TYPE_CHECKING:
-    from hatchet_sdk.hatchet import Hatchet
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 DEFAULT_READY_TIMEOUT_SECONDS = 300.0
@@ -197,7 +194,7 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     Download (and cache) the hatchet-embedded sidecar binary, spawn it, and wait
     until the embedded engine is ready. The sidecar shuts down when this process
-    exits. Use `HatchetEmbedded()` unless you need the raw connection details.
+    exits. Use `Hatchet.from_embedded()` unless you need the raw connection details.
     """
     options = options or EmbeddedOptions()
 
@@ -283,24 +280,21 @@ def _wait_for_handshake(
 _HANDSHAKE_ENV = "HATCHET_EMBEDDED_HANDSHAKE"
 
 
-def HatchetEmbedded(  # noqa: N802
+def embedded_client_config(
     options: EmbeddedOptions | None = None,
     config: ClientConfig | None = None,
-) -> "Hatchet":
+) -> ClientConfig:
     """
-    Run a full Hatchet engine locally via the hatchet-embedded sidecar
-    (downloaded on first use) and return a client wired to it. By default
-    the sidecar starts a bundled Postgres; pass `database_url` in the
-    options to point it at your own instead.
+    Start (or connect to) the embedded engine and build the client
+    configuration pointing at it. Use `Hatchet.from_embedded()` unless you
+    need the configuration itself.
 
     :param options: Options for the embedded engine (version, ports, database, ...).
     :param config: Base client configuration to use; the connection fields
         (token, tenant, addresses, TLS) are overridden to point at the
         embedded engine.
-    :return: A Hatchet client instance connected to the embedded engine.
+    :return: A client configuration wired to the embedded engine.
     """
-    from hatchet_sdk.hatchet import Hatchet
-
     # worker subprocesses re-import the main module; the handshake exported
     # below connects them to the parent's engine instead of booting a second one
     raw_handshake = os.environ.get(_HANDSHAKE_ENV)
@@ -326,6 +320,6 @@ def HatchetEmbedded(  # noqa: N802
         connection["server_url"] = handshake["api_url"]
 
     if config is not None:
-        return Hatchet(config=config.model_copy(update=connection))
+        return config.model_copy(update=connection)
 
-    return Hatchet(config=ClientConfig(**connection))
+    return ClientConfig(**connection)

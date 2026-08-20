@@ -1,5 +1,9 @@
 import logging
 import warnings
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hatchet_sdk.embedded import EmbeddedOptions
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
@@ -93,6 +97,28 @@ class Hatchet:
             )
 
         self._client = client if client else Client(config=_config, debug=_debug)
+
+    @classmethod
+    def from_embedded(
+        cls,
+        options: "EmbeddedOptions | None" = None,
+        config: ClientConfig | None = None,
+    ) -> "Hatchet":
+        """
+        Run a full Hatchet engine locally via the hatchet-embedded sidecar
+        (downloaded on first use) and return a client wired to it. By default
+        the sidecar starts a bundled Postgres; pass `database_url` in the
+        options to point it at your own instead.
+
+        :param options: Options for the embedded engine (version, ports, database, ...).
+        :param config: Base client configuration to use; the connection fields
+            (token, tenant, addresses, TLS) are overridden to point at the
+            embedded engine.
+        :return: A Hatchet client instance connected to the embedded engine.
+        """
+        from hatchet_sdk.embedded import embedded_client_config
+
+        return cls(config=embedded_client_config(options, config))
 
     @property
     def cel(self) -> CELClient:
