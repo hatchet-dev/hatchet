@@ -211,7 +211,7 @@ def sis_start(input: EmptyModel, ctx: Context) -> StepOutput:
 @skip_if_sleep_workflow.task(
     parents=[sis_start],
     wait_for=[UserEventCondition(event_key="skip_if_sleep:proceed")],
-    skip_if=[SleepCondition(timedelta(seconds=8))],
+    skip_if=[SleepCondition(timedelta(seconds=12))],
 )
 def sis_target(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
