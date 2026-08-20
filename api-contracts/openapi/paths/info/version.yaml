@@ -8,7 +8,6 @@ version:
     responses:
       "200":
         description: The version of the server
-        required: true
         content:
           application/json:
             schema:

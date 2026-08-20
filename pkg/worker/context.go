@@ -1033,7 +1033,9 @@ type DurableHatchetContext interface {
 	SleepFor(duration time.Duration) (*SingleWaitResult, error)
 
 	// WaitForEvent pauses execution until the specified user event is received.
-	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
+	// Options such as condition.WithEventScope and condition.WithConsiderEventsSince
+	// can be used to scope the wait and match events pushed before the wait started.
+	WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
@@ -1085,10 +1087,10 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 }
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
-func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+func (d *durableHatchetContext) WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error) {
 	namespace := d.c.Namespace()
 	eventKey = clientconfig.ApplyNamespace(eventKey, &namespace)
-	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
+	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression, opts...), "wait_for_event", eventKey)
 
 	if err != nil {
 		return nil, err

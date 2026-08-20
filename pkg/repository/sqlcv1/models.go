@@ -1491,6 +1491,48 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 	return string(ns.V1MatchKind), nil
 }
 
+type V1OperatorKind string
+
+const (
+	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
+	V1OperatorKindDAG     V1OperatorKind = "DAG"
+)
+
+func (e *V1OperatorKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OperatorKind(s)
+	case string:
+		*e = V1OperatorKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OperatorKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1OperatorKind struct {
+	V1OperatorKind V1OperatorKind `json:"v1_operator_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if V1OperatorKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OperatorKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OperatorKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OperatorKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OperatorKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OperatorKind), nil
+}
+
 type V1OtelSpanKind string
 
 const (
@@ -2870,6 +2912,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3040,6 +3083,7 @@ type TenantEntitlement struct {
 	AuditLogs                       bool               `json:"audit_logs"`
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
+	DagOperator                     bool               `json:"dag_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3299,6 +3343,7 @@ type V1DurableEventLogBranchPoint struct {
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
 	ParentBranchID         int64              `json:"parent_branch_id"`
 	NextBranchID           int64              `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replay_child_external_ids"`
 }
 
 type V1DurableEventLogEntry struct {
@@ -3514,6 +3559,17 @@ type V1OperationIntervalSettings struct {
 	TenantID            uuid.UUID `json:"tenant_id"`
 	OperationID         string    `json:"operation_id"`
 	IntervalNanoseconds int64     `json:"interval_nanoseconds"`
+}
+
+type V1Operator struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	Name      string             `json:"name"`
+	Kind      V1OperatorKind     `json:"kind"`
+	Config    []byte             `json:"config"`
+	WorkerID  *uuid.UUID         `json:"worker_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1OtelTraceLookupOlap struct {
@@ -3784,6 +3840,7 @@ type V1Task struct {
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEvent struct {
@@ -3984,6 +4041,7 @@ type Worker struct {
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
 	WebhookId               *uuid.UUID       `json:"webhookId"`
+	OperatorId              *uuid.UUID       `json:"operatorId"`
 	Language                NullWorkerSDKS   `json:"language"`
 	LanguageVersion         pgtype.Text      `json:"languageVersion"`
 	Os                      pgtype.Text      `json:"os"`
@@ -4173,4 +4231,6 @@ type WorkflowVersion struct {
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
 	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
+	IsUsingDagOperator        bool                  `json:"isUsingDagOperator"`
+	DagShape                  []byte                `json:"dagShape"`
 }

@@ -455,6 +455,7 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
+    "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -862,6 +863,7 @@ CREATE TABLE "Worker" (
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
+    "operatorId" UUID,
     "language" "WorkerSDKS",
     "languageVersion" TEXT,
     "os" TEXT,
@@ -1114,6 +1116,8 @@ CREATE TABLE
         "idempotencyKeyExpression" TEXT,
         "idempotencyKeyTtlMs" BIGINT,
         "idempotencyMethod" idempotency_method,
+        "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
+        "dagShape" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

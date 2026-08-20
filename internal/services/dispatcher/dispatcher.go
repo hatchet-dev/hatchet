@@ -26,8 +26,11 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -64,6 +67,7 @@ type DispatcherImpl struct {
 	version                             string
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	streamEventBufferTimeout            time.Duration
+	om                                  *manager.OperatorManager
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
@@ -83,6 +87,14 @@ func (d *DispatcherImpl) CancelStreamSessions() {
 // task and durable event RPCs.
 func (d *DispatcherImpl) V1() *DispatcherServiceImpl {
 	return d.serviceV1
+}
+
+func (d *DispatcherImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	return d.serviceV1.TriggerDAGStep(ctx, tenantId, req)
+}
+
+func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
+	return d.serviceV1.CancelDAGChildren(ctx, tenantId, taskExternalIds)
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -162,6 +174,9 @@ type DispatcherOpts struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
+	enc                                 encryption.EncryptionService
+	infraBlockedCIDRs                   []string
+	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -228,6 +243,24 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
+	}
+}
+
+func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.enc = enc
+	}
+}
+
+func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.infraBlockedCIDRs = cidrs
+	}
+}
+
+func WithDAGOperatorDefaultSlots(slots int) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.dagOperatorDefaultSlots = slots
 	}
 }
 
@@ -311,6 +344,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -333,6 +367,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
+		om:                                  om,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
@@ -366,6 +401,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	d.s.Start()
+
+	operatorCh := d.om.Start(ctx, d)
+
+	go d.listenForOperators(operatorCh)
 
 	wg := sync.WaitGroup{}
 
@@ -402,6 +441,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
+		// drain the operators (waits for their in-flight tasks and stops their heartbeats);
+		// this runs after wg.Wait so in-flight queue tasks can still reach their operators,
+		// and before pubBuffer.Stop so draining operators can still flush result events
+		d.om.Cleanup()
+
 		d.pubBuffer.Stop()
 		d.serviceV1.pubBuffer.Stop()
 		d.refreshTimeoutBuf.stop()
@@ -412,6 +456,12 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 			value.Range(func(key string, value *subscribedWorker) bool {
 				w := value
+
+				// operator-backed workers have no stream goroutine reading `finished`; the
+				// operator manager has already drained them above
+				if w.operator != nil {
+					return true
+				}
 
 				w.finished <- true
 
@@ -440,6 +490,54 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+// listenForOperators mirrors the manager's reported operator set into the workers map. Each
+// message carries the full set of active operators (resent every poll), so entries that
+// disappear from the set are removed — the dispatcher never accumulates routing entries for
+// operators that are no longer claimed by it.
+func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
+	// workerId -> sessionId for the operator-backed entries this loop has added; only this
+	// goroutine touches it. operator workers are exclusive to their operator instance, so a
+	// stable session per worker is sufficient.
+	sessions := make(map[uuid.UUID]string)
+
+	for operators := range ch {
+		current := make(map[uuid.UUID]struct{}, len(operators))
+
+		for _, o := range operators {
+			workerId := o.WorkerId()
+			current[workerId] = struct{}{}
+
+			if _, ok := sessions[workerId]; ok {
+				continue
+			}
+
+			sessionId := uuid.NewString()
+			sessions[workerId] = sessionId
+
+			d.workers.Add(
+				workerId,
+				sessionId,
+				// nil finished channel: operator workers have no stream goroutine to signal,
+				// and the shutdown drain skips them (the operator manager owns their teardown)
+				newOperatorSubscribedWorker(
+					workerId,
+					d.pubBuffer,
+					o,
+				),
+			)
+		}
+
+		for workerId := range sessions {
+			if _, ok := current[workerId]; ok {
+				continue
+			}
+
+			delete(sessions, workerId)
+			d.workers.Delete(workerId)
+		}
+	}
 }
 
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {
@@ -751,13 +849,15 @@ func (d *DispatcherImpl) populateTaskData(
 	}
 
 	for _, task := range bulkDatas {
-		input, ok := inputs[v1.RetrievePayloadOpts{
+		payloadKey := v1.RetrievePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
-		}]
+		}
+
+		input, ok := inputs[payloadKey]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
@@ -765,27 +865,45 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		if parentData, ok := parentDataMap[task.ID]; ok {
-			currInput := &v1.V1StepRunData{}
+		currInput := &v1.V1StepRunData{}
 
-			if input != nil {
-				err := json.Unmarshal(input, currInput)
-
-				if err != nil {
-					d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
-					continue
-				}
+		if input != nil {
+			if err := json.Unmarshal(input, currInput); err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+				continue
 			}
+		}
 
+		if len(currInput.DagParentTaskRunIds) > 0 {
+			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentTaskRunIds)
+
+			if err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")
+			} else {
+				parents := make(map[string]map[string]interface{})
+
+				for stepReadableId, rawOutput := range dagParentOutputs {
+					outputMap := make(map[string]interface{})
+
+					if err := json.Unmarshal(rawOutput, &outputMap); err != nil {
+						d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", stepReadableId)
+						continue
+					}
+
+					parents[stepReadableId] = outputMap
+				}
+
+				currInput.Parents = parents
+				inputs[payloadKey] = currInput.Bytes()
+			}
+		} else if parentData, ok := parentDataMap[task.ID]; ok {
 			readableIdToData := make(map[string]map[string]interface{})
 
 			for _, outputEvent := range parentData {
 				outputMap := make(map[string]interface{})
 
 				if len(outputEvent.Output) > 0 {
-					err := json.Unmarshal(outputEvent.Output, &outputMap)
-
-					if err != nil {
+					if err := json.Unmarshal(outputEvent.Output, &outputMap); err != nil {
 						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
 						continue
 					}
@@ -795,14 +913,7 @@ func (d *DispatcherImpl) populateTaskData(
 			}
 
 			currInput.Parents = readableIdToData
-
-			inputs[v1.RetrievePayloadOpts{
-				Id:         task.ID,
-				InsertedAt: task.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				TenantId:   task.TenantID,
-				ExternalId: task.ExternalID,
-			}] = currInput.Bytes()
+			inputs[payloadKey] = currInput.Bytes()
 		}
 	}
 
@@ -1160,10 +1271,9 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 
 		if err != nil {
 			return fmt.Errorf("could not get durable task invocation counts: %w", err)
-		} else {
-			for _, id := range durableTaskIds {
-				taskIdToData[id.ID].InvocationCount = invocationCounts[id]
-			}
+		}
+		for _, id := range durableTaskIds {
+			taskIdToData[id.ID].InvocationCount = invocationCounts[id]
 		}
 	}
 

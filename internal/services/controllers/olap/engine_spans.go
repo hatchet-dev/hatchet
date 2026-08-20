@@ -34,6 +34,7 @@ type engineSpanEvent struct {
 	workflowID         uuid.UUID
 	workflowVersionID  uuid.UUID
 	stepID             uuid.UUID
+	isDagOrchestrator  bool
 }
 
 type taskRetryKey struct {
@@ -404,6 +405,9 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 	batchStartedTimes := make(map[taskRetryKey]time.Time)
 
 	for _, e := range events {
+		if e.isDagOrchestrator {
+			continue
+		}
 		switch e.eventType {
 		case sqlcv1.V1EventTypeOlapSTARTED:
 			batchStartedTimes[taskRetryKey{e.taskID, e.retryCount}] = e.eventTimestamp
