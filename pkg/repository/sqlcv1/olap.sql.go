@@ -147,11 +147,12 @@ INSERT INTO v1_event_to_run_olap (
     filter_id
 )
 SELECT
-    i.run_id,
-    i.run_inserted_at,
-    i.event_id,
-    i.event_seen_at,
-    NULLIF(i.filter_id, '00000000-0000-0000-0000-000000000000'::UUID) AS filter_id
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at,
+    NULLIF(filter_id, '00000000-0000-0000-0000-000000000000'::UUID) AS filter_id
+FROM inputs
 ON CONFLICT DO NOTHING
 `
 
