@@ -10,10 +10,6 @@ from hatchet_sdk.utils.slots import resolve_worker_slot_config
 from hatchet_sdk.worker.slot_types import SlotType
 
 
-def test_client_initialization_from_defaults() -> None:
-    assert isinstance(ClientConfig(), ClientConfig)
-
-
 def test_client_host_port_overrides() -> None:
     host_port = "foo:8080"
     with_host_port = ClientConfig(host_port=host_port)

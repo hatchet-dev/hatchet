@@ -87,6 +87,8 @@ type ServerConfigFile struct {
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+
+	VersionOverride string `mapstructure:"versionOverride" json:"versionOverride,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -225,10 +227,6 @@ type ConfigFileRuntime struct {
 	// How many slots to allocate for optimistic scheduling
 	OptimisticSchedulingSlots int `mapstructure:"optimisticSchedulingSlots" json:"optimisticSchedulingSlots,omitempty" default:"5"`
 
-	// Whether this shard runs the v1alpha scheduler (single event loop per tenant)
-	// instead of the v1 lock-based scheduler. All-or-nothing per shard.
-	V1AlphaSchedulerEnabled bool `mapstructure:"v1AlphaSchedulerEnabled" json:"v1AlphaSchedulerEnabled,omitempty" default:"false"`
-
 	// Whether we can perform writes from the gRPC API and fall back to sending messages through RabbitMQ if we exhaust slots
 	GRPCTriggerWritesEnabled bool `mapstructure:"grpcTriggerWritesEnabled" json:"grpcTriggerWritesEnabled,omitempty" default:"true"`
 
@@ -290,6 +288,21 @@ type ConfigFileRuntime struct {
 	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
+
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
+	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
+	// on top of the built-in reserved/private denylist. Populated from
+	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
+
+	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding
+	// (SERVER_OPERATOR_INFRA_BLOCKED_CIDRS). Example: "10.0.0.0/8 fd00::/8".
+	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
+	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
+
+	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
+	// orchestrates concurrently)
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
@@ -658,10 +671,18 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// Operations listed here bypass the tenant RBAC check. Use this for
-	// extension operations (e.g. cloud) that handle their own authorization
-	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	// Operations listed here bypass the tenant RBAC check for every role. Use this for read-only
+	// extension operations (e.g. cloud) that aren't known to the base OpenAPI spec / rbac.yaml and
+	// so would otherwise be denied to every role, including OWNER. OSS operations in rbac.yaml are
+	// still fully checked.
 	AllowedOperations []string
+
+	// AllowedWriteOperations behaves like AllowedOperations (bypasses the tenant RBAC check for
+	// operations unknown to rbac.yaml) except for the VIEWER role, which is denied - VIEWER must
+	// stay read-only even for extension operations the base RBAC system has no knowledge of. Use
+	// this for mutating extension operations (create/update/delete); use AllowedOperations for
+	// read-only ones.
+	AllowedWriteOperations []string
 }
 
 type PylonConfig struct {
@@ -817,6 +838,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
+	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
+	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -926,7 +949,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
-	_ = v.BindEnv("runtime.v1AlphaSchedulerEnabled", "SERVER_V1ALPHA_SCHEDULER_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 
@@ -1050,4 +1072,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
+
+	// misc options
+	_ = v.BindEnv("versionOverride", "SERVER_VERSION_OVERRIDE")
 }

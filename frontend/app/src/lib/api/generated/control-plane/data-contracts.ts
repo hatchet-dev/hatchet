@@ -14,6 +14,7 @@ export enum TenantMemberRoleType {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum AuditLogActorType {
@@ -67,6 +68,7 @@ export enum OrganizationAvailableShardClass {
 export enum OrganizationInviteTenantRole {
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum OrganizationInviteStatus {
@@ -90,6 +92,13 @@ export enum TenantStatusType {
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
   MEMBER = "MEMBER",
+}
+
+export enum OrganizationOnboardingSDK {
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+  GO = "GO",
+  RUBY = "RUBY",
 }
 
 export interface APIControlPlaneMetadata {
@@ -200,6 +209,13 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+  /**
+   * What the user would like to build with Hatchet
+   * @maxLength 1000
+   */
+  whatToBuild?: string;
+  /** Which SDK the user is planning to use */
+  sdk?: OrganizationOnboardingSDK;
 }
 
 export interface UpdateOrganizationRequest {
@@ -381,6 +397,8 @@ export interface OrganizationInviteTenant {
   tenantRole: OrganizationInviteTenantRole;
   /** The name of the tenant */
   tenantName: string;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteTenant {
@@ -391,6 +409,8 @@ export interface CreateOrganizationInviteTenant {
   tenantId: string;
   /** The tenant role the invitee is granted. Defaults to MEMBER. */
   tenantRole?: OrganizationInviteTenantRole;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteRequest {
@@ -432,6 +452,28 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export interface TransferTenantRequest {
+  /**
+   * The organization to transfer this tenant to. The caller must be an OWNER of this organization (in addition to being an OWNER of the tenant's current organization).
+   * @format uuid
+   */
+  destinationOrganizationId: string;
+}
+
+export interface TenantTransferMemberPreview {
+  /** @format uuid */
+  userId: string;
+  /** @format email */
+  email: string;
+  name?: string;
+  /** The user's current role on the tenant, which is preserved by the transfer */
+  tenantRole: TenantMemberRoleType;
+}
+
+export interface TenantTransferMemberPreviewList {
+  rows: TenantTransferMemberPreview[];
 }
 
 import type { TenantMemberRole } from '@/lib/api/generated/data-contracts';
@@ -817,6 +859,8 @@ export type ShardRegionKey = string;
 export interface AddOrgMembersToTenantRequest {
   /** IDs of org members to add to the tenant. */
   memberIds: string[];
+  /** Whether the added members can view payloads on this tenant. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface AuditLog {
@@ -870,6 +914,8 @@ export interface UserGroup {
   tags: string[];
   /** Number of organization members in this group */
   memberCount: number;
+  /** Whether members of this group can view payloads on tag-synced tenants. Most restrictive matching group wins. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export type UserGroupList = UserGroup[];
@@ -882,6 +928,8 @@ export interface CreateUserGroupRequest {
   name: string;
   /** Tenant role to grant members when synced to a matching tenant */
   role: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UpdateUserGroupRequest {
@@ -892,6 +940,8 @@ export interface UpdateUserGroupRequest {
   name?: string;
   /** New tenant role to grant members */
   role?: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. */
+  canViewPayloads?: boolean;
 }
 
 export interface UserGroupMemberList {

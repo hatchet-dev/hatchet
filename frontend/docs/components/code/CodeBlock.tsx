@@ -1,15 +1,11 @@
+"use client";
+
 import React from "react";
 import { parseDocComments } from "./codeParser";
-import CodeStyleRender from "./CodeStyleRender";
+import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
 import { Button } from "../ui/button";
 import { LanguageLogo } from "@/lib/language-logos";
-import {
-  CheckIcon,
-  CopyIcon,
-  FoldVertical,
-  MoveUpRight,
-  UnfoldVertical,
-} from "lucide-react";
+import { FoldVertical, MoveUpRight, UnfoldVertical } from "lucide-react";
 
 type Src = {
   raw: string;
@@ -26,7 +22,6 @@ interface CodeRendererProps {
 export const CodeBlock = ({ source, target }: CodeRendererProps) => {
   const [collapsed, setCollapsed] = React.useState(true);
   const [plainText, setPlainText] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
 
   const parsed = parseDocComments(source.raw, target, collapsed);
 
@@ -75,34 +70,13 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
               )}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              navigator.clipboard.writeText(parsed);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-          >
-            {copied ? (
-              <>
-                <CheckIcon className="w-4 h-4 mr-2" />
-                Copied
-              </>
-            ) : (
-              <>
-                <CopyIcon className="w-4 h-4 mr-2" />
-                Copy
-              </>
-            )}
-          </Button>
         </div>
       </div>
       <div>
         {!plainText && (
-          <CodeStyleRender
-            parsed={parsed}
-            language={source.language || "text"}
+          <DynamicCodeBlock
+            lang={(source.language || "text").toLowerCase()}
+            code={parsed}
           />
         )}
         {/* plain text for SEO */}

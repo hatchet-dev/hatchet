@@ -1,4 +1,3 @@
-
 export interface FeedContext {
   site: string;
   feedUrl: string;

@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "index",
+    "---Webhooks---",
+    "webhooks-stripe",
+    "webhooks-github",
+    "webhooks-slack",
+    "---Workflow Patterns---",
+    "workflow-support-agent",
+    "welcome-email",
+    "durable-tasks-vs-dags",
+    "pdf-pipeline",
+    "workflow-aws-s3",
+    "---Agent Patterns---",
+    "hatchet-and-mcp",
+    "hatchet-claude-agent-sdk-trusted-env",
+    "hatchet-openai-agents-sdk-trusted-env"
+  ],
+  "title": "Cookbooks",
+  "root": true,
+  "description": "End-to-end examples",
+  "icon": "ChefHat"
+}

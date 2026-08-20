@@ -224,7 +224,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newGRPCSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -352,7 +352,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newGRPCSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -1093,7 +1093,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			return err
 		}
 
-		events, err := s.taskEventsToWorkflowRunEvent(tenantId, finalizedWorkflowRuns)
+		events, err := s.taskEventsToWorkflowRunEvent(iterCtx, tenantId, finalizedWorkflowRuns)
 
 		// Release the reference to finalizedWorkflowRuns so GC can reclaim the large
 		// payload byte slices while we're sending events (which can be slow due to
@@ -1199,33 +1199,78 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	return nil
 }
 
-func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
+func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenantId uuid.UUID, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
 	res := make([]*contracts.WorkflowRunEvent, 0)
+
+	leafResult := func(event *v1.TaskOutputEvent) *contracts.StepRunResult {
+		switch event.EventType {
+		case sqlcv1.V1TaskEventTypeCOMPLETED:
+			out := string(event.Output)
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Output:            &out,
+			}
+		case sqlcv1.V1TaskEventTypeFAILED:
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Error:             &event.ErrorMessage,
+			}
+		case sqlcv1.V1TaskEventTypeCANCELLED:
+			//FIXME: this should be more specific for schedule timeouts
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Error:             &event.ErrorMessage,
+			}
+		}
+		return nil
+	}
 
 	for _, wr := range finalizedWorkflowRuns {
 		status := contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED
 		stepRunResults := make([]*contracts.StepRunResult, 0)
 
 		for _, event := range wr.OutputEvents {
-			res := &contracts.StepRunResult{
-				TaskRunExternalId: event.TaskExternalId.String(),
-				TaskName:          event.StepReadableID,
-				JobRunId:          event.TaskExternalId.String(),
+			if event.IsDagOrchestrator {
+				if event.EventType == sqlcv1.V1TaskEventTypeCOMPLETED {
+					var stepOutputs map[string]json.RawMessage
+					if err := json.Unmarshal(event.Output, &stepOutputs); err == nil {
+						for stepName, stepOutput := range stepOutputs {
+							out := string(stepOutput)
+							stepRunResults = append(stepRunResults, &contracts.StepRunResult{
+								TaskRunExternalId: event.TaskExternalId.String(),
+								TaskName:          stepName,
+								JobRunId:          event.TaskExternalId.String(),
+								Output:            &out,
+							})
+						}
+						continue
+					}
+				} else {
+					childEvents, err := s.repov1.Tasks().ListDurableOrchestratorChildOutputEvents(ctx, tenantId, event.TaskExternalId)
+					if err != nil {
+						return nil, fmt.Errorf("failed to list orchestrator child output events: %w", err)
+					}
+
+					if len(childEvents) > 0 {
+						for _, ce := range childEvents {
+							if r := leafResult(ce); r != nil {
+								stepRunResults = append(stepRunResults, r)
+							}
+						}
+						continue
+					}
+				}
 			}
 
-			switch event.EventType {
-			case sqlcv1.V1TaskEventTypeCOMPLETED:
-				out := string(event.Output)
-
-				res.Output = &out
-			case sqlcv1.V1TaskEventTypeFAILED:
-				res.Error = &event.ErrorMessage
-			case sqlcv1.V1TaskEventTypeCANCELLED:
-				//FIXME: this should be more specific for schedule timeouts
-				res.Error = &event.ErrorMessage
+			if r := leafResult(event); r != nil {
+				stepRunResults = append(stepRunResults, r)
 			}
-
-			stepRunResults = append(stepRunResults, res)
 		}
 
 		res = append(res, &contracts.WorkflowRunEvent{
@@ -1244,13 +1289,14 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	// if there's no retry count, we need to read it from the task, so we can't skip the cache
 	skipCache := request.RetryCount == nil
+
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
 	}
 
-	task, err := s.getSingleTask(ctx, tenant.ID, taskExternalId, skipCache)
+	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
@@ -1271,13 +1317,22 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		}
 	}
 
+	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
+		if isValidUnicode := v1.IsUnicodeValid([]byte(request.EventPayload)); !isValidUnicode {
+			request.EventPayload = "error message contains invalid null character \\u0000. you likely need to either escape the character or strip it out of the error. this generally is the result of an LLM producing this unicode sequence in its output."
+		}
+	}
+
 	var durableInvCount int32
-	invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
-		{ID: task.ID, InsertedAt: task.InsertedAt},
-	})
-	if err == nil {
-		if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
-			durableInvCount = *count
+
+	if task.IsDurable.Bool {
+		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
+			{ID: task.ID, InsertedAt: task.InsertedAt},
+		})
+		if err == nil {
+			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+				durableInvCount = *count
+			}
 		}
 	}
 
@@ -1295,9 +1350,49 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCompleted(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleTaskFailed(ctx, task, retryCount, durableInvCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return s.handleTaskCancelledEvent(ctx, task, retryCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
+}
+
+// handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single
+// task by publishing the same MsgIDCancelTasks message the batch path
+// (handleBatchTaskCancelled) publishes, so the task cancellation state machine (owned by the
+// tasks controller) runs identically regardless of which RPC reported it.
+func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{
+			Tasks: []v1.TaskIdInsertedAtRetryCount{
+				{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					RetryCount: retryCount,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
 }
 
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -1414,6 +1509,50 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (d *DispatcherImpl) CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+	}
+
+	task, err := d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "could not get task %s: %v", request.TaskRunExternalId, err)
+	}
+
+	retryCount := task.RetryCount
+	if request.RetryCount != nil {
+		retryCount = *request.RetryCount
+	}
+
+	msg, err := tasktypes.CancelledTaskMessage(
+		tenantId,
+		task.ID,
+		task.InsertedAt,
+		task.ExternalID,
+		task.WorkflowRunID,
+		retryCount,
+		sqlcv1.V1EventTypeOlapCANCELLED,
+		request.EventPayload,
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}
 
@@ -1826,10 +1965,6 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 	return resp, nil
 }
 
-func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
-}
-
 func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenantId := tenant.ID
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
@@ -1881,7 +2016,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
 					return d.flushRefreshTimeout(flushCtx, k)
 				})
-				if err != nil {
+				if err != nil && status.Code(err) != codes.NotFound {
 					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
 				}
 			})
@@ -1900,7 +2035,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
 				return cached, nil
 			}
-			return time.Time{}, fmt.Errorf("no buffered refresh timeout for %s", key)
+			return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
 		}
 
 		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
@@ -1908,6 +2043,11 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			IncrementTimeoutBy: sum.String(),
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Runtime is already gone (completed, cancelled, or timed out).
+				return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
+			}
+
 			// Put the failed sum back so a retry can flush it.
 			d.refreshTimeoutBuf.add(key, sum)
 			return time.Time{}, err
@@ -1951,6 +2091,10 @@ func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant,
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "task run not found: %s", stepRunId)
+		}
+
 		return nil, err
 	}
 

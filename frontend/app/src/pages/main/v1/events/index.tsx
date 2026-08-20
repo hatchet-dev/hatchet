@@ -1,6 +1,7 @@
 import { useFilters } from '../filters/hooks/use-filters';
 import { RunsEmptyGraphic } from '../workflow-runs-v1/components/runs-empty-graphic';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
+import { RequestTimeoutCloudCTAEmptyState } from '../workflow-runs-v1/components/runs-timeout-empty-state';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import {
   columns,
@@ -19,6 +20,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
@@ -60,6 +62,7 @@ function EventsTable() {
     isLoading,
     refetch,
     error,
+    fetchTimedOut,
     pagination,
     setPagination,
     setPageSize,
@@ -166,7 +169,9 @@ function EventsTable() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          hasActiveFilters ? (
+          fetchTimedOut ? (
+            <RequestTimeoutCloudCTAEmptyState utmCampaign="events" />
+          ) : hasActiveFilters ? (
             <EmptyState
               graphic={<RunsEmptyGraphic />}
               title="No events matching your filters"
@@ -265,15 +270,18 @@ function EventDataSection({ event }: { event: V1Event }) {
     key: event.key,
     additionalMetadata: event.additionalMetadata,
     scope: event.scope,
-    payload: event.payload,
+    ...(event.payloadsRestricted ? {} : { payload: event.payload }),
   };
 
   return (
-    <CodeHighlighter
-      language="json"
-      className="text-xs"
-      code={JSON.stringify(dataToDisplay, null, 2)}
-    />
+    <div className="space-y-3">
+      {event.payloadsRestricted && <RestrictedPayloads />}
+      <CodeHighlighter
+        language="json"
+        className="text-xs"
+        code={JSON.stringify(dataToDisplay, null, 2)}
+      />
+    </div>
   );
 }
 

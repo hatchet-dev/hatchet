@@ -7,7 +7,8 @@ WITH latest_versions AS (
         workflowVersions."displayName" AS "displayName",
         workflow."name" AS "workflowName",
         workflowVersions."idempotencyKeyExpression",
-        workflowVersions."idempotencyKeyTtlMs"
+        workflowVersions."idempotencyKeyTtlMs",
+        workflow."isPaused" AS "workflowIsPaused"
     FROM
         "WorkflowVersion" as workflowVersions
     JOIN
@@ -30,7 +31,8 @@ SELECT
     eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
     k.event_key::TEXT as "incomingEventKey",
     latest_versions."idempotencyKeyExpression",
-    latest_versions."idempotencyKeyTtlMs"
+    latest_versions."idempotencyKeyTtlMs",
+    latest_versions."workflowIsPaused"
 FROM
     latest_versions
 JOIN
@@ -47,7 +49,8 @@ SELECT DISTINCT ON("workflowId")
     workflowVersions."displayName" AS "displayName",
     workflow."name" AS "workflowName",
     workflowVersions."idempotencyKeyExpression",
-    workflowVersions."idempotencyKeyTtlMs"
+    workflowVersions."idempotencyKeyTtlMs",
+    workflow."isPaused" AS "workflowIsPaused"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN

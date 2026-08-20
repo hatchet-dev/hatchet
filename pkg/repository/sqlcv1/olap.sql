@@ -307,7 +307,8 @@ JOIN v1_task_events_olap t
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
 JOIN v1_tasks_olap tsk ON (tsk.id, tsk.inserted_at) = (t.task_id, t.task_inserted_at)
-ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
+LIMIT @eventLimit::bigint OFFSET @eventOffset::bigint;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
@@ -1061,6 +1062,9 @@ WITH inputs AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
+            -- so a non-converged task count must not downgrade a terminal status
+            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -1213,6 +1217,9 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
+            -- so a non-converged task count must not downgrade a terminal status
+            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -1575,7 +1582,7 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1787,21 +1794,31 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEventTriggers :copyfrom
-INSERT INTO v1_event_to_run_olap(
+-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@runIds::BIGINT[]) AS run_id,
+        UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at,
+        UNNEST(@eventIds::BIGINT[]) AS event_id,
+        UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
+        UNNEST(@filterIds::UUID[]) AS filter_id
+)
+
+INSERT INTO v1_event_to_run_olap (
     run_id,
     run_inserted_at,
     event_id,
     event_seen_at,
     filter_id
 )
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5
-)
+SELECT
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at,
+    NULLIF(filter_id, '00000000-0000-0000-0000-000000000000'::UUID) AS filter_id
+FROM inputs
+ON CONFLICT DO NOTHING
 ;
 
 -- name: ListEventKeys :many
@@ -2411,3 +2428,63 @@ WHERE
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
+
+-- name: UpdateDAGStatusesFromOrchestratorEvents :many
+-- Applies orchestrator task lifecycle events to their operator-managed DAGs. The orchestrator
+-- has no v1_tasks_olap row, so its terminal failures must be forced onto the DAG directly:
+-- children may never be created, in which case count-based derivation cannot converge. Retry
+-- events reset a terminal DAG back to RUNNING; non-reset RUNNING events only move a DAG out of
+-- QUEUED. Completion is never applied here — it must come from child task counting.
+WITH inputs AS (
+    SELECT
+        UNNEST(@dagIds::BIGINT[]) AS dag_id,
+        UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST(@statuses::v1_readable_status_olap[]) AS new_readable_status,
+        UNNEST(@isResets::BOOLEAN[]) AS is_reset
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.tenant_id,
+        i.new_readable_status,
+        i.is_reset
+    FROM v1_dags_olap d
+    JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
+    WHERE d.tenant_id = @tenantId::UUID
+    ORDER BY d.inserted_at, d.id
+    FOR UPDATE
+), updated_dags AS (
+    UPDATE v1_dags_olap d
+    SET readable_status = ld.new_readable_status
+    FROM locked_dags ld
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
+        AND d.readable_status != ld.new_readable_status
+        AND (
+            (ld.new_readable_status IN ('FAILED', 'CANCELLED') AND d.readable_status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED'))
+            OR (ld.new_readable_status = 'RUNNING' AND ld.is_reset AND d.readable_status IN ('QUEUED', 'FAILED', 'CANCELLED'))
+            OR (ld.new_readable_status = 'RUNNING' AND NOT ld.is_reset AND d.readable_status = 'QUEUED')
+        )
+    RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+)
+SELECT
+    ud.tenant_id::UUID AS tenant_id,
+    ud.id::BIGINT AS dag_id,
+    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    ud.external_id::UUID AS external_id,
+    ud.readable_status::v1_readable_status_olap AS readable_status,
+    ud.workflow_id::UUID AS workflow_id
+FROM updated_dags ud;
+
+-- name: CreateDagToTaskOLAPSelfMappings :exec
+-- For operator-managed DAGs, maps the DAG to its orchestrator task's events (the orchestrator
+-- shares the DAG's id and inserted_at) so run metadata queries surface the orchestrator's error
+-- message and timings. Status derivation is unaffected: status queries join through
+-- v1_tasks_olap, which has no row for the orchestrator.
+INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
+SELECT
+    UNNEST(@dagIds::bigint[]),
+    UNNEST(@dagInsertedAts::timestamptz[]),
+    UNNEST(@dagIds::bigint[]),
+    UNNEST(@dagInsertedAts::timestamptz[])
+ON CONFLICT DO NOTHING;

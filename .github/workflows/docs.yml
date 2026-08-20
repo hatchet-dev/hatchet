@@ -32,7 +32,7 @@ jobs:
         run: python3 generate.py
       - name: Lint
         working-directory: frontend/docs
-        run: npm run lint:check
+        run: pnpm run lint:check
 
   search-quality:
     runs-on: ubuntu-latest
@@ -93,4 +93,16 @@ jobs:
         run: python3 generate.py
       - name: Build
         working-directory: frontend/docs
-        run: npm run build
+        run: pnpm run build
+      - name: Start server
+        working-directory: frontend/docs
+        run: |
+          pnpm run start > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/v1 > /dev/null && break; sleep 1; done
+      - name: Check for broken links
+        uses: step-security/linkinator-action@c5c14e450dc690abba177d09df1ace749b4fd45c # v1.11.2
+        with:
+          paths: http://localhost:3000
+          recurse: true
+          skip: "^(?!http://localhost:3000)"
+          verbosity: ERROR

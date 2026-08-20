@@ -34,6 +34,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import useCanWrite from '@/hooks/use-can-write';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
@@ -48,17 +49,28 @@ import api, {
 import { cloudApi } from '@/lib/api/api';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { appRoutes } from '@/router';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
   const { isControlPlaneEnabled } = useControlPlane();
   const integrations = useApiMetaIntegrations();
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+
+  const listManagedWorkersQuery = useQuery({
+    ...queries.cloud.listManagedWorkers(tenant),
+    enabled: isControlPlaneEnabled,
+  });
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
+
+  const hasExistingManagedWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
   return (
     <div className="h-full w-full flex-grow">
@@ -79,7 +91,7 @@ export default function Integrations() {
             <TabsTrigger value="metrics" variant="underlined">
               Metrics
             </TabsTrigger>
-            {isControlPlaneEnabled && (
+            {isControlPlaneEnabled && hasExistingManagedWorkers && (
               <TabsTrigger value="github" variant="underlined">
                 GitHub
               </TabsTrigger>
@@ -102,7 +114,7 @@ export default function Integrations() {
             <PrometheusMetricsSettings />
           </TabsContent>
 
-          {isControlPlaneEnabled && (
+          {isControlPlaneEnabled && hasExistingManagedWorkers && (
             <TabsContent value="github">
               <GithubInstallationsList />
             </TabsContent>
@@ -176,6 +188,7 @@ const AlertingSettings: React.FC = () => {
 };
 
 function EmailGroupsList() {
+  const canWrite = useCanWrite();
   const { tenant } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
   const [showGroupsDialog, setShowGroupsDialog] = useState(false);
@@ -270,14 +283,16 @@ function EmailGroupsList() {
         title="Email Groups"
         description="Create reusable email recipient groups for alert delivery, including a default group for tenant members."
         action={
-          <Button
-            key="create-email-group"
-            onClick={() => {
-              setShowGroupsDialog(true);
-            }}
-          >
-            Create new group
-          </Button>
+          canWrite ? (
+            <Button
+              key="create-email-group"
+              onClick={() => {
+                setShowGroupsDialog(true);
+              }}
+            >
+              Create new group
+            </Button>
+          ) : undefined
         }
       />
       <Separator className="my-4" />
@@ -389,6 +404,7 @@ function DeleteEmailGroup({
 }
 
 function SlackWebhooksList() {
+  const canWrite = useCanWrite();
   const { tenantId } = useCurrentTenantId();
   const { isControlPlaneEnabled } = useControlPlane();
   const [deleteSlack, setDeleteSlack] = useState<SlackWebhook | null>(null);
@@ -436,15 +452,17 @@ function SlackWebhooksList() {
         title="Slack Webhooks"
         description="Connect Slack channels so Hatchet can send tenant alerts directly into your team workflows."
         action={
-          <a
-            href={
-              isControlPlaneEnabled
-                ? '/api/v1/control-plane/tenants/' + tenantId + '/slack/start'
-                : '/api/v1/tenants/' + tenantId + '/slack/start'
-            }
-          >
-            <Button key="add-slack-webhook">Add Slack Webhook</Button>
-          </a>
+          canWrite ? (
+            <a
+              href={
+                isControlPlaneEnabled
+                  ? '/api/v1/control-plane/tenants/' + tenantId + '/slack/start'
+                  : '/api/v1/tenants/' + tenantId + '/slack/start'
+              }
+            >
+              <Button key="add-slack-webhook">Add Slack Webhook</Button>
+            </a>
+          ) : undefined
         }
       />
       <Separator className="my-4" />
@@ -508,6 +526,7 @@ function DeleteSlackWebhook({
 }
 
 function SNSIntegrationsList() {
+  const canWrite = useCanWrite();
   const { tenantId } = useCurrentTenantId();
   const [showSNSDialog, setShowSNSDialog] = useState(false);
   const [deleteSNS, setDeleteSNS] = useState<SNSIntegration | null>(null);
@@ -557,9 +576,11 @@ function SNSIntegrationsList() {
         title="SNS Integrations"
         description="Create SNS ingestion endpoints to receive events from AWS services and forward them into this tenant."
         action={
-          <Button onClick={() => setShowSNSDialog(true)}>
-            Create SNS Endpoint
-          </Button>
+          canWrite ? (
+            <Button onClick={() => setShowSNSDialog(true)}>
+              Create SNS Endpoint
+            </Button>
+          ) : undefined
         }
       />
       <Separator className="my-4" />
@@ -675,6 +696,7 @@ function DeleteSNSIntegration({
 }
 
 function GithubInstallationsList() {
+  const canWrite = useCanWrite();
   const { tenantId } = useCurrentTenantId();
   const { tenant } = useTenantDetails();
 
@@ -748,11 +770,13 @@ function GithubInstallationsList() {
         title="GitHub Accounts"
         description="Link GitHub accounts and installations that this tenant can use for connected repository workflows."
         action={
-          <a
-            href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
-          >
-            <Button>Link new account</Button>
-          </a>
+          canWrite ? (
+            <a
+              href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
+            >
+              <Button>Link new account</Button>
+            </a>
+          ) : undefined
         }
       />
       <Separator className="my-4" />

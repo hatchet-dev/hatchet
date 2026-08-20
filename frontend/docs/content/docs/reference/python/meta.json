@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "client",
+    "context",
+    "feature-clients",
+    "runnables",
+    "---Python Specifics---",
+    "asyncio",
+    "pydantic",
+    "lifespans",
+    "dependency-injection",
+    "dataclasses"
+  ],
+  "title": "Python SDK"
+}

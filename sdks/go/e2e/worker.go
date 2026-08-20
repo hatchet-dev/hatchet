@@ -18,12 +18,24 @@ const (
 	evictionTTLSeconds   = 5
 	longSleepSeconds     = 15
 	evictionEventKey     = "durable-eviction:event"
+	lookbackEventKey     = "durable-lookback:event"
+	lookbackKey1         = "durable-lookback:key1"
+	lookbackKey2         = "durable-lookback:key2"
+	lookbackWindow       = time.Minute
 )
 
 // --- Durable test workflows ---
 
 type AwaitedEvent struct {
 	ID string `json:"id"`
+}
+
+type EventLookbackInput struct {
+	Scope string `json:"scope"`
+}
+
+type LookbackEvent struct {
+	Order string `json:"order"`
 }
 
 type DurableBulkSpawnInput struct {
@@ -65,6 +77,9 @@ var (
 	testWaitForOrGroup1           *hatchet.Task
 	testWaitForOrGroup2           *hatchet.Task
 	testWaitForSleepTwice         *hatchet.StandaloneTask
+	testEventLookback             *hatchet.StandaloneTask
+	testOrEventLookback           *hatchet.StandaloneTask
+	testTwoEventsLookback         *hatchet.StandaloneTask
 	testSpawnChildTask            *hatchet.StandaloneTask
 	testDurableWithSpawn          *hatchet.StandaloneTask
 	testDurableWithBulkSpawn      *hatchet.StandaloneTask
@@ -202,6 +217,96 @@ func registerAllWorkflows(client *hatchet.Client) {
 		}
 		return map[string]float64{"runtime": time.Since(start).Seconds()}, nil
 	})
+
+	testEventLookback = client.NewStandaloneDurableTask("durable-event-lookback",
+		func(ctx hatchet.DurableContext, input EventLookbackInput) (map[string]any, error) {
+			start := time.Now()
+			now, err := ctx.Now()
+			if err != nil {
+				return nil, err
+			}
+
+			event, err := ctx.WaitForEvent(lookbackEventKey, "",
+				hatchet.WithEventScope(input.Scope),
+				hatchet.WithConsiderEventsSince(now.Add(-lookbackWindow)),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			var evt LookbackEvent
+			if err := event.Unmarshal(&evt); err != nil {
+				return nil, err
+			}
+
+			return map[string]any{
+				"elapsed": time.Since(start).Seconds(),
+				"order":   evt.Order,
+			}, nil
+		})
+
+	testOrEventLookback = client.NewStandaloneDurableTask("durable-or-event-lookback",
+		func(ctx hatchet.DurableContext, input EventLookbackInput) (map[string]any, error) {
+			start := time.Now()
+			now, err := ctx.Now()
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = ctx.WaitFor(
+				hatchet.OrCondition(
+					hatchet.SleepCondition(time.Duration(sleepTime)*time.Second),
+					hatchet.UserEventCondition(lookbackEventKey, "",
+						hatchet.WithEventScope(input.Scope),
+						hatchet.WithConsiderEventsSince(now.Add(-lookbackWindow)),
+					),
+				),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			return map[string]any{"elapsed": time.Since(start).Seconds()}, nil
+		})
+
+	testTwoEventsLookback = client.NewStandaloneDurableTask("durable-two-events-lookback",
+		func(ctx hatchet.DurableContext, input EventLookbackInput) (map[string]any, error) {
+			start := time.Now()
+			now, err := ctx.Now()
+			if err != nil {
+				return nil, err
+			}
+
+			event1, err := ctx.WaitForEvent(lookbackKey1, "",
+				hatchet.WithEventScope(input.Scope),
+				hatchet.WithConsiderEventsSince(now.Add(-lookbackWindow)),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			event2, err := ctx.WaitForEvent(lookbackKey2, "",
+				hatchet.WithEventScope(input.Scope),
+				hatchet.WithConsiderEventsSince(now.Add(-lookbackWindow)),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			var evt1, evt2 LookbackEvent
+			if err := event1.Unmarshal(&evt1); err != nil {
+				return nil, err
+			}
+			if err := event2.Unmarshal(&evt2); err != nil {
+				return nil, err
+			}
+
+			return map[string]any{
+				"elapsed": time.Since(start).Seconds(),
+				"order1":  evt1.Order,
+				"order2":  evt2.Order,
+			}, nil
+		})
 
 	testSpawnChildTask = client.NewStandaloneTask("spawn-child-task", func(ctx hatchet.Context, input DurableBulkSpawnInput) (map[string]string, error) {
 		return map[string]string{"message": fmt.Sprintf("hello from child %d", input.N)}, nil
@@ -634,6 +739,9 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testDagChildWorkflow,
 			testDAGPayloadWorkflow,
 			testWaitForSleepTwice,
+			testEventLookback,
+			testOrEventLookback,
+			testTwoEventsLookback,
 			testSpawnChildTask,
 			testDurableWithSpawn,
 			testDurableWithBulkSpawn,

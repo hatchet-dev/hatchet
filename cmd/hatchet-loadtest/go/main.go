@@ -12,7 +12,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
-	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -71,7 +70,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to create hatchet client: %w", err)
 	}
-
 	taskName := envOr("HATCHET_LOADTEST_WORKFLOW_NAME", eventkeys.WorkflowStandardName(0))
 	eventKey := envOr("HATCHET_LOADTEST_EVENT_KEY", eventkeys.EventKeyDefault.String())
 	batchTaskEventKey := envOr("HATCHET_LOADTEST_BATCH_EVENT_KEY", eventkeys.EventKeyBatch.String())
@@ -85,8 +83,22 @@ func run() error {
 	durableChildTaskName := envOr("HATCHET_LOADTEST_DURABLE_CHILD_TASK_NAME", eventkeys.WorkflowDurableChildName)
 	durableChildren := envInt("HATCHET_LOADTEST_DURABLE_CHILDREN", 3)
 	durableChildDurationMs := envInt("HATCHET_LOADTEST_DURABLE_CHILD_DURATION_MS", 100)
-	durableSleepMs := envInt("HATCHET_LOADTEST_DURABLE_SLEEP_MS", 100)
 	durableSlots := envInt("HATCHET_LOADTEST_DURABLE_SLOTS", 100)
+	slots := envInt("HATCHET_LOADTEST_SLOTS", 100)
+	dagTaskName := envOr("HATCHET_LOADTEST_DAG_WORKFLOW_NAME", eventkeys.WorkflowDagName)
+	dagTaskEventKey := envOr("HATCHET_LOADTEST_DAG_EVENT_KEY", eventkeys.EventKeyDag.String())
+
+	dagWorkflow := client.NewWorkflow(dagTaskName, hatchet.WithWorkflowEvents(dagTaskEventKey))
+	step1 := dagWorkflow.NewTask(dagTaskName+"-step1", func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return LoadTestOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	})
+	_ = dagWorkflow.NewTask(dagTaskName+"-step2", func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return LoadTestOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	}, hatchet.WithParents(step1))
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
@@ -137,43 +149,14 @@ func run() error {
 		func(ctx hatchet.DurableContext, input LoadTestInput) (DurableLoadTestOutput, error) {
 			log.Printf("durable task %d starting", input.ID)
 
-			if _, err := durableChildTask.Run(ctx, DurableChildInput{Index: 1}); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child %d failed: %w", 1, err)
-			}
-
-			if _, err = ctx.SleepFor(time.Duration(durableSleepMs) * time.Millisecond); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable sleep before fan-out failed: %w", err)
-			}
-
-			if _, err = durableChildTask.Run(ctx, DurableChildInput{Index: 2}); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child %d failed: %w", 2, err)
-			}
-
-			if _, err = ctx.WaitFor(condition.Or(
-				condition.SleepCondition(time.Duration(durableSleepMs)*time.Millisecond),
-				condition.UserEventCondition(durableTaskEventKey, ""),
-			)); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable wait before fan-out failed: %w", err)
-			}
-
-			inputs := make([]hatchet.RunManyOpt, durableChildren)
-
-			for i := range inputs {
-				inputs[i] = hatchet.RunManyOpt{
-					Input: DurableChildInput{Index: i + 3}, // children 1 and 2 already ran above; fan-out continues at 3
+			for i := range durableChildren {
+				if _, err := durableChildTask.Run(ctx, DurableChildInput{Index: i}); err != nil {
+					return DurableLoadTestOutput{}, fmt.Errorf("durable child fan-out failed: %w", err)
 				}
 			}
 
-			if _, err = durableChildTask.RunMany(ctx, inputs); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable child fan-out failed: %w", err)
-			}
-
-			if _, err = ctx.SleepFor(time.Duration(durableSleepMs) * time.Millisecond); err != nil {
-				return DurableLoadTestOutput{}, fmt.Errorf("durable sleep after fan-out failed: %w", err)
-			}
-
 			return DurableLoadTestOutput{
-				Children: durableChildren + 2, // +2 because we already ran 2 children manually at the start
+				Children: durableChildren,
 				Message:  "durable task ran at: " + time.Now().Format(time.RFC3339Nano),
 			}, nil
 		},
@@ -184,8 +167,9 @@ func run() error {
 
 	worker, err := client.NewWorker(
 		workerName,
-		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask),
+		hatchet.WithWorkflows(task, batchTask, durableTask, durableChildTask, dagWorkflow),
 		hatchet.WithDurableSlots(durableSlots),
+		hatchet.WithSlots(slots),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)

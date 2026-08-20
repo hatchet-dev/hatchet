@@ -16,7 +16,7 @@ class CronInput(BaseModel):
 
 @hatchet.task(
     input_validator=CronInput,
-    on_crons=["* * * * *"],
+    on_crons=["0 0 * 1 0"],
     cron_input=CronInput(name="Hatchet"),
 )
 def cron_input_example_send_greeting(input: CronInput, ctx: Context) -> dict[str, str]:

@@ -18,6 +18,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   CronWorkflows,
@@ -51,6 +52,7 @@ export function TriggerWorkflowForm({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
+  const canWrite = useCanWrite();
 
   const [input, setInput] = useState<string | undefined>('{}');
   const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
@@ -311,7 +313,7 @@ export function TriggerWorkflowForm({
 
   return (
     <Dialog
-      open={show}
+      open={show && canWrite}
       onOpenChange={(open) => {
         if (!open) {
           handleClose();
