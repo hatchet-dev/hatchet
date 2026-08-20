@@ -2679,7 +2679,13 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToId[event.ExternalID] = event.ID
 	}
 
-	bulkCreateTriggersParams := make([]sqlcv1.BulkCreateEventTriggersParams, 0)
+	bulkCreateTriggersParams := sqlcv1.BulkCreateEventTriggersParams{
+		Runids:         make([]int64, 0, len(triggers)),
+		Runinsertedats: make([]pgtype.Timestamptz, 0, len(triggers)),
+		Eventids:       make([]int64, 0, len(triggers)),
+		Eventseenats:   make([]pgtype.Timestamptz, 0, len(triggers)),
+		Filterids:      make([]uuid.UUID, 0, len(triggers)),
+	}
 
 	for _, trigger := range triggers {
 		eventId, ok := eventExternalIdToId[trigger.EventExternalId]
@@ -2688,16 +2694,20 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			return fmt.Errorf("event external id %s not found in events", trigger.EventExternalId.String())
 		}
 
-		bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
-			RunID:         trigger.RunID,
-			RunInsertedAt: trigger.RunInsertedAt,
-			EventID:       eventId,
-			EventSeenAt:   trigger.EventSeenAt,
-			FilterID:      trigger.FilterId,
-		})
+		filterId := uuid.UUID{}
+
+		if trigger.FilterId != nil {
+			filterId = *trigger.FilterId
+		}
+
+		bulkCreateTriggersParams.Runids = append(bulkCreateTriggersParams.Runids, trigger.RunID)
+		bulkCreateTriggersParams.Runinsertedats = append(bulkCreateTriggersParams.Runinsertedats, trigger.RunInsertedAt)
+		bulkCreateTriggersParams.Eventids = append(bulkCreateTriggersParams.Eventids, eventId)
+		bulkCreateTriggersParams.Eventseenats = append(bulkCreateTriggersParams.Eventseenats, trigger.EventSeenAt)
+		bulkCreateTriggersParams.Filterids = append(bulkCreateTriggersParams.Filterids, filterId)
 	}
 
-	_, err = r.queries.BulkCreateEventTriggers(ctx, tx, bulkCreateTriggersParams)
+	err = r.queries.BulkCreateEventTriggers(ctx, tx, bulkCreateTriggersParams)
 
 	if err != nil {
 		return fmt.Errorf("error creating event triggers: %v", err)

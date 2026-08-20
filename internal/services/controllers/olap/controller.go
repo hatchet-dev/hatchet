@@ -752,6 +752,15 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	seenEventKeysSet := make(map[uuid.UUID]bool)
 
+	type triggerKey struct {
+		runId           int64
+		runInsertedAt   int64
+		eventExternalId uuid.UUID
+		eventSeenAt     int64
+	}
+
+	seenTriggerKeysSet := make(map[triggerKey]bool)
+
 	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
 
 	tenantIds := make([]uuid.UUID, 0)
@@ -766,13 +775,24 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
-					RunID:           *payload.MaybeRunId,
-					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventExternalId: payload.EventExternalId,
-					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-					FilterId:        payload.FilterId,
-				})
+				tKey := triggerKey{
+					runId:           *payload.MaybeRunId,
+					runInsertedAt:   payload.MaybeRunInsertedAt.UnixNano(),
+					eventExternalId: payload.EventExternalId,
+					eventSeenAt:     payload.EventSeenAt.UnixNano(),
+				}
+
+				if !seenTriggerKeysSet[tKey] {
+					seenTriggerKeysSet[tKey] = true
+
+					bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
+						RunID:           *payload.MaybeRunId,
+						RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
+						EventExternalId: payload.EventExternalId,
+						EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+						FilterId:        payload.FilterId,
+					})
+				}
 			}
 
 			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
