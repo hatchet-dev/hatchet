@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,18 +14,21 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
-// contextErrorStatus maps wrapped context cancellation/deadline errors to their
-// canonical gRPC codes, returning nil if the error is not context-related.
-// These are triggered by clients disconnecting mid-request (e.g. a worker
-// cancelling Unsubscribe during shutdown) and should not be treated as
-// internal errors or alerted on.
-func contextErrorStatus(err error) error {
+// expectedStatus maps known, non-internal errors to their canonical gRPC codes.
+// These should be returned to the client without error-logging or alerting.
+func expectedStatus(err error) error {
 	if goerrors.Is(err, context.Canceled) {
 		return status.Error(codes.Canceled, "request was canceled")
 	}
 
 	if goerrors.Is(err, context.DeadlineExceeded) {
 		return status.Error(codes.DeadlineExceeded, "request deadline exceeded")
+	}
+
+	if goerrors.Is(err, pgx.ErrNoRows) {
+		// A missing row is a client-visible miss (task already complete, webhook
+		// deleted, etc.), not an engine failure.
+		return status.Error(codes.NotFound, "not found")
 	}
 
 	return nil
@@ -49,7 +53,7 @@ func (e *ErrorInterceptor) ErrorUnaryServerInterceptor() grpc.UnaryServerInterce
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
-			if statusErr := contextErrorStatus(err); statusErr != nil {
+			if statusErr := expectedStatus(err); statusErr != nil {
 				return res, statusErr
 			}
 
@@ -70,7 +74,7 @@ func (e *ErrorInterceptor) ErrorStreamServerInterceptor() grpc.StreamServerInter
 
 		// if this is not a grpc error already, convert it to an internal grpc error
 		if err != nil && status.Code(err) == codes.Unknown {
-			if statusErr := contextErrorStatus(err); statusErr != nil {
+			if statusErr := expectedStatus(err); statusErr != nil {
 				return statusErr
 			}
 
