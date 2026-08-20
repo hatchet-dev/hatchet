@@ -15,14 +15,11 @@ Fixes # (issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Refactor (non-breaking changes to code which doesn't change any behaviour)
+- [ ] Performance improvement (non-breaking change which improves performance)
 - [ ] CI (any automation pipeline changes)
 - [ ] Chore (changes which are not directly related to any business logic)
 - [ ] Test changes (add, refactor, improve or change a test)
 - [ ] This change requires a documentation update
-
-## What's Changed
-
-- [ ] Add a list of tasks or features here...
 
 ## Checklist
 
@@ -30,8 +27,6 @@ Fixes # (issue)
 
 Changes have been:
 
-- [ ] Tested (unit, integration, or manually with steps specified)
-- [ ] Linted and formatted
 - [ ] Documented (where applicable)
 - [ ] Added to CHANGELOG (where applicable) -- see [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
@@ -39,7 +34,6 @@ Changes have been:
 <!-- ## Testing
 
 -->
-
 
 <!-- Optional: Include additional material to supplement your changes (e.g screenshots for frontend changes) -->
 <!-- ## Related
