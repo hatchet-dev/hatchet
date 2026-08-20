@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -13,6 +14,7 @@ import (
 var printVersion bool
 var migrateDown string
 var upToPenultimate bool
+var upToVersion string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -31,9 +33,22 @@ var rootCmd = &cobra.Command{
 		if migrateDown != "" {
 			migrate.RunDownMigration(ctx, migrateDown)
 		} else {
+			if upToPenultimate && upToVersion != "" {
+				fmt.Println("cannot use --up-to-penultimate and --up-to together")
+				os.Exit(1)
+			}
+
 			var opts []migrate.RunMigrationsOpt
 			if upToPenultimate {
 				opts = append(opts, migrate.WithUpToPenultimate())
+			}
+			if upToVersion != "" {
+				version, err := strconv.ParseInt(upToVersion, 10, 64)
+				if err != nil {
+					fmt.Printf("invalid --up-to version %q: %v\n", upToVersion, err)
+					os.Exit(1)
+				}
+				opts = append(opts, migrate.WithUpToVersion(version))
 			}
 			if err := migrate.RunMigrations(ctx, opts...); err != nil {
 				fmt.Println(err)
@@ -66,6 +81,13 @@ func main() {
 		"up-to-penultimate",
 		false,
 		"migrate up to the second-to-last migration version.",
+	)
+
+	rootCmd.PersistentFlags().StringVar(
+		&upToVersion,
+		"up-to",
+		"",
+		"migrate up to a specific goose version (e.g., 20260818184000).",
 	)
 
 	if err := rootCmd.Execute(); err != nil {

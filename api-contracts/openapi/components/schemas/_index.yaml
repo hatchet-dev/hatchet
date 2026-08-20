@@ -148,6 +148,8 @@ Workflow:
   $ref: "./workflow.yaml#/Workflow"
 WorkflowUpdateRequest:
   $ref: "./workflow.yaml#/WorkflowUpdateRequest"
+PauseWorkflowRequest:
+  $ref: "./workflow.yaml#/PauseWorkflowRequest"
 WorkflowConcurrency:
   $ref: "./workflow.yaml#/WorkflowConcurrency"
 WorkflowVersionMeta:

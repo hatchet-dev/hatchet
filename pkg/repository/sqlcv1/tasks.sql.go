@@ -792,7 +792,8 @@ WITH lookup_rows AS (
         t.step_readable_id,
         l.external_id AS workflow_run_external_id,
         t.workflow_id,
-        t.step_id
+        t.step_id,
+        t.is_durable
     FROM
         lookup_rows l
     JOIN
@@ -817,7 +818,8 @@ SELECT
     t.step_readable_id,
     t.external_id AS workflow_run_external_id,
     t.workflow_id,
-    t.step_id
+    t.step_id,
+    t.is_durable
 FROM
     lookup_rows l
 JOIN
@@ -828,7 +830,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_durable
 FROM
     tasks_from_dags
 `
@@ -854,6 +856,7 @@ type FlattenExternalIdsRow struct {
 	WorkflowRunExternalID uuid.UUID          `json:"workflow_run_external_id"`
 	WorkflowID            uuid.UUID          `json:"workflow_id"`
 	StepID                uuid.UUID          `json:"step_id"`
+	IsDurable             pgtype.Bool        `json:"is_durable"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -882,6 +885,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.WorkflowRunExternalID,
 			&i.WorkflowID,
 			&i.StepID,
+			&i.IsDurable,
 		); err != nil {
 			return nil, err
 		}
@@ -891,6 +895,71 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTaskByExternalId = `-- name: GetTaskByExternalId :one
+SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = $1::uuid
+    AND l.tenant_id = $2::uuid
+`
+
+type GetTaskByExternalIdParams struct {
+	Externalid uuid.UUID `json:"externalid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*V1Task, error) {
+	row := db.QueryRow(ctx, getTaskByExternalId, arg.Externalid, arg.Tenantid)
+	var i V1Task
+	err := row.Scan(
+		&i.ID,
+		&i.InsertedAt,
+		&i.TenantID,
+		&i.Queue,
+		&i.ActionID,
+		&i.StepID,
+		&i.StepReadableID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
+		&i.ScheduleTimeout,
+		&i.StepTimeout,
+		&i.Priority,
+		&i.Sticky,
+		&i.DesiredWorkerID,
+		&i.ExternalID,
+		&i.DisplayName,
+		&i.Input,
+		&i.RetryCount,
+		&i.InternalRetryCount,
+		&i.AppRetryCount,
+		&i.StepIndex,
+		&i.AdditionalMetadata,
+		&i.DagID,
+		&i.DagInsertedAt,
+		&i.ParentTaskExternalID,
+		&i.ParentTaskID,
+		&i.ParentTaskInsertedAt,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.InitialState,
+		&i.InitialStateReason,
+		&i.ConcurrencyParentStrategyIds,
+		&i.ConcurrencyStrategyIds,
+		&i.ConcurrencyKeys,
+		&i.BatchKey,
+		&i.RetryBackoffFactor,
+		&i.RetryMaxBackoff,
+		&i.IsDurable,
+		&i.DesiredWorkerLabel,
+		&i.TriggeringEventExternalID,
+		&i.TriggeringEventKey,
+		&i.IdempotencyKey,
+	)
+	return &i, err
 }
 
 const getTenantTaskStats = `-- name: GetTenantTaskStats :many
@@ -939,6 +1008,22 @@ WITH queued_tasks AS (
         v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
     WHERE
         rqi.tenant_id = $1::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
+), paused_workflow_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+    FROM
+        v1_paused_workflow_queue_item pqi
+    JOIN
+        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+    WHERE
+        pqi.tenant_id = $1::uuid
     GROUP BY
         t.step_readable_id,
         t.queue
@@ -1075,6 +1160,20 @@ SELECT
     oldest::TIMESTAMPTZ,
     oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as row_kind,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
+FROM paused_workflow_queued_tasks
 
 UNION ALL
 

@@ -37,9 +37,13 @@ func NewStaticFileServer(staticFilePath, basePath string) *chi.Mux {
 			return
 		}
 
-		// Set static files involving html, js, or empty cache to "no-cache", which means they must be validated
-		// for changes before the browser uses the cache
-		if base := path.Base(r.URL.Path); strings.Contains(base, "html") || strings.Contains(base, "js") || base == "." || base == "/" {
+		// Vite emits content-hashed filenames under /assets, so those bytes never change for a
+		// given URL. Marking them immutable lets browsers and CDNs (e.g. Cloudflare) serve them
+		// from cache without revalidating against the origin on every request. Everything else
+		// involving html or js stays "no-cache" so new deploys are picked up via index.html.
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else if base := path.Base(r.URL.Path); strings.Contains(base, "html") || strings.Contains(base, "js") || base == "." || base == "/" {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 

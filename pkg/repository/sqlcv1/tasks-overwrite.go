@@ -681,20 +681,26 @@ WHERE
 
 const releaseBatchedQueueItems = `-- name: ReleaseBatchedQueueItems :batchexec
 WITH input AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+	SELECT
+		unnest($1::bigint[]) AS task_id,
+		unnest($2::timestamptz[]) AS task_inserted_at,
+		unnest($3::integer[]) AS retry_count
+), batched_queue_items_to_delete AS (
+	SELECT
+		task_id, task_inserted_at, retry_count
+	FROM
+		v1_batched_queue_item
+	WHERE
+		(task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+	ORDER BY
+		task_id, task_inserted_at, retry_count
+	FOR UPDATE
 )
+
 DELETE FROM
     v1_batched_queue_item
 WHERE
-    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_queue_items_to_delete)
 `
 
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
@@ -746,6 +752,30 @@ WHERE
         FROM
             retry_queue_items_to_delete
     )
+`
+
+const releasePausedWorkflowQueueItems = `-- name: ReleasePausedWorkflowQueueItems :batchexec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), paused_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_paused_workflow_queue_item
+    WHERE
+        (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM input)
+    ORDER BY
+        task_inserted_at, task_id, retry_count
+    FOR UPDATE
+)
+
+DELETE FROM
+    v1_paused_workflow_queue_item
+WHERE
+    (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM paused_items_to_delete)
 `
 
 const releaseTasks = `-- name: ReleaseTasks :batchmany
@@ -874,6 +904,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
+	batch.Queue(releasePausedWorkflowQueueItems, vals...)
 
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()
