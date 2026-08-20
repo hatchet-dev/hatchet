@@ -8,6 +8,28 @@ WHERE
 FOR UPDATE
 ;
 
+-- name: GetAndLockLogFileWithBranchPoints :many
+WITH locked_file AS (
+    SELECT *
+    FROM v1_durable_event_log_file
+    WHERE
+        durable_task_id = @durableTaskId::BIGINT
+        AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+        AND tenant_id = @tenantId::UUID
+    FOR UPDATE
+)
+
+SELECT
+    sqlc.embed(to_embed),
+    sqlc.embed(bp)
+FROM locked_file lf
+-- note: intentionally using the params for the join so we can prune partitions
+JOIN v1_durable_event_log_file to_embed
+    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+LEFT JOIN v1_durable_event_log_branch_point bp
+    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+;
+
 -- name: IncrementLogFileInvocationCounts :many
 WITH inputs AS (
     SELECT
@@ -333,16 +355,6 @@ WHERE e.durable_task_id = c.durable_task_id
   AND e.branch_id = c.branch_id
   AND e.node_id = c.node_id
 RETURNING e.*
-;
-
--- name: ListDurableEventLogBranchPoints :many
-SELECT *
-FROM v1_durable_event_log_branch_point
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
-ORDER BY id ASC
 ;
 
 -- name: ListDurableEventLogForTask :many
