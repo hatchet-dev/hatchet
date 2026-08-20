@@ -176,6 +176,7 @@ type DispatcherOpts struct {
 	streamEventBufferTimeout            time.Duration
 	enc                                 encryption.EncryptionService
 	infraBlockedCIDRs                   []string
+	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -254,6 +255,12 @@ func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
 func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.infraBlockedCIDRs = cidrs
+	}
+}
+
+func WithDAGOperatorDefaultSlots(slots int) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.dagOperatorDefaultSlots = slots
 	}
 }
 
@@ -337,7 +344,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
-	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs)
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
