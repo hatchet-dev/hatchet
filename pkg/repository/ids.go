@@ -32,6 +32,16 @@ type WorkflowNameTriggerOpts struct {
 
 	// Whether the workflow has an idempotency key expression configured.
 	HasIdempotencyKey bool
+
+	// ReplayOrphanedChildren controls what happens when the child-spawn dedupe resolves to a
+	// child whose log entry is only reachable on a branch orphaned by a replay reset. When set
+	// (DAG operator steps), the existing child run is re-executed in place, preserving task
+	// identity; otherwise a fresh child run is spawned on the active branch.
+	ReplayOrphanedChildren bool
+
+	// ParentReExecuted marks a DAG step whose parent re-executed this invocation, so it must
+	// re-run during a replay even when its own orphaned entry is satisfied.
+	ParentReExecuted bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {

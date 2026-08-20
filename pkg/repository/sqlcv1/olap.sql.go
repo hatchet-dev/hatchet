@@ -330,6 +330,30 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 	return total, err
 }
 
+const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
+INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
+SELECT
+    UNNEST($1::bigint[]),
+    UNNEST($2::timestamptz[]),
+    UNNEST($1::bigint[]),
+    UNNEST($2::timestamptz[])
+ON CONFLICT DO NOTHING
+`
+
+type CreateDagToTaskOLAPSelfMappingsParams struct {
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+}
+
+// For operator-managed DAGs, maps the DAG to its orchestrator task's events (the orchestrator
+// shares the DAG's id and inserted_at) so run metadata queries surface the orchestrator's error
+// message and timings. Status derivation is unaffected: status queries join through
+// v1_tasks_olap, which has no row for the orchestrator.
+func (q *Queries) CreateDagToTaskOLAPSelfMappings(ctx context.Context, db DBTX, arg CreateDagToTaskOLAPSelfMappingsParams) error {
+	_, err := db.Exec(ctx, createDagToTaskOLAPSelfMappings, arg.Dagids, arg.Daginsertedats)
+	return err
+}
+
 const createIncomingWebhookValidationFailureLogs = `-- name: CreateIncomingWebhookValidationFailureLogs :exec
 WITH inputs AS (
     SELECT
@@ -3193,7 +3217,7 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -3561,6 +3585,9 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
+            -- so a non-converged task count must not downgrade a terminal status
+            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -3805,6 +3832,9 @@ WITH inputs AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
+            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
+            -- so a non-converged task count must not downgrade a terminal status
+            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -3865,6 +3895,104 @@ func (q *Queries) UpdateDAGStatusesFromMQ(ctx context.Context, db DBTX, arg Upda
 	var items []*UpdateDAGStatusesFromMQRow
 	for rows.Next() {
 		var i UpdateDAGStatusesFromMQRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ExternalID,
+			&i.ReadableStatus,
+			&i.WorkflowID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateDAGStatusesFromOrchestratorEvents = `-- name: UpdateDAGStatusesFromOrchestratorEvents :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS dag_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($3::v1_readable_status_olap[]) AS new_readable_status,
+        UNNEST($4::BOOLEAN[]) AS is_reset
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.tenant_id,
+        i.new_readable_status,
+        i.is_reset
+    FROM v1_dags_olap d
+    JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
+    WHERE d.tenant_id = $5::UUID
+    ORDER BY d.inserted_at, d.id
+    FOR UPDATE
+), updated_dags AS (
+    UPDATE v1_dags_olap d
+    SET readable_status = ld.new_readable_status
+    FROM locked_dags ld
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
+        AND d.readable_status != ld.new_readable_status
+        AND (
+            (ld.new_readable_status IN ('FAILED', 'CANCELLED') AND d.readable_status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED'))
+            OR (ld.new_readable_status = 'RUNNING' AND ld.is_reset AND d.readable_status IN ('QUEUED', 'FAILED', 'CANCELLED'))
+            OR (ld.new_readable_status = 'RUNNING' AND NOT ld.is_reset AND d.readable_status = 'QUEUED')
+        )
+    RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+)
+SELECT
+    ud.tenant_id::UUID AS tenant_id,
+    ud.id::BIGINT AS dag_id,
+    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    ud.external_id::UUID AS external_id,
+    ud.readable_status::v1_readable_status_olap AS readable_status,
+    ud.workflow_id::UUID AS workflow_id
+FROM updated_dags ud
+`
+
+type UpdateDAGStatusesFromOrchestratorEventsParams struct {
+	Dagids         []int64                `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz   `json:"daginsertedats"`
+	Statuses       []V1ReadableStatusOlap `json:"statuses"`
+	Isresets       []bool                 `json:"isresets"`
+	Tenantid       uuid.UUID              `json:"tenantid"`
+}
+
+type UpdateDAGStatusesFromOrchestratorEventsRow struct {
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	DagID          int64                `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ExternalID     uuid.UUID            `json:"external_id"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	WorkflowID     uuid.UUID            `json:"workflow_id"`
+}
+
+// Applies orchestrator task lifecycle events to their operator-managed DAGs. The orchestrator
+// has no v1_tasks_olap row, so its terminal failures must be forced onto the DAG directly:
+// children may never be created, in which case count-based derivation cannot converge. Retry
+// events reset a terminal DAG back to RUNNING; non-reset RUNNING events only move a DAG out of
+// QUEUED. Completion is never applied here — it must come from child task counting.
+func (q *Queries) UpdateDAGStatusesFromOrchestratorEvents(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromOrchestratorEventsParams) ([]*UpdateDAGStatusesFromOrchestratorEventsRow, error) {
+	rows, err := db.Query(ctx, updateDAGStatusesFromOrchestratorEvents,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Statuses,
+		arg.Isresets,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateDAGStatusesFromOrchestratorEventsRow
+	for rows.Next() {
+		var i UpdateDAGStatusesFromOrchestratorEventsRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.DagID,

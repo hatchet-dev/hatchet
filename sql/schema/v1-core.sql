@@ -377,6 +377,7 @@ CREATE TABLE v1_task (
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
     idempotency_key TEXT,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2624,8 +2625,24 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
     next_branch_id BIGINT NOT NULL,
 
+    replay_child_external_ids UUID[],
+
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
+
+CREATE TABLE v1_operator (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    kind v1_operator_kind NOT NULL,
+    config JSONB NOT NULL,
+    worker_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
+);
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,
@@ -2637,6 +2654,8 @@ CREATE TABLE tenant_entitlement (
     -- Opts the tenant into AND-semantics additional_metadata filters backed by
     -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
+
+    dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

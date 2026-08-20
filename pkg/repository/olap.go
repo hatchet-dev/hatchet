@@ -120,6 +120,7 @@ type WorkflowRunData struct {
 	ErrorMessage         string                      `json:"error_message"`
 	ExternalID           uuid.UUID                   `json:"external_id"`
 	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
+	ID                   int64                       `json:"id"`
 	Input                []byte                      `json:"input"`
 	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
 	Kind                 sqlcv1.V1RunKind            `json:"kind"`
@@ -262,6 +263,7 @@ type OLAPRepository interface {
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
+	ApplyOrchestratorEventsToDAGs(ctx context.Context, tenantId uuid.UUID, updates []OrchestratorDAGStatusUpdate) (*StatusUpdateResult, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateDAGStatusRow, error)
@@ -604,27 +606,28 @@ func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uui
 	}
 
 	return &sqlcv1.V1TasksOlap{
-		TenantID:           row.TenantID,
-		ID:                 row.ID,
-		InsertedAt:         row.InsertedAt,
-		Queue:              row.Queue,
-		ActionID:           row.ActionID,
-		StepID:             row.StepID,
-		WorkflowID:         row.WorkflowID,
-		ScheduleTimeout:    row.ScheduleTimeout,
-		StepTimeout:        row.StepTimeout,
-		Priority:           row.Priority,
-		Sticky:             row.Sticky,
-		DesiredWorkerID:    row.DesiredWorkerID,
-		DisplayName:        row.DisplayName,
-		Input:              row.Input,
-		AdditionalMetadata: row.AdditionalMetadata,
-		DagID:              row.DagID,
-		DagInsertedAt:      row.DagInsertedAt,
-		ReadableStatus:     row.ReadableStatus,
-		ExternalID:         row.ExternalID,
-		LatestRetryCount:   row.LatestRetryCount,
-		LatestWorkerID:     row.LatestWorkerID,
+		TenantID:             row.TenantID,
+		ID:                   row.ID,
+		InsertedAt:           row.InsertedAt,
+		Queue:                row.Queue,
+		ActionID:             row.ActionID,
+		StepID:               row.StepID,
+		WorkflowID:           row.WorkflowID,
+		ScheduleTimeout:      row.ScheduleTimeout,
+		StepTimeout:          row.StepTimeout,
+		Priority:             row.Priority,
+		Sticky:               row.Sticky,
+		DesiredWorkerID:      row.DesiredWorkerID,
+		DisplayName:          row.DisplayName,
+		Input:                row.Input,
+		AdditionalMetadata:   row.AdditionalMetadata,
+		DagID:                row.DagID,
+		DagInsertedAt:        row.DagInsertedAt,
+		ReadableStatus:       row.ReadableStatus,
+		ExternalID:           row.ExternalID,
+		LatestRetryCount:     row.LatestRetryCount,
+		LatestWorkerID:       row.LatestWorkerID,
+		ParentTaskExternalID: row.ParentTaskExternalID,
 	}, nil
 }
 
@@ -1279,7 +1282,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
-	idsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
+	taskIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
 	retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 
 	for _, row := range workflowRunIds {
@@ -1287,7 +1290,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
-			idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
+			taskIdsInsertedAts = append(taskIdsInsertedAts, IdInsertedAt{
 				ID:         row.ID,
 				InsertedAt: row.InsertedAt,
 			})
@@ -1305,12 +1308,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		return nil, 0, err
 	}
 
-	dagsToPopulated := make(map[string]*sqlcv1.PopulateDAGMetadataRow)
+	dagsToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateDAGMetadataRow)
 
 	for _, dag := range populatedDAGs {
-		externalId := dag.ExternalID.String()
-
-		dagsToPopulated[externalId] = dag
+		dagsToPopulated[dag.ExternalID] = dag
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,
@@ -1324,17 +1325,16 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
-	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
+	tasksToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
 	for _, task := range populatedTasks {
-		externalId := task.ExternalID.String()
-		tasksToPopulated[externalId] = task
+		tasksToPopulated[task.ExternalID] = task
 
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
@@ -1366,13 +1366,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	res := make([]*WorkflowRunData, 0)
 
 	for _, row := range workflowRunIds {
-		externalId := row.ExternalID.String()
-
 		if row.Kind == sqlcv1.V1RunKindDAG {
-			dag, ok := dagsToPopulated[externalId]
+			dag, ok := dagsToPopulated[row.ExternalID]
 
 			if !ok {
-				r.l.Error().Ctx(ctx).Msgf("could not find dag with external id %s", externalId)
+				r.l.Error().Ctx(ctx).Msgf("could not find dag with external id %s", row.ExternalID.String())
 				continue
 			}
 
@@ -1383,7 +1381,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.OutputEventExternalID != nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+					if opts.IncludePayloads && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
 					}
 					outputPayload = dag.Output
@@ -1400,7 +1398,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				inputPayload = dag.Input
 			}
 
-			// TODO !IMPORTANT: verify this is correct
 			retryCount := int(dag.RetryCount)
 
 			var idempotencyKey *string
@@ -1422,82 +1419,84 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				ErrorMessage:         dag.ErrorMessage.String,
 				Kind:                 sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
-				TaskExternalId:       nil,
-				TaskId:               nil,
-				TaskInsertedAt:       nil,
 				Output:               outputPayload,
 				Input:                inputPayload,
 				ParentTaskExternalId: dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
+				ID:                   dag.DagID,
 				IdempotencyKey:       idempotencyKey,
 			})
 		} else {
-			task, ok := tasksToPopulated[externalId]
+			task, ok := tasksToPopulated[row.ExternalID]
 
 			if !ok {
-				r.l.Error().Ctx(ctx).Msgf("could not find task with external id %s", externalId)
+				r.l.Error().Ctx(ctx).Msgf("could not find task with external id %s", row.ExternalID.String())
 				continue
 			}
 
-			retryCount := int(task.RetryCount)
-
-			var outputPayload []byte
-			var exists bool
-
-			if task.OutputEventExternalID != nil {
-				outputPayload, exists = externalIdToPayload[*task.OutputEventExternalID]
-
-				if !exists {
-					if opts.IncludePayloads && task.OutputEventExternalID != nil && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
-					}
-					outputPayload = task.Output
-				}
-			} else {
-				outputPayload = task.Output
-			}
-
-			inputPayload, exists := externalIdToPayload[task.ExternalID]
-
-			if !exists {
-				if opts.IncludePayloads && task.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-4: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
-				}
-				inputPayload = task.Input
-			}
-
-			var idempotencyKey *string
-			if task.IdempotencyKey.Valid {
-				idempotencyKey = &task.IdempotencyKey.String
-			}
-
-			res = append(res, &WorkflowRunData{
-				TenantID:           task.TenantID,
-				InsertedAt:         task.InsertedAt,
-				ExternalID:         task.ExternalID,
-				WorkflowID:         task.WorkflowID,
-				WorkflowVersionId:  task.WorkflowVersionID,
-				DisplayName:        task.DisplayName,
-				ReadableStatus:     task.Status,
-				AdditionalMetadata: task.AdditionalMetadata,
-				CreatedAt:          task.InsertedAt,
-				StartedAt:          task.StartedAt,
-				FinishedAt:         task.FinishedAt,
-				ErrorMessage:       task.ErrorMessage.String,
-				Kind:               sqlcv1.V1RunKindTASK,
-				TaskExternalId:     &task.ExternalID,
-				TaskId:             &task.ID,
-				TaskInsertedAt:     &task.InsertedAt,
-				Output:             outputPayload,
-				Input:              inputPayload,
-				StepId:             &task.StepID,
-				RetryCount:         &retryCount,
-				IdempotencyKey:     idempotencyKey,
-			})
+			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, opts.IncludePayloads))
 		}
 	}
 
 	return res, int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sqlcv1.PopulateTaskRunDataRow, payloads map[uuid.UUID][]byte, includePayloads bool) *WorkflowRunData {
+	var idempotencyKey *string
+	if task.IdempotencyKey.Valid {
+		idempotencyKey = &task.IdempotencyKey.String
+	}
+
+	var outputPayload []byte
+	var exists bool
+
+	if task.OutputEventExternalID != nil {
+		outputPayload, exists = payloads[*task.OutputEventExternalID]
+		if !exists {
+			if includePayloads && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty output payload", task.ExternalID)
+			}
+			outputPayload = task.Output
+		}
+	} else {
+		outputPayload = task.Output
+	}
+
+	inputPayload, exists := payloads[task.ExternalID]
+	if !exists {
+		if includePayloads && task.ExternalID != uuid.Nil {
+			r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty input payload", task.ExternalID)
+		}
+		inputPayload = task.Input
+	}
+
+	retryCount := int(task.RetryCount)
+
+	return &WorkflowRunData{
+		TenantID:             task.TenantID,
+		InsertedAt:           task.InsertedAt,
+		ExternalID:           task.ExternalID,
+		WorkflowID:           task.WorkflowID,
+		WorkflowVersionId:    task.WorkflowVersionID,
+		DisplayName:          task.DisplayName,
+		ReadableStatus:       task.Status,
+		AdditionalMetadata:   task.AdditionalMetadata,
+		CreatedAt:            task.InsertedAt,
+		StartedAt:            task.StartedAt,
+		FinishedAt:           task.FinishedAt,
+		ErrorMessage:         task.ErrorMessage.String,
+		Kind:                 sqlcv1.V1RunKindTASK,
+		TaskExternalId:       &task.ExternalID,
+		TaskId:               &task.ID,
+		TaskInsertedAt:       &task.InsertedAt,
+		Output:               outputPayload,
+		Input:                inputPayload,
+		StepId:               &task.StepID,
+		RetryCount:           &retryCount,
+		ParentTaskExternalId: task.ParentTaskExternalID,
+		ID:                   task.ID,
+		IdempotencyKey:       idempotencyKey,
+	}
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error) {
@@ -2396,10 +2395,16 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 
 	params := sqlcv1.CreateDAGsOLAPOverwriteParams{}
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	selfMappingParams := sqlcv1.CreateDagToTaskOLAPSelfMappingsParams{}
 
 	for _, dag := range dags {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[dag.ExternalID]; notAcquired {
 			continue
+		}
+
+		if dag.IsOperatorRun {
+			selfMappingParams.Dagids = append(selfMappingParams.Dagids, dag.ID)
+			selfMappingParams.Daginsertedats = append(selfMappingParams.Daginsertedats, dag.InsertedAt)
 		}
 
 		params.Tenantids = append(params.Tenantids, dag.TenantID)
@@ -2430,6 +2435,13 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
+	if len(selfMappingParams.Dagids) > 0 {
+		err = r.queries.CreateDagToTaskOLAPSelfMappings(ctx, tx, selfMappingParams)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
 	if err != nil {
 		return nil, err
@@ -2452,6 +2464,51 @@ func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId uuid.UUID
 
 func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error) {
 	return r.writeDAGBatch(ctx, tenantId, dags)
+}
+
+type OrchestratorDAGStatusUpdate struct {
+	DagInsertedAt  pgtype.Timestamptz
+	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	DagId          int64
+	IsReset        bool
+}
+
+func (r *OLAPRepositoryImpl) ApplyOrchestratorEventsToDAGs(ctx context.Context, tenantId uuid.UUID, updates []OrchestratorDAGStatusUpdate) (*StatusUpdateResult, error) {
+	if len(updates) == 0 {
+		return &StatusUpdateResult{}, nil
+	}
+
+	params := sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams{
+		Tenantid: tenantId,
+	}
+
+	for _, update := range updates {
+		params.Dagids = append(params.Dagids, update.DagId)
+		params.Daginsertedats = append(params.Daginsertedats, update.DagInsertedAt)
+		params.Statuses = append(params.Statuses, update.ReadableStatus)
+		params.Isresets = append(params.Isresets, update.IsReset)
+	}
+
+	rows, err := r.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, r.pool, params)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update DAG statuses from orchestrator events: %w", err)
+	}
+
+	dagRows := make([]UpdateDAGStatusRow, 0, len(rows))
+
+	for _, row := range rows {
+		dagRows = append(dagRows, UpdateDAGStatusRow{
+			TenantId:       row.TenantID,
+			DagId:          row.DagID,
+			DagInsertedAt:  row.DagInsertedAt,
+			ReadableStatus: row.ReadableStatus,
+			ExternalId:     row.ExternalID,
+			WorkflowId:     row.WorkflowID,
+		})
+	}
+
+	return &StatusUpdateResult{DAGRows: dagRows}, nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {

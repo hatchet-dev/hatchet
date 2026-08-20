@@ -205,10 +205,26 @@ func (g *listenGate) tryStart(closed bool) bool {
 	return true
 }
 
-func (g *listenGate) stop() {
+// release evaluates keepListening while holding the gate lock. If it returns
+// true, the gate remains active and release returns false; otherwise release
+// clears the gate and returns true.
+//
+// The callback may acquire the stream state or registry lock. Callers must not
+// acquire the gate while holding either lock.
+func (g *listenGate) release(keepListening func() bool) (released bool) {
 	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if keepListening != nil && keepListening() {
+		return false
+	}
+
 	g.listening = false
-	g.mu.Unlock()
+	return true
+}
+
+func (g *listenGate) stop() {
+	g.release(nil)
 }
 
 func (g *listenGate) active() bool {

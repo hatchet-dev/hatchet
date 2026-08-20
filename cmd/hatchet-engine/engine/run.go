@@ -356,6 +356,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithEncryption(sc.Encryption),
+			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -801,6 +803,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithEncryption(sc.Encryption),
+			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 

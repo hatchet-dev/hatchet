@@ -1,0 +1,87 @@
+V1HTTPOperator:
+  type: object
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      format: uuid
+      description: The ID of the tenant associated with this operator.
+    name:
+      type: string
+      description: The name of the operator.
+    triggerEndpoint:
+      type: string
+      description: The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
+    healthcheckEndpoint:
+      type: string
+      description: The HTTPS endpoint polled periodically to discover the actions this operator handles.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: The per-request timeout backstop, in seconds.
+  required:
+    - metadata
+    - tenantId
+    - name
+    - triggerEndpoint
+    - healthcheckEndpoint
+    - requestTimeoutSeconds
+
+V1HTTPOperatorList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1HTTPOperator"
+
+V1CreateHTTPOperatorRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the operator.
+    triggerEndpoint:
+      type: string
+      description: The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
+    healthcheckEndpoint:
+      type: string
+      description: The HTTPS endpoint polled periodically to discover the actions this operator handles.
+    signingSecret:
+      type: string
+      description: >-
+        The secret used to HMAC-sign delivered requests (sent in the X-Hatchet-Signature
+        header). Write-only: it is never returned in responses.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: The per-request timeout backstop, in seconds.
+  required:
+    - name
+    - triggerEndpoint
+    - signingSecret
+    - healthcheckEndpoint
+    - requestTimeoutSeconds
+
+V1UpdateHTTPOperatorRequest:
+  type: object
+  description: Fields to update on an HTTP operator. Omitted fields are left unchanged.
+  properties:
+    triggerEndpoint:
+      type: string
+      description: The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
+    healthcheckEndpoint:
+      type: string
+      description: An optional HTTPS endpoint polled to verify the operator endpoint is reachable.
+    signingSecret:
+      type: string
+      description: >-
+        The secret used to HMAC-sign delivered requests. Write-only: it is never returned
+        in responses. Provide a new value to rotate it.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: Optional override for the per-request timeout backstop, in seconds.
