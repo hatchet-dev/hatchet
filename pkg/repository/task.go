@@ -4280,7 +4280,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 }
 
 func (r *TaskRepositoryImpl) GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
-	return r.sharedRepository.lookupParentOutputsByWorkflowRunIds(ctx, tenantId, parentExternalIds)
+	return r.lookupParentOutputsByWorkflowRunIds(ctx, tenantId, parentExternalIds)
 }
 
 func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error) {
