@@ -2410,6 +2410,49 @@ func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx
 	return res, nil
 }
 
+func (r *sharedRepository) listStepMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
+	if len(stepIds) == 0 {
+		return nil, nil
+	}
+
+	stepsToLookup := make([]uuid.UUID, 0, len(stepIds))
+	res := make([]*sqlcv1.V1StepMatchCondition, 0, len(stepIds))
+
+	for _, id := range stepIds {
+		if conditions, found := r.stepIdMatchConditionsCache.Get(id); found {
+			res = append(res, conditions...)
+			continue
+		}
+
+		stepsToLookup = append(stepsToLookup, id)
+	}
+
+	if len(stepsToLookup) > 0 {
+		conditions, err := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
+			Stepids:  stepsToLookup,
+			Tenantid: tenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		}
+
+		byStepId := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition, len(stepsToLookup))
+
+		for _, condition := range conditions {
+			byStepId[condition.StepID] = append(byStepId[condition.StepID], condition)
+		}
+
+		for _, id := range stepsToLookup {
+			r.stepIdMatchConditionsCache.Add(id, byStepId[id])
+		}
+
+		res = append(res, conditions...)
+	}
+
+	return res, nil
+}
+
 func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []EventTriggerOpts) (
 	[]triggerTuple,
 	*createCoreUserEventOpts,
