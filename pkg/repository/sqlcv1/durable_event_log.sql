@@ -21,7 +21,7 @@ WITH locked_file AS (
 
 SELECT
     sqlc.embed(to_embed),
-    sqlc.embed(bp)
+    bp.*
 FROM locked_file lf
 -- note: intentionally using the params for the join so we can prune partitions
 JOIN v1_durable_event_log_file to_embed

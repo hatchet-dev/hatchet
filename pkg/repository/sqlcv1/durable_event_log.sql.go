@@ -451,8 +451,16 @@ type GetAndLockLogFileWithBranchPointsParams struct {
 }
 
 type GetAndLockLogFileWithBranchPointsRow struct {
-	V1DurableEventLogFile        V1DurableEventLogFile        `json:"v1_durable_event_log_file"`
-	V1DurableEventLogBranchPoint V1DurableEventLogBranchPoint `json:"v1_durable_event_log_branch_point"`
+	V1DurableEventLogFile  V1DurableEventLogFile `json:"v1_durable_event_log_file"`
+	TenantID               *uuid.UUID            `json:"tenant_id"`
+	ID                     pgtype.Int8           `json:"id"`
+	InsertedAt             pgtype.Timestamptz    `json:"inserted_at"`
+	DurableTaskID          pgtype.Int8           `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	FirstNodeIDInNewBranch pgtype.Int8           `json:"first_node_id_in_new_branch"`
+	ParentBranchID         pgtype.Int8           `json:"parent_branch_id"`
+	NextBranchID           pgtype.Int8           `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID           `json:"replay_child_external_ids"`
 }
 
 // note: intentionally using the params for the join so we can prune partitions
@@ -474,15 +482,15 @@ func (q *Queries) GetAndLockLogFileWithBranchPoints(ctx context.Context, db DBTX
 			&i.V1DurableEventLogFile.LatestNodeID,
 			&i.V1DurableEventLogFile.LatestBranchID,
 			&i.V1DurableEventLogFile.LatestSatisfiedOrder,
-			&i.V1DurableEventLogBranchPoint.TenantID,
-			&i.V1DurableEventLogBranchPoint.ID,
-			&i.V1DurableEventLogBranchPoint.InsertedAt,
-			&i.V1DurableEventLogBranchPoint.DurableTaskID,
-			&i.V1DurableEventLogBranchPoint.DurableTaskInsertedAt,
-			&i.V1DurableEventLogBranchPoint.FirstNodeIDInNewBranch,
-			&i.V1DurableEventLogBranchPoint.ParentBranchID,
-			&i.V1DurableEventLogBranchPoint.NextBranchID,
-			&i.V1DurableEventLogBranchPoint.ReplayChildExternalIds,
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.FirstNodeIDInNewBranch,
+			&i.ParentBranchID,
+			&i.NextBranchID,
+			&i.ReplayChildExternalIds,
 		); err != nil {
 			return nil, err
 		}
