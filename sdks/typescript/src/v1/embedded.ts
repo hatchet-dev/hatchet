@@ -86,7 +86,7 @@ async function resolveVersion(version?: string): Promise<string> {
 
 async function expectedChecksum(tag: string, asset: string): Promise<string> {
   const url = `${REPO_URL}/releases/download/${tag}/checksums.txt`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`could not download ${url}: ${res.status}`);
   }
@@ -107,14 +107,46 @@ async function sha256File(filePath: string): Promise<string> {
   return digest.digest('hex');
 }
 
+async function resolveExpectedChecksum(
+  tag: string,
+  asset: string,
+  binPath: string
+): Promise<string> {
+  const checksumPath = path.join(path.dirname(binPath), `${asset}.sha256`);
+
+  // fall back to the checksum cached at download time so a pinned, already
+  // verified binary still starts when GitHub is unreachable
+  let expected: string;
+  try {
+    expected = await expectedChecksum(tag, asset);
+  } catch (err) {
+    const cachedDigest = await fs.readFile(checksumPath, 'utf8').then(
+      (s) => s.trim(),
+      () => undefined
+    );
+    const hasBinary = await fs.access(binPath).then(
+      () => true,
+      () => false
+    );
+    if (cachedDigest && hasBinary) {
+      return cachedDigest;
+    }
+    throw err;
+  }
+
+  await fs.writeFile(checksumPath, `${expected}\n`);
+  return expected;
+}
+
 async function ensureSidecarBinary(version?: string, checksum?: string): Promise<string> {
   const tag = await resolveVersion(version);
   const asset = sidecarAssetName();
   const binPath = path.join(os.homedir(), '.hatchet', 'embedded', tag, asset);
+  await fs.mkdir(path.dirname(binPath), { recursive: true });
 
   // verified on every start, not just at download; a cached binary that no
   // longer matches the expected checksum is re-downloaded
-  const expected = checksum ?? (await expectedChecksum(tag, asset));
+  const expected = checksum ?? (await resolveExpectedChecksum(tag, asset, binPath));
 
   const cached = await fs.access(binPath).then(
     () => true,
@@ -130,7 +162,6 @@ async function ensureSidecarBinary(version?: string, checksum?: string): Promise
     throw new Error(`could not download the hatchet embedded sidecar from ${url}: ${res.status}`);
   }
 
-  await fs.mkdir(path.dirname(binPath), { recursive: true });
   // unique temp name per call (not per process) so concurrent downloads of
   // the same version never clobber each other, even within one process; the
   // final rename is atomic and last-writer-wins

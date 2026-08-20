@@ -131,7 +131,7 @@ def _resolve_version(version: str | None) -> str:
 
 def _expected_checksum(tag: str, asset: str) -> str:
     url = f"{REPO_URL}/releases/download/{tag}/checksums.txt"
-    with urllib.request.urlopen(url) as res:
+    with urllib.request.urlopen(url, timeout=10) as res:
         checksums: str = res.read().decode()
 
     for line in checksums.splitlines():
@@ -140,6 +140,22 @@ def _expected_checksum(tag: str, asset: str) -> str:
             return parts[0]
 
     raise RuntimeError(f"no checksum for {asset} in {url}")
+
+
+def _resolve_expected_checksum(tag: str, asset: str, bin_path: Path) -> str:
+    checksum_file = bin_path.with_name(asset + ".sha256")
+
+    # fall back to the checksum cached at download time so a pinned, already
+    # verified binary still starts when GitHub is unreachable
+    try:
+        expected = _expected_checksum(tag, asset)
+    except (urllib.error.URLError, OSError):
+        if bin_path.exists() and checksum_file.exists():
+            return checksum_file.read_text().strip()
+        raise
+
+    checksum_file.write_text(expected + "\n")
+    return expected
 
 
 def _sha256_file(path: Path) -> str:
@@ -154,15 +170,14 @@ def _ensure_sidecar_binary(version: str | None, checksum: str | None) -> Path:
     tag = _resolve_version(version)
     asset = _sidecar_asset_name()
     bin_path = Path.home() / ".hatchet" / "embedded" / tag / asset
+    bin_path.parent.mkdir(parents=True, exist_ok=True)
 
     # verified on every start, not just at download; a cached binary that no
     # longer matches the expected checksum is re-downloaded
-    expected = checksum or _expected_checksum(tag, asset)
+    expected = checksum or _resolve_expected_checksum(tag, asset, bin_path)
 
     if bin_path.exists() and _sha256_file(bin_path) == expected:
         return bin_path
-
-    bin_path.parent.mkdir(parents=True, exist_ok=True)
     url = f"{REPO_URL}/releases/download/{tag}/{asset}"
     # unique temp file per call (not per process) so concurrent downloads of
     # the same version never clobber each other, even across threads; the
