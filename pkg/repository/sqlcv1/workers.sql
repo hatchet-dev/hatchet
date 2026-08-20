@@ -477,6 +477,24 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
+-- name: UpdateWorkerHeartbeats :exec
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = @lastHeartbeatAt::timestamp
+WHERE
+    "id" = ANY(@ids::uuid[]);
+
+-- name: PauseWorkers :exec
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = TRUE
+WHERE
+    "id" = ANY(@ids::uuid[]);
+
 -- name: DeleteWorker :one
 DELETE FROM
   "Worker"

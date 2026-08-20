@@ -102,6 +102,7 @@ module HatchetSdkRest
     end
 
     # Delete a webhook
+    # Delete a webhook
     # @param tenant [String] The tenant id
     # @param v1_webhook [String] The name of the webhook to delete
     # @param [Hash] opts the optional parameters
@@ -111,6 +112,7 @@ module HatchetSdkRest
       data
     end
 
+    # Delete a webhook
     # Delete a webhook
     # @param tenant [String] The tenant id
     # @param v1_webhook [String] The name of the webhook to delete
