@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.0] - 2026-08-19
+
+### Added
+
+- Adds embedded mode: `Hatchet.from_embedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process.
+
 ## [1.37.3] - 2026-08-19
 
 ### Fixed
