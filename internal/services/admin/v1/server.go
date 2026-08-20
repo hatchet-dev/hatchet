@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
@@ -683,10 +684,16 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		}
 	}
 
-	// if we have _any_ runs to trigger with idempotency keys, we trigger everything in the batch directly to maintain atomicity
+	// Idempotent batches cannot fall back to the queue: the claim must happen in this
+	// transaction. Wait for a slot instead of fail-fast so a saturated gRPC fast-path
+	// does not return Internal to the client.
 	if hasIdempotencyKeys {
-		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
+			if errors.Is(err, trigger.ErrNoTriggerSlots) {
+				return nil, status.Error(codes.ResourceExhausted, err.Error())
+			}
+
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
 		}
 		return idempotencyKeyCollisions, nil

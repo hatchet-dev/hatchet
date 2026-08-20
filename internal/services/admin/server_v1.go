@@ -83,6 +83,10 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 	)
 
 	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			return nil, s.Err()
+		}
+
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
@@ -373,10 +377,16 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		}
 	}
 
-	// if we have _any_ runs to trigger with idempotency keys, we trigger everything in the batch directly to maintain atomicity
+	// Idempotent batches cannot fall back to the queue: the claim must happen in this
+	// transaction. Wait for a slot instead of fail-fast so a saturated gRPC fast-path
+	// does not return Internal to the client.
 	if hasIdempotencyKeys {
-		idempotencyKeyCollisions, err := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+		idempotencyKeyCollisions, err := i.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
+			if errors.Is(err, trigger.ErrNoTriggerSlots) {
+				return nil, status.Error(codes.ResourceExhausted, err.Error())
+			}
+
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
 		}
 		return idempotencyKeyCollisions, nil
