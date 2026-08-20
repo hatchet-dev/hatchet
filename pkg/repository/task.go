@@ -2436,7 +2436,7 @@ func (r *sharedRepository) insertTasks(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
 						cel.WithWorkflowRunID(task.ExternalId),
-						cel.WithParents(r.ToV1StepRunData(task.Input).Parents),
+						cel.WithParents(r.toParentsData(task.Input)),
 					))
 
 					if err != nil {
@@ -2508,7 +2508,7 @@ func (r *sharedRepository) insertTasks(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
 						cel.WithWorkflowRunID(task.ExternalId),
-						cel.WithParents(r.ToV1StepRunData(task.Input).Parents),
+						cel.WithParents(r.toParentsData(task.Input)),
 					))
 
 					if err != nil {
@@ -2908,7 +2908,7 @@ func (r *sharedRepository) replayTasks(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
 						cel.WithWorkflowRunID(task.ExternalId),
-						cel.WithParents(r.ToV1StepRunData(task.Input).Parents),
+						cel.WithParents(r.toParentsData(task.Input)),
 					))
 
 					if err != nil {
