@@ -23,9 +23,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-// defaultOperatorSlots is the worker slot count used when a DAG operator does not configure one.
-const defaultOperatorSlots = 10_000
-
 const (
 	// workflowPollInterval is how often the operator queries the database for the tenant's DAG
 	// workflows to keep its registered actions in sync.
@@ -40,25 +37,26 @@ const (
 // DAG workflows and registers each as an action (see pollWorkflows).
 type DAGOperatorConfig struct {
 	// Slots is the number of concurrent task slots the operator's worker advertises. Defaults
-	// to defaultOperatorSlots when unset.
+	// to the server's configured default (WithSlots) when unset.
 	Slots int `json:"slots"`
 }
 
-// SlotConfig returns the worker slot config (slot_type -> max units) for a DAG operator,
-// derived from its stored config. It is used by the manager to provision the operator's
-// worker and may vary between operators.
-func SlotConfig(op *sqlcv1.V1Operator) (map[string]int32, error) {
+func resolveSlots(cfgSlots, defaultSlots int) int {
+	if cfgSlots > 0 {
+		return cfgSlots
+	}
+
+	return defaultSlots
+}
+
+func SlotConfig(op *sqlcv1.V1Operator, defaultSlots int) (map[string]int32, error) {
 	var cfg DAGOperatorConfig
 
 	if err := json.Unmarshal(op.Config, &cfg); err != nil {
 		return nil, fmt.Errorf("could not unmarshal operator config: %w", err)
 	}
 
-	slots := cfg.Slots
-
-	if slots <= 0 {
-		slots = defaultOperatorSlots
-	}
+	slots := resolveSlots(cfg.Slots, defaultSlots)
 
 	return map[string]int32{repository.SlotTypeDurable: int32(slots)}, nil
 }
@@ -81,13 +79,25 @@ type DAGOperator struct {
 
 	// runCancels lets a CANCEL_STEP_RUN action stop one run without cancelling d.ctx.
 	runCancels syncx.Map[string, context.CancelFunc]
+
+	slots int
+}
+
+type DAGOperatorOpt func(*DAGOperator)
+
+// WithSlots sets the server-wide default slot count (SERVER_DAG_OPERATOR_DEFAULT_SLOTS) used
+// when the operator's stored config doesn't set its own Slots.
+func WithSlots(defaultSlots int) DAGOperatorOpt {
+	return func(d *DAGOperator) {
+		d.slots = defaultSlots
+	}
 }
 
 // NewDAGOperator constructs a DAG operator and starts a goroutine that polls the database for
 // the tenant's DAG workflows, registering each as a worker action so matching tasks are routed
 // to it. The action set is data-driven (not static config), so it is refreshed on a ticker the
 // same way the HTTP operator refreshes actions from its healthcheck.
-func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter operator.TaskEventWriter, workerId uuid.UUID) (*DAGOperator, error) {
+func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter operator.TaskEventWriter, workerId uuid.UUID, opts ...DAGOperatorOpt) (*DAGOperator, error) {
 	shared, err := operator.NewSharedOperator(op, l, repo, taskEventWriter, workerId, DAGOperatorConfig{})
 
 	if err != nil {
@@ -102,6 +112,12 @@ func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Re
 		ctx:            ctx,
 		cancel:         cancel,
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	d.slots = resolveSlots(shared.Config().Slots, d.slots)
 
 	go d.pollWorkflows(ctx)
 

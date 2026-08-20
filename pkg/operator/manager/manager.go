@@ -48,21 +48,24 @@ type OperatorManager struct {
 	dispatcherId      uuid.UUID
 	mu                sync.Mutex
 
+	dagOperatorDefaultSlots int
+
 	// drains tracks in-flight per-operator drain goroutines so Cleanup can await them.
 	drains sync.WaitGroup
 }
 
-func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo repository.Repository, enc encryption.EncryptionService, infraBlockedCIDRs []string) *OperatorManager {
+func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo repository.Repository, enc encryption.EncryptionService, infraBlockedCIDRs []string, dagOperatorDefaultSlots int) *OperatorManager {
 	om := &OperatorManager{
-		dispatcherId:      dispatcherId,
-		repo:              repo,
-		l:                 l,
-		enc:               enc,
-		infraBlockedCIDRs: infraBlockedCIDRs,
-		operatorsCh:       make(chan []operator.Operator),
-		donePollingCh:     make(chan struct{}, 1),
-		doneHeartbeatCh:   make(chan struct{}),
-		draining:          make(map[uuid.UUID]struct{}),
+		dispatcherId:            dispatcherId,
+		repo:                    repo,
+		l:                       l,
+		enc:                     enc,
+		infraBlockedCIDRs:       infraBlockedCIDRs,
+		dagOperatorDefaultSlots: dagOperatorDefaultSlots,
+		operatorsCh:             make(chan []operator.Operator),
+		donePollingCh:           make(chan struct{}, 1),
+		doneHeartbeatCh:         make(chan struct{}),
+		draining:                make(map[uuid.UUID]struct{}),
 	}
 
 	return om
@@ -224,7 +227,7 @@ func (om *OperatorManager) reconcileOperators(ctx context.Context, claimed []*sq
 func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V1Operator) operator.Operator {
 	// The slot config may vary per operator, so each operator type derives it from its own
 	// config.
-	slotConfig, err := slotConfigForKind(op)
+	slotConfig, err := om.slotConfigForKind(op)
 
 	if err != nil {
 		om.l.Error().Err(err).Msgf("could not determine slot config for operator: %s", err.Error())
@@ -255,7 +258,7 @@ func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V
 
 		return newOperator
 	case sqlcv1.V1OperatorKindDAG:
-		newOperator, err := dagoperator.NewDAGOperator(op, om.l, om.repo, om.taskEventWriter, worker.ID)
+		newOperator, err := dagoperator.NewDAGOperator(op, om.l, om.repo, om.taskEventWriter, worker.ID, dagoperator.WithSlots(om.dagOperatorDefaultSlots))
 
 		if err != nil {
 			om.l.Error().Err(err).Msgf("could not construct dag operator: %s", err.Error())
@@ -270,12 +273,12 @@ func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V
 
 // slotConfigForKind derives the worker slot config for an operator from its kind-specific
 // config. It returns (nil, nil) for unsupported kinds so the caller skips instantiation.
-func slotConfigForKind(op *sqlcv1.V1Operator) (map[string]int32, error) {
+func (om *OperatorManager) slotConfigForKind(op *sqlcv1.V1Operator) (map[string]int32, error) {
 	switch op.Kind {
 	case sqlcv1.V1OperatorKindHTTPAPI:
 		return httpoperator.SlotConfig(op)
 	case sqlcv1.V1OperatorKindDAG:
-		return dagoperator.SlotConfig(op)
+		return dagoperator.SlotConfig(op, om.dagOperatorDefaultSlots)
 	default:
 		return nil, nil
 	}

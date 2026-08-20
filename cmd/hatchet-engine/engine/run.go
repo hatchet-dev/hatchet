@@ -358,6 +358,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithEncryption(sc.Encryption),
 			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
+			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -805,6 +806,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithEncryption(sc.Encryption),
 			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
+			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 

@@ -41,7 +41,7 @@ func (f *fakeOperator) Drain() {
 
 func newTestManager() *OperatorManager {
 	l := zerolog.Nop()
-	return NewOperatorManager(uuid.New(), &l, nil, nil, nil)
+	return NewOperatorManager(uuid.New(), &l, nil, nil, nil, 0)
 }
 
 // reconcileAndReport runs a single reconcile pass and returns the full active set it reports
