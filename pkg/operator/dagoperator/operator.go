@@ -24,7 +24,7 @@ import (
 )
 
 // defaultOperatorSlots is the worker slot count used when a DAG operator does not configure one.
-const defaultOperatorSlots = 100
+const defaultOperatorSlots = 10_000
 
 const (
 	// workflowPollInterval is how often the operator queries the database for the tenant's DAG
