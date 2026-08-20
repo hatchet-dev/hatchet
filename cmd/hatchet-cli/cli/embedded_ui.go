@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -24,6 +23,7 @@ import (
 	configcli "github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/ui"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
@@ -211,33 +211,32 @@ func tokenGate(token string, next http.Handler) http.Handler {
 }
 
 func checkEmbedded(target *url.URL, insecureSkipVerify bool) error {
-	client := &http.Client{Timeout: 5 * time.Second}
+	httpClient := &http.Client{Timeout: 5 * time.Second}
 
 	if insecureSkipVerify {
-		client.Transport = &http.Transport{
+		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
 		}
 	}
 
-	resp, err := client.Get(target.JoinPath("/api/v1/meta").String())
+	client, err := rest.NewClientWithResponses(target.String(), rest.WithHTTPClient(httpClient))
+	if err != nil {
+		return fmt.Errorf("could not build an API client for %s: %w", target, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.MetadataGetWithResponse(ctx)
 	if err != nil {
 		return fmt.Errorf("could not reach %s: %w", target, err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s does not look like a Hatchet API server (GET /api/v1/meta returned %d)", target, resp.StatusCode)
+	if resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
+		return fmt.Errorf("%s does not look like a Hatchet API server (GET /api/v1/meta returned %d)", target, resp.StatusCode())
 	}
 
-	var meta struct {
-		Embedded bool `json:"embedded"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return fmt.Errorf("could not parse /api/v1/meta response from %s: %w", target, err)
-	}
-
-	if !meta.Embedded {
+	if resp.JSON200.Embedded == nil || !*resp.JSON200.Embedded {
 		return fmt.Errorf("%s is not an embedded Hatchet instance; 'hatchet embedded-ui' only serves the UI for embedded instances", target)
 	}
 

@@ -1,7 +1,6 @@
 import atexit
 import hashlib
 import json
-import multiprocessing
 import os
 import platform
 import subprocess
@@ -12,9 +11,11 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings
+
+from hatchet_sdk.config import ClientConfig, ClientTLSConfig, create_settings_config
 
 if TYPE_CHECKING:
     from hatchet_sdk.hatchet import Hatchet
@@ -23,16 +24,20 @@ REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 DEFAULT_READY_TIMEOUT_SECONDS = 300.0
 
 
-class EmbeddedOptions(BaseModel):
+class EmbeddedOptions(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_EMBEDDED_",
+    )
+
     version: str | None = None
     """
-    hatchet-embedded release tag to download (defaults to HATCHET_EMBEDDED_VERSION or
-    latest). Tags correspond to the Hatchet engine version baked into the sidecar,
-    so pinning this pins the engine.
+    hatchet-embedded release tag to download (defaults to latest). Tags correspond
+    to the Hatchet engine version baked into the sidecar, so pinning this pins the
+    engine.
     """
 
     binary_path: str | None = None
-    """path to an existing sidecar binary, skips the download (or HATCHET_EMBEDDED_BINARY_PATH)"""
+    """path to an existing sidecar binary, skips the download"""
 
     checksum: str | None = None
     """
@@ -106,7 +111,7 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 def _resolve_version(version: str | None) -> str:
-    requested = version or os.environ.get("HATCHET_EMBEDDED_VERSION") or "latest"
+    requested = version or "latest"
     if requested != "latest":
         return requested
 
@@ -196,10 +201,8 @@ def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSi
     """
     options = options or EmbeddedOptions()
 
-    bin_path = (
-        options.binary_path
-        or os.environ.get("HATCHET_EMBEDDED_BINARY_PATH")
-        or str(_ensure_sidecar_binary(options.version, options.checksum))
+    bin_path = options.binary_path or str(
+        _ensure_sidecar_binary(options.version, options.checksum)
     )
     handshake_path = (
         Path(tempfile.mkdtemp(prefix="hatchet-embedded-")) / "handshake.json"
@@ -270,7 +273,13 @@ def _wait_for_handshake(
     )
 
 
-def HatchetEmbedded(options: EmbeddedOptions | None = None) -> "Hatchet":  # noqa: N802
+_HANDSHAKE_ENV = "HATCHET_EMBEDDED_HANDSHAKE"
+
+
+def HatchetEmbedded(  # noqa: N802
+    options: EmbeddedOptions | None = None,
+    config: ClientConfig | None = None,
+) -> "Hatchet":
     """
     Run a full Hatchet engine locally via the hatchet-embedded sidecar
     (downloaded on first use) and return a client wired to it. By default
@@ -278,39 +287,38 @@ def HatchetEmbedded(options: EmbeddedOptions | None = None) -> "Hatchet":  # noq
     options to point it at your own instead.
 
     :param options: Options for the embedded engine (version, ports, database, ...).
+    :param config: Base client configuration to use; the connection fields
+        (token, tenant, addresses, TLS) are overridden to point at the
+        embedded engine.
     :return: A Hatchet client instance connected to the embedded engine.
     """
-    from hatchet_sdk.config import ClientConfig, ClientTLSConfig
     from hatchet_sdk.hatchet import Hatchet
 
-    # worker subprocesses re-import the main module; connect them to the
-    # parent's engine (via the env vars exported below) instead of booting
-    # a second one. parent_process() is None while a spawn child is still
-    # importing the main module, so also check the _inheriting flag set
-    # during that phase.
-    in_child = multiprocessing.parent_process() is not None or getattr(
-        multiprocessing.current_process(), "_inheriting", False
-    )
-    if in_child:
-        return Hatchet()
+    # worker subprocesses re-import the main module; the handshake exported
+    # below connects them to the parent's engine instead of booting a second one
+    raw_handshake = os.environ.get(_HANDSHAKE_ENV)
+    if raw_handshake is not None:
+        handshake: dict[str, str] = json.loads(raw_handshake)
+    else:
+        sidecar = start_embedded_sidecar(options)
+        handshake = {
+            "token": sidecar.token,
+            "tenant_id": sidecar.tenant_id,
+            "grpc_address": sidecar.grpc_address,
+            "api_url": sidecar.api_url,
+        }
+        os.environ[_HANDSHAKE_ENV] = json.dumps(handshake)
 
-    sidecar = start_embedded_sidecar(options)
+    connection: dict[str, Any] = {
+        "token": handshake["token"],
+        "tenant_id": handshake["tenant_id"],
+        "host_port": handshake["grpc_address"],
+        "tls_config": ClientTLSConfig(strategy="none"),
+    }
+    if handshake["api_url"]:
+        connection["server_url"] = handshake["api_url"]
 
-    os.environ["HATCHET_CLIENT_TOKEN"] = sidecar.token
-    os.environ["HATCHET_CLIENT_TENANT_ID"] = sidecar.tenant_id
-    os.environ["HATCHET_CLIENT_HOST_PORT"] = sidecar.grpc_address
-    os.environ["HATCHET_CLIENT_TLS_STRATEGY"] = "none"
-    if sidecar.api_url:
-        os.environ["HATCHET_CLIENT_SERVER_URL"] = sidecar.api_url
+    if config is not None:
+        return Hatchet(config=config.model_copy(update=connection))
 
-    server_url = {"server_url": sidecar.api_url} if sidecar.api_url else {}
-
-    return Hatchet(
-        config=ClientConfig(
-            token=sidecar.token,
-            tenant_id=sidecar.tenant_id,
-            host_port=sidecar.grpc_address,
-            tls_config=ClientTLSConfig(strategy="none"),
-            **server_url,  # type: ignore[arg-type]
-        )
-    )
+    return Hatchet(config=ClientConfig(**connection))

@@ -17,12 +17,12 @@ const DEFAULT_READY_TIMEOUT_MS = 300_000;
 
 export interface EmbeddedOptions {
   /**
-   * hatchet-embedded release tag to download (defaults to HATCHET_EMBEDDED_VERSION or
+   * hatchet-embedded release tag to download (defaults to HATCHET_CLIENT_EMBEDDED_VERSION or
    * latest). Tags correspond to the Hatchet engine version baked into the sidecar,
    * so pinning this pins the engine.
    */
   version?: string;
-  /** path to an existing sidecar binary, skips the download (or HATCHET_EMBEDDED_BINARY_PATH) */
+  /** path to an existing sidecar binary, skips the download (or HATCHET_CLIENT_EMBEDDED_BINARY_PATH) */
   binaryPath?: string;
   /**
    * expected sha256 hex digest of the sidecar binary. When set, it replaces the
@@ -71,7 +71,7 @@ function sidecarAssetName(): string {
 }
 
 async function resolveVersion(version?: string): Promise<string> {
-  const requested = version ?? process.env.HATCHET_EMBEDDED_VERSION ?? 'latest';
+  const requested = version ?? process.env.HATCHET_CLIENT_EMBEDDED_VERSION ?? 'latest';
   if (requested !== 'latest') {
     return requested;
   }
@@ -194,7 +194,7 @@ async function waitForHandshake(
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
   const binPath =
     opts.binaryPath ??
-    process.env.HATCHET_EMBEDDED_BINARY_PATH ??
+    process.env.HATCHET_CLIENT_EMBEDDED_BINARY_PATH ??
     (await ensureSidecarBinary(opts.version, opts.checksum));
 
   const handshakePath = path.join(
