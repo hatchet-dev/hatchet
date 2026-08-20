@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -673,7 +674,7 @@ func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Cont
 	return result, nil
 }
 
-func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-and-lock-durable-event-log-file")
 	defer span.End()
 
@@ -682,31 +683,44 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		telemetry.AttributeKV{Key: "durable_task_id", Value: durableTaskId},
 	)
 
-	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
-		Durabletaskid:         durableTaskId,
-		Durabletaskinsertedat: durableTaskInsertedAt,
-		Tenantid:              tenantId,
-	})
-}
-
-func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
-	branchPoints, err := r.queries.ListDurableEventLogBranchPoints(ctx, tx, sqlcv1.ListDurableEventLogBranchPointsParams{
+	rows, err := r.queries.GetAndLockLogFileWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFileWithBranchPointsParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Tenantid:              tenantId,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list durable event log branch points: %w", err)
+		return nil, nil, err
 	}
 
-	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
-
-	for _, bp := range branchPoints {
-		nextBranchIdToBranchPoint[bp.NextBranchID] = bp
+	if len(rows) == 0 {
+		return nil, nil, pgx.ErrNoRows
 	}
 
-	return nextBranchIdToBranchPoint, nil
+	logFile := rows[0].V1DurableEventLogFile
+
+	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(rows))
+
+	for _, row := range rows {
+		logFile := row.V1DurableEventLogFile
+
+		if !row.NextBranchID.Valid {
+			continue
+		}
+
+		nextBranchIdToBranchPoint[row.NextBranchID.Int64] = &sqlcv1.V1DurableEventLogBranchPoint{
+			TenantID:               logFile.TenantID,
+			ID:                     row.ID.Int64,
+			InsertedAt:             row.InsertedAt,
+			DurableTaskID:          logFile.DurableTaskID,
+			DurableTaskInsertedAt:  logFile.DurableTaskInsertedAt,
+			FirstNodeIDInNewBranch: row.FirstNodeIDInNewBranch.Int64,
+			ParentBranchID:         row.ParentBranchID.Int64,
+			NextBranchID:           row.NextBranchID.Int64,
+		}
+	}
+
+	return &logFile, nextBranchIdToBranchPoint, nil
 }
 
 type BranchIdFromNodeIdTuple struct {
@@ -1410,15 +1424,10 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 
 	defer rollback()
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	logFile, nextBranchIdToBranchPoint, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to lock log file: %w", err)
-	}
-
-	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to list log branch points: %w", err)
 	}
 
 	if logFile.LatestInvocationCount != opts.InvocationCount {
@@ -2261,7 +2270,7 @@ func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uui
 
 	tx := optTx.tx
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	logFile, nextBranchIdToBranchPoint, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
@@ -2269,11 +2278,6 @@ func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uui
 
 	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
-
-	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list log branch points: %w", err)
-	}
 
 	latestSatisfiedOrder, err := r.latestSatisfiedOrderBeforeBranchPoint(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
 	if err != nil {
