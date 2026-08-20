@@ -1640,7 +1640,7 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 	return &i, err
 }
 
-const updateWorkerDurableTaskDispatcherId = `-- name: UpdateWorkerDurableTaskDispatcherId :one
+const updateWorkerDurableTaskDispatcherId = `-- name: UpdateWorkerDurableTaskDispatcherId :exec
 UPDATE "Worker"
 SET
     "durableTaskDispatcherId" = $1::UUID,
@@ -1648,7 +1648,7 @@ SET
 WHERE
     "id" = $2::uuid
     AND "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
+    AND "durableTaskDispatcherId" IS DISTINCT FROM $1::UUID
 `
 
 type UpdateWorkerDurableTaskDispatcherIdParams struct {
@@ -1657,34 +1657,9 @@ type UpdateWorkerDurableTaskDispatcherIdParams struct {
 	Tenantid     uuid.UUID `json:"tenantid"`
 }
 
-func (q *Queries) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, db DBTX, arg UpdateWorkerDurableTaskDispatcherIdParams) (*Worker, error) {
-	row := db.QueryRow(ctx, updateWorkerDurableTaskDispatcherId, arg.Dispatcherid, arg.Workerid, arg.Tenantid)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.LastHeartbeatAt,
-		&i.Name,
-		&i.DispatcherId,
-		&i.MaxRuns,
-		&i.IsActive,
-		&i.LastListenerEstablished,
-		&i.IsPaused,
-		&i.Type,
-		&i.WebhookId,
-		&i.OperatorId,
-		&i.Language,
-		&i.LanguageVersion,
-		&i.Os,
-		&i.RuntimeExtra,
-		&i.SdkVersion,
-		&i.DurableTaskDispatcherId,
-		&i.ActionHash,
-	)
-	return &i, err
+func (q *Queries) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, db DBTX, arg UpdateWorkerDurableTaskDispatcherIdParams) error {
+	_, err := db.Exec(ctx, updateWorkerDurableTaskDispatcherId, arg.Dispatcherid, arg.Workerid, arg.Tenantid)
+	return err
 }
 
 const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one

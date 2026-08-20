@@ -625,7 +625,7 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
--- name: UpdateWorkerDurableTaskDispatcherId :one
+-- name: UpdateWorkerDurableTaskDispatcherId :exec
 UPDATE "Worker"
 SET
     "durableTaskDispatcherId" = @dispatcherId::UUID,
@@ -633,7 +633,7 @@ SET
 WHERE
     "id" = @workerId::uuid
     AND "tenantId" = @tenantId::uuid
-RETURNING *;
+    AND "durableTaskDispatcherId" IS DISTINCT FROM @dispatcherId::UUID;
 
 -- name: ListDurableTaskDispatcherIdsForTasks :many
 WITH tasks AS (

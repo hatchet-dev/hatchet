@@ -290,17 +290,27 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		attribute.Int("dagoperator.durable_invocation_count", int(action.GetDurableTaskInvocationCount())),
 	)
 
-	if err := d.SendStarted(action); err != nil {
-		d.Logger().Error().Err(err).
-			Str("task_run_external_id", action.TaskRunExternalId).
-			Msg("could not report task started")
-	}
-
 	externalId, err := uuid.Parse(action.TaskRunExternalId)
 
 	if err != nil {
 		return d.fail(span, action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
 	}
+
+	startedReported := make(chan struct{})
+
+	go func() {
+		defer close(startedReported)
+
+		if err := d.SendStarted(action); err != nil {
+			d.Logger().Error().Err(err).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Msg("could not report task started")
+		}
+	}()
+
+	awaitStarted := func() { <-startedReported }
+
+	defer awaitStarted()
 
 	// Scoped to this run so a targeted cancel doesn't tear down every run on this operator.
 	// Derived from runSpanCtx so buildDAG/RegisterDurableTask/dagDurableTask spans nest under
@@ -313,6 +323,8 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}()
 
 	tasks, onFailureTask, err := d.buildDAG(runCtx, action)
+
+	awaitStarted()
 
 	if err != nil {
 		return d.fail(span, action, fmt.Errorf("could not build dag: %w", err), false)

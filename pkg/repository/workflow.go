@@ -302,17 +302,17 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 }
 
 func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
-	return r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
-		Ids:      []uuid.UUID{workflowVersionId},
-		Tenantid: tenantId,
-	})
+	steps, err := r.listStepsByWorkflowVersionIds(ctx, r.pool, tenantId, []uuid.UUID{workflowVersionId})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return steps[workflowVersionId], nil
 }
 
 func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
-	return r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
-		Stepids:  stepIds,
-		Tenantid: tenantId,
-	})
+	return r.listStepMatchConditions(ctx, r.pool, tenantId, stepIds)
 }
 
 type JobRunHasCycleError struct {
