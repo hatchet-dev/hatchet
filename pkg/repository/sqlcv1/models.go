@@ -2912,6 +2912,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -3082,6 +3083,7 @@ type TenantEntitlement struct {
 	AuditLogs                       bool               `json:"audit_logs"`
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
+	DagOperator                     bool               `json:"dag_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3341,6 +3343,7 @@ type V1DurableEventLogBranchPoint struct {
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
 	ParentBranchID         int64              `json:"parent_branch_id"`
 	NextBranchID           int64              `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replay_child_external_ids"`
 }
 
 type V1DurableEventLogEntry struct {
@@ -3837,6 +3840,7 @@ type V1Task struct {
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEvent struct {
@@ -4227,4 +4231,6 @@ type WorkflowVersion struct {
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
 	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
+	IsUsingDagOperator        bool                  `json:"isUsingDagOperator"`
+	DagShape                  []byte                `json:"dagShape"`
 }

@@ -37,6 +37,19 @@ func (f *fakeTaskEventWriter) RegisterDurableTask(_ context.Context, _ uuid.UUID
 	return nil, nil, nil
 }
 
+func (f *fakeTaskEventWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	f.events = append(f.events, request)
+	return &contracts.ActionEventResponse{}, nil
+}
+
+func (f *fakeTaskEventWriter) TriggerDAGStep(_ context.Context, _ uuid.UUID, _ *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	return nil, nil
+}
+
+func (f *fakeTaskEventWriter) CancelDAGChildren(_ context.Context, _ uuid.UUID, _ []uuid.UUID) error {
+	return nil
+}
+
 // fakeSender captures the last delivery and returns a configurable result/error.
 type fakeSender struct {
 	gotMethod   string

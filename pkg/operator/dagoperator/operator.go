@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -54,7 +56,7 @@ func SlotConfig(op *sqlcv1.V1Operator) (map[string]int32, error) {
 		slots = defaultOperatorSlots
 	}
 
-	return map[string]int32{repository.SlotTypeDefault: int32(slots)}, nil
+	return map[string]int32{repository.SlotTypeDurable: int32(slots)}, nil
 }
 
 type DAGOperator struct {
@@ -63,13 +65,18 @@ type DAGOperator struct {
 	// repo is used to list the tenant's DAG workflows when refreshing registered actions.
 	repo repository.Repository
 
-	// cancel stops the workflow-polling goroutine on Cleanup/Drain.
+	// ctx and cancel bound the operator's lifetime. Used by run() so that durable task
+	// sessions aren't subject to the dispatcher's short per-delivery context deadline.
+	ctx    context.Context
 	cancel context.CancelFunc
 
 	// lastActions is the most recently registered action set, used to avoid redundant
 	// dispatcher writes when the workflow list is unchanged. Only the polling goroutine
 	// touches it.
 	lastActions []string
+
+	// runCancels lets a CANCEL_STEP_RUN action stop one run without cancelling d.ctx.
+	runCancels syncx.Map[string, context.CancelFunc]
 }
 
 // NewDAGOperator constructs a DAG operator and starts a goroutine that polls the database for
@@ -88,6 +95,7 @@ func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Re
 	d := &DAGOperator{
 		SharedOperator: shared,
 		repo:           repo,
+		ctx:            ctx,
 		cancel:         cancel,
 	}
 
@@ -140,20 +148,14 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 	pollCtx, cancel := context.WithTimeout(ctx, workflowPollTimeout)
 	defer cancel()
 
-	workflowIds, err := d.repo.Operators().ListDAGWorkflowIds(pollCtx, d.TenantId())
+	actions, err := d.repo.Operators().ListDAGOrchestrationActions(pollCtx, d.TenantId())
 
 	if err != nil {
-		d.Logger().Error().Err(err).Msg("could not list dag workflows for operator")
+		d.Logger().Error().Err(err).Msg("could not list dag orchestration actions for operator")
 		return
 	}
 
-	actions := make([]string, len(workflowIds))
-
-	for i, id := range workflowIds {
-		actions[i] = id.String()
-	}
-
-	if slicesEqualUnordered(actions, d.lastActions) {
+	if listutils.AreUnorderedEqual(actions, d.lastActions) {
 		return
 	}
 
@@ -167,36 +169,19 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
 }
 
-// slicesEqualUnordered reports whether a and b contain the same elements regardless of order.
-func slicesEqualUnordered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	ac := slices.Clone(a)
-	bc := slices.Clone(b)
-	slices.Sort(ac)
-	slices.Sort(bc)
-
-	return slices.Equal(ac, bc)
-}
-
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
-	// Track this task so Drain/Cleanup wait for it before the operator shuts down.
-	release := d.RecordTask()
-	defer release()
-
 	switch action.ActionType {
 	case contracts.ActionType_START_STEP_RUN:
-		cctx, release := d.RegisterCancellableContext(ctx, action.TaskRunExternalId)
+		return d.startRun(action)
+	case contracts.ActionType_CANCEL_STEP_RUN:
+		release := d.RecordTask()
 		defer release()
 
-		return d.run(cctx, action)
-	case contracts.ActionType_CANCEL_STEP_RUN:
-		d.CancelTask(action.TaskRunExternalId)
-
-		return d.SendCancelled(action)
+		return d.cancelRun(action)
 	default:
+		release := d.RecordTask()
+		defer release()
+
 		d.Logger().Warn().
 			Str("action_type", action.ActionType.String()).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -206,12 +191,40 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 	}
 }
 
-// run opens a durable-task session for the assigned action and drives the DAG to completion.
-// The DAG graph itself is built by buildDAG; the orchestration loop (dagDurableTask) is
-// unchanged core logic.
-func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction) error {
-	// Report STARTED so the task is marked running. Best-effort: a failed report shouldn't
-	// prevent the actual work.
+func (d *DAGOperator) startRun(action *contracts.AssignedAction) error {
+	release := d.RecordTask()
+
+	go func() {
+		defer release()
+
+		if err := d.run(action); err != nil {
+			d.Logger().Error().Err(err).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Msg("dag orchestration ended with error")
+		}
+	}()
+
+	return nil
+}
+
+func (d *DAGOperator) cancelRun(action *contracts.AssignedAction) error {
+	cancel, ok := d.runCancels.Load(action.TaskRunExternalId)
+	if !ok {
+		d.Logger().Warn().
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Msg("dag operator received cancel for a run it has no record of; it may have already finished")
+
+		// No in-flight run() goroutine exists to report the terminal event via
+		// handleRunCancellation, so report it here instead.
+		return d.SendCancelled(action)
+	}
+
+	cancel()
+
+	return nil
+}
+
+func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	if err := d.SendStarted(action); err != nil {
 		d.Logger().Error().Err(err).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -221,59 +234,305 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 	externalId, err := uuid.Parse(action.TaskRunExternalId)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
+		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
 	}
 
-	tasks, err := buildDAG(action)
+	// Scoped to this run so a targeted cancel doesn't tear down every run on this operator.
+	runCtx, runCancel := context.WithCancel(d.ctx)
+	d.runCancels.Store(action.TaskRunExternalId, runCancel)
+	defer func() {
+		d.runCancels.Delete(action.TaskRunExternalId)
+		runCancel()
+	}()
+
+	tasks, onFailureTask, err := d.buildDAG(runCtx, action)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not build dag: %w", err))
+		return d.fail(action, fmt.Errorf("could not build dag: %w", err), false)
 	}
 
-	requestCh, responseCh, err := d.RegisterDurableTask(ctx, externalId)
+	workflowVersionId, err := uuid.Parse(action.GetWorkflowVersionId())
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not register durable task: %w", err))
+		return d.fail(action, fmt.Errorf("invalid workflow_version_id %q: %w", action.GetWorkflowVersionId(), err), false)
 	}
 
-	// dagDurableTask runs the orchestration loop until the DAG completes or ctx is cancelled.
-	// Closing requestCh tears down the dispatcher-side session.
+	requestCh, responseCh, err := d.RegisterDurableTask(runCtx, externalId)
+
+	if err != nil {
+		return d.fail(action, fmt.Errorf("could not register durable task: %w", err), false)
+	}
+
 	defer close(requestCh)
 
-	dagDurableTask(ctx, tasks, requestCh, responseCh)
-
-	if err := ctx.Err(); err != nil {
-		if errors.Is(err, context.Canceled) {
-			// A CANCEL_STEP_RUN for this task already reported the terminal event via
-			// SendCancelled; reporting a failure here too would contradict it.
-			return nil
-		}
-
-		return d.fail(action, fmt.Errorf("dag did not complete: %w", err))
+	select {
+	case requestCh <- &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_RegisterWorker{
+			RegisterWorker: &v1contracts.DurableTaskRequestRegisterWorker{
+				WorkerId: d.WorkerId().String(),
+			},
+		},
+	}:
+	case <-runCtx.Done():
+		return d.handleRunCancellation(action, nil, fmt.Errorf("run interrupted before register worker request could be sent: %w", runCtx.Err()))
 	}
 
-	// The DAG completed. The dispatcher requires valid JSON output.
-	if err := d.SendCompleted(action, []byte("{}")); err != nil {
+	select {
+	case <-runCtx.Done():
+		return d.handleRunCancellation(action, nil, fmt.Errorf("run interrupted waiting for register worker ack: %w", runCtx.Err()))
+	case _, ok := <-responseCh:
+		if !ok {
+			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"), false)
+		}
+	}
+
+	var payloadWrapper struct {
+		Input               json.RawMessage               `json:"input"`
+		DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+	}
+	workflowInput := "{}"
+	if err := json.Unmarshal([]byte(action.ActionPayload), &payloadWrapper); err == nil && len(payloadWrapper.Input) > 0 {
+		workflowInput = string(payloadWrapper.Input)
+	}
+
+	var additionalMetadata []byte
+	if meta := action.GetAdditionalMetadata(); meta != "" {
+		additionalMetadata = []byte(meta)
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
+			ParentTaskExternalId: externalId,
+			InvocationCount:      action.GetDurableTaskInvocationCount(),
+			WorkflowName:         workflowName,
+			WorkflowVersionId:    workflowVersionId,
+			ActionId:             actionId,
+			ChildIndex:           childIndex,
+			Input:                workflowInput,
+			AdditionalMetadata:   additionalMetadata,
+			DagParentTaskRunIds:  parentTaskRunIds,
+			IsSkipped:            isSkipped,
+			IsCancelled:          isCancelled,
+			DesiredWorkerLabels:  payloadWrapper.DesiredWorkerLabels,
+			ParentReExecuted:     parentReExecuted,
+		})
+	}
+
+	dagErr := dagDurableTask(
+		runCtx,
+		tasks,
+		onFailureTask,
+		externalId,
+		action.GetDurableTaskInvocationCount(),
+		action.ActionPayload,
+		requestCh,
+		responseCh,
+		d.repo.Matches().EvalBoolExpr,
+		triggerStep,
+	)
+
+	// Fold in if triggered, so output collection and cancellation below see it too.
+	if onFailureTask != nil && onFailureTask.isTriggered {
+		tasks = append(tasks, onFailureTask)
+	}
+
+	if dagErr != nil {
+		if isDagCancelledErr(dagErr) {
+			return d.cancelDAG(action, dagErr.Error())
+		}
+		if errors.Is(dagErr, context.Canceled) {
+			return d.handleRunCancellation(action, tasks, dagErr)
+		}
+		// A child task failing is a terminal DAG outcome that replay reproduces deterministically,
+		// so it must not be retried; anything else (operational errors) remains retriable.
+		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr), isDagChildFailedErr(dagErr))
+	}
+
+	output := make(map[string]json.RawMessage, len(tasks))
+
+	var completedRefs []repository.TaskExternalIdNodeIdBranchId
+	refToReadableId := make(map[repository.TaskExternalIdNodeIdBranchId]string, len(tasks))
+
+	for _, t := range tasks {
+		switch {
+		case t.isSkipped:
+			if b, err := json.Marshal(map[string]interface{}{"skipped": true}); err == nil {
+				output[t.readableId] = json.RawMessage(b)
+			}
+		case t.isCancelled:
+			if b, err := json.Marshal(map[string]interface{}{"cancelled": true}); err == nil {
+				output[t.readableId] = json.RawMessage(b)
+			}
+		default:
+			ref := repository.TaskExternalIdNodeIdBranchId{
+				TaskExternalId: externalId,
+				NodeId:         t.nodeId,
+				BranchId:       t.branchId,
+			}
+			completedRefs = append(completedRefs, ref)
+			refToReadableId[ref] = t.readableId
+		}
+	}
+
+	if len(completedRefs) > 0 {
+		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs)
+		if err != nil {
+			return d.fail(action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
+		}
+
+		for _, ev := range events {
+			readableId, ok := refToReadableId[repository.TaskExternalIdNodeIdBranchId{
+				TaskExternalId: ev.TaskExternalId,
+				NodeId:         ev.NodeID,
+				BranchId:       ev.BranchID,
+			}]
+			if !ok {
+				continue
+			}
+			output[readableId] = json.RawMessage(ev.Result)
+		}
+	}
+
+	outputBytes, err := json.Marshal(output)
+	if err != nil {
+		outputBytes = []byte("{}")
+	}
+
+	if err := d.SendCompleted(action, outputBytes); err != nil {
 		return fmt.Errorf("could not report task completion: %w", err)
 	}
 
 	return nil
 }
 
-// fail reports a task failure (retryable) and returns the originating error.
-func (d *DAGOperator) fail(action *contracts.AssignedAction, err error) error {
-	if reportErr := d.SendFailed(action, err.Error(), false); reportErr != nil {
-		d.Logger().Error().Err(reportErr).
-			Str("task_run_external_id", action.TaskRunExternalId).
-			Msg("could not report task failure")
-	}
-
+func (d *DAGOperator) abortForShutdown(action *contracts.AssignedAction, err error) error {
+	d.Logger().Warn().Err(err).
+		Str("task_run_external_id", action.TaskRunExternalId).
+		Msg("dag operator shutting down mid-run; leaving task for reassignment")
 	return err
 }
 
-// buildDAG constructs the task graph for an assigned action. Parsing the DAG definition out
-// of the action payload is part of the core DAG logic and is not yet implemented; this seam
-// keeps the operator plumbing wired up until that lands.
-func buildDAG(_ *contracts.AssignedAction) ([]*task, error) {
-	return nil, fmt.Errorf("buildDAG is not implemented yet")
+func (d *DAGOperator) handleRunCancellation(action *contracts.AssignedAction, tasks []*task, err error) error {
+	if d.ctx.Err() != nil {
+		return d.abortForShutdown(action, fmt.Errorf("dag orchestration interrupted by operator shutdown: %w", err))
+	}
+
+	// Already-triggered children keep running unless cancelled explicitly.
+	var childExternalIds []uuid.UUID
+	for _, t := range tasks {
+		if t.isTriggered && !t.isCompleted && t.workflowRunExternalId != nil {
+			childExternalIds = append(childExternalIds, *t.workflowRunExternalId)
+		}
+	}
+
+	if len(childExternalIds) > 0 {
+		// runCtx/d.ctx may already be cancelled, but this cleanup should still run.
+		cancelCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if cancelErr := d.CancelDAGChildren(cancelCtx, childExternalIds); cancelErr != nil {
+			d.Logger().Error().Err(cancelErr).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Msg("could not cancel dag children after run cancellation")
+		}
+	}
+
+	return d.cancelDAG(action, err.Error())
+}
+
+func (d *DAGOperator) fail(action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
+	if reportErr := d.SendFailed(action, err.Error(), shouldNotRetry); reportErr != nil {
+		d.Logger().Error().Err(reportErr).
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Msg("could not report task failure")
+		return err
+	}
+
+	return nil
+}
+
+func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) error {
+	if reportErr := d.SendCancelledWithMessage(action, msg); reportErr != nil {
+		return fmt.Errorf("could not report task cancellation for task run id %s: %w", action.TaskRunExternalId, reportErr)
+	}
+
+	return nil
+}
+
+func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAction) ([]*task, *task, error) {
+	versionIdStr := action.GetWorkflowVersionId()
+
+	if versionIdStr == "" {
+		return nil, nil, fmt.Errorf("action is missing workflow_version_id")
+	}
+
+	versionId, err := uuid.Parse(versionIdStr)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid workflow_version_id %q: %w", versionIdStr, err)
+	}
+
+	steps, err := d.repo.Workflows().ListStepsByWorkflowVersionId(ctx, d.TenantId(), versionId)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list steps for workflow version %s: %w", versionId, err)
+	}
+
+	tasksByStepId := make(map[uuid.UUID]*task, len(steps))
+	tasks := make([]*task, 0, len(steps))
+	stepIds := make([]uuid.UUID, 0, len(steps))
+	var onFailureTask *task
+
+	taskIndex := 0
+	for _, s := range steps {
+		if s.IsDagOrchestrator {
+			continue
+		}
+
+		t := &task{
+			id:           s.ID,
+			actionId:     s.ActionId,
+			workflowName: s.WorkflowName,
+			readableId:   s.ReadableId.String,
+			index:        int32(taskIndex), // nolint:gosec
+		}
+		taskIndex++
+
+		// Keep it out of tasksByStepId/tasks/stepIds so it isn't gated by normal readiness.
+		if s.JobKind == sqlcv1.JobKindONFAILURE {
+			onFailureTask = t
+			continue
+		}
+
+		tasksByStepId[s.ID] = t
+		tasks = append(tasks, t)
+		stepIds = append(stepIds, s.ID)
+	}
+
+	for _, s := range steps {
+		t, ok := tasksByStepId[s.ID]
+		if !ok {
+			continue
+		}
+		for _, parentId := range s.Parents {
+			if parent, ok := tasksByStepId[parentId]; ok {
+				t.parents = append(t.parents, parent)
+			}
+		}
+	}
+
+	if len(stepIds) > 0 {
+		stepConditions, err := d.repo.Workflows().ListStepMatchConditions(ctx, d.TenantId(), stepIds)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not list step match conditions for workflow version %s: %w", versionId, err)
+		}
+
+		for _, cond := range stepConditions {
+			if t, ok := tasksByStepId[cond.StepID]; ok {
+				t.stepConditions = append(t.stepConditions, cond)
+			}
+		}
+	}
+
+	return tasks, onFailureTask, nil
 }
