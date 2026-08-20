@@ -21,10 +21,6 @@ Fixes # (issue)
 - [ ] Test changes (add, refactor, improve or change a test)
 - [ ] This change requires a documentation update
 
-## What's Changed
-
-- [ ] Add a list of tasks or features here...
-
 ## Checklist
 
 <!-- Check all that apply. -->
