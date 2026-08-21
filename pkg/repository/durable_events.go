@@ -1885,6 +1885,8 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	targetMatchID, err := r.queries.GetActiveMatchForDurableWait(ctx, lookbackTx, sqlcv1.GetActiveMatchForDurableWaitParams{
 		Tenantid:              tenantId,
+		Eventkeys:             lookbackParams.Keys,
+		Eventscopes:           lookbackParams.Scopes,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Durabletaskexternalid: task.ExternalID,

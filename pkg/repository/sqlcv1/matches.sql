@@ -242,16 +242,38 @@ ORDER BY e.seen_at DESC
 ;
 
 -- name: GetActiveMatchForDurableWait :one
-SELECT m.id
-FROM v1_match m
-WHERE m.tenant_id = @tenantId::uuid
-  AND m.kind = 'SIGNAL'
-  AND m.signal_task_id = @durableTaskId::bigint
-  AND m.signal_task_inserted_at = @durableTaskInsertedAt::timestamptz
-  AND m.signal_task_external_id = @durableTaskExternalId::uuid
-  AND m.durable_event_log_entry_node_id = @nodeId::bigint
-  AND m.durable_event_log_entry_branch_id = @branchId::bigint
-  AND m.is_satisfied = FALSE
+WITH inputs AS (
+    SELECT
+        UNNEST(@eventKeys::text[]) AS event_key,
+        UNNEST(@eventScopes::text[]) AS event_resource_hint
+), relevant_match_conditions AS (
+    SELECT v1_match_id
+    FROM v1_match_condition
+    WHERE tenant_id = @tenantId::uuid
+        AND event_type = 'USER'
+        AND is_satisfied = FALSE
+        AND (event_key, event_resource_hint) IN (
+            SELECT event_key, event_resource_hint
+            FROM inputs
+        )
+)
+
+SELECT id
+FROM v1_match
+WHERE
+    tenant_id = @tenantId::uuid
+    AND kind = 'SIGNAL'
+    AND signal_task_id = @durableTaskId::bigint
+    AND signal_task_inserted_at = @durableTaskInsertedAt::timestamptz
+    AND signal_task_external_id = @durableTaskExternalId::uuid
+    AND durable_event_log_entry_node_id = @nodeId::bigint
+    AND durable_event_log_entry_branch_id = @branchId::bigint
+    AND is_satisfied = FALSE
+    AND id IN (
+        SELECT v1_match_id
+        FROM relevant_match_conditions
+    )
+LIMIT 1
 ;
 
 -- name: CleanupMatchWithMatchConditions :exec

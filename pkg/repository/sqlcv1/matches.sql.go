@@ -50,16 +50,38 @@ type CreateMatchConditionsParams struct {
 }
 
 const getActiveMatchForDurableWait = `-- name: GetActiveMatchForDurableWait :one
-SELECT m.id
-FROM v1_match m
-WHERE m.tenant_id = $1::uuid
-  AND m.kind = 'SIGNAL'
-  AND m.signal_task_id = $2::bigint
-  AND m.signal_task_inserted_at = $3::timestamptz
-  AND m.signal_task_external_id = $4::uuid
-  AND m.durable_event_log_entry_node_id = $5::bigint
-  AND m.durable_event_log_entry_branch_id = $6::bigint
-  AND m.is_satisfied = FALSE
+WITH inputs AS (
+    SELECT
+        UNNEST($7::text[]) AS event_key,
+        UNNEST($8::text[]) AS event_resource_hint
+), relevant_match_conditions AS (
+    SELECT v1_match_id
+    FROM v1_match_condition
+    WHERE tenant_id = $1::uuid
+        AND event_type = 'USER'
+        AND is_satisfied = FALSE
+        AND (event_key, event_resource_hint) IN (
+            SELECT event_key, event_resource_hint
+            FROM inputs
+        )
+)
+
+SELECT id
+FROM v1_match
+WHERE
+    tenant_id = $1::uuid
+    AND kind = 'SIGNAL'
+    AND signal_task_id = $2::bigint
+    AND signal_task_inserted_at = $3::timestamptz
+    AND signal_task_external_id = $4::uuid
+    AND durable_event_log_entry_node_id = $5::bigint
+    AND durable_event_log_entry_branch_id = $6::bigint
+    AND is_satisfied = FALSE
+    AND id IN (
+        SELECT v1_match_id
+        FROM relevant_match_conditions
+    )
+LIMIT 1
 `
 
 type GetActiveMatchForDurableWaitParams struct {
@@ -69,6 +91,8 @@ type GetActiveMatchForDurableWaitParams struct {
 	Durabletaskexternalid uuid.UUID          `json:"durabletaskexternalid"`
 	Nodeid                int64              `json:"nodeid"`
 	Branchid              int64              `json:"branchid"`
+	Eventkeys             []string           `json:"eventkeys"`
+	Eventscopes           []string           `json:"eventscopes"`
 }
 
 func (q *Queries) GetActiveMatchForDurableWait(ctx context.Context, db DBTX, arg GetActiveMatchForDurableWaitParams) (int64, error) {
@@ -79,6 +103,8 @@ func (q *Queries) GetActiveMatchForDurableWait(ctx context.Context, db DBTX, arg
 		arg.Durabletaskexternalid,
 		arg.Nodeid,
 		arg.Branchid,
+		arg.Eventkeys,
+		arg.Eventscopes,
 	)
 	var id int64
 	err := row.Scan(&id)
