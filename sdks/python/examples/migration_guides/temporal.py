@@ -377,8 +377,9 @@ def main() -> None:
 # !!
 
 
-# `test_temporal.py` needs every example in this file reachable from one worker, so
-# the entrypoint below registers all of them rather than the four `main` shows.
+# `main` above is the snippet the guide shows, so it registers only the four
+# workflows that section is about. Running this file registers every example in
+# it instead, which is what you want if you are trying them out.
 def run_all_examples() -> None:
     # `call_model` consumes this static key, so it has to exist before the task runs.
     hatchet.rate_limits.put("openai", 1000, RateLimitDuration.MINUTE)
