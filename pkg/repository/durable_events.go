@@ -1137,9 +1137,15 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			continue
 		}
 
+		if latestEntryByChild[to.ExternalId] == nil {
+			to.ShouldSkip = false
+			to.ExternalId = uuid.New()
+			continue
+		}
+
 		if to.ReplayOrphanedChildren {
 			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
-			latestSatisfied := latestEntryByChild[to.ExternalId] != nil && latestEntryByChild[to.ExternalId].IsSatisfied
+			latestSatisfied := latestEntryByChild[to.ExternalId].IsSatisfied
 
 			if forcedReplayChildren != nil && !forced && latestSatisfied {
 				// untouched subtree: the skip path returns the cached result without re-running
