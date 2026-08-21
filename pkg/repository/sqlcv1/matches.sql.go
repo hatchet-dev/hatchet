@@ -49,6 +49,42 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
+const getActiveMatchForDurableWait = `-- name: GetActiveMatchForDurableWait :one
+SELECT m.id
+FROM v1_match m
+WHERE m.tenant_id = $1::uuid
+  AND m.kind = 'SIGNAL'
+  AND m.signal_task_id = $2::bigint
+  AND m.signal_task_inserted_at = $3::timestamptz
+  AND m.signal_task_external_id = $4::uuid
+  AND m.durable_event_log_entry_node_id = $5::bigint
+  AND m.durable_event_log_entry_branch_id = $6::bigint
+  AND m.is_satisfied = FALSE
+`
+
+type GetActiveMatchForDurableWaitParams struct {
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Durabletaskexternalid uuid.UUID          `json:"durabletaskexternalid"`
+	Nodeid                int64              `json:"nodeid"`
+	Branchid              int64              `json:"branchid"`
+}
+
+func (q *Queries) GetActiveMatchForDurableWait(ctx context.Context, db DBTX, arg GetActiveMatchForDurableWaitParams) (int64, error) {
+	row := db.QueryRow(ctx, getActiveMatchForDurableWait,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Durabletaskexternalid,
+		arg.Nodeid,
+		arg.Branchid,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getPreviousMatchingEventsByKeysWithScopeHint = `-- name: GetPreviousMatchingEventsByKeysWithScopeHint :many
 WITH inputs AS (
     SELECT
@@ -164,62 +200,6 @@ type GetSatisfiedMatchConditionsParams struct {
 // on the same target table without using RETURNING.
 func (q *Queries) GetSatisfiedMatchConditions(ctx context.Context, db DBTX, arg GetSatisfiedMatchConditionsParams) ([]int64, error) {
 	rows, err := db.Query(ctx, getSatisfiedMatchConditions, arg.Matchids, arg.Conditionids, arg.Datas)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listActiveMatchesForDurableWait = `-- name: ListActiveMatchesForDurableWait :many
-SELECT DISTINCT m.id
-FROM v1_match m
-JOIN v1_match_condition mc ON mc.v1_match_id = m.id
-WHERE mc.tenant_id = $1::uuid
-  AND mc.event_type = 'USER'
-  AND mc.event_key = ANY($2::text[])
-  AND mc.is_satisfied = FALSE
-  AND m.tenant_id = $1::uuid
-  AND m.kind = 'SIGNAL'
-  AND m.signal_task_id = $3::bigint
-  AND m.signal_task_inserted_at = $4::timestamptz
-  AND m.signal_task_external_id = $5::uuid
-  AND m.durable_event_log_entry_node_id = $6::bigint
-  AND m.durable_event_log_entry_branch_id = $7::bigint
-  AND m.is_satisfied = FALSE
-`
-
-type ListActiveMatchesForDurableWaitParams struct {
-	Tenantid              uuid.UUID          `json:"tenantid"`
-	Eventkeys             []string           `json:"eventkeys"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Durabletaskexternalid uuid.UUID          `json:"durabletaskexternalid"`
-	Nodeid                int64              `json:"nodeid"`
-	Branchid              int64              `json:"branchid"`
-}
-
-func (q *Queries) ListActiveMatchesForDurableWait(ctx context.Context, db DBTX, arg ListActiveMatchesForDurableWaitParams) ([]int64, error) {
-	rows, err := db.Query(ctx, listActiveMatchesForDurableWait,
-		arg.Tenantid,
-		arg.Eventkeys,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Durabletaskexternalid,
-		arg.Nodeid,
-		arg.Branchid,
-	)
 	if err != nil {
 		return nil, err
 	}

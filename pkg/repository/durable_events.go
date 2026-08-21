@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -1882,9 +1883,8 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		return initialWaitForResult, nil
 	}
 
-	targetMatchIDs, err := r.queries.ListActiveMatchesForDurableWait(ctx, lookbackTx, sqlcv1.ListActiveMatchesForDurableWaitParams{
+	targetMatchID, err := r.queries.GetActiveMatchForDurableWait(ctx, lookbackTx, sqlcv1.GetActiveMatchForDurableWaitParams{
 		Tenantid:              tenantId,
-		Eventkeys:             lookbackParams.Keys,
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Durabletaskexternalid: task.ExternalID,
@@ -1893,15 +1893,11 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	})
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return initialWaitForResult, nil
+		}
+
 		return nil, fmt.Errorf("failed to find active match for durable wait: %w", err)
-	}
-
-	if len(targetMatchIDs) == 0 {
-		return initialWaitForResult, nil
-	}
-
-	if len(targetMatchIDs) != 1 {
-		return nil, fmt.Errorf("expected exactly one active match for durable wait, got %d", len(targetMatchIDs))
 	}
 
 	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
@@ -1954,7 +1950,6 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		})
 	}
 
-	targetMatchID := targetMatchIDs[0]
 	retroMatchResults, err := r.processEventMatchesForTarget(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER, &targetMatchID)
 
 	if err != nil {
