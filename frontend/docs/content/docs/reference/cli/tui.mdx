@@ -45,3 +45,12 @@ The Workers view shows the status of workers connected to your Hatchet deploymen
   <source src="/reference/cli/workers_view.mp4" type="video/mp4" />
   Your browser does not support the video tag
 </video>
+
+## Other Views
+
+The TUI also includes views for rate limits, scheduled runs, cron jobs, webhooks, events, and filters. The Events view lists the tenant's event stream with the payload and metadata of each event, and the Filters view shows event filters with their CEL expressions. Each view can also be opened directly from the corresponding `list` command, for example:
+
+```sh
+hatchet events list
+hatchet filters list
+```

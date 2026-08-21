@@ -817,9 +817,203 @@ var runsEventsCmd = &cobra.Command{
 	},
 }
 
+var runsStatusCmd = &cobra.Command{
+	Use:   "status <run-id>",
+	Short: "Get the status of a run",
+	Long:  `Get the status of a run. Without --output json, prints just the status string.`,
+	Args:  cobra.ExactArgs(1),
+	Example: `  hatchet runs status 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local
+  hatchet runs status 8ff4f149-099e-4c16-a8d1-0535f8c79b83 -o json`,
+	Run: func(cmd *cobra.Command, args []string) {
+		runID := args[0]
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+
+		ctx := cmd.Context()
+		runUUID, err := uuid.Parse(runID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
+		}
+
+		resp, err := hatchetClient.API().V1WorkflowRunGetStatusWithResponse(ctx, runUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to get run status: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("run not found (status %d)", resp.StatusCode())
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+			return
+		}
+		fmt.Println(string(*resp.JSON200))
+	},
+}
+
+var runsTimingsCmd = &cobra.Command{
+	Use:   "timings <run-id>",
+	Short: "Get task timings for a run",
+	Long:  `Get task timings for a run. Outputs JSON.`,
+	Args:  cobra.ExactArgs(1),
+	Example: `  hatchet runs timings 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local
+  hatchet runs timings 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --depth 2`,
+	Run: func(cmd *cobra.Command, args []string) {
+		runID := args[0]
+		_, hatchetClient := clientFromCmd(cmd)
+
+		ctx := cmd.Context()
+		runUUID, err := uuid.Parse(runID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
+		}
+
+		params := &rest.V1WorkflowRunGetTimingsParams{}
+		if cmd.Flags().Changed("depth") {
+			depth, _ := cmd.Flags().GetInt64("depth")
+			params.Depth = &depth
+		}
+
+		resp, err := hatchetClient.API().V1WorkflowRunGetTimingsWithResponse(ctx, runUUID, params)
+		if err != nil {
+			cli.Logger.Fatalf("failed to get run timings: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d)", resp.StatusCode())
+		}
+
+		printJSON(resp.JSON200)
+	},
+}
+
+var runsMetricsCmd = &cobra.Command{
+	Use:   "metrics",
+	Short: "Get run status metrics",
+	Long:  `Get run counts grouped by status, or per-minute point metrics with --points. Outputs JSON.`,
+	Example: `  # Status metrics for the last 24 hours
+  hatchet runs metrics --profile local
+
+  # Status metrics filtered by workflow
+  hatchet runs metrics --since 1h --workflow-ids my-workflow
+
+  # Point metrics
+  hatchet runs metrics --since 24h --points`,
+	Run: func(cmd *cobra.Command, args []string) {
+		_, hatchetClient := clientFromCmd(cmd)
+
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		sinceStr, _ := cmd.Flags().GetString("since")
+		sinceTime, err := parseSinceDuration(sinceStr)
+		if err != nil {
+			cli.Logger.Fatalf("invalid --since value: %v", err)
+		}
+
+		untilStr, _ := cmd.Flags().GetString("until")
+		var untilPtr *time.Time
+		if untilStr != "" {
+			var until time.Time
+			until, err = parseSinceDuration(untilStr)
+			if err != nil {
+				cli.Logger.Fatalf("invalid --until value: %v", err)
+			}
+			untilPtr = &until
+		}
+
+		points, _ := cmd.Flags().GetBool("points")
+		if points {
+			resp, err := hatchetClient.API().V1TaskGetPointMetricsWithResponse(ctx, tenantUUID, &rest.V1TaskGetPointMetricsParams{
+				CreatedAfter:   &sinceTime,
+				FinishedBefore: untilPtr,
+			})
+			if err != nil {
+				cli.Logger.Fatalf("failed to get point metrics: %v", err)
+			}
+			if resp.JSON200 == nil {
+				cli.Logger.Fatalf("unexpected response from API (status %d)", resp.StatusCode())
+			}
+			printJSON(resp.JSON200)
+			return
+		}
+
+		workflowStrs, _ := cmd.Flags().GetStringSlice("workflow-ids")
+		var workflowUUIDs *[]openapi_types.UUID
+		if len(workflowStrs) > 0 {
+			ids := make([]openapi_types.UUID, 0, len(workflowStrs))
+			for _, wf := range workflowStrs {
+				wfUUID, err := resolveWorkflowID(ctx, hatchetClient, wf)
+				if err != nil {
+					cli.Logger.Fatalf("could not resolve workflow: %v", err)
+				}
+				ids = append(ids, wfUUID)
+			}
+			workflowUUIDs = &ids
+		}
+
+		parentStr, _ := cmd.Flags().GetString("parent-task-external-id")
+		var parentPtr *openapi_types.UUID
+		if parentStr != "" {
+			parentUUID, err := uuid.Parse(parentStr)
+			if err != nil {
+				cli.Logger.Fatalf("invalid parent task external ID %q: %v", parentStr, err)
+			}
+			parentPtr = &parentUUID
+		}
+
+		resp, err := hatchetClient.API().V1TaskListStatusMetricsWithResponse(ctx, tenantUUID, &rest.V1TaskListStatusMetricsParams{
+			Since:                sinceTime,
+			Until:                untilPtr,
+			WorkflowIds:          workflowUUIDs,
+			ParentTaskExternalId: parentPtr,
+		})
+		if err != nil {
+			cli.Logger.Fatalf("failed to get status metrics: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d)", resp.StatusCode())
+		}
+		printJSON(resp.JSON200)
+	},
+}
+
+var runsRestoreCmd = &cobra.Command{
+	Use:   "restore <task-id>",
+	Short: "Restore an evicted durable task",
+	Long:  `Restore an evicted durable task by its ID.`,
+	Args:  cobra.ExactArgs(1),
+	Example: `  hatchet runs restore 8ff4f149-099e-4c16-a8d1-0535f8c79b83 --profile local
+  hatchet runs restore 8ff4f149-099e-4c16-a8d1-0535f8c79b83 -o json`,
+	Run: func(cmd *cobra.Command, args []string) {
+		taskID := args[0]
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+
+		ctx := cmd.Context()
+		taskUUID, err := uuid.Parse(taskID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid task ID %q: %v", taskID, err)
+		}
+
+		resp, err := hatchetClient.API().V1TaskRestoreWithResponse(ctx, taskUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to restore task: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d)", resp.StatusCode())
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+			return
+		}
+		fmt.Println(styles.SuccessMessage(fmt.Sprintf("Restored task '%s'", shortID(taskID))))
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(runsCmd)
-	runsCmd.AddCommand(runsListCmd, runsGetCmd, runsCancelCmd, runsReplayCmd, runsLogsCmd, runsEventsCmd, runsListChildrenCmd)
+	runsCmd.AddCommand(runsListCmd, runsGetCmd, runsCancelCmd, runsReplayCmd, runsLogsCmd, runsEventsCmd, runsListChildrenCmd, runsStatusCmd, runsTimingsCmd, runsMetricsCmd, runsRestoreCmd)
 
 	// Persistent flags on parent (inherited by all subcommands)
 	runsCmd.PersistentFlags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
@@ -851,6 +1045,16 @@ func init() {
 	// runs list-children flags
 	runsListChildrenCmd.Flags().Int64("limit", 50, "Number of results to return (for task children)")
 	runsListChildrenCmd.Flags().Int64("offset", 0, "Offset for pagination (for task children)")
+
+	// runs timings flags
+	runsTimingsCmd.Flags().Int64("depth", 0, "Depth to retrieve children")
+
+	// runs metrics flags
+	runsMetricsCmd.Flags().StringP("since", "s", "24h", "Get metrics since this duration ago (e.g. 1h, 24h, 7d)")
+	runsMetricsCmd.Flags().String("until", "", "Get metrics until this duration ago (e.g. 30m)")
+	runsMetricsCmd.Flags().StringSlice("workflow-ids", nil, "Filter by workflow names or IDs")
+	runsMetricsCmd.Flags().String("parent-task-external-id", "", "Filter by parent task external ID")
+	runsMetricsCmd.Flags().Bool("points", false, "Return per-minute point metrics instead of status counts")
 
 	// runs logs flags
 	runsLogsCmd.Flags().Int64("tail", 0, "Number of most recent log lines to show (0 = all)")

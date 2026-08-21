@@ -1,0 +1,125 @@
+name: cli-commands-e2e
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cli-commands-e2e.yml"
+      - "cmd/hatchet-cli/**"
+      - "hack/e2e-embedded-server/**"
+      - "pkg/client/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cli-commands-e2e.yml"
+      - "cmd/hatchet-cli/**"
+      - "hack/e2e-embedded-server/**"
+      - "pkg/client/**"
+
+jobs:
+  test-commands:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26"
+
+      - name: Install tmux
+        run: sudo apt-get update && sudo apt-get install -y tmux
+
+      - name: Build CLI
+        run: |
+          cd cmd/hatchet-cli
+          go build -o hatchet-cli
+          sudo mv hatchet-cli /usr/local/bin/hatchet
+          hatchet --version
+
+      - name: Build embedded server
+        run: |
+          cd hack/e2e-embedded-server
+          go build -o /tmp/e2e-embedded-server .
+
+      - name: Start embedded Hatchet engine
+        run: |
+          nohup /tmp/e2e-embedded-server \
+            --token-file /tmp/hatchet-token \
+            --api-port 8080 \
+            --grpc-port 7077 > /tmp/embedded-server.log 2>&1 &
+          echo $! > /tmp/embedded-server.pid
+
+          echo "Waiting for embedded Hatchet to become ready..."
+          for i in $(seq 1 120); do
+            if curl -sf http://localhost:8080/api/ready > /dev/null 2>&1 && [ -s /tmp/hatchet-token ]; then
+              echo "Embedded Hatchet is ready"
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/embedded-server.pid)" 2>/dev/null; then
+              echo "Embedded server process died:"
+              cat /tmp/embedded-server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for embedded Hatchet:"
+          cat /tmp/embedded-server.log
+          exit 1
+
+      - name: Create CLI profile
+        run: |
+          hatchet profile add \
+            --name local \
+            --token "$(cat /tmp/hatchet-token)" \
+            --tls-strategy none
+          hatchet profile list
+
+      - name: Prime test resources
+        run: |
+          echo "Waiting for e2e-echo workflow to be registered..."
+          WORKFLOW_ID=""
+          for i in $(seq 1 60); do
+            WORKFLOW_ID=$(hatchet workflows list -o json -p local | jq -r '.rows[]? | select(.name=="e2e-echo") | .metadata.id' | head -1)
+            [ -n "$WORKFLOW_ID" ] && break
+            sleep 2
+          done
+          if [ -z "$WORKFLOW_ID" ]; then
+            echo "e2e-echo workflow never appeared"
+            cat /tmp/embedded-server.log
+            exit 1
+          fi
+
+          WORKER_ID=$(hatchet worker list -o json -p local | jq -r '.rows[]? | select(.name=="e2e-worker") | .metadata.id' | head -1)
+
+          echo '{"message":"ci"}' > /tmp/trigger-input.json
+          RUN_ID=$(hatchet trigger manual --workflow e2e-echo --json /tmp/trigger-input.json -o json -p local | jq -r '.runId')
+
+          SCHEDULED_ID=$(hatchet scheduled create --workflow e2e-echo --trigger-at "$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" --input '{}' -o json -p local | jq -r '.metadata.id')
+
+          echo "HATCHET_TEST_WORKFLOW_ID=$WORKFLOW_ID" >> "$GITHUB_ENV"
+          echo "HATCHET_TEST_SCHEDULED_ID=$SCHEDULED_ID" >> "$GITHUB_ENV"
+          echo "HATCHET_TEST_WORKER_ID=$WORKER_ID" >> "$GITHUB_ENV"
+          echo "HATCHET_TEST_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "workflow=$WORKFLOW_ID worker=$WORKER_ID run=$RUN_ID"
+
+      - name: Run CLI command E2E tests
+        run: |
+          cd cmd/hatchet-cli/cli
+          go test -tags e2e_cli -skip 'TestQuickstart' -v -timeout 20m
+        env:
+          HATCHET_CLI_PROFILE: local
+
+      - name: Show server logs on failure
+        if: failure()
+        run: cat /tmp/embedded-server.log || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f /tmp/embedded-server.pid ]; then
+            kill "$(cat /tmp/embedded-server.pid)" 2>/dev/null || true
+          fi

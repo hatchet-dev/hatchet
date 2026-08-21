@@ -100,6 +100,8 @@ const (
 	ViewTypeScheduledRuns
 	ViewTypeCronJobs
 	ViewTypeWebhooks
+	ViewTypeEvents
+	ViewTypeFilters
 )
 
 // viewOption represents a selectable view in the view selector
@@ -118,6 +120,8 @@ var availableViews = []viewOption{
 	{Type: ViewTypeScheduledRuns, Name: "Scheduled Runs", Description: "View scheduled runs"},
 	{Type: ViewTypeCronJobs, Name: "Cron Jobs", Description: "View cron jobs"},
 	{Type: ViewTypeWebhooks, Name: "Webhooks", Description: "View webhooks"},
+	{Type: ViewTypeEvents, Name: "Events", Description: "View events"},
+	{Type: ViewTypeFilters, Name: "Filters", Description: "View event filters"},
 }
 
 // tuiModel is the root model that manages different views
@@ -578,6 +582,10 @@ func (m tuiModel) createViewForType(viewType ViewType) tui.View {
 		return tui.NewCronJobsView(m.ctx)
 	case ViewTypeWebhooks:
 		return tui.NewWebhooksView(m.ctx)
+	case ViewTypeEvents:
+		return tui.NewEventsView(m.ctx)
+	case ViewTypeFilters:
+		return tui.NewFiltersView(m.ctx)
 	default:
 		return tui.NewRunsListView(m.ctx)
 	}
