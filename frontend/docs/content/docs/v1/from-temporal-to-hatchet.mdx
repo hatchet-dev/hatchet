@@ -325,7 +325,7 @@ Serialization moves from Temporal's converters (JSON by default, pickle or custo
 
 ## Step 4: Convert workflows to durable tasks
 
-Every Temporal workflow becomes a Hatchet durable task, and the translation is mechanical. The workflow body becomes the durable task body, and each `execute_activity(...)` call becomes a call to the Hatchet task you defined in step 3. Semantics are preserved and nothing is redesigned, so you can convert an entire codebase this way without making a single architectural decision.
+The first step is to convert every Temporal workflow to a Hatchet durable task. The workflow body becomes the durable task body, and each `execute_activity(...)` call becomes a call to the Hatchet task you defined in step 3.
 
 A Temporal workflow that runs three activities in order:
 
@@ -455,7 +455,7 @@ becomes a durable task that runs three tasks in order:
 </Tabs.Tab>
 </UniversalTabs>
 
-Everything that made this a workflow is still true of the durable task. It has a run id and a history, it survives a worker crash, and it resumes from its last checkpoint rather than from the top. What changes is local to each line. `workflow.execute_activity(fn, arg, ...)` becomes `fn.aio_run(input)` (`.run(...)` in TypeScript, Go and Ruby), results come back as ordinary return values rather than futures, and the per-call retry and timeout options move onto the task definition instead, which is [step 6](#step-6-retries-and-timeouts).
+Every guarantee of the Temporal workflow remains in the durable task. The Hatchet durable task has a run id and a history, it survives a worker crash, and it resumes from its last checkpoint rather than from the top. `workflow.execute_activity(fn, arg, ...)` becomes `fn.aio_run(input)` (`.run(...)` in TypeScript, Go and Ruby), results come back as ordinary return values rather than futures, and the per-call retry and timeout options move onto the task definition instead, which is [step 6](#step-6-retries-and-timeouts).
 
 Workflows that wait, rather than only calling activities, translate the same way. A workflow that sends an email, sleeps for three days, then sends another:
 
@@ -495,7 +495,7 @@ Workflows that wait, rather than only calling activities, translate the same way
 </Tabs.Tab>
 </UniversalTabs>
 
-The determinism rules here are the ones you already know from Temporal, and Hatchet states them the same way: a durable task may only wait on the durable context or spawn children, and the code between checkpoints must be reproducible on replay. Anything that touches the outside world belongs in a child task. See [durable tasks](/v1/durable-tasks).
+The determinism rules here are the same: a durable task may only wait on the durable context or spawn children, and the code between checkpoints must be reproducible on replay. Anything that touches the outside world belongs in a child task. See [durable tasks](/v1/durable-tasks).
 
 Note that a durable task's execution timeout has to cover the whole wall-clock span of the run, including its sleeps, so set it accordingly.
 
@@ -504,6 +504,7 @@ Note that a durable task's execution timeout has to cover the whole wall-clock s
   need to exist at all. Leave them as they are until the migration is running,
   then see [step 13](#step-13-simplify-once-the-migration-is-green).
 </Callout>
+
 ## Step 5: Invoke work
 
 The mapping is the same in every SDK; names below use the Python spelling.
@@ -786,14 +787,7 @@ The waiting side uses a durable event wait, with a CEL expression to select the 
 </Tabs.Tab>
 </UniversalTabs>
 
-The second argument is compiled as a CEL expression, and every SDK passes the
-string through unchanged. None of them offer parameter binding or an escaping
-helper, so the value you interpolate has to be one that cannot contain a quote.
-Correlate on an opaque identifier you generate, such as a UUID, rather than on
-user-supplied text: an order reference containing a single quote would fail to
-compile, and the durable task would then wait until it timed out.
-
-This is the biggest conceptual difference in the migration, and it cuts both ways. Events are decoupled. Anything can emit one, and any number of runs can wait on the same event. But they are not addressed to a run the way a signal is, so the filter expression is doing the work the workflow id used to do. Give runs a stable, CEL-safe correlation id in their input and filter on that.
+Note that anything can emit a Hatchet event, and any number of durable tasks can wait on the same event. The filter expression is doing the work that the workflow id used to do in Temporal, so give runs a stable, CEL-safe correlation id in their input and filter on that.
 
 Three related mappings:
 
@@ -803,7 +797,7 @@ Three related mappings:
 
 ## Step 9: Child workflows and fan-out
 
-A workflow that spawns one child per item becomes a durable task that runs one child task per item:
+Convert workflows that spawn one child per item into a durable task that runs one child task per item:
 
 **Temporal:**
 
@@ -934,15 +928,6 @@ A Temporal schedule created through the schedule client is usually a declaration
 </Tabs.Tab>
 </UniversalTabs>
 
-<Callout type="info">
-  Two differences in the declarative form. Only Python and Go can attach a fixed
-  input to the cron schedule (`cron_input` and `WithWorkflowCronInput`). And in
-  Ruby, crons have to be declared on a workflow rather than on a standalone
-  task, which is what the Ruby example above does; the TypeScript example uses a
-  workflow too, though a standalone TypeScript task accepts an `on.cron` option
-  as well.
-</Callout>
-
 For schedules created at runtime (the equivalent of programmatic Temporal schedules), use the API:
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
@@ -980,19 +965,9 @@ See [cron runs](/v1/cron-runs) and [scheduled runs](/v1/scheduled-runs).
 
 ## Step 11: Versioning and determinism
 
-Be aware of this one before you start, because it is a genuine trade-off rather than a straight win.
+Temporal gives you patching APIs (`workflow.patched` / `GetVersion` and their per-SDK equivalents) to branch on workflow version, so a deployment can change the code path of workflows that are already running. Hatchet has no equivalent: for breaking changes to durable tasks, we recommend deploying a new durable task definition and letting the old work drain.
 
-Temporal gives you patching APIs (`workflow.patched` / `GetVersion` and their per-SDK equivalents) to branch on workflow version, so a deployment can change the code path of workflows that are already running. Hatchet has no equivalent API in any SDK. Its answer is to shrink the surface that needs versioning at all:
-
-- Most of what was a Temporal workflow can end up as a plain task or a DAG in Hatchet (see [step 13](#step-13-simplify-once-the-migration-is-green)), and those have no replay history to stay compatible with. You can change their bodies freely.
-- What remains a durable task is usually small (wait, spawn, wait again), and small durable tasks are the ones that are easy to keep replay-compatible.
-- For a durable task whose shape genuinely has to change, deploy the new version under a new task name and let in-flight runs drain on the old one. This is the same technique as Temporal's "new workflow type" escape hatch, minus the in-place patching.
-
-If you have durable workflows that are routinely patched in place while running for weeks, understand this cost before committing to the migration.
-
-DAG shape changes are safer but not free: adding a task to a workflow affects runs started after the deploy, and removing a task that in-flight runs reference will fail those runs. Prefer additive changes and let old runs finish.
-
-## Step 12: Flow control you no longer have to build
+## Step 12: Flow control
 
 Several things that Temporal projects build by hand (partitioned task queues, worker-side semaphores, external rate limiters in front of activities) are engine features in Hatchet:
 
@@ -1037,19 +1012,11 @@ Several things that Temporal projects build by hand (partitioned task queues, wo
 </Tabs.Tab>
 </UniversalTabs>
 
-Static rate limit keys have to be declared once before use, with the rate limits API: `hatchet.rate_limits.put` in Python, `hatchet.ratelimits.upsert` in TypeScript, `client.RateLimits().Upsert` in Go, `HATCHET.rate_limits.put` in Ruby.
-
 See [concurrency](/v1/concurrency), [rate limits](/v1/rate-limits), [priority](/v1/priority), and [worker slots](/v1/workers). Auditing what your Temporal deployment does with task queues and external limiters usually deletes a meaningful amount of infrastructure.
 
-## Step 13: Simplify once the migration is green
+## Step 13: Simplification
 
-Step 4 converted every workflow the same way, on purpose. Now that those durable tasks are running and passing their tests, two kinds of them can be simplified further. Both are optional. Neither changes what your code does, so nothing here has to happen on the migration's critical path.
-
-<Callout type="warning">
-  Do this only once the 1:1 migration is green. These are refactors of working
-  code, not migration steps. Doing them while you are still chasing behavioural
-  differences makes it much harder to tell which change broke what.
-</Callout>
+Now that workflows have been converted to durable tasks, you can simplify them in two ways. Both are optional. Neither changes what your code does, so nothing here has to happen on the migration's critical path.
 
 ### A fixed sequence of task calls becomes a DAG
 
@@ -1096,9 +1063,7 @@ Nothing is lost, because a Hatchet task is independently runnable. The call site
 
 ## Step 14: Observability
 
-Temporal ships the Temporal Web UI, and both Temporal Cloud and self-hosted deployments give you run history and a workflow event view. You do not lose that.
-
-What changes is what comes with it. Temporal deliberately leaves logs and traces to your own stack: activity logs go wherever your logging is configured, and tracing requires the OpenTelemetry interceptor plus a collector you run. Hatchet bundles both:
+Hatchet contains a fully-featured web UI which aims to be a superset of the Temporal Web UI. It is available in both Hatchet Cloud and self-hosted deployments. The UI provides run history, workflow event views, and additional observability features such as:
 
 - Logging from the context writes to a built-in, searchable log sink attached to the run. See [logging](/v1/logging).
 - An OpenTelemetry collector ships with the platform; you can also instrument it yourself. See [OpenTelemetry](/v1/opentelemetry).
@@ -1132,24 +1097,6 @@ What changes is what comes with it. Temporal deliberately leaves logs and traces
 
 </Tabs.Tab>
 </UniversalTabs>
-
-In practice this means the logging and tracing wiring around your Temporal activities can usually be removed rather than ported.
-
-## What does not map
-
-Be explicit with yourself about these before committing:
-
-| Temporal feature                      | Status in Hatchet                                                                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Java, .NET, PHP and Rust SDKs         | Not available. Hatchet has Python, TypeScript, Go and Ruby.                                          |
-| `patched` / `GetVersion`              | No equivalent; see [step 11](#step-11-versioning-and-determinism).                                   |
-| Local activities                      | No equivalent. Short work runs as an ordinary task.                                                  |
-| Workflow updates                      | No equivalent; model as an event plus a child task.                                                  |
-| Workflow queries                      | No equivalent; use run history, the API, or streaming.                                               |
-| Side effects (`workflow.side_effect`) | No equivalent; move non-determinism into a child task.                                               |
-| Search attributes                     | Use [additional metadata](/v1/additional-metadata) for filterable run labels.                        |
-| Nexus                                 | No equivalent; use [events](/v1/events) or [inter-service triggering](/v1/inter-service-triggering). |
-| Multi-region namespace failover       | See [region availability](/v1/region-availability) for what Hatchet Cloud offers.                    |
 
 ## Where to go next
 
