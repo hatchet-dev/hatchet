@@ -141,17 +141,17 @@ func insertUserEventScopeTestEvent(
 	}))
 }
 
-func requireUserEventScopeTestWaiterState(t *testing.T, ctx context.Context, pool *pgxpool.Pool, task *sqlcv1.FlattenExternalIdsRow, expected bool) {
+func requireUserEventScopeTestWaiterState(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, task *sqlcv1.FlattenExternalIdsRow, nodeID, branchID int64, expected bool) {
 	t.Helper()
 
-	var satisfied bool
-	err := pool.QueryRow(ctx, `
-		SELECT is_satisfied
-		FROM v1_durable_event_log_entry
-		WHERE durable_task_id = $1 AND durable_task_inserted_at = $2
-		`, task.ID, task.InsertedAt).Scan(&satisfied)
+	entry, err := repos.shared.queries.GetDurableEventLogEntry(ctx, repos.shared.pool, sqlcv1.GetDurableEventLogEntryParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Nodeid:                nodeID,
+		Branchid:              branchID,
+	})
 	require.NoError(t, err)
-	require.Equal(t, expected, satisfied)
+	require.Equal(t, expected, entry.IsSatisfied)
 }
 
 func TestDurableUserEventScopesIsolateLiveMatches(t *testing.T) {
@@ -168,9 +168,12 @@ func TestDurableUserEventScopesIsolateLiveMatches(t *testing.T) {
 	taskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 102)
 	unscopedTask := createUserEventScopeTestTask(t, ctx, repos, tenantID, 103)
 
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskA, key, &scopeA, nil, "true").IsSatisfied)
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskB, key, &scopeB, nil, "true").IsSatisfied)
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, unscopedTask, key, nil, nil, "true").IsSatisfied)
+	waitA := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskA, key, &scopeA, nil, "true")
+	require.False(t, waitA.IsSatisfied)
+	waitB := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskB, key, &scopeB, nil, "true")
+	require.False(t, waitB.IsSatisfied)
+	waitUnscoped := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, unscopedTask, key, nil, nil, "true")
+	require.False(t, waitUnscoped.IsSatisfied)
 
 	results, err := repos.matches.ProcessUserEventMatches(ctx, tenantID, []CandidateEventMatch{{
 		ID:             uuid.New(),
@@ -185,9 +188,9 @@ func TestDurableUserEventScopesIsolateLiveMatches(t *testing.T) {
 		results.SatisfiedDurableEventLogEntries[0].DurableTaskExternalId,
 		results.SatisfiedDurableEventLogEntries[1].DurableTaskExternalId,
 	})
-	requireUserEventScopeTestWaiterState(t, ctx, pool, taskA, true)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, taskB, false)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, unscopedTask, true)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, taskA, waitA.NodeId, waitA.BranchId, true)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, taskB, waitB.NodeId, waitB.BranchId, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, unscopedTask, waitUnscoped.NodeId, waitUnscoped.BranchId, true)
 
 	results, err = repos.matches.ProcessUserEventMatches(ctx, tenantID, []CandidateEventMatch{{
 		ID:             uuid.New(),
@@ -197,7 +200,7 @@ func TestDurableUserEventScopesIsolateLiveMatches(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.Empty(t, results.SatisfiedDurableEventLogEntries)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, taskB, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, taskB, waitB.NodeId, waitB.BranchId, false)
 }
 
 func TestDurableUserEventScopesMatchMixedLiveBatch(t *testing.T) {
@@ -276,23 +279,26 @@ func TestDurableUserEventScopesIsolateHistoricalLookback(t *testing.T) {
 	taskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 304)
 	excludedUnscopedTask := createUserEventScopeTestTask(t, ctx, repos, tenantID, 305)
 
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskA, key, &scopeA, &excludedSince, "true").IsSatisfied)
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskB, key, &scopeB, &excludedSince, "true").IsSatisfied)
-	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedUnscopedTask, key, nil, nil, "true").IsSatisfied)
+	waitExcludedA := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskA, key, &scopeA, &excludedSince, "true")
+	require.False(t, waitExcludedA.IsSatisfied)
+	waitExcludedB := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskB, key, &scopeB, &excludedSince, "true")
+	require.False(t, waitExcludedB.IsSatisfied)
+	waitExcludedUnscoped := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedUnscopedTask, key, nil, nil, "true")
+	require.False(t, waitExcludedUnscoped.IsSatisfied)
 
 	resultA := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskA, key, &scopeA, &considerEventsSince, "true")
 	require.True(t, resultA.IsSatisfied)
 	require.JSONEq(t, `{"CREATE":{"payload":[{"scope":"a"}]}}`, string(resultA.ResultPayload))
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedTaskA, false)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedTaskB, false)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedUnscopedTask, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskA, waitExcludedA.NodeId, waitExcludedA.BranchId, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskB, waitExcludedB.NodeId, waitExcludedB.BranchId, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedUnscopedTask, waitExcludedUnscoped.NodeId, waitExcludedUnscoped.BranchId, false)
 
 	resultB := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskB, key, &scopeB, &considerEventsSince, "true")
 	require.True(t, resultB.IsSatisfied)
 	require.JSONEq(t, `{"CREATE":{"payload":[{"scope":"b"}]}}`, string(resultB.ResultPayload))
-	requireUserEventScopeTestWaiterState(t, ctx, pool, taskA, true)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, taskB, true)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedTaskA, false)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedTaskB, false)
-	requireUserEventScopeTestWaiterState(t, ctx, pool, excludedUnscopedTask, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, taskA, resultA.NodeId, resultA.BranchId, true)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, taskB, resultB.NodeId, resultB.BranchId, true)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskA, waitExcludedA.NodeId, waitExcludedA.BranchId, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskB, waitExcludedB.NodeId, waitExcludedB.BranchId, false)
+	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedUnscopedTask, waitExcludedUnscoped.NodeId, waitExcludedUnscoped.BranchId, false)
 }
