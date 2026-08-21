@@ -2942,25 +2942,22 @@ func (r *sharedRepository) NewTriggerTaskData(
 	return t, nil
 }
 
-func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
+func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[uuid.UUID]*TaskOutputEvent, error) {
 	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, r.pool, parentTaskExternalIds)
 	if err != nil {
 		return nil, err
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, 0, len(rows))
-	retrieveOptToRow := make(map[RetrievePayloadOpts]*sqlcv1.ListTaskOutputEventIdsByTaskRunExternalIdsRow, len(rows))
 
 	for _, row := range rows {
-		opt := RetrievePayloadOpts{
+		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
 			Id:         row.TaskEventID,
 			InsertedAt: row.TaskEventInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.OutputEventExternalID,
-		}
-		retrieveOpts = append(retrieveOpts, opt)
-		retrieveOptToRow[opt] = row
+		})
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
@@ -2968,7 +2965,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}
 
-	result := make(map[string]json.RawMessage, len(rows))
+	result := make(map[uuid.UUID]*TaskOutputEvent, len(rows))
 
 	for _, payload := range payloads {
 		e, err := newTaskEventFromBytes(payload)
@@ -2978,7 +2975,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		}
 
 		if e.IsCompleted() {
-			result[e.StepReadableID] = json.RawMessage(e.Output)
+			result[e.TaskExternalId] = e
 		}
 	}
 

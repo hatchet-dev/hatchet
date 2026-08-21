@@ -848,6 +848,17 @@ func (d *DispatcherImpl) populateTaskData(
 		inputs = make(map[v1.RetrievePayloadOpts][]byte)
 	}
 
+	// dagChildInputs holds the tasks whose parents need to be resolved via GetDagParentOutputs
+	// (durable DAG-operator children); we resolve all of them with a single batched lookup below
+	// instead of one DB round trip per task.
+	type dagChildTaskInput struct {
+		payloadKey v1.RetrievePayloadOpts
+		currInput  *v1.V1StepRunData
+	}
+
+	dagChildInputs := make([]*dagChildTaskInput, 0)
+	dagParentExternalIdSet := make(map[uuid.UUID]struct{})
+
 	for _, task := range bulkDatas {
 		payloadKey := v1.RetrievePayloadOpts{
 			Id:         task.ID,
@@ -875,26 +886,10 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		if len(currInput.DagParentTaskRunIds) > 0 {
-			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentTaskRunIds)
+			dagChildInputs = append(dagChildInputs, &dagChildTaskInput{payloadKey: payloadKey, currInput: currInput})
 
-			if err != nil {
-				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")
-			} else {
-				parents := make(map[string]map[string]interface{})
-
-				for stepReadableId, rawOutput := range dagParentOutputs {
-					outputMap := make(map[string]interface{})
-
-					if err := json.Unmarshal(rawOutput, &outputMap); err != nil {
-						d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", stepReadableId)
-						continue
-					}
-
-					parents[stepReadableId] = outputMap
-				}
-
-				currInput.Parents = parents
-				inputs[payloadKey] = currInput.Bytes()
+			for _, parentExternalId := range currInput.DagParentTaskRunIds {
+				dagParentExternalIdSet[parentExternalId] = struct{}{}
 			}
 		} else if parentData, ok := parentDataMap[task.ID]; ok {
 			readableIdToData := make(map[string]map[string]interface{})
@@ -914,6 +909,44 @@ func (d *DispatcherImpl) populateTaskData(
 
 			currInput.Parents = readableIdToData
 			inputs[payloadKey] = currInput.Bytes()
+		}
+	}
+
+	if len(dagChildInputs) > 0 {
+		dagParentExternalIds := make([]uuid.UUID, 0, len(dagParentExternalIdSet))
+
+		for parentExternalId := range dagParentExternalIdSet {
+			dagParentExternalIds = append(dagParentExternalIds, parentExternalId)
+		}
+
+		dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, dagParentExternalIds)
+
+		if err != nil {
+			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to look up dag parent outputs for %d tasks", len(dagChildInputs))
+		} else {
+			for _, entry := range dagChildInputs {
+				parents := make(map[string]map[string]interface{})
+
+				for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
+					parentOutput, ok := dagParentOutputs[parentExternalId]
+
+					if !ok {
+						continue
+					}
+
+					outputMap := make(map[string]interface{})
+
+					if err := json.Unmarshal(parentOutput.Output, &outputMap); err != nil {
+						d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", parentOutput.StepReadableID)
+						continue
+					}
+
+					parents[parentOutput.StepReadableID] = outputMap
+				}
+
+				entry.currInput.Parents = parents
+				inputs[entry.payloadKey] = entry.currInput.Bytes()
+			}
 		}
 	}
 
