@@ -335,6 +335,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id
 ;
 
@@ -350,6 +352,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
