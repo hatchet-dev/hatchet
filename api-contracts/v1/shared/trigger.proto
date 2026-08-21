@@ -74,4 +74,9 @@ message TriggerWorkflowRequest {
 
     // (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks.
     map<string, DesiredWorkerLabels> desired_worker_labels = 10;
+
+    // field number 11 (display_name) is retired and must not be reused.
+    // Run display names are now defined as CEL expressions on the workflow/task definition.
+    reserved 11;
+    reserved "display_name";
 }

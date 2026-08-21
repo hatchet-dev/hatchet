@@ -455,6 +455,8 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
+    -- a CEL expression evaluated against run input to derive the task's display name
+    "displayName" TEXT,
     "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
@@ -1115,6 +1117,8 @@ CREATE TABLE
         "inputJsonSchema" JSONB,
         "idempotencyKeyExpression" TEXT,
         "idempotencyKeyTtlMs" BIGINT,
+        -- a CEL expression evaluated against run input to derive the run's display name
+        "displayName" TEXT,
         "idempotencyMethod" idempotency_method,
         "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
         "dagShape" JSONB,

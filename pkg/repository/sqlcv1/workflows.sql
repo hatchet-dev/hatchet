@@ -129,6 +129,7 @@ INSERT INTO "WorkflowVersion" (
     "dagShape",
     "idempotencyKeyExpression",
     "idempotencyKeyTtlMs",
+    "displayName",
     "idempotencyMethod"
 ) VALUES (
     @id::uuid,
@@ -149,6 +150,7 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('dagShape')::jsonb, NULL),
     sqlc.narg('idempotencyKeyExpression')::text,
     sqlc.narg('idempotencyKeyTtlMs')::bigint,
+    sqlc.narg('displayName')::text,
     sqlc.narg('idempotencyMethod')::idempotency_method
 ) RETURNING *;
 
@@ -301,6 +303,7 @@ INSERT INTO "Step" (
     "retryBackoffFactor",
     "retryMaxBackoff",
     "isDurable",
+    "displayName",
     "isDagOrchestrator"
 ) VALUES (
     @id::uuid,
@@ -318,6 +321,7 @@ INSERT INTO "Step" (
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
     coalesce(sqlc.narg('isDurable')::boolean, false),
+    sqlc.narg('displayName')::text,
     coalesce(sqlc.narg('isDagOrchestrator')::boolean, false)
 ) RETURNING *;
 

@@ -25,6 +25,7 @@
     "concurrency",
     "rate-limits",
     "priority",
+    "run-names",
     "idempotency",
     "batch-tasks",
     "---Durable Execution---",

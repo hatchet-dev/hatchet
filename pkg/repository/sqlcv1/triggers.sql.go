@@ -16,6 +16,7 @@ const listWorkflowsByNames = `-- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
     "workflowId",
     workflowVersions."id" AS "workflowVersionId",
+    workflowVersions."displayName" AS "displayName",
     workflow."name" AS "workflowName",
     workflowVersions."idempotencyKeyExpression",
     workflowVersions."idempotencyKeyTtlMs",
@@ -39,6 +40,7 @@ type ListWorkflowsByNamesParams struct {
 type ListWorkflowsByNamesRow struct {
 	WorkflowId               uuid.UUID   `json:"workflowId"`
 	WorkflowVersionId        uuid.UUID   `json:"workflowVersionId"`
+	DisplayName              pgtype.Text `json:"displayName"`
 	WorkflowName             string      `json:"workflowName"`
 	IdempotencyKeyExpression pgtype.Text `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs      pgtype.Int8 `json:"idempotencyKeyTtlMs"`
@@ -57,6 +59,7 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 		if err := rows.Scan(
 			&i.WorkflowId,
 			&i.WorkflowVersionId,
+			&i.DisplayName,
 			&i.WorkflowName,
 			&i.IdempotencyKeyExpression,
 			&i.IdempotencyKeyTtlMs,
@@ -77,6 +80,7 @@ WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
         "workflowId",
         workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."displayName" AS "displayName",
         workflow."name" AS "workflowName",
         workflowVersions."idempotencyKeyExpression",
         workflowVersions."idempotencyKeyTtlMs",
@@ -98,6 +102,7 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
+    latest_versions."displayName",
     eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
     k.event_key::TEXT as "incomingEventKey",
     latest_versions."idempotencyKeyExpression",
@@ -121,6 +126,7 @@ type ListWorkflowsForEventsRow struct {
 	WorkflowVersionId                 uuid.UUID   `json:"workflowVersionId"`
 	WorkflowId                        uuid.UUID   `json:"workflowId"`
 	WorkflowName                      string      `json:"workflowName"`
+	DisplayName                       pgtype.Text `json:"displayName"`
 	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
 	IncomingEventKey                  string      `json:"incomingEventKey"`
 	IdempotencyKeyExpression          pgtype.Text `json:"idempotencyKeyExpression"`
@@ -143,6 +149,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowVersionId,
 			&i.WorkflowId,
 			&i.WorkflowName,
+			&i.DisplayName,
 			&i.WorkflowTriggeringEventKeyPattern,
 			&i.IncomingEventKey,
 			&i.IdempotencyKeyExpression,

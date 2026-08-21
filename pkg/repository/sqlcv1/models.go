@@ -2912,6 +2912,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	DisplayName        pgtype.Text      `json:"displayName"`
 	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
 }
 
@@ -4230,6 +4231,7 @@ type WorkflowVersion struct {
 	InputJsonSchema           []byte                `json:"inputJsonSchema"`
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
+	DisplayName               pgtype.Text           `json:"displayName"`
 	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
 	IsUsingDagOperator        bool                  `json:"isUsingDagOperator"`
 	DagShape                  []byte                `json:"dagShape"`

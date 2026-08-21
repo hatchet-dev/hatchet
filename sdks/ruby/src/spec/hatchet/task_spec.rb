@@ -27,6 +27,28 @@ RSpec.describe Hatchet::Task do
     expect(proto.is_durable).to be(false)
   end
 
+  describe "#display_name" do
+    it "threads a task-level CEL expression into the task proto" do
+      task = described_class.new(
+        name: "enrich",
+        display_name: "'enrich-' + input.name",
+      ) { |_input, _ctx| nil }
+
+      proto = task.to_proto("test-service", config: config)
+
+      expect(proto.display_name).to eq("'enrich-' + input.name")
+      expect(proto.has_display_name?).to be(true)
+    end
+
+    it "leaves display_name unset on the task proto when not provided" do
+      task = described_class.new(name: "plain") { |_input, _ctx| nil }
+
+      proto = task.to_proto("test-service", config: config)
+
+      expect(proto.has_display_name?).to be(false)
+    end
+  end
+
   it "serializes batch config onto the registration proto" do
     batch = Hatchet::BatchTaskConfig.new(max_size: 3, max_interval_ms: 200, group_key: "input.group")
     task = described_class.new(
