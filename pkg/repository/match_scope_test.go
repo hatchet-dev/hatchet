@@ -48,7 +48,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 	}
 }
 
-func createUserEventScopeTestTask(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, taskID int64) *sqlcv1.FlattenExternalIdsRow {
+func createUserEventScopeTestTask(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, tenantID uuid.UUID, taskID int64) *sqlcv1.FlattenExternalIdsRow {
 	t.Helper()
 
 	insertedAt := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
@@ -58,17 +58,11 @@ func createUserEventScopeTestTask(t *testing.T, ctx context.Context, pool *pgxpo
 		ExternalID: uuid.New(),
 	}
 
-	_, err := pool.Exec(ctx, `
-		INSERT INTO v1_durable_event_log_file (
-			tenant_id,
-			durable_task_id,
-			durable_task_inserted_at,
-			latest_invocation_count,
-			latest_inserted_at,
-			latest_node_id,
-			latest_branch_id
-		) VALUES ($1, $2, $3, 1, $3, 0, 1)
-		`, tenantID, task.ID, task.InsertedAt)
+	_, err := repos.shared.queries.IncrementLogFileInvocationCounts(ctx, repos.shared.pool, sqlcv1.IncrementLogFileInvocationCountsParams{
+		Durabletaskids:         []int64{task.ID},
+		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:              []uuid.UUID{tenantID},
+	})
 	require.NoError(t, err)
 
 	return task
@@ -170,9 +164,9 @@ func TestDurableUserEventScopesIsolateLiveMatches(t *testing.T) {
 	key := "shared-user-event-key"
 	scopeA := "scope-a"
 	scopeB := "scope-b"
-	taskA := createUserEventScopeTestTask(t, ctx, pool, tenantID, 101)
-	taskB := createUserEventScopeTestTask(t, ctx, pool, tenantID, 102)
-	unscopedTask := createUserEventScopeTestTask(t, ctx, pool, tenantID, 103)
+	taskA := createUserEventScopeTestTask(t, ctx, repos, tenantID, 101)
+	taskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 102)
+	unscopedTask := createUserEventScopeTestTask(t, ctx, repos, tenantID, 103)
 
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskA, key, &scopeA, nil, "true").IsSatisfied)
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskB, key, &scopeB, nil, "true").IsSatisfied)
@@ -216,9 +210,9 @@ func TestDurableUserEventScopesMatchMixedLiveBatch(t *testing.T) {
 	key := "shared-user-event-key"
 	scopeA := "scope-a"
 	scopeB := "scope-b"
-	taskA := createUserEventScopeTestTask(t, ctx, pool, tenantID, 201)
-	taskB := createUserEventScopeTestTask(t, ctx, pool, tenantID, 202)
-	unscopedTask := createUserEventScopeTestTask(t, ctx, pool, tenantID, 203)
+	taskA := createUserEventScopeTestTask(t, ctx, repos, tenantID, 201)
+	taskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 202)
+	unscopedTask := createUserEventScopeTestTask(t, ctx, repos, tenantID, 203)
 
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskA, key, &scopeA, nil, `input.scope == "a"`).IsSatisfied)
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, taskB, key, &scopeB, nil, `input.scope == "b"`).IsSatisfied)
@@ -276,11 +270,11 @@ func TestDurableUserEventScopesIsolateHistoricalLookback(t *testing.T) {
 
 	excludedSince := now.Add(time.Minute)
 	considerEventsSince := now.Add(-3 * time.Minute)
-	excludedTaskA := createUserEventScopeTestTask(t, ctx, pool, tenantID, 301)
-	excludedTaskB := createUserEventScopeTestTask(t, ctx, pool, tenantID, 302)
-	taskA := createUserEventScopeTestTask(t, ctx, pool, tenantID, 303)
-	taskB := createUserEventScopeTestTask(t, ctx, pool, tenantID, 304)
-	excludedUnscopedTask := createUserEventScopeTestTask(t, ctx, pool, tenantID, 305)
+	excludedTaskA := createUserEventScopeTestTask(t, ctx, repos, tenantID, 301)
+	excludedTaskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 302)
+	taskA := createUserEventScopeTestTask(t, ctx, repos, tenantID, 303)
+	taskB := createUserEventScopeTestTask(t, ctx, repos, tenantID, 304)
+	excludedUnscopedTask := createUserEventScopeTestTask(t, ctx, repos, tenantID, 305)
 
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskA, key, &scopeA, &excludedSince, "true").IsSatisfied)
 	require.False(t, ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, excludedTaskB, key, &scopeB, &excludedSince, "true").IsSatisfied)
