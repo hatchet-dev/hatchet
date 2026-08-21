@@ -44,6 +44,14 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = $1
+    AND NOT EXISTS (
+        -- hide dag operators
+        SELECT 1
+        FROM v1_operator op
+        WHERE
+            op.id = workers."operatorId"
+            AND op.kind = 'DAG'
+    )
     AND (
         $2::text IS NULL OR
         workers."id" IN (
@@ -1384,6 +1392,14 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = $1
+    AND NOT EXISTS (
+        -- hide dag operators
+        SELECT 1
+        FROM v1_operator op
+        WHERE
+            op.id = workers."operatorId"
+            AND op.kind = 'DAG'
+    )
     AND (
         $2::text IS NULL OR
         workers."id" IN (
