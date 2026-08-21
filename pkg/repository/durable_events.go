@@ -1950,35 +1950,37 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		})
 	}
 
-	retroMatchResults, err := r.processEventMatchesForTarget(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER, &targetMatchID)
+	if len(retroCandidates) > 0 {
+		retroMatchResults, err := r.processEventMatchesForTarget(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER, &targetMatchID)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
-	}
-
-	if len(retroMatchResults.SatisfiedDurableEventLogEntries) > 1 {
-		return nil, fmt.Errorf("expected at most one satisfied durable wait from targeted lookback, got %d", len(retroMatchResults.SatisfiedDurableEventLogEntries))
-	}
-
-	if len(retroMatchResults.SatisfiedDurableEventLogEntries) == 1 {
-		entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
-		if entry.DurableTaskExternalId != task.ExternalID || entry.NodeId != initialWaitForResult.NodeId || entry.BranchId != initialWaitForResult.BranchId {
-			return nil, fmt.Errorf("targeted lookback satisfied an unexpected durable wait")
+		if err != nil {
+			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
 		}
 
-		if err := lookbackOptTx.Commit(ctx); err != nil {
-			return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+		if len(retroMatchResults.SatisfiedDurableEventLogEntries) > 1 {
+			return nil, fmt.Errorf("expected at most one satisfied durable wait from targeted lookback, got %d", len(retroMatchResults.SatisfiedDurableEventLogEntries))
 		}
 
-		return &IngestWaitForResult{
-			IsSatisfied:     true,
-			ResultPayload:   entry.Data,
-			InvocationCount: entry.InvocationCount,
-			NodeId:          initialWaitForResult.NodeId,
-			BranchId:        initialWaitForResult.BranchId,
-			AlreadyExisted:  initialWaitForResult.AlreadyExisted,
-			SatisfiedOrder:  entry.SatisfiedOrder,
-		}, nil
+		if len(retroMatchResults.SatisfiedDurableEventLogEntries) == 1 {
+			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+			if entry.DurableTaskExternalId != task.ExternalID || entry.NodeId != initialWaitForResult.NodeId || entry.BranchId != initialWaitForResult.BranchId {
+				return nil, fmt.Errorf("targeted lookback satisfied an unexpected durable wait")
+			}
+
+			if err := lookbackOptTx.Commit(ctx); err != nil {
+				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
+			}
+
+			return &IngestWaitForResult{
+				IsSatisfied:     true,
+				ResultPayload:   entry.Data,
+				InvocationCount: entry.InvocationCount,
+				NodeId:          initialWaitForResult.NodeId,
+				BranchId:        initialWaitForResult.BranchId,
+				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+				SatisfiedOrder:  entry.SatisfiedOrder,
+			}, nil
+		}
 	}
 
 	if err := lookbackOptTx.Commit(ctx); err != nil {
