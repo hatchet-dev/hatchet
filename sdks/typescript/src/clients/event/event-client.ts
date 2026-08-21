@@ -174,7 +174,7 @@ export class EventClient {
       throw new Error('Invalid data type. Expected string or Uint8Array.');
     }
 
-    retrier(
+    return retrier(
       async () =>
         this.client.putStreamEvent({
           taskRunExternalId,
@@ -182,9 +182,10 @@ export class EventClient {
           message: dataBytes,
           eventIndex: index,
         }),
-      this.logger
+      this.logger,
+      this.config.retrier
     ).catch((e: unknown) => {
-      this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
+      throw toHatchetError(e, { prefix: 'Could not put stream event: ' });
     });
   }
 
