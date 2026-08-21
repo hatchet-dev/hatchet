@@ -2841,6 +2841,14 @@ func (r *TriggerOptInvalidArgumentError) Error() string {
 	return fmt.Sprintf("err %v", r.Err)
 }
 
+// operator DAG steps are standalone tasks under an orchestrator rather than rows in a v1_dag, so
+// they carry no dag_id and take their run id from the orchestrator
+func isOperatorDagStep(task *sqlcv1.FlattenExternalIdsRow) bool {
+	return !task.IsDagOrchestrator &&
+		!task.DagID.Valid &&
+		task.WorkflowRunID != task.ExternalID
+}
+
 func (r *sharedRepository) NewTriggerTaskData(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -2913,11 +2921,12 @@ func (r *sharedRepository) NewTriggerTaskData(
 	}
 
 	if parentTask != nil {
-		// Native DAG steps (DagID set) keep ExternalID: OLAP consumers resolve parent refs
-		// against v1_tasks_olap.external_id. Operator/durable parents use WorkflowRunID instead
-		// so children are queryable by the orchestrator run.
+		// DAG steps keep ExternalID, so children attach to the step that spawned them and each
+		// step spawns into its own dedupe namespace, and so OLAP consumers can resolve parent
+		// refs against v1_tasks_olap.external_id. Durable and orchestrator parents use
+		// WorkflowRunID instead so their children are queryable by the run.
 		parentExternalId := parentTask.ExternalID
-		if !parentTask.DagID.Valid {
+		if !parentTask.DagID.Valid && !isOperatorDagStep(parentTask) {
 			parentExternalId = parentTask.WorkflowRunID
 		}
 

@@ -582,6 +582,9 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		WorkflowID:            res.WorkflowID,
 		StepID:                res.StepID,
 		IsDurable:             res.IsDurable,
+		IsDagOrchestrator:     res.IsDagOrchestrator,
+		ParentTaskExternalID:  res.ParentTaskExternalID,
+		WorkflowVersionID:     res.WorkflowVersionID,
 	}
 
 	r.taskLookupCache.Add(key, &row)
