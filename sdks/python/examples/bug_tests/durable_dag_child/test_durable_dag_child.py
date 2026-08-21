@@ -12,6 +12,8 @@ async def test_durable_dag_child(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.COMPLETED
 
+    ## fixme: right now this `task_runs` includes both the child-spawned task and the dag tasks, and it should only
+    ## include the dag tasks
     assert {"step_a", "step_b"} == set(details.task_runs.keys())
     assert all(
         task.status == V1TaskStatus.COMPLETED for task in details.task_runs.values()
