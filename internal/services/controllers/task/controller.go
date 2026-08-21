@@ -1207,7 +1207,18 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 
 // processUserEventMatches looks for user event matches
 func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []*tasktypes.UserEventTaskPayload) error {
-	candidateMatches := userEventCandidateMatches(events)
+	candidateMatches := make([]v1.CandidateEventMatch, 0, len(events))
+
+	for _, event := range events {
+		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
+			ID:             event.EventExternalId,
+			EventTimestamp: time.Now(),
+			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
+			Key:          event.EventKey,
+			ResourceHint: event.EventScope,
+			Data:         event.EventData,
+		})
+	}
 
 	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
 
@@ -1230,23 +1241,6 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	}
 
 	return nil
-}
-
-func userEventCandidateMatches(events []*tasktypes.UserEventTaskPayload) []v1.CandidateEventMatch {
-	candidateMatches := make([]v1.CandidateEventMatch, 0, len(events))
-
-	for _, event := range events {
-		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             event.EventExternalId,
-			EventTimestamp: time.Now(),
-			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
-			Key:          event.EventKey,
-			ResourceHint: event.EventScope,
-			Data:         event.EventData,
-		})
-	}
-
-	return candidateMatches
 }
 
 func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId uuid.UUID, events []*v1.InternalTaskEvent) error {
