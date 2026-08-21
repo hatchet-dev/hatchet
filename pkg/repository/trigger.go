@@ -406,6 +406,55 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
+// appendOperatorDAGs synthesizes OLAP-only DAGs for operator-managed runs from their
+// orchestrator tasks. Every caller of triggerWorkflowsCore must call this, or the run's
+// tasks are written with a dag_id pointing at a DAG that never gets created.
+//
+// This cannot move into triggerWorkflowsCore: an operator DAG shares its orchestrator
+// task's id and external id, so appending it before that function builds event matches
+// and payload store opts would duplicate both for a row the task already covers.
+func (s *sharedRepository) appendOperatorDAGs(
+	tenantId uuid.UUID,
+	tasks []*V1TaskWithPayload,
+	dags []*DAGWithData,
+	operatorDagTuples map[uuid.UUID]triggerTuple,
+	operatorDagTotalTasks map[uuid.UUID]int,
+) []*DAGWithData {
+	if len(operatorDagTuples) == 0 {
+		return dags
+	}
+
+	unix := time.Now().UnixMilli()
+
+	for _, task := range tasks {
+		tuple, ok := operatorDagTuples[task.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		dags = append(dags, &DAGWithData{
+			V1Dag: &sqlcv1.V1Dag{
+				ID:                   task.ID,
+				InsertedAt:           task.InsertedAt,
+				TenantID:             tenantId,
+				ExternalID:           task.ExternalID,
+				DisplayName:          fmt.Sprintf("%s-%d", tuple.workflowName, unix),
+				WorkflowID:           tuple.workflowId,
+				WorkflowVersionID:    tuple.workflowVersionId,
+				ParentTaskExternalID: tuple.parentExternalId,
+			},
+			Input:                tuple.input,
+			AdditionalMetadata:   tuple.additionalMetadata,
+			ParentTaskExternalID: tuple.parentExternalId,
+			TotalTasks:           operatorDagTotalTasks[task.ExternalID],
+			IsOperatorRun:        true,
+		})
+	}
+
+	return dags
+}
+
 func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, error) {
 	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
@@ -413,11 +462,13 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, _, _, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, operatorDagTotalTasks, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
 
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
+
+	dags = s.appendOperatorDAGs(tenantId, tasks, dags, operatorDagTuples, operatorDagTotalTasks)
 
 	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, nil
 }
@@ -1630,39 +1681,7 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	// synthesize OLAP-only DAGs for operator-managed runs from their orchestrator tasks.
-	// these are appended after payload storage and core event mapping on purpose: the
-	// orchestrator task already covers both (it shares the DAG's external id), and there
-	// is no core v1_dag row to write.
-	if len(operatorDagTuples) > 0 {
-		unix := time.Now().UnixMilli()
-
-		for _, task := range tasks {
-			tuple, ok := operatorDagTuples[task.ExternalID]
-
-			if !ok {
-				continue
-			}
-
-			dags = append(dags, &DAGWithData{
-				V1Dag: &sqlcv1.V1Dag{
-					ID:                   task.ID,
-					InsertedAt:           task.InsertedAt,
-					TenantID:             tenantId,
-					ExternalID:           task.ExternalID,
-					DisplayName:          fmt.Sprintf("%s-%d", tuple.workflowName, unix),
-					WorkflowID:           tuple.workflowId,
-					WorkflowVersionID:    tuple.workflowVersionId,
-					ParentTaskExternalID: tuple.parentExternalId,
-				},
-				Input:                tuple.input,
-				AdditionalMetadata:   tuple.additionalMetadata,
-				ParentTaskExternalID: tuple.parentExternalId,
-				TotalTasks:           operatorDagTotalTasks[task.ExternalID],
-				IsOperatorRun:        true,
-			})
-		}
-	}
+	dags = r.appendOperatorDAGs(tenantId, tasks, dags, operatorDagTuples, operatorDagTotalTasks)
 
 	// commit if we started the transaction
 	if ownsTx {
