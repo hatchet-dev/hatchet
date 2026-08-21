@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -124,15 +125,20 @@ func insertUserEventScopeTestEvent(
 	eventExternalID := uuid.New()
 	eventSeenAt := pgtype.Timestamptz{Time: seenAt, Valid: true}
 
-	var eventID int64
-	err := repos.shared.pool.QueryRow(ctx, `
-		INSERT INTO v1_event (tenant_id, external_id, key, scope, seen_at, additional_metadata)
-		VALUES ($1, $2, $3, $4, $5, '{}')
-		RETURNING id
-		`, tenantID, eventExternalID, key, scope, eventSeenAt).Scan(&eventID)
+	createdEvents, err := repos.shared.queries.BulkCreateEvents(ctx, repos.shared.pool, sqlcv1.BulkCreateEventsParams{
+		Tenantids:              []uuid.UUID{tenantID},
+		Externalids:            []uuid.UUID{eventExternalID},
+		Seenats:                []pgtype.Timestamptz{eventSeenAt},
+		Keys:                   []string{key},
+		Additionalmetadatas:    [][]byte{[]byte(`{}`)},
+		Scopes:                 []pgtype.Text{sqlchelpers.TextFromMaybeStr(scope)},
+		TriggeringWebhookNames: []pgtype.Text{{Valid: false}},
+	})
 	require.NoError(t, err)
+	require.Len(t, createdEvents, 1)
+
 	require.NoError(t, repos.shared.payloadStore.Store(ctx, repos.shared.pool, StorePayloadOpts{
-		Id:         eventID,
+		Id:         createdEvents[0].ID,
 		InsertedAt: eventSeenAt,
 		ExternalId: eventExternalID,
 		Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
