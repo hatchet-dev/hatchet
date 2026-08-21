@@ -62,6 +62,7 @@
     "developer-experience",
     "---Migration Guides---",
     "from-celery-to-hatchet",
+    "from-temporal-to-hatchet",
     "---Troubleshooting---",
     "faq"
   ],

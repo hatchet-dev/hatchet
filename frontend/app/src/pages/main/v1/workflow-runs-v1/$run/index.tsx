@@ -7,6 +7,7 @@ import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
+import { isFailureEventType } from './v2components/event-utils';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
 import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
@@ -318,7 +319,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, taskRuns, isLoading, isError } =
+  const { workflowRun, shape, taskRuns, taskEvents, isLoading, isError } =
     useWorkflowDetails();
 
   const tasksForSynthesis = useMemo((): TaskSummaryForSynthesis[] => {
@@ -347,8 +348,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   );
 
   const durableTaskIds = useMemo(
-    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
-    [taskRuns],
+    () =>
+      taskRuns
+        .filter((t) => t.isDurable && t.taskExternalId !== id)
+        .map((t) => t.taskExternalId),
+    [taskRuns, id],
   );
 
   if (isLoading || isError || !workflowRun) {
@@ -429,6 +433,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
+                  events={taskEvents.filter(
+                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
+                  )}
                 />
               </TabsContent>
               <TabsContent

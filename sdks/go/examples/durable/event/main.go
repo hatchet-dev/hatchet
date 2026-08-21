@@ -51,6 +51,27 @@ func main() {
 		return DurableOutput{}, nil
 	}
 
+	_ = func(ctx hatchet.DurableContext) (DurableOutput, error) {
+		// > Wait for event with lookback
+		now, err := ctx.Now()
+		if err != nil {
+			return DurableOutput{}, err
+		}
+
+		// Matches a "user:update" event scoped to this user, including events
+		// pushed up to a minute before this wait was registered.
+		_, err = ctx.WaitForEvent("user:update", "",
+			hatchet.WithEventScope("user_id:1234"),
+			hatchet.WithConsiderEventsSince(now.Add(-time.Minute)),
+		)
+		if err != nil {
+			return DurableOutput{}, err
+		}
+		// !!
+
+		return DurableOutput{}, nil
+	}
+
 	worker, err := client.NewWorker("durable-event-worker",
 		hatchet.WithWorkflows(task),
 		hatchet.WithDurableSlots(10),

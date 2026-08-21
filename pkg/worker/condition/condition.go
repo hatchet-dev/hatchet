@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
@@ -84,15 +85,36 @@ func (s *sleepCondition) ToPB(action contracts.Action) *ConditionMulti {
 type userEventCondition struct {
 	baseCondition
 
-	eventKey string
+	eventKey            string
+	eventScope          *string
+	considerEventsSince *time.Time
+}
+
+// UserEventConditionOpt configures optional behavior on a UserEventCondition.
+type UserEventConditionOpt func(*userEventCondition)
+
+// WithEventScope restricts the condition to events pushed with a matching scope.
+func WithEventScope(scope string) UserEventConditionOpt {
+	return func(u *userEventCondition) {
+		u.eventScope = &scope
+	}
+}
+
+// WithConsiderEventsSince makes the condition also match events that were pushed
+// after the given time but before the wait was registered (event lookback).
+// Requires WithEventScope to be set as well.
+func WithConsiderEventsSince(since time.Time) UserEventConditionOpt {
+	return func(u *userEventCondition) {
+		u.considerEventsSince = &since
+	}
 }
 
 // UserEventCondition creates a new condition that waits for a user event to occur.
 // The eventKey is the key of the user event that the condition is waiting for.
 // The expression is an optional CEL expression that can be used to filter the user event,
 // such as `event.data.key == "value"`.
-func UserEventCondition(eventKey string, expression string) *userEventCondition {
-	return &userEventCondition{
+func UserEventCondition(eventKey string, expression string, opts ...UserEventConditionOpt) *userEventCondition {
+	c := &userEventCondition{
 		baseCondition: baseCondition{
 			readableDataKey: eventKey,
 			orGroupID:       uuid.New(),
@@ -100,12 +122,23 @@ func UserEventCondition(eventKey string, expression string) *userEventCondition 
 		},
 		eventKey: eventKey,
 	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 func (u *userEventCondition) ToPB(action contracts.Action) *ConditionMulti {
 	userEvent := &contracts.UserEventMatchCondition{
 		Base:         u.baseCondition.baseCondition(action),
 		UserEventKey: u.eventKey,
+		EventScope:   u.eventScope,
+	}
+
+	if u.considerEventsSince != nil {
+		userEvent.ConsiderEventsSince = timestamppb.New(*u.considerEventsSince)
 	}
 
 	return &ConditionMulti{

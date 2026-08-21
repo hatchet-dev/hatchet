@@ -73,6 +73,11 @@ var memberOnlyOps = []string{
 	"WorkflowCronUpdate",
 	"WorkflowCronTrigger",
 	"WorkflowScheduledTrigger",
+	"V1HttpOperatorGet",
+	"V1HttpOperatorUpdate",
+	"V1HttpOperatorDelete",
+	"V1HttpOperatorList",
+	"V1HttpOperatorCreate",
 }
 
 func operationIdsFromSpec() []string {

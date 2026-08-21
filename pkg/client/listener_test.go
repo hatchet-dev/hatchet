@@ -322,6 +322,38 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 	assert.Equal(t, "run-1", ev.(WorkflowRunEvent).WorkflowRunId)
 }
 
+func TestWorkflowRunsListenerCancelledListenDoesNotContinue(t *testing.T) {
+	logger := zerolog.Nop()
+	ctx, cancel := context.WithCancel(context.Background())
+	recvStarted := make(chan struct{})
+	initialClient := &mockSubscribeClient{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			close(recvStarted)
+			<-ctx.Done()
+			return nil, status.Error(codes.Canceled, "listen context canceled")
+		},
+	}
+	constructorCalls := atomic.Int32{}
+	listener := newTestWorkflowRunsListener(t, &logger, func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		constructorCalls.Add(1)
+		return nil, status.Error(codes.PermissionDenied, "unexpected replacement")
+	}, initialClient)
+	listener.reg.store("run-1", "session-1", nopWorkflowRunHandler, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- listener.Listen(ctx)
+	}()
+
+	<-recvStarted
+	cancel()
+	require.NoError(t, <-done)
+	require.False(t, listener.isListening())
+	require.True(t, listener.reg.hasAny())
+	require.Zero(t, constructorCalls.Load())
+	require.NoError(t, listener.Close())
+}
+
 func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
 	logger := zerolog.Nop()
 
