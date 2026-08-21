@@ -282,9 +282,10 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
-	// GetDagParentOutputs looks up completed output data for tasks identified by their workflow run external IDs.
-	// Used for durable DAG orchestration where parent outputs are resolved at dispatch time.
-	GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[string]json.RawMessage, error)
+	// GetDagParentOutputs looks up completed output data for tasks identified by their workflow run external IDs,
+	// keyed by each parent's own external ID. Used for durable DAG orchestration where parent outputs are
+	// resolved at dispatch time.
+	GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[uuid.UUID]*TaskOutputEvent, error)
 
 	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
 
@@ -4279,7 +4280,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	return resMap, nil
 }
 
-func (r *TaskRepositoryImpl) GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
+func (r *TaskRepositoryImpl) GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[uuid.UUID]*TaskOutputEvent, error) {
 	return r.sharedRepository.lookupParentOutputsByWorkflowRunIds(ctx, tenantId, parentExternalIds)
 }
 
