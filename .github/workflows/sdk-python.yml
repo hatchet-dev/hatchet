@@ -148,7 +148,7 @@ jobs:
           go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
           sleep 30
-        
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
