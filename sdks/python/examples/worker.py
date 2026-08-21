@@ -139,6 +139,7 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_b,
 )
 from examples.workflow_pause.worker import pausable_workflow
+from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -261,6 +262,7 @@ def main() -> None:
             error_raising_durable_parent,
             error_raising_task,
             pausable_workflow,
+            scope_waiter,
         ],
         lifespan=lifespan,
     )
