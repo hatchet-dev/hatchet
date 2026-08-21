@@ -1337,8 +1337,11 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 
 	// fixme: checking that the EventResourceHint is not a zero-valued uuid is a workaround,
 	// but there's likely a bug somewhere upstream where it's set to that instead of being nil,
-	// which would be better to fix at the root
-	if condition.EventResourceHint != nil && *condition.EventResourceHint != uuid.Nil.String() {
+	// which would be better to fix at the root. This only applies to INTERNAL conditions, whose
+	// hint is always an internally-generated task external ID; USER conditions carry a
+	// caller-supplied scope string, which must always be taken literally (a scope value that
+	// happens to equal the zero UUID is not a bug).
+	if condition.EventResourceHint != nil && (condition.EventType != sqlcv1.V1EventTypeINTERNAL || *condition.EventResourceHint != uuid.Nil.String()) {
 		param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
 	}
 
