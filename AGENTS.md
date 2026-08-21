@@ -1,5 +1,14 @@
 # AGENTS
 
+## Testing features locally
+
+- When asked to test Hatchet locally, run a workflow locally, or verify a
+  feature against a real running instance, follow
+  `.claude/skills/embedded-hatchet/SKILL.md` instead of reaching for docker
+  compose or looking for running containers: it runs the full engine + API
+  in-process from this checkout, backed by a throwaway embedded Postgres,
+  and can register workers and run workflows.
+
 ## CI
 
 - Any CI surface that boots a Hatchet server instance (engine, API, `hatchet-lite`, docker-compose, or helm) must set `SERVER_SECURITY_CHECK_ENABLED=false`. The check defaults to enabled and phones home to `security.hatchet.run`; CI must never do that. `go test`-based boots are already covered by the test harness; every other boot site sets the var explicitly.
