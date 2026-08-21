@@ -16,6 +16,7 @@ import {
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
+import { isFailureEventType } from './v2components/event-utils';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
@@ -432,7 +433,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
-                  events={taskEvents.filter((e) => e.taskId !== id)}
+                  events={taskEvents.filter(
+                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
+                  )}
                 />
               </TabsContent>
               <TabsContent
