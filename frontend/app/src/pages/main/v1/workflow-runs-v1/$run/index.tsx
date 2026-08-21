@@ -7,6 +7,7 @@ import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
+import { isFailureEventType } from './v2components/event-utils';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
 import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
@@ -16,7 +17,6 @@ import {
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
-import { isFailureEventType } from './v2components/event-utils';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { ViewToggle } from './v2components/view-toggle';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
