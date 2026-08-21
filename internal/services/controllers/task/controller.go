@@ -1207,15 +1207,16 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 
 // processUserEventMatches looks for user event matches
 func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []*tasktypes.UserEventTaskPayload) error {
-	candidateMatches := make([]v1.CandidateEventMatch, 0)
+	candidateMatches := make([]v1.CandidateEventMatch, 0, len(events))
 
 	for _, event := range events {
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
 			ID:             event.EventExternalId,
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
-			Key:  event.EventKey,
-			Data: event.EventData,
+			Key:          event.EventKey,
+			ResourceHint: event.EventScope,
+			Data:         event.EventData,
 		})
 	}
 
