@@ -149,6 +149,7 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_b,
 )
 from examples.workflow_pause.worker import pausable_workflow
+from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
 from examples.bug_tests.durable_dag_child.worker import (
     dag_spawning_dag,
     diamond_dag,
@@ -288,6 +289,7 @@ def main() -> None:
             error_raising_task,
             cancel_if_workflow,
             pausable_workflow,
+            scope_waiter,
             parent_dag,
             spawned_child,
             spawned_child_dag,
