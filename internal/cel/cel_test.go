@@ -185,7 +185,7 @@ func TestCELParserStepRunExpressionWithParents(t *testing.T) {
 		`parents.step1.group`,
 		cel.NewInput(
 			cel.WithParents(map[string]map[string]interface{}{
-				"step1": {"group": "tenant-a"},
+				"step1": {"group": "parent-group-a"},
 			}),
 		),
 	)
@@ -193,5 +193,5 @@ func TestCELParserStepRunExpressionWithParents(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, cel.StepRunOutTypeString, result.Type)
 	assert.NotNil(t, result.String)
-	assert.Equal(t, "tenant-a", *result.String)
+	assert.Equal(t, "parent-group-a", *result.String)
 }
