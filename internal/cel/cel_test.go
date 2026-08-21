@@ -177,3 +177,21 @@ func TestCELParserEventExpression(t *testing.T) {
 		})
 	}
 }
+
+func TestCELParserStepRunExpressionWithParents(t *testing.T) {
+	parser := cel.NewCELParser()
+
+	result, err := parser.ParseAndEvalStepRun(
+		`parents.step1.group`,
+		cel.NewInput(
+			cel.WithParents(map[string]map[string]interface{}{
+				"step1": {"group": "parent-group-a"},
+			}),
+		),
+	)
+
+	assert.NoError(t, err)
+	assert.Equal(t, cel.StepRunOutTypeString, result.Type)
+	assert.NotNil(t, result.String)
+	assert.Equal(t, "parent-group-a", *result.String)
+}

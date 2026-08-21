@@ -88,6 +88,36 @@ func (t *TaskInput) Bytes() []byte {
 	return out
 }
 
+// toParentsData returns just the completed parent outputs from a task's trigger
+// data, keyed by step readable id. CEL expressions only reference `parents`, so
+// this avoids building a full V1StepRunData (and its triggers) to read one field.
+func (s *sharedRepository) toParentsData(t *TaskInput) map[string]map[string]interface{} {
+	parents := make(map[string]map[string]interface{})
+
+	if t == nil || t.TriggerData == nil {
+		return parents
+	}
+
+	for _, stepReadableId := range t.TriggerData.DataKeys() {
+		data := t.TriggerData.DataValueAsTaskOutputEvent(stepReadableId)
+
+		if data == nil || !data.IsCompleted() {
+			continue
+		}
+
+		dataMap := make(map[string]interface{})
+
+		if err := json.Unmarshal(data.Output, &dataMap); err != nil {
+			s.l.Warn().Err(err).Msg("failed to unmarshal parent output for CEL evaluation")
+			continue
+		}
+
+		parents[stepReadableId] = dataMap
+	}
+
+	return parents
+}
+
 func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	if t == nil {
 		return nil
