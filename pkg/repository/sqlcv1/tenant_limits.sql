@@ -165,6 +165,10 @@ RETURNING trl.*;
 -- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"
 FROM "Worker"
-WHERE "tenantId" = @tenantId::uuid
-AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
-AND "isActive" = true;
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+    AND "isActive" = true
+    -- exclude operators from worker count for metering
+    AND "operatorId" IS NULL
+;

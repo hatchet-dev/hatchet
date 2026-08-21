@@ -7,6 +7,7 @@ import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
+import { isFailureEventType } from './v2components/event-utils';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
 import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
@@ -432,7 +433,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
-                  events={taskEvents.filter((e) => e.taskId !== id)}
+                  events={taskEvents.filter(
+                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
+                  )}
                 />
               </TabsContent>
               <TabsContent
