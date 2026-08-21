@@ -15,9 +15,7 @@ This guide assumes you have already decided to migrate a project from Temporal t
 
 <Callout type="info">
   Code examples are given in Python, TypeScript, Go and Ruby, the four Hatchet
-  SDKs. Temporal also ships Java, .NET and PHP SDKs, plus a Rust SDK in public
-  preview; Hatchet has no equivalent for any of those, so if your project is on
-  one of them this migration is not available to you today.
+  SDKs.
 </Callout>
 
 ## Conceptual similarities and differences
@@ -29,34 +27,32 @@ However, there are a few important conceptual differences when you decide to mig
 - A [**task**](/v1/tasks) is ordinary code. It runs on a [worker](/v1/workers), retries on failure, and has no determinism constraints. This is what most Temporal activities and most short Temporal workflows become. It is `@hatchet.task()` in Python, `hatchet.task()` in TypeScript, `client.NewStandaloneTask` in Go, and `HATCHET.task` in Ruby.
 - A [**durable task**](/v1/durable-tasks) is the durable-execution primitive. It checkpoints every time it waits or spawns a child, and it carries the same determinism rules a Temporal workflow does. It is `@hatchet.durable_task()`, `hatchet.durableTask()`, `client.NewStandaloneDurableTask`, and `HATCHET.durable_task` respectively.
 
-This guide migrates every Temporal workflow to a durable task first, because that translation is mechanical and preserves the semantics you have today. Once that is running, many of those durable tasks turn out not to need durable execution at all: Hatchet is a general-purpose task queue, and a workflow that never waits is better expressed as a plain task or a DAG. [Step 13](#step-13-simplify-once-the-migration-is-green) covers that clean-up, after the migration is green.
-
-Second, workers in Hatchet have a built-in notion of [concurrency limits](/v1/concurrency), instead of per-activity or per-workflow rate limits. This makes it very easy to reason about the amount of work that a worker is able to accept.
+Second, workers in Hatchet have a built-in notion of [slots](/v1/workers#slots), instead of per-activity or per-workflow rate limits. This makes it very easy to reason about the amount of work that a worker is able to accept.
 
 ## Migration Steps
 
-| Step                                                    | Temporal                                          | Hatchet replacement                                       | Migration category  |
-| ------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- | ------------------- |
-| [1](#step-1-dependencies-and-connection)                | `temporalio` + namespace / mTLS config            | `hatchet-sdk` + `HATCHET_CLIENT_TOKEN`                    | Operational change  |
-| [2](#step-2-replace-the-client-and-worker-bootstrap)    | `Client.connect(...)` + `Worker(task_queue=...)`  | `Hatchet()` + `hatchet.worker(...)`                       | Small rewrite       |
-| [3](#step-3-convert-activities-to-tasks)                | `@activity.defn`                                  | `@hatchet.task()`                                         | Small rewrite       |
-| [4](#step-4-convert-workflows-to-durable-tasks)         | `@workflow.defn` + `execute_activity`             | `@hatchet.durable_task()` that calls tasks                | Small rewrite       |
-| [5](#step-5-invoke-work)                                | `client.execute_workflow(...)`                    | `task.run()` / `await task.aio_run()`                     | Direct API swap     |
-| [5](#step-5-invoke-work)                                | `client.start_workflow(...)`                      | `task.run(wait_for_result=False)`                         | Direct API swap     |
-| [6](#step-6-retries-and-timeouts)                       | `RetryPolicy(...)`                                | `retries` / `backoff_factor` / `backoff_max_seconds`      | Small rewrite       |
-| [6](#step-6-retries-and-timeouts)                       | `ApplicationError(non_retryable=True)`            | `NonRetryableException`                                   | Direct API swap     |
-| [6](#step-6-retries-and-timeouts)                       | `start_to_close_timeout`                          | `execution_timeout`                                       | Direct API swap     |
-| [6](#step-6-retries-and-timeouts)                       | `schedule_to_start_timeout`                       | `schedule_timeout`                                        | Direct API swap     |
-| [7](#step-7-timers-and-sleeps)                          | `await asyncio.sleep(...)` inside a workflow      | `await ctx.aio_sleep_for(...)`                            | Direct API swap     |
-| [8](#step-8-signals-queries-and-updates)                | `@workflow.signal` + `handle.signal(...)`         | Events + `await ctx.aio_wait_for_event(...)`              | Conceptual redesign |
-| [8](#step-8-signals-queries-and-updates)                | `@workflow.query`                                 | Run history / dashboard / `ctx.aio_put_stream`            | Conceptual redesign |
-| [8](#step-8-signals-queries-and-updates)                | `workflow.wait_condition(...)`                    | `wait_for=[...]` conditions, or a durable event wait      | Conceptual redesign |
-| [9](#step-9-child-workflows-and-fan-out)                | `workflow.execute_child_workflow(...)`            | `await child.aio_run(...)` from a durable task            | Small rewrite       |
-| [10](#step-10-schedules-and-crons)                      | `client.create_schedule(...)`                     | `on_crons=["..."]` or `hatchet.scheduled.aio_create(...)` | Small rewrite       |
-| [11](#step-11-versioning-and-determinism)               | `workflow.patched(...)` / `GetVersion`            | Fewer durable surfaces + additive DAG changes             | Conceptual redesign |
-| [12](#step-12-flow-control-you-no-longer-have-to-build) | Task queue partitioning / custom rate limiting    | `concurrency` / `rate_limits` / `priority` / worker slots | Simplification      |
-| [13](#step-13-simplify-once-the-migration-is-green)     | A workflow that is a fixed sequence, or a wrapper | A `parents=[...]` DAG, or a plain task                    | Simplification      |
-| [14](#step-14-observability)                            | Temporal Web UI + your own logging/tracing        | Hatchet dashboard + built-in log sink and OTel collector  | Simplification      |
+| Step                                                 | Temporal                                          | Hatchet replacement                                       | Migration category  |
+| ---------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- | ------------------- |
+| [1](#step-1-dependencies-and-connection)             | `temporalio` + namespace / mTLS config            | `hatchet-sdk` + `HATCHET_CLIENT_TOKEN`                    | Operational change  |
+| [2](#step-2-replace-the-client-and-worker-bootstrap) | `Client.connect(...)` + `Worker(task_queue=...)`  | `Hatchet()` + `hatchet.worker(...)`                       | Small rewrite       |
+| [3](#step-3-convert-activities-to-tasks)             | `@activity.defn`                                  | `@hatchet.task()`                                         | Small rewrite       |
+| [4](#step-4-convert-workflows-to-durable-tasks)      | `@workflow.defn` + `execute_activity`             | `@hatchet.durable_task()` that calls tasks                | Small rewrite       |
+| [5](#step-5-invoke-work)                             | `client.execute_workflow(...)`                    | `task.run()` / `await task.aio_run()`                     | Direct API swap     |
+| [5](#step-5-invoke-work)                             | `client.start_workflow(...)`                      | `task.run(wait_for_result=False)`                         | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                    | `RetryPolicy(...)`                                | `retries` / `backoff_factor` / `backoff_max_seconds`      | Small rewrite       |
+| [6](#step-6-retries-and-timeouts)                    | `ApplicationError(non_retryable=True)`            | `NonRetryableException`                                   | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                    | `start_to_close_timeout`                          | `execution_timeout`                                       | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                    | `schedule_to_start_timeout`                       | `schedule_timeout`                                        | Direct API swap     |
+| [7](#step-7-timers-and-sleeps)                       | `await asyncio.sleep(...)` inside a workflow      | `await ctx.aio_sleep_for(...)`                            | Direct API swap     |
+| [8](#step-8-signals-queries-and-updates)             | `@workflow.signal` + `handle.signal(...)`         | Events + `await ctx.aio_wait_for_event(...)`              | Conceptual redesign |
+| [8](#step-8-signals-queries-and-updates)             | `@workflow.query`                                 | Run history / dashboard / `ctx.aio_put_stream`            | Conceptual redesign |
+| [8](#step-8-signals-queries-and-updates)             | `workflow.wait_condition(...)`                    | `wait_for=[...]` conditions, or a durable event wait      | Conceptual redesign |
+| [9](#step-9-child-workflows-and-fan-out)             | `workflow.execute_child_workflow(...)`            | `await child.aio_run(...)` from a durable task            | Small rewrite       |
+| [10](#step-10-schedules-and-crons)                   | `client.create_schedule(...)`                     | `on_crons=["..."]` or `hatchet.scheduled.aio_create(...)` | Small rewrite       |
+| [11](#step-11-versioning-and-determinism)            | `workflow.patched(...)` / `GetVersion`            | Fewer durable surfaces + additive DAG changes             | Conceptual redesign |
+| [12](#step-12-flow-control)                          | Task queue partitioning / custom rate limiting    | `concurrency` / `rate_limits` / `priority` / worker slots | Simplification      |
+| [13](#step-13-simplification)                        | A workflow that is a fixed sequence, or a wrapper | A `parents=[...]` DAG, or a plain task                    | Simplification      |
+| [14](#step-14-observability)                         | Temporal Web UI + your own logging/tracing        | Hatchet dashboard + built-in log sink and OTel collector  | Simplification      |
 
 ## Step 1: Dependencies and connection
 
@@ -230,7 +226,7 @@ The worker imports that client and registers what it is allowed to run:
 
 Two differences worth noting:
 
-- There is no activity/workflow split in the registration list. Everything registered is a workflow or task in the same sense.
+- You register both durable tasks and tasks in the same `workflows` argument
 - `slots` bounds how many task runs this worker will accept at once. Temporal's nearest equivalents are its worker-side executor limits (`max_concurrent_activity_task_executions` and friends); in Hatchet slot control is a first-class scheduling input, not just a worker-side limit. See [workers](/v1/workers).
 
 Routing that you would have done with multiple task queues is done with separate workers and, when you need finer control, [worker affinity](/v1/advanced-assignment/worker-affinity). **Note that each separate task definition in Hatchet get its own queue**.
@@ -319,13 +315,13 @@ becomes a Hatchet task. Inputs are a single structured value rather than positio
 </Tabs.Tab>
 </UniversalTabs>
 
-The important part is what you _gain_: a Hatchet task is directly runnable. Running `charge_order` with an order id is a valid, retryable, observable unit of work with no workflow wrapper around it. In Temporal an activity cannot be invoked on its own; it needs a workflow to orchestrate it, which is why Temporal projects accumulate single-activity workflows. Those wrappers can eventually be deleted, though not yet: migrate them in step 4 like any other workflow, then collapse them in [step 13](#step-13-simplify-once-the-migration-is-green).
+Note that a Hatchet task is directly runnable. Running `charge_order` with an order id is a valid, retryable, observable unit of work with no workflow wrapper around it. In Temporal an activity cannot be invoked on its own; it needs a workflow to orchestrate it, which is why Temporal projects accumulate single-activity workflows. Those wrappers can eventually be deleted, though not yet: migrate them in step 4 like any other workflow, then collapse them in [step 13](#step-13-simplification).
 
 Serialization moves from Temporal's converters (JSON by default, pickle or custom converters if configured) to JSON. Any workflow argument that relied on a custom data converter needs a JSON-serializable representation. The shape of the input type differs by SDK: Python uses Pydantic models, TypeScript uses TypeScript types (with optional Zod validation via `inputValidator`), Go uses structs with `json` tags, and Ruby passes plain string-keyed hashes.
 
 ## Step 4: Convert workflows to durable tasks
 
-The first step is to convert every Temporal workflow to a Hatchet durable task. The workflow body becomes the durable task body, and each `execute_activity(...)` call becomes a call to the Hatchet task you defined in step 3.
+Next, we'll convert every Temporal workflow to a Hatchet durable task. The workflow body becomes the durable task body, and each `execute_activity(...)` call becomes a call to the Hatchet task you defined in step 3.
 
 A Temporal workflow that runs three activities in order:
 
@@ -455,7 +451,7 @@ becomes a durable task that runs three tasks in order:
 </Tabs.Tab>
 </UniversalTabs>
 
-Every guarantee of the Temporal workflow remains in the durable task. The Hatchet durable task has a run id and a history, it survives a worker crash, and it resumes from its last checkpoint rather than from the top. `workflow.execute_activity(fn, arg, ...)` becomes `fn.aio_run(input)` (`.run(...)` in TypeScript, Go and Ruby), results come back as ordinary return values rather than futures, and the per-call retry and timeout options move onto the task definition instead, which is [step 6](#step-6-retries-and-timeouts).
+Every guarantee of the Temporal workflow is preserved in Hatchet. The durable task has a run id and a history, it survives a worker crash, and it resumes from its last checkpoint rather than from the top. `workflow.execute_activity(fn, arg, ...)` becomes `fn.aio_run(input)` (`.run(...)` in TypeScript, Go and Ruby), results come back as ordinary return values rather than futures, and the per-call retry and timeout options move onto the task definition instead, which is [step 6](#step-6-retries-and-timeouts).
 
 Workflows that wait, rather than only calling activities, translate the same way. A workflow that sends an email, sleeps for three days, then sends another:
 
@@ -502,7 +498,7 @@ Note that a durable task's execution timeout has to cover the whole wall-clock s
 <Callout type="info">
   Some of these durable tasks will not need to be durable, and a few will not
   need to exist at all. Leave them as they are until the migration is running,
-  then see [step 13](#step-13-simplify-once-the-migration-is-green).
+  then see [step 13](#step-13-simplification).
 </Callout>
 
 ## Step 5: Invoke work
@@ -1100,7 +1096,7 @@ Hatchet contains a fully-featured web UI which aims to be a superset of the Temp
 
 ## Where to go next
 
-- [Tasks](/v1/tasks) and [running your task](/v1/running-your-task) for the basics you will use everywhere
-- [Durable execution](/v1/durable-execution) for the concepts behind durable tasks
+- [Tasks](/v1/tasks) and [running your task](/v1/running-your-task) for the basics
+- [Durable execution](/v1/durable-execution) to understand the durable context and its guarantees
 - [DAGs](/v1/directed-acyclic-graphs) for the declarative replacement for orchestration code
 - [Architecture and guarantees](/v1/architecture-and-guarantees) if you are evaluating rather than migrating
