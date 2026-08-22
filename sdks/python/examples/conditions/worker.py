@@ -187,7 +187,7 @@ cancel_if_workflow = hatchet.workflow(name="CancelIfWorkflow")
 
 
 @cancel_if_workflow.task()
-async def start_cancel_if(input: EmptyModel, ctx: Context) -> StepOutput:
+async def start_cancel_if(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
@@ -197,14 +197,14 @@ async def start_cancel_if(input: EmptyModel, ctx: Context) -> StepOutput:
         ParentCondition(parent=start_cancel_if, expression="output.random_number > 1")
     ],
 )
-async def cancel_if(input: EmptyModel, ctx: Context) -> StepOutput:
+async def cancel_if(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
 @cancel_if_workflow.task(
     parents=[cancel_if],
 )
-async def downstream_skip(input: EmptyModel, ctx: Context) -> StepOutput:
+async def downstream_skip(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
@@ -212,7 +212,7 @@ skip_if_sleep_workflow = hatchet.workflow(name="SkipIfSleepWorkflow")
 
 
 @skip_if_sleep_workflow.task()
-def sis_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def sis_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=1)
 
 
@@ -221,7 +221,7 @@ def sis_start(input: EmptyModel, ctx: Context) -> StepOutput:
     wait_for=[UserEventCondition(event_key="skip_if_sleep:proceed")],
     skip_if=[SleepCondition(timedelta(seconds=12))],
 )
-def sis_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def sis_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
@@ -229,7 +229,7 @@ skip_if_or_workflow = hatchet.workflow(name="SkipIfOrGroupWorkflow")
 
 
 @skip_if_or_workflow.task()
-def sio_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def sio_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -242,7 +242,7 @@ def sio_start(input: EmptyModel, ctx: Context) -> StepOutput:
         )
     ],
 )
-def sio_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def sio_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
@@ -250,7 +250,7 @@ cancel_if_event_workflow = hatchet.workflow(name="CancelIfEventWorkflow")
 
 
 @cancel_if_event_workflow.task()
-def cie_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def cie_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=1)
 
 
@@ -259,12 +259,12 @@ def cie_start(input: EmptyModel, ctx: Context) -> StepOutput:
     wait_for=[SleepCondition(timedelta(seconds=30))],
     cancel_if=[UserEventCondition(event_key="cancel_if_event:abort")],
 )
-def cie_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def cie_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
 @cancel_if_event_workflow.task(parents=[cie_target])
-def cie_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+def cie_downstream(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
@@ -272,7 +272,7 @@ cancel_if_sleep_workflow = hatchet.workflow(name="CancelIfSleepWorkflow")
 
 
 @cancel_if_sleep_workflow.task()
-def cis_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def cis_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=1)
 
 
@@ -281,12 +281,12 @@ def cis_start(input: EmptyModel, ctx: Context) -> StepOutput:
     wait_for=[UserEventCondition(event_key="cancel_if_sleep:proceed")],
     cancel_if=[SleepCondition(timedelta(seconds=8))],
 )
-def cis_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def cis_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
 @cancel_if_sleep_workflow.task(parents=[cis_target])
-def cis_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+def cis_downstream(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
@@ -294,7 +294,7 @@ cancel_if_or_workflow = hatchet.workflow(name="CancelIfOrGroupWorkflow")
 
 
 @cancel_if_or_workflow.task()
-def cio_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def cio_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=1)
 
 
@@ -308,12 +308,12 @@ def cio_start(input: EmptyModel, ctx: Context) -> StepOutput:
         )
     ],
 )
-def cio_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def cio_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=2)
 
 
 @cancel_if_or_workflow.task(parents=[cio_target])
-def cio_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+def cio_downstream(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
@@ -321,7 +321,7 @@ wait_for_event_only_workflow = hatchet.workflow(name="WaitForEventOnlyWorkflow")
 
 
 @wait_for_event_only_workflow.task()
-def wfe_start(input: EmptyModel, ctx: Context) -> StepOutput:
+def wfe_start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=1)
 
 
@@ -329,7 +329,7 @@ def wfe_start(input: EmptyModel, ctx: Context) -> StepOutput:
     parents=[wfe_start],
     wait_for=[UserEventCondition(event_key="wait_for_event_only:go")],
 )
-def wfe_target(input: EmptyModel, ctx: Context) -> StepOutput:
+def wfe_target(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=5)
 
 

@@ -161,7 +161,7 @@ async def _branch(name: str, first_delay: float) -> dict[str, dict[str, str]]:
         allow_capacity_eviction=False,
     ),
 )
-async def concurrent_branches(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def concurrent_branches(input: None, ctx: DurableContext) -> dict[str, Any]:
     a, b = await asyncio.gather(_branch("a", 4), _branch("b", 1))
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     return {"a": a, "b": b, "status": "completed"}

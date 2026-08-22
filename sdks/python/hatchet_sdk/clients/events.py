@@ -190,7 +190,7 @@ class EventClient(BaseRestClient):
     ) -> EventProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventProto,
+            "EventProto",
             await aio_client.Push(request, metadata=metadata),  # type: ignore[misc]
         )
 
@@ -255,7 +255,7 @@ class EventClient(BaseRestClient):
     ) -> EventsProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventsProto,
+            "EventsProto",
             await aio_client.BulkPush(request, metadata=metadata),  # type: ignore[misc]
         )
 

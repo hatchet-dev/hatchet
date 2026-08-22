@@ -13,7 +13,6 @@ from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
     PauseWorkflowRequestUnpause,
 )
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
 )

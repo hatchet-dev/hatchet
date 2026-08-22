@@ -161,7 +161,7 @@ class AsyncLogSender:
 
 
 class LogForwardingHandler(logging.Handler):
-    def __init__(self, log_sender: AsyncLogSender):
+    def __init__(self, log_sender: AsyncLogSender) -> None:
         super().__init__()
 
         self.log_sender = log_sender
