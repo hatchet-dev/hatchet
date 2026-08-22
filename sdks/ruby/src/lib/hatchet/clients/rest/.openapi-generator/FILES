@@ -21,6 +21,7 @@ lib/hatchet-sdk-rest/api/healthcheck_api.rb
 lib/hatchet-sdk-rest/api/log_api.rb
 lib/hatchet-sdk-rest/api/metadata_api.rb
 lib/hatchet-sdk-rest/api/observability_api.rb
+lib/hatchet-sdk-rest/api/operator_api.rb
 lib/hatchet-sdk-rest/api/rate_limits_api.rb
 lib/hatchet-sdk-rest/api/slack_api.rb
 lib/hatchet-sdk-rest/api/sns_api.rb
@@ -94,6 +95,9 @@ lib/hatchet-sdk-rest/models/otel_span_kind.rb
 lib/hatchet-sdk-rest/models/otel_span_list.rb
 lib/hatchet-sdk-rest/models/otel_status_code.rb
 lib/hatchet-sdk-rest/models/pagination_response.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request_pause.rb
+lib/hatchet-sdk-rest/models/pause_workflow_request_unpause.rb
 lib/hatchet-sdk-rest/models/pull_request.rb
 lib/hatchet-sdk-rest/models/pull_request_state.rb
 lib/hatchet-sdk-rest/models/queue_metrics.rb
@@ -177,6 +181,7 @@ lib/hatchet-sdk-rest/models/v1_cel_debug_request.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_response.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_response_status.rb
 lib/hatchet-sdk-rest/models/v1_create_filter_request.rb
+lib/hatchet-sdk-rest/models/v1_create_http_operator_request.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request_api_key.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request_base.rb
@@ -193,6 +198,8 @@ lib/hatchet-sdk-rest/models/v1_event_triggered_run.rb
 lib/hatchet-sdk-rest/models/v1_event_workflow_run_summary.rb
 lib/hatchet-sdk-rest/models/v1_filter.rb
 lib/hatchet-sdk-rest/models/v1_filter_list.rb
+lib/hatchet-sdk-rest/models/v1_http_operator.rb
+lib/hatchet-sdk-rest/models/v1_http_operator_list.rb
 lib/hatchet-sdk-rest/models/v1_log_line.rb
 lib/hatchet-sdk-rest/models/v1_log_line_level.rb
 lib/hatchet-sdk-rest/models/v1_log_line_list.rb
@@ -219,6 +226,7 @@ lib/hatchet-sdk-rest/models/v1_task_timing.rb
 lib/hatchet-sdk-rest/models/v1_task_timing_list.rb
 lib/hatchet-sdk-rest/models/v1_trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/v1_update_filter_request.rb
+lib/hatchet-sdk-rest/models/v1_update_http_operator_request.rb
 lib/hatchet-sdk-rest/models/v1_update_webhook_request.rb
 lib/hatchet-sdk-rest/models/v1_wait_item.rb
 lib/hatchet-sdk-rest/models/v1_webhook.rb
@@ -257,6 +265,7 @@ lib/hatchet-sdk-rest/models/workflow_concurrency.rb
 lib/hatchet-sdk-rest/models/workflow_kind.rb
 lib/hatchet-sdk-rest/models/workflow_list.rb
 lib/hatchet-sdk-rest/models/workflow_metrics.rb
+lib/hatchet-sdk-rest/models/workflow_pause_scheduled_cron_run_queue_behavior.rb
 lib/hatchet-sdk-rest/models/workflow_run.rb
 lib/hatchet-sdk-rest/models/workflow_run_list.rb
 lib/hatchet-sdk-rest/models/workflow_run_order_by_direction.rb

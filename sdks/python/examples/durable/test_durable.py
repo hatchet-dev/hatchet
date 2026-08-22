@@ -96,7 +96,9 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    await first_sleep.aio_result()
+    with pytest.raises(Exception) as exc_info:
+        assert "HatchetError: task was cancelled" in str(exc_info.value)
+        await first_sleep.aio_result()
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(

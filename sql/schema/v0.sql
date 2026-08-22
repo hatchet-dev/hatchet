@@ -455,6 +455,7 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
+    "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -862,6 +863,7 @@ CREATE TABLE "Worker" (
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
+    "operatorId" UUID,
     "language" "WorkerSDKS",
     "languageVersion" TEXT,
     "os" TEXT,
@@ -895,6 +897,8 @@ CREATE TABLE "WorkerLabel" (
     CONSTRAINT "WorkerLabel_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TYPE "WorkflowPauseQueueBehavior" AS ENUM ('QUEUE', 'DROP');
+
 -- CreateTable
 CREATE TABLE "Workflow" (
     "id" UUID NOT NULL,
@@ -905,8 +909,25 @@ CREATE TABLE "Workflow" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isPaused" BOOLEAN DEFAULT false,
+    "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" INTERVAL,
 
-    CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "Workflow_PausedWorkflowCheck" CHECK (
+        (
+            "isPaused" = FALSE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NULL
+            AND "pausedWorkflowQueueTTL" IS NULL
+        )
+        OR (
+            "isPaused" = TRUE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowQueueTTL" IS NOT NULL
+        )
+    )
 );
 
 -- CreateTable
@@ -1095,6 +1116,8 @@ CREATE TABLE
         "idempotencyKeyExpression" TEXT,
         "idempotencyKeyTtlMs" BIGINT,
         "idempotencyMethod" idempotency_method,
+        "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
+        "dagShape" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

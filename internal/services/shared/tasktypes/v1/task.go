@@ -19,6 +19,29 @@ func TriggerTaskMessage(tenantId uuid.UUID, payloads ...*v1.WorkflowNameTriggerO
 	)
 }
 
+type PendingDurableRunTriggerPayload struct {
+	NodeId      int64                       `json:"node_id"`
+	BranchId    int64                       `json:"branch_id"`
+	TriggerOpts *v1.WorkflowNameTriggerOpts `json:"trigger_opts"`
+}
+
+type DurableRunTriggerMessage struct {
+	DurableTaskId         int64                             `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz                `json:"durable_task_inserted_at"`
+	DurableTaskExternalId uuid.UUID                         `json:"durable_task_external_id"`
+	Entries               []PendingDurableRunTriggerPayload `json:"entries"`
+}
+
+func DurableRunTriggerTaskMessage(tenantId uuid.UUID, msg DurableRunTriggerMessage) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDDurableRunTrigger,
+		false,
+		true,
+		msg,
+	)
+}
+
 type CompletedTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
@@ -261,6 +284,24 @@ func DurableCallbackCompletedMessage(
 			SatisfiedOrder:        satisfiedOrder,
 			ChildTaskIsFailure:    childTaskIsFailure,
 			ChildTaskErrorMessage: childTaskErrorMessage,
+		},
+	)
+}
+
+type TogglePauseWorkflowPayload struct {
+	WorkflowID uuid.UUID
+	IsPaused   bool
+}
+
+func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTogglePauseWorkflow,
+		false,
+		true,
+		TogglePauseWorkflowPayload{
+			WorkflowID: workflowId,
+			IsPaused:   isPaused,
 		},
 	)
 }

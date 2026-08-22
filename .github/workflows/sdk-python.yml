@@ -82,8 +82,12 @@ jobs:
     strategy:
       matrix:
         python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.14"]') || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
-        optimistic-scheduling: ["true", "false"]
         concurrency-in-memory-index: ["true", "false"]
+        dag-operator: ["true", "false"]
+        exclude:
+          # the dag operator is independent of the concurrency index, so only vary it on one side
+          - concurrency-in-memory-index: "false"
+            dag-operator: "true"
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -122,17 +126,27 @@ jobs:
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-          export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
           export SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=${{ matrix.concurrency-in-memory-index }}
           export SERVER_OBSERVABILITY_ENABLED=true
           export SERVER_SECURITY_CHECK_ENABLED=false
 
           go run ./cmd/hatchet-admin quickstart
 
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id)
+          SELECT id
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO NOTHING;
+
+          UPDATE tenant_entitlement
+          SET dag_operator = ${{ matrix.dag-operator }};
+          SQL
+
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
           go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
           sleep 30
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -168,7 +182,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           export HATCHET_CLIENT_SERVER_URL=http://localhost:8080
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8 --timeout 180
 
       - name: Test with wheel
         run: |
@@ -181,14 +195,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-engine-logs
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-cimi-${{ matrix.concurrency-in-memory-index }}-dag-${{ matrix.dag-operator }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-api-logs
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-cimi-${{ matrix.concurrency-in-memory-index }}-dag-${{ matrix.dag-operator }}-api-logs
           path: api.log
 
   publish:

@@ -8,6 +8,28 @@ WHERE
 FOR UPDATE
 ;
 
+-- name: GetAndLockLogFileWithBranchPoints :many
+WITH locked_file AS (
+    SELECT *
+    FROM v1_durable_event_log_file
+    WHERE
+        durable_task_id = @durableTaskId::BIGINT
+        AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+        AND tenant_id = @tenantId::UUID
+    FOR UPDATE
+)
+
+SELECT
+    sqlc.embed(to_embed),
+    bp.*
+FROM locked_file lf
+-- note: intentionally using the params for the join so we can prune partitions
+JOIN v1_durable_event_log_file to_embed
+    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+LEFT JOIN v1_durable_event_log_branch_point bp
+    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+;
+
 -- name: IncrementLogFileInvocationCounts :many
 WITH inputs AS (
     SELECT
@@ -61,7 +83,8 @@ INSERT INTO v1_durable_event_log_branch_point (
     durable_task_inserted_at,
     first_node_id_in_new_branch,
     parent_branch_id,
-    next_branch_id
+    next_branch_id,
+    replay_child_external_ids
 )
 VALUES (
     @tenantId::UUID,
@@ -69,7 +92,8 @@ VALUES (
     @durableTaskInsertedAt::TIMESTAMPTZ,
     @firstNodeIdInNewBranch::BIGINT,
     @parentBranchId::BIGINT,
-    @nextBranchId::BIGINT
+    @nextBranchId::BIGINT,
+    sqlc.narg('replayChildExternalIds')::UUID[]
 )
 RETURNING *
 ;
@@ -301,28 +325,36 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
 WITH inputs AS (
     SELECT
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+), to_claim AS (
+    SELECT
+        e.durable_task_id,
+        e.durable_task_inserted_at,
+        e.branch_id,
+        e.node_id
+    FROM
+        v1_durable_event_log_entry e
+    JOIN
+        inputs i ON e.durable_task_id = i.durable_task_id
+            AND e.durable_task_inserted_at = i.durable_task_inserted_at
+            AND e.node_id = i.node_id
+            AND e.branch_id = i.branch_id
+    WHERE
+        e.triggered_at IS NULL
+    ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
+    FOR UPDATE
 )
 
 UPDATE v1_durable_event_log_entry e
 SET triggered_at = NOW()
-FROM inputs i
-WHERE e.durable_task_id = @durableTaskId::BIGINT
-  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-  AND e.node_id = i.node_id
-  AND e.branch_id = i.branch_id
-  AND e.triggered_at IS NULL
-RETURNING e.node_id, e.branch_id
-;
-
--- name: ListDurableEventLogBranchPoints :many
-SELECT *
-FROM v1_durable_event_log_branch_point
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
-ORDER BY id ASC
+FROM to_claim c
+WHERE e.durable_task_id = c.durable_task_id
+  AND e.durable_task_inserted_at = c.durable_task_inserted_at
+  AND e.branch_id = c.branch_id
+  AND e.node_id = c.node_id
+RETURNING e.*
 ;
 
 -- name: ListDurableEventLogForTask :many
@@ -335,4 +367,36 @@ WHERE e.durable_task_id = @durableTaskId::BIGINT
 ORDER BY e.branch_id ASC, e.node_id ASC
 OFFSET @eventLogOffset::BIGINT
 LIMIT @eventLogLimit::BIGINT
+;
+
+-- name: UpsertDurableChildSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST(@eventKeys::TEXT[]) AS event_key,
+        UNNEST(@childExternalIds::UUID[]) AS child_external_id
+)
+
+INSERT INTO v1_task_event (
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    event_key,
+    child_external_id
+)
+SELECT
+    @tenantId::UUID,
+    @durableTaskId::BIGINT,
+    @durableTaskInsertedAt::TIMESTAMPTZ,
+    -1,
+    'SIGNAL_CREATED',
+    i.event_key,
+    i.child_external_id
+FROM input i
+ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
+DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
+RETURNING
+    v1_task_event.event_key,
+    v1_task_event.child_external_id
 ;

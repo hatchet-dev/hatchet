@@ -7,8 +7,10 @@ import {
   isTerminalState,
   useWorkflowDetails,
 } from '../hooks/use-workflow-details';
+import { isFailureEventType } from './v2components/event-utils';
 import { V1RunDetailHeader } from './v2components/header';
 import { JobMiniMap } from './v2components/mini-map';
+import { PausedWorkflowNotice } from './v2components/paused-workflow-notice';
 import { Observability } from './v2components/step-run-detail/observability/observability';
 import {
   TASK_RUN_TERMINAL_STATUSES,
@@ -317,7 +319,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [open],
   );
 
-  const { workflowRun, shape, taskRuns, isLoading, isError } =
+  const { workflowRun, shape, taskRuns, taskEvents, isLoading, isError } =
     useWorkflowDetails();
 
   const tasksForSynthesis = useMemo((): TaskSummaryForSynthesis[] => {
@@ -346,8 +348,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   );
 
   const durableTaskIds = useMemo(
-    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
-    [taskRuns],
+    () =>
+      taskRuns
+        .filter((t) => t.isDurable && t.taskExternalId !== id)
+        .map((t) => t.taskExternalId),
+    [taskRuns, id],
   );
 
   if (isLoading || isError || !workflowRun) {
@@ -385,6 +390,10 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Logs
             </TabsTrigger>
           </TabsList>
+          <PausedWorkflowNotice
+            workflowId={workflowRun.workflowId}
+            status={workflowRun.status}
+          />
           <TabsContent
             value="overview"
             className="flex min-h-0 flex-1 flex-col"
@@ -424,6 +433,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
+                  events={taskEvents.filter(
+                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
+                  )}
                 />
               </TabsContent>
               <TabsContent

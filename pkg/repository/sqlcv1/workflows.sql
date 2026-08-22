@@ -125,6 +125,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority",
     "createWorkflowVersionOpts",
     "inputJsonSchema",
+    "isUsingDagOperator",
+    "dagShape",
     "idempotencyKeyExpression",
     "idempotencyKeyTtlMs",
     "idempotencyMethod"
@@ -143,6 +145,8 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('defaultPriority') :: integer,
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
     sqlc.narg('inputJsonSchema')::jsonb,
+    coalesce(sqlc.narg('isUsingDagOperator')::boolean, false),
+    coalesce(sqlc.narg('dagShape')::jsonb, NULL),
     sqlc.narg('idempotencyKeyExpression')::text,
     sqlc.narg('idempotencyKeyTtlMs')::bigint,
     sqlc.narg('idempotencyMethod')::idempotency_method
@@ -296,7 +300,8 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable"
+    "isDurable",
+    "isDagOrchestrator"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -312,7 +317,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
-    coalesce(sqlc.narg('isDurable')::boolean, false)
+    coalesce(sqlc.narg('isDurable')::boolean, false),
+    coalesce(sqlc.narg('isDagOrchestrator')::boolean, false)
 ) RETURNING *;
 
 -- name: CreateStepBatchConfig :exec
@@ -562,6 +568,21 @@ WITH inserted_wcs AS (
         WHERE
           wv."id" = @workflowVersionId::uuid
           AND j."kind" = 'DEFAULT'
+          -- For DAG-operator workflows the orchestrator task represents the run, so the
+          -- workflow-level concurrency slot must be held by the orchestrator step alone.
+          -- Attaching the strategy to the child steps as well would let a run's own children
+          -- contend with their parent for the same slot and deadlock. Fall back to all steps
+          -- for workflows that have no orchestrator (the non-operator path).
+          AND (
+            s."isDagOrchestrator"
+            OR NOT EXISTS (
+              SELECT 1
+              FROM "Step" s2
+              JOIN "Job" j2 ON s2."jobId" = j2."id"
+              WHERE j2."workflowVersionId" = wv."id"
+                AND s2."isDagOrchestrator"
+            )
+          )
     ) s, inserted_wcs wcs
     RETURNING *
 )
@@ -661,6 +682,7 @@ JOIN "Job" j ON v."id" = j."workflowVersionId"
 JOIN "Step" s ON j."id" = s."jobId"
 LEFT JOIN "_StepOrder" so ON so."A" = s.id
 WHERE v.id = @workflowVersionId::uuid
+    AND NOT s."isDagOrchestrator"
 GROUP BY s.id, s."readableId"
 ;
 
@@ -818,13 +840,29 @@ WHERE
     )
 ;
 
--- name: UpdateWorkflow :one
+-- name: PauseWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
-WHERE "id" = @id::uuid
-RETURNING *;
+    "updatedAt" = NOW(),
+    "isPaused" = TRUE,
+    "pausedWorkflowCronRunQueueBehavior" = @cronRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = @scheduledRunQueueBehavior::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval(@queueTtl::TEXT)
+WHERE "id" = @id::UUID
+RETURNING *
+;
+
+-- name: UnpauseWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = NOW(),
+    "isPaused" = FALSE,
+    "pausedWorkflowCronRunQueueBehavior" = NULL,
+    "pausedWorkflowScheduledRunQueueBehavior" = NULL,
+    "pausedWorkflowQueueTTL" = NULL
+WHERE "id" = @id::UUID
+RETURNING *
+;
 
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT
@@ -878,3 +916,11 @@ WHERE
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1;
+
+-- name: ListWorkflowVersionsByIds :many
+SELECT *
+FROM "WorkflowVersion"
+WHERE
+    "id" = ANY(@ids::uuid[])
+    AND "deletedAt" IS NULL
+;
