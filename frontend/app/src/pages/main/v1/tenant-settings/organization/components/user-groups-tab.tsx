@@ -82,6 +82,18 @@ export function UserGroupsTab({
       ),
     },
     {
+      columnLabel: 'Payloads',
+      cellRenderer: (row: UserGroup) => (
+        <span className="text-sm text-muted-foreground">
+          {row.role === 'OWNER' ||
+          row.role === 'ADMIN' ||
+          row.canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
+      ),
+    },
+    {
       columnLabel: 'Actions',
       cellRenderer: (row: UserGroup) => (
         <UserGroupActions

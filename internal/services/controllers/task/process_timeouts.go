@@ -59,7 +59,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 				RetryCount:     task.RetryCount,
 				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
 				EventTimestamp: time.Now(),
-				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout),
 			},
 		)
 

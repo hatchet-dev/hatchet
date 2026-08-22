@@ -14,6 +14,8 @@ func ToTenantInviteLink(invite *sqlcv1.TenantInviteLink) *gen.TenantInvite {
 		TenantId: invite.TenantId.String(),
 	}
 
+	res.CanViewPayloads = &invite.CanViewPayloads
+
 	return res
 }
 
@@ -26,6 +28,8 @@ func ToUserTenantInviteLink(invite *sqlcv1.ListTenantInvitesByEmailRow) *gen.Ten
 		TenantId:   invite.TenantId.String(),
 		TenantName: &invite.TenantName,
 	}
+
+	res.CanViewPayloads = &invite.CanViewPayloads
 
 	return res
 }

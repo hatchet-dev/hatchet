@@ -51,6 +51,7 @@
     "troubleshooting",
     "---Enterprise---",
     "single-sign-on",
+    "user-roles",
     "user-groups",
     "---Evaluating Hatchet?---",
     "architecture-and-guarantees",
@@ -61,6 +62,7 @@
     "developer-experience",
     "---Migration Guides---",
     "from-celery-to-hatchet",
+    "from-temporal-to-hatchet",
     "---Troubleshooting---",
     "faq"
   ],
