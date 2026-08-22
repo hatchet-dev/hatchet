@@ -56,11 +56,9 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.events import (
-    BulkPushEventOptions,
     BulkPushEventWithMetadata,
     Event,
     EventClient,
-    PushEventOptions,
     _inject_source_info,
 )
 from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
@@ -125,7 +123,11 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     created within a step run context, so that child spans are queryable
     by the same attributes (e.g. hatchet.step_run_id) as the parent."""
 
-    def __init__(self, span_exporter: SpanExporter, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        span_exporter: SpanExporter,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
         super().__init__(span_exporter, **kwargs)
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
@@ -316,7 +318,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         schedule_delay_millis: int | None = None,
         max_export_batch_size: int | None = None,
         max_queue_size: int | None = None,
-    ):
+    ) -> None:
         self.config = config or ClientConfig()
 
         self._bsp_kwargs: dict[str, Any] = {}
@@ -376,7 +378,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def instrumentation_dependencies(self) -> Collection[str]:
         return ()
 
-    def _instrument(self, **kwargs: InstrumentKwargs) -> None:
+    def _instrument(self, **_kwargs: InstrumentKwargs) -> None:
         self._tracer = get_tracer(__name__, hatchet_sdk_version, self.tracer_provider)
         self._meter = get_meter(__name__, hatchet_sdk_version, self.meter_provider)
 
@@ -487,13 +489,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_handle_start_step_run(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
-        instance: Runner,
+        _instance: Runner,
         args: tuple[Action],
-        kwargs: Any,
+        kwargs: Any,  # noqa: ANN401
     ) -> Exception | None:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        action = cast(Action, params[0])
+        action = cast("Action", params[0])
 
         traceparent = _parse_carrier_from_metadata(action.additional_metadata)
         span_name = "hatchet.start_step_run"
@@ -524,9 +526,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_handle_cancel_action(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, None]],
-        instance: Runner,
+        _instance: Runner,
         args: tuple[Action],
-        kwargs: Any,
+        kwargs: Any,  # noqa: ANN401
     ) -> None:
         action = args[0]
 
@@ -543,40 +545,26 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_push_event(
         self,
         wrapped: Callable[..., Event],
-        instance: EventClient,
+        _instance: EventClient,
         args: tuple[
             str,
             JSONSerializableMapping,
-            PushEventOptions | None,
             JSONSerializableMapping | None,
             Priority | None,
             str | None,
         ],
         kwargs: dict[
             str,
-            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+            str | JSONSerializableMapping | Priority | None,
         ],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        event_key = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
-        options = cast(PushEventOptions | None, params[2])
-        additional_metadata = cast(JSONSerializableMapping | None, params[3])
-        priority = cast(Priority | None, params[4])
-        scope = cast(str | None, params[5])
-
-        additional_metadata = additional_metadata or (
-            options.additional_metadata if options else {}
-        )
-
-        priority_option = options.priority if options else None
-
-        if isinstance(priority_option, int):
-            priority_option = Priority(priority_option)
-
-        priority = priority or priority_option
-        scope = scope or (options.scope if options else None)
+        event_key = cast("str", params[0])
+        payload = cast("JSONSerializableMapping", params[1])
+        additional_metadata = cast("JSONSerializableMapping | None", params[2])
+        priority = cast("Priority | None", params[3])
+        scope = cast("str | None", params[4])
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
@@ -606,9 +594,8 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return wrapped(
                 event_key,
                 payload,
-                None,
                 _inject_source_info(
-                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                    _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
                 priority,
                 scope,
@@ -616,22 +603,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
     def _wrap_bulk_push_event(
         self,
-        wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
-        ],
-        instance: EventClient,
-        args: tuple[
-            list[BulkPushEventWithMetadata],
-            BulkPushEventOptions | None,
-        ],
-        kwargs: dict[
-            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
-        ],
+        wrapped: Callable[[list[BulkPushEventWithMetadata]], list[Event]],
+        _instance: EventClient,
+        args: tuple[list[BulkPushEventWithMetadata],],
+        kwargs: dict[str, list[BulkPushEventWithMetadata]],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(BulkPushEventOptions | None, params[1])
+        bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}
@@ -659,46 +638,31 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(
                 bulk_events_with_meta,
-                options,
             )
 
     async def _wrap_aio_push_event(
         self,
         wrapped: Callable[..., Coroutine[None, None, Event]],
-        instance: EventClient,
+        _instance: EventClient,
         args: tuple[
             str,
             JSONSerializableMapping,
-            PushEventOptions | None,
             JSONSerializableMapping | None,
             Priority | None,
             str | None,
         ],
         kwargs: dict[
             str,
-            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+            str | JSONSerializableMapping | Priority | None,
         ],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        event_key = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
-        options = cast(PushEventOptions | None, params[2])
-        additional_metadata = cast(JSONSerializableMapping | None, params[3])
-        priority = cast(Priority | None, params[4])
-        scope = cast(str | None, params[5])
-
-        additional_metadata = additional_metadata or (
-            options.additional_metadata if options else {}
-        )
-
-        priority_option = options.priority if options else None
-
-        if isinstance(priority_option, int):
-            priority_option = Priority(priority_option)
-
-        priority = priority or priority_option
-        scope = scope or (options.scope if options else None)
+        event_key = cast("str", params[0])
+        payload = cast("JSONSerializableMapping", params[1])
+        additional_metadata = cast("JSONSerializableMapping | None", params[2])
+        priority = cast("Priority | None", params[3])
+        scope = cast("str | None", params[4])
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
@@ -730,7 +694,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 payload,
                 None,
                 _inject_source_info(
-                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                    _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
                 priority,
                 scope,
@@ -739,22 +703,16 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_aio_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None],
+            [list[BulkPushEventWithMetadata]],
             Coroutine[None, None, list[Event]],
         ],
-        instance: EventClient,
-        args: tuple[
-            list[BulkPushEventWithMetadata],
-            BulkPushEventOptions | None,
-        ],
-        kwargs: dict[
-            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
-        ],
+        _instance: EventClient,
+        args: tuple[list[BulkPushEventWithMetadata],],
+        kwargs: dict[str, list[BulkPushEventWithMetadata] | None],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(BulkPushEventOptions | None, params[1])
+        bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}
@@ -782,7 +740,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(
                 bulk_events_with_meta,
-                options,
             )
 
     def _build_run_workflow_attributes(
@@ -791,9 +748,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: config.workflow_name,
             OTelAttribute.ACTION_PAYLOAD: config.input,
-            OTelAttribute.PARENT_ID: config.options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: config.options.child_index,
             OTelAttribute.CHILD_KEY: config.options.child_key,
             OTelAttribute.NAMESPACE: config.options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -802,7 +756,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: config.options.priority,
             OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
             OTelAttribute.STICKY: config.options.sticky,
-            OTelAttribute.KEY: config.options.key,
         }
         return {
             "instrumentor": "hatchet",
@@ -881,25 +834,22 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [str, str | None, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        payload = cast(str | None, params[1])
+        workflow_name = cast("str", params[0])
+        payload = cast("str | None", params[1])
         options = cast(
-            TriggerWorkflowOptions,
+            "TriggerWorkflowOptions",
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -908,7 +858,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: options.priority,
             OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
-            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -941,25 +890,22 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [str, str | None, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        payload = cast(str | None, params[1])
+        workflow_name = cast("str", params[0])
+        payload = cast("str | None", params[1])
         options = cast(
-            TriggerWorkflowOptions,
+            "TriggerWorkflowOptions",
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -968,7 +914,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: options.priority,
             OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
-            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -1006,7 +951,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ],
             v0_workflow_protos.WorkflowVersion,
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[
             str,
             list[datetime],
@@ -1020,11 +965,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> v0_workflow_protos.WorkflowVersion:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        schedules = cast(list[datetime], params[1])
-        input = cast(str | None, params[2])
+        workflow_name = cast("str", params[0])
+        schedules = cast("list[datetime]", params[1])
+        input = cast("str | None", params[2])
         options = cast(
-            ScheduleTriggerWorkflowOptions,
+            "ScheduleTriggerWorkflowOptions",
             params[3] if len(params) > 3 else ScheduleTriggerWorkflowOptions(),
         )
 
@@ -1034,9 +979,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 [ts.isoformat() for ts in schedules]
             ),
             OTelAttribute.ACTION_PAYLOAD: input,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -1075,12 +1017,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [list[WorkflowRunTriggerConfig]],
             list[WorkflowRunRef],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
         params = self.extract_bound_args(wrapped, args, kwargs)
-        workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
         num_workflows = len(workflow_run_configs)
         unique_workflow_names = {
@@ -1111,12 +1053,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [list[WorkflowRunTriggerConfig]],
             Coroutine[None, None, list[WorkflowRunRef]],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
         params = self.extract_bound_args(wrapped, args, kwargs)
-        workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
         num_workflows = len(workflow_run_configs)
         unique_workflow_names = {
             config.workflow_name for config in workflow_run_configs
@@ -1149,15 +1091,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> dict[str, Any]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        signal_key = cast(str, params[0])
+        signal_key = cast("str", params[0])
         conditions = params[1:]
 
-        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+        traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
         attributes: dict[OTelAttribute, str | int | None] = {
             OTelAttribute.SIGNAL_KEY: signal_key,
             OTelAttribute.NUM_CONDITIONS: len(conditions),
-            OTelAttribute.STEP_RUN_ID: instance.step_run_id,
+            OTelAttribute.STEP_RUN_ID: instance._step_run_id,
         }
 
         with self._tracer.start_as_current_span(
@@ -1188,9 +1130,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> list[DurableSpawnResult]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
-        traceparent = _parse_carrier_from_metadata(instance.action.additional_metadata)
+        traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
         if len(configs) == 1:
             config = configs[0]
@@ -1202,9 +1144,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     for k, v in {
                         OTelAttribute.WORKFLOW_NAME: config.workflow_name,
                         OTelAttribute.ACTION_PAYLOAD: config.input,
-                        OTelAttribute.PARENT_ID: config.options.parent_id,
-                        OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
-                        OTelAttribute.CHILD_INDEX: config.options.child_index,
                         OTelAttribute.CHILD_KEY: config.options.child_key,
                         OTelAttribute.NAMESPACE: config.options.namespace,
                         OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -1213,7 +1152,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                         OTelAttribute.PRIORITY: config.options.priority,
                         OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
                         OTelAttribute.STICKY: config.options.sticky,
-                        OTelAttribute.KEY: config.options.key,
                     }.items()
                     if v
                     and k not in self.config.otel.excluded_attributes
@@ -1244,7 +1182,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 span.set_status(StatusCode.ERROR, str(e))
                 raise
 
-    def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
+    def _uninstrument(self, **_kwargs: InstrumentKwargs) -> None:
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
 

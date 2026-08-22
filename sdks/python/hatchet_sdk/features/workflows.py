@@ -13,7 +13,6 @@ from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
     PauseWorkflowRequestUnpause,
 )
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
 )
@@ -63,12 +62,29 @@ class WorkflowsClient(BaseRestClient):
             )
             return workflow_get(workflow_id)
 
+    async def aio_list(
+        self,
+        workflow_name: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> "list[Workflow]":
+        """
+        List all workflows in the tenant determined by the client config that match optional filters.
+
+        :param workflow_name: The name of the workflow to filter by.
+        :param limit: The maximum number of items to return.
+        :param offset: The offset to start the list from.
+
+        :return: A list of workflows.
+        """
+        return await asyncio.to_thread(self.list, workflow_name, limit, offset)
+
     def list(
         self,
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> WorkflowList:
+    ) -> "list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 
@@ -82,29 +98,14 @@ class WorkflowsClient(BaseRestClient):
             workflow_list = tenacity_retry(
                 self._wa(client).workflow_list, self.client_config.tenacity
             )
-            return workflow_list(
+            wl = workflow_list(
                 tenant=self.client_config.tenant_id,
                 limit=limit,
                 offset=offset,
                 name=self.client_config.apply_namespace(workflow_name),
             )
 
-    async def aio_list(
-        self,
-        workflow_name: str | None = None,
-        limit: int | None = None,
-        offset: int | None = None,
-    ) -> WorkflowList:
-        """
-        List all workflows in the tenant determined by the client config that match optional filters.
-
-        :param workflow_name: The name of the workflow to filter by.
-        :param limit: The maximum number of items to return.
-        :param offset: The offset to start the list from.
-
-        :return: A list of workflows.
-        """
-        return await asyncio.to_thread(self.list, workflow_name, limit, offset)
+            return wl.rows or []
 
     def get_version(
         self, workflow_id: str, version: str | None = None

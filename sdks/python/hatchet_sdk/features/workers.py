@@ -4,7 +4,6 @@ from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.clients.rest.models.worker import Worker
-from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
@@ -39,9 +38,19 @@ class WorkersClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, worker_id)
 
+    async def aio_list(
+        self,
+    ) -> list[Worker]:
+        """
+        List all workers in the tenant determined by the client config.
+
+        :return: A list of workers.
+        """
+        return await asyncio.to_thread(self.list)
+
     def list(
         self,
-    ) -> WorkerList:
+    ) -> list[Worker]:
         """
         List all workers in the tenant determined by the client config.
 
@@ -51,19 +60,11 @@ class WorkersClient(BaseRestClient):
             worker_list = tenacity_retry(
                 self._wa(client).worker_list, self.client_config.tenacity
             )
-            return worker_list(
+            wl = worker_list(
                 tenant=self.client_config.tenant_id,
             )
 
-    async def aio_list(
-        self,
-    ) -> WorkerList:
-        """
-        List all workers in the tenant determined by the client config.
-
-        :return: A list of workers.
-        """
-        return await asyncio.to_thread(self.list)
+            return wl.rows or []
 
     def update(self, worker_id: str, opts: UpdateWorkerRequest) -> Worker:
         """

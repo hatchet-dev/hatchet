@@ -3,7 +3,7 @@ import asyncio
 
 from aiohttp import ClientSession
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -14,7 +14,7 @@ async def fetch(session: ClientSession, url: str) -> bool:
 
 
 @hatchet.task(name="Fetch")
-async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> dict[str, int]:
+async def hello_from_hatchet(input: None, ctx: Context) -> dict[str, int]:
     num_requests = 10
 
     async with ClientSession() as session:

@@ -8,7 +8,6 @@ from hatchet_sdk import (
     ConcurrencyLimitStrategy,
     Context,
     DurableContext,
-    EmptyModel,
     RateLimit,
     RateLimitDuration,
 )
@@ -144,7 +143,7 @@ async def onboarding_flow(input: OnboardingInput, ctx: DurableContext) -> None:
 
 
 @hatchet.durable_task(name="WaitADay", execution_timeout=timedelta(days=2))
-async def wait_a_day(input: EmptyModel, ctx: DurableContext) -> None:
+async def wait_a_day(input: None, ctx: DurableContext) -> None:
     # > Hatchet durable sleep
     await ctx.aio_sleep_for(timedelta(days=1))
     # !!

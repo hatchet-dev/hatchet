@@ -147,7 +147,7 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
     assert rec._wait_count == 3
 
     # child0 completes -- run should still be waiting
-    cache.mark_active(key, now=dt(2))
+    cache.mark_active(key)
     assert rec.is_waiting
     assert rec._wait_count == 2
     assert rec.waiting_since == dt(1)
@@ -162,12 +162,12 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
     assert chosen == key
 
     # child1 completes
-    cache.mark_active(key, now=dt(11))
+    cache.mark_active(key)
     assert rec.is_waiting
     assert rec._wait_count == 1
 
     # child2 completes -- now the run is truly active
-    cache.mark_active(key, now=dt(12))
+    cache.mark_active(key)
     assert not rec.is_waiting
     assert rec._wait_count == 0
     assert rec.waiting_since is None
@@ -217,8 +217,8 @@ def test_mark_active_floors_at_zero() -> None:
     )
     cache.mark_waiting(key, now=dt(0), wait_kind="sleep", resource_id="s")
 
-    cache.mark_active(key, now=dt(1))
-    cache.mark_active(key, now=dt(2))  # extra call
+    cache.mark_active(key)
+    cache.mark_active(key)  # extra call
 
     rec = cache.get(key)
     assert rec is not None

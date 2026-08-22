@@ -27,7 +27,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
     child_workflow_runs = [
         bulk_child_wf.create_bulk_run_item(
             input=ChildInput(a=str(i)),
-            key=f"child{i}",
+            child_key=f"child{i}",
             additional_metadata={"hello": "earth"},
         )
         for i in range(input.n)

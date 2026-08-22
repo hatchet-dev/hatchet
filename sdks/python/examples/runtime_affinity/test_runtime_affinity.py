@@ -104,7 +104,7 @@ async def test_runtime_affinity(
 ) -> None:
     workers = [
         w
-        for w in (await hatchet.workers.aio_list()).rows or []
+        for w in (await hatchet.workers.aio_list()) or []
         if w.status == "ACTIVE"
         and w.name == hatchet.config.apply_namespace("runtime-affinity-worker")
     ]

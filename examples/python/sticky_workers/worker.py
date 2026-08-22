@@ -1,6 +1,5 @@
 from hatchet_sdk import (
     Context,
-    EmptyModel,
     Hatchet,
     StickyStrategy,
 )
@@ -18,12 +17,12 @@ sticky_workflow = hatchet.workflow(
 
 
 @sticky_workflow.task()
-def step1a(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+def step1a(input: None, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker_id}
 
 
 @sticky_workflow.task()
-def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+def step1b(input: None, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker_id}
 
 
@@ -36,7 +35,7 @@ sticky_child_workflow = hatchet.workflow(
 
 
 @sticky_workflow.task(parents=[step1a, step1b])
-async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+async def step2(input: None, ctx: Context) -> dict[str, str | None]:
     ref = await sticky_child_workflow.aio_run(
         sticky=True,
         wait_for_result=False,
@@ -48,7 +47,7 @@ async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 
 
 @sticky_child_workflow.task()
-def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+def child(input: None, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker_id}
 
 

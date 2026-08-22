@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
-from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
 )
@@ -23,15 +22,21 @@ from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,
 )
-from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import (
+    V1WebhookHMACAuth,  # noqa: TC001
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
+
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api_client import ApiClient
+    from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
+    from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
+        V1WebhookSourceName,
+    )
 
 
 class CreateWebhookRequest(V1CreateWebhookRequestBase):
@@ -79,7 +84,7 @@ class WebhooksClient(BaseRestClient):
         offset: int | None = None,
         webhook_names: list[str] | None = None,
         source_names: list[V1WebhookSourceName] | None = None,
-    ) -> V1WebhookList:
+    ) -> list[V1Webhook]:
         """
         List webhooks for a given tenant.
 
@@ -100,7 +105,7 @@ class WebhooksClient(BaseRestClient):
         offset: int | None = None,
         webhook_names: list[str] | None = None,
         source_names: list[V1WebhookSourceName] | None = None,
-    ) -> V1WebhookList:
+    ) -> list[V1Webhook]:
         """
         List webhooks for a given tenant.
 
@@ -115,13 +120,15 @@ class WebhooksClient(BaseRestClient):
             v1_webhook_list = tenacity_retry(
                 self._wa(client).v1_webhook_list, self.client_config.tenacity
             )
-            return v1_webhook_list(
+            wl = v1_webhook_list(
                 tenant=self.tenant_id,
                 limit=limit,
                 offset=offset,
                 webhook_names=webhook_names,
                 source_names=source_names,
             )
+
+            return wl.rows or []
 
     def get(self, webhook_name: str) -> V1Webhook:
         """

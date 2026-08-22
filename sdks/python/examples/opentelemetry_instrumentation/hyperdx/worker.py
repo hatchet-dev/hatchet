@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import get_tracer, set_tracer_provider
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 HYPERDX_OTEL_ENDPOINT = "localhost:4317"
@@ -42,7 +42,7 @@ class TaskInput(BaseModel):
 
 
 @hatchet.task()
-def hyperdx_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def hyperdx_task(input: None, ctx: Context) -> dict[str, str]:
     tracer = get_tracer("hyperdx-example")
     with tracer.start_as_current_span("do-work") as span:
         span.set_attribute("example.iteration", 1)
