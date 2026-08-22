@@ -139,6 +139,8 @@ class Worker:
         self._lifespan_cleanup_complete: asyncio.Event | None = None
         self._workflows = workflows or []
 
+        self._pid = os.getpid()
+
     @property
     def name(self) -> str:
         return self._name
@@ -525,7 +527,6 @@ class Worker:
         # (non-durable preferred) to avoid being affected by the main worker loop.
         healthcheck_port = self._config.healthcheck.port
         enable_health_server = self._config.healthcheck.enabled
-
         self._action_listener_process = self._start_action_listener(
             enable_health_server=enable_health_server,
             healthcheck_port=healthcheck_port,
@@ -621,6 +622,7 @@ class Worker:
                     self._labels,
                     self._worker_id_queue,
                     self._stop_listener_event,
+                    self._pid,
                 ),
             )
             process.start()

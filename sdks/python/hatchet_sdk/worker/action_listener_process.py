@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
 from multiprocessing import Queue
+from queue import Empty
 from typing import Any
 
 import grpc
+import psutil
 from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
@@ -83,6 +85,7 @@ class WorkerActionListenerProcess:
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
+        parent_pid: int,
     ) -> None:
         self.name = name
         self.actions = actions
@@ -97,6 +100,7 @@ class WorkerActionListenerProcess:
         self.handle_kill = handle_kill
         self.worker_id_queue = worker_id_queue
         self._stop_event = stop_event
+        self._parent_process = psutil.Process(parent_pid)
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -183,6 +187,17 @@ class WorkerActionListenerProcess:
                 < self.config.healthcheck.event_loop_block_threshold_seconds
             ):
                 self._event_loop_blocked_since = None
+
+    def _parent_is_dead(self) -> bool:
+        try:
+            status = self._parent_process.status()
+        except psutil.NoSuchProcess:
+            return True
+        match status:
+            # TODO Consider more status to stop on
+            case "zombie":
+                return True
+        return False
 
     def _starting_timed_out(self) -> bool:
         return (time.time() - self._starting_since) > STARTING_UNHEALTHY_AFTER_SECONDS
@@ -298,6 +313,7 @@ class WorkerActionListenerProcess:
             self._event_loop_monitor_task = asyncio.create_task(
                 self._monitor_event_loop()
             )
+        # self._parent_check_task = asyncio.create_task(self._monitor_parent())
 
     async def stop_health_server(self) -> None:
         if self._event_loop_monitor_task is not None:
@@ -350,13 +366,24 @@ class WorkerActionListenerProcess:
         self._stop_event_task = asyncio.create_task(self._wait_for_stop_event())
 
     # TODO move event methods to separate class
-    async def _get_event(self) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
+    async def _get_event(
+        self, timeout_seconds: float
+    ) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.event_queue.get)
+        return await loop.run_in_executor(
+            None, self.event_queue.get, True, timeout_seconds
+        )
 
     async def start_event_send_loop(self) -> None:
         while True:
-            event = await self._get_event()
+            try:
+                event = await self._get_event(timeout_seconds=1.0)
+            except Empty:
+                logger.info("event queue empty, waiting for events...")
+                if self._parent_is_dead():
+                    logger.error("stopping event send loop, parent is dead...")
+                    break
+                continue
             if event == STOP_LOOP:
                 logger.debug("stopping event send loop...")
                 break
@@ -574,6 +601,7 @@ def worker_action_listener_process(
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
+    parent_pid: int,
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(
@@ -588,6 +616,7 @@ def worker_action_listener_process(
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
+            parent_pid=parent_pid,
         )
         await process.start_health_server()
         await process.start()
@@ -606,19 +635,20 @@ def worker_action_listener_process(
             await asyncio.gather(
                 *list(process.step_action_events), return_exceptions=True
             )
-
         # wait for stop_event_task to finish before continuing
-        if process._stop_event_task is not None and not process._stop_event_task.done():
+        if (
+            not process._parent_is_dead()
+            and process._stop_event_task is not None
+            and not process._stop_event_task.done()
+        ):
             try:
                 await process._stop_event_task
             except Exception:
                 logger.exception("error waiting for action loop to stop")
-
         # Only now — with the action stream confirmed stopped and all tasks
         # finished before STOP_LOOP arrived — is it safe to stop heartbeating
         # and unregister from the engine.
         process.finalize_listener_cleanup()
-
         for task in [process.action_loop_task, process.blocked_main_loop]:
             if task is not None and not task.done():
                 task.cancel()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import multiprocessing
 import time
+import os
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -79,6 +80,7 @@ def _subprocess_target(
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
+            parent_pid=os.getpid(),
         )
 
 
@@ -122,6 +124,7 @@ def _make_process(
             labels=[],
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
+            parent_pid=os.getpid(),
         )
     return process
 

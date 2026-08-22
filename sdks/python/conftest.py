@@ -67,7 +67,7 @@ def _skip_unless_batching(supports_batching: bool) -> None:
         )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)
 def worker() -> Generator[Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]
 
