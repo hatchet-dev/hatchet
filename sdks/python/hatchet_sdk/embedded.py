@@ -162,8 +162,8 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     """
     Download (and cache) the hatchet-embedded sidecar binary, spawn it, and wait
     until the embedded engine is ready. The sidecar shuts down when this process
-    exits. Use `Hatchet(config=ClientConfig(embedded=...))` unless you need the
-    raw connection details.
+    exits. Use `Hatchet.from_embedded()` unless you need the raw connection
+    details.
     """
     if options.binary_path:
         if options.checksum:
