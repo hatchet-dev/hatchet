@@ -20,6 +20,9 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
+from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+    WorkflowPauseScheduledCronRunQueueBehavior,
+)
 from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
 from typing import Optional, Set
 from typing_extensions import Self
@@ -38,6 +41,20 @@ class Workflow(BaseModel):
     is_paused: Optional[StrictBool] = Field(
         default=None, description="Whether the workflow is paused.", alias="isPaused"
     )
+    paused_workflow_cron_run_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of cron runs triggered while the workflow is paused.",
+        alias="pausedWorkflowCronRunQueueBehavior",
+    )
+    paused_workflow_scheduled_run_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of scheduled runs triggered while the workflow is paused.",
+        alias="pausedWorkflowScheduledRunQueueBehavior",
+    )
     versions: Optional[List[WorkflowVersionMeta]] = None
     tags: Optional[List[WorkflowTag]] = Field(
         default=None, description="The tags of the workflow."
@@ -53,6 +70,8 @@ class Workflow(BaseModel):
         "name",
         "description",
         "isPaused",
+        "pausedWorkflowCronRunQueueBehavior",
+        "pausedWorkflowScheduledRunQueueBehavior",
         "versions",
         "tags",
         "jobs",
@@ -141,6 +160,12 @@ class Workflow(BaseModel):
                 "name": obj.get("name"),
                 "description": obj.get("description"),
                 "isPaused": obj.get("isPaused"),
+                "pausedWorkflowCronRunQueueBehavior": obj.get(
+                    "pausedWorkflowCronRunQueueBehavior"
+                ),
+                "pausedWorkflowScheduledRunQueueBehavior": obj.get(
+                    "pausedWorkflowScheduledRunQueueBehavior"
+                ),
                 "versions": (
                     [WorkflowVersionMeta.from_dict(_item) for _item in obj["versions"]]
                     if obj.get("versions") is not None

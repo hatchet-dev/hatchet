@@ -57,6 +57,7 @@ withTenant:
     summary: Get workflows
     tags:
       - Workflow
+
 withWorkflow:
   get:
     x-resources: ["tenant", "workflow"]
@@ -179,6 +180,50 @@ withWorkflow:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
     summary: Update workflow
+    tags:
+      - Workflow
+workflowPause:
+  patch:
+    x-resources: ["tenant", "workflow"]
+    description: Pause or unpause a workflow for a tenant
+    operationId: workflow:update:pause
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/PauseWorkflowRequest"
+      description: The input to pause or unpause the workflow
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Workflow"
+        description: Successfully updated the workflow's paused state
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Toggle workflow paused state
     tags:
       - Workflow
 workflowVersion:

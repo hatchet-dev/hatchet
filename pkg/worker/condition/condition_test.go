@@ -37,3 +37,28 @@ func TestSleepConditionToPB_SleepForFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestUserEventConditionToPB_ScopeAndLookback(t *testing.T) {
+	since := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+
+	c := condition.UserEventCondition("user:create", "input.user_id == 1234",
+		condition.WithEventScope("user_id:1234"),
+		condition.WithConsiderEventsSince(since),
+	)
+	pb := c.ToPB(contracts.Action_CREATE)
+
+	assert.Len(t, pb.UserEventConditions, 1)
+	cond := pb.UserEventConditions[0]
+	assert.Equal(t, "user:create", cond.UserEventKey)
+	assert.Equal(t, "input.user_id == 1234", cond.Base.Expression)
+	assert.Equal(t, "user_id:1234", cond.GetEventScope())
+	assert.Equal(t, since, cond.GetConsiderEventsSince().AsTime())
+}
+
+func TestUserEventConditionToPB_NoOpts(t *testing.T) {
+	pb := condition.UserEventCondition("user:create", "").ToPB(contracts.Action_CREATE)
+
+	assert.Len(t, pb.UserEventConditions, 1)
+	assert.Nil(t, pb.UserEventConditions[0].EventScope)
+	assert.Nil(t, pb.UserEventConditions[0].ConsiderEventsSince)
+}

@@ -247,20 +247,24 @@ func (l *WorkflowRunsListener) shouldReconnectOnEOF(ctx context.Context) bool {
 	return ctx.Err() == nil && !l.stream.isClosed() && l.reg.hasAny()
 }
 
-func (l *WorkflowRunsListener) runLoop(ctx context.Context) error {
-	err := listenStream(ctx, l.stream,
+func (l *WorkflowRunsListener) failHandlers(err error) {
+	n := l.reg.failAll(err)
+	l.l.Error().Err(err).Str("stream", l.stream.name).Int("handlers", n).
+		Msg("stream listener terminated; failing registered handlers")
+}
+
+func (l *WorkflowRunsListener) runLoop(ctx context.Context) (err error) {
+	keep := l.shouldReconnectOnEOF
+	released := false
+	defer func() { finishGatedListen(&l.gate, released, err, l.failHandlers) }()
+
+	return listenStream(ctx, l.stream,
 		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) (*dispatchercontracts.WorkflowRunEvent, error) {
 			return c.Recv()
 		},
 		l.dispatch,
-		newStreamClassifier(l.shouldReconnectOnEOF),
+		gatedClassifier(newStreamClassifier(keep), &l.gate, keep, &released),
 	)
-	if err != nil {
-		n := l.reg.failAll(err)
-		l.l.Error().Err(err).Str("stream", l.stream.name).Int("handlers", n).
-			Msg("stream listener terminated; failing registered handlers")
-	}
-	return err
 }
 
 func (l *WorkflowRunsListener) ensureListening(ctx context.Context) error {
@@ -279,10 +283,7 @@ func (l *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 		}
 		return nil
 	}
-	go func() {
-		defer l.gate.stop()
-		_ = l.runLoop(l.stream.lifecycleContext())
-	}()
+	go func() { _ = l.runLoop(l.stream.lifecycleContext()) }()
 	return nil
 }
 
@@ -295,7 +296,6 @@ func (l *WorkflowRunsListener) startBackground(onExit func()) error {
 	}
 	go func() {
 		defer onExit()
-		defer l.gate.stop()
 		_ = l.runLoop(l.stream.lifecycleContext())
 	}()
 	return nil
@@ -305,7 +305,6 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 	if !l.gate.tryStart(l.stream.isClosed()) {
 		return nil
 	}
-	defer l.gate.stop()
 	return l.runLoop(ctx)
 }
 
