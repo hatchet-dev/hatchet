@@ -1,9 +1,5 @@
 import logging
 import warnings
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from hatchet_sdk.embedded import EmbeddedOptions
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
@@ -16,6 +12,7 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.embedded import resolve_embedded_connection
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -96,29 +93,10 @@ class Hatchet:
                 stacklevel=2,
             )
 
+        if client is None and _config.embedded is not None:
+            _config = resolve_embedded_connection(_config)
+
         self._client = client if client else Client(config=_config, debug=_debug)
-
-    @classmethod
-    def from_embedded(
-        cls,
-        options: "EmbeddedOptions | None" = None,
-        config: ClientConfig | None = None,
-    ) -> "Hatchet":
-        """
-        Run a full Hatchet engine locally via the hatchet-embedded sidecar
-        (downloaded on first use) and return a client wired to it. By default
-        the sidecar starts a bundled Postgres; pass `database_url` in the
-        options to point it at your own instead.
-
-        :param options: Options for the embedded engine (version, ports, database, ...).
-        :param config: Base client configuration to use; the connection fields
-            (token, tenant, addresses, TLS) are overridden to point at the
-            embedded engine.
-        :return: A Hatchet client instance connected to the embedded engine.
-        """
-        from hatchet_sdk.embedded import embedded_client_config
-
-        return cls(config=embedded_client_config(options, config))
 
     @property
     def cel(self) -> CELClient:

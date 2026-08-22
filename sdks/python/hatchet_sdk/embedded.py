@@ -13,56 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic_settings import BaseSettings
-
-from hatchet_sdk.config import ClientConfig, ClientTLSConfig, create_settings_config
+from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
-DEFAULT_READY_TIMEOUT_SECONDS = 300.0
-
-
-class EmbeddedOptions(BaseSettings):
-    model_config = create_settings_config(
-        env_prefix="HATCHET_CLIENT_EMBEDDED_",
-    )
-
-    version: str | None = None
-    """
-    hatchet-embedded release tag to download (defaults to latest). Tags correspond
-    to the Hatchet engine version baked into the sidecar, so pinning this pins the
-    engine.
-    """
-
-    binary_path: str | None = None
-    """path to an existing sidecar binary, skips the download"""
-
-    checksum: str | None = None
-    """
-    expected sha256 hex digest of the sidecar binary. When set, it replaces the
-    release's checksums.txt as the trust anchor, so a compromised release
-    channel cannot substitute the binary. Pin it together with `version`.
-    """
-
-    database_url: str | None = None
-    """use an existing Postgres instead of the bundled one"""
-
-    postgres_data_dir: str | None = None
-    """store the bundled Postgres runtime and data under this directory"""
-
-    grpc_port: int | None = None
-    api_port: int | None = None
-
-    start_api: bool = True
-    """set to False to start only the engine + gRPC, no REST API"""
-
-    run_migrations: bool = True
-    """set to False to skip running migrations on startup"""
-
-    rabbitmq_url: str | None = None
-    """use RabbitMQ instead of the Postgres message queue"""
-
-    log_level: str | None = None
-    ready_timeout_seconds: float = DEFAULT_READY_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -205,14 +158,13 @@ def _ensure_sidecar_binary(version: str | None, checksum: str | None) -> Path:
     return bin_path
 
 
-def start_embedded_sidecar(options: EmbeddedOptions | None = None) -> EmbeddedSidecar:
+def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     """
     Download (and cache) the hatchet-embedded sidecar binary, spawn it, and wait
     until the embedded engine is ready. The sidecar shuts down when this process
-    exits. Use `Hatchet.from_embedded()` unless you need the raw connection details.
+    exits. Use `Hatchet(config=ClientConfig(embedded=...))` unless you need the
+    raw connection details.
     """
-    options = options or EmbeddedOptions()
-
     if options.binary_path:
         if options.checksum:
             actual = _sha256_file(Path(options.binary_path))
@@ -295,28 +247,28 @@ def _wait_for_handshake(
 _HANDSHAKE_ENV = "HATCHET_EMBEDDED_HANDSHAKE"
 
 
-def embedded_client_config(
-    options: EmbeddedOptions | None = None,
-    config: ClientConfig | None = None,
-) -> ClientConfig:
+def resolve_embedded_connection(config: ClientConfig) -> ClientConfig:
     """
-    Start (or connect to) the embedded engine and build the client
-    configuration pointing at it. Use `Hatchet.from_embedded()` unless you
-    need the configuration itself.
+    Start (or connect to) the embedded engine and return a `ClientConfig`
+    pointing at it. `config.embedded` must be set.
 
-    :param options: Options for the embedded engine (version, ports, database, ...).
-    :param config: Base client configuration to use; the connection fields
-        (token, tenant, addresses, TLS) are overridden to point at the
-        embedded engine.
-    :return: A client configuration wired to the embedded engine.
+    The result is built through the `ClientConfig` constructor (not
+    `model_copy`), so its field/model validators run against the token the
+    embedded engine just issued.
     """
+    if config.embedded is None:
+        raise ValueError(
+            "config.embedded must be set to resolve an embedded connection"
+        )
+
     # worker subprocesses re-import the main module; the handshake exported
     # below connects them to the parent's engine instead of booting a second one
     raw_handshake = os.environ.get(_HANDSHAKE_ENV)
+
     if raw_handshake is not None:
         handshake: dict[str, str] = json.loads(raw_handshake)
     else:
-        sidecar = start_embedded_sidecar(options)
+        sidecar = start_embedded_sidecar(config.embedded)
         handshake = {
             "token": sidecar.token,
             "tenant_id": sidecar.tenant_id,
@@ -334,7 +286,4 @@ def embedded_client_config(
     if handshake["api_url"]:
         connection["server_url"] = handshake["api_url"]
 
-    if config is not None:
-        return config.model_copy(update=connection)
-
-    return ClientConfig(**connection)
+    return ClientConfig(**{**config.model_dump(), **connection})
