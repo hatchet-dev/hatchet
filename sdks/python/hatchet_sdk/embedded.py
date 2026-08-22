@@ -1,6 +1,5 @@
 import atexit
 import hashlib
-import json
 import os
 import platform
 import subprocess
@@ -11,19 +10,24 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+from pydantic import BaseModel, ValidationError
 
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 
 
-@dataclass
-class EmbeddedSidecar:
+class Handshake(BaseModel):
     token: str
     tenant_id: str
     grpc_address: str
     api_url: str
+
+
+@dataclass
+class EmbeddedSidecar:
+    handshake: Handshake
     process: subprocess.Popen[bytes]
 
     def stop(self) -> None:
@@ -209,18 +213,12 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
 
-    return EmbeddedSidecar(
-        token=handshake["token"],
-        tenant_id=handshake["tenant_id"],
-        grpc_address=handshake["grpc_address"],
-        api_url=handshake["api_url"],
-        process=process,
-    )
+    return EmbeddedSidecar(handshake=handshake, process=process)
 
 
 def _wait_for_handshake(
     process: subprocess.Popen[bytes], handshake_path: Path, timeout_seconds: float
-) -> dict[str, str]:
+) -> Handshake:
     deadline = time.monotonic() + timeout_seconds
 
     while time.monotonic() < deadline:
@@ -230,10 +228,8 @@ def _wait_for_handshake(
             )
 
         try:
-            handshake = json.loads(handshake_path.read_text())
-            if handshake.get("token"):
-                return dict(handshake)
-        except (OSError, json.JSONDecodeError):
+            return Handshake.model_validate_json(handshake_path.read_text())
+        except (OSError, ValidationError):
             pass
 
         time.sleep(0.2)
@@ -256,34 +252,26 @@ def resolve_embedded_connection(config: ClientConfig) -> ClientConfig:
     `model_copy`), so its field/model validators run against the token the
     embedded engine just issued.
     """
-    if config.embedded is None:
-        raise ValueError(
-            "config.embedded must be set to resolve an embedded connection"
-        )
+    embedded_options = config.embedded or EmbeddedHatchetConfig()
 
     # worker subprocesses re-import the main module; the handshake exported
     # below connects them to the parent's engine instead of booting a second one
     raw_handshake = os.environ.get(_HANDSHAKE_ENV)
 
     if raw_handshake is not None:
-        handshake: dict[str, str] = json.loads(raw_handshake)
+        handshake = Handshake.model_validate_json(raw_handshake)
     else:
-        sidecar = start_embedded_sidecar(config.embedded)
-        handshake = {
-            "token": sidecar.token,
-            "tenant_id": sidecar.tenant_id,
-            "grpc_address": sidecar.grpc_address,
-            "api_url": sidecar.api_url,
-        }
-        os.environ[_HANDSHAKE_ENV] = json.dumps(handshake)
+        handshake = start_embedded_sidecar(embedded_options).handshake
+        os.environ[_HANDSHAKE_ENV] = handshake.model_dump_json()
 
-    connection: dict[str, Any] = {
-        "token": handshake["token"],
-        "tenant_id": handshake["tenant_id"],
-        "host_port": handshake["grpc_address"],
-        "tls_config": ClientTLSConfig(strategy="none"),
-    }
-    if handshake["api_url"]:
-        connection["server_url"] = handshake["api_url"]
+    data = config.model_dump()
+    data.update(
+        token=handshake.token,
+        tenant_id=handshake.tenant_id,
+        host_port=handshake.grpc_address,
+        tls_config=ClientTLSConfig(strategy="none"),
+    )
+    if handshake.api_url:
+        data["server_url"] = handshake.api_url
 
-    return ClientConfig(**{**config.model_dump(), **connection})
+    return ClientConfig(**data)
