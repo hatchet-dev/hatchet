@@ -139,8 +139,6 @@ class Worker:
         self._lifespan_cleanup_complete: asyncio.Event | None = None
         self._workflows = workflows or []
 
-        self._pid = os.getpid()
-
     @property
     def name(self) -> str:
         return self._name
@@ -622,7 +620,6 @@ class Worker:
                     self._labels,
                     self._worker_id_queue,
                     self._stop_listener_event,
-                    self._pid,
                 ),
             )
             process.start()

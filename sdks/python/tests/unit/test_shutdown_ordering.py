@@ -80,7 +80,6 @@ def _subprocess_target(
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
-            parent_pid=os.getpid(),
         )
 
 
@@ -124,7 +123,6 @@ def _make_process(
             labels=[],
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
-            parent_pid=os.getpid(),
         )
     return process
 

@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 @hatchet.task(execution_timeout=timedelta(seconds=1))
 def die(input: EmptyModel, ctx: Context) -> None:
-    logger.info("Worker ID: %s about to die", ctx.worker.id)
+    logger.info("Worker ID: %s about to die", ctx.worker_id)
     ctypes.string_at(0)
-    logger.error("Worker ID: %s did not die", ctx.worker.id)
+    logger.error("Worker ID: %s did not die", ctx.worker_id)
 
 
 def main(name: str) -> None:
