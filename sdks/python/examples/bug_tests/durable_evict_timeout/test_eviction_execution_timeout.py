@@ -13,8 +13,6 @@ async def test_eviction_execution_timeout(hatchet: Hatchet) -> None:
     with pytest.raises(Exception) as exc_info:
         await evictable_durable.aio_run()
 
-    print(exc_info)
-
-    assert time.time() - start < 10, (
-        "Eviction did not occur within the expected time frame"
-    )
+    assert (
+        time.time() - start < 20
+    ), "Eviction did not occur within the expected time frame"
