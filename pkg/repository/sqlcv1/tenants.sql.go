@@ -210,25 +210,34 @@ INSERT INTO "TenantMember" (
     "id",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     $1::uuid,
     $2::uuid,
-    $3::"TenantMemberRole"
+    $3::"TenantMemberRole",
+    COALESCE($4::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
-    "role" = $3::"TenantMemberRole"
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = $3::"TenantMemberRole",
+    "canViewPayloads" = COALESCE($4::boolean, "TenantMember"."canViewPayloads")
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type CreateTenantMemberParams struct {
-	Tenantid uuid.UUID        `json:"tenantid"`
-	Userid   uuid.UUID        `json:"userid"`
-	Role     TenantMemberRole `json:"role"`
+	Tenantid        uuid.UUID        `json:"tenantid"`
+	Userid          uuid.UUID        `json:"userid"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTenantMemberParams) (*TenantMember, error) {
-	row := db.QueryRow(ctx, createTenantMember, arg.Tenantid, arg.Userid, arg.Role)
+	row := db.QueryRow(ctx, createTenantMember,
+		arg.Tenantid,
+		arg.Userid,
+		arg.Role,
+		arg.CanViewPayloads,
+	)
 	var i TenantMember
 	err := row.Scan(
 		&i.ID,
@@ -237,6 +246,7 @@ func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTen
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -641,7 +651,7 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*T
 
 const getTenantMemberByEmail = `-- name: GetTenantMemberByEmail :one
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads"
 FROM
     "TenantMember" tm
 JOIN
@@ -666,13 +676,14 @@ func (q *Queries) GetTenantMemberByEmail(ctx context.Context, db DBTX, arg GetTe
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const getTenantMemberByID = `-- name: GetTenantMemberByID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -689,13 +700,14 @@ func (q *Queries) GetTenantMemberByID(ctx context.Context, db DBTX, id uuid.UUID
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const getTenantMemberByUserID = `-- name: GetTenantMemberByUserID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -718,6 +730,7 @@ func (q *Queries) GetTenantMemberByUserID(ctx context.Context, db DBTX, arg GetT
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -933,7 +946,7 @@ func (q *Queries) ListTenantAlertGroups(ctx context.Context, db DBTX, tenantid u
 
 const listTenantMembers = `-- name: ListTenantMembers :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -956,6 +969,7 @@ func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid uuid.
 			&i.TenantId,
 			&i.UserId,
 			&i.Role,
+			&i.CanViewPayloads,
 		); err != nil {
 			return nil, err
 		}
@@ -1143,7 +1157,7 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 
 const populateTenantMembers = `-- name: PopulateTenantMembers :many
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role,
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads",
     u."email",
     u."name",
     t."id" as "tenantId",
@@ -1172,6 +1186,7 @@ type PopulateTenantMembersRow struct {
 	TenantId          uuid.UUID                `json:"tenantId"`
 	UserId            uuid.UUID                `json:"userId"`
 	Role              TenantMemberRole         `json:"role"`
+	CanViewPayloads   bool                     `json:"canViewPayloads"`
 	Email             string                   `json:"email"`
 	Name              pgtype.Text              `json:"name"`
 	TenantId_2        uuid.UUID                `json:"tenantId_2"`
@@ -1201,6 +1216,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid
 			&i.TenantId,
 			&i.UserId,
 			&i.Role,
+			&i.CanViewPayloads,
 			&i.Email,
 			&i.Name,
 			&i.TenantId_2,
@@ -1606,18 +1622,20 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 const updateTenantMember = `-- name: UpdateTenantMember :one
 UPDATE "TenantMember"
 SET
-    "role" = COALESCE($1::"TenantMemberRole", "role")
-WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = COALESCE($1::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE($2::boolean, "canViewPayloads")
+WHERE "id" = $3::uuid
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type UpdateTenantMemberParams struct {
-	Role NullTenantMemberRole `json:"role"`
-	ID   uuid.UUID            `json:"id"`
+	Role            NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
+	ID              uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTenantMemberParams) (*TenantMember, error) {
-	row := db.QueryRow(ctx, updateTenantMember, arg.Role, arg.ID)
+	row := db.QueryRow(ctx, updateTenantMember, arg.Role, arg.CanViewPayloads, arg.ID)
 	var i TenantMember
 	err := row.Scan(
 		&i.ID,
@@ -1626,6 +1644,7 @@ func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTen
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }

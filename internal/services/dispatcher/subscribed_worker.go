@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -16,10 +17,13 @@ type subscribedWorker struct {
 	finished  chan<- bool
 	sendLock  *timeout_lock.TimeoutLock
 	pubBuffer *msgqueue.MQPubBuffer
-	workerId  uuid.UUID
+
+	// optional: the operator backing this worker
+	operator operator.Operator
+	workerId uuid.UUID
 }
 
-func newSubscribedWorker(
+func newGRPCSubscribedWorker(
 	stream contracts.Dispatcher_ListenServer,
 	fin chan<- bool,
 	workerId uuid.UUID,
@@ -33,5 +37,17 @@ func newSubscribedWorker(
 		workerId:  workerId,
 		pubBuffer: pubBuffer,
 		sendLock:  lock,
+	}
+}
+
+func newOperatorSubscribedWorker(
+	workerId uuid.UUID,
+	pubBuffer *msgqueue.MQPubBuffer,
+	operator operator.Operator,
+) *subscribedWorker {
+	return &subscribedWorker{
+		workerId:  workerId,
+		pubBuffer: pubBuffer,
+		operator:  operator,
 	}
 }

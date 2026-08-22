@@ -38,7 +38,7 @@ func TestValidateJSONB_RejectsEncodedNull(t *testing.T) {
 		[]byte(`[{"a":"A","b":"B","c":"C\u0000"}]`),
 	}
 	for _, c := range cases {
-		if isValid := isUnicodeValid(c); isValid {
+		if isValid := IsUnicodeValid(c); isValid {
 			t.Fatalf("expected invalid unicode for json %q, got valid", string(c))
 		}
 	}

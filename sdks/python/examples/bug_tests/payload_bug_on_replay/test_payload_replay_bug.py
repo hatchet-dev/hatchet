@@ -55,9 +55,12 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
     run = await _poll_run_until_tasks(
         hatchet,
         ref.workflow_run_id,
-        lambda tasks: len(tasks) >= 2
-        and all(
-            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED] for t in tasks
+        lambda tasks: (
+            len(tasks) >= 2
+            and all(
+                t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED]
+                for t in run.tasks
+            )
         ),
     )
 
@@ -81,8 +84,9 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
     run = await _poll_run_until_tasks(
         hatchet,
         ref.workflow_run_id,
-        lambda tasks: len(tasks) >= 2
-        and all(t.status == V1TaskStatus.COMPLETED for t in tasks),
+        lambda tasks: (
+            len(tasks) >= 2 and all(t.status == V1TaskStatus.COMPLETED for t in tasks)
+        ),
     )
 
     tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)

@@ -30,6 +30,7 @@ type BroadcastOutput = { sum: number };
 type ChildOutput = { message_len: number };
 type ChildBatchOutput = { out: Record<string, SimpleInput> };
 
+// > Declaring a batch task
 export const batchSimple = hatchet.batchTask({
   name: 'batch-simple',
   batch: { maxSize: 3, maxInterval: 200 },
@@ -41,7 +42,9 @@ export const batchSimple = hatchet.batchTask({
     return out;
   },
 });
+// !!
 
+// > Declaring a keyed batch task
 export const batchKeyed = hatchet.batchTask({
   name: 'batch-keyed',
   batch: { maxSize: 2, maxInterval: 200, groupKey: 'input.group' },
@@ -60,6 +63,7 @@ export const batchKeyed = hatchet.batchTask({
     return out;
   },
 });
+// !!
 
 export const batchKeyedFailable = hatchet.batchTask({
   name: 'batch-keyed-failable',
@@ -136,6 +140,7 @@ export const batchOrdered = hatchet.batchTask({
   },
 });
 
+// > Declaring a broadcast batch task
 export const batchBroadcast = hatchet.batchTask({
   name: 'batch-broadcast',
   batch: { maxSize: 10, maxInterval: 2_000, broadcastOutput: true },
@@ -144,6 +149,7 @@ export const batchBroadcast = hatchet.batchTask({
     return { sum };
   },
 });
+// !!
 
 export const batchCancel = hatchet.batchTask({
   name: 'batch-cancel',

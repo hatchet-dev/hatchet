@@ -4,8 +4,17 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 )
+
+// BUFFER_IDLE_TIMEOUT is how long a per-(tenantId, msgId) buffer can go
+// without an enqueue before it is evicted from its buffer map and its
+// goroutines are stopped.
+//
+// nolint: staticcheck
+var BUFFER_IDLE_TIMEOUT = 5 * time.Minute
 
 // nolint: staticcheck
 func init() {
@@ -13,6 +22,11 @@ func init() {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			PUB_FLUSH_INTERVAL = d
 			SUB_FLUSH_INTERVAL = d
+		}
+	}
+	if v := os.Getenv("SERVER_DEFAULT_BUFFER_IDLE_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			BUFFER_IDLE_TIMEOUT = d
 		}
 	}
 	if v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE"); v != "" {
@@ -45,10 +59,18 @@ type bufferCore struct {
 	disableImmediateFlush bool
 	// drainOnShutdown controls whether flush is called synchronously on ctx cancellation.
 	drainOnShutdown bool
+
+	// evictMu guards closed: producers hold it shared for the duration of an
+	// enqueue, the evictor holds it exclusively to close the buffer.
+	evictMu    sync.RWMutex
+	closed     bool
+	lastActive atomic.Int64 // unix nanos of the last enqueue
+	// stop cancels the buffer's flusher and semaphore-releaser goroutines.
+	stop context.CancelFunc
 }
 
-func newBufferCore(flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush, drainOnShutdown bool) bufferCore {
-	return bufferCore{
+func newBufferCore(flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush, drainOnShutdown bool) *bufferCore {
+	c := &bufferCore{
 		notifier:              make(chan struct{}),
 		semaphore:             make(chan struct{}, maxConcurrency),
 		semaphoreRelease:      make(chan time.Duration, maxConcurrency),
@@ -58,17 +80,83 @@ func newBufferCore(flushInterval time.Duration, bufferSize, maxConcurrency int, 
 		disableImmediateFlush: disableImmediateFlush,
 		drainOnShutdown:       drainOnShutdown,
 	}
+	c.lastActive.Store(time.Now().UnixNano())
+	return c
+}
+
+// tryAcquire registers an enqueue against the buffer, returning false if the
+// buffer has been evicted, in which case the caller must load or create a
+// fresh buffer. On success the caller must call release once it has finished
+// enqueueing.
+func (c *bufferCore) tryAcquire() bool {
+	c.evictMu.RLock()
+
+	if c.closed {
+		c.evictMu.RUnlock()
+		return false
+	}
+
+	c.lastActive.Store(time.Now().UnixNano())
+
+	return true
+}
+
+func (c *bufferCore) release() {
+	c.evictMu.RUnlock()
+}
+
+// tryEvict marks the buffer closed if it has not seen an enqueue for at least
+// idleTimeout. Once closed no enqueue can acquire the buffer again, so it is
+// safe to remove it from the buffer map and stop its goroutines.
+func (c *bufferCore) tryEvict(idleTimeout time.Duration) bool {
+	c.evictMu.Lock()
+	defer c.evictMu.Unlock()
+
+	if c.closed || time.Since(time.Unix(0, c.lastActive.Load())) < idleTimeout {
+		return false
+	}
+
+	c.closed = true
+
+	return true
 }
 
 // startFlusher starts the ticker- and notifier-driven flush loop. flush is called
 // as go flush() for ticker and notifier events; on shutdown it is called
 // synchronously when drainOnShutdown is set.
-func (c *bufferCore) startFlusher(ctx context.Context, flush func()) {
+//
+// Buffers are created per (tenantId, msgId) and never removed, so the flusher
+// parks with the ticker stopped once the buffer is empty. Otherwise every
+// buffer ever created keeps waking up each flushInterval forever, which
+// accumulates CPU on long-running processes as tenants come and go. Producers
+// always send on notifier after enqueueing, so a parked flusher is guaranteed
+// to be woken by the next message.
+func (c *bufferCore) startFlusher(ctx context.Context, bufLen func() int, flush func()) {
 	go func() {
 		ticker := time.NewTicker(c.flushInterval)
 		defer ticker.Stop()
 
+		idle := false
+
 		for {
+			if idle {
+				select {
+				case <-ctx.Done():
+					if c.drainOnShutdown {
+						flush()
+					}
+					return
+				case <-c.notifier:
+					idle = false
+					ticker.Reset(c.flushInterval)
+					if !c.disableImmediateFlush {
+						go flush()
+					}
+				}
+
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				if c.drainOnShutdown {
@@ -76,6 +164,12 @@ func (c *bufferCore) startFlusher(ctx context.Context, flush func()) {
 				}
 				return
 			case <-ticker.C:
+				if bufLen() == 0 {
+					ticker.Stop()
+					idle = true
+					continue
+				}
+
 				go flush()
 			case <-c.notifier:
 				if !c.disableImmediateFlush {

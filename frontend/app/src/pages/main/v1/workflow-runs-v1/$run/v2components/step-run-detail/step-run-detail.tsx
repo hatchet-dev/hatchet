@@ -5,12 +5,14 @@ import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
 import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
+import { PausedWorkflowNotice } from '../paused-workflow-notice';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
@@ -213,6 +215,10 @@ export const TaskRunDetail = ({
             Logs
           </TabsTrigger>
         </TabsList>
+        <PausedWorkflowNotice
+          workflowId={taskRun.workflowId}
+          status={taskRun.status}
+        />
         <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap
@@ -293,12 +299,16 @@ export const TaskRunDetail = ({
               value={TabOption.Input}
               className="flex-1 min-h-0 overflow-y-auto"
             >
-              {taskRun.input && (
-                <CodeHighlighter
-                  className="my-4"
-                  language="json"
-                  code={JSON.stringify(taskRun.input, null, 2)}
-                />
+              {taskRun.payloadsRestricted ? (
+                <RestrictedPayloads />
+              ) : (
+                taskRun.input && (
+                  <CodeHighlighter
+                    className="my-4"
+                    language="json"
+                    code={JSON.stringify(taskRun.input, null, 2)}
+                  />
+                )
               )}
             </TabsContent>
             <TabsContent

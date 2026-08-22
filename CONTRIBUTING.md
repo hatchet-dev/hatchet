@@ -9,7 +9,7 @@ The following requirements apply to all contributions.
 
 - First-time contributors may have at most one open pull request at a time.
 - Issues labeled [![good first issue](https://img.shields.io/github/labels/hatchet-dev/hatchet/good%20first%20issue)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) are reserved for first-time contributors.
-- Pull requests must reference a corresponding issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted).
+- Pull requests must reference a corresponding issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted) **and assigned to you**. Pull requests that do not meet this requirement will be automatically closed.
 - Your GitHub account's [Activity Overview](https://docs.github.com/en/account-and-profile/how-tos/contribution-settings/showing-an-overview-of-your-activity-on-your-profile) must be public.
 - AI usage must be disclosed and comply with [AI_POLICY.md](./AI_POLICY.md) (see [AI Usage](#ai-usage)).
 
@@ -63,9 +63,13 @@ We recommend installing these tools individually using your preferred package ma
 
 ## Pull Requests
 
-Before opening a PR, check if there's a related and accepted issue in our [backlog](https://github.com/hatchet-dev/hatchet/issues).
+To keep our review queue focused, **we only accept pull requests that are linked to an issue the Hatchet team has already triaged, labeled `accepted`, and assigned to you.**
 
-For non-trivial changes (anything beyond typos or patch version bumps), please create an issue first so we can discuss the proposal and ensure it aligns with the project.
+If you want to contribute a change, please follow these steps before opening a PR:
+
+1. **Find or open an issue:** Check our [backlog](https://github.com/hatchet-dev/hatchet/issues) for a related issue, or open a new one describing your proposed change, and comment on the issue stating that you'd like to take it on.
+2. **Wait for assignment:** Wait for a maintainer to add the `accepted` label and assign the issue to you.
+3. **Link the issue:** When you open your pull request, you must link the issue from the PR description using a closing keyword (e.g., `Closes #123`).
 
 Next, ensure all changes are:
 

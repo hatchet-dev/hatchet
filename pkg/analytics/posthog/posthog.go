@@ -107,16 +107,20 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 
 	orgID := analytics.OrganizationIDFromContext(ctx)
+	accountID := analytics.AccountIDFromContext(ctx)
 
 	var group posthog.Groups
 
-	if tenantID != nil || orgID != nil {
+	if tenantID != nil || orgID != nil || accountID != nil {
 		group = posthog.NewGroups()
 		if tenantID != nil {
 			group.Set("tenant", *tenantID)
 		}
 		if orgID != nil {
 			group.Set("organization", *orgID)
+		}
+		if accountID != nil {
+			group.Set("account", *accountID)
 		}
 	}
 

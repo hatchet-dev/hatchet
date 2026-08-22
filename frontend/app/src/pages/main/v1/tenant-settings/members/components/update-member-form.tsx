@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   DialogContent,
   DialogHeader,
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +25,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   role: z.nativeEnum(TenantMemberRole),
+  canViewPayloads: z.boolean(),
 });
 
 interface UpdateMemberFormProps {
@@ -30,7 +33,6 @@ interface UpdateMemberFormProps {
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   member: TenantMember;
-  isCloudEnabled?: boolean;
   canSetOwnerRole?: boolean;
   formErrors?: string[];
 }
@@ -39,6 +41,7 @@ export function UpdateMemberForm({
   className,
   ...props
 }: UpdateMemberFormProps) {
+  const { isControlPlaneEnabled } = useControlPlane();
   const {
     handleSubmit,
     control,
@@ -47,6 +50,7 @@ export function UpdateMemberForm({
     resolver: zodResolver(schema),
     defaultValues: {
       role: props.member.role,
+      canViewPayloads: props.member.canViewPayloads ?? true,
     },
   });
 
@@ -100,11 +104,12 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(!props.isCloudEnabled || props.canSetOwnerRole) && (
+                        {(!isControlPlaneEnabled || props.canSetOwnerRole) && (
                           <SelectItem value="OWNER">Owner</SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="VIEWER">Viewer</SelectItem>
                       </SelectContent>
                     </Select>
                   );
@@ -113,6 +118,33 @@ export function UpdateMemberForm({
               {roleError && (
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
+            </div>
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="canViewPayloads"
+                render={({ field }) => (
+                  <Checkbox
+                    id="canViewPayloads"
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={
+                      props.isLoading ||
+                      props.member.role === TenantMemberRole.OWNER ||
+                      props.member.role === TenantMemberRole.ADMIN
+                    }
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="canViewPayloads">Can view payloads</Label>
+                <p className="text-xs text-muted-foreground">
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from this member.
+                </p>
+              </div>
             </div>
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}

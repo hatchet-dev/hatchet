@@ -16,6 +16,7 @@ from hatchet_sdk import (
     SleepResult,
     UserEventCondition,
     or_,
+    EvictionPolicy,
 )
 from hatchet_sdk.exceptions import NonDeterminismError
 
@@ -150,8 +151,6 @@ async def durable_task(input: None, ctx: DurableContext) -> dict[str, str | int]
     }
 
 
-
-
 # > Add durable tasks that wait for or groups
 
 
@@ -183,8 +182,6 @@ async def wait_for_or_group_1(
         "runtime": time.time() - start,
         "resolved": resolved,
     }
-
-
 
 
 @durable_workflow.durable_task()
@@ -434,7 +431,10 @@ class ReplayResetResponse(BaseModel):
     sleep_3_duration: float
 
 
-@hatchet.durable_task(execution_timeout=timedelta(seconds=20))
+@hatchet.durable_task(
+    execution_timeout=timedelta(seconds=20),
+    eviction_policy=EvictionPolicy(allow_capacity_eviction=False, ttl=None),
+)
 async def durable_replay_reset(input: None, ctx: DurableContext) -> ReplayResetResponse:
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))

@@ -1,7 +1,12 @@
-import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi, controlPlaneApi } from './api';
+import { V1EventList, V1TaskSummaryList, WebhookWorkerCreateRequest } from '.';
+import api, {
+  cloudApi,
+  controlPlaneApi,
+  SELF_HOSTED_LIST_TIMEOUT_MS,
+} from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
+import { AxiosError } from 'axios';
 import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
@@ -61,10 +66,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   cloud: {
-    getComputeCost: (tenant: string) => ({
-      queryKey: ['compute-cost:get', tenant],
-      queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
-    }),
     createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
       queryKey: ['compute-demo-template:create', tenant, template],
       queryFn: async () =>
@@ -270,15 +271,43 @@ export const queries = createQueryKeyStore({
     }),
   },
   v1Events: {
-    list: (tenant: string, query: V1EventListQuery) => ({
+    list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
-      queryFn: async () => (await api.v1EventList(tenant, query)).data,
+      queryFn: async (): Promise<V1EventList | 'timeout' | undefined> => {
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
+
+        try {
+          return (await api.v1EventList(tenant, query, { timeout })).data;
+        } catch (e) {
+          if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
+            return 'timeout';
+          }
+
+          throw e;
+        }
+      },
     }),
   },
   v1WorkflowRuns: {
-    list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({
+    list: (
+      tenant: string,
+      query: V2ListWorkflowRunsQuery,
+      isSelfHosted: boolean,
+    ) => ({
       queryKey: ['v1:workflow-run:list', tenant, query],
-      queryFn: async () => (await api.v1WorkflowRunList(tenant, query)).data,
+      queryFn: async (): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
+
+        try {
+          return (await api.v1WorkflowRunList(tenant, query, { timeout })).data;
+        } catch (e) {
+          if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
+            return 'timeout';
+          }
+
+          throw e;
+        }
+      },
     }),
     listTaskEvents: (workflowRunId: string) => ({
       queryKey: ['v1:workflow-run:list-tasks', workflowRunId],

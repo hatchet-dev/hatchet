@@ -26,8 +26,10 @@ const actionsKey: RateLimitColumnKeys = 'actions';
 
 export const columns = ({
   onDeleteClick,
+  canWrite,
 }: {
   onDeleteClick: (row: RateLimitWithMetadata) => void;
+  canWrite: boolean;
 }): ColumnDef<RateLimitWithMetadata>[] => [
   {
     accessorKey: keyKey,
@@ -103,12 +105,16 @@ export const columns = ({
       <div className="flex flex-row justify-center">
         <TableRowActions
           row={row.original}
-          actions={[
-            {
-              label: 'Delete',
-              onClick: () => onDeleteClick(row.original),
-            },
-          ]}
+          actions={
+            canWrite
+              ? [
+                  {
+                    label: 'Delete',
+                    onClick: () => onDeleteClick(row.original),
+                  },
+                ]
+              : []
+          }
         />
       </div>
     ),

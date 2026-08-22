@@ -82,6 +82,18 @@ export function MemberTable({
         ),
       },
       {
+        columnLabel: 'Payloads',
+        cellRenderer: (member: TenantMember) => (
+          <span className="text-sm text-muted-foreground">
+            {member.role === TenantMemberRole.OWNER ||
+            member.role === TenantMemberRole.ADMIN ||
+            member.canViewPayloads !== false
+              ? 'Visible'
+              : 'Hidden'}
+          </span>
+        ),
+      },
+      {
         columnLabel: 'Joined',
         cellRenderer: (member: TenantMember) => (
           <RelativeDate date={member.metadata.createdAt} />
@@ -176,7 +188,10 @@ function EditMemberRoleDialog({
     onError: (error: AxiosError) => handleApiError(error),
   });
 
-  const handleSubmit = (data: { role: TenantMemberRole }) => {
+  const handleSubmit = (data: {
+    role: TenantMemberRole;
+    canViewPayloads: boolean;
+  }) => {
     setFormErrors([]);
     if (member.role === TenantMemberRole.OWNER && !canManageOrganization) {
       setFormErrors([
@@ -194,7 +209,6 @@ function EditMemberRoleDialog({
         onSubmit={handleSubmit}
         formErrors={formErrors}
         member={member}
-        isCloudEnabled={true}
         canSetOwnerRole={canManageOrganization}
       />
     </Dialog>

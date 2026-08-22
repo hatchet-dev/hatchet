@@ -1,4 +1,3 @@
-import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
@@ -43,7 +42,6 @@ import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
-import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -65,20 +63,9 @@ const DevtoolsFooter = import.meta.env.DEV
 export async function loader(_args: { request: Request }) {
   const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
-  const { isLegacyCloudEnabled, ...meta } = isControlPlaneEnabled
-    ? { isLegacyCloudEnabled: false as const }
-    : await queryClient.fetchQuery(getCloudMetadataQuery);
-
-  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
-
-  await queryClient.fetchQuery(
-    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
-  );
+  await queryClient.fetchQuery(pendingInvitesQuery(isControlPlaneEnabled));
   return {
-    isLegacyCloudEnabled,
     isControlPlaneEnabled,
-    inactivityLogoutMs:
-      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
   };
 }
 
@@ -165,14 +152,13 @@ function AuthenticatedInner() {
   const { pendingInvitesQuery } = usePendingInvites();
 
   const {
-    isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
     isFetching: isUserUniverseFetching,
     organizations,
     tenantMemberships,
   } = useUserUniverse();
 
-  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
   const orgApi = useOrganizationApi();
   const orgIdForTenant = organizations?.find((o) =>
     o.tenants?.some((t) => t.id === tenant?.metadata?.id),
@@ -184,14 +170,10 @@ function AuthenticatedInner() {
   const inactivityTimeoutMs = isControlPlaneEnabled
     ? ((orgQuery.data as { inactivity_timeout?: number } | undefined)
         ?.inactivity_timeout ?? -1)
-    : loaderData.inactivityLogoutMs;
+    : -1;
   const welcomeBillingState = useQuery({
     ...queries.controlPlane.billing(organizationId || ''),
-    enabled:
-      isCloudEnabled &&
-      isControlPlaneEnabled &&
-      !!controlPlaneMeta?.canBill &&
-      !!organizationId,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
     retry: false,
   });
 
@@ -257,7 +239,9 @@ function AuthenticatedInner() {
       !isUserUniverseFetching;
 
     const shouldHaveAnOrganizationButDoesnt =
-      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
+      isControlPlaneEnabled &&
+      isUserUniverseLoaded &&
+      organizations?.length === 0;
 
     // Redirect to invites page only for users with no memberships yet (new users).
     // Existing users with memberships see the InviteModal overlay instead.
@@ -384,13 +368,12 @@ function AuthenticatedInner() {
     isOnboardingPage,
     isAuthPage,
     setLastTenant,
-    isCloudEnabled,
+    isControlPlaneEnabled,
     isUserUniverseLoaded,
     isUserUniverseFetching,
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
-    isControlPlaneEnabled,
     loaderData.isControlPlaneEnabled,
   ]);
 
@@ -450,7 +433,7 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (!isCloudEnabled) {
+    if (!isControlPlaneEnabled) {
       localStorage.removeItem(WELCOME_KEY);
       return;
     }
@@ -459,7 +442,7 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (!controlPlaneMeta?.canBill) {
+    if (!canBill) {
       return;
     }
 
@@ -509,9 +492,9 @@ function AuthenticatedInner() {
     tenant?.metadata.id,
     organizationId,
     capture,
-    isCloudEnabled,
+    isControlPlaneEnabled,
     isUserUniverseLoaded,
-    controlPlaneMeta?.canBill,
+    canBill,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,
@@ -546,120 +529,118 @@ function AuthenticatedInner() {
   }
 
   return (
-    <PostHogProvider user={currentUser}>
-      <SupportChat user={currentUser}>
-        <AppLayout
-          banner={
-            meta &&
-            'authDisabled' in meta &&
-            meta.authDisabled &&
-            !authBannerDismissed ? (
-              <AuthDisabledBanner
-                onDismiss={() => {
-                  try {
-                    localStorage.setItem(
-                      'auth-disabled-banner-dismissed',
-                      'true',
-                    );
-                  } catch {
-                    /* empty */
-                  }
-                  setAuthBannerDismissed(true);
-                }}
-              />
-            ) : undefined
-          }
-          header={
-            <TopNav
-              user={currentUser}
-              tenantMemberships={tenantMemberships || []}
+    <SupportChat user={currentUser}>
+      <AppLayout
+        banner={
+          meta &&
+          'authDisabled' in meta &&
+          meta.authDisabled &&
+          !authBannerDismissed ? (
+            <AuthDisabledBanner
+              onDismiss={() => {
+                try {
+                  localStorage.setItem(
+                    'auth-disabled-banner-dismissed',
+                    'true',
+                  );
+                } catch {
+                  /* empty */
+                }
+                setAuthBannerDismissed(true);
+              }}
             />
-          }
-          footer={
-            isTenantPage && DevtoolsFooter ? (
-              <Suspense fallback={null}>
-                <DevtoolsFooter />
-              </Suspense>
-            ) : undefined
-          }
-          // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
-          contentScroll={!isTenantPage}
-        >
-          <OutletWithContext context={ctx} />
-        </AppLayout>
-
-        <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
-          <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
-            <DialogHeader>
-              <DialogTitle>Create New Tenant</DialogTitle>
-            </DialogHeader>
-            <div className="flex justify-center">
-              <NewTenantSaverForm
-                defaultOrganizationId={defaultOrganizationId}
-                allTenantTags={newTenantAllTags}
-                afterSave={(result) => {
-                  setDefaultOrganizationId(undefined);
-                  setNewTenantAllTags([]);
-                  setNewTenantModalOpen(false);
-                  const tenantId =
-                    result.type === 'cloud'
-                      ? result.tenant.id
-                      : result.tenant.metadata.id;
-
-                  if (result.type === 'cloud') {
-                    void queryClient.prefetchQuery(
-                      queries.controlPlane.subscriptionPlans(),
-                    );
-                  }
-
-                  navigate({
-                    to: appRoutes.tenantOverviewRoute.to,
-                    params: { tenant: tenantId },
-                  });
-                }}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-        {inviteModalOptions && (
-          <CreateTenantInviteModal
-            tenantId={inviteModalOptions.tenantId}
-            organizationId={inviteModalOptions.organizationId}
-            defaultEmail={inviteModalOptions.defaultEmail}
-            onClose={() => setInviteModalOptions(undefined)}
-            onCreated={(tenantId, invite) => {
-              globalEmitter.emit('tenant-invite-created', {
-                tenantId,
-                invite,
-              });
-            }}
+          ) : undefined
+        }
+        header={
+          <TopNav
+            user={currentUser}
+            tenantMemberships={tenantMemberships || []}
           />
-        )}
-        {orgInviteModal && (
-          <OrganizationInviteMemberModal
-            organizationId={orgInviteModal.organizationId}
-            organizationName={orgInviteModal.organizationName}
-            onClose={() => setOrgInviteModal(undefined)}
-            onCreated={(invite) => {
-              globalEmitter.emit('organization-invite-created', {
-                organizationId: orgInviteModal.organizationId,
-                invite,
-              });
-            }}
-          />
-        )}
-        <WelcomeModal
-          tenantId={tenant?.metadata.id}
-          organizationId={organizationId}
-          open={showWelcome}
-          onClose={() => setShowWelcome(false)}
+        }
+        footer={
+          isTenantPage && DevtoolsFooter ? (
+            <Suspense fallback={null}>
+              <DevtoolsFooter />
+            </Suspense>
+          ) : undefined
+        }
+        // Tenant routes (v1 shell) own their internal scrolling; everything else scrolls here.
+        contentScroll={!isTenantPage}
+      >
+        <OutletWithContext context={ctx} />
+      </AppLayout>
+
+      <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
+        <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
+          <DialogHeader>
+            <DialogTitle>Create New Tenant</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            <NewTenantSaverForm
+              defaultOrganizationId={defaultOrganizationId}
+              allTenantTags={newTenantAllTags}
+              afterSave={(result) => {
+                setDefaultOrganizationId(undefined);
+                setNewTenantAllTags([]);
+                setNewTenantModalOpen(false);
+                const tenantId =
+                  result.type === 'cloud'
+                    ? result.tenant.id
+                    : result.tenant.metadata.id;
+
+                if (result.type === 'cloud') {
+                  void queryClient.prefetchQuery(
+                    queries.controlPlane.subscriptionPlans(),
+                  );
+                }
+
+                navigate({
+                  to: appRoutes.tenantOverviewRoute.to,
+                  params: { tenant: tenantId },
+                });
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+      {inviteModalOptions && (
+        <CreateTenantInviteModal
+          tenantId={inviteModalOptions.tenantId}
+          organizationId={inviteModalOptions.organizationId}
+          defaultEmail={inviteModalOptions.defaultEmail}
+          onClose={() => setInviteModalOptions(undefined)}
+          onCreated={(tenantId, invite) => {
+            globalEmitter.emit('tenant-invite-created', {
+              tenantId,
+              invite,
+            });
+          }}
         />
-        <InviteModal
-          isOpen={inviteModalOpen}
-          onClose={() => setInviteModalOpen(false)}
+      )}
+      {orgInviteModal && (
+        <OrganizationInviteMemberModal
+          organizationId={orgInviteModal.organizationId}
+          organizationName={orgInviteModal.organizationName}
+          onClose={() => setOrgInviteModal(undefined)}
+          onCreated={(invite) => {
+            globalEmitter.emit('organization-invite-created', {
+              organizationId: orgInviteModal.organizationId,
+              invite,
+            });
+          }}
         />
-      </SupportChat>
-    </PostHogProvider>
+      )}
+      <WelcomeModal
+        tenantId={tenant?.metadata.id}
+        organizationId={organizationId}
+        open={showWelcome}
+        onClose={() => setShowWelcome(false)}
+      />
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+      />
+    </SupportChat>
   );
 }
 

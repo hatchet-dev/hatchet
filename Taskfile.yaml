@@ -67,11 +67,11 @@ tasks:
     desc: Sync agent-instructions MDX files into hatchet-cli skill-assets references
     cmds:
       - |
-        src="frontend/docs/pages/agent-instructions"
+        src="frontend/docs/content/docs/agent-instructions"
         dest="cmd/hatchet-cli/cli/skill-assets/hatchet-cli/references"
         for f in "$src"/*.mdx; do
           name=$(basename "$f" .mdx)
-          cp "$f" "$dest/$name.md"
+          awk 'BEGIN{fm=0; body=0} NR==1 && $0=="---"{fm=1; next} fm==1{if($0=="---") fm=2; next} fm==2 && body==0 && $0==""{next} {body=1; print}' "$f" > "$dest/$name.md"
         done
 
   sync-changelog:
@@ -80,13 +80,13 @@ tasks:
     vars:
       CHANGELOGS:
         map:
-          platform: 'CHANGELOG.md'
-          python: 'sdks/python/CHANGELOG.md'
-          typescript: 'sdks/typescript/CHANGELOG.md'
-          ruby: 'sdks/ruby/src/CHANGELOG.md'
+          platform: "CHANGELOG.md"
+          python: "sdks/python/CHANGELOG.md"
+          typescript: "sdks/typescript/CHANGELOG.md"
+          ruby: "sdks/ruby/src/CHANGELOG.md"
     cmd:
-        for: { var: CHANGELOGS }
-        cmd: bash ./hack/docs/sync-changelog.sh {{.ITEM}} frontend/docs/pages/reference/changelog/{{.KEY}}.mdx
+      for: { var: CHANGELOGS }
+      cmd: bash ./hack/docs/sync-changelog.sh {{.ITEM}} frontend/docs/content/docs/reference/changelog/{{.KEY}}.mdx
   pre:
     aliases: [fmt]
     cmds:
@@ -336,11 +336,11 @@ tasks:
     vars:
       CURRENT:
         sh: git tag --points-at HEAD --sort=-v:refname | head -n1
-      TAG: '{{.TAG | default .CURRENT}}'
+      TAG: "{{.TAG | default .CURRENT}}"
     preconditions:
       - sh: '[ -n "{{.TAG}}" ]'
         msg: "No TAG value found"
-      - sh: '! gh release view {{.TAG}} >/dev/null 2>&1'
+      - sh: "! gh release view {{.TAG}} >/dev/null 2>&1"
         msg: "{{.TAG}} already has a GitHub Release."
       - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
         msg: "{{.TAG}} is already an annotated tag."
@@ -357,7 +357,14 @@ tasks:
     cmds:
       - |
         set -e
-        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
+        branch=$(git rev-parse --abbrev-ref HEAD)
+        if [ "${branch}" != "main" ]; then
+          echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
+          exit 1
+        fi
+        git fetch origin main
+        git pull origin main
+        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
         IFS='.' read -r major minor patch <<< "${current#v}"
         patch=$((patch + 1))
         next="v${major}.${minor}.${patch}"
@@ -370,7 +377,14 @@ tasks:
     cmds:
       - |
         set -e
-        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
+        branch=$(git rev-parse --abbrev-ref HEAD)
+        if [ "${branch}" != "main" ]; then
+          echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
+          exit 1
+        fi
+        git fetch origin main
+        git pull origin main
+        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
         IFS='.' read -r major minor patch <<< "${current#v}"
         minor=$((minor + 1))
         next="v${major}.${minor}.0"
@@ -383,7 +397,7 @@ tasks:
     cmds:
       - |
         set -e
-        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
+        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
         base="${current%%-alpha.*}"
         if [[ "${current}" == *-alpha.* ]]; then
           alpha_num="${current##*-alpha.}"

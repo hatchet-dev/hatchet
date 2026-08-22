@@ -118,14 +118,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	newLogger := opts.l.With().Str("service", "rabbitmq-pubsub").Logger()
 	opts.l = &newLogger
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels, channelPoolQueuePubSub, channelPoolRolePub)
 
 	if err != nil {
 		cancel()
 		return nil, nil, err
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels, channelPoolQueuePubSub, channelPoolRoleSub)
 
 	if err != nil {
 		pubChannelPool.Close()
@@ -220,9 +220,9 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	if len(body) > maxPayloadSize {
+	if len(body) > msgqueue.MaxMessageSize {
 		if len(msg.Payloads) == 1 {
-			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), maxPayloadSize)
+			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), msgqueue.MaxMessageSize)
 		}
 
 		// split the payloads in half and publish recursively until each chunk is
@@ -261,11 +261,12 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		routingKey = ""
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	// never persistent, expire immediately without an active consumer: this is
 	// an at-most-once notification path
+	//
+	// no timeout here on purpose: amqp091-go takes the context as `_` and
+	// clears socket deadlines after the handshake, so a publish is bounded
+	// only by TCP flow control on the pool's shared connection
 	err = pub.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
 		Body:       body,
 		Expiration: "0",

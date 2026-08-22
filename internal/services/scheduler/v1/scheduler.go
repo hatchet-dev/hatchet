@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -47,7 +48,7 @@ type SchedulerOpts struct {
 	alerter     hatcheterrors.Alerter
 	p           *partition.Partition
 	queueLogger *zerolog.Logger
-	pool        *v1.SchedulingPool
+	pool        scheduling.Pool
 	promGate    *prometheus.Gate
 }
 
@@ -114,7 +115,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) SchedulerOpt {
 	}
 }
 
-func WithSchedulerPool(s *v1.SchedulingPool) SchedulerOpt {
+func WithSchedulerPool(s scheduling.Pool) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.pool = s
 	}
@@ -140,11 +141,15 @@ type Scheduler struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	pool *v1.SchedulingPool
+	pool scheduling.Pool
 
 	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
+
+	promGate *prometheus.Gate
+
+	queueMetrics *queueMetricsPoller
 }
 
 func New(
@@ -206,6 +211,8 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		signaler:               signaler,
+		promGate:               opts.promGate,
+		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
 	}
 
 	return q, nil
@@ -233,6 +240,19 @@ func (s *Scheduler) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
+	}
+
+	_, err = s.s.NewJob(
+		gocron.DurationJob(queueMetricsPollInterval),
+		gocron.NewTask(
+			s.runPollQueueMetrics(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule queue metrics polling: %w", err)
 	}
 
 	s.s.Start()
@@ -1323,6 +1343,8 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
 	case msgqueue.MsgIDDurableCallbackCompleted:
 		err = s.handleDeadLetteredDurableCallbackCompleted(ctx, msg)
+	case msgqueue.MsgIDBatchStart:
+		err = s.handleDeadLetteredBatchStart(ctx, msg)
 	default:
 		err = fmt.Errorf("unknown task: %s", msg.ID)
 	}
@@ -1346,6 +1368,56 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 
 	if err != nil {
 		return fmt.Errorf("could not list tasks for dead lettered bulk assigned message: %w", err)
+	}
+
+	for _, task := range toFail {
+		tenantId := msg.TenantID
+
+		msg, err := tasktypes.FailedTaskMessage(
+			tenantId,
+			task.ID,
+			task.InsertedAt,
+			task.ExternalID,
+			task.WorkflowRunID,
+			task.RetryCount,
+			false,
+			"Could not send task to worker",
+			false,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create failed task message: %w", err)
+		}
+
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			// NOTE: failure to send on the MQ is likely not transient; ideally we could only retry individual
+			// tasks but since this message has the tasks in a batch, we retry all of them instead. we're banking
+			// on the downstream `task-failed` processing to be idempotent.
+			return fmt.Errorf("could not send failed task message: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqueue.Message) error {
+	msgs := msgqueue.JSONConvert[tasktypes.StartBatchTaskPayload](msg.Payloads)
+
+	taskIds := make([]int64, 0)
+
+	for _, innerMsg := range msgs {
+		for _, i := range innerMsg.Items {
+			taskIds = append(taskIds, i.TaskID)
+		}
+		s.l.Error().Ctx(ctx).Msgf("handling dead-lettered batch task assignments for tenant %s, worker %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, innerMsg.WorkerId, innerMsg.Items)
+	}
+
+	toFail, err := s.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks for dead lettered batch start message: %w", err)
 	}
 
 	for _, task := range toFail {

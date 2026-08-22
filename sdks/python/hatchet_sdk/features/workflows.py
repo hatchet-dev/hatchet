@@ -1,12 +1,31 @@
 import asyncio
+from datetime import timedelta
+from typing import Literal
 
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
+from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
+    PauseWorkflowRequestPause,
+)
+from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
+    PauseWorkflowRequestUnpause,
+)
 from hatchet_sdk.clients.rest.models.workflow import Workflow
+from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
+from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+    WorkflowPauseScheduledCronRunQueueBehavior,
+)
+from hatchet_sdk.clients.rest.models.workflow_update_request import (
+    WorkflowUpdateRequest,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.utils.timedelta_to_expression import (
+    timedelta_to_expr,
+)
 
 
 class WorkflowsClient(BaseRestClient):
@@ -141,3 +160,102 @@ class WorkflowsClient(BaseRestClient):
         """
 
         return await asyncio.to_thread(self.delete, workflow_id)
+
+    def pause(
+        self,
+        workflow_id: str,
+        queue_ttl: timedelta,
+        paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
+        paused_workflow_scheduled_run_queue_behavior: Literal[
+            "DROP", "QUEUE"
+        ] = "QUEUE",
+    ) -> Workflow:
+        """
+        Pause a workflow.
+
+        :param workflow_id: The ID of the workflow to pause.
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
+        :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
+        :return: The updated workflow.
+        """
+        ttl_expr = timedelta_to_expr(queue_ttl)
+
+        with self.client() as client:
+            workflow_update_pause = tenacity_retry(
+                self._wa(client).workflow_update, self.client_config.tenacity
+            )
+            return workflow_update_pause(
+                workflow_id,
+                WorkflowUpdateRequest(
+                    pause=PauseWorkflowRequest(
+                        PauseWorkflowRequestPause(
+                            action="pause",
+                            pausedWorkflowCronRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
+                                paused_workflow_cron_run_queue_behavior
+                            ),
+                            pausedWorkflowScheduledRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
+                                paused_workflow_scheduled_run_queue_behavior
+                            ),
+                            pausedWorkflowQueueTTL=ttl_expr,
+                        )
+                    )
+                ),
+            )
+
+    async def aio_pause(
+        self,
+        workflow_id: str,
+        queue_ttl: timedelta,
+        paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
+        paused_workflow_scheduled_run_queue_behavior: Literal[
+            "DROP", "QUEUE"
+        ] = "QUEUE",
+    ) -> Workflow:
+        """
+        Pause a workflow.
+
+        :param workflow_id: The ID of the workflow to pause.
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
+        :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
+        :return: The updated workflow.
+        """
+
+        return await asyncio.to_thread(
+            self.pause,
+            workflow_id,
+            queue_ttl,
+            paused_workflow_cron_run_queue_behavior,
+            paused_workflow_scheduled_run_queue_behavior,
+        )
+
+    def unpause(self, workflow_id: str) -> Workflow:
+        """
+        Unpause a workflow.
+
+        :param workflow_id: The ID of the workflow to unpause.
+        :return: The updated workflow.
+        """
+        with self.client() as client:
+            workflow_update_pause = tenacity_retry(
+                self._wa(client).workflow_update, self.client_config.tenacity
+            )
+            return workflow_update_pause(
+                workflow_id,
+                WorkflowUpdateRequest(
+                    pause=PauseWorkflowRequest(
+                        PauseWorkflowRequestUnpause(action="unpause")
+                    )
+                ),
+            )
+
+    async def aio_unpause(self, workflow_id: str) -> Workflow:
+        """
+        Unpause a workflow.
+
+        :param workflow_id: The ID of the workflow to unpause.
+        :return: The updated workflow.
+        """
+
+        return await asyncio.to_thread(self.unpause, workflow_id)

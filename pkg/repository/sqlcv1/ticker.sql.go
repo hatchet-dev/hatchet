@@ -241,6 +241,8 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
         "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
     JOIN
         "Tenant" as tenant ON tenant."id" = triggers."tenantId"
+    JOIN
+        "Workflow" as workflow ON workflow."id" = versions."workflowId"
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
@@ -250,6 +252,13 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
                 SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
             OR cronSchedule."tickerId" = $1::uuid
+        )
+        AND (
+            workflow."isPaused" IS NULL
+            OR workflow."isPaused" = FALSE
+            OR (
+                workflow."isPaused" = TRUE AND workflow."pausedWorkflowCronRunQueueBehavior" = 'QUEUE'
+            )
         )
     FOR UPDATE OF cronSchedule SKIP LOCKED
 ),
@@ -455,6 +464,13 @@ WITH latest_workflow_versions AS (
             SELECT 1
             FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
             WHERE runTriggeredBy."scheduledId" = scheduledWorkflow."id"
+        )
+        AND (
+            workflow."isPaused" IS NULL
+            OR workflow."isPaused" = FALSE
+            OR (
+                workflow."isPaused" = TRUE AND workflow."pausedWorkflowScheduledRunQueueBehavior" = 'QUEUE'
+            )
         )
     ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
 ),
@@ -684,7 +700,9 @@ new_alerts AS (
             FROM "TenantResourceLimitAlert" AS trla
             WHERE trla."resourceLimitId" = arl."resourceLimitId"
             AND trla."alertType" = arl."alertType"::"TenantResourceLimitAlertType"
-            AND trla."createdAt" >= NOW() - arl."window"::INTERVAL
+            -- Gauge resources (WORKER / WORKER_SLOT) have a null window; default to
+            -- 24h so Exhausted/Alarm alerts cannot re-fire on every ticker poll.
+            AND trla."createdAt" >= NOW() - COALESCE(NULLIF(arl."window", '')::INTERVAL, INTERVAL '24 hours')
         ) AS "existingAlert"
     FROM
         alerting_resource_limits AS arl

@@ -29,6 +29,8 @@ var embedMigrations embed.FS
 
 type runMigrationsOpt struct {
 	upToPenultimate bool
+	upToVersion     int64
+	databaseURL     string
 }
 
 type RunMigrationsOpt func(*runMigrationsOpt)
@@ -36,6 +38,22 @@ type RunMigrationsOpt func(*runMigrationsOpt)
 func WithUpToPenultimate() RunMigrationsOpt {
 	return func(o *runMigrationsOpt) {
 		o.upToPenultimate = true
+	}
+}
+
+func WithUpToVersion(version int64) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.upToVersion = version
+	}
+}
+
+// WithDatabaseURL runs the migrations against the given database URL instead of
+// the DATABASE_URL environment variable. This is used by downstream consumers
+// (e.g. Hatchet Cloud) to apply the OSS schema to a separate database, such as a
+// dedicated OLAP database.
+func WithDatabaseURL(url string) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.databaseURL = url
 	}
 }
 
@@ -52,7 +70,10 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		phaseName      = "oss"
 	)
 
-	rawURL := os.Getenv(databaseEnvVar)
+	rawURL := options.databaseURL
+	if rawURL == "" {
+		rawURL = os.Getenv(databaseEnvVar)
+	}
 	if rawURL == "" {
 		return migratediag.MissingEnvError(databaseEnvVar, phaseName)
 	}
@@ -258,6 +279,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	}
 
 	switch {
+	case options.upToVersion != 0:
+		err = goose.UpTo(db, ".", options.upToVersion)
+		if err != nil {
+			return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply migrations up to version", err)
+		}
 	case options.upToPenultimate:
 		migrations, err := listMigrations()
 
