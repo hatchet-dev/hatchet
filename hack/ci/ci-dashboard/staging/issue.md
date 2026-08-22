@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-21T07:09:58Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-08-22T07:11:30Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 82% (1994/2438) · main: 57% (73/129)
+**Gating-CI pass rate** — PR: 82% (2005/2446) · main: 59% (86/146)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+  x-axis [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [70, 94, 88, 84, 86, 73, 88, 82, 61, 67, 86, 90, 78, 85, 87]
-  line "main" [100, 100, 50, 33, 35, 25, 50, 60, 60, 60, 82, 73, 44, 78, 100]
+  line "CI" [94, 88, 84, 86, 73, 88, 82, 61, 67, 86, 89, 78, 84, 83, 68]
+  line "main" [50, 50, 33, 35, 25, 50, 60, 60, 60, 82, 73, 44, 78, 78, 100]
 ```
 
-_X-axis = day of month (Aug 07 → Aug 21). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Aug 08 → Aug 22). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `test-templates` | cli-e2e-tests | 3 | 0 | 10 | 30% | flaky | PR | **timeout** — TestQuickstartTemplates suite exceeds cli-e2e time budget (~754s) |
-| 2 | `unit` | test | 3 | 0 | 43 | 7% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails in unit job |
-| 3 | `engine` | build | 2 | 0 | 29 | 7% | flaky | PR | **infra/CI** — Docker engine build fails fetching go modules (proxy.golang.org INTERNAL_ERROR) |
-| 4 | `test` | ruby | 2 | 0 | 30 | 7% | flaky | PR | **flaky test** — Ruby non_retryable e2e intermittently reports wrong retry event count |
-| 5 | `e2e` | test | 2 | 0 | 43 | 5% | flaky | PR | **infra/CI** — e2e job times out waiting for Hatchet engine/API readiness |
-| 6 | `e2e-pgmq` | test | 2 | 0 | 43 | 5% | flaky | PR | **infra/CI** — e2e-pgmq job times out waiting for Hatchet engine/API readiness |
-| 7 | `integration` | test | 2 | 0 | 43 | 5% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails in integration job |
-| 8 | `build` | frontend / docs | 1 | 0 | 10 | 10% | flaky | PR | **product bug** — Docs build fails: invalid MDX frontmatter in v1/run-names.mdx |
-| 9 | `authdisabled` | build | 1 | 0 | 29 | 3% | flaky | PR | **infra/CI** — Docker authdisabled image build fails (transient go module proxy/network errors) |
-| 10 | `migrate` | build | 1 | 0 | 29 | 3% | flaky | PR | **infra/CI** — Docker migrate image build fails (transient go module proxy/network errors) |
+| 1 | `generate` | test | 7 | 0 | 27 | 26% | flaky | PR | **infra/CI** — test/generate: codegen drift — examples/python/worker.py not regenerated |
+| 2 | `test` | python | 5 | 0 | 28 | 18% | flaky | PR | **flaky test** — Python conditions cancel_if: race — task completes before cancel event processed |
+| 3 | `unit` | test | 4 | 0 | 27 | 15% | flaky | PR | **flaky test** — TestRandomTicker: tick duration jitter exceeds threshold on shared CI runners |
+| 4 | `build` | frontend / docs | 1 | 0 | 3 | 33% | flaky | PR | **product bug** — Docs build: invalid MDX frontmatter (missing title) in migration-guide-python-v2.mdx |
+| 5 | `test-templates` | cli-e2e-tests | 1 | 0 | 4 | 25% | flaky | PR | **timeout** — cli-e2e TestQuickstartTemplates parent test exceeded ~765s budget |
+| 6 | `lint` | frontend / app | 1 | 0 | 5 | 20% | flaky | PR | **infra/CI** — frontend/app lint: prettier drift on event-utils imports |
+| 7 | `test` | ruby | 1 | 0 | 19 | 5% | flaky | PR | **flaky test** — Ruby non_retryable: retry event count assertion is timing-sensitive |
+| 8 | `publish` | typescript | 1 | 0 | 19 | 5% | flaky | main | **infra/CI** — TypeScript publish: dist/package.json missing — SDK build step did not produce output |
+| 9 | `lint` | lint all | 1 | 0 | 24 | 4% | flaky | PR | **infra/CI** — lint all: pre-commit whitespace drift in sdk-python.yml |
+| 10 | `rampup` | test | 1 | 0 | 27 | 4% | flaky | main | **infra/CI** — TestRampUp: engine not ready — connection refused during workflow registration |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `examples/aws/s3/test_worker.py::test_pipeline_processes_and_deletes_all_objects[on_demand_worker0]` | `test` | 5 | 32 | 16% | flaky | main + PR | **timeout** — Python S3 worker example test exceeds pytest 60s timeout |
-| 2 | `examples/conditions/test_conditions.py::test_skip_if_sleep_runs_when_event_wins` | `test` | 5 | 32 | 16% | flaky | PR | **flaky test** — Python conditions skip_if_sleep race: event vs sleep timing non-deterministic |
-| 3 | `TestQuickstartTemplates` | `test-templates` | 3 | 10 | 30% | flaky | PR | **timeout** — TestQuickstartTemplates suite exceeds cli-e2e time budget (~754s) |
-| 4 | `TestQuickstartTemplates/simple_go_go` | `test-templates` | 3 | 10 | 30% | flaky | PR | **timeout** — TestQuickstartTemplates/simple_go_go exceeds cli-e2e time budget (~319s) |
-| 5 | `(unparsed)` | `test` | 3 | 32 | 9% | flaky | PR | **unknown** — Pytest step failure with only the command line captured in logs |
-| 6 | `examples/conditions/test_conditions.py::test_cancel_if_user_event` | `test` | 3 | 32 | 9% | flaky | PR | **flaky test** — Python cancel_if_user_event race: run completes before cancel is observed |
-| 7 | `(unparsed)` | `engine` | 2 | 29 | 7% | flaky | PR | **infra/CI** — Docker engine build fails fetching go modules (proxy.golang.org INTERNAL_ERROR) |
-| 8 | `./non_retryable/test_no_retry_spec.rb:7` | `test` | 2 | 30 | 7% | flaky | PR | **flaky test** — Ruby non_retryable e2e intermittently reports wrong retry event count |
-| 9 | `./spec/integration/events_integration_spec.rb:194` | `test` | 2 | 30 | 7% | flaky | PR | **flaky test** — Ruby events integration event-details assertion intermittently fails |
-| 10 | `./spec/integration/events_integration_spec.rb:198` | `test` | 2 | 30 | 7% | flaky | PR | **flaky test** — Ruby events integration get-by-ID assertion intermittently fails |
+| 1 | `examples/conditions/test_conditions.py::test_cancel_if_user_event` | `test` | 11 | 28 | 39% | flaky | main + PR | **flaky test** — Python conditions cancel_if: race — task completes before cancel event processed |
+| 2 | `(unparsed)` | `generate` | 7 | 27 | 26% | flaky | PR | **infra/CI** — test/generate: codegen drift — examples/python/worker.py not regenerated |
+| 3 | `examples/conditions/test_conditions.py::test_skip_if_sleep_runs_when_event_wins` | `test` | 6 | 28 | 21% | flaky | main + PR | **flaky test** — Python conditions skip_if_sleep: race between sleep and event delivery |
+| 4 | `(unparsed)` | `lint` | 3 | 28 | 11% | flaky | PR | **infra/CI** — Python lint: Black formatting drift on PR (eviction timeout example) |
+| 5 | `./non_retryable/test_no_retry_spec.rb:7` | `test` | 2 | 19 | 10% | flaky | PR | **flaky test** — Ruby non_retryable: retry event count assertion is timing-sensitive |
+| 6 | `TestRandomTicker` | `unit` | 2 | 27 | 7% | flaky | PR | **flaky test** — TestRandomTicker: tick duration jitter exceeds threshold on shared CI runners |
+| 7 | `(unparsed)` | `build` | 1 | 3 | 33% | flaky | PR | **product bug** — Docs build: invalid MDX frontmatter (missing title) in migration-guide-python-v2.mdx |
+| 8 | `TestQuickstartTemplates` | `test-templates` | 1 | 4 | 25% | flaky | PR | **timeout** — cli-e2e TestQuickstartTemplates parent test exceeded ~765s budget |
+| 9 | `TestQuickstartTemplates/simple_go_go` | `test-templates` | 1 | 4 | 25% | flaky | PR | **timeout** — cli-e2e TestQuickstartTemplates/simple_go_go exceeded ~320s budget |
+| 10 | `(unparsed)` | `lint` | 1 | 5 | 20% | flaky | PR | **infra/CI** — frontend/app lint: prettier drift on event-utils imports |
 
 ## Recent CI-health wins (`ci-health`)
 
