@@ -141,12 +141,15 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
 
     await wait_for_running_status(hatchet, ref.workflow_run_id)
 
-    # Push twice: the run can show RUNNING just before the engine registers
-    # cie_target's cancel_if match condition, and an unmatched event is dropped
-    # silently. Both pushes land well inside the 30s wait_for sleep.
-    for _ in range(2):
+    deadline = time.monotonic() + 25
+    while time.monotonic() < deadline:
         await hatchet.event.aio_push("cancel_if_event:abort", {})
-        await asyncio.sleep(3)
+
+        details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+        if details.status == RunStatus.CANCELLED:
+            break
+
+        await asyncio.sleep(2)
 
     await ref.aio_result()
 

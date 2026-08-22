@@ -257,7 +257,7 @@ def cie_start(input: EmptyModel, ctx: Context) -> StepOutput:
 
 @cancel_if_event_workflow.task(
     parents=[cie_start],
-    wait_for=[SleepCondition(timedelta(seconds=30))],
+    wait_for=[SleepCondition(timedelta(seconds=60))],
     cancel_if=[UserEventCondition(event_key="cancel_if_event:abort")],
 )
 def cie_target(input: EmptyModel, ctx: Context) -> StepOutput:
