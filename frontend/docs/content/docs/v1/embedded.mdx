@@ -11,13 +11,9 @@ import LatestImageTags from "@/components/LatestImageTags";
 
 # Embedded Hatchet
 
-Run a full Hatchet engine from inside your application, with no Docker and no external services. [hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded) starts the engine, seeds an admin tenant, and hands the SDK a client wired to the embedded instance.
+Hatchet can run in an [embedded mode](https://github.com/hatchet-dev/hatchet-embedded) from inside your workers. The goal is to make local testing as easy as possible and be able to test workers end to end in ephemeral CI environments. There is no need to provision tenants, users, or API tokens to get started.
 
-By default it also starts a bundled Postgres, so you need zero external services to get running. Point it at your own database to disable that.
-
-<Callout type="warning">
-  Embedded mode is designed for local development and testing only.
-</Callout>
+When using the embedded mode, you get a full Hatchet engine running locally without any external dependencies including Postgres. By default it uses [embedded-postgres](https://github.com/fergusstrange/embedded-postgres) to provision a Postgres database.
 
 ## How it works
 
@@ -35,17 +31,18 @@ from hatchet_sdk import Hatchet
 hatchet = Hatchet.from_embedded()
 ```
 
-Pass options via `EmbeddedOptions`:
+Configure the embedded engine through `ClientConfig.embedded`:
 
 ```python
-from hatchet_sdk import Hatchet
-from hatchet_sdk.embedded import EmbeddedOptions
+from hatchet_sdk import ClientConfig, EmbeddedHatchetConfig, Hatchet
 
 hatchet = Hatchet.from_embedded(
-    EmbeddedOptions(
-        version="vX.Y.Z",
-        database_url="postgres://...",
-        log_level="info",
+    ClientConfig(
+        embedded=EmbeddedHatchetConfig(
+            version="vX.Y.Z",
+            database_url="postgres://...",
+            log_level="info",
+        )
     )
 )
 ```
@@ -127,6 +124,8 @@ See runnable examples for all three SDKs in the [hatchet-embedded repo](https://
 
 \* `WithPostgresDataDir` is an option on the `embed` package directly; the remaining Go options are `hatchet.WithEmbedded*` client options. The `embed` package also offers `WithAdminUser(email, password)`, `WithKeysets(...)`, and `WithLogger(...)` when you drive the engine yourself via `embed.StartServer`.
 
+The Python options are fields of `EmbeddedHatchetConfig`, set via `ClientConfig.embedded`. Each of these can also be set through a `HATCHET_CLIENT_EMBEDDED_*` environment variable (for example, `HATCHET_CLIENT_EMBEDDED_BINARY_PATH`).
+
 ## Serve the dashboard
 
 Embedded instances do not ship a frontend. The `hatchet embedded-ui` CLI command serves the dashboard bundled in the CLI binary on your machine and proxies API requests to the instance's API server. With no flags it targets the default embedded API port (`http://localhost:28243`):
@@ -173,11 +172,14 @@ Set the database URL when you create each client:
   <Tabs.Tab title="Python">
 
 ```python
-from hatchet_sdk import Hatchet
-from hatchet_sdk.embedded import EmbeddedOptions
+from hatchet_sdk import ClientConfig, EmbeddedHatchetConfig, Hatchet
 
 hatchet = Hatchet.from_embedded(
-    EmbeddedOptions(database_url="postgres://user:pass@db.internal:5432/hatchet")
+    ClientConfig(
+        embedded=EmbeddedHatchetConfig(
+            database_url="postgres://user:pass@db.internal:5432/hatchet"
+        )
+    )
 )
 ```
 
