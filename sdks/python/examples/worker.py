@@ -148,6 +148,8 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_a,
     spawn_index_child_b,
 )
+from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
+
 from examples.workflow_pause.worker import pausable_workflow
 from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
 from examples.bug_tests.durable_dag_child.worker import (
@@ -298,6 +300,7 @@ def main() -> None:
             multi_spawner_dag,
             durable_spawner_dag,
             mixed_spawner_dag,
+            evictable_durable,
         ],
         lifespan=lifespan,
     )
