@@ -129,12 +129,50 @@ func (q *Queries) AnalyzeV1TasksOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS run_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS run_inserted_at,
+        UNNEST($3::BIGINT[]) AS event_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS event_seen_at,
+        UNNEST($5::UUID[]) AS filter_id
+)
+
+INSERT INTO v1_event_to_run_olap (
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at,
+    filter_id
+)
+SELECT
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at,
+    NULLIF(filter_id, '00000000-0000-0000-0000-000000000000'::UUID) AS filter_id
+FROM inputs
+ON CONFLICT DO NOTHING
+`
+
 type BulkCreateEventTriggersParams struct {
-	RunID         int64              `json:"run_id"`
-	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       int64              `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-	FilterID      *uuid.UUID         `json:"filter_id"`
+	Runids         []int64              `json:"runids"`
+	Runinsertedats []pgtype.Timestamptz `json:"runinsertedats"`
+	Eventids       []int64              `json:"eventids"`
+	Eventseenats   []pgtype.Timestamptz `json:"eventseenats"`
+	Filterids      []uuid.UUID          `json:"filterids"`
+}
+
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) error {
+	_, err := db.Exec(ctx, bulkCreateEventTriggers,
+		arg.Runids,
+		arg.Runinsertedats,
+		arg.Eventids,
+		arg.Eventseenats,
+		arg.Filterids,
+	)
+	return err
 }
 
 const checkLastAutovacuumForPartitionedTables = `-- name: CheckLastAutovacuumForPartitionedTables :many

@@ -129,6 +129,14 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = @tenantId
+    AND NOT EXISTS (
+        -- hide dag operators
+        SELECT 1
+        FROM v1_operator op
+        WHERE
+            op.id = workers."operatorId"
+            AND op.kind = 'DAG'
+    )
     AND (
         sqlc.narg('actionId')::text IS NULL OR
         workers."id" IN (
@@ -198,6 +206,14 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = @tenantId
+    AND NOT EXISTS (
+        -- hide dag operators
+        SELECT 1
+        FROM v1_operator op
+        WHERE
+            op.id = workers."operatorId"
+            AND op.kind = 'DAG'
+    )
     AND (
         sqlc.narg('actionId')::text IS NULL OR
         workers."id" IN (
@@ -319,6 +335,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id
 ;
 
@@ -334,6 +352,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -625,7 +645,7 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
--- name: UpdateWorkerDurableTaskDispatcherId :one
+-- name: UpdateWorkerDurableTaskDispatcherId :exec
 UPDATE "Worker"
 SET
     "durableTaskDispatcherId" = @dispatcherId::UUID,
@@ -633,7 +653,7 @@ SET
 WHERE
     "id" = @workerId::uuid
     AND "tenantId" = @tenantId::uuid
-RETURNING *;
+    AND "durableTaskDispatcherId" IS DISTINCT FROM @dispatcherId::UUID;
 
 -- name: ListDurableTaskDispatcherIdsForTasks :many
 WITH tasks AS (

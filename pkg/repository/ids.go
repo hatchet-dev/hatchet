@@ -12,6 +12,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const dagStepSpawnStepIndex = -1
+
 func getChildSignalEventKey(parentExternalId uuid.UUID, stepIndex, childIndex int64, childKeyArg *string) string {
 	childKey := fmt.Sprintf("%d", childIndex)
 
@@ -42,6 +44,9 @@ type WorkflowNameTriggerOpts struct {
 	// ParentReExecuted marks a DAG step whose parent re-executed this invocation, so it must
 	// re-run during a replay even when its own orphaned entry is satisfied.
 	ParentReExecuted bool
+
+	// IsDagStepTrigger marks a run triggered by the DAG operator on behalf of one of its steps.
+	IsDagStepTrigger bool `json:"is_dag_step_trigger"`
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
@@ -49,7 +54,13 @@ func (g *WorkflowNameTriggerOpts) childSpawnKey() string {
 		return ""
 	}
 
-	return getChildSignalEventKey(*g.ParentExternalId, 0, *g.ChildIndex, g.ChildKey)
+	stepIndex := int64(0)
+
+	if g.IsDagStepTrigger {
+		stepIndex = dagStepSpawnStepIndex
+	}
+
+	return getChildSignalEventKey(*g.ParentExternalId, stepIndex, *g.ChildIndex, g.ChildKey)
 }
 
 type ChildWorkflowSignalCreatedData struct {
@@ -173,7 +184,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 		eventTaskIds = append(eventTaskIds, lookupRow.TaskID.Int64)
 		eventTaskInsertedAts = append(eventTaskInsertedAts, lookupRow.InsertedAt)
-		eventKeys = append(eventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
+		eventKeys = append(eventKeys, opt.childSpawnKey())
 	}
 
 	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
@@ -280,7 +291,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 		taskExternalIds = append(taskExternalIds, lookupRow.ExternalID)
 		datas = append(datas, data.Bytes())
-		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
+		newEventKeys = append(newEventKeys, opt.childSpawnKey())
 		childExternalIds = append(childExternalIds, &generatedId)
 	}
 

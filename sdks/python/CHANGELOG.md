@@ -5,11 +5,23 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.38.0] - 2026-08-19
+## [1.38.0] - 2026-08-24
 
 ### Added
 
 - Adds embedded mode: `Hatchet.from_embedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process.
+
+## [1.37.5] - 2026-08-21
+
+### Fixed
+
+- Correctly implements retry behavior on event pushes, which previously were silently ignored by Tenacity
+
+## [1.37.4] - 2026-08-20
+
+### Fixed
+
+- Reverts a broken TLS change from 1.37.3
 
 ## [1.37.3] - 2026-08-19
 
@@ -37,7 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adds beta `batch_task` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
-
 
 ## [1.36.0] - 2026-07-21
 
@@ -98,7 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rolled back required SDK dependencies to the state at `v1.29.5`.
-
 
 ## [1.33.14] - 2026-06-26
 

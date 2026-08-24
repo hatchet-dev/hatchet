@@ -176,6 +176,7 @@ type DispatcherOpts struct {
 	streamEventBufferTimeout            time.Duration
 	enc                                 encryption.EncryptionService
 	infraBlockedCIDRs                   []string
+	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -254,6 +255,12 @@ func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
 func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.infraBlockedCIDRs = cidrs
+	}
+}
+
+func WithDAGOperatorDefaultSlots(slots int) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.dagOperatorDefaultSlots = slots
 	}
 }
 
@@ -337,7 +344,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
-	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs)
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -841,6 +848,12 @@ func (d *DispatcherImpl) populateTaskData(
 		inputs = make(map[v1.RetrievePayloadOpts][]byte)
 	}
 
+	// dagChildInputs holds the tasks whose parents need to be resolved via GetDagParentOutputs
+	// (durable DAG-operator children); we resolve all of them with a single batched lookup below
+	// instead of one DB round trip per task.
+	dagChildInputs := make([]*dagChildTaskInput, 0)
+	dagParentExternalIdSet := make(map[uuid.UUID]struct{})
+
 	for _, task := range bulkDatas {
 		payloadKey := v1.RetrievePayloadOpts{
 			Id:         task.ID,
@@ -868,26 +881,10 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		if len(currInput.DagParentTaskRunIds) > 0 {
-			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentTaskRunIds)
+			dagChildInputs = append(dagChildInputs, &dagChildTaskInput{payloadKey: payloadKey, currInput: currInput})
 
-			if err != nil {
-				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")
-			} else {
-				parents := make(map[string]map[string]interface{})
-
-				for stepReadableId, rawOutput := range dagParentOutputs {
-					outputMap := make(map[string]interface{})
-
-					if err := json.Unmarshal(rawOutput, &outputMap); err != nil {
-						d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", stepReadableId)
-						continue
-					}
-
-					parents[stepReadableId] = outputMap
-				}
-
-				currInput.Parents = parents
-				inputs[payloadKey] = currInput.Bytes()
+			for _, parentExternalId := range currInput.DagParentTaskRunIds {
+				dagParentExternalIdSet[parentExternalId] = struct{}{}
 			}
 		} else if parentData, ok := parentDataMap[task.ID]; ok {
 			readableIdToData := make(map[string]map[string]interface{})
@@ -908,6 +905,39 @@ func (d *DispatcherImpl) populateTaskData(
 			currInput.Parents = readableIdToData
 			inputs[payloadKey] = currInput.Bytes()
 		}
+	}
+
+	if len(dagChildInputs) > 0 {
+		dagParentExternalIds := make([]uuid.UUID, 0, len(dagParentExternalIdSet))
+
+		for parentExternalId := range dagParentExternalIdSet {
+			dagParentExternalIds = append(dagParentExternalIds, parentExternalId)
+		}
+
+		dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, dagParentExternalIds)
+
+		if err != nil {
+			// if we failed to get all of them at once in a batch, do it 1 by 1. Unfortunately results in an N+1 query pattern,
+			// but not much we can do.
+			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to batch look up dag parent outputs for %d tasks, falling back to per-task lookups", len(dagChildInputs))
+
+			dagParentOutputs = make(map[uuid.UUID]*v1.TaskOutputEvent)
+
+			for _, entry := range dagChildInputs {
+				perTaskOutputs, perTaskErr := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, entry.currInput.DagParentTaskRunIds)
+
+				if perTaskErr != nil {
+					d.l.Warn().Ctx(ctx).Err(perTaskErr).Msg("failed to look up dag parent outputs")
+					continue
+				}
+
+				for parentExternalId, output := range perTaskOutputs {
+					dagParentOutputs[parentExternalId] = output
+				}
+			}
+		}
+
+		resolveDagParentOutputs(ctx, d.l, dagChildInputs, dagParentOutputs, inputs)
 	}
 
 	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
@@ -950,6 +980,46 @@ func (d *DispatcherImpl) populateTaskData(
 	}
 
 	return taskIdToData, nil
+}
+
+// dagChildTaskInput is a durable DAG-operator child task awaiting parent output resolution:
+// its own payload key (to write the resolved input back into `inputs`) plus its unmarshaled
+// input (which carries the list of parent external IDs it needs outputs for).
+type dagChildTaskInput struct {
+	payloadKey v1.RetrievePayloadOpts
+	currInput  *v1.V1StepRunData
+}
+
+func resolveDagParentOutputs(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dagChildInputs []*dagChildTaskInput,
+	dagParentOutputs map[uuid.UUID]*v1.TaskOutputEvent,
+	inputs map[v1.RetrievePayloadOpts][]byte,
+) {
+	for _, entry := range dagChildInputs {
+		parents := make(map[string]map[string]interface{})
+
+		for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
+			parentOutput, ok := dagParentOutputs[parentExternalId]
+
+			if !ok {
+				continue
+			}
+
+			outputMap := make(map[string]interface{})
+
+			if err := json.Unmarshal(parentOutput.Output, &outputMap); err != nil {
+				l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", parentOutput.StepReadableID)
+				continue
+			}
+
+			parents[parentOutput.StepReadableID] = outputMap
+		}
+
+		entry.currInput.Parents = parents
+		inputs[entry.payloadKey] = entry.currInput.Bytes()
+	}
 }
 
 func (d *DispatcherImpl) sendTasksToWorker(

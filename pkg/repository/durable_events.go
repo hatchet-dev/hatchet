@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -673,7 +674,7 @@ func (r *sharedRepository) incrementDurableTaskInvocationCounts(ctx context.Cont
 	return result, nil
 }
 
-func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, error) {
+func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (*sqlcv1.V1DurableEventLogFile, map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-and-lock-durable-event-log-file")
 	defer span.End()
 
@@ -682,31 +683,44 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		telemetry.AttributeKV{Key: "durable_task_id", Value: durableTaskId},
 	)
 
-	return r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
-		Durabletaskid:         durableTaskId,
-		Durabletaskinsertedat: durableTaskInsertedAt,
-		Tenantid:              tenantId,
-	})
-}
-
-func (r *durableEventsRepository) listEventLogBranchPoints(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, durableTaskId int64, durableTaskInsertedAt pgtype.Timestamptz) (map[int64]*sqlcv1.V1DurableEventLogBranchPoint, error) {
-	branchPoints, err := r.queries.ListDurableEventLogBranchPoints(ctx, tx, sqlcv1.ListDurableEventLogBranchPointsParams{
+	rows, err := r.queries.GetAndLockLogFileWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFileWithBranchPointsParams{
 		Durabletaskid:         durableTaskId,
 		Durabletaskinsertedat: durableTaskInsertedAt,
 		Tenantid:              tenantId,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list durable event log branch points: %w", err)
+		return nil, nil, err
 	}
 
-	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(branchPoints))
-
-	for _, bp := range branchPoints {
-		nextBranchIdToBranchPoint[bp.NextBranchID] = bp
+	if len(rows) == 0 {
+		return nil, nil, pgx.ErrNoRows
 	}
 
-	return nextBranchIdToBranchPoint, nil
+	logFile := rows[0].V1DurableEventLogFile
+
+	nextBranchIdToBranchPoint := make(map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(rows))
+
+	for _, row := range rows {
+		logFile := row.V1DurableEventLogFile
+
+		if !row.NextBranchID.Valid {
+			continue
+		}
+
+		nextBranchIdToBranchPoint[row.NextBranchID.Int64] = &sqlcv1.V1DurableEventLogBranchPoint{
+			TenantID:               logFile.TenantID,
+			ID:                     row.ID.Int64,
+			InsertedAt:             row.InsertedAt,
+			DurableTaskID:          logFile.DurableTaskID,
+			DurableTaskInsertedAt:  logFile.DurableTaskInsertedAt,
+			FirstNodeIDInNewBranch: row.FirstNodeIDInNewBranch.Int64,
+			ParentBranchID:         row.ParentBranchID.Int64,
+			NextBranchID:           row.NextBranchID.Int64,
+		}
+	}
+
+	return &logFile, nextBranchIdToBranchPoint, nil
 }
 
 type BranchIdFromNodeIdTuple struct {
@@ -1123,9 +1137,15 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			continue
 		}
 
+		if latestEntryByChild[to.ExternalId] == nil {
+			to.ShouldSkip = false
+			to.ExternalId = uuid.New()
+			continue
+		}
+
 		if to.ReplayOrphanedChildren {
 			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
-			latestSatisfied := latestEntryByChild[to.ExternalId] != nil && latestEntryByChild[to.ExternalId].IsSatisfied
+			latestSatisfied := latestEntryByChild[to.ExternalId].IsSatisfied
 
 			if forcedReplayChildren != nil && !forced && latestSatisfied {
 				// untouched subtree: the skip path returns the cached result without re-running
@@ -1311,7 +1331,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
-		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+		waitForResult, err = r.handleEventLookback(ctx, tenantId, task, waitForResult, opts.WaitFor.WaitForConditions)
 
 		if err != nil {
 			return nil, err
@@ -1410,15 +1430,10 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 
 	defer rollback()
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	logFile, nextBranchIdToBranchPoint, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to lock log file: %w", err)
-	}
-
-	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to list log branch points: %w", err)
 	}
 
 	if logFile.LatestInvocationCount != opts.InvocationCount {
@@ -2031,7 +2046,11 @@ func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx cont
 	return claimedSet, nil
 }
 
-func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, initialWaitForResult *IngestWaitForResult, waitForConditions []CreateExternalSignalConditionOpt) (*IngestWaitForResult, error) {
+	if initialWaitForResult.IsSatisfied {
+		return initialWaitForResult, nil
+	}
+
 	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
 
 	if err != nil {
@@ -2062,6 +2081,25 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	if len(previousEventsFound) == 0 {
 		return initialWaitForResult, nil
+	}
+
+	targetMatchID, err := r.queries.GetActiveMatchForDurableWait(ctx, lookbackTx, sqlcv1.GetActiveMatchForDurableWaitParams{
+		Tenantid:              tenantId,
+		Eventkeys:             lookbackParams.Keys,
+		Eventscopes:           lookbackParams.Scopes,
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Durabletaskexternalid: task.ExternalID,
+		Nodeid:                initialWaitForResult.NodeId,
+		Branchid:              initialWaitForResult.BranchId,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return initialWaitForResult, nil
+		}
+
+		return nil, fmt.Errorf("failed to find active match for durable wait: %w", err)
 	}
 
 	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
@@ -2100,40 +2138,49 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			payload = nil
 		}
 
+		var resourceHint *string
+		if row.Scope.Valid {
+			resourceHint = &row.Scope.String
+		}
+
 		retroCandidates = append(retroCandidates, CandidateEventMatch{
 			ID:             row.ExternalID,
 			EventTimestamp: row.SeenAt.Time,
 			Key:            row.Key,
+			ResourceHint:   resourceHint,
 			Data:           payload,
 		})
 	}
 
-	if len(retroCandidates) > 0 {
-		retroMatchResults, err := r.processEventMatches(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER)
+	retroMatchResults, err := r.processEventMatchesForTarget(ctx, lookbackTx, tenantId, retroCandidates, sqlcv1.V1EventTypeUSER, &targetMatchID)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process retroactive event matches: %w", err)
+	}
+
+	if len(retroMatchResults.SatisfiedDurableEventLogEntries) > 1 {
+		return nil, fmt.Errorf("expected at most one satisfied durable wait from targeted lookback, got %d", len(retroMatchResults.SatisfiedDurableEventLogEntries))
+	}
+
+	if len(retroMatchResults.SatisfiedDurableEventLogEntries) == 1 {
+		entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
+		if entry.DurableTaskExternalId != task.ExternalID || entry.NodeId != initialWaitForResult.NodeId || entry.BranchId != initialWaitForResult.BranchId {
+			return nil, fmt.Errorf("targeted lookback satisfied an unexpected durable wait")
 		}
 
-		if retroMatchResults != nil && len(retroMatchResults.SatisfiedDurableEventLogEntries) > 0 {
-			// note: this might be buggy but I _think_ it's okay to grab the first match here
-			// the main assumption is that we only ever get one entry back
-			entry := retroMatchResults.SatisfiedDurableEventLogEntries[0]
-
-			if err := lookbackOptTx.Commit(ctx); err != nil {
-				return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
-			}
-
-			return &IngestWaitForResult{
-				IsSatisfied:     true,
-				ResultPayload:   entry.Data,
-				InvocationCount: entry.InvocationCount,
-				NodeId:          initialWaitForResult.NodeId,
-				BranchId:        initialWaitForResult.BranchId,
-				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
-				SatisfiedOrder:  entry.SatisfiedOrder,
-			}, nil
+		if err := lookbackOptTx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("failed to commit lookback transaction: %w", err)
 		}
+
+		return &IngestWaitForResult{
+			IsSatisfied:     true,
+			ResultPayload:   entry.Data,
+			InvocationCount: entry.InvocationCount,
+			NodeId:          initialWaitForResult.NodeId,
+			BranchId:        initialWaitForResult.BranchId,
+			AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+			SatisfiedOrder:  entry.SatisfiedOrder,
+		}, nil
 	}
 
 	if err := lookbackOptTx.Commit(ctx); err != nil {
@@ -2261,7 +2308,7 @@ func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uui
 
 	tx := optTx.tx
 
-	logFile, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	logFile, nextBranchIdToBranchPoint, err := r.getAndLockLogFile(ctx, tx, tenantId, task.ID, task.InsertedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock log file: %w", err)
@@ -2269,11 +2316,6 @@ func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uui
 
 	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
-
-	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list log branch points: %w", err)
-	}
 
 	latestSatisfiedOrder, err := r.latestSatisfiedOrderBeforeBranchPoint(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
 	if err != nil {

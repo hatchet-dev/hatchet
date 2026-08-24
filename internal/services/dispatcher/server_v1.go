@@ -1601,6 +1601,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		ReplayOrphanedChildren: true,
 		ParentReExecuted:       req.ParentReExecuted,
+		IsDagStepTrigger:       true,
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName: req.WorkflowName,
 			// Pin to the DAG's original version so a mid-run deploy can't retarget the step.

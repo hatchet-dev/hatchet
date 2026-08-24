@@ -201,15 +201,13 @@ func dagDurableTask(
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case resp, ok := <-responseCh:
-			if !ok {
-				return fmt.Errorf("durable task session closed")
-			}
-			d.taskConsumer(ctx, resp)
+		resp, err := d.awaitResponse(ctx, responseCh)
+
+		if err != nil {
+			return err
 		}
+
+		d.taskConsumer(ctx, resp)
 	}
 
 	if d.err != nil {
@@ -229,6 +227,40 @@ func dagDurableTask(
 	}
 
 	return nil
+}
+
+// blocks until the child task returns - this is basically here to just reveal bottlenecks, especially on child spawning, in the traces
+func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.DurableTaskResponse) (*v1contracts.DurableTaskResponse, error) {
+	_, span := telemetry.NewSpan(ctx, "dag.awaitResponse")
+	defer span.End()
+
+	awaitingChildren, awaitingConditions := 0, 0
+
+	for _, t := range d.tasks {
+		switch {
+		case t.isTriggered && !t.isCompleted:
+			awaitingChildren++
+		case t.isWaiting && !t.isWaitSatisfied:
+			awaitingConditions++
+		}
+	}
+
+	span.SetAttributes(
+		attribute.Int("dag.awaiting_child_count", awaitingChildren),
+		attribute.Int("dag.awaiting_condition_count", awaitingConditions),
+		attribute.Int("dag.pending_task_count", len(d.pendingTasks)),
+	)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case resp, ok := <-responseCh:
+		if !ok {
+			return nil, fmt.Errorf("durable task session closed")
+		}
+
+		return resp, nil
+	}
 }
 
 func (d *dag) taskEmitter(ctx context.Context) error {

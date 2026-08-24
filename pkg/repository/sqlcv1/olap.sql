@@ -1794,21 +1794,31 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEventTriggers :copyfrom
-INSERT INTO v1_event_to_run_olap(
+-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@runIds::BIGINT[]) AS run_id,
+        UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at,
+        UNNEST(@eventIds::BIGINT[]) AS event_id,
+        UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
+        UNNEST(@filterIds::UUID[]) AS filter_id
+)
+
+INSERT INTO v1_event_to_run_olap (
     run_id,
     run_inserted_at,
     event_id,
     event_seen_at,
     filter_id
 )
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5
-)
+SELECT
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at,
+    NULLIF(filter_id, '00000000-0000-0000-0000-000000000000'::UUID) AS filter_id
+FROM inputs
+ON CONFLICT DO NOTHING
 ;
 
 -- name: ListEventKeys :many
