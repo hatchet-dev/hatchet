@@ -58,6 +58,10 @@ jobs:
         with:
           ruby-version: "3.2"
 
+      - name: Install docs dependencies
+        working-directory: frontend/docs
+        run: pnpm install --frozen-lockfile
+
       - name: Detect changed SDKs
         id: changes
         run: |

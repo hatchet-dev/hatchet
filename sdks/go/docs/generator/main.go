@@ -115,26 +115,25 @@ func run() error {
 		fmt.Println("wrote", path)
 	}
 
-	runPrettier(repoRoot, outDir)
-	return nil
+	return runPrettier(repoRoot, outDir)
 }
 
 // runPrettier formats the emitted files with the docs repo's own prettier so the
-// generated output is byte-stable under the repo's formatting checks. Best-effort:
-// skipped silently if the docs node_modules are not installed.
-func runPrettier(repoRoot, outDir string) {
+// generated output is byte-stable under the repo's formatting checks. Skipping it
+// silently would emit unformatted docs that churn CI, so a missing prettier is fatal.
+func runPrettier(repoRoot, outDir string) error {
 	bin := filepath.Join(repoRoot, "frontend", "docs", "node_modules", ".bin", "prettier")
 	if _, err := os.Stat(bin); err != nil {
-		fmt.Println("prettier not found; skipping formatting pass")
-		return
+		return fmt.Errorf("prettier not found at %s: run `pnpm install` in frontend/docs first", bin)
 	}
 	cmd := exec.Command(bin, "--write", "--log-level", "warn", outDir)
 	cmd.Dir = filepath.Join(repoRoot, "frontend", "docs")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "warning: prettier formatting pass failed:", err)
+		return fmt.Errorf("prettier formatting pass failed: %w", err)
 	}
+	return nil
 }
 
 func findRepoRoot(start string) (string, error) {
