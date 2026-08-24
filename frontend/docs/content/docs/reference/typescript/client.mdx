@@ -5,7 +5,7 @@ title: "Client"
 # Hatchet TypeScript SDK Reference
 
 This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
-Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
+Check out the [user guide](https://docs.hatchet.run/v1) for an introduction to getting your first tasks running.
 
 <a id="hatchetclient"></a>
 
@@ -51,7 +51,7 @@ Get the cron client for creating and managing cron workflow runs
 
 Returns
 
-[`CronClient`](/reference/typescript/feature-clients/crons#cronclient)
+[`CronClient`](feature-clients/crons#cronclient)
 
 A cron client instance
 
@@ -91,7 +91,7 @@ Get the filters client for creating and managing filters
 
 Returns
 
-[`FiltersClient`](/reference/typescript/feature-clients/filters#filtersclient)
+[`FiltersClient`](feature-clients/filters#filtersclient)
 
 A filters client instance
 
@@ -111,7 +111,7 @@ Get the logs client for creating and managing logs
 
 Returns
 
-[`LogsClient`](/reference/typescript/feature-clients/logs#logsclient)
+[`LogsClient`](feature-clients/logs#logsclient)
 
 A logs client instance
 
@@ -131,7 +131,7 @@ Get the metrics client for creating and managing metrics
 
 Returns
 
-[`MetricsClient`](/reference/typescript/feature-clients/metrics#metricsclient)
+[`MetricsClient`](feature-clients/metrics#metricsclient)
 
 A metrics client instance
 
@@ -151,7 +151,7 @@ Get the rate limits client for creating and managing rate limits
 
 Returns
 
-[`RatelimitsClient`](/reference/typescript/feature-clients/ratelimits#ratelimitsclient)
+[`RatelimitsClient`](feature-clients/ratelimits#ratelimitsclient)
 
 A rate limits client instance
 
@@ -171,7 +171,7 @@ Get the runs client for creating and managing runs
 
 Returns
 
-[`RunsClient`](/reference/typescript/feature-clients/runs#runsclient)
+[`RunsClient`](feature-clients/runs#runsclient)
 
 A runs client instance
 
@@ -191,7 +191,7 @@ Get the schedules client for creating and managing scheduled workflow runs
 
 Returns
 
-[`ScheduleClient`](/reference/typescript/feature-clients/schedules#scheduleclient)
+[`ScheduleClient`](feature-clients/schedules#scheduleclient)
 
 A schedules client instance
 
@@ -213,7 +213,7 @@ scheduled
 
 Returns
 
-[`ScheduleClient`](/reference/typescript/feature-clients/schedules#scheduleclient)
+[`ScheduleClient`](feature-clients/schedules#scheduleclient)
 
 <a id="tasks"></a>
 
@@ -225,7 +225,7 @@ Get the tasks client for creating and managing tasks
 
 Returns
 
-[`WorkflowsClient`](/reference/typescript/feature-clients/workflows#workflowsclient)
+[`WorkflowsClient`](feature-clients/workflows#workflowsclient)
 
 A tasks client instance
 
@@ -239,7 +239,7 @@ Get the tenant client for managing tenants
 
 Returns
 
-`TenantClient`
+[`TenantClient`](feature-clients/tenant#tenantclient)
 
 A tenant client instance
 
@@ -259,7 +259,7 @@ Get the webhooks client for creating and managing webhooks
 
 Returns
 
-[`WebhooksClient`](/reference/typescript/feature-clients/webhooks#webhooksclient)
+[`WebhooksClient`](feature-clients/webhooks#webhooksclient)
 
 A webhooks client instance
 
@@ -279,7 +279,7 @@ Get the workers client for creating and managing workers
 
 Returns
 
-[`WorkersClient`](/reference/typescript/feature-clients/workers#workersclient)
+[`WorkersClient`](feature-clients/workers#workersclient)
 
 A workers client instance
 
@@ -299,7 +299,7 @@ Get the workflows client for creating and managing workflows
 
 Returns
 
-[`WorkflowsClient`](/reference/typescript/feature-clients/workflows#workflowsclient)
+[`WorkflowsClient`](feature-clients/workflows#workflowsclient)
 
 A workflows client instance
 
@@ -327,13 +327,13 @@ Preview: batch tasks are in beta and may change in future releases.
 
 Parameters
 
-| Parameter | Type                                                                                                                                                                                            | Description                      |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `options` | [`CreateBatchTaskWorkflowOpts`](/reference/typescript/Runnables#createbatchtaskworkflowopts)\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Batch task configuration options |
+| Parameter | Type                                                                                                                                                                      | Description                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `options` | [`CreateBatchTaskWorkflowOpts`](runnables#createbatchtaskworkflowopts)\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Batch task configuration options |
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance
 
@@ -341,13 +341,13 @@ Creates a new batch task workflow with types inferred from the function paramete
 
 Parameters
 
-| Parameter | Type                                                                                                                                               | Description                                                       |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](/reference/typescript/Runnables#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | Batch task configuration options with function that defines types |
+| Parameter | Type                                                                                                                         | Description                                                       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](runnables#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | Batch task configuration options with function that defines types |
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
 
@@ -368,7 +368,7 @@ Parameters
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance for a durable task
 
@@ -382,7 +382,7 @@ Parameters
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
 
@@ -467,7 +467,7 @@ Parameters
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance
 
@@ -481,7 +481,7 @@ Parameters
 
 Returns
 
-[`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+[`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
 
 A TaskWorkflowDeclaration instance with inferred types
 
@@ -518,7 +518,7 @@ Parameters
 
 Returns
 
-[`WorkflowDeclaration`](/reference/typescript/Runnables#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
+[`WorkflowDeclaration`](runnables#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
 
 A new Workflow instance
 

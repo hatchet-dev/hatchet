@@ -1,0 +1,201 @@
+---
+title: "Webhooks"
+---
+
+# Webhooks Client
+
+Accessed via `client.Webhooks()` on the [Hatchet client](../client).
+
+## WebhooksClient
+
+WebhooksClient provides methods for managing webhook configurations
+
+Methods:
+
+| Name     | Description                                                               |
+| -------- | ------------------------------------------------------------------------- |
+| `Create` | Create creates a new webhook configuration.                               |
+| `Delete` | Delete removes a webhook configuration.                                   |
+| `Get`    | Get retrieves a specific webhook by its name.                             |
+| `List`   | List retrieves a collection of webhooks based on the provided parameters. |
+| `Update` | Update updates an existing webhook configuration.                         |
+
+### Functions
+
+#### `Create`
+
+Create creates a new webhook configuration.
+
+```go
+func (c *WebhooksClient) Create(ctx context.Context, opts CreateWebhookOpts) (*rest.V1Webhook, error)
+```
+
+Parameters:
+
+| Name   | Type                |
+| ------ | ------------------- |
+| `ctx`  | `context.Context`   |
+| `opts` | `CreateWebhookOpts` |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*rest.V1Webhook` |
+| `error`           |
+
+#### `Delete`
+
+Delete removes a webhook configuration.
+
+```go
+func (c *WebhooksClient) Delete(ctx context.Context, webhookName string) error
+```
+
+Parameters:
+
+| Name          | Type              |
+| ------------- | ----------------- |
+| `ctx`         | `context.Context` |
+| `webhookName` | `string`          |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `Get`
+
+Get retrieves a specific webhook by its name.
+
+```go
+func (c *WebhooksClient) Get(ctx context.Context, webhookName string) (*rest.V1Webhook, error)
+```
+
+Parameters:
+
+| Name          | Type              |
+| ------------- | ----------------- |
+| `ctx`         | `context.Context` |
+| `webhookName` | `string`          |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*rest.V1Webhook` |
+| `error`           |
+
+#### `List`
+
+List retrieves a collection of webhooks based on the provided parameters.
+
+```go
+func (c *WebhooksClient) List(ctx context.Context, opts rest.V1WebhookListParams) (*rest.V1WebhookList, error)
+```
+
+Parameters:
+
+| Name   | Type                       |
+| ------ | -------------------------- |
+| `ctx`  | `context.Context`          |
+| `opts` | `rest.V1WebhookListParams` |
+
+Returns:
+
+| Type                  |
+| --------------------- |
+| `*rest.V1WebhookList` |
+| `error`               |
+
+#### `Update`
+
+Update updates an existing webhook configuration.
+
+```go
+func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts UpdateWebhookOpts) (*rest.V1Webhook, error)
+```
+
+Parameters:
+
+| Name          | Type                |
+| ------------- | ------------------- |
+| `ctx`         | `context.Context`   |
+| `webhookName` | `string`            |
+| `opts`        | `UpdateWebhookOpts` |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*rest.V1Webhook` |
+| `error`           |
+
+## Related types
+
+### WebhookAuth
+
+### BasicAuth
+
+Fields:
+
+| Name       | Type     | Description |
+| ---------- | -------- | ----------- |
+| `Username` | `string` |             |
+| `Password` | `string` |             |
+
+### APIKeyAuth
+
+Fields:
+
+| Name         | Type     | Description |
+| ------------ | -------- | ----------- |
+| `HeaderName` | `string` |             |
+| `APIKey`     | `string` |             |
+
+### HMACAuth
+
+Fields:
+
+| Name                  | Type                          | Description |
+| --------------------- | ----------------------------- | ----------- |
+| `SigningSecret`       | `string`                      |             |
+| `SignatureHeaderName` | `string`                      |             |
+| `Algorithm`           | `rest.V1WebhookHMACAlgorithm` |             |
+| `Encoding`            | `rest.V1WebhookHMACEncoding`  |             |
+
+### SvixAuth
+
+SvixAuth implements Svix's signature verification protocol for webhooks. Only the signing secret (whsec\_...) is required; signature headers and algorithms are configured explicitly to match Svix's expectations.
+
+Fields:
+
+| Name            | Type     | Description |
+| --------------- | -------- | ----------- |
+| `SigningSecret` | `string` |             |
+
+### CreateWebhookOpts
+
+Fields:
+
+| Name                           | Type                       | Description |
+| ------------------------------ | -------------------------- | ----------- |
+| `Name`                         | `string`                   |             |
+| `SourceName`                   | `rest.V1WebhookSourceName` |             |
+| `EventKeyExpression`           | `string`                   |             |
+| `ScopeExpression`              | `*string`                  |             |
+| `StaticPayload`                | `*map[string]interface{}`  |             |
+| `ReturnEventAsResponsePayload` | `*bool`                    |             |
+| `Auth`                         | `WebhookAuth`              |             |
+
+### UpdateWebhookOpts
+
+Fields:
+
+| Name                           | Type                      | Description |
+| ------------------------------ | ------------------------- | ----------- |
+| `EventKeyExpression`           | `*string`                 |             |
+| `ScopeExpression`              | `*string`                 |             |
+| `StaticPayload`                | `*map[string]interface{}` |             |
+| `ReturnEventAsResponsePayload` | `*bool`                   |             |

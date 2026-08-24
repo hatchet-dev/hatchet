@@ -185,6 +185,7 @@ tasks:
       - task: generate-proto
       - task: generate-sqlc
       - task: generate-docs
+      - task: generate-sdk-docs
       - task: pre-commit-run
   install-dependencies:
     deps: [venv]
@@ -205,6 +206,29 @@ tasks:
       - task: sync-changelog
       - task: fmt
       - task: sync-agent-instructions
+  generate-sdk-docs:
+    desc: Regenerate SDK reference docs into frontend/docs/content/docs/reference
+    cmds:
+      - task: generate-sdk-docs-python
+      - task: generate-sdk-docs-typescript
+      - task: generate-sdk-docs-go
+      - task: generate-sdk-docs-ruby
+  generate-sdk-docs-python:
+    dir: sdks/python
+    cmds:
+      - bash docs/generate.sh
+  generate-sdk-docs-typescript:
+    dir: sdks/typescript
+    cmds:
+      - bash docs/generate.sh
+  generate-sdk-docs-go:
+    dir: sdks/go
+    cmds:
+      - go run ./docs/generator
+  generate-sdk-docs-ruby:
+    dir: sdks/ruby
+    cmds:
+      - bash docs/generate.sh
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
