@@ -98,10 +98,23 @@ module Hatchet
       @id ||= resolve_workflow_id
     end
 
-    # Define a task within this workflow
+    # Define a task within this workflow. The block receives the workflow input
+    # and a {Context} object, and its return value (a Hash) becomes the task
+    # output.
     #
-    # @param name [Symbol, String] Task name
-    # @param opts [Hash] Task options (parents:, execution_timeout:, retries:, etc.)
+    # @param name [Symbol, String] The name of the task
+    # @option opts [Array<Task, Symbol>] :parents ([]) A list of tasks that are parents of the task. Note: parents must be defined before their children
+    # @option opts [Integer, String, nil] :execution_timeout (nil) The maximum time to wait for the task to complete, in seconds or as a duration string (e.g. "60s")
+    # @option opts [Integer, String, nil] :schedule_timeout (nil) The maximum time to wait for the task to be scheduled
+    # @option opts [Integer, nil] :retries (nil) The number of times to retry the task before failing
+    # @option opts [Float, nil] :backoff_factor (nil) The backoff factor for controlling exponential backoff in retries
+    # @option opts [Integer, nil] :backoff_max_seconds (nil) The maximum number of seconds to allow retries with exponential backoff to continue
+    # @option opts [Array<RateLimit>] :rate_limits ([]) A list of rate limit configurations for the task
+    # @option opts [ConcurrencyExpression, Array<ConcurrencyExpression>, nil] :concurrency (nil) A concurrency expression (or list of them) controlling the concurrency settings for this task
+    # @option opts [Hash, nil] :desired_worker_labels (nil) A hash of desired worker labels that determine to which worker the task should be assigned
+    # @option opts [Array] :wait_for ([]) A list of conditions that must be met before the task can run
+    # @option opts [Array] :skip_if ([]) A list of conditions that, if met, will cause the task to be skipped
+    # @option opts [Hash, nil] :deps (nil) Dependency providers to inject into the task's context
     # @yield [input, ctx] The task execution block
     # @return [Task] The created task
     def task(name, **opts, &)
@@ -238,55 +251,65 @@ module Hatchet
       ::V1::CreateWorkflowVersionRequest.new(**args)
     end
 
-    # Run this workflow synchronously
+    # Run this workflow synchronously and wait for it to complete.
     #
-    # @param input [Hash] Workflow input
-    # @param options [TriggerWorkflowOptions, nil] Trigger options
-    # @return [Hash] The workflow run output
+    # @param input [Hash] The input data for the workflow
+    # @param options [TriggerWorkflowOptions, nil] Additional options for workflow execution, such as +additional_metadata:+ and +priority:+
+    # @return [Hash] The workflow run output, keyed by task name (e.g. `{"step1" => {...}, "step2" => {...}}`)
+    # @raise [Hatchet::Error] If no client is associated with the workflow
+    # @raise [Hatchet::FailedRunError] If the workflow run failed
     def run(input = {}, options: nil)
       raise Error, "No client associated with workflow #{@name}" unless @client
 
       @client.admin.trigger_workflow(self, input, options: options)
     end
 
-    # Run this workflow without waiting for the result
+    # Trigger a workflow run without waiting for it to complete. Useful for
+    # starting a run and immediately returning a reference to it without
+    # blocking while the workflow runs.
     #
-    # @param input [Hash] Workflow input
-    # @param options [TriggerWorkflowOptions, nil] Trigger options
-    # @return [WorkflowRunRef]
+    # @param input [Hash] The input data for the workflow
+    # @param options [TriggerWorkflowOptions, nil] Additional options for workflow execution
+    # @return [WorkflowRunRef] A reference to the workflow run, whose +result+ method blocks until the run completes
+    # @raise [Hatchet::Error] If no client is associated with the workflow
     def run_no_wait(input = {}, options: nil)
       raise Error, "No client associated with workflow #{@name}" unless @client
 
       @client.admin.trigger_workflow_no_wait(self, input, options: options)
     end
 
-    # Run many instances of this workflow in bulk
+    # Run this workflow in bulk and wait for all runs to complete. Runs are
+    # triggered via bulk gRPC triggering (batched by 1000) and results are
+    # collected concurrently.
     #
-    # @param items [Array<Hash>] Bulk run items
-    # @param return_exceptions [Boolean] Return exceptions instead of raising
-    # @return [Array] Results
+    # @param items [Array<Hash>] A list of bulk run items, as created by {#create_bulk_run_item}
+    # @param return_exceptions [Boolean] If +true+, exceptions are returned as part of the results instead of being raised
+    # @return [Array] A list of results for each workflow run
+    # @raise [Hatchet::Error] If no client is associated with the workflow
     def run_many(items, return_exceptions: false)
       raise Error, "No client associated with workflow #{@name}" unless @client
 
       @client.admin.trigger_workflow_many(self, items, return_exceptions: return_exceptions)
     end
 
-    # Run many instances without waiting for results
+    # Run this workflow in bulk without waiting for the runs to complete.
     #
-    # @param items [Array<Hash>] Bulk run items
-    # @return [Array<WorkflowRunRef>]
+    # @param items [Array<Hash>] A list of bulk run items, as created by {#create_bulk_run_item}
+    # @return [Array<WorkflowRunRef>] A list of references to the triggered workflow runs
+    # @raise [Hatchet::Error] If no client is associated with the workflow
     def run_many_no_wait(items)
       raise Error, "No client associated with workflow #{@name}" unless @client
 
       @client.admin.trigger_workflow_many_no_wait(self, items)
     end
 
-    # Create a bulk run item for use with run_many
+    # Create a bulk run item for this workflow, intended to be used with the
+    # {#run_many} methods.
     #
-    # @param input [Hash] Input data
-    # @param key [String, nil] Deduplication key
-    # @param options [TriggerWorkflowOptions, nil] Trigger options
-    # @return [Hash] Bulk run item
+    # @param input [Hash] The input data for the workflow
+    # @param key [String, nil] The key for the workflow run, used for identification and deduplication
+    # @param options [TriggerWorkflowOptions, nil] Additional options for the workflow run
+    # @return [Hash] A bulk run item that can be passed to the +run_many+ methods
     def create_bulk_run_item(input: {}, key: nil, options: nil)
       item = { input: input }
       item[:key] = key if key
@@ -294,24 +317,26 @@ module Hatchet
       item
     end
 
-    # Schedule this workflow for future execution
+    # Schedule this workflow to run at a specific time.
     #
-    # @param time [Time] When to execute
-    # @param input [Hash] Workflow input
-    # @param options [ScheduleTriggerWorkflowOptions, nil] Schedule options
-    # @return [Object] Schedule result
+    # @param time [Time] When to execute the workflow
+    # @param input [Hash] The input data for the workflow
+    # @param options [ScheduleTriggerWorkflowOptions, nil] Additional schedule options
+    # @return [Object] The schedule response from the Hatchet engine
+    # @raise [Hatchet::Error] If no client is associated with the workflow
     def schedule(time, input: {}, options: nil)
       raise Error, "No client associated with workflow #{@name}" unless @client
 
       @client.admin.schedule_workflow(self, time, input: input, options: options)
     end
 
-    # Create a cron trigger for this workflow
+    # Create a cron trigger for this workflow.
     #
-    # @param cron_name [String] Name for the cron
-    # @param expression [String] Cron expression
-    # @param input [Hash] Workflow input
-    # @return [Object] Cron result
+    # @param cron_name [String] The name of the cron job
+    # @param expression [String] The cron expression that defines the schedule
+    # @param input [Hash] The input data for the workflow
+    # @return [Object] The created cron workflow trigger
+    # @raise [Hatchet::Error] If no client is associated with the workflow
     def create_cron(cron_name, expression, input: {})
       raise Error, "No client associated with workflow #{@name}" unless @client
 

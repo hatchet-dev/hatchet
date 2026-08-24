@@ -1,0 +1,33 @@
+---
+title: "CEL"
+---
+
+<a id="celclient"></a>
+
+### CEL Client
+
+Client for debugging CEL expressions.
+
+#### Methods
+
+<a id="debug"></a>
+
+##### `debug()`
+
+Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production.
+
+Parameters
+
+| Parameter | Type            | Description                                            |
+| --------- | --------------- | ------------------------------------------------------ |
+| `input`   | `DebugCELInput` | The input data to evaluate the CEL expression against. |
+
+Returns
+
+`Promise`\<`CELEvaluationResult`\>
+
+A promise that resolves to the evaluation result, which can either be a success with an output or an error with a message.
+
+Throws
+
+Will throw an error if the input is invalid or the API call fails.

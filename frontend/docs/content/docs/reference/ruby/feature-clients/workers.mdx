@@ -1,0 +1,102 @@
+---
+title: "Workers"
+---
+
+# Workers Client
+
+Workers client for managing workers programmatically within Hatchet.
+
+This class provides a high-level interface for retrieving, listing, and updating workers in the Hatchet system.
+
+```ruby
+worker = hatchet.workers.get("worker-id")
+```
+
+```ruby
+workers = hatchet.workers.list
+```
+
+It is available on the main client as `hatchet.workers`.
+
+Methods:
+
+| Name     | Description                     |
+| -------- | ------------------------------- |
+| `get`    | Get a worker by its ID.         |
+| `list`   | List all workers in the tenant. |
+| `update` | Update a worker by its ID.      |
+
+### Functions
+
+#### `get`
+
+Get a worker by its ID.
+
+```ruby
+worker = hatchet.workers.get("worker-123")
+```
+
+Parameters:
+
+| Name        | Type     | Description                       | Default    |
+| ----------- | -------- | --------------------------------- | ---------- |
+| `worker_id` | `String` | The ID of the worker to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The worker details. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `list`
+
+List all workers in the tenant.
+
+```ruby
+workers = hatchet.workers.list
+```
+
+Returns:
+
+| Type     | Description        |
+| -------- | ------------------ |
+| `Object` | A list of workers. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `update`
+
+Update a worker by its ID.
+
+```ruby
+updated = hatchet.workers.update("worker-123", { is_paused: true })
+```
+
+Parameters:
+
+| Name        | Type     | Description                     | Default    |
+| ----------- | -------- | ------------------------------- | ---------- |
+| `worker_id` | `String` | The ID of the worker to update. | _required_ |
+| `opts`      | `Hash`   | The update options.             | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The updated worker. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

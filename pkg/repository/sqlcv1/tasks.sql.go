@@ -2444,8 +2444,6 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = $1::uuid
         AND timeout_at <= NOW()
-        -- evicted tasks are not eligible for timeout
-        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT

@@ -1,0 +1,190 @@
+name: generate sdk reference docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sdks/**"
+      - "pkg/worker/**"
+  workflow_dispatch:
+
+jobs:
+  generate:
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          # PRs created with the default GITHUB_TOKEN don't trigger pull_request
+          # workflows, so required checks never run and auto-merge stalls (or
+          # merges unchecked). Set SDK_DOCS_PR_TOKEN (a PAT or GitHub App token)
+          # to get normal CI on the generated PRs; without it, the PR is still
+          # created but must be watched/merged manually.
+          token: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Install Task
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 10.16.1
+          run_install: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
+        with:
+          version: 2.3.0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1.316.0
+        with:
+          ruby-version: "3.2"
+
+      - name: Install docs dependencies
+        working-directory: frontend/docs
+        run: pnpm install --frozen-lockfile
+
+      - name: Detect changed SDKs
+        id: changes
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED="all"
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}")
+          fi
+
+          for lang in python typescript go ruby; do
+            if [ "$CHANGED" = "all" ] || echo "$CHANGED" | grep -q "^sdks/$lang/"; then
+              echo "$lang=true" >> $GITHUB_OUTPUT
+            elif [ "$lang" = "go" ] && echo "$CHANGED" | grep -q "^pkg/worker/"; then
+              # the Go reference is also generated from pkg/worker (Context interfaces)
+              echo "go=true" >> $GITHUB_OUTPUT
+            else
+              echo "$lang=false" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      - name: Generate Python reference
+        if: steps.changes.outputs.python == 'true'
+        run: task generate-sdk-docs-python
+
+      - name: Generate TypeScript reference
+        if: steps.changes.outputs.typescript == 'true'
+        run: task generate-sdk-docs-typescript
+
+      - name: Generate Go reference
+        if: steps.changes.outputs.go == 'true'
+        run: task generate-sdk-docs-go
+
+      - name: Generate Ruby reference
+        if: steps.changes.outputs.ruby == 'true'
+        run: task generate-sdk-docs-ruby
+
+      - name: Check for changes in reference docs
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
+            UNEXPECTED_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^frontend/docs/content/docs/reference/" | grep -v "^sdks/.*/docs/" || true)
+
+            if [ -n "$UNEXPECTED_CHANGES" ]; then
+              echo "Error: Changes detected outside of reference docs:"
+              echo "$UNEXPECTED_CHANGES"
+              echo "changed=false" >> $GITHUB_OUTPUT
+              exit 1
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create branch and commit changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          BRANCH_NAME="regenerate-sdk-docs-${{ github.sha }}"
+          git checkout -b "$BRANCH_NAME"
+          git add -A frontend/docs/content/docs/reference/ sdks/*/docs/
+          git commit -m "chore: regenerate SDK reference docs"
+          git push origin "$BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        id: create-branch
+
+      - name: Ensure label exists
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create autogenerated-sdk-docs --force --description "Autogenerated SDK reference docs" --color "0E8A16"
+
+      - name: Close existing autogenerated-sdk-docs PRs
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_PRS=$(gh pr list --label "autogenerated-sdk-docs" --state open --json number --jq '.[].number')
+
+          for pr in $EXISTING_PRS; do
+            if [ -n "$pr" ]; then
+              echo "Closing existing autogenerated-sdk-docs PR #$pr"
+              gh pr close $pr --comment "Closing in favor of newer autogenerated-sdk-docs PR"
+            fi
+          done
+
+      - name: Create Pull Request
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "chore: regenerate SDK reference docs" \
+            --body "Automated regeneration of SDK reference docs from the main branch." \
+            --head "${{ steps.create-branch.outputs.branch_name }}" \
+            --base main \
+            --label "autogenerated-sdk-docs"
+        id: create-pr
+
+      - name: Enable auto-merge
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge --auto --squash "${{ steps.create-branch.outputs.branch_name }}" \
+            || echo "Auto-merge not available (branch protection may require review); PR stays open for manual merge"
+
+      - name: Request review from triggering author
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SDK_DOCS_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          AUTHOR="${{ github.actor }}"
+
+          if [ "$AUTHOR" != "github-actions[bot]" ]; then
+            gh pr edit "${{ steps.create-branch.outputs.branch_name }}" --add-reviewer "$AUTHOR" || {
+              gh pr comment "${{ steps.create-branch.outputs.branch_name }}" --body "@$AUTHOR Please review this autogenerated PR"
+            }
+            echo "Requested review from $AUTHOR"
+          else
+            echo "Skipping review request as author is github-actions bot"
+          fi

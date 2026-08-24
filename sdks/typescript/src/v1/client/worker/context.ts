@@ -134,7 +134,7 @@ export class Context<T, K = {}> {
   overridesData: Record<string, any> = {};
   _logger: Logger;
 
-  /** @deprecated — kept for backward compat; prefer {@link nextChildIndex}. */
+  /** @deprecated Kept for backward compat; prefer {@link nextChildIndex}. */
   spawnIndex: number = 0;
   streamIndex = 0;
 
@@ -197,7 +197,7 @@ export class Context<T, K = {}> {
   async cancel() {
     if (this.action.batchId) {
       // Batch tasks share one context across every buffered member, so there is no single
-      // task-run id to cancel — cancel every member of the batch instead. `this.data` is
+      // task-run id to cancel, so cancel every member of the batch instead. `this.data` is
       // the raw batch-items map for a START_BATCH action, keyed by each member's
       // task-run external id.
       const memberIds = Object.keys(this.data ?? {});

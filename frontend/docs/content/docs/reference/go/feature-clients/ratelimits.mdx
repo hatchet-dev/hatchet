@@ -1,0 +1,76 @@
+---
+title: "Rate Limits"
+---
+
+# Rate Limits Client
+
+Accessed via `client.RateLimits()` on the [Hatchet client](../client).
+
+## RateLimitsClient
+
+RateLimitsClient provides methods for interacting with rate limits
+
+Methods:
+
+| Name     | Description                                                             |
+| -------- | ----------------------------------------------------------------------- |
+| `List`   | List retrieves rate limits based on the provided parameters (optional). |
+| `Upsert` | Upsert creates or updates a rate limit with the provided options.       |
+
+### Functions
+
+#### `List`
+
+List retrieves rate limits based on the provided parameters (optional).
+
+```go
+func (c *RateLimitsClient) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitList, error)
+```
+
+Parameters:
+
+| Name   | Type                        |
+| ------ | --------------------------- |
+| `ctx`  | `context.Context`           |
+| `opts` | `*rest.RateLimitListParams` |
+
+Returns:
+
+| Type                  |
+| --------------------- |
+| `*rest.RateLimitList` |
+| `error`               |
+
+#### `Upsert`
+
+Upsert creates or updates a rate limit with the provided options.
+
+```go
+func (c *RateLimitsClient) Upsert(opts CreateRatelimitOpts) error
+```
+
+Parameters:
+
+| Name   | Type                  |
+| ------ | --------------------- |
+| `opts` | `CreateRatelimitOpts` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+## Related types
+
+### CreateRatelimitOpts
+
+CreateRatelimitOpts contains options for creating or updating a rate limit.
+
+Fields:
+
+| Name       | Type                      | Description                                                         |
+| ---------- | ------------------------- | ------------------------------------------------------------------- |
+| `Key`      | `string`                  | key is the unique identifier for the rate limit                     |
+| `Limit`    | `int`                     | limit is the maximum number of requests allowed within the duration |
+| `Duration` | `types.RateLimitDuration` | duration specifies the time period for the rate limit               |
