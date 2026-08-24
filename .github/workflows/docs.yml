@@ -97,10 +97,12 @@ jobs:
       - name: Start server
         working-directory: frontend/docs
         run: |
-          pnpm run start &
-          timeout 60 bash -c 'until curl -sf -o /dev/null http://localhost:3000/v1; do sleep 2; done'
-      - name: Check internal links
-        # Crawls the rendered site so route-level links (which don't map 1:1 to
-        # content files) are validated. External links are skipped to avoid
-        # flaky-network failures; anchors are not validated by linkinator.
-        run: pnpm dlx linkinator@6.1.4 http://localhost:3000/ --recurse --skip "^(?!http://localhost:3000)" --verbosity error
+          pnpm run start > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/v1 > /dev/null && break; sleep 1; done
+      - name: Check for broken links
+        uses: step-security/linkinator-action@c5c14e450dc690abba177d09df1ace749b4fd45c # v1.11.2
+        with:
+          paths: http://localhost:3000
+          recurse: true
+          skip: "^(?!http://localhost:3000)"
+          verbosity: ERROR

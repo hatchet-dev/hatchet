@@ -10,6 +10,7 @@ on:
 
 jobs:
   generate:
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -78,8 +79,6 @@ jobs:
 
       - name: Generate Python reference
         if: steps.changes.outputs.python == 'true'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: task generate-sdk-docs-python
 
       - name: Generate TypeScript reference

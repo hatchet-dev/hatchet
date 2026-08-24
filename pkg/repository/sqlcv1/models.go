@@ -866,6 +866,7 @@ const (
 	TenantMemberRoleOWNER  TenantMemberRole = "OWNER"
 	TenantMemberRoleADMIN  TenantMemberRole = "ADMIN"
 	TenantMemberRoleMEMBER TenantMemberRole = "MEMBER"
+	TenantMemberRoleVIEWER TenantMemberRole = "VIEWER"
 )
 
 func (e *TenantMemberRole) Scan(src interface{}) error {
@@ -1488,6 +1489,48 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1MatchKind), nil
+}
+
+type V1OperatorKind string
+
+const (
+	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
+	V1OperatorKindDAG     V1OperatorKind = "DAG"
+)
+
+func (e *V1OperatorKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OperatorKind(s)
+	case string:
+		*e = V1OperatorKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OperatorKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1OperatorKind struct {
+	V1OperatorKind V1OperatorKind `json:"v1_operator_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if V1OperatorKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OperatorKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OperatorKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OperatorKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OperatorKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OperatorKind), nil
 }
 
 type V1OtelSpanKind string
@@ -2319,6 +2362,48 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 	return string(ns.WorkflowKind), nil
 }
 
+type WorkflowPauseQueueBehavior string
+
+const (
+	WorkflowPauseQueueBehaviorQUEUE WorkflowPauseQueueBehavior = "QUEUE"
+	WorkflowPauseQueueBehaviorDROP  WorkflowPauseQueueBehavior = "DROP"
+)
+
+func (e *WorkflowPauseQueueBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowPauseQueueBehavior(s)
+	case string:
+		*e = WorkflowPauseQueueBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowPauseQueueBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowPauseQueueBehavior struct {
+	WorkflowPauseQueueBehavior WorkflowPauseQueueBehavior `json:"WorkflowPauseQueueBehavior"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkflowPauseQueueBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowPauseQueueBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowPauseQueueBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowPauseQueueBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowPauseQueueBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowPauseQueueBehavior), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -2827,6 +2912,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -2997,29 +3083,32 @@ type TenantEntitlement struct {
 	AuditLogs                       bool               `json:"audit_logs"`
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
+	DagOperator                     bool               `json:"dag_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type TenantInviteLink struct {
-	ID           uuid.UUID        `json:"id"`
-	CreatedAt    pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
-	TenantId     uuid.UUID        `json:"tenantId"`
-	InviterEmail string           `json:"inviterEmail"`
-	InviteeEmail string           `json:"inviteeEmail"`
-	Expires      pgtype.Timestamp `json:"expires"`
-	Status       InviteLinkStatus `json:"status"`
-	Role         TenantMemberRole `json:"role"`
+	ID              uuid.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	InviterEmail    string           `json:"inviterEmail"`
+	InviteeEmail    string           `json:"inviteeEmail"`
+	Expires         pgtype.Timestamp `json:"expires"`
+	Status          InviteLinkStatus `json:"status"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads bool             `json:"canViewPayloads"`
 }
 
 type TenantMember struct {
-	ID        uuid.UUID        `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	TenantId  uuid.UUID        `json:"tenantId"`
-	UserId    uuid.UUID        `json:"userId"`
-	Role      TenantMemberRole `json:"role"`
+	ID              uuid.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	UserId          uuid.UUID        `json:"userId"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads bool             `json:"canViewPayloads"`
 }
 
 type TenantResourceLimit struct {
@@ -3254,6 +3343,7 @@ type V1DurableEventLogBranchPoint struct {
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
 	ParentBranchID         int64              `json:"parent_branch_id"`
 	NextBranchID           int64              `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replay_child_external_ids"`
 }
 
 type V1DurableEventLogEntry struct {
@@ -3276,6 +3366,7 @@ type V1DurableEventLogEntry struct {
 	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
 }
 
 type V1DurableEventLogFile struct {
@@ -3470,6 +3561,17 @@ type V1OperationIntervalSettings struct {
 	IntervalNanoseconds int64     `json:"interval_nanoseconds"`
 }
 
+type V1Operator struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	Name      string             `json:"name"`
+	Kind      V1OperatorKind     `json:"kind"`
+	Config    []byte             `json:"config"`
+	WorkerID  *uuid.UUID         `json:"worker_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1OtelTraceLookupOlap struct {
 	TenantID   uuid.UUID          `json:"tenant_id"`
 	ExternalID uuid.UUID          `json:"external_id"`
@@ -3497,6 +3599,26 @@ type V1OtelTraceOlap struct {
 	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
 	RetryCount            int32              `json:"retry_count"`
 	StartTime             pgtype.Timestamptz `json:"start_time"`
+}
+
+type V1PausedWorkflowQueueItem struct {
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Queue              string             `json:"queue"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ActionID           string             `json:"action_id"`
+	StepID             uuid.UUID          `json:"step_id"`
+	WorkflowID         uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt  pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	Priority           int32              `json:"priority"`
+	Sticky             V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount         int32              `json:"retry_count"`
+	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
+	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
 type V1Payload struct {
@@ -3718,20 +3840,22 @@ type V1Task struct {
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEvent struct {
-	ID             int64              `json:"id"`
-	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	EventType      V1TaskEventType    `json:"event_type"`
-	EventKey       pgtype.Text        `json:"event_key"`
-	CreatedAt      pgtype.Timestamp   `json:"created_at"`
-	Data           []byte             `json:"data"`
-	ExternalID     uuid.UUID          `json:"external_id"`
+	ID              int64              `json:"id"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount      int32              `json:"retry_count"`
+	EventType       V1TaskEventType    `json:"event_type"`
+	EventKey        pgtype.Text        `json:"event_key"`
+	CreatedAt       pgtype.Timestamp   `json:"created_at"`
+	Data            []byte             `json:"data"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	ChildExternalID *uuid.UUID         `json:"child_external_id"`
 }
 
 type V1TaskEventsOlap struct {
@@ -3917,6 +4041,7 @@ type Worker struct {
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
 	WebhookId               *uuid.UUID       `json:"webhookId"`
+	OperatorId              *uuid.UUID       `json:"operatorId"`
 	Language                NullWorkerSDKS   `json:"language"`
 	LanguageVersion         pgtype.Text      `json:"languageVersion"`
 	Os                      pgtype.Text      `json:"os"`
@@ -3943,14 +4068,17 @@ type WorkerLabel struct {
 }
 
 type Workflow struct {
-	ID          uuid.UUID        `json:"id"`
-	CreatedAt   pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
-	TenantId    uuid.UUID        `json:"tenantId"`
-	Name        string           `json:"name"`
-	Description pgtype.Text      `json:"description"`
-	IsPaused    pgtype.Bool      `json:"isPaused"`
+	ID                                      uuid.UUID                      `json:"id"`
+	CreatedAt                               pgtype.Timestamp               `json:"createdAt"`
+	UpdatedAt                               pgtype.Timestamp               `json:"updatedAt"`
+	DeletedAt                               pgtype.Timestamp               `json:"deletedAt"`
+	TenantId                                uuid.UUID                      `json:"tenantId"`
+	Name                                    string                         `json:"name"`
+	Description                             pgtype.Text                    `json:"description"`
+	IsPaused                                pgtype.Bool                    `json:"isPaused"`
+	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+	PausedWorkflowQueueTTL                  pgtype.Interval                `json:"pausedWorkflowQueueTTL"`
 }
 
 type WorkflowConcurrency struct {
@@ -4103,4 +4231,6 @@ type WorkflowVersion struct {
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
 	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
+	IsUsingDagOperator        bool                  `json:"isUsingDagOperator"`
+	DagShape                  []byte                `json:"dagShape"`
 }

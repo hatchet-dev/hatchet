@@ -27,7 +27,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   });
 
   // The Reference folder has no index page (so it gets no sidebar entry of its
-  // own) which also means getLayoutTabs skips it — add its tab manually,
+  // own) which also means getLayoutTabs skips it, so its tab is added manually,
   // pointing at the changelog. $folder keeps active-state detection working
   // for every /reference/* page.
   const reference = tree.children.find(

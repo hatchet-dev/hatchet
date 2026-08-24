@@ -817,7 +817,7 @@ func frontmatter(title string) string {
 }
 
 // No generated-file banner is emitted: JSX comments are banned in this repo's
-// MDX (prettier corrupts them — see .claude/skills/sdk-reference-docs/SKILL.md)
+// MDX (prettier corrupts them, see .claude/skills/sdk-reference-docs/SKILL.md)
 // and MDX has no other comment syntax. Ownership is documented in the skill and
 // enforced by regeneration.
 func generatedNotice() string {

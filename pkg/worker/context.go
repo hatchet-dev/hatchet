@@ -709,7 +709,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 
 	// Only inject traceparent if the caller hasn't already set one (e.g. the
 	// new Go SDK's RunNoWait injects a traceparent pointing to its own
-	// hatchet.run_workflow span — we must not overwrite it).
+	// hatchet.run_workflow span, which must not be overwritten).
 	if opts.AdditionalMetadata == nil || (*opts.AdditionalMetadata)["traceparent"] == "" {
 		opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
 	}
@@ -1093,7 +1093,9 @@ type DurableHatchetContext interface {
 	SleepFor(duration time.Duration) (*SingleWaitResult, error)
 
 	// WaitForEvent pauses execution until the specified user event is received.
-	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
+	// Options such as condition.WithEventScope and condition.WithConsiderEventsSince
+	// can be used to scope the wait and match events pushed before the wait started.
+	WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
@@ -1145,10 +1147,10 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 }
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
-func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+func (d *durableHatchetContext) WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error) {
 	namespace := d.c.Namespace()
 	eventKey = clientconfig.ApplyNamespace(eventKey, &namespace)
-	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
+	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression, opts...), "wait_for_event", eventKey)
 
 	if err != nil {
 		return nil, err

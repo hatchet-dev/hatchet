@@ -713,18 +713,19 @@ Returns:
 
 #### `WaitForEvent`
 
-WaitForEvent pauses execution until the specified user event is received.
+WaitForEvent pauses execution until the specified user event is received. Options such as condition.WithEventScope and condition.WithConsiderEventsSince can be used to scope the wait and match events pushed before the wait started.
 
 ```go
-func WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
+func WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error)
 ```
 
 Parameters:
 
-| Name         | Type     |
-| ------------ | -------- |
-| `eventKey`   | `string` |
-| `expression` | `string` |
+| Name         | Type                                 |
+| ------------ | ------------------------------------ |
+| `eventKey`   | `string`                             |
+| `expression` | `string`                             |
+| `opts`       | `...condition.UserEventConditionOpt` |
 
 Returns:
 

@@ -172,7 +172,7 @@ Parameters:
 | `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
 | `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
 | `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `int \| None`                     | The priority of the workflow run.                     | `None`     |
+| `priority`            | `int \| Priority \| None`         | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -193,7 +193,7 @@ Parameters:
 | `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
 | `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
 | `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `int \| None`                     | The priority of the workflow run.                     | `None`     |
+| `priority`            | `int \| Priority \| None`         | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -413,7 +413,8 @@ Returns:
 
 Cancel runs matching the specified filters in chunks.
 
-The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
 
 This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
@@ -433,7 +434,8 @@ Parameters:
 
 Replay runs matching the specified filters in chunks.
 
-The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
 
 This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
@@ -453,7 +455,8 @@ Parameters:
 
 Cancel runs matching the specified filters in chunks.
 
-The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
 
 This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
@@ -473,7 +476,8 @@ Parameters:
 
 Replay runs matching the specified filters in chunks.
 
-The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
+The motivation for this method is to provide an easy way to perform bulk operations by filters over a larger number of runs than
+the API would normally be able to handle, with automatic pagination and chunking to help limit the pressure on the API.
 
 This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 

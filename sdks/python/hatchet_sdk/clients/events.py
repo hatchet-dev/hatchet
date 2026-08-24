@@ -124,6 +124,12 @@ class EventClient(BaseRestClient):
         self._retrying_aio_put_stream_event = tenacity_retry(
             self._put_stream_event, self.client_config.tenacity
         )
+        self._retrying_aio_push_event = tenacity_retry(
+            self._push_event, self.client_config.tenacity
+        )
+        self._retrying_aio_bulk_push_event = tenacity_retry(
+            self._bulk_push_event, self.client_config.tenacity
+        )
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -196,9 +202,6 @@ class EventClient(BaseRestClient):
         else:
             options = PushEventOptions()
 
-        aio_client = self._get_or_create_aio_client()
-        push_event = tenacity_retry(aio_client.Push, self.client_config.tenacity)
-
         request = self._prepare_push_event_request(
             key=event_key,
             payload=payload,
@@ -208,12 +211,22 @@ class EventClient(BaseRestClient):
             scope=scope,
         )
 
-        response = cast(
-            EventProto,
-            await push_event(request, metadata=create_authorization_header(self.token)),  # type: ignore[misc]
+        response = await self._retrying_aio_push_event(
+            request, create_authorization_header(self.token)
         )
 
         return Event.from_proto(response)
+
+    async def _push_event(
+        self,
+        request: PushEventRequest,
+        metadata: tuple[tuple[str, str]],
+    ) -> EventProto:
+        aio_client = self._get_or_create_aio_client()
+        return cast(
+            EventProto,
+            await aio_client.Push(request, metadata=metadata),  # type: ignore[misc]
+        )
 
     def push(
         self,
@@ -287,19 +300,22 @@ class EventClient(BaseRestClient):
             ]
         )
 
-        client = self._get_or_create_aio_client()
-
-        bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
-
-        response = cast(
-            EventsProto,
-            await bulk_push(  # type: ignore[misc]
-                bulk_request,
-                metadata=create_authorization_header(self.token),
-            ),
+        response = await self._retrying_aio_bulk_push_event(
+            bulk_request, create_authorization_header(self.token)
         )
 
         return [Event.from_proto(event) for event in response.events]
+
+    async def _bulk_push_event(
+        self,
+        request: BulkPushEventRequest,
+        metadata: tuple[tuple[str, str]],
+    ) -> EventsProto:
+        aio_client = self._get_or_create_aio_client()
+        return cast(
+            EventsProto,
+            await aio_client.BulkPush(request, metadata=metadata),  # type: ignore[misc]
+        )
 
     def bulk_push(
         self,

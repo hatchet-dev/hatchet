@@ -25,12 +25,13 @@ For instance, the expression `input.user_id + ':' + additional_metadata.foobar` 
 
 You should primarily use concurrency control when you need to ensure fair access to resources across your application's users, projects, or organizations. By limiting the number of in-flight tasks for a particular user, you can prevent that user from monopolizing the system.
 
-Concurrency control also lets you limit the number of runs for a workflow globally, if you use a static CEL expression, such as `'global'`. This and [rate limiting](./rate-limits) are the recommended mechanisms for setting per-workflow throughput limits.
+Concurrency control also lets you limit the number of runs for a workflow globally, if you use a static CEL expression, such as `'global'`. This and [rate limiting](/v1/rate-limits) are the recommended mechanisms for setting per-workflow throughput limits.
 
 <Callout type="info">
   Concurrency limits how many runs happen at once. To instead control how much
   of a worker's capacity a single run consumes, so a heavy task takes up more
-  slots than a light one, see [Task Slot Cost](./advanced-assignment/slot-cost).
+  slots than a light one, see [Task Slot
+  Cost](/v1/advanced-assignment/slot-cost).
 </Callout>
 
 ## Available Strategies:

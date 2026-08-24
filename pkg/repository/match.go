@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"slices"
 	"time"
 
@@ -185,6 +184,8 @@ type MatchRepository interface {
 
 	ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
 	ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
+
+	EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
 }
 
 type MatchRepositoryImpl struct {
@@ -195,6 +196,10 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
 	}
+}
+
+func (r *sharedRepository) EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+	return r.boolExprEvaluator.EvalBoolExpr(ctx, expr, vars)
 }
 
 func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -230,13 +235,15 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 					return fmt.Errorf("user event condition requires a user event key")
 				}
 
-				conditions = append(conditions, r.userEventCondition(
+				userEventCondition := r.userEventCondition(
 					condition.OrGroupId,
 					condition.ReadableDataKey,
 					*condition.UserEventKey,
 					condition.Expression,
 					sqlcv1.V1MatchConditionActionCREATE,
-				))
+				)
+				userEventCondition.EventResourceHint = condition.UserEventScope
+				conditions = append(conditions, userEventCondition)
 			}
 		}
 
@@ -380,6 +387,10 @@ type DurableTaskNodeIdKey struct {
 }
 
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
+	return m.processEventMatchesForTarget(ctx, tx, tenantId, events, eventType, nil)
+}
+
+func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType, targetMatchID *int64) (*EventMatchResults, error) {
 	start := time.Now()
 
 	res := &EventMatchResults{}
@@ -387,25 +398,35 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	eventKeysWithHints := make([]string, 0, len(events))
 	eventKeysWithoutHints := make([]string, 0, len(events))
 	resourceHints := make([]string, 0, len(events))
-	uniqueEventKeys := make(map[string]struct{})
+	type eventKeyWithHint struct {
+		key  string
+		hint string
+	}
+
+	uniqueEventKeysWithHints := make(map[eventKeyWithHint]struct{})
+	uniqueEventKeysWithoutHints := make(map[string]struct{})
 	idsToEvents := make(map[uuid.UUID]CandidateEventMatch)
 
 	for _, event := range events {
 		idsToEvents[event.ID] = event
 
-		if event.ResourceHint == nil {
-			if _, ok := uniqueEventKeys[event.Key]; ok {
-				continue
+		// User event conditions without a resource hint match every scope.
+		if eventType == sqlcv1.V1EventTypeUSER || event.ResourceHint == nil {
+			if _, ok := uniqueEventKeysWithoutHints[event.Key]; !ok {
+				uniqueEventKeysWithoutHints[event.Key] = struct{}{}
+				eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 			}
 		}
 
-		uniqueEventKeys[event.Key] = struct{}{}
-
 		if event.ResourceHint != nil {
+			keyWithHint := eventKeyWithHint{key: event.Key, hint: *event.ResourceHint}
+			if _, ok := uniqueEventKeysWithHints[keyWithHint]; ok {
+				continue
+			}
+
+			uniqueEventKeysWithHints[keyWithHint] = struct{}{}
 			eventKeysWithHints = append(eventKeysWithHints, event.Key)
 			resourceHints = append(resourceHints, *event.ResourceHint)
-		} else {
-			eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 		}
 	}
 
@@ -446,6 +467,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 
 		matchConditions = append(matchConditions, matchConditionsWithoutHints...)
+	}
+
+	if targetMatchID != nil {
+		matchConditions = slices.DeleteFunc(matchConditions, func(condition *sqlcv1.ListMatchConditionsForEventRow) bool {
+			return condition.V1MatchID != *targetMatchID
+		})
 	}
 
 	// pass match conditions through CEL expressions parser
@@ -638,7 +665,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
@@ -660,7 +687,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.DesiredWorkerId = m.DesiredWorkerId(opt.Input)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
@@ -920,6 +947,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
 			nil,
+			nil,
 		)
 
 		if err != nil {
@@ -950,42 +978,15 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		Value: attribute.IntValue(len(conditions)),
 	})
 
-	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
 
 	for _, condition := range conditions {
-		expr := condition.Expression.String
-
-		if expr == "" {
-			expr = "true"
+		program, err := m.boolExprEvaluator.Compile(condition.Expression.String)
+		if err != nil {
+			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to compile CEL expression: %s", condition.Expression.String)
+			continue
 		}
-
-		hasher := fnv.New64a()
-		hasher.Write([]byte(expr))
-		exprHash := hasher.Sum64()
-
-		program, ok := m.celProgramCache.Get(exprHash)
-
-		if !ok {
-			ast, issues := m.env.Compile(expr)
-
-			if issues != nil && issues.Err() != nil {
-				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
-				continue
-			}
-
-			compiled, err := m.env.Program(ast)
-
-			if err != nil {
-				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-				continue
-			}
-
-			m.celProgramCache.Add(exprHash, compiled)
-			program = compiled
-		}
-
 		programs[condition.ID] = program
 		conditionIdsToConditions[condition.ID] = condition
 	}
@@ -1043,7 +1044,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				continue
 			}
 
-			if condition.EventResourceHint.Valid && condition.EventResourceHint.String != *event.ResourceHint {
+			if condition.EventResourceHint.Valid {
+				if event.ResourceHint == nil || condition.EventResourceHint.String != *event.ResourceHint {
+					continue
+				}
+			} else if eventType != sqlcv1.V1EventTypeUSER && event.ResourceHint != nil {
 				continue
 			}
 
@@ -1310,8 +1315,11 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 
 	// fixme: checking that the EventResourceHint is not a zero-valued uuid is a workaround,
 	// but there's likely a bug somewhere upstream where it's set to that instead of being nil,
-	// which would be better to fix at the root
-	if condition.EventResourceHint != nil && *condition.EventResourceHint != uuid.Nil.String() {
+	// which would be better to fix at the root. This only applies to INTERNAL conditions, whose
+	// hint is always an internally-generated task external ID; USER conditions carry a
+	// caller-supplied scope string, which must always be taken literally (a scope value that
+	// happens to equal the zero UUID is not a bug).
+	if condition.EventResourceHint != nil && (condition.EventType != sqlcv1.V1EventTypeINTERNAL || *condition.EventResourceHint != uuid.Nil.String()) {
 		param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
 	}
 

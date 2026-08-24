@@ -130,6 +130,12 @@ type WorkerRepository interface {
 	// It will only update the worker if there is no lock on the worker, else it will skip.
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 
+	// UpdateWorkerHeartbeats updates the heartbeat timestamp for many workers in a single statement.
+	UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeatAt time.Time) error
+
+	// PauseWorkers pauses many workers in a single statement.
+	PauseWorkers(ctx context.Context, workerIds []uuid.UUID) error
+
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 
@@ -791,6 +797,37 @@ func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId u
 	return nil
 }
 
+func (w *workerRepository) UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeat time.Time) error {
+	if len(workerIds) == 0 {
+		return nil
+	}
+
+	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatsParams{
+		Ids:             workerIds,
+		Lastheartbeatat: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not update worker heartbeats: %w", err)
+	}
+
+	return nil
+}
+
+func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UUID) error {
+	if len(workerIds) == 0 {
+		return nil
+	}
+
+	err := w.queries.PauseWorkers(ctx, w.pool, workerIds)
+
+	if err != nil {
+		return fmt.Errorf("could not pause workers: %w", err)
+	}
+
+	return nil
+}
+
 func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
 	_, err := w.queries.DeleteWorker(ctx, w.pool, workerId)
 
@@ -917,13 +954,11 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 }
 
 func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error {
-	_, err := w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
+	return w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
 		Workerid:     workerId,
 		Dispatcherid: dispatcherId,
 		Tenantid:     tenantId,
 	})
-
-	return err
 }
 
 func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error) {

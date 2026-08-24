@@ -550,13 +550,13 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 
 Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):
 
-| Name                 | Signature                                         | Description                                                                                     |
-| -------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `AndCondition`       | `AndCondition(conditions ...condition.Condition)` | AndCondition creates a condition that is satisfied when all of the provided conditions are met. |
-| `OrCondition`        | `OrCondition(conditions ...condition.Condition)`  | OrCondition creates a condition that is satisfied when any of the provided conditions are met.  |
-| `ParentCondition`    | `ParentCondition(task *Task, expression string)`  | ParentCondition creates a condition based on a parent task's output.                            |
-| `SleepCondition`     | `SleepCondition(duration time.Duration)`          | SleepCondition creates a condition that waits for a specified duration.                         |
-| `UserEventCondition` | `UserEventCondition(eventKey, expression string)` | UserEventCondition creates a condition that waits for a user event.                             |
+| Name                 | Signature                                                                                  | Description                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `AndCondition`       | `AndCondition(conditions ...condition.Condition)`                                          | AndCondition creates a condition that is satisfied when all of the provided conditions are met. |
+| `OrCondition`        | `OrCondition(conditions ...condition.Condition)`                                           | OrCondition creates a condition that is satisfied when any of the provided conditions are met.  |
+| `ParentCondition`    | `ParentCondition(task *Task, expression string)`                                           | ParentCondition creates a condition based on a parent task's output.                            |
+| `SleepCondition`     | `SleepCondition(duration time.Duration)`                                                   | SleepCondition creates a condition that waits for a specified duration.                         |
+| `UserEventCondition` | `UserEventCondition(eventKey, expression string, opts ...condition.UserEventConditionOpt)` | UserEventCondition creates a condition that waits for a user event.                             |
 
 ## Other types
 
@@ -645,10 +645,10 @@ DeprecationOpts provides optional configuration for EmitDeprecationNotice.
 
 Fields:
 
-| Name          | Type            | Description                                                                                                                                                                                                                                         |
-| ------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WarnWindow`  | `time.Duration` | WarnWindow is how long after start the notice is a warning. Defaults to 90 days if zero.                                                                                                                                                            |
-| `ErrorWindow` | `time.Duration` | ErrorWindow is how long after start the notice is an error log. After this window, calls have a 20% chance of returning an error. If zero (default), the error/raise phase is never reached — the notice stays at error-level logging indefinitely. |
+| Name          | Type            | Description                                                                                                                                                                                                                                           |
+| ------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WarnWindow`  | `time.Duration` | WarnWindow is how long after start the notice is a warning. Defaults to 90 days if zero.                                                                                                                                                              |
+| `ErrorWindow` | `time.Duration` | ErrorWindow is how long after start the notice is an error log. After this window, calls have a 20% chance of returning an error. If zero (default), the error/raise phase is never reached and the notice stays at error-level logging indefinitely. |
 
 ### DesiredWorkerLabel
 
@@ -1098,6 +1098,26 @@ Returns:
 | `bool`  |
 | `error` |
 
+### `WithConsiderEventsSince`
+
+WithConsiderEventsSince makes a user event condition also match events pushed after the given time but before the wait was registered (event lookback). Requires WithEventScope to be set as well.
+
+```go
+func WithConsiderEventsSince(since time.Time) condition.UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type        |
+| ------- | ----------- |
+| `since` | `time.Time` |
+
+Returns:
+
+| Type                              |
+| --------------------------------- |
+| `condition.UserEventConditionOpt` |
+
 ### `WithEmbedded`
 
 WithEmbedded runs Hatchet in-process. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
@@ -1117,3 +1137,23 @@ Returns:
 | Type               |
 | ------------------ |
 | `client.ClientOpt` |
+
+### `WithEventScope`
+
+WithEventScope restricts a user event condition to events pushed with a matching scope.
+
+```go
+func WithEventScope(scope string) condition.UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type     |
+| ------- | -------- |
+| `scope` | `string` |
+
+Returns:
+
+| Type                              |
+| --------------------------------- |
+| `condition.UserEventConditionOpt` |

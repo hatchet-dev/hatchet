@@ -179,21 +179,23 @@ Fields:
 
 Fields:
 
-| Name                 | Type                       | Description |
-| -------------------- | -------------------------- | ----------- |
-| `Name`               | `string`                   |             |
-| `SourceName`         | `rest.V1WebhookSourceName` |             |
-| `EventKeyExpression` | `string`                   |             |
-| `ScopeExpression`    | `*string`                  |             |
-| `StaticPayload`      | `*map[string]interface{}`  |             |
-| `Auth`               | `WebhookAuth`              |             |
+| Name                           | Type                       | Description |
+| ------------------------------ | -------------------------- | ----------- |
+| `Name`                         | `string`                   |             |
+| `SourceName`                   | `rest.V1WebhookSourceName` |             |
+| `EventKeyExpression`           | `string`                   |             |
+| `ScopeExpression`              | `*string`                  |             |
+| `StaticPayload`                | `*map[string]interface{}`  |             |
+| `ReturnEventAsResponsePayload` | `*bool`                    |             |
+| `Auth`                         | `WebhookAuth`              |             |
 
 ### UpdateWebhookOpts
 
 Fields:
 
-| Name                 | Type                      | Description |
-| -------------------- | ------------------------- | ----------- |
-| `EventKeyExpression` | `*string`                 |             |
-| `ScopeExpression`    | `*string`                 |             |
-| `StaticPayload`      | `*map[string]interface{}` |             |
+| Name                           | Type                      | Description |
+| ------------------------------ | ------------------------- | ----------- |
+| `EventKeyExpression`           | `*string`                 |             |
+| `ScopeExpression`              | `*string`                 |             |
+| `StaticPayload`                | `*map[string]interface{}` |             |
+| `ReturnEventAsResponsePayload` | `*bool`                   |             |

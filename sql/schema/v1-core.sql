@@ -377,6 +377,7 @@ CREATE TABLE v1_task (
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
     idempotency_key TEXT,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -413,6 +414,7 @@ CREATE TABLE v1_task_event (
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    child_external_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -722,6 +724,43 @@ CREATE INDEX v1_batched_queue_item_step_priority_idx ON v1_batched_queue_item (
     id ASC
 );
 
+-- v1_paused_workflow_queue_item stores queue items for workflows that are currently paused.
+CREATE TABLE v1_paused_workflow_queue_item (
+    -- everything below this is the same as v1_queue_item
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_run_id UUID NOT NULL,
+    schedule_timeout_at TIMESTAMP(3),
+    step_timeout TEXT,
+    priority INTEGER NOT NULL DEFAULT 1,
+    sticky v1_sticky_strategy NOT NULL,
+    desired_worker_id UUID,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    desired_worker_label JSONB,
+    batch_key TEXT,
+
+    -- important: inserted at first so we can use it to filter for expired queue items
+    CONSTRAINT v1_paused_workflow_queue_itemm_pkey PRIMARY KEY (task_inserted_at, task_id, retry_count)
+);
+
+CREATE INDEX v1_paused_workflow_queue_item_workflow_idx
+    ON v1_paused_workflow_queue_item (workflow_id, tenant_id);
+
+ALTER TABLE v1_paused_workflow_queue_item SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
 
 CREATE TABLE v1_match (
@@ -947,6 +986,9 @@ CREATE TABLE v1_workflow_concurrency_slot (
 
 CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, sort_id ASC);
 
+CREATE INDEX v1_workflow_concurrency_slot_filled_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id, workflow_version_id, workflow_run_id)
+    WHERE is_filled = TRUE;
+
 -- CreateTable
 CREATE TABLE v1_concurrency_slot (
     sort_id BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -972,6 +1014,9 @@ CREATE TABLE v1_concurrency_slot (
 );
 
 CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, sort_id ASC);
+
+CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
+    WHERE is_filled = FALSE;
 
 -- When concurrency slot is CREATED, we should check whether the parent concurrency slot exists; if not, we should create
 -- the parent concurrency slot as well.
@@ -1397,8 +1442,25 @@ BEGIN
             nt.inserted_at,
             nt.retry_count,
             nt.tenant_id,
-            -- Convert the retry_after based on min(retry_backoff_factor ^ retry_count, retry_max_backoff)
-            NOW() + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
+            -- NOTE: cap in log space before POWER. POWER(backoff_factor, app_retry_count)
+            -- overflows float8 (SQLSTATE 22003) for large retry counts, and LEAST cannot
+            -- prevent that because POWER is evaluated first. b^n > cap iff
+            -- n * ln(b) > ln(cap), so compare logs and skip POWER when the result
+            -- would exceed retry_max_backoff.
+            NOW() + (
+                LEAST(
+                    COALESCE(nt.retry_max_backoff, 86400)::double precision,
+                    CASE
+                        WHEN nt.retry_backoff_factor <= 1 THEN
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                        WHEN LN(nt.retry_backoff_factor) * nt.app_retry_count
+                            >= LN(GREATEST(COALESCE(nt.retry_max_backoff, 86400), 1)::double precision) THEN
+                            COALESCE(nt.retry_max_backoff, 86400)::double precision
+                        ELSE
+                            POWER(nt.retry_backoff_factor, nt.app_retry_count)
+                    END
+                ) * interval '1 second'
+            ) AS retry_after
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
@@ -2536,6 +2598,12 @@ CREATE TABLE v1_durable_event_log_entry (
     user_message TEXT,
     wait_data JSONB,
 
+    -- Set when the entry's trigger side effect (spawning a child RUN / registering WAIT_FOR match
+    -- conditions) has committed. In this atomic-write version it is always stamped at insert time,
+    -- since the entry and its trigger commit together; a later change splits those into separate
+    -- transactions and uses a null value to mark an entry whose trigger has not yet run.
+    triggered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
@@ -2557,8 +2625,24 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
     next_branch_id BIGINT NOT NULL,
 
+    replay_child_external_ids UUID[],
+
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
+
+CREATE TABLE v1_operator (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    kind v1_operator_kind NOT NULL,
+    config JSONB NOT NULL,
+    worker_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
+);
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,
@@ -2570,6 +2654,8 @@ CREATE TABLE tenant_entitlement (
     -- Opts the tenant into AND-semantics additional_metadata filters backed by
     -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
+
+    dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

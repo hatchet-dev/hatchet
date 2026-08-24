@@ -1,4 +1,3 @@
-import hashlib
 import os
 import re
 from pathlib import Path
@@ -13,7 +12,6 @@ FRONTEND_DOCS_DIR = REPO_ROOT / "frontend" / "docs"
 FRONTEND_PYTHON_REF_DIR = (
     FRONTEND_DOCS_DIR / "content" / "docs" / "reference" / "python"
 )
-MANIFEST_PATH = GENERATOR_DIR / "manifest.json"
 DOCS_DIR = GENERATOR_DIR.parent
 ROOT_META_PATH = FRONTEND_PYTHON_REF_DIR / "meta.json"
 
@@ -56,7 +54,3 @@ class Document(BaseModel):
             basename=basename,
             title=title,
         )
-
-    def source_hash(self) -> str:
-        with open(self.source_path, "rb") as f:
-            return hashlib.sha256(f.read()).hexdigest()
