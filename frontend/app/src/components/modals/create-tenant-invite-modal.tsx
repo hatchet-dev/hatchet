@@ -48,7 +48,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -184,7 +184,6 @@ const CreateTenantInviteForm = ({
     handleSubmit,
     control,
     watch,
-    setValue,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -195,14 +194,10 @@ const CreateTenantInviteForm = ({
     },
   });
 
-  const selectedRole = watch('role');
-  const payloadsLocked = payloadsLockedForRole(selectedRole);
-
-  useEffect(() => {
-    if (payloadsLocked) {
-      setValue('canViewPayloads', true);
-    }
-  }, [payloadsLocked, setValue]);
+  // Keep the stored flag intact while OWNER/ADMIN are selected so switching
+  // back to MEMBER/VIEWER restores the prior choice. Force true only in the
+  // checkbox UI and on submit.
+  const payloadsLocked = payloadsLockedForRole(watch('role'));
 
   const emailError =
     errors.email?.message?.toString() || props.fieldErrors?.email;

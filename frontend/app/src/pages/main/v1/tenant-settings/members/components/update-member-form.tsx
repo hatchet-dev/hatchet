@@ -21,7 +21,6 @@ import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -48,7 +47,6 @@ export function UpdateMemberForm({
     handleSubmit,
     control,
     watch,
-    setValue,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -58,14 +56,10 @@ export function UpdateMemberForm({
     },
   });
 
-  const selectedRole = watch('role');
-  const payloadsLocked = payloadsLockedForRole(selectedRole);
-
-  useEffect(() => {
-    if (payloadsLocked) {
-      setValue('canViewPayloads', true);
-    }
-  }, [payloadsLocked, setValue]);
+  // Keep the stored flag intact while OWNER/ADMIN are selected so switching
+  // back to MEMBER/VIEWER restores the prior choice. Force true only in the
+  // checkbox UI and on submit.
+  const payloadsLocked = payloadsLockedForRole(watch('role'));
 
   const roleError = errors.role?.message?.toString();
 

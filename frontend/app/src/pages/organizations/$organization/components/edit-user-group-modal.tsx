@@ -216,13 +216,7 @@ export function EditUserGroupModal({
               <Label htmlFor="edit-group-role">Tenant role</Label>
               <Select
                 value={role}
-                onValueChange={(v) => {
-                  const nextRole = v as TenantMemberRoleType;
-                  setRole(nextRole);
-                  if (payloadsLockedForRole(nextRole)) {
-                    setCanViewPayloads(true);
-                  }
-                }}
+                onValueChange={(v) => setRole(v as TenantMemberRoleType)}
                 disabled={isPending}
               >
                 <SelectTrigger id="edit-group-role">
