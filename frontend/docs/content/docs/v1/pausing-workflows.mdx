@@ -24,10 +24,10 @@ Pausing a workflow stops new runs of that workflow from starting. Use it when yo
 
 When you pause, you choose how [cron](/v1/cron-runs) and [scheduled](/v1/scheduled-runs) triggers behave while the workflow is paused:
 
-| Behavior | Effect |
-| -------- | ------ |
+| Behavior  | Effect                                                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **QUEUE** | The trigger still creates a run. The run stays queued and starts after you unpause, unless the queue TTL expires first. |
-| **DROP** | The trigger is skipped. No run is created for that cron tick or schedule while the workflow is paused. |
+| **DROP**  | The trigger is skipped. No run is created for that cron tick or schedule while the workflow is paused.                  |
 
 Cron and scheduled behavior are set independently. Event-triggered and manually triggered runs always queue while the workflow is paused; they are not controlled by these settings.
 
