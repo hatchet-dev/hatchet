@@ -15,22 +15,28 @@ const SWAPS: { guard: string; pattern: RegExp; replacement: string }[] = [
   },
 ];
 
-let latestTag: Promise<string | undefined> | undefined;
+const latestTags = new Map<string, Promise<string | undefined>>();
 
-function fetchLatestTag() {
-  latestTag ??= fetch("/api/latest-version")
-    .then((res) => (res.ok ? res.json() : undefined))
-    .then((release) =>
-      /^v\d+\.\d+\.\d+$/.test(release?.tag_name)
-        ? (release.tag_name as string)
-        : undefined,
-    )
-    .catch(() => undefined)
-    .then((tag) => {
-      if (!tag) latestTag = undefined;
-      return tag;
-    });
-  return latestTag;
+function fetchLatestTag(versionRepo?: string) {
+  const key = versionRepo ?? "hatchet";
+  if (!latestTags.has(key)) {
+    latestTags.set(
+      key,
+      fetch(`/api/latest-version${versionRepo ? `?repo=${versionRepo}` : ""}`)
+        .then((res) => (res.ok ? res.json() : undefined))
+        .then((release) =>
+          /^v\d+\.\d+\.\d+(-\d+)?$/.test(release?.tag_name)
+            ? (release.tag_name as string)
+            : undefined,
+        )
+        .catch(() => undefined)
+        .then((tag) => {
+          if (!tag) latestTags.delete(key);
+          return tag;
+        }),
+    );
+  }
+  return latestTags.get(key)!;
 }
 
 function swapTags(root: Node, tag: string) {
@@ -61,11 +67,15 @@ function swapTags(root: Node, tag: string) {
  * literal `vX.Y.Z` placeholder. Falls back to the original text if the GitHub
  * API is unreachable.
  */
-export default function LatestImageTags() {
+export default function LatestImageTags({
+  versionRepo,
+}: {
+  versionRepo?: "hatchet-embedded";
+}) {
   useEffect(() => {
     let cancelled = false;
     let observer: MutationObserver | undefined;
-    fetchLatestTag().then((tag) => {
+    fetchLatestTag(versionRepo).then((tag) => {
       if (!tag || cancelled) return;
       swapTags(document.body, tag);
       // Re-renders (hydration recovery, tab switches) can restore or remount
@@ -89,7 +99,7 @@ export default function LatestImageTags() {
       cancelled = true;
       observer?.disconnect();
     };
-  }, []);
+  }, [versionRepo]);
 
   return null;
 }

@@ -405,7 +405,7 @@ func listenUI(host string, port int) (net.Listener, error) {
 
 	const base = 8080
 
-	for p := base; p < base+100; p++ {
+	for p := base; p < base+1000; p++ {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p))
 		if err == nil {
 			return ln, nil
