@@ -17,6 +17,7 @@ import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import {
   MemberEmail,
+  payloadsLockedForRole,
   RoleBadge,
 } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { useMutation } from '@tanstack/react-query';
@@ -85,8 +86,7 @@ export function MemberTable({
         columnLabel: 'Payloads',
         cellRenderer: (member: TenantMember) => (
           <span className="text-sm text-muted-foreground">
-            {member.role === TenantMemberRole.OWNER ||
-            member.role === TenantMemberRole.ADMIN ||
+            {payloadsLockedForRole(member.role) ||
             member.canViewPayloads !== false
               ? 'Visible'
               : 'Hidden'}
