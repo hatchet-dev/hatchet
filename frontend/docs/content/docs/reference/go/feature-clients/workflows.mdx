@@ -1,0 +1,110 @@
+---
+title: "Workflows"
+---
+
+# Workflows Client
+
+Accessed via `client.Workflows()` on the [Hatchet client](../client).
+
+## WorkflowsClient
+
+WorkflowsClient provides methods for interacting with workflows
+
+Methods:
+
+| Name     | Description                                                                     |
+| -------- | ------------------------------------------------------------------------------- |
+| `Delete` | Delete removes a workflow by its ID or name.                                    |
+| `Get`    | Get retrieves a workflow by its ID or name.                                     |
+| `GetId`  | GetId retrieves a workflow by its name.                                         |
+| `List`   | List retrieves all workflows for the tenant with optional filtering parameters. |
+
+### Functions
+
+#### `Delete`
+
+Delete removes a workflow by its ID or name.
+
+```go
+func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*rest.WorkflowDeleteResponse, error)
+```
+
+Parameters:
+
+| Name           | Type              |
+| -------------- | ----------------- |
+| `ctx`          | `context.Context` |
+| `workflowName` | `string`          |
+
+Returns:
+
+| Type                           |
+| ------------------------------ |
+| `*rest.WorkflowDeleteResponse` |
+| `error`                        |
+
+#### `Get`
+
+Get retrieves a workflow by its ID or name.
+
+```go
+func (w *WorkflowsClient) Get(ctx context.Context, workflowName string) (*rest.Workflow, error)
+```
+
+Parameters:
+
+| Name           | Type              |
+| -------------- | ----------------- |
+| `ctx`          | `context.Context` |
+| `workflowName` | `string`          |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.Workflow` |
+| `error`          |
+
+#### `GetId`
+
+GetId retrieves a workflow by its name.
+
+```go
+func (w *WorkflowsClient) GetId(ctx context.Context, workflowName string) (uuid.UUID, error)
+```
+
+Parameters:
+
+| Name           | Type              |
+| -------------- | ----------------- |
+| `ctx`          | `context.Context` |
+| `workflowName` | `string`          |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `uuid.UUID` |
+| `error`     |
+
+#### `List`
+
+List retrieves all workflows for the tenant with optional filtering parameters.
+
+```go
+func (w *WorkflowsClient) List(ctx context.Context, opts *rest.WorkflowListParams) (*rest.WorkflowList, error)
+```
+
+Parameters:
+
+| Name   | Type                       |
+| ------ | -------------------------- |
+| `ctx`  | `context.Context`          |
+| `opts` | `*rest.WorkflowListParams` |
+
+Returns:
+
+| Type                 |
+| -------------------- |
+| `*rest.WorkflowList` |
+| `error`              |

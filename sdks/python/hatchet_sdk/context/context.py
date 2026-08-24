@@ -249,7 +249,7 @@ class Context:
 
     def was_skipped(self, task: Task[TWorkflowInput, R]) -> bool:
         """
-        Check if a given task was skipped. You can read about skipping in [the docs](https://docs.hatchet.run/home/conditional-workflows#skip_if).
+        Check if a given task was skipped. You can read about skipping in [the docs](https://docs.hatchet.run/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).
 
         :param task: The task to check the status of (skipped or not).
         :return: True if the task was skipped, False otherwise.
@@ -310,7 +310,7 @@ class Context:
     @property
     def lifespan(self) -> Any:  # noqa: ANN401
         """
-        The worker lifespan, if it exists. You can read about lifespans in [the docs](https://docs.hatchet.run/home/lifespans).
+        The worker lifespan, if it exists. You can read about lifespans in [the docs](https://docs.hatchet.run/reference/python/lifespans).
 
         **Note: You'll need to cast the return type of this property to the type returned by your lifespan generator.**
         """
@@ -479,7 +479,7 @@ class Context:
 
     def refresh_timeout(self, increment_by: timedelta) -> None:
         """
-        Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
+        Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
         :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
         :return: None
@@ -495,7 +495,7 @@ class Context:
 
     async def aio_refresh_timeout(self, increment_by: timedelta) -> None:
         """
-        Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/home/timeouts#refreshing-timeouts).
+        Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
         :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
         :return: None

@@ -100,9 +100,9 @@ export function PauseWorkflowDialog({
         </DialogHeader>
         <div>
           <div className="mb-4 text-sm text-foreground">
-            Pausing this workflow will prevent new runs from starting. Choose
-            how cron and scheduled runs triggered while the workflow is paused
-            should be handled.
+            Are you sure you want to pause this workflow? New runs will not
+            start until it is unpaused. Choose how cron and scheduled runs
+            triggered while paused should be handled.
           </div>
           <div className="mb-4 grid gap-2">
             <Label htmlFor="cronRunQueueBehavior">Cron run behavior</Label>

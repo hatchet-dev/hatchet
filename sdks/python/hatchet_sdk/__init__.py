@@ -147,6 +147,15 @@ from hatchet_sdk.context.context import (
     OrGroupResult,
     SleepResult,
 )
+from hatchet_sdk.config import (
+    ClientConfig,
+    ClientTLSConfig,
+    EmbeddedHatchetConfig,
+    HealthcheckConfig,
+    OpenTelemetryConfig,
+    TenacityConfig,
+)
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     BulkTriggerIdempotencyCollisionError,
@@ -230,6 +239,8 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
+    "EmbeddedHatchetConfig",
+    "EmptyModel",
     "Event",
     "EventData",
     "EventKeyList",
@@ -246,6 +257,7 @@ __all__ = [
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "HealthcheckConfig",
     "IdempotencyCollisionError",
     "Job",
     "JobRun",
@@ -295,6 +307,7 @@ __all__ = [
     "TaskDefaults",
     "TaskRunError",
     "TaskRunRef",
+    "TenacityConfig",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",

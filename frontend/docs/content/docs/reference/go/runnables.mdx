@@ -1,0 +1,1159 @@
+---
+title: "Runnables"
+---
+
+# Runnables
+
+Runnables in the Hatchet Go SDK are things that can be run, namely tasks and workflows. The two main types you'll encounter are:
+
+- `Workflow`, which lets you declare tasks with `NewTask` and call the run methods
+- `StandaloneTask`, which is a single task returned by `client.NewStandaloneTask` (or its durable/batch variants) and supports the same run methods
+
+Both implement the `WorkflowBase` interface and can be registered on a worker with `hatchet.WithWorkflows`. See the [Client page](./client) for the constructors.
+
+## Workflow
+
+Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
+
+Methods:
+
+| Name             | Description                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `GetName`        | GetName returns the resolved workflow name (including namespace if applicable).                   |
+| `NewBatchTask`   | NewBatchTask transforms a function into a Hatchet batch task that runs as part of a workflow.     |
+| `NewDurableTask` | NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow. |
+| `NewTask`        | NewTask transforms a function into a Hatchet task that runs as part of a workflow.                |
+| `OnFailure`      | OnFailure sets a failure handler for the workflow.                                                |
+| `Run`            | Run executes the workflow with the provided input and waits for completion.                       |
+| `RunMany`        | RunMany executes multiple workflow instances with different inputs.                               |
+| `RunNoWait`      | RunNoWait executes the workflow with the provided input without waiting for completion.           |
+
+### Functions
+
+#### `GetName`
+
+GetName returns the resolved workflow name (including namespace if applicable).
+
+```go
+func (w *Workflow) GetName() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `NewBatchTask`
+
+NewBatchTask transforms a function into a Hatchet batch task that runs as part of a workflow. Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or flush interval), then invoke the handler once with all buffered inputs keyed by each run's external id (BatchMemberId). retries is always forced to 0 for batch tasks.
+
+The function parameter must have the signature:
+
+```go
+func(ctx hatchet.Context, input map[string]T) (map[string]R, error)
+```
+
+or, when batch.BroadcastOutput is true (the same result is returned to every caller):
+
+```go
+func(ctx hatchet.Context, input map[string]T) (R, error)
+```
+
+Function signatures are validated at runtime using reflection. Batch tasks cannot be durable.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+```go
+func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options ...TaskOption) *Task
+```
+
+Parameters:
+
+| Name      | Type            |
+| --------- | --------------- |
+| `name`    | `string`        |
+| `fn`      | `any`           |
+| `batch`   | `BatchConfig`   |
+| `options` | `...TaskOption` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `*Task` |
+
+#### `NewDurableTask`
+
+NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
+
+The function parameter must have the signature:
+
+```go
+func(ctx hatchet.DurableContext, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+```go
+func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task
+```
+
+Parameters:
+
+| Name      | Type            |
+| --------- | --------------- |
+| `name`    | `string`        |
+| `fn`      | `any`           |
+| `options` | `...TaskOption` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `*Task` |
+
+#### `NewTask`
+
+NewTask transforms a function into a Hatchet task that runs as part of a workflow.
+
+The function parameter must have the signature:
+
+```go
+func(ctx hatchet.Context, input any) (any, error)
+```
+
+Function signatures are validated at runtime using reflection.
+
+```go
+func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task
+```
+
+Parameters:
+
+| Name      | Type            |
+| --------- | --------------- |
+| `name`    | `string`        |
+| `fn`      | `any`           |
+| `options` | `...TaskOption` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `*Task` |
+
+#### `OnFailure`
+
+OnFailure sets a failure handler for the workflow. The handler will be called when any task in the workflow fails.
+
+```go
+func (w *Workflow) OnFailure(fn any)
+```
+
+Parameters:
+
+| Name | Type  |
+| ---- | ----- |
+| `fn` | `any` |
+
+#### `Run`
+
+Run executes the workflow with the provided input and waits for completion.
+
+```go
+func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `input` | `any`             |
+| `opts`  | `...RunOptFunc`   |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*WorkflowResult` |
+| `error`           |
+
+#### `RunMany`
+
+RunMany executes multiple workflow instances with different inputs.
+
+```go
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)
+```
+
+Parameters:
+
+| Name     | Type              |
+| -------- | ----------------- |
+| `ctx`    | `context.Context` |
+| `inputs` | `[]RunManyOpt`    |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `[]WorkflowRunRef` |
+| `error`            |
+
+#### `RunNoWait`
+
+RunNoWait executes the workflow with the provided input without waiting for completion. Returns a workflow run reference that can be used to track the run status.
+
+```go
+func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `input` | `any`             |
+| `opts`  | `...RunOptFunc`   |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*WorkflowRunRef` |
+| `error`           |
+
+## StandaloneTask
+
+StandaloneTask represents a single task that runs independently without a workflow wrapper. It's essentially a specialized workflow containing only one task.
+
+Methods:
+
+| Name        | Description                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `GetName`   | GetName returns the name of the standalone task.                                               |
+| `OnFailure` | OnFailure sets a failure handler for the standalone task.                                      |
+| `Run`       | Run executes the standalone task with the provided input and waits for completion.             |
+| `RunMany`   | RunMany executes multiple standalone task instances with different inputs.                     |
+| `RunNoWait` | RunNoWait executes the standalone task with the provided input without waiting for completion. |
+
+### Functions
+
+#### `GetName`
+
+GetName returns the name of the standalone task.
+
+```go
+func (st *StandaloneTask) GetName() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `OnFailure`
+
+OnFailure sets a failure handler for the standalone task. The handler will be called when the standalone task fails.
+
+```go
+func (st *StandaloneTask) OnFailure(fn any)
+```
+
+Parameters:
+
+| Name | Type  |
+| ---- | ----- |
+| `fn` | `any` |
+
+#### `Run`
+
+Run executes the standalone task with the provided input and waits for completion.
+
+```go
+func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `input` | `any`             |
+| `opts`  | `...RunOptFunc`   |
+
+Returns:
+
+| Type          |
+| ------------- |
+| `*TaskResult` |
+| `error`       |
+
+#### `RunMany`
+
+RunMany executes multiple standalone task instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+
+```go
+func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)
+```
+
+Parameters:
+
+| Name     | Type              |
+| -------- | ----------------- |
+| `ctx`    | `context.Context` |
+| `inputs` | `[]RunManyOpt`    |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `[]WorkflowRunRef` |
+| `error`            |
+
+#### `RunNoWait`
+
+RunNoWait executes the standalone task with the provided input without waiting for completion. Returns a workflow run reference that can be used to track the run status.
+
+```go
+func (st *StandaloneTask) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `input` | `any`             |
+| `opts`  | `...RunOptFunc`   |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*WorkflowRunRef` |
+| `error`           |
+
+## Task
+
+Task represents a task reference for building DAGs and conditions.
+
+### Functions
+
+#### `GetName`
+
+GetName returns the name of the task.
+
+```go
+func (t *Task) GetName() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+## WorkflowRunRef
+
+WorkflowRunRef is a type that represents a reference to a workflow run.
+
+Fields:
+
+| Name    | Type     | Description |
+| ------- | -------- | ----------- |
+| `RunId` | `string` |             |
+
+### Functions
+
+#### `Result`
+
+Result blocks until the workflow run completes and returns its result.
+
+```go
+func (wr *WorkflowRunRef) Result() (*WorkflowResult, error)
+```
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*WorkflowResult` |
+| `error`           |
+
+## WorkflowResult
+
+WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
+
+Fields:
+
+| Name    | Type     | Description |
+| ------- | -------- | ----------- |
+| `RunId` | `string` |             |
+
+Methods:
+
+| Name         | Description                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| `Raw`        | Raw returns the raw, undecoded workflow result.                             |
+| `TaskOutput` | TaskOutput extracts the output of a specific task from the workflow result. |
+
+### Functions
+
+#### `Raw`
+
+Raw returns the raw, undecoded workflow result.
+
+```go
+func (wr *WorkflowResult) Raw() any
+```
+
+Returns:
+
+| Type  |
+| ----- |
+| `any` |
+
+#### `TaskOutput`
+
+TaskOutput extracts the output of a specific task from the workflow result. Returns a TaskResult that can be used to convert the task output into the desired type.
+
+Example usage:
+
+```go
+taskResult := workflowResult.TaskOutput("myTask")
+var output MyOutputType
+err := taskResult.Into(&output)
+```
+
+```go
+func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult
+```
+
+Parameters:
+
+| Name       | Type     |
+| ---------- | -------- |
+| `taskName` | `string` |
+
+Returns:
+
+| Type          |
+| ------------- |
+| `*TaskResult` |
+
+## TaskResult
+
+TaskResult wraps a single task's output and provides type-safe conversion methods.
+
+Fields:
+
+| Name    | Type     | Description |
+| ------- | -------- | ----------- |
+| `RunId` | `string` |             |
+
+### Functions
+
+#### `Into`
+
+Into converts the task result into the provided destination using JSON marshal/unmarshal. The destination should be a pointer to the desired type.
+
+Example usage:
+
+```go
+var output MyOutputType
+err := taskResult.Into(&output)
+```
+
+```go
+func (tr *TaskResult) Into(dest any) error
+```
+
+Parameters:
+
+| Name   | Type  |
+| ------ | ----- |
+| `dest` | `any` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+## RunManyOpt
+
+RunManyOpt is a type that represents the options for running multiple instances of a workflow with different inputs and options.
+
+Fields:
+
+| Name    | Type           | Description |
+| ------- | -------------- | ----------- |
+| `Input` | `any`          |             |
+| `Opts`  | `[]RunOptFunc` |             |
+
+## Workflow options
+
+Options for `Client.NewWorkflow` (and standalone task constructors):
+
+| Name                          | Signature                                                         | Description                                                                                |
+| ----------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `WithDefaultFilters`          | `WithDefaultFilters(filters ...types.DefaultFilter)`              | WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks. |
+| `WithWorkflowConcurrency`     | `WithWorkflowConcurrency(concurrency ...types.Concurrency)`       | WithWorkflowConcurrency sets concurrency controls for the workflow.                        |
+| `WithWorkflowCron`            | `WithWorkflowCron(cronExpressions ...string)`                     | WithWorkflowCron configures the workflow to run on a cron schedule.                        |
+| `WithWorkflowCronInput`       | `WithWorkflowCronInput(input any)`                                | WithWorkflowCronInput sets the input for cron workflows.                                   |
+| `WithWorkflowDefaultPriority` | `WithWorkflowDefaultPriority(priority RunPriority)`               | WithWorkflowDefaultPriority sets the default priority for the workflow.                    |
+| `WithWorkflowDescription`     | `WithWorkflowDescription(description string)`                     | WithWorkflowDescription sets a human-readable description for the workflow.                |
+| `WithWorkflowEvents`          | `WithWorkflowEvents(events ...string)`                            | WithWorkflowEvents configures the workflow to trigger on specific events.                  |
+| `WithWorkflowIdempotency`     | `WithWorkflowIdempotency(config IdempotencyConfig)`               | WithWorkflowIdempotency configures idempotency for the workflow.                           |
+| `WithWorkflowStickyStrategy`  | `WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy)` | WithWorkflowStickyStrategy sets the sticky strategy for the workflow.                      |
+| `WithWorkflowTaskDefaults`    | `WithWorkflowTaskDefaults(defaults *create.TaskDefaults)`         | WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.     |
+| `WithWorkflowVersion`         | `WithWorkflowVersion(version string)`                             | WithWorkflowVersion sets the version identifier for the workflow.                          |
+
+## Task options
+
+Options for `Workflow.NewTask` and the other task constructors:
+
+| Name                   | Signature                                                 | Description                                                                |
+| ---------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `WithConcurrency`      | `WithConcurrency(concurrency ...*types.Concurrency)`      | WithConcurrency sets concurrency limits for task execution.                |
+| `WithCron`             | `WithCron(cronExpressions ...string)`                     | WithCron configures standalone tasks to run on a cron schedule.            |
+| `WithDescription`      | `WithDescription(description string)`                     | WithDescription sets a human-readable description for the task.            |
+| `WithEvents`           | `WithEvents(events ...string)`                            | WithEvents configures standalone tasks to trigger on specific events.      |
+| `WithEvictionPolicy`   | `WithEvictionPolicy(policy *EvictionPolicy)`              | WithEvictionPolicy sets the eviction policy for a durable task.            |
+| `WithExecutionTimeout` | `WithExecutionTimeout(timeout time.Duration)`             | WithExecutionTimeout sets the maximum execution duration for a task.       |
+| `WithParents`          | `WithParents(parents ...*Task)`                           | WithParents sets parent task dependencies.                                 |
+| `WithRateLimits`       | `WithRateLimits(rateLimits ...*types.RateLimit)`          | WithRateLimits sets rate limiting for task execution.                      |
+| `WithRetries`          | `WithRetries(retries int)`                                | WithRetries sets the number of retry attempts for failed tasks.            |
+| `WithRetryBackoff`     | `WithRetryBackoff(factor float32, maxBackoffSeconds int)` | WithRetryBackoff configures exponential backoff for task retries.          |
+| `WithScheduleTimeout`  | `WithScheduleTimeout(timeout time.Duration)`              | WithScheduleTimeout sets the maximum time a task can wait to be scheduled. |
+| `WithSkipIf`           | `WithSkipIf(condition condition.Condition)`               | WithSkipIf sets a condition that will skip the task if met.                |
+| `WithSlotCost`         | `WithSlotCost(cost int)`                                  | WithSlotCost sets the number of default worker slots this task consumes.   |
+| `WithWaitFor`          | `WithWaitFor(condition condition.Condition)`              | WithWaitFor sets a condition that must be met before the task executes.    |
+
+## Run options
+
+Options for the `Run`, `RunNoWait`, and `RunMany` methods:
+
+| Name                      | Signature                                                        | Description                                                                                          |
+| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `WithDesiredWorkerLabels` | `WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel)` | WithDesiredWorkerLabels sets desired worker labels for routing the workflow run to specific workers. |
+| `WithRunKey`              | `WithRunKey(key string)`                                         | WithRunKey sets the key for the child workflow run.                                                  |
+| `WithRunMetadata`         | `WithRunMetadata(metadata map[string]string)`                    | WithRunMetadata sets the additional metadata for the workflow run.                                   |
+| `WithRunPriority`         | `WithRunPriority(priority RunPriority)`                          | WithRunPriority sets the priority for the workflow run.                                              |
+| `WithRunSticky`           | `WithRunSticky(sticky bool)`                                     | WithRunSticky enables stickiness for the child workflow run.                                         |
+
+## Conditions
+
+Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):
+
+| Name                 | Signature                                                                                  | Description                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `AndCondition`       | `AndCondition(conditions ...condition.Condition)`                                          | AndCondition creates a condition that is satisfied when all of the provided conditions are met. |
+| `OrCondition`        | `OrCondition(conditions ...condition.Condition)`                                           | OrCondition creates a condition that is satisfied when any of the provided conditions are met.  |
+| `ParentCondition`    | `ParentCondition(task *Task, expression string)`                                           | ParentCondition creates a condition based on a parent task's output.                            |
+| `SleepCondition`     | `SleepCondition(duration time.Duration)`                                                   | SleepCondition creates a condition that waits for a specified duration.                         |
+| `UserEventCondition` | `UserEventCondition(eventKey, expression string, opts ...condition.UserEventConditionOpt)` | UserEventCondition creates a condition that waits for a user event.                             |
+
+## Other types
+
+### BatchConfig
+
+BatchConfig configures batching behavior for a batch task. See Workflow.NewBatchTask.
+
+### BatchMemberId
+
+BatchMemberId identifies a single item within a batch task's input/output map. Its value is the external id of the buffered item's underlying task run.
+
+### BulkTriggerIdempotencyCollisionError
+
+BulkTriggerIdempotencyCollisionError is returned when one or more runs in a bulk trigger collide on idempotency keys. It carries the IDs of successful runs alongside the individual collision errors.
+
+Fields:
+
+| Name                       | Type                           | Description |
+| -------------------------- | ------------------------------ | ----------- |
+| `SuccessfulRunExternalIds` | `[]string`                     |             |
+| `Collisions`               | `[]*IdempotencyCollisionError` |             |
+
+#### Functions
+
+##### `IsBulkTriggerIdempotencyCollisionError`
+
+IsBulkTriggerIdempotencyCollisionError checks if the error is a BulkTriggerIdempotencyCollisionError.
+
+```go
+func IsBulkTriggerIdempotencyCollisionError(err error) (*BulkTriggerIdempotencyCollisionError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type                                    |
+| --------------------------------------- |
+| `*BulkTriggerIdempotencyCollisionError` |
+| `bool`                                  |
+
+##### `Error`
+
+```go
+func (e *BulkTriggerIdempotencyCollisionError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+### DeprecationError
+
+DeprecationError is returned when a deprecation grace period has expired.
+
+Fields:
+
+| Name      | Type     | Description |
+| --------- | -------- | ----------- |
+| `Feature` | `string` |             |
+| `Message` | `string` |             |
+
+#### Functions
+
+##### `Error`
+
+```go
+func (e *DeprecationError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+### DeprecationOpts
+
+DeprecationOpts provides optional configuration for EmitDeprecationNotice.
+
+Fields:
+
+| Name          | Type            | Description                                                                                                                                                                                                                                           |
+| ------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WarnWindow`  | `time.Duration` | WarnWindow is how long after start the notice is a warning. Defaults to 90 days if zero.                                                                                                                                                              |
+| `ErrorWindow` | `time.Duration` | ErrorWindow is how long after start the notice is an error log. After this window, calls have a 20% chance of returning an error. If zero (default), the error/raise phase is never reached and the notice stays at error-level logging indefinitely. |
+
+### DesiredWorkerLabel
+
+### EmbeddedConfig
+
+Fields:
+
+| Name            | Type      | Description |
+| --------------- | --------- | ----------- |
+| `GRPCPort`      | `*int`    |             |
+| `APIPort`       | `*int`    |             |
+| `StartAPI`      | `*bool`   |             |
+| `RunMigrations` | `*bool`   |             |
+| `RabbitMQURL`   | `*string` |             |
+| `LogLevel`      | `*string` |             |
+| `DatabaseURL`   | `string`  |             |
+
+### EmbeddedOption
+
+#### Functions
+
+##### `WithEmbeddedAPIPort`
+
+```go
+func WithEmbeddedAPIPort(port int) EmbeddedOption
+```
+
+Parameters:
+
+| Name   | Type  |
+| ------ | ----- |
+| `port` | `int` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithEmbeddedDatabaseURL`
+
+WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead of the bundled one.
+
+```go
+func WithEmbeddedDatabaseURL(url string) EmbeddedOption
+```
+
+Parameters:
+
+| Name  | Type     |
+| ----- | -------- |
+| `url` | `string` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithEmbeddedGRPCPort`
+
+```go
+func WithEmbeddedGRPCPort(port int) EmbeddedOption
+```
+
+Parameters:
+
+| Name   | Type  |
+| ------ | ----- |
+| `port` | `int` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithEmbeddedLogLevel`
+
+```go
+func WithEmbeddedLogLevel(level string) EmbeddedOption
+```
+
+Parameters:
+
+| Name    | Type     |
+| ------- | -------- |
+| `level` | `string` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithEmbeddedRabbitMQ`
+
+```go
+func WithEmbeddedRabbitMQ(url string) EmbeddedOption
+```
+
+Parameters:
+
+| Name  | Type     |
+| ----- | -------- |
+| `url` | `string` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithoutEmbeddedAPI`
+
+```go
+func WithoutEmbeddedAPI() EmbeddedOption
+```
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+##### `WithoutEmbeddedMigrations`
+
+```go
+func WithoutEmbeddedMigrations() EmbeddedOption
+```
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `EmbeddedOption` |
+
+### EventUnmarshaller
+
+EventUnmarshaller is implemented by the result of DurableContext.WaitForEvent. Use EventInto to extract the event payload.
+
+### EvictionNotSupportedError
+
+EvictionNotSupportedError is returned when an eviction policy is configured against an engine version that does not support durable-task eviction.
+
+Fields:
+
+| Name            | Type     | Description |
+| --------------- | -------- | ----------- |
+| `EngineVersion` | `string` |             |
+
+#### Functions
+
+##### `IsEvictionNotSupportedError`
+
+IsEvictionNotSupportedError reports whether err is an EvictionNotSupportedError.
+
+```go
+func IsEvictionNotSupportedError(err error) (*EvictionNotSupportedError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type                         |
+| ---------------------------- |
+| `*EvictionNotSupportedError` |
+| `bool`                       |
+
+##### `Error`
+
+```go
+func (e *EvictionNotSupportedError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+### EvictionPolicy
+
+EvictionPolicy configures how durable tasks are evicted from worker slots when they are in a waiting state (e.g. sleeping, waiting for events, waiting for children).
+
+Fields:
+
+| Name                    | Type            | Description                                                                                                            |
+| ----------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `TTL`                   | `time.Duration` | TTL is the maximum continuous waiting duration before TTL-eligible eviction. A zero value means no TTL-based eviction. |
+| `AllowCapacityEviction` | `bool`          | AllowCapacityEviction controls whether this task may be evicted under durable-slot pressure.                           |
+| `Priority`              | `int`           | Priority determines eviction order when multiple candidates exist. Lower values are evicted first.                     |
+
+### IdempotencyCollisionError
+
+IdempotencyCollisionError is returned when an idempotency key collision occurs. It contains the ID of the existing run that claimed the key.
+
+Fields:
+
+| Name                    | Type     | Description |
+| ----------------------- | -------- | ----------- |
+| `ExistingRunExternalId` | `string` |             |
+
+#### Functions
+
+##### `IsIdempotencyCollisionError`
+
+IsIdempotencyCollisionError checks if the error is an IdempotencyCollisionError.
+
+```go
+func IsIdempotencyCollisionError(err error) (*IdempotencyCollisionError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type                         |
+| ---------------------------- |
+| `*IdempotencyCollisionError` |
+| `bool`                       |
+
+##### `Error`
+
+```go
+func (e *IdempotencyCollisionError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+### IdempotencyConfig
+
+IdempotencyConfig configures idempotency behavior for a workflow or standalone task. When set, runs triggered with the same computed key return an IdempotencyCollisionError instead of creating a new run. The Method controls how long the key lives: TTL evicts after a fixed window, while STATUS keeps the key until the run reaches a terminal status (using TTL as a fallback cap).
+
+Fields:
+
+| Name         | Type                | Description                                                                                                                                                                       |
+| ------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Expression` | `string`            | Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.                                                                                |
+| `TTL`        | `time.Duration`     | TTL is the duration during which duplicate runs with the same key are rejected. When Method is STATUS, this acts as a fallback: the longest the key can live before it's evicted. |
+| `Method`     | `IdempotencyMethod` | Method determines how the idempotency key's lifetime is managed. Defaults to TTL.                                                                                                 |
+
+### IdempotencyMethod
+
+IdempotencyMethod determines how the lifetime of an idempotency key is managed.
+
+### NonDeterminismError
+
+NonDeterminismError is returned when a durable task replay detects non-deterministic behavior.
+
+Fields:
+
+| Name              | Type     | Description |
+| ----------------- | -------- | ----------- |
+| `TaskExternalID`  | `string` |             |
+| `Message`         | `string` |             |
+| `NodeID`          | `int64`  |             |
+| `InvocationCount` | `int32`  |             |
+
+#### Functions
+
+##### `IsNonDeterminismError`
+
+IsNonDeterminismError checks if the error is a NonDeterminismError and returns it if so.
+
+```go
+func IsNonDeterminismError(err error) (*NonDeterminismError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type                   |
+| ---------------------- |
+| `*NonDeterminismError` |
+| `bool`                 |
+
+##### `Error`
+
+```go
+func (e *NonDeterminismError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+### RunPriority
+
+### WorkerLabelComparator
+
+## Other functions
+
+### `EmitDeprecationNotice`
+
+EmitDeprecationNotice emits a time-aware deprecation notice.
+
+- feature: a short identifier for deduplication (each feature logs once).
+- message: the human-readable deprecation message.
+- start: the UTC time when the deprecation window began.
+- logger: the zerolog logger to write to.
+- opts: optional configuration; pass nil for defaults.
+
+Returns a non-nil \*DeprecationError only in phase 3 (~20% chance).
+
+```go
+func EmitDeprecationNotice(feature, message string, start time.Time, logger *zerolog.Logger, opts *DeprecationOpts) error
+```
+
+Parameters:
+
+| Name      | Type               |
+| --------- | ------------------ |
+| `feature` | `string`           |
+| `message` | `string`           |
+| `start`   | `time.Time`        |
+| `logger`  | `*zerolog.Logger`  |
+| `opts`    | `*DeprecationOpts` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+### `EventInto`
+
+EventInto extracts the event payload from a WaitForEvent result into dest.
+
+```go
+event, err := ctx.WaitForEvent("approval:decision", "")
+if err != nil { return err }
+var data map[string]interface{}
+if err := hatchet.EventInto(event, &data); err != nil { return err }
+```
+
+```go
+func EventInto(event EventUnmarshaller, dest any) error
+```
+
+Parameters:
+
+| Name    | Type                |
+| ------- | ------------------- |
+| `event` | `EventUnmarshaller` |
+| `dest`  | `any`               |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+### `ParseSemver`
+
+ParseSemver extracts major, minor, patch from a version string like "v0.78.23". Returns (0,0,0) if parsing fails.
+
+```go
+func ParseSemver(v string) (int, int, int)
+```
+
+Parameters:
+
+| Name | Type     |
+| ---- | -------- |
+| `v`  | `string` |
+
+Returns:
+
+| Type  |
+| ----- |
+| `int` |
+| `int` |
+| `int` |
+
+### `RegisterEmbeddedBackend`
+
+```go
+func RegisterEmbeddedBackend(b EmbeddedBackend)
+```
+
+Parameters:
+
+| Name | Type              |
+| ---- | ----------------- |
+| `b`  | `EmbeddedBackend` |
+
+### `SemverLessThan`
+
+SemverLessThan returns true if version a is strictly less than version b.
+
+```go
+func SemverLessThan(a, b string) bool
+```
+
+Parameters:
+
+| Name | Type     |
+| ---- | -------- |
+| `a`  | `string` |
+| `b`  | `string` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |
+
+### `SupportsDurableEviction`
+
+SupportsDurableEviction checks whether the engine version supports durable eviction.
+
+```go
+func SupportsDurableEviction(engineVersion string) (bool, error)
+```
+
+Parameters:
+
+| Name            | Type     |
+| --------------- | -------- |
+| `engineVersion` | `string` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `bool`  |
+| `error` |
+
+### `WithConsiderEventsSince`
+
+WithConsiderEventsSince makes a user event condition also match events pushed after the given time but before the wait was registered (event lookback). Requires WithEventScope to be set as well.
+
+```go
+func WithConsiderEventsSince(since time.Time) condition.UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type        |
+| ------- | ----------- |
+| `since` | `time.Time` |
+
+Returns:
+
+| Type                              |
+| --------------------------------- |
+| `condition.UserEventConditionOpt` |
+
+### `WithEmbedded`
+
+WithEmbedded runs Hatchet in-process. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
+
+```go
+func WithEmbedded(opts ...EmbeddedOption) client.ClientOpt
+```
+
+Parameters:
+
+| Name   | Type                |
+| ------ | ------------------- |
+| `opts` | `...EmbeddedOption` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `client.ClientOpt` |
+
+### `WithEventScope`
+
+WithEventScope restricts a user event condition to events pushed with a matching scope.
+
+```go
+func WithEventScope(scope string) condition.UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type     |
+| ------- | -------- |
+| `scope` | `string` |
+
+Returns:
+
+| Type                              |
+| --------------------------------- |
+| `condition.UserEventConditionOpt` |

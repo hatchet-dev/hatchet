@@ -68,7 +68,6 @@ docs = [
     "mkdocstrings[python]>=1.0.6,<2",
     "pydoclint>=0.9.1",
     "markdownify>=1.2.3",
-    "openai>=2.53.0,<3",
     "bs4>=0.0.2",
     "types-beautifulsoup4>=4.12.0.20250204",
     "fastapi>=0.141.1,<1",

@@ -1392,6 +1392,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether this instance is running in embedded mode
+   * @example false
+   */
+  embedded?: boolean;
 }
 
 export interface APIMetaIntegration {
