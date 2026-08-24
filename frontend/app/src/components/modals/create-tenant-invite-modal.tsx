@@ -41,13 +41,14 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { appRoutes } from '@/router';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -182,6 +183,8 @@ const CreateTenantInviteForm = ({
     register,
     handleSubmit,
     control,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -191,6 +194,15 @@ const CreateTenantInviteForm = ({
       canViewPayloads: true,
     },
   });
+
+  const selectedRole = watch('role');
+  const payloadsLocked = payloadsLockedForRole(selectedRole);
+
+  useEffect(() => {
+    if (payloadsLocked) {
+      setValue('canViewPayloads', true);
+    }
+  }, [payloadsLocked, setValue]);
 
   const emailError =
     errors.email?.message?.toString() || props.fieldErrors?.email;
@@ -212,7 +224,12 @@ const CreateTenantInviteForm = ({
       <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
-            props.onSubmit(d);
+            props.onSubmit({
+              ...d,
+              canViewPayloads: payloadsLockedForRole(d.role)
+                ? true
+                : d.canViewPayloads,
+            });
           })}
         >
           <div className="grid gap-4">
@@ -352,19 +369,19 @@ const CreateTenantInviteForm = ({
                 render={({ field }) => (
                   <Checkbox
                     id="canViewPayloads"
-                    checked={field.value}
+                    checked={payloadsLocked || field.value}
                     onCheckedChange={(checked) =>
                       field.onChange(checked === true)
                     }
-                    disabled={props.isLoading}
+                    disabled={props.isLoading || payloadsLocked}
                   />
                 )}
               />
               <div className="grid gap-1">
                 <Label htmlFor="canViewPayloads">Can view payloads</Label>
                 <p className="text-xs text-muted-foreground">
-                  Uncheck to hide task inputs, outputs, and events from this
-                  user.
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from this user.
                 </p>
               </div>
             </div>

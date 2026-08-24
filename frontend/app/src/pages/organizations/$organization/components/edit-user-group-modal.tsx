@@ -24,6 +24,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
@@ -165,11 +166,16 @@ export function EditUserGroupModal({
   const isPending = updateMutation.isPending || tagsMutation.isPending;
   const isMemberMutating =
     addMemberMutation.isPending || removeMemberMutation.isPending;
+  const payloadsLocked = payloadsLockedForRole(role);
 
   const handleSave = useCallback(async () => {
     try {
       await Promise.all([
-        updateGroup({ name: name.trim() || undefined, role, canViewPayloads }),
+        updateGroup({
+          name: name.trim() || undefined,
+          role,
+          canViewPayloads: payloadsLocked ? true : canViewPayloads,
+        }),
         saveGroupTags(tags),
       ]);
       onOpenChange(false);
@@ -181,6 +187,7 @@ export function EditUserGroupModal({
     saveGroupTags,
     name,
     role,
+    payloadsLocked,
     canViewPayloads,
     tags,
     onOpenChange,
@@ -209,7 +216,13 @@ export function EditUserGroupModal({
               <Label htmlFor="edit-group-role">Tenant role</Label>
               <Select
                 value={role}
-                onValueChange={(v) => setRole(v as TenantMemberRoleType)}
+                onValueChange={(v) => {
+                  const nextRole = v as TenantMemberRoleType;
+                  setRole(nextRole);
+                  if (payloadsLockedForRole(nextRole)) {
+                    setCanViewPayloads(true);
+                  }
+                }}
                 disabled={isPending}
               >
                 <SelectTrigger id="edit-group-role">
@@ -234,15 +247,11 @@ export function EditUserGroupModal({
             <div className="flex items-start gap-2">
               <Checkbox
                 id="edit-group-canViewPayloads"
-                checked={canViewPayloads}
+                checked={payloadsLocked || canViewPayloads}
                 onCheckedChange={(checked) =>
                   setCanViewPayloads(checked === true)
                 }
-                disabled={
-                  isPending ||
-                  role === TenantMemberRoleType.OWNER ||
-                  role === TenantMemberRoleType.ADMIN
-                }
+                disabled={isPending || payloadsLocked}
               />
               <div className="grid gap-1">
                 <Label htmlFor="edit-group-canViewPayloads">

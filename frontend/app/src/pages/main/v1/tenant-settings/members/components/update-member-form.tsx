@@ -19,7 +19,9 @@ import {
 import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -45,6 +47,8 @@ export function UpdateMemberForm({
   const {
     handleSubmit,
     control,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -53,6 +57,15 @@ export function UpdateMemberForm({
       canViewPayloads: props.member.canViewPayloads ?? true,
     },
   });
+
+  const selectedRole = watch('role');
+  const payloadsLocked = payloadsLockedForRole(selectedRole);
+
+  useEffect(() => {
+    if (payloadsLocked) {
+      setValue('canViewPayloads', true);
+    }
+  }, [payloadsLocked, setValue]);
 
   const roleError = errors.role?.message?.toString();
 
@@ -64,7 +77,12 @@ export function UpdateMemberForm({
       <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
-            props.onSubmit(d);
+            props.onSubmit({
+              ...d,
+              canViewPayloads: payloadsLockedForRole(d.role)
+                ? true
+                : d.canViewPayloads,
+            });
           })}
         >
           <div className="grid gap-4">
@@ -126,15 +144,11 @@ export function UpdateMemberForm({
                 render={({ field }) => (
                   <Checkbox
                     id="canViewPayloads"
-                    checked={field.value}
+                    checked={payloadsLocked || field.value}
                     onCheckedChange={(checked) =>
                       field.onChange(checked === true)
                     }
-                    disabled={
-                      props.isLoading ||
-                      props.member.role === TenantMemberRole.OWNER ||
-                      props.member.role === TenantMemberRole.ADMIN
-                    }
+                    disabled={props.isLoading || payloadsLocked}
                   />
                 )}
               />
