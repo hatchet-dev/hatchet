@@ -11,7 +11,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, EmbeddedHatchetConfig
 from hatchet_sdk.embedded import resolve_embedded_connection
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
@@ -109,7 +109,11 @@ class Hatchet:
             engine itself (e.g. database URL, ports, etc.).
         :return: A Hatchet client instance connected to the embedded engine.
         """
-        return cls(config=resolve_embedded_connection(config or ClientConfig()))
+        return cls(
+            config=resolve_embedded_connection(
+                config or ClientConfig(embedded=EmbeddedHatchetConfig())
+            )
+        )
 
     @property
     def cel(self) -> CELClient:
