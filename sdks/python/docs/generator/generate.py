@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from docs.generator.doc_types import (
+    ACRONYMS,
     DOCS_DIR,
     FRONTEND_DOCS_DIR,
     FRONTEND_PYTHON_REF_DIR,
@@ -53,7 +54,10 @@ def ensure_feature_client_stubs() -> None:
         if stub_path.exists():
             continue
 
-        title = name.replace("_", " ").title()
+        title = " ".join(
+            word.upper() if word in ACRONYMS else word.title()
+            for word in name.split("_")
+        )
         stub_path.write_text(f"# {title} Client\n\n::: {directive}\n", encoding="utf-8")
         print("Auto-created mkdocs stub for new feature client:", stub_path)
 

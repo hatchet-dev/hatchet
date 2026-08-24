@@ -36,6 +36,8 @@ function remapFilename(filename: string): { outRelative: string; basename: strin
   };
 }
 
+const ACRONYMS = new Set(['cel']);
+
 function toTitle(basename: string): string {
   return basename
     .replace(/[-_.]/g, ' ')
@@ -43,7 +45,11 @@ function toTitle(basename: string): string {
     .trim()
     .replace(/\s+/g, ' ')
     .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) =>
+      ACRONYMS.has(word.toLowerCase())
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
     .join(' ');
 }
 

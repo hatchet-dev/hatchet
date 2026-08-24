@@ -1,3 +1,3 @@
-# Cel Client
+# CEL Client
 
 ::: features.cel.CELClient

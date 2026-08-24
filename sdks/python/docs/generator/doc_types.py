@@ -23,6 +23,8 @@ SPECIFICS_SEPARATOR = "---Python Specifics---"
 MD_EXTENSION = "md"
 MDX_EXTENSION = "mdx"
 
+ACRONYMS = {"cel"}
+
 
 class Document(BaseModel):
     source_path: str
@@ -43,6 +45,10 @@ class Document(BaseModel):
         title = re.sub(
             "[^0-9a-zA-Z ]+", "", basename.replace("_", " ").replace("-", " ")
         ).title()
+        title = " ".join(
+            word.upper() if word.lower() in ACRONYMS else word
+            for word in title.split(" ")
+        )
 
         mdx_relative_path = os.path.splitext(relative_path)[0] + "." + MDX_EXTENSION
 
