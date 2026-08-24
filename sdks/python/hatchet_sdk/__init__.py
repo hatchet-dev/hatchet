@@ -139,14 +139,6 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     or_,
 )
-from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
-from hatchet_sdk.context.context import (
-    Context,
-    DurableContext,
-    EventWaitResult,
-    OrGroupResult,
-    SleepResult,
-)
 from hatchet_sdk.config import (
     ClientConfig,
     ClientTLSConfig,
@@ -155,7 +147,13 @@ from hatchet_sdk.config import (
     OpenTelemetryConfig,
     TenacityConfig,
 )
-from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.context import (
+    Context,
+    DurableContext,
+    EventWaitResult,
+    OrGroupResult,
+    SleepResult,
+)
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     BulkTriggerIdempotencyCollisionError,
