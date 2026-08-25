@@ -996,8 +996,6 @@ const (
 	V1ConcurrencyStrategyGROUPROUNDROBIN    V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
 	V1ConcurrencyStrategyCANCELINPROGRESS   V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
 	V1ConcurrencyStrategyCANCELNEWEST       V1ConcurrencyStrategy = "CANCEL_NEWEST"
-	V1ConcurrencyStrategyQUEUENEWEST        V1ConcurrencyStrategy = "QUEUE_NEWEST"
-	V1ConcurrencyStrategyQUEUEOLDEST        V1ConcurrencyStrategy = "QUEUE_OLDEST"
 	V1ConcurrencyStrategyCANCELEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_EXCEPT_NEWEST"
 	V1ConcurrencyStrategyCANCELEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_EXCEPT_OLDEST"
 )

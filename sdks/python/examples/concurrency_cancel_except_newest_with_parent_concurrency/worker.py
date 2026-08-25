@@ -32,9 +32,11 @@ concurrency_cancel_except_newest_with_parent_concurrency_workflow = hatchet.work
 async def task(input: WorkflowInput, ctx: Context) -> None:
     await asyncio.sleep(5)
 
+
 @concurrency_cancel_except_newest_with_parent_concurrency_workflow.task()
 async def task_2(input: WorkflowInput, ctx: Context) -> None:
     await asyncio.sleep(5)
+
 
 # !!
 
@@ -42,7 +44,7 @@ async def task_2(input: WorkflowInput, ctx: Context) -> None:
 def main() -> None:
     worker = hatchet.worker(
         "concurrency-cancel-except-newest-with-parent-concurrency-worker",
-        workflows=[concurrency_cancel_except_newest_with_parent_concurrency_workflow, task, task_2],
+        workflows=[concurrency_cancel_except_newest_with_parent_concurrency_workflow],
     )
     worker.start()
 
