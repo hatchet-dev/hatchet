@@ -14,11 +14,6 @@ from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
 async def test_cancel_except_oldest_keeps_oldest_with_parent_concurrency(
     hatchet: Hatchet,
 ) -> None:
-    """Task-level CANCEL_EXCEPT_OLDEST must still keep only the oldest queued run even when
-    the workflow also declares its own ("parent") workflow-level concurrency scope on the
-    same key. The parent's max_runs is generous enough that it never binds, isolating the
-    assertions to the task-level strategy.
-    """
     test_run_id = str(uuid4())
     group = str(uuid4())
 

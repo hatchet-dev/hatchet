@@ -619,6 +619,514 @@ WHERE
     wsc.workflow_version_id = sr.workflow_version_id AND
     wsc.workflow_run_id = sr.workflow_run_id;
 
+-- name: RunParentCancelExceptNewest :exec
+-- Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST: fill the oldest
+-- maxRuns eligible runs, never evict an already-admitted run. "Except newest" only changes what
+-- happens to *tasks* that don't get admitted (RunChildCancelExceptNewest spares the newest maxRuns
+-- of those instead of cancelling them outright) - the admission policy itself doesn't change.
+WITH locked_workflow_concurrency_slots AS (
+    SELECT *
+    FROM v1_workflow_concurrency_slot
+    WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+        SELECT
+            strategy_id,
+            workflow_version_id,
+            workflow_run_id
+        FROM
+            tmp_workflow_concurrency_slot
+    )
+    ORDER BY strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), eligible_running_slots AS (
+    SELECT *
+    FROM (
+        SELECT *,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+        FROM locked_workflow_concurrency_slots
+        WHERE
+            tenant_id = @tenantId::uuid
+            AND strategy_id = @strategyId::bigint
+    ) ranked
+    WHERE rn <= @maxRuns::int
+), slots_to_run AS (
+    SELECT
+        *
+    FROM
+        v1_workflow_concurrency_slot
+    WHERE
+        (strategy_id, workflow_version_id, workflow_run_id) IN (
+            SELECT
+                ers.strategy_id,
+                ers.workflow_version_id,
+                ers.workflow_run_id
+            FROM
+                eligible_running_slots ers
+        )
+    ORDER BY
+        strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), update_tmp_table AS (
+    UPDATE
+        tmp_workflow_concurrency_slot wsc
+    SET
+        is_filled = TRUE
+    FROM
+        slots_to_run
+    WHERE
+        wsc.strategy_id = slots_to_run.strategy_id AND
+        wsc.workflow_version_id = slots_to_run.workflow_version_id AND
+        wsc.workflow_run_id = slots_to_run.workflow_run_id
+)
+UPDATE
+    v1_workflow_concurrency_slot wsc
+SET
+    is_filled = TRUE
+FROM
+    slots_to_run sr
+WHERE
+    wsc.strategy_id = sr.strategy_id AND
+    wsc.workflow_version_id = sr.workflow_version_id AND
+    wsc.workflow_run_id = sr.workflow_run_id;
+
+
+-- name: RunCancelExceptNewest :many
+WITH slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        cs.tenant_id,
+        cs.strategy_id,
+        cs.key,
+        cs.is_filled,
+        -- rn ranks oldest-first per key: rn <= maxRuns is who fills free capacity. key_count is the
+        -- total slots in that key's group, so rn > key_count - maxRuns identifies the newest maxRuns
+        -- slots (who must be spared from cancellation) without a second, reverse-ordered scan.
+        row_number() OVER (PARTITION BY cs.key ORDER BY cs.sort_id ASC) AS rn,
+        count(*) OVER (PARTITION BY cs.key) AS key_count,
+        row_number() OVER (ORDER BY cs.sort_id ASC) AS seqnum
+    FROM
+        v1_concurrency_slot cs
+    WHERE
+        cs.tenant_id = @tenantId::uuid AND
+    cs.strategy_id = @strategyId::bigint AND
+   (
+    schedule_timeout_at >= NOW() OR
+    cs.is_filled = TRUE
+    )
+    ), schedule_timeout_slots AS (
+SELECT
+    *
+FROM
+    v1_concurrency_slot
+WHERE
+    tenant_id = @tenantId::uuid AND
+    strategy_id = @strategyId::bigint AND
+    schedule_timeout_at < NOW() AND
+    is_filled = FALSE
+    LIMIT 1000
+    ), eligible_running_slots AS (
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    strategy_id,
+    key,
+    is_filled,
+    rn,
+    seqnum
+FROM
+    slots
+WHERE
+    rn <= @maxRuns::int
+    ), slots_to_cancel AS (
+SELECT
+    *
+FROM
+    v1_concurrency_slot
+WHERE
+    tenant_id = @tenantId::uuid AND
+    strategy_id = @strategyId::bigint AND
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+    SELECT
+    ers.task_inserted_at,
+    ers.task_id,
+    ers.task_retry_count
+    FROM
+    eligible_running_slots ers
+    ) AND
+    -- also spare the newest maxRuns slots per key: unlike CANCEL_NEWEST, they stay queued instead
+    -- of being cancelled, so they can be promoted once a running slot frees up. This is recomputed
+    -- fresh on every call, so a spared slot here can still be cancelled on a later poll once enough
+    -- newer arrivals push it out of the newest-maxRuns window.
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+    SELECT
+    s.task_inserted_at,
+    s.task_id,
+    s.task_retry_count
+    FROM
+    slots s
+    WHERE
+    s.rn > s.key_count - @maxRuns::int
+    )
+ORDER BY
+    task_id ASC, task_inserted_at ASC
+    FOR UPDATE
+    ), slots_to_run AS (
+SELECT
+    *
+FROM
+    v1_concurrency_slot
+WHERE
+    (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
+    SELECT
+    ers.task_inserted_at,
+    ers.task_id,
+    ers.task_retry_count,
+    ers.tenant_id,
+    ers.strategy_id
+    FROM
+    eligible_running_slots ers
+    ORDER BY
+    rn, seqnum
+    )
+ORDER BY
+    task_id ASC, task_inserted_at ASC
+    FOR UPDATE
+    ), updated_slots AS (
+UPDATE
+    v1_concurrency_slot
+SET
+    is_filled = TRUE
+FROM
+    slots_to_run
+WHERE
+    v1_concurrency_slot.task_id = slots_to_run.task_id AND
+    v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
+    v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+    v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+    v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
+    v1_concurrency_slot.key = slots_to_run.key AND
+    v1_concurrency_slot.is_filled = FALSE
+    RETURNING
+    v1_concurrency_slot.*
+    ), deleted_slots AS (
+DELETE FROM
+    v1_concurrency_slot
+WHERE
+    (task_inserted_at, task_id, task_retry_count) IN (
+    SELECT
+    c.task_inserted_at,
+    c.task_id,
+    c.task_retry_count
+    FROM
+    slots_to_cancel c
+    )
+    )
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'SCHEDULING_TIMED_OUT' AS "operation"
+FROM
+    schedule_timeout_slots
+UNION ALL
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'CANCELLED' AS "operation"
+FROM
+    slots_to_cancel
+WHERE
+    -- not in the schedule_timeout_slots
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+        SELECT
+            c.task_inserted_at,
+            c.task_id,
+            c.task_retry_count
+        FROM
+            schedule_timeout_slots c
+    )
+UNION ALL
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'RUNNING' AS "operation"
+FROM
+    updated_slots;
+
+-- name: RunParentCancelExceptOldest :exec
+-- Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST/CANCEL_EXCEPT_NEWEST:
+-- fill the oldest maxRuns eligible runs, never evict an already-admitted run. "Except oldest" only
+-- changes what happens to *tasks* that don't get admitted (RunChildCancelExceptOldest spares the
+-- oldest maxRuns of those instead of cancelling them outright) - the admission policy itself doesn't
+-- change.
+WITH locked_workflow_concurrency_slots AS (
+    SELECT *
+    FROM v1_workflow_concurrency_slot
+    WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+        SELECT
+            strategy_id,
+            workflow_version_id,
+            workflow_run_id
+        FROM
+            tmp_workflow_concurrency_slot
+    )
+    ORDER BY strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), eligible_running_slots AS (
+    SELECT *
+    FROM (
+        SELECT *,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY sort_id ASC) as rn
+        FROM locked_workflow_concurrency_slots
+        WHERE
+            tenant_id = @tenantId::uuid
+            AND strategy_id = @strategyId::bigint
+    ) ranked
+    WHERE rn <= @maxRuns::int
+), slots_to_run AS (
+    SELECT
+        *
+    FROM
+        v1_workflow_concurrency_slot
+    WHERE
+        (strategy_id, workflow_version_id, workflow_run_id) IN (
+            SELECT
+                ers.strategy_id,
+                ers.workflow_version_id,
+                ers.workflow_run_id
+            FROM
+                eligible_running_slots ers
+        )
+    ORDER BY
+        strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), update_tmp_table AS (
+    UPDATE
+        tmp_workflow_concurrency_slot wsc
+    SET
+        is_filled = TRUE
+    FROM
+        slots_to_run
+    WHERE
+        wsc.strategy_id = slots_to_run.strategy_id AND
+        wsc.workflow_version_id = slots_to_run.workflow_version_id AND
+        wsc.workflow_run_id = slots_to_run.workflow_run_id
+)
+UPDATE
+    v1_workflow_concurrency_slot wsc
+SET
+    is_filled = TRUE
+FROM
+    slots_to_run sr
+WHERE
+    wsc.strategy_id = sr.strategy_id AND
+    wsc.workflow_version_id = sr.workflow_version_id AND
+    wsc.workflow_run_id = sr.workflow_run_id;
+
+-- name: RunCancelExceptOldest :many
+-- Like RunCancelExceptNewest, but spares the oldest maxRuns of the queued backlog instead of the
+-- newest. Since `slots.rn` is already ranked oldest-first, "the oldest maxRuns still queued" is just
+-- the next maxRuns ranks after the ones already running: rn <= 2*maxRuns covers both bands (running
+-- is rn <= maxRuns, queued survivors are maxRuns < rn <= 2*maxRuns), so no separate reverse-ordered
+-- ranking is needed here the way RunCancelExceptNewest needs key_count.
+WITH slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        cs.tenant_id,
+        cs.strategy_id,
+        cs.key,
+        cs.is_filled,
+        row_number() OVER (PARTITION BY cs.key ORDER BY cs.sort_id ASC) AS rn,
+        row_number() OVER (ORDER BY cs.sort_id ASC) AS seqnum
+    FROM
+        v1_concurrency_slot cs
+    WHERE
+        cs.tenant_id = @tenantId::uuid AND
+        cs.strategy_id = @strategyId::bigint AND
+        (
+            schedule_timeout_at >= NOW() OR
+            cs.is_filled = TRUE
+        )
+), schedule_timeout_slots AS (
+    SELECT
+        *
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid AND
+        strategy_id = @strategyId::bigint AND
+        schedule_timeout_at < NOW() AND
+        is_filled = FALSE
+    LIMIT 1000
+), eligible_running_slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        tenant_id,
+        strategy_id,
+        key,
+        is_filled,
+        rn,
+        seqnum
+    FROM
+        slots
+    WHERE
+        rn <= @maxRuns::int
+), slots_to_cancel AS (
+    SELECT
+        *
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid AND
+        strategy_id = @strategyId::bigint AND
+        (task_inserted_at, task_id, task_retry_count) NOT IN (
+            SELECT
+                ers.task_inserted_at,
+                ers.task_id,
+                ers.task_retry_count
+            FROM
+                eligible_running_slots ers
+        ) AND
+        -- also spare the oldest maxRuns of the queued backlog: unlike CANCEL_NEWEST, they stay
+        -- queued instead of being cancelled, so they can be promoted once a running slot frees up.
+        -- This band is ranked by absolute arrival order, so a newer arrival can never displace a
+        -- spared slot here; only a completion ahead of it (shrinking the ranked set) can.
+        (task_inserted_at, task_id, task_retry_count) NOT IN (
+            SELECT
+                s.task_inserted_at,
+                s.task_id,
+                s.task_retry_count
+            FROM
+                slots s
+            WHERE
+                s.rn <= 2 * @maxRuns::int
+        )
+    ORDER BY
+        task_id ASC, task_inserted_at ASC
+    FOR UPDATE
+), slots_to_run AS (
+    SELECT
+        *
+    FROM
+        v1_concurrency_slot
+    WHERE
+        (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
+            SELECT
+                ers.task_inserted_at,
+                ers.task_id,
+                ers.task_retry_count,
+                ers.tenant_id,
+                ers.strategy_id
+            FROM
+                eligible_running_slots ers
+            ORDER BY
+                rn, seqnum
+        )
+    ORDER BY
+        task_id ASC, task_inserted_at ASC
+    FOR UPDATE
+), updated_slots AS (
+    UPDATE
+        v1_concurrency_slot
+    SET
+        is_filled = TRUE
+    FROM
+        slots_to_run
+    WHERE
+        v1_concurrency_slot.task_id = slots_to_run.task_id AND
+        v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.tenant_id = slots_to_run.tenant_id AND
+        v1_concurrency_slot.strategy_id = slots_to_run.strategy_id AND
+        v1_concurrency_slot.key = slots_to_run.key AND
+        v1_concurrency_slot.is_filled = FALSE
+    RETURNING
+        v1_concurrency_slot.*
+), deleted_slots AS (
+    DELETE FROM
+        v1_concurrency_slot
+    WHERE
+        (task_inserted_at, task_id, task_retry_count) IN (
+            SELECT
+                c.task_inserted_at,
+                c.task_id,
+                c.task_retry_count
+            FROM
+                slots_to_cancel c
+        )
+)
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'SCHEDULING_TIMED_OUT' AS "operation"
+FROM
+    schedule_timeout_slots
+UNION ALL
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'CANCELLED' AS "operation"
+FROM
+    slots_to_cancel
+WHERE
+    -- not in the schedule_timeout_slots
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+        SELECT
+            c.task_inserted_at,
+            c.task_id,
+            c.task_retry_count
+        FROM
+            schedule_timeout_slots c
+    )
+UNION ALL
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
+    'RUNNING' AS "operation"
+FROM
+    updated_slots;
 
 
 -- name: RunCancelNewest :many

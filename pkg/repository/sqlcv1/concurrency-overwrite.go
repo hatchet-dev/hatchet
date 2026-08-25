@@ -681,6 +681,618 @@ func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChil
 	return items, nil
 }
 
+// Used for CANCEL_EXCEPT_NEWEST scheduling when a strategy has a parent strategy. Same shape as
+// RunChildCancelNewest (a task only competes once its run's parent slot is admitted; everything not
+// eligible to run is a cancel candidate) except: unlike CANCEL_NEWEST, the newest maxRuns tasks for a
+// key are spared from cancellation even if their run was never admitted by the parent - they stay
+// queued rather than being cancelled outright, so they can run once the parent admits their run (or
+// be superseded by even newer arrivals on a later poll, since this is recomputed fresh every call).
+// The "newest maxRuns" ranking (all_slots_ranked/newest_queued below) deliberately does NOT join to
+// tmp_workflow_concurrency_slot like `slots` does: a task whose run was never admitted must still be
+// able to qualify as "newest" and be spared, or this strategy would degrade to plain CANCEL_NEWEST
+// for every task waiting on parent admission - exactly the bug this query exists to fix.
+const runChildCancelExceptNewest = `-- name: RunChildCancelExceptNewest :many
+WITH slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        cs.tenant_id,
+        cs.strategy_id,
+        cs.key,
+        cs.is_filled,
+        row_number() OVER (PARTITION BY cs.key ORDER BY cs.sort_id ASC) AS rn,
+        row_number() OVER (ORDER BY cs.sort_id ASC) AS seqnum
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+    WHERE
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        (
+            cs.parent_strategy_id IS NULL OR
+            wcs.is_filled = TRUE
+        ) AND
+        (
+            schedule_timeout_at >= NOW() OR
+            cs.is_filled = TRUE
+        )
+), schedule_timeout_slots AS (
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid AND
+        strategy_id = $2::bigint AND
+        schedule_timeout_at < NOW() AND
+        is_filled = FALSE
+    LIMIT 1000
+), eligible_running_slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        tenant_id,
+        strategy_id,
+        key,
+        is_filled,
+        rn,
+        seqnum
+    FROM
+        slots
+    WHERE
+        rn <= $3::int
+), all_slots_ranked AS (
+    -- Ranks every (non-timed-out) task for this strategy regardless of parent admission, so a task
+    -- whose run was never admitted can still be recognized as one of the newest maxRuns and spared.
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        row_number() OVER (PARTITION BY key ORDER BY sort_id ASC) AS rn,
+        count(*) OVER (PARTITION BY key) AS key_count
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid AND
+        strategy_id = $2::bigint AND
+        (
+            schedule_timeout_at >= NOW() OR
+            is_filled = TRUE
+        )
+), newest_queued AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count
+    FROM
+        all_slots_ranked
+    WHERE
+        rn > key_count - $3::int
+), all_slots AS (
+    SELECT
+        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at,
+        CASE
+            WHEN (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count,
+                    ers.tenant_id,
+                    ers.strategy_id
+                FROM
+                    eligible_running_slots ers
+                ORDER BY
+                    rn, seqnum
+            ) THEN 'run'
+            WHEN (
+                cs.tenant_id = $1::uuid AND
+                cs.strategy_id = $2::bigint AND
+                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                    SELECT
+                        ers.task_inserted_at,
+                        ers.task_id,
+                        ers.task_retry_count
+                    FROM
+                        eligible_running_slots ers
+                ) AND
+                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                    SELECT
+                        nq.task_inserted_at,
+                        nq.task_id,
+                        nq.task_retry_count
+                    FROM
+                        newest_queued nq
+                ) AND
+                (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
+                    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                    FROM
+                        tmp_workflow_concurrency_slot wcs
+                )
+            ) THEN 'cancel'
+            ELSE NULL
+        END AS operation
+    FROM
+        v1_concurrency_slot cs
+    WHERE
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+            SELECT
+                ers.task_inserted_at,
+                ers.task_id,
+                ers.task_retry_count,
+                ers.tenant_id,
+                ers.strategy_id
+            FROM
+                eligible_running_slots ers
+            ORDER BY
+                rn, seqnum
+        ) OR (
+            cs.tenant_id = $1::uuid AND
+            cs.strategy_id = $2::bigint AND
+            (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count
+                FROM
+                    eligible_running_slots ers
+            ) AND
+            (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                SELECT
+                    nq.task_inserted_at,
+                    nq.task_id,
+                    nq.task_retry_count
+                FROM
+                    newest_queued nq
+            ) AND
+            (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
+                SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                FROM tmp_workflow_concurrency_slot wcs
+            )
+        )
+    ORDER BY
+        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
+    FOR UPDATE
+), updated_slots AS (
+    UPDATE
+        v1_concurrency_slot
+    SET
+        is_filled = TRUE
+    FROM
+        all_slots s
+    WHERE
+        v1_concurrency_slot.task_id = s.task_id AND
+        v1_concurrency_slot.task_inserted_at = s.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = s.task_retry_count AND
+        v1_concurrency_slot.tenant_id = s.tenant_id AND
+        v1_concurrency_slot.strategy_id = s.strategy_id AND
+        v1_concurrency_slot.key = s.key AND
+        v1_concurrency_slot.is_filled = FALSE AND
+        s.operation = 'run'
+    RETURNING
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+), deleted_slots AS (
+    DELETE FROM
+        v1_concurrency_slot
+    WHERE
+        (task_inserted_at, task_id, task_retry_count) IN (
+            SELECT
+                s.task_inserted_at,
+                s.task_id,
+                s.task_retry_count
+            FROM
+                all_slots s
+            WHERE
+                s.operation = 'cancel'
+        )
+)
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'SCHEDULING_TIMED_OUT' AS "operation"
+FROM
+    schedule_timeout_slots
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'CANCELLED' AS "operation"
+FROM
+    all_slots
+WHERE
+    -- not in the schedule_timeout_slots
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+        SELECT
+            c.task_inserted_at,
+            c.task_id,
+            c.task_retry_count
+        FROM
+            schedule_timeout_slots c
+    )
+    AND operation = 'cancel'
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'RUNNING' AS "operation"
+FROM
+    updated_slots
+`
+
+type RunChildCancelExceptNewestParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
+}
+
+type RunChildCancelExceptNewestRow struct {
+	SortID                pgtype.Int8        `json:"sort_id"`
+	TaskID                int64              `json:"task_id"`
+	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	Priority              int32              `json:"priority"`
+	Key                   string             `json:"key"`
+	IsFilled              bool               `json:"is_filled"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextKeys              []string           `json:"next_keys"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	Operation             string             `json:"operation"`
+}
+
+func (q *Queries) RunChildCancelExceptNewest(ctx context.Context, db DBTX, arg RunChildCancelExceptNewestParams) ([]*RunChildCancelExceptNewestRow, error) {
+	rows, err := db.Query(ctx, runChildCancelExceptNewest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RunChildCancelExceptNewestRow
+	for rows.Next() {
+		var i RunChildCancelExceptNewestRow
+		if err := rows.Scan(
+			&i.SortID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.ExternalID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
+			&i.WorkflowRunID,
+			&i.StrategyID,
+			&i.ParentStrategyID,
+			&i.Priority,
+			&i.Key,
+			&i.IsFilled,
+			&i.NextParentStrategyIds,
+			&i.NextStrategyIds,
+			&i.NextKeys,
+			&i.QueueToNotify,
+			&i.ScheduleTimeoutAt,
+			&i.Operation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// Used for CANCEL_EXCEPT_OLDEST scheduling when a strategy has a parent strategy. Same shape as
+// RunChildCancelExceptNewest, except the spared band is the oldest maxRuns of the queued backlog
+// instead of the newest: since all_slots_ranked already ranks oldest-first, "oldest maxRuns still
+// queued" is just the next maxRuns ranks after the ones already running (rn <= 2*maxRuns covers both
+// bands), so no key_count/reverse ranking is needed the way RunChildCancelExceptNewest needs it. As
+// with RunChildCancelExceptNewest, this ranking deliberately does NOT join to
+// tmp_workflow_concurrency_slot: a task whose run was never admitted must still be able to qualify
+// as one of the oldest maxRuns and be spared, or this would degrade to plain CANCEL_NEWEST for every
+// task waiting on parent admission.
+const runChildCancelExceptOldest = `-- name: RunChildCancelExceptOldest :many
+WITH slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        cs.tenant_id,
+        cs.strategy_id,
+        cs.key,
+        cs.is_filled,
+        row_number() OVER (PARTITION BY cs.key ORDER BY cs.sort_id ASC) AS rn,
+        row_number() OVER (ORDER BY cs.sort_id ASC) AS seqnum
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+    WHERE
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        (
+            cs.parent_strategy_id IS NULL OR
+            wcs.is_filled = TRUE
+        ) AND
+        (
+            schedule_timeout_at >= NOW() OR
+            cs.is_filled = TRUE
+        )
+), schedule_timeout_slots AS (
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid AND
+        strategy_id = $2::bigint AND
+        schedule_timeout_at < NOW() AND
+        is_filled = FALSE
+    LIMIT 1000
+), eligible_running_slots AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        tenant_id,
+        strategy_id,
+        key,
+        is_filled,
+        rn,
+        seqnum
+    FROM
+        slots
+    WHERE
+        rn <= $3::int
+), all_slots_ranked AS (
+    -- Ranks every (non-timed-out) task for this strategy regardless of parent admission, so a task
+    -- whose run was never admitted can still be recognized as one of the oldest maxRuns and spared.
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        row_number() OVER (PARTITION BY key ORDER BY sort_id ASC) AS rn
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid AND
+        strategy_id = $2::bigint AND
+        (
+            schedule_timeout_at >= NOW() OR
+            is_filled = TRUE
+        )
+), oldest_survivors AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        task_retry_count
+    FROM
+        all_slots_ranked
+    WHERE
+        rn <= 2 * $3::int
+), all_slots AS (
+    SELECT
+        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at,
+        CASE
+            WHEN (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count,
+                    ers.tenant_id,
+                    ers.strategy_id
+                FROM
+                    eligible_running_slots ers
+                ORDER BY
+                    rn, seqnum
+            ) THEN 'run'
+            WHEN (
+                cs.tenant_id = $1::uuid AND
+                cs.strategy_id = $2::bigint AND
+                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                    SELECT
+                        ers.task_inserted_at,
+                        ers.task_id,
+                        ers.task_retry_count
+                    FROM
+                        eligible_running_slots ers
+                ) AND
+                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                    SELECT
+                        os.task_inserted_at,
+                        os.task_id,
+                        os.task_retry_count
+                    FROM
+                        oldest_survivors os
+                ) AND
+                (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
+                    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                    FROM
+                        tmp_workflow_concurrency_slot wcs
+                )
+            ) THEN 'cancel'
+            ELSE NULL
+        END AS operation
+    FROM
+        v1_concurrency_slot cs
+    WHERE
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+            SELECT
+                ers.task_inserted_at,
+                ers.task_id,
+                ers.task_retry_count,
+                ers.tenant_id,
+                ers.strategy_id
+            FROM
+                eligible_running_slots ers
+            ORDER BY
+                rn, seqnum
+        ) OR (
+            cs.tenant_id = $1::uuid AND
+            cs.strategy_id = $2::bigint AND
+            (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count
+                FROM
+                    eligible_running_slots ers
+            ) AND
+            (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                SELECT
+                    os.task_inserted_at,
+                    os.task_id,
+                    os.task_retry_count
+                FROM
+                    oldest_survivors os
+            ) AND
+            (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
+                SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                FROM tmp_workflow_concurrency_slot wcs
+            )
+        )
+    ORDER BY
+        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
+    FOR UPDATE
+), updated_slots AS (
+    UPDATE
+        v1_concurrency_slot
+    SET
+        is_filled = TRUE
+    FROM
+        all_slots s
+    WHERE
+        v1_concurrency_slot.task_id = s.task_id AND
+        v1_concurrency_slot.task_inserted_at = s.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = s.task_retry_count AND
+        v1_concurrency_slot.tenant_id = s.tenant_id AND
+        v1_concurrency_slot.strategy_id = s.strategy_id AND
+        v1_concurrency_slot.key = s.key AND
+        v1_concurrency_slot.is_filled = FALSE AND
+        s.operation = 'run'
+    RETURNING
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+), deleted_slots AS (
+    DELETE FROM
+        v1_concurrency_slot
+    WHERE
+        (task_inserted_at, task_id, task_retry_count) IN (
+            SELECT
+                s.task_inserted_at,
+                s.task_id,
+                s.task_retry_count
+            FROM
+                all_slots s
+            WHERE
+                s.operation = 'cancel'
+        )
+)
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'SCHEDULING_TIMED_OUT' AS "operation"
+FROM
+    schedule_timeout_slots
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'CANCELLED' AS "operation"
+FROM
+    all_slots
+WHERE
+    -- not in the schedule_timeout_slots
+    (task_inserted_at, task_id, task_retry_count) NOT IN (
+        SELECT
+            c.task_inserted_at,
+            c.task_id,
+            c.task_retry_count
+        FROM
+            schedule_timeout_slots c
+    )
+    AND operation = 'cancel'
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    'RUNNING' AS "operation"
+FROM
+    updated_slots
+`
+
+type RunChildCancelExceptOldestParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Maxruns    int32     `json:"maxruns"`
+}
+
+type RunChildCancelExceptOldestRow struct {
+	SortID                pgtype.Int8        `json:"sort_id"`
+	TaskID                int64              `json:"task_id"`
+	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	ExternalID            uuid.UUID          `json:"external_id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	WorkflowID            uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	Priority              int32              `json:"priority"`
+	Key                   string             `json:"key"`
+	IsFilled              bool               `json:"is_filled"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextKeys              []string           `json:"next_keys"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	Operation             string             `json:"operation"`
+}
+
+func (q *Queries) RunChildCancelExceptOldest(ctx context.Context, db DBTX, arg RunChildCancelExceptOldestParams) ([]*RunChildCancelExceptOldestRow, error) {
+	rows, err := db.Query(ctx, runChildCancelExceptOldest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RunChildCancelExceptOldestRow
+	for rows.Next() {
+		var i RunChildCancelExceptOldestRow
+		if err := rows.Scan(
+			&i.SortID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.ExternalID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
+			&i.WorkflowRunID,
+			&i.StrategyID,
+			&i.ParentStrategyID,
+			&i.Priority,
+			&i.Key,
+			&i.IsFilled,
+			&i.NextParentStrategyIds,
+			&i.NextStrategyIds,
+			&i.NextKeys,
+			&i.QueueToNotify,
+			&i.ScheduleTimeoutAt,
+			&i.Operation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateConcurrencySlotIsFilledBatch = `-- name: UpdateConcurrencySlotIsFilledBatch :one
 UPDATE v1_concurrency_slot
 SET is_filled = $1
