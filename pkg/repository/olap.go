@@ -3384,7 +3384,7 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 type IdInsertedAt struct {
 	ID                   int64
-	InsertedAtUnixMicros int64
+	InsertedAtUnixMicros int64 // using microseconds because it matches the max precision allowed by `TIMESTAMPTZ` in PG
 }
 
 func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
