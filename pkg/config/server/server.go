@@ -584,23 +584,19 @@ type PubSubNATSConfigFile struct {
 	Username string `mapstructure:"username" json:"username,omitempty"`
 	Password string `mapstructure:"password" json:"password,omitempty"`
 
-	// TLSEnabled requires verified TLS regardless of the URL scheme. Without
-	// TLSRootCAFile the server certificate is verified against the system
-	// roots. False leaves TLS to the URL scheme alone.
+	// TLSEnabled requires verified TLS with a TLS-first handshake: the
+	// handshake happens before the server's INFO message, so the server must
+	// set handshake_first in its tls block. A client with this flag fails to
+	// connect to an INFO-first TLS or plaintext server. Without TLSRootCAFile
+	// the server certificate is verified against the system roots. False
+	// leaves TLS to the URL scheme alone (tls:// does standard INFO-first
+	// TLS with system roots).
 	TLSEnabled bool `mapstructure:"tlsEnabled" json:"tlsEnabled,omitempty"`
 
 	// TLSRootCAFile is a PEM CA bundle used to verify a NATS server whose
 	// certificate is signed by a private CA (it also applies to rediscovered
 	// cluster peers). Requires TLSEnabled: true; startup fails otherwise.
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
-
-	// TLSHandshakeFirst performs the TLS handshake before the server's INFO
-	// message; the server must enable handshake_first in its tls block.
-	// Against a server that sends INFO first, the client's TLS handshake
-	// reads the plaintext INFO as a malformed handshake reply and fails the
-	// connect within the connect timeout. Requires TLSEnabled: true; startup
-	// fails otherwise.
-	TLSHandshakeFirst bool `mapstructure:"tlsHandshakeFirst" json:"tlsHandshakeFirst,omitempty"`
 
 	// SubjectPrefix is prepended (with a trailing ".") to topic names.
 	// Empty defaults to "hatchet.pubsub".
@@ -970,7 +966,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.nats.subjectPrefix", "SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX")
 	_ = v.BindEnv("msgQueue.pubSub.nats.tlsEnabled", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED")
 	_ = v.BindEnv("msgQueue.pubSub.nats.tlsRootCAFile", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE")
-	_ = v.BindEnv("msgQueue.pubSub.nats.tlsHandshakeFirst", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_HANDSHAKE_FIRST")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
