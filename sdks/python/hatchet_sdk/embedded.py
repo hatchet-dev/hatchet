@@ -31,6 +31,10 @@ class EmbeddedSidecar:
     process: subprocess.Popen[bytes]
 
     def stop(self) -> None:
+        global _active_sidecar
+        if _active_sidecar is self:
+            _active_sidecar = None
+
         if self.process.poll() is not None:
             return
 
@@ -40,6 +44,26 @@ class EmbeddedSidecar:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait()
+
+    def __enter__(self) -> "EmbeddedSidecar":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.stop()
+
+
+_active_sidecar: EmbeddedSidecar | None = None
+
+
+def stop_embedded_sidecar() -> None:
+    """
+    Gracefully stop the sidecar started by `Hatchet.from_embedded()` (or
+    `start_embedded_sidecar`) and block until it has fully exited, including
+    its bundled Postgres. Call this before your process exits so the engine's
+    shutdown output does not print after your program has returned.
+    """
+    if _active_sidecar is not None:
+        _active_sidecar.stop()
 
 
 def _sidecar_asset_name() -> str:
@@ -213,7 +237,10 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
 
-    return EmbeddedSidecar(handshake=handshake, process=process)
+    global _active_sidecar
+    sidecar = EmbeddedSidecar(handshake=handshake, process=process)
+    _active_sidecar = sidecar
+    return sidecar
 
 
 def _wait_for_handshake(
