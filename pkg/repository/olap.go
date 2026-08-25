@@ -3132,6 +3132,15 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		defer rollback()
 	}
 
+	// OLAP payloads are best-effort secondary data. Skip waiting for WAL fsync on
+	// commit so fat INLINE inserts do not stall behind WALWrite/WalSync. SET LOCAL
+	// applies to the whole transaction (including status updates when PutPayloads
+	// shares a flush txn). Crash before walwriter flush can lose this commit after
+	// the MQ ack — acceptable for this path, not for primary task state.
+	if _, err := tx.Exec(ctx, "SET LOCAL synchronous_commit = off"); err != nil {
+		return fmt.Errorf("error setting synchronous_commit off in `PutPayload`: %w", err)
+	}
+
 	insertedAts := make([]pgtype.Timestamptz, 0, len(putPayloadOpts))
 	tenantIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	externalIds := make([]uuid.UUID, 0, len(putPayloadOpts))
