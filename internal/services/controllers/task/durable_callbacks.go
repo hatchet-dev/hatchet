@@ -58,7 +58,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 
 	invCountOpts := make([]v1.IdInsertedAt, 0, len(flatTasks))
 	for _, t := range flatTasks {
-		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt})
+		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMillis: t.InsertedAt.Time.UnixMilli()})
 	}
 
 	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
@@ -76,7 +76,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		}
 
 		var durableInvCount int32
-		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}]; ok && count != nil {
+		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMillis: t.InsertedAt.Time.UnixMilli()}]; ok && count != nil {
 			durableInvCount = *count
 		}
 

@@ -1404,7 +1404,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			taskIdToExternalId := make(map[v1.IdInsertedAt]uuid.UUID, len(tasks))
 
 			for _, t := range tasks {
-				key := v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}
+				key := v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMillis: t.InsertedAt.Time.UnixMilli()}
 				idInsertedAts = append(idInsertedAts, key)
 				taskIdToExternalId[key] = t.ExternalID
 			}

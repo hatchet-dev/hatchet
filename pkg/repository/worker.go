@@ -967,7 +967,7 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for i, tuple := range idInsertedAtTuples {
 		taskIds[i] = tuple.ID
-		taskInsertedAts[i] = tuple.InsertedAt
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMillis(tuple.InsertedAtUnixMillis)
 	}
 
 	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
@@ -984,8 +984,8 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for _, row := range rows {
 		taskIdToDispatcherInfo[IdInsertedAt{
-			ID:         row.TaskID,
-			InsertedAt: row.TaskInsertedAt,
+			ID:                   row.TaskID,
+			InsertedAtUnixMillis: row.TaskInsertedAt.Time.UnixMilli(),
 		}] = DurableTaskDispatcherLookup{
 			DispatcherId: row.DurableTaskDispatcherId,
 			IsEvicted:    row.EvictedAt.Valid,

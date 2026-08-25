@@ -721,8 +721,8 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 
 		if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
 			getDurableInvocationCountOpts = append(getDurableInvocationCountOpts, v1.IdInsertedAt{
-				ID:         assigned.Task.ID,
-				InsertedAt: assigned.Task.InsertedAt,
+				ID:                   assigned.Task.ID,
+				InsertedAtUnixMillis: assigned.Task.InsertedAt.Time.UnixMilli(),
 			})
 		}
 	}
@@ -736,8 +736,8 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 			for _, assigned := range tasks {
 				if assigned.Task.IsDurable.Valid && assigned.Task.IsDurable.Bool {
 					count := invocationCounts[v1.IdInsertedAt{
-						ID:         assigned.Task.ID,
-						InsertedAt: assigned.Task.InsertedAt,
+						ID:                   assigned.Task.ID,
+						InsertedAtUnixMillis: assigned.Task.InsertedAt.Time.UnixMilli(),
 					}]
 					taskIdToData[assigned.Task.ID].InvocationCount = count
 				}
@@ -784,8 +784,8 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		if task.IsDurable.Valid && task.IsDurable.Bool {
 			getInvocationCountOpts = append(getInvocationCountOpts, v1.IdInsertedAt{
-				ID:         task.ID,
-				InsertedAt: task.InsertedAt,
+				ID:                   task.ID,
+				InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli(),
 			})
 		}
 	}
@@ -965,8 +965,8 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		invocationCount := invocationCounts[v1.IdInsertedAt{
-			ID:         task.ID,
-			InsertedAt: task.InsertedAt,
+			ID:                   task.ID,
+			InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli(),
 		}]
 
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
@@ -1323,8 +1323,8 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 
 		if task.IsDurable.Valid && task.IsDurable.Bool {
 			durableTaskIds = append(durableTaskIds, v1.IdInsertedAt{
-				ID:         task.ID,
-				InsertedAt: task.InsertedAt,
+				ID:                   task.ID,
+				InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli(),
 			})
 		}
 	}

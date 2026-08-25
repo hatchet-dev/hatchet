@@ -1327,10 +1327,10 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	if task.IsDurable.Bool {
 		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
-			{ID: task.ID, InsertedAt: task.InsertedAt},
+			{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()},
 		})
 		if err == nil {
-			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()}]; ok && count != nil {
 				durableInvCount = *count
 			}
 		}
@@ -1628,7 +1628,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1660,7 +1660,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 
@@ -1718,7 +1718,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1779,7 +1779,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMillis: task.InsertedAt.Time.UnixMilli()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 
