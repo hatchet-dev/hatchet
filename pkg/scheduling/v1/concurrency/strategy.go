@@ -522,9 +522,42 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelInProgress
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST:
+		return decideCancelExceptNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST:
+		return decideCancelExceptOldest
 	default:
 		panic("unknown concurrency strategy")
 	}
+}
+
+// decideCancelExceptNewest fills free capacity from queued buffer, then cancels everything
+// except for the maxRuns newest, which will stick around to be queued up the next time
+func decideCancelExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.running.insert(s)
+	}
+	toCancel = sq.queued.pop(sq.queued.len() - int(sq.maxRuns))
+	return toFill, toCancel
+}
+
+// decideCancelExceptOldest is the same as CancelExceptNewest except that it keeps the oldest slot around
+func decideCancelExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.running.insert(s)
+	}
+	// somewhat awkward here, but we want to keep the first elements (because oldest-first comparator),
+	// so we need to pop and then reinsert.
+	if sq.queued.len() > int(sq.maxRuns) {
+		popped := sq.queued.pop(sq.queued.len())
+		toCancel = popped[sq.maxRuns:]
+		for _, s := range popped[:sq.maxRuns] {
+			sq.queued.insert(s)
+		}
+	}
+	return toFill, toCancel
 }
 
 // decideGroupRoundRobin fills free capacity (maxRuns - running) from the queued backlog in comparator

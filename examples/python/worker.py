@@ -37,6 +37,8 @@ from examples.concurrency_cancel_newest_task_level.worker import (
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
+from examples.concurrency_queue_newest.worker import concurrency_queue_newest_workflow
+from examples.concurrency_queue_oldest.worker import concurrency_queue_oldest_workflow
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
@@ -218,6 +220,8 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
+            concurrency_queue_newest_workflow,
+            concurrency_queue_oldest_workflow,
             concurrency_cancel_newest_task_level_workflow,
             concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,

@@ -179,6 +179,10 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
+	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST:
+		// TODO: new concurrency strategy handling
+	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST:
+		// TODO: new concurrency strategy handling
 	}
 
 	return res, nil
