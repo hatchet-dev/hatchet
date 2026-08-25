@@ -1,14 +1,16 @@
 import atexit
+import contextlib
 import hashlib
 import os
 import platform
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
@@ -29,35 +31,41 @@ class Handshake(BaseModel):
 class EmbeddedSidecar:
     handshake: Handshake
     process: subprocess.Popen[bytes]
+    _stop_lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     def stop(self) -> None:
-        if self in _active_sidecars:
-            _active_sidecars.remove(self)
+        with self._stop_lock:
+            with contextlib.suppress(ValueError):
+                _active_sidecars.remove(self)
 
-        # a stale handshake would point the next `from_embedded()` in this
-        # process at the terminated engine instead of starting a new one
-        raw_handshake = os.environ.get(_HANDSHAKE_ENV)
-        if raw_handshake is not None:
+            atexit.unregister(self.process.terminate)
+
+            # a stale handshake would point the next `from_embedded()` in this
+            # process at the terminated engine instead of starting a new one
+            raw_handshake = os.environ.get(_HANDSHAKE_ENV)
+            if raw_handshake is not None:
+                try:
+                    stale = (
+                        Handshake.model_validate_json(raw_handshake).token
+                        == self.handshake.token
+                    )
+                except ValidationError:
+                    stale = True
+
+                if stale:
+                    os.environ.pop(_HANDSHAKE_ENV, None)
+
+            if self.process.poll() is not None:
+                return
+
+            self.process.terminate()
             try:
-                stale = (
-                    Handshake.model_validate_json(raw_handshake).token
-                    == self.handshake.token
-                )
-            except ValidationError:
-                stale = True
-
-            if stale:
-                del os.environ[_HANDSHAKE_ENV]
-
-        if self.process.poll() is not None:
-            return
-
-        self.process.terminate()
-        try:
-            self.process.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.wait()
+                self.process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
 
     def __enter__(self) -> "EmbeddedSidecar":
         return self

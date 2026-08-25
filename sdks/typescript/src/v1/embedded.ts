@@ -308,13 +308,15 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
     child.stdin.unref();
   }
 
+  let stopping: Promise<void> | undefined;
+
   const sidecar: EmbeddedSidecar = {
     token: handshake.token,
     tenantId: handshake.tenant_id,
     grpcAddress: handshake.grpc_address,
     apiUrl: handshake.api_url,
-    stop: () =>
-      new Promise<void>((resolve) => {
+    stop: () => {
+      stopping ??= new Promise<void>((resolve) => {
         activeSidecars.delete(sidecar);
         process.removeListener('exit', killChild);
         if (child.exitCode !== null) {
@@ -328,7 +330,9 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
           resolve();
         });
         child.kill();
-      }),
+      });
+      return stopping;
+    },
   };
 
   activeSidecars.add(sidecar);
