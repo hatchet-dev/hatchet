@@ -17,7 +17,6 @@ Hatchet v0.105.1 launches workflow pause and per-member payload visibility. It a
 - Engine: retry backoff no longer overflows on high retry counts ([#4719](https://github.com/hatchet-dev/hatchet/pull/4719)).
 - Engine: lookups of missing rows return `NotFound` instead of `Internal` ([#4744](https://github.com/hatchet-dev/hatchet/pull/4744), [#4757](https://github.com/hatchet-dev/hatchet/pull/4757)).
 
-
 ## [0.101.27] - 2026-08-17
 
 Hatchet v0.101.27 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, adding a read-only `VIEWER` role, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
