@@ -6,6 +6,8 @@ import { Callout } from "@/components/nextra-compat";
 import { Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import LatestImageTags from "@/components/LatestImageTags";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 <LatestImageTags versionRepo="hatchet-embedded" />
 
@@ -25,33 +27,13 @@ When using the embedded mode, you get a full Hatchet engine running locally with
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
-```python
-from hatchet_sdk import Hatchet
+<Snippet src={snippets.python.embedded.worker.create_an_embedded_client} />
 
-hatchet = Hatchet.from_embedded()
-```
-
-Configure the embedded engine through `ClientConfig.embedded`:
-
-```python
-from hatchet_sdk import ClientConfig, EmbeddedHatchetConfig, Hatchet
-
-hatchet = Hatchet.from_embedded(
-    ClientConfig(
-        embedded=EmbeddedHatchetConfig(
-            version="vX.Y.Z",
-            database_url="postgres://...",
-            log_level="info",
-        )
-    )
-)
-```
+Configure the embedded engine through `ClientConfig.embedded` (see [Options](#options)).
 
 When you are done, stop the engine and wait for it to exit:
 
-```python
-hatchet.stop_embedded()
-```
+<Snippet src={snippets.python.embedded.worker.stop_the_embedded_engine} />
 
 <Callout type="warning">
   Python workers run tasks in subprocesses that re-import your main module.
@@ -66,27 +48,13 @@ hatchet.stop_embedded()
 
 Embedded mode is a separate entry point, so it stays out of production bundles:
 
-```ts
-import { HatchetEmbeddedClient } from "@hatchet-dev/typescript-sdk/v1/embedded";
+<Snippet src={snippets.typescript.embedded.worker.create_an_embedded_client} />
 
-const hatchet = await HatchetEmbeddedClient.init();
-```
-
-Options are passed as the first argument:
-
-```ts
-const hatchet = await HatchetEmbeddedClient.init({
-  version: "vX.Y.Z",
-  databaseUrl: "postgres://...",
-  logLevel: "info",
-});
-```
+Options are passed as the first argument (see [Options](#options)).
 
 When you are done, stop the engine and wait for it to exit:
 
-```ts
-await hatchet.stopEmbedded();
-```
+<Snippet src={snippets.typescript.embedded.worker.stop_the_embedded_engine} />
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
@@ -97,16 +65,13 @@ go get github.com/hatchet-dev/hatchet-embedded
 
 Import the package for side effects alongside the SDK; the SDK detects the embedded config and boots the engine on `NewClient`:
 
-```go
-import (
-	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
-	_ "github.com/hatchet-dev/hatchet-embedded"
-)
+<Snippet src={snippets.go.embedded.main.create_an_embedded_client} />
 
-client, err := hatchet.NewClient(hatchet.WithEmbedded())
-```
+Options are passed to `WithEmbedded` (see [Options](#options)).
 
-Options are passed to `WithEmbedded`, e.g. `hatchet.WithEmbedded(hatchet.WithEmbeddedDatabaseURL("postgres://..."))`.
+When you are done, `client.Close(ctx)` stops the embedded engine and waits for it to exit:
+
+<Snippet src={snippets.go.embedded.main.stop_the_embedded_engine} />
 
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
@@ -126,88 +91,19 @@ See runnable examples for all three SDKs in the [hatchet-embedded repo](https://
 
 All options live on `EmbeddedHatchetConfig`. Every field can also be set through a `HATCHET_CLIENT_EMBEDDED_*` environment variable (for example, `HATCHET_CLIENT_EMBEDDED_BINARY_PATH`):
 
-```python
-from hatchet_sdk import ClientConfig, EmbeddedHatchetConfig, Hatchet
-
-hatchet = Hatchet.from_embedded(
-    ClientConfig(
-        embedded=EmbeddedHatchetConfig(
-            # use your own Postgres instead of the bundled one
-            database_url="postgres://...",
-            # store the bundled Postgres runtime and data under this directory
-            postgres_data_dir="~/my-project/.hatchet-pg",
-            # use RabbitMQ instead of the Postgres message queue
-            rabbitmq_url="amqp://...",
-            # bind the API / gRPC servers to specific ports
-            api_port=28243,
-            grpc_port=7070,
-            # start only the engine + gRPC, no REST API
-            start_api=False,
-            # skip running migrations on startup
-            run_migrations=False,
-            # engine log level (default "warn")
-            log_level="info",
-            # hatchet-embedded release tag to download (see Versioning)
-            version="vX.Y.Z",
-            # use an existing sidecar binary, skips the download
-            binary_path="/path/to/hatchet-embedded-sidecar",
-            # pinned sha256 of the sidecar binary, replaces
-            # checksums.txt as the trust anchor
-            checksum="4f2a...",
-        )
-    )
-)
-```
+<Snippet src={snippets.python.embedded.worker.configure_the_embedded_engine} />
 
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
 
-```ts
-const hatchet = await HatchetEmbeddedClient.init({
-  // use your own Postgres instead of the bundled one
-  databaseUrl: "postgres://...",
-  // store the bundled Postgres runtime and data under this directory
-  postgresDataDir: "~/my-project/.hatchet-pg",
-  // use RabbitMQ instead of the Postgres message queue
-  rabbitmqUrl: "amqp://...",
-  // bind the API / gRPC servers to specific ports
-  apiPort: 28243,
-  grpcPort: 7070,
-  // start only the engine + gRPC, no REST API
-  startApi: false,
-  // skip running migrations on startup
-  runMigrations: false,
-  // engine log level (default "warn")
-  logLevel: "info",
-  // hatchet-embedded release tag to download (see Versioning)
-  version: "vX.Y.Z",
-  // use an existing sidecar binary, skips the download
-  binaryPath: "/path/to/hatchet-embedded-sidecar",
-  // pinned sha256 of the sidecar binary, replaces checksums.txt as the trust anchor
-  checksum: "4f2a...",
-});
-```
+<Snippet
+  src={snippets.typescript.embedded.worker.configure_the_embedded_engine}
+/>
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
 
-```go
-client, err := hatchet.NewClient(hatchet.WithEmbedded(
-	// use your own Postgres instead of the bundled one
-	hatchet.WithEmbeddedDatabaseURL("postgres://..."),
-	// use RabbitMQ instead of the Postgres message queue
-	hatchet.WithEmbeddedRabbitMQ("amqp://..."),
-	// bind the API / gRPC servers to specific ports
-	hatchet.WithEmbeddedAPIPort(28243),
-	hatchet.WithEmbeddedGRPCPort(7070),
-	// start only the engine + gRPC, no REST API
-	hatchet.WithoutEmbeddedAPI(),
-	// skip running migrations on startup
-	hatchet.WithoutEmbeddedMigrations(),
-	// engine log level (default "warn")
-	hatchet.WithEmbeddedLogLevel("info"),
-))
-```
+<Snippet src={snippets.go.embedded.main.configure_the_embedded_engine} />
 
 `version`, `binaryPath`, and `checksum` do not apply to Go: the engine runs in-process, so there is no sidecar to download. The `embed` package also offers `WithPostgresDataDir(dir)`, `WithAdminUser(email, password)`, `WithKeysets(...)`, and `WithLogger(...)` when you drive the engine yourself via `embed.StartServer`.
 
@@ -265,37 +161,19 @@ Set the database URL when you create each client:
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
-```python
-from hatchet_sdk import ClientConfig, EmbeddedHatchetConfig, Hatchet
-
-hatchet = Hatchet.from_embedded(
-    ClientConfig(
-        embedded=EmbeddedHatchetConfig(
-            database_url="postgres://user:pass@db.internal:5432/hatchet"
-        )
-    )
-)
-```
+<Snippet src={snippets.python.embedded.worker.fleet_with_a_shared_database} />
 
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
 
-```ts
-const hatchet = await HatchetEmbeddedClient.init({
-  databaseUrl: "postgres://user:pass@db.internal:5432/hatchet",
-});
-```
+<Snippet
+  src={snippets.typescript.embedded.worker.fleet_with_a_shared_database}
+/>
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
 
-```go
-client, err := hatchet.NewClient(
-	hatchet.WithEmbedded(
-		hatchet.WithEmbeddedDatabaseURL("postgres://user:pass@db.internal:5432/hatchet"),
-	),
-)
-```
+<Snippet src={snippets.go.embedded.main.fleet_with_a_shared_database} />
 
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
