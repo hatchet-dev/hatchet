@@ -112,6 +112,7 @@ class WorkerActionListenerProcess:
         self.action_loop_task: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
+        self._wait_parent_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
         self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
@@ -299,6 +300,19 @@ class WorkerActionListenerProcess:
                 self._monitor_event_loop()
             )
 
+    async def _wait_for_parent_death(self) -> None:
+        import multiprocessing
+        import os
+        parent = multiprocessing.parent_process()
+        if parent is None:
+            return
+
+        while True:
+            if not parent.is_alive():
+                logger.error("parent process died unexpectedly, exiting action listener")
+                os._exit(1)
+            await asyncio.sleep(1.0)
+
     async def stop_health_server(self) -> None:
         if self._event_loop_monitor_task is not None:
             task = self._event_loop_monitor_task
@@ -348,6 +362,7 @@ class WorkerActionListenerProcess:
         self.event_send_loop_task = asyncio.create_task(self.start_event_send_loop())
         self.blocked_main_loop = asyncio.create_task(self.start_blocked_main_loop())
         self._stop_event_task = asyncio.create_task(self._wait_for_stop_event())
+        self._wait_parent_task = asyncio.create_task(self._wait_for_parent_death())
 
     # TODO move event methods to separate class
     async def _get_event(self) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
