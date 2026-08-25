@@ -576,9 +576,7 @@ type PubSubNATSConfigFile struct {
 	// URL is comma-separated seed URL(s). Prefer bare hosts (e.g.
 	// nats://nats:4222); put auth in Username/Password so rediscovered
 	// cluster peers authenticate too. URL-embedded user:pass still works for
-	// single-server/dev. A tls:// scheme enables TLS with system roots; see
-	// TLSEnabled/TLSRootCAFile for scheme-independent TLS and private CAs.
-	// No durable-MQ inheritance — NATS is pub/sub only.
+	// single-server/dev. No durable-MQ inheritance — NATS is pub/sub only.
 	URL string `mapstructure:"url" json:"url,omitempty"`
 
 	Username string `mapstructure:"username" json:"username,omitempty"`
@@ -588,9 +586,7 @@ type PubSubNATSConfigFile struct {
 	// handshake happens before the server's INFO message, so the server must
 	// set handshake_first in its tls block. A client with this flag fails to
 	// connect to an INFO-first TLS or plaintext server. Without TLSRootCAFile
-	// the server certificate is verified against the system roots. False
-	// leaves TLS to the URL scheme alone (tls:// does standard INFO-first
-	// TLS with system roots).
+	// the server certificate is verified against the system roots.
 	TLSEnabled bool `mapstructure:"tlsEnabled" json:"tlsEnabled,omitempty"`
 
 	// TLSRootCAFile is a PEM CA bundle used to verify a NATS server whose

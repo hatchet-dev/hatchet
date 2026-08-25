@@ -347,8 +347,7 @@ system roots. If the server's certificate is signed by a private CA, also
 point `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE` at a PEM CA bundle, which
 also applies when the client reconnects to rediscovered cluster peers. The CA
 file only takes effect with TLS enabled, so Hatchet refuses to start if it is
-set while `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED` is false. A `tls://` URL
-does standard INFO-first TLS with the system roots via the scheme alone.
+set while `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED` is false.
 
 Unlike the other backends, which isolate installations at the connection level
 (a RabbitMQ vhost, a Postgres database), NATS isolates by subject. Set

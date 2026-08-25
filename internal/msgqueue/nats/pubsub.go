@@ -73,8 +73,7 @@ func WithPubSubPassword(password string) PubSubOpt {
 // handshake happens before the server's INFO message, so the server must set
 // handshake_first in its tls block. A client with this flag fails to connect
 // to an INFO-first TLS or plaintext server. Without a CA file the server
-// certificate is verified against the system roots. False leaves TLS to the
-// URL scheme (tls:// does standard INFO-first TLS with system roots).
+// certificate is verified against the system roots.
 func WithPubSubTLSEnabled(enabled bool) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.tlsEnabled = enabled
