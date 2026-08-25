@@ -1880,6 +1880,20 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		}
 	}
 
+	// Payloads are written before the task status update so the contended locks
+	// (task rows, then DAG rows) are acquired as late as possible in the
+	// transaction and held only across the status update, rollup, and commit.
+	// Concurrent flushes frequently carry events for the same tasks, so any work
+	// done after the task row locks are taken directly extends the lock convoy.
+	// All OLAP flush paths must take locks in the same order (payloads ->
+	// task rows -> DAG rows) to avoid lock-order deadlocks between them.
+	if len(payloadsToWrite) > 0 {
+		err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	statusUpdates := r.prepareStatusUpdateBatch(ctx, tenantId, eventsForStatusUpdate)
 	result := &StatusUpdateResult{}
 
@@ -1930,13 +1944,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 				ExternalId:     row.ExternalID,
 				WorkflowId:     row.WorkflowID,
 			})
-		}
-	}
-
-	if len(payloadsToWrite) > 0 {
-		err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
-		if err != nil {
-			return nil, nil, err
 		}
 	}
 
@@ -2245,6 +2252,14 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		return nil, nil, err
 	}
 
+	// Written before the reconcile so the contended task/DAG row locks are held
+	// for as little of the transaction as possible; see writeTaskEventBatch for
+	// the required lock ordering across flush paths.
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx, sqlcv1.ReconcileTaskStatusesFromEventsParams{
 		Taskids:         params.Ids,
 		Taskinsertedats: params.Insertedats,
@@ -2282,11 +2297,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 				return nil, nil, fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
 			}
 		}
-	}
-
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -2351,6 +2361,14 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		return map[uuid.UUID]struct{}{}, nil
 	}
 
+	// Written before CreateDAGsOLAP, which takes DAG row locks when a replay
+	// overwrites an existing DAG; see writeTaskEventBatch for the required lock
+	// ordering across flush paths.
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
+	if err != nil {
+		return nil, err
+	}
+
 	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
 		return nil, err
@@ -2361,11 +2379,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, err
 	}
 
 	if err := commit(ctx); err != nil {
