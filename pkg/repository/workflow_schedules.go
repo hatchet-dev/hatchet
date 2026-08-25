@@ -151,8 +151,9 @@ type WorkflowScheduleRepository interface {
 	// counts every tenant on this shard.
 	CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.CountAllocatedResourcesByTenantRow, error)
 
-	// RegisterAllocatedResourceChangeCallback runs after a successful create or
-	// delete of a cron or scheduled run. The callback receives the tenant id.
+	// RegisterAllocatedResourceChangeCallback runs after a successful create,
+	// delete, or enable/disable of a cron or scheduled run. The callback
+	// receives the tenant id.
 	RegisterAllocatedResourceChangeCallback(callback TenantScopedCallback[struct{}])
 }
 
@@ -554,7 +555,15 @@ func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, ten
 		params.Enabled = sqlchelpers.BoolFromBoolean(*opts.Enabled)
 	}
 
-	return w.queries.UpdateCronTrigger(ctx, w.pool, params)
+	if err := w.queries.UpdateCronTrigger(ctx, w.pool, params); err != nil {
+		return err
+	}
+
+	if opts.Enabled != nil {
+		w.notifyAllocatedResourceChange(tenantId)
+	}
+
+	return nil
 }
 
 func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error) {
