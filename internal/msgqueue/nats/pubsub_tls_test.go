@@ -26,6 +26,19 @@ func TestNewPubSubTLSRootCAFileRequiresTLSEnabled(t *testing.T) {
 	assert.Nil(t, ps)
 }
 
+func TestNewPubSubTLSHandshakeFirstRequiresTLSEnabled(t *testing.T) {
+	cleanup, ps, err := NewPubSub(
+		WithPubSubURL("nats://127.0.0.1:4222"),
+		WithPubSubTLSHandshakeFirst(true),
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tlsHandshakeFirst")
+	assert.Contains(t, err.Error(), "tlsEnabled")
+	assert.Nil(t, cleanup)
+	assert.Nil(t, ps)
+}
+
 func TestNewPubSubTLSRootCAFileMissing(t *testing.T) {
 	cleanup, ps, err := NewPubSub(
 		WithPubSubURL("nats://127.0.0.1:4222"),

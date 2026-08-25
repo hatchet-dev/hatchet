@@ -320,6 +320,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD`              | Pub/sub NATS password (see username)                                                                       |                  |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED`           | Pub/sub NATS: when `true`, require verified TLS regardless of the URL scheme                               | `false`          |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE`      | Pub/sub NATS PEM CA bundle for a private CA; requires `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED=true`       |                  |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_HANDSHAKE_FIRST`   | Pub/sub NATS: TLS handshake before the server's `INFO` (server must set `handshake_first`); requires TLS   | `false`          |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX`        | Pub/sub NATS subject prefix, joined to topic names with `.`                                                | `hatchet.pubsub` |
 | `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                                                                         | `100`            |
 
@@ -346,7 +347,10 @@ CA bundle, which also applies when the client reconnects to rediscovered
 cluster peers. The CA file only takes effect with TLS enabled, so Hatchet
 refuses to start if it is set while `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED`
 is false. A `tls://` URL enables TLS with the system roots via the scheme
-alone.
+alone. If the server sets `handshake_first` in its tls block (the TLS
+handshake happens before the server's `INFO` message), also set
+`SERVER_MSGQUEUE_PUBSUB_NATS_TLS_HANDSHAKE_FIRST=true`; both sides must agree
+on the mode or the connect fails.
 
 Unlike the other backends, which isolate installations at the connection level
 (a RabbitMQ vhost, a Postgres database), NATS isolates by subject. Set

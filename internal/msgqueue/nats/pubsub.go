@@ -29,13 +29,14 @@ type PubSub struct {
 type PubSubOpt func(*PubSubOpts)
 
 type PubSubOpts struct {
-	l             *zerolog.Logger
-	url           string
-	username      string
-	password      string
-	tlsEnabled    bool
-	tlsRootCAFile string
-	subjectPrefix string
+	l                 *zerolog.Logger
+	url               string
+	username          string
+	password          string
+	tlsEnabled        bool
+	tlsRootCAFile     string
+	tlsHandshakeFirst bool
+	subjectPrefix     string
 }
 
 func defaultPubSubOpts() *PubSubOpts {
@@ -88,6 +89,18 @@ func WithPubSubTLSRootCAFile(path string) PubSubOpt {
 	}
 }
 
+// WithPubSubTLSHandshakeFirst performs the TLS handshake before the server's
+// INFO message, for servers with handshake_first in their tls block. Against
+// a server that sends INFO first, the client's TLS handshake reads the
+// plaintext INFO as a malformed handshake reply and fails the connect within
+// the connect timeout. Requires WithPubSubTLSEnabled(true); NewPubSub fails
+// fast otherwise.
+func WithPubSubTLSHandshakeFirst(handshakeFirst bool) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.tlsHandshakeFirst = handshakeFirst
+	}
+}
+
 // WithPubSubSubjectPrefix sets the NATS subject prefix (default
 // "hatchet.pubsub"). Empty falls back to the default. No trimming or
 // validation: a bad prefix fails loudly via nats ErrBadSubject at startup.
@@ -118,6 +131,10 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	if opts.tlsRootCAFile != "" && !opts.tlsEnabled {
 		return nil, nil, fmt.Errorf("nats pubsub tlsRootCAFile is set but tlsEnabled is false; a private CA bundle only takes effect with tlsEnabled: true (SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED)")
+	}
+
+	if opts.tlsHandshakeFirst && !opts.tlsEnabled {
+		return nil, nil, fmt.Errorf("nats pubsub tlsHandshakeFirst is set but tlsEnabled is false; a TLS-first handshake only takes effect with tlsEnabled: true (SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED)")
 	}
 
 	l := opts.l
@@ -177,6 +194,10 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			// a descriptive error before any dial, so no stat/parse check is
 			// needed here.
 			connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
+		}
+
+		if opts.tlsHandshakeFirst {
+			connectOpts = append(connectOpts, natsgo.TLSHandshakeFirst())
 		}
 	}
 
