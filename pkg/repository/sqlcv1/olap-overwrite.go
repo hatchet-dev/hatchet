@@ -1202,7 +1202,8 @@ WITH inputs AS (
         UNNEST($8::JSONB[]) AS additional_metadata,
         UNNEST($9::UUID[]) AS parent_task_external_id,
         UNNEST($10::INTEGER[]) AS total_tasks,
-		UNNEST($11::TEXT[]) AS idempotency_key
+		UNNEST($11::TEXT[]) AS idempotency_key,
+        UNNEST($12::BOOLEAN[]) AS is_operator_run
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1218,6 +1219,7 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_dag_to_task_olap dt ON (i.id, i.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE NOT i.is_operator_run
     GROUP BY i.id, i.inserted_at, i.total_tasks
 ), dag_statuses AS (
     SELECT
@@ -1248,7 +1250,8 @@ INSERT INTO v1_dags_olap (
     parent_task_external_id,
     total_tasks,
     readable_status,
-	idempotency_key
+	idempotency_key,
+    is_operator_run
 )
 SELECT
     i.tenant_id,
@@ -1263,7 +1266,8 @@ SELECT
     i.parent_task_external_id,
     i.total_tasks,
     COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
-	i.idempotency_key
+	i.idempotency_key,
+    i.is_operator_run
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
 ON CONFLICT (inserted_at, id) DO UPDATE SET
@@ -1286,6 +1290,7 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
+	Isoperatorruns        []bool               `json:"isoperatorruns"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -1301,6 +1306,7 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
 		arg.IdempotencyKeys,
+		arg.Isoperatorruns,
 	)
 	return err
 }
