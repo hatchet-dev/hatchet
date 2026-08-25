@@ -2388,7 +2388,7 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 
 	for i, t := range tasks {
 		taskIds[i] = t.ID
-		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMillis(t.InsertedAtUnixMillis)
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMicros(t.InsertedAtUnixMicros)
 		tenantIds[i] = tenantId
 	}
 
@@ -2407,7 +2407,7 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 	for _, logFile := range logFiles {
 		key := IdInsertedAt{
 			ID:                   logFile.DurableTaskID,
-			InsertedAtUnixMillis: logFile.DurableTaskInsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: logFile.DurableTaskInsertedAt.Time.UnixMicro(),
 		}
 
 		result[key] = &logFile.LatestInvocationCount

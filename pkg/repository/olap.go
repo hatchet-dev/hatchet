@@ -925,7 +925,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	for _, row := range rows {
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:                   row.ID,
-			InsertedAtUnixMillis: row.InsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: row.InsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -1024,7 +1024,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		taskIdToDagExternalId[row.TaskID] = row.DagExternalID
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:                   row.TaskID,
-			InsertedAtUnixMillis: row.TaskInsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: row.TaskInsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -1112,7 +1112,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	for _, metadata := range taskMetadata {
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:                   metadata.TaskID,
-			InsertedAtUnixMillis: metadata.TaskInsertedAt.UnixMilli(),
+			InsertedAtUnixMicros: metadata.TaskInsertedAt.UnixMicro(),
 		})
 	}
 
@@ -1292,7 +1292,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		} else {
 			taskIdsInsertedAts = append(taskIdsInsertedAts, IdInsertedAt{
 				ID:                   row.ID,
-				InsertedAtUnixMillis: row.InsertedAt.Time.UnixMilli(),
+				InsertedAtUnixMicros: row.InsertedAt.Time.UnixMicro(),
 			})
 		}
 	}
@@ -1724,13 +1724,13 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 	for _, event := range events {
 		statusAndRetryCount, seen := taskIdInsertedAtToMeta[IdInsertedAt{
 			ID:                   event.TaskID,
-			InsertedAtUnixMillis: event.TaskInsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: event.TaskInsertedAt.Time.UnixMicro(),
 		}]
 
 		if !seen || event.RetryCount > statusAndRetryCount.RetryCount || (event.RetryCount == statusAndRetryCount.RetryCount && compareStatuses(event.ReadableStatus, statusAndRetryCount.Status)) {
 			taskIdInsertedAtToMeta[IdInsertedAt{
 				ID:                   event.TaskID,
-				InsertedAtUnixMillis: event.TaskInsertedAt.Time.UnixMilli(),
+				InsertedAtUnixMicros: event.TaskInsertedAt.Time.UnixMicro(),
 			}] = statusRetryCountWorkerIdTuple{
 				Status:     event.ReadableStatus,
 				RetryCount: event.RetryCount,
@@ -1749,7 +1749,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 	for idInsertedAt, meta := range taskIdInsertedAtToMeta {
 		tenantIds = append(tenantIds, tenantId)
 		taskIds = append(taskIds, idInsertedAt.ID)
-		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMillis(idInsertedAt.InsertedAtUnixMillis))
+		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros))
 		statuses = append(statuses, meta.Status)
 		retryCounts = append(retryCounts, meta.RetryCount)
 
@@ -1781,7 +1781,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 			continue
 		}
 
-		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAtUnixMillis: row.DagInsertedAt.Time.UnixMilli()}
+		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAtUnixMicros: row.DagInsertedAt.Time.UnixMicro()}
 
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
@@ -1809,7 +1809,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows [
 			continue
 		}
 
-		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAtUnixMillis: row.DagInsertedAt.Time.UnixMilli()}
+		key := IdInsertedAt{ID: row.DagID.Int64, InsertedAtUnixMicros: row.DagInsertedAt.Time.UnixMicro()}
 
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
@@ -2614,7 +2614,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 		idsToDepth[row.ExternalID] = row.Depth
 		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:                   row.ID,
-			InsertedAtUnixMillis: row.InsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: row.InsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -3384,7 +3384,7 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 type IdInsertedAt struct {
 	ID                   int64
-	InsertedAtUnixMillis int64
+	InsertedAtUnixMicros int64
 }
 
 func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
@@ -3396,7 +3396,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	for _, opt := range opts {
 		uniqueTaskIdInsertedAts[IdInsertedAt{
 			ID:                   opt.ID,
-			InsertedAtUnixMillis: opt.InsertedAtUnixMillis,
+			InsertedAtUnixMicros: opt.InsertedAtUnixMicros,
 		}] = struct{}{}
 	}
 
@@ -3415,7 +3415,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 	for idInsertedAt := range uniqueTaskIdInsertedAts {
 		taskIds = append(taskIds, idInsertedAt.ID)
-		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMillis(idInsertedAt.InsertedAtUnixMillis))
+		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros))
 	}
 
 	taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{

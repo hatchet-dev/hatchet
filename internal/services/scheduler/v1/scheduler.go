@@ -491,7 +491,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			if a.IsDurable {
 				invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
 					ID:                   a.QueueItem.TaskID,
-					InsertedAtUnixMillis: a.QueueItem.TaskInsertedAt.Time.UnixMilli(),
+					InsertedAtUnixMicros: a.QueueItem.TaskInsertedAt.Time.UnixMicro(),
 				})
 			}
 		}
@@ -543,7 +543,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			var durableInvCount int32
 			if count, ok := invocationCounts[repov1.IdInsertedAt{
 				ID:                   taskId,
-				InsertedAtUnixMillis: bulkAssigned.QueueItem.TaskInsertedAt.Time.UnixMilli(),
+				InsertedAtUnixMicros: bulkAssigned.QueueItem.TaskInsertedAt.Time.UnixMicro(),
 			}]; ok && count != nil {
 				durableInvCount = *count
 			}

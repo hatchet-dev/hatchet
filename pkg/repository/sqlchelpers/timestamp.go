@@ -6,12 +6,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func TimestamptzFromUnixMillis(millis int64) pgtype.Timestamptz {
-	if millis == 0 {
+func TimestamptzFromUnixMicros(micros int64) pgtype.Timestamptz {
+	if micros == 0 {
 		return pgtype.Timestamptz{}
 	}
 
-	t := time.UnixMilli(millis)
+	t := time.UnixMicro(micros)
 
 	return TimestamptzFromTime(t)
 }

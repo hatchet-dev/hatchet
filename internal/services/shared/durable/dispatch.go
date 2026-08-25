@@ -22,7 +22,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	for _, cb := range callbacks {
 		idInsertedAtTuples = append(idInsertedAtTuples, v1.IdInsertedAt{
 			ID:                   cb.DurableTaskId,
-			InsertedAtUnixMillis: cb.DurableTaskInsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -37,7 +37,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	for _, cb := range callbacks {
 		key := v1.IdInsertedAt{
 			ID:                   cb.DurableTaskId,
-			InsertedAtUnixMillis: cb.DurableTaskInsertedAt.Time.UnixMilli(),
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		}
 
 		dispatcherLookup, ok := idInsertedAtToDispatcherId[key]
