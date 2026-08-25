@@ -31,9 +31,8 @@ class EmbeddedSidecar:
     process: subprocess.Popen[bytes]
 
     def stop(self) -> None:
-        global _active_sidecar
-        if _active_sidecar is self:
-            _active_sidecar = None
+        if self in _active_sidecars:
+            _active_sidecars.remove(self)
 
         if self.process.poll() is not None:
             return
@@ -52,18 +51,19 @@ class EmbeddedSidecar:
         self.stop()
 
 
-_active_sidecar: EmbeddedSidecar | None = None
+_active_sidecars: list[EmbeddedSidecar] = []
 
 
 def stop_embedded_sidecar() -> None:
     """
-    Gracefully stop the sidecar started by `Hatchet.from_embedded()` (or
-    `start_embedded_sidecar`) and block until it has fully exited, including
-    its bundled Postgres. Call this before your process exits so the engine's
-    shutdown output does not print after your program has returned.
+    Gracefully stop every sidecar started in this process by
+    `Hatchet.from_embedded()` (or `start_embedded_sidecar`) and block until
+    they have fully exited, including their bundled Postgres. Call this before
+    your process exits so the engine's shutdown output does not print after
+    your program has returned.
     """
-    if _active_sidecar is not None:
-        _active_sidecar.stop()
+    for sidecar in _active_sidecars.copy():
+        sidecar.stop()
 
 
 def _sidecar_asset_name() -> str:
@@ -237,9 +237,8 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
 
-    global _active_sidecar
     sidecar = EmbeddedSidecar(handshake=handshake, process=process)
-    _active_sidecar = sidecar
+    _active_sidecars.append(sidecar)
     return sidecar
 
 

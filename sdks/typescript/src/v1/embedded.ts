@@ -222,18 +222,17 @@ async function waitForHandshake(
  * process exits. Use `HatchetEmbedded()` unless you need the raw
  * connection details.
  */
-let activeSidecar: EmbeddedSidecar | undefined;
+const activeSidecars = new Set<EmbeddedSidecar>();
 
 /**
- * Gracefully stops the sidecar started by `HatchetEmbeddedClient.init()` (or
- * `startEmbeddedSidecar`) and resolves once it has fully exited, including its
- * bundled Postgres. Call this before your process exits so the engine's
- * shutdown output does not print after your program has returned.
+ * Gracefully stops every sidecar started in this process by
+ * `HatchetEmbeddedClient.init()` (or `startEmbeddedSidecar`) and resolves once
+ * they have fully exited, including their bundled Postgres. Call this before
+ * your process exits so the engine's shutdown output does not print after
+ * your program has returned.
  */
 export async function stopEmbeddedSidecar(): Promise<void> {
-  const sidecar = activeSidecar;
-  activeSidecar = undefined;
-  if (sidecar) {
+  for (const sidecar of [...activeSidecars]) {
     await sidecar.stop();
   }
 }
@@ -316,9 +315,7 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
     apiUrl: handshake.api_url,
     stop: () =>
       new Promise<void>((resolve) => {
-        if (activeSidecar === sidecar) {
-          activeSidecar = undefined;
-        }
+        activeSidecars.delete(sidecar);
         process.removeListener('exit', killChild);
         if (child.exitCode !== null) {
           resolve();
@@ -334,7 +331,7 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
       }),
   };
 
-  activeSidecar = sidecar;
+  activeSidecars.add(sidecar);
 
   return sidecar;
 }
