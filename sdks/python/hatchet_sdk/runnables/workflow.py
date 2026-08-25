@@ -1858,15 +1858,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
+            computed_params = ComputedTaskParameters(
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                backoff_factor=backoff_factor,
+                retries=retries,
+                backoff_max_seconds=backoff_max_seconds,
+                task_defaults=self._config.task_defaults,
+            )
+
             task = Task(
                 is_durable=False,
                 _fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
                 name=self._parse_task_name(name, func) + "-on-failure",
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
-                retries=retries,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
@@ -1929,15 +1938,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
+            computed_params = ComputedTaskParameters(
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                backoff_factor=backoff_factor,
+                retries=retries,
+                backoff_max_seconds=backoff_max_seconds,
+                task_defaults=self._config.task_defaults,
+            )
+
             task = Task(
                 is_durable=False,
                 _fn=func,
                 workflow=self,
                 type=StepType.ON_SUCCESS,
                 name=self._parse_task_name(name, func) + "-on-success",
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
-                retries=retries,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
