@@ -21,9 +21,9 @@ Extended by
 
 Properties
 
-| Property                                          | Type     | Default value | Description                                                       |
-| ------------------------------------------------- | -------- | ------------- | ----------------------------------------------------------------- |
-| <a id="property-spawnindex"></a> ~~`spawnIndex`~~ | `number` | `0`           | **Deprecated** — kept for backward compat; prefer nextChildIndex. |
+| Property                                          | Type     | Default value | Description                                                     |
+| ------------------------------------------------- | -------- | ------------- | --------------------------------------------------------------- |
+| <a id="property-spawnindex"></a> ~~`spawnIndex`~~ | `number` | `0`           | **Deprecated** Kept for backward compat; prefer nextChildIndex. |
 
 #### Methods
 
@@ -250,11 +250,11 @@ Runs a new workflow and waits for its result.
 
 Parameters
 
-| Parameter  | Type                                                                                                                                                                                 | Description                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
-| `input`    | `Q`                                                                                                                                                                                  | The input data for the workflow.                                            |
-| `options?` | `ChildRunOpts`                                                                                                                                                                       | An options object containing key, sticky, priority, and additionalMetadata. |
+| Parameter  | Type                                                                                                                                                           | Description                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to run (name, Workflow instance, or WorkflowV1 instance).      |
+| `input`    | `Q`                                                                                                                                                            | The input data for the workflow.                                            |
+| `options?` | `ChildRunOpts`                                                                                                                                                 | An options object containing key, sticky, priority, and additionalMetadata. |
 
 Returns
 
@@ -622,11 +622,11 @@ Spawns a child workflow through the durable event log, waits for the child to co
 
 Parameters
 
-| Parameter  | Type                                                                                                                                                                                 | Description                              |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](/reference/typescript/Runnables#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to spawn.                   |
-| `input?`   | `Q`                                                                                                                                                                                  | The input data for the child workflow.   |
-| `options?` | `ChildRunOpts`                                                                                                                                                                       | Options for spawning the child workflow. |
+| Parameter  | Type                                                                                                                                                           | Description                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `workflow` | \| `string` \| `BaseWorkflowDeclaration`\<`Q`, `P`\> \| [`TaskWorkflowDeclaration`](runnables#taskworkflowdeclaration)\<`Q`, `P`, \{ \}, \{ \}, \{ \}, \{ \}\> | The workflow to spawn.                   |
+| `input?`   | `Q`                                                                                                                                                            | The input data for the child workflow.   |
+| `options?` | `ChildRunOpts`                                                                                                                                                 | Options for spawning the child workflow. |
 
 Returns
 

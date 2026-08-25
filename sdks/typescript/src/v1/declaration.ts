@@ -430,7 +430,7 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
-    // Snapshot childIndex before incrementing — shared with Context.spawnIndex
+    // Snapshot childIndex before incrementing (shared with Context.spawnIndex)
     // via parentRunContextManager so both spawning APIs produce unique indices.
     const baseChildIndex = parentRunContext?.childIndex;
     const inputCount = Array.isArray(input) ? input.length : 1;

@@ -113,83 +113,103 @@ module Hatchet
       @rest_client ||= Hatchet::Clients.rest_client(@config)
     end
 
-    # Feature Client for interacting with Hatchet events
+    # The events client, which you can use to push events to Hatchet to trigger
+    # event-driven workflows.
     # @return [Hatchet::Features::Events]
     def events
       @events ||= Hatchet::Features::Events.new(rest_client, event_grpc, @config)
     end
 
-    # Feature Client for interacting with Hatchet workflow runs
+    # The runs client is a client for interacting with task and workflow runs
+    # within Hatchet.
     # @return [Hatchet::Features::Runs]
     def runs
       @runs ||= Hatchet::Features::Runs.new(rest_client, @config, client: self)
     end
 
-    # Feature Client for interacting with the current tenant
+    # The tenant client is a client for reading information about the tenant
+    # you're operating in.
     # @return [Hatchet::Features::Tenant]
     def tenant
       @tenant ||= Hatchet::Features::Tenant.new(rest_client, @config)
     end
 
-    # Feature Client for interacting with Hatchet logs
+    # The logs client is a client for interacting with Hatchet's logs API.
     # @return [Hatchet::Features::Logs]
     def logs
       @logs ||= Hatchet::Features::Logs.new(rest_client, @config)
     end
 
-    # Feature Client for managing workers
+    # The workers client is a client for managing workers programmatically
+    # within Hatchet.
     # @return [Hatchet::Features::Workers]
     def workers
       @workers ||= Hatchet::Features::Workers.new(rest_client, @config)
     end
 
-    # Feature Client for debugging CEL expressions
+    # The CEL client is a client for debugging CEL expressions within Hatchet.
     # @return [Hatchet::Features::CEL]
     def cel
       @cel ||= Hatchet::Features::CEL.new(rest_client, @config)
     end
 
-    # Feature Client for managing workflow definitions
+    # The workflows client is a client for managing workflow declarations
+    # programmatically within Hatchet. Note that workflows are the declaration,
+    # _not_ the individual runs; if you're looking for runs, use the runs
+    # client instead.
     # @return [Hatchet::Features::Workflows]
     def workflows
       @workflows ||= Hatchet::Features::Workflows.new(rest_client, @config)
     end
 
-    # Feature Client for managing filters
+    # The filters client is a client for managing filters within Hatchet, which
+    # scope event triggers to workflows using CEL expressions.
     # @return [Hatchet::Features::Filters]
     def filters
       @filters ||= Hatchet::Features::Filters.new(rest_client, @config)
     end
 
-    # Feature Client for reading metrics
+    # The metrics client is a client for reading metrics out of Hatchet's
+    # metrics API.
     # @return [Hatchet::Features::Metrics]
     def metrics
       @metrics ||= Hatchet::Features::Metrics.new(rest_client, @config)
     end
 
-    # Feature Client for managing rate limits
+    # The rate limits client is a wrapper for Hatchet's gRPC API that makes it
+    # easier to work with rate limits in Hatchet.
     # @return [Hatchet::Features::RateLimits]
     def rate_limits
       @rate_limits ||= Hatchet::Features::RateLimits.new(admin_grpc, @config)
     end
 
-    # Feature Client for managing cron workflows
+    # The cron client is a client for managing cron workflow triggers within
+    # Hatchet.
     # @return [Hatchet::Features::Cron]
     def cron
       @cron ||= Hatchet::Features::Cron.new(rest_client, @config)
     end
 
-    # Feature Client for managing scheduled workflows
+    # The scheduled client is a client for managing scheduled workflow runs
+    # within Hatchet.
     # @return [Hatchet::Features::Scheduled]
     def scheduled
       @scheduled ||= Hatchet::Features::Scheduled.new(rest_client, @config)
     end
 
-    # Create a new workflow definition
+    # Define a Hatchet workflow, which can then declare tasks and be run,
+    # scheduled, and so on.
     #
-    # @param name [String] Workflow name
-    # @param opts [Hash] Workflow options (on_events:, concurrency:, idempotency:, etc.)
-    # @return [Hatchet::Workflow]
+    # @param name [String] The name of the workflow
+    # @option opts [Array<String>] :on_events ([]) A list of event triggers for the workflow - events which cause the workflow to be run
+    # @option opts [Array<String>] :on_crons ([]) A list of cron triggers for the workflow
+    # @option opts [ConcurrencyExpression, Array<ConcurrencyExpression>, nil] :concurrency (nil) A concurrency object (or list of them) controlling the concurrency settings for this workflow
+    # @option opts [Integer, nil] :default_priority (nil) The default priority of the workflow. Higher values will cause runs of this workflow to have priority in scheduling over other, lower priority ones
+    # @option opts [Hash, nil] :task_defaults (nil) Default task settings for this workflow
+    # @option opts [Array<DefaultFilter>] :default_filters ([]) A list of filters to create when the workflow is created
+    # @option opts [Symbol, nil] :sticky (nil) A sticky strategy for the workflow, either +:soft+ or +:hard+
+    # @option opts [TTLBasedIdempotencyConfig, StatusBasedIdempotencyConfig, nil] :idempotency (nil) An idempotency configuration for the workflow
+    # @return [Hatchet::Workflow] The created workflow object, which can be used to declare tasks, run the workflow, and so on
     #
     # @example
     #   wf = hatchet.workflow(name: "MyWorkflow")
@@ -198,12 +218,18 @@ module Hatchet
       Workflow.new(name: name, client: self, **opts)
     end
 
-    # Create a standalone task (auto-wraps in a single-task workflow)
+    # Create a standalone Hatchet task. The task is automatically wrapped in a
+    # single-task workflow, so it can be run, scheduled, and registered on a
+    # worker just like a workflow. The block receives the run's input and a
+    # {Context} object.
     #
-    # @param name [String] Task name
-    # @param opts [Hash] Task options (on_events:, idempotency:, retries:, etc.)
+    # @param name [String] The name of the task
+    # @option opts [Array<String>] :on_events ([]) A list of event triggers for the task - events which cause the task to be run
+    # @option opts [Array<DefaultFilter>] :default_filters ([]) A list of filters to create when the task is created
+    # @option opts [TTLBasedIdempotencyConfig, StatusBasedIdempotencyConfig, nil] :idempotency (nil) An idempotency configuration for the task
+    # @param opts [Hash] Any other keyword arguments (+retries:+, +execution_timeout:+, +concurrency:+, and so on) are forwarded to the task declaration - see {Workflow#task} for the full list
     # @yield [input, ctx] The task execution block
-    # @return [Hatchet::Task]
+    # @return [Hatchet::Task] The created task object, which can be run, scheduled, and registered on a worker
     #
     # @example
     #   my_task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
@@ -225,11 +251,11 @@ module Hatchet
     #
     # Preview: batch tasks are in beta and may change in future releases.
     #
-    # @param name [String] Task name
-    # @param batch [Hatchet::BatchTaskConfig] Batch configuration
-    # @param opts [Hash] Task options (on_events:, idempotency:, etc.)
+    # @param name [String] The name of the task
+    # @param batch [Hatchet::BatchTaskConfig] The batch configuration (+max_size+, flush interval, +broadcast_output+)
+    # @param opts [Hash] Any other keyword arguments (+on_events:+, +idempotency:+, and so on) are forwarded to {#task}
     # @yield [inputs, ctx] The batch execution block, receiving a Hash of task-run external id => input
-    # @return [Hatchet::Task]
+    # @return [Hatchet::Task] The created batch task object
     #
     # @example
     #   batch = hatchet.batch_task(name: "my_batch", batch: Hatchet::BatchTaskConfig.new(max_size: 3)) do |inputs, ctx|
@@ -239,16 +265,18 @@ module Hatchet
       task(name: name, batch: batch, **opts, &block)
     end
 
-    # Create a standalone durable task.
+    # Create a standalone _durable_ Hatchet task, which works using Hatchet's
+    # durable execution capabilities. Durable tasks receive a {DurableContext}
+    # with additional methods like +sleep_for+ and +wait_for+.
     #
-    # @param name [String] Task name
+    # @param name [String] The name of the task
     # @param eviction_policy [Hatchet::EvictionPolicy, nil] Eviction policy for this
     #   durable task. Defaults to {Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY}
     #   (15-minute TTL, capacity-eviction enabled). Pass ``nil`` to disable
     #   eviction entirely for this task.
-    # @param opts [Hash] Task options
+    # @param opts [Hash] Any other keyword arguments (+retries:+, +execution_timeout:+, and so on) are forwarded to the task declaration - see {Workflow#task} for the full list
     # @yield [input, ctx] The task execution block
-    # @return [Hatchet::Task]
+    # @return [Hatchet::Task] The created durable task object
     def durable_task(name:, eviction_policy: Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY, **opts, &block)
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
@@ -256,11 +284,16 @@ module Hatchet
       wf.durable_task(name, eviction_policy: eviction_policy, **opts, &block)
     end
 
-    # Create a new worker
+    # Create a Hatchet worker on which to run workflows.
     #
-    # @param name [String] Worker name
-    # @param opts [Hash] Worker options (workflows:, slots:, labels:)
-    # @return [Hatchet::Worker]
+    # @param name [String] The name of the worker
+    # @option opts [Array<Workflow, Task>] :workflows ([]) A list of workflows (or standalone tasks) to register on the worker
+    # @option opts [Integer] :slots (10) Slot count for standard tasks, i.e. the number of tasks the worker can run concurrently
+    # @option opts [Integer, nil] :durable_slots (nil) Slot count for durable tasks; defaults to +slots+ if not provided
+    # @option opts [Hash] :labels ({}) A hash of labels to assign to the worker, for use with worker affinity; merged with the client's +worker_preset_labels+
+    # @return [Hatchet::Worker] The created worker object, which exposes an instance
+    #   method +start+ which can be called to start the worker (blocking until
+    #   shutdown), and +stop+ to request a graceful shutdown
     #
     # @example
     #   worker = hatchet.worker("my-worker", workflows: [wf], slots: 10)
