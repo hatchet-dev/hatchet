@@ -69,21 +69,17 @@ func WithPubSubPassword(password string) PubSubOpt {
 	}
 }
 
-// WithPubSubTLSEnabled requires verified TLS with a TLS-first handshake: the
-// handshake happens before the server's INFO message, so the server must set
-// handshake_first in its tls block. A client with this flag fails to connect
-// to an INFO-first TLS or plaintext server. Without a CA file the server
-// certificate is verified against the system roots.
+// WithPubSubTLSEnabled requires TLS with a TLS-first handshake (the server
+// must enable handshake_first). Verification uses the system roots unless a
+// root CA file is set.
 func WithPubSubTLSEnabled(enabled bool) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.tlsEnabled = enabled
 	}
 }
 
-// WithPubSubTLSRootCAFile sets a PEM CA bundle used to verify a NATS server
-// whose certificate is signed by a private CA (nats.RootCAs, which carries to
-// rediscovered cluster peers). Requires WithPubSubTLSEnabled(true); NewPubSub
-// fails fast otherwise.
+// WithPubSubTLSRootCAFile sets a PEM CA bundle for server verification.
+// Requires WithPubSubTLSEnabled(true).
 func WithPubSubTLSRootCAFile(path string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.tlsRootCAFile = path
@@ -167,24 +163,15 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	}
 
 	if opts.tlsEnabled {
-		// Always pass a non-nil TLS config: per nats.go's doc comment, bare
-		// Secure() without one skips server verification. With no CA file
-		// the server is verified against the system roots.
-		connectOpts = append(connectOpts, natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS12}))
-
-		// tlsEnabled always means a TLS-first handshake (before the server's
-		// INFO message); the server must set handshake_first in its tls
-		// block. Against an INFO-first server the client's TLS handshake
-		// reads the plaintext INFO as a malformed handshake reply and fails
-		// the connect within the connect timeout.
-		connectOpts = append(connectOpts, natsgo.TLSHandshakeFirst())
+		// Non-nil config: bare Secure() skips server verification per its
+		// doc comment.
+		connectOpts = append(connectOpts,
+			natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS12}),
+			natsgo.TLSHandshakeFirst(),
+		)
 
 		if opts.tlsRootCAFile != "" {
-			// RootCAs keeps the TLS config set by Secure above and attaches
-			// the CA pool via a callback, which also applies to rediscovered
-			// cluster peers. An unreadable or non-PEM file fails Connect with
-			// a descriptive error before any dial, so no stat/parse check is
-			// needed here.
+			// RootCAs fails Connect on a missing or non-PEM file before any dial.
 			connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
 		}
 	}

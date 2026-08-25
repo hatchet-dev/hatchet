@@ -582,16 +582,13 @@ type PubSubNATSConfigFile struct {
 	Username string `mapstructure:"username" json:"username,omitempty"`
 	Password string `mapstructure:"password" json:"password,omitempty"`
 
-	// TLSEnabled requires verified TLS with a TLS-first handshake: the
-	// handshake happens before the server's INFO message, so the server must
-	// set handshake_first in its tls block. A client with this flag fails to
-	// connect to an INFO-first TLS or plaintext server. Without TLSRootCAFile
-	// the server certificate is verified against the system roots.
+	// TLSEnabled requires TLS with a TLS-first handshake (the server must
+	// enable handshake_first). Without TLSRootCAFile, verification uses the
+	// system roots.
 	TLSEnabled bool `mapstructure:"tlsEnabled" json:"tlsEnabled,omitempty"`
 
-	// TLSRootCAFile is a PEM CA bundle used to verify a NATS server whose
-	// certificate is signed by a private CA (it also applies to rediscovered
-	// cluster peers). Requires TLSEnabled: true; startup fails otherwise.
+	// TLSRootCAFile is a PEM CA bundle for server verification. Requires
+	// TLSEnabled.
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 
 	// SubjectPrefix is prepended (with a trailing ".") to topic names.
