@@ -21,6 +21,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 		wantNatsURL           string
 		wantNatsUsername      string
 		wantNatsPassword      string
+		wantNatsTLSEnabled    bool
 		wantNatsTLSRootCAFile string
 		wantNatsSubjectPrefix string
 		wantMaxPub            int32
@@ -118,17 +119,19 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantMaxSub:       20,
 		},
 		{
-			name: "nats pubsub with tls root ca file",
+			name: "nats pubsub with tls enabled and root ca file",
 			env: map[string]string{
 				"SERVER_MSGQUEUE_KIND":                         "rabbitmq",
 				"SERVER_MSGQUEUE_RABBITMQ_URL":                 "amqp://user:password@rabbit:5672/",
 				"SERVER_MSGQUEUE_PUBSUB_KIND":                  "nats",
 				"SERVER_MSGQUEUE_PUBSUB_NATS_URL":              "nats://nats:4222",
+				"SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED":      "true",
 				"SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE": "/etc/hatchet/nats-ca.pem",
 			},
 			wantKind:              "nats",
 			wantURL:               "amqp://user:password@rabbit:5672/",
 			wantNatsURL:           "nats://nats:4222",
+			wantNatsTLSEnabled:    true,
 			wantNatsTLSRootCAFile: "/etc/hatchet/nats-ca.pem",
 			wantMaxPub:            10,
 			wantMaxSub:            20,
@@ -169,6 +172,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			assert.Equal(t, tc.wantNatsURL, cf.MessageQueue.PubSub.NATS.URL)
 			assert.Equal(t, tc.wantNatsUsername, cf.MessageQueue.PubSub.NATS.Username)
 			assert.Equal(t, tc.wantNatsPassword, cf.MessageQueue.PubSub.NATS.Password)
+			assert.Equal(t, tc.wantNatsTLSEnabled, cf.MessageQueue.PubSub.NATS.TLSEnabled)
 			assert.Equal(t, tc.wantNatsTLSRootCAFile, cf.MessageQueue.PubSub.NATS.TLSRootCAFile)
 			assert.Equal(t, tc.wantNatsSubjectPrefix, cf.MessageQueue.PubSub.NATS.SubjectPrefix)
 		})

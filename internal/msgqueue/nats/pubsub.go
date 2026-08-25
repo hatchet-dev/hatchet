@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -32,6 +33,7 @@ type PubSubOpts struct {
 	url           string
 	username      string
 	password      string
+	tlsEnabled    bool
 	tlsRootCAFile string
 	subjectPrefix string
 }
@@ -67,10 +69,19 @@ func WithPubSubPassword(password string) PubSubOpt {
 	}
 }
 
-// WithPubSubTLSRootCAFile sets a PEM CA bundle used to verify the NATS
-// server. Non-empty enables TLS even with a nats:// URL (nats.RootCAs
-// implies Secure and carries to rediscovered cluster peers); empty leaves
-// TLS to the URL scheme.
+// WithPubSubTLSEnabled requires verified TLS regardless of the URL scheme.
+// Without a CA file the server certificate is verified against the system
+// roots. False leaves TLS to the URL scheme (tls:// uses system roots).
+func WithPubSubTLSEnabled(enabled bool) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.tlsEnabled = enabled
+	}
+}
+
+// WithPubSubTLSRootCAFile sets a PEM CA bundle used to verify a NATS server
+// whose certificate is signed by a private CA (nats.RootCAs, which carries to
+// rediscovered cluster peers). Requires WithPubSubTLSEnabled(true); NewPubSub
+// fails fast otherwise.
 func WithPubSubTLSRootCAFile(path string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.tlsRootCAFile = path
@@ -103,6 +114,10 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	if opts.url == "" {
 		return nil, nil, fmt.Errorf("nats pubsub requires a URL to be set")
+	}
+
+	if opts.tlsRootCAFile != "" && !opts.tlsEnabled {
+		return nil, nil, fmt.Errorf("nats pubsub tlsRootCAFile is set but tlsEnabled is false; a private CA bundle only takes effect with tlsEnabled: true (SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED)")
 	}
 
 	l := opts.l
@@ -149,12 +164,20 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		}),
 	}
 
-	if opts.tlsRootCAFile != "" {
-		// RootCAs implies Secure, so TLS is enabled even with a nats:// URL,
-		// and the CA pool applies to rediscovered cluster peers too. An
-		// unreadable or non-PEM file fails Connect with a descriptive error
-		// before any dial, so no stat/parse check is needed here.
-		connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
+	if opts.tlsEnabled {
+		// Always pass a non-nil TLS config: per nats.go's doc comment, bare
+		// Secure() without one skips server verification. With no CA file
+		// the server is verified against the system roots.
+		connectOpts = append(connectOpts, natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS12}))
+
+		if opts.tlsRootCAFile != "" {
+			// RootCAs keeps the TLS config set by Secure above and attaches
+			// the CA pool via a callback, which also applies to rediscovered
+			// cluster peers. An unreadable or non-PEM file fails Connect with
+			// a descriptive error before any dial, so no stat/parse check is
+			// needed here.
+			connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
+		}
 	}
 
 	nc, err := natsgo.Connect(opts.url, connectOpts...)
