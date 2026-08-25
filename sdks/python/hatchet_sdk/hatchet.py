@@ -118,9 +118,11 @@ class Hatchet:
 
     def stop_embedded(self) -> None:
         """
-        Gracefully stop the embedded engine sidecar started by
+        Gracefully stop the embedded engine started in this process by
         `Hatchet.from_embedded()` and block until it has fully exited,
-        including its bundled Postgres. Call this before your process exits
+        including its bundled Postgres. The embedded engine is process-wide:
+        every client created via `Hatchet.from_embedded()` in this process
+        shares it. Call this before your process exits
         so the engine's shutdown output does not print after your program has
         returned. No-op when no embedded engine is running in this process.
         """
