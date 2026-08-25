@@ -14,18 +14,18 @@ import (
 // fully configured pub/sub path with zero new variables.
 func TestPubSubSettingsInheritance(t *testing.T) {
 	cases := []struct {
-		name                      string
-		env                       map[string]string
-		wantKind                  string
-		wantURL                   string
-		wantNatsURL               string
-		wantNatsUsername          string
-		wantNatsPassword          string
+		name                  string
+		env                   map[string]string
+		wantKind              string
+		wantURL               string
+		wantNatsURL           string
+		wantNatsUsername      string
+		wantNatsPassword      string
 		wantNatsTLSEnabled    bool
 		wantNatsTLSRootCAFile string
-		wantNatsSubjectPrefix     string
-		wantMaxPub                int32
-		wantMaxSub                int32
+		wantNatsSubjectPrefix string
+		wantMaxPub            int32
+		wantMaxSub            int32
 	}{
 		{
 			name: "modern rabbit env only",
