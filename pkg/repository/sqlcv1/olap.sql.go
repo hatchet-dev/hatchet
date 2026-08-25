@@ -2198,6 +2198,42 @@ func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) (
 	return items, nil
 }
 
+const lockDAGsForStatusUpdate = `-- name: LockDAGsForStatusUpdate :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS dag_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at
+)
+SELECT id
+FROM v1_dags_olap
+WHERE (inserted_at, id, tenant_id) IN (
+    SELECT dag_inserted_at, dag_id, tenant_id
+    FROM inputs
+)
+ORDER BY inserted_at, id
+FOR UPDATE
+`
+
+type LockDAGsForStatusUpdateParams struct {
+	Tenantids      []uuid.UUID          `json:"tenantids"`
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+}
+
+// Acquires the DAG row locks in their own statement *before* UpdateDAGStatusesFromMQ
+// runs in the same transaction. The rollup in UpdateDAGStatusesFromMQ recomputes DAG
+// status from a join over task rows; under READ COMMITTED, if the rollup statement
+// itself blocked on the DAG row lock, it would resume with the snapshot it started
+// with and count stale task statuses. Two concurrent rollups could then each miss the
+// other's terminal task updates and leave the DAG stuck in a non-terminal status.
+// Taking the locks in this earlier statement means the rollup statement's snapshot is
+// opened only after any prior lock holder committed, so its task counts are current.
+func (q *Queries) LockDAGsForStatusUpdate(ctx context.Context, db DBTX, arg LockDAGsForStatusUpdateParams) error {
+	_, err := db.Exec(ctx, lockDAGsForStatusUpdate, arg.Tenantids, arg.Dagids, arg.Daginsertedats)
+	return err
+}
+
 const markOLAPCutoverJobAsCompleted = `-- name: MarkOLAPCutoverJobAsCompleted :exec
 UPDATE v1_payloads_olap_cutover_job_offset
 SET is_completed = TRUE

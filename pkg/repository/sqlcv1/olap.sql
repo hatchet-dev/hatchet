@@ -1017,6 +1017,30 @@ WHERE (t.inserted_at, t.id, t.tenant_id) IN (
 )
 ;
 
+-- name: LockDAGsForStatusUpdate :exec
+-- Acquires the DAG row locks in their own statement *before* UpdateDAGStatusesFromMQ
+-- runs in the same transaction. The rollup in UpdateDAGStatusesFromMQ recomputes DAG
+-- status from a join over task rows; under READ COMMITTED, if the rollup statement
+-- itself blocked on the DAG row lock, it would resume with the snapshot it started
+-- with and count stale task statuses. Two concurrent rollups could then each miss the
+-- other's terminal task updates and leave the DAG stuck in a non-terminal status.
+-- Taking the locks in this earlier statement means the rollup statement's snapshot is
+-- opened only after any prior lock holder committed, so its task counts are current.
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@dagIds::BIGINT[]) AS dag_id,
+        UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
+)
+SELECT id
+FROM v1_dags_olap
+WHERE (inserted_at, id, tenant_id) IN (
+    SELECT dag_inserted_at, dag_id, tenant_id
+    FROM inputs
+)
+ORDER BY inserted_at, id
+FOR UPDATE;
+
 -- name: UpdateDAGStatusesFromMQ :many
 WITH inputs AS (
     SELECT
