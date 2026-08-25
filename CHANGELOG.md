@@ -1,12 +1,12 @@
-## [0.105.1] - 2026-08-25
+## [0.105.2] - 2026-08-25
 
-Hatchet v0.105.1 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
+Hatchet v0.105.2 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
 
 ### Highlights
 
-- Workflows can now be paused: in-flight runs keep running, new runs stay queued until unpause (up to the queue TTL), and cron or scheduled triggers can either queue or drop their runs while paused. Useful for halting a workflow with a high error rate, or queueing jobs during the day and unpausing to run them overnight. See [Pausing Workflows](https://docs.hatchet.run/v1/pausing-workflows?utm_source=changelog&utm_campaign=v0.105.1).
+- Workflows can now be paused: in-flight runs keep running, new runs stay queued until unpause (up to the queue TTL), and cron or scheduled triggers can either queue or drop their runs while paused. Useful for halting a workflow with a high error rate, or queueing jobs during the day and unpausing to run them overnight. See [Pausing Workflows](https://docs.hatchet.run/v1/pausing-workflows?utm_source=changelog&utm_campaign=v0.105.2).
 - Payload visibility can now be restricted per tenant member. Combined with the read-only `VIEWER` role, members can view runs, workflows, workers, events, logs, and metrics without seeing payload contents or modifying anything.
-- Early beta: Hatchet Embedded now supports the TypeScript and Python SDKs, running a full Hatchet engine directly next to your workers for local development, end-to-end testing, and CI. See [Embedded Mode](https://docs.hatchet.run/v1/embedded?utm_source=changelog&utm_campaign=v0.105.1).
+- Early beta: Hatchet Embedded now supports the TypeScript and Python SDKs, running a full Hatchet engine directly next to your workers for local development, end-to-end testing, and CI. See [Embedded Mode](https://docs.hatchet.run/v1/embedded?utm_source=changelog&utm_campaign=v0.105.2).
 - Go SDK: stream listeners stay alive across exit races, and previously missing durable wait and webhook arguments were added.
 - `hatchet-lite` now hands `SIGTERM` through to the engine, so containers shut down gracefully instead of waiting to be killed.
 
