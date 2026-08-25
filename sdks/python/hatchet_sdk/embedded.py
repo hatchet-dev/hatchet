@@ -34,6 +34,21 @@ class EmbeddedSidecar:
         if self in _active_sidecars:
             _active_sidecars.remove(self)
 
+        # a stale handshake would point the next `from_embedded()` in this
+        # process at the terminated engine instead of starting a new one
+        raw_handshake = os.environ.get(_HANDSHAKE_ENV)
+        if raw_handshake is not None:
+            try:
+                stale = (
+                    Handshake.model_validate_json(raw_handshake).token
+                    == self.handshake.token
+                )
+            except ValidationError:
+                stale = True
+
+            if stale:
+                del os.environ[_HANDSHAKE_ENV]
+
         if self.process.poll() is not None:
             return
 
