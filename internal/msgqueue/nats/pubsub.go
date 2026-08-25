@@ -32,6 +32,7 @@ type PubSubOpts struct {
 	url           string
 	username      string
 	password      string
+	tlsRootCAFile string
 	subjectPrefix string
 }
 
@@ -63,6 +64,16 @@ func WithPubSubUsername(username string) PubSubOpt {
 func WithPubSubPassword(password string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.password = password
+	}
+}
+
+// WithPubSubTLSRootCAFile sets a PEM CA bundle used to verify the NATS
+// server. Non-empty enables TLS even with a nats:// URL (nats.RootCAs
+// implies Secure and carries to rediscovered cluster peers); empty leaves
+// TLS to the URL scheme.
+func WithPubSubTLSRootCAFile(path string) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.tlsRootCAFile = path
 	}
 }
 
@@ -136,6 +147,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			}
 			l.Error().Err(err).Str("subject", subject).Msg("nats pubsub async error")
 		}),
+	}
+
+	if opts.tlsRootCAFile != "" {
+		// RootCAs implies Secure, so TLS is enabled even with a nats:// URL,
+		// and the CA pool applies to rediscovered cluster peers too. An
+		// unreadable or non-PEM file fails Connect with a descriptive error
+		// before any dial, so no stat/parse check is needed here.
+		connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
 	}
 
 	nc, err := natsgo.Connect(opts.url, connectOpts...)

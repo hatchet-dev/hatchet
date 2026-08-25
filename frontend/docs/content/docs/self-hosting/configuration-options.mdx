@@ -318,6 +318,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_MSGQUEUE_PUBSUB_NATS_URL`                   | Pub/sub NATS seed URL(s), comma-separated for a cluster                                                    |                  |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME`              | Pub/sub NATS username (sent as a connect option, so reconnects also authenticate)                          |                  |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD`              | Pub/sub NATS password (see username)                                                                       |                  |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE`      | Pub/sub NATS PEM CA bundle for verifying the server; setting it enables TLS even with a `nats://` URL      |                  |
 | `SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX`        | Pub/sub NATS subject prefix, joined to topic names with `.`                                                | `hatchet.pubsub` |
 | `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                                                                         | `100`            |
 
@@ -335,6 +336,12 @@ an oversized publish.
 Prefer bare hosts in `SERVER_MSGQUEUE_PUBSUB_NATS_URL` and set the username and
 password separately. Credentials embedded in the URL are not reapplied when the
 client reconnects to a cluster peer it learned about through gossip.
+
+To connect over TLS to a server whose certificate is signed by a private CA,
+point `SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE` at a PEM CA bundle.
+Setting it enables TLS even when the URL uses the `nats://` scheme, and the CA
+also applies when the client reconnects to rediscovered cluster peers. A
+`tls://` URL without a CA file verifies the server against the system roots.
 
 Unlike the other backends, which isolate installations at the connection level
 (a RabbitMQ vhost, a Postgres database), NATS isolates by subject. Set
