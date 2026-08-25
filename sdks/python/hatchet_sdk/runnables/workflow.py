@@ -109,7 +109,7 @@ def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -
 class ComputedTaskParameters(BaseModel):
     schedule_timeout: Duration
     execution_timeout: Duration
-    retries: int
+    retries: int | None = None
     backoff_factor: float | None
     backoff_max_seconds: int | None
 
@@ -137,11 +137,12 @@ class ComputedTaskParameters(BaseModel):
             param_default=None,
             fallback_value=self.task_defaults.backoff_max_seconds,
         )
-        self.retries = fall_back_to_default(
+        retries = fall_back_to_default(
             value=self.retries,
-            param_default=0,
+            param_default=None,
             fallback_value=self.task_defaults.retries,
         )
+        self.retries = retries if retries is not None else 0
 
         return self
 
@@ -1415,7 +1416,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1640,7 +1641,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
             backoff_factor=backoff_factor,
-            retries=0,
+            retries=None,
             backoff_max_seconds=backoff_max_seconds,
             task_defaults=self._config.task_defaults,
         )
@@ -1704,7 +1705,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1820,7 +1821,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
@@ -1891,7 +1892,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
