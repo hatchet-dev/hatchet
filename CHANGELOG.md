@@ -1,3 +1,16 @@
+## [0.105.1] - 2026-08-25
+
+Hatchet v0.105.1 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
+
+### Highlights
+
+- [Launching Workflow Pause and Viewer Roles](https://hatchet.run/announcement/workflow-pause-and-viewer-roles?utm_source=changelog&utm_campaign=v0.105.1). Workflows can now be paused: in-flight runs keep running, new runs stay queued until unpause (up to the queue TTL), and cron or scheduled triggers can either queue or drop their runs while paused. Useful for halting a workflow with a high error rate, or queueing jobs during the day and unpausing to run them overnight. See [Pausing Workflows](https://docs.hatchet.run/v1/pausing-workflows?utm_source=changelog&utm_campaign=v0.105.1).
+- Payload visibility can now be restricted per tenant member. Combined with the read-only `VIEWER` role, members can view runs, workflows, workers, events, logs, and metrics without seeing payload contents or modifying anything.
+- Early beta: Hatchet Embedded now supports the TypeScript and Python SDKs, running a full Hatchet engine directly next to your workers for local development, end-to-end testing, and CI. See [Embedded Mode](https://docs.hatchet.run/v1/embedded?utm_source=changelog&utm_campaign=v0.105.1).
+- Engine: evicted tasks can now time out instead of hanging, durable user events are isolated by scope, retry backoff no longer overflows on high retry counts, and lookups of missing rows return `NotFound` instead of `Internal`.
+- Go SDK: stream listeners stay alive across exit races, and previously missing durable wait and webhook arguments were added.
+- `hatchet-lite` now hands `SIGTERM` through to the engine, so containers shut down gracefully instead of waiting to be killed.
+
 ## [0.101.27] - 2026-08-17
 
 Hatchet v0.101.27 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, adding a read-only `VIEWER` role, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
