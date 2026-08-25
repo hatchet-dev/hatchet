@@ -5,6 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FRONTEND="$ROOT/frontend/app"
 DEST="$ROOT/cmd/hatchet-cli/cli/internal/ui/assets"
 
+echo "Generating docs snippets and examples"
+cd "$ROOT/frontend/snippets"
+python3 -X utf8 generate.py
+
 echo "Building frontend in $FRONTEND"
 cd "$FRONTEND"
 pnpm install --frozen-lockfile

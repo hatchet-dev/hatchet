@@ -1,4 +1,4 @@
-## [0.105.1] - 2026-08-25
+## [0.105.2] - 2026-08-25
 
 Hatchet v0.105.1 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
 
