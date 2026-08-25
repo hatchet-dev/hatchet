@@ -166,7 +166,7 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		// Non-nil config: bare Secure() skips server verification per its
 		// doc comment.
 		connectOpts = append(connectOpts,
-			natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS12}),
+			natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS13}),
 			natsgo.TLSHandshakeFirst(),
 		)
 
