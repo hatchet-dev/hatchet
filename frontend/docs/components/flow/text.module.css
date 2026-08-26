@@ -1,7 +1,10 @@
 @layer flow-base {
+  /* Deliberately smaller than marketing's --small: in the docs these only
+     render diagram captions, which sit inside prose and read better a step
+     below the body size. */
   .small {
-    font-size: var(--small);
-    line-height: calc(var(--rlh) * 1.5);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
     letter-spacing: 0.01em;
   }
 

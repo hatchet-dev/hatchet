@@ -114,7 +114,7 @@
 
 /* One of the three the worker is actually processing */
 [data-flow-state="running"] .obj {
-  animation: s3p-pulse 900ms ease-in-out infinite;
+  animation: s3p-pulse 1400ms ease-in-out infinite;
 }
 
 /* Finished work leaves hollow, on its way to the tally */
@@ -127,7 +127,7 @@
 [data-flow-state="tallied"] .obj {
   background: color-mix(in srgb, var(--lane) 78%, transparent);
   border-color: transparent;
-  animation: s3p-settle 260ms ease-out both;
+  animation: s3p-settle 340ms ease-out both;
 }
 
 /* ── list_objects trigger tasks (hollow, lane-coloured) ───────────────── */
@@ -191,13 +191,13 @@
     transform: none;
   }
   50% {
-    transform: scale(0.8);
+    transform: scale(0.86);
   }
 }
 
 @keyframes s3p-settle {
   0% {
-    transform: scale(1.5);
+    transform: scale(1.4);
   }
   100% {
     transform: none;

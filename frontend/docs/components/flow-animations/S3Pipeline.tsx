@@ -23,9 +23,10 @@ import styles from "./s3pipeline.module.css";
  * streaming object tokens rightward into a per-bucket queue. bucket-1 holds
  * the most objects, so its queue grows visibly deeper than the others.
  * Beat 3 (the drain) — a single worker with three slots pulls queue heads
- * round-robin: the accent cursor snaps from head to head, and the three slots
- * hold objects from different buckets at once, each with its own progress
- * bar. Depth buys bucket-1 nothing — the rotation visits every bucket.
+ * round-robin, one unhurried pull at a time: the accent cursor glides from
+ * head to head, and the three slots hold objects from different buckets at
+ * once, each with its own progress bar. Depth buys bucket-1 nothing — the
+ * rotation visits every bucket.
  * Beat 4 (the tally) — finished objects leave the worker hollow and settle
  * into the processed column on the right, interleaved colours proving the
  * round-robin. When the backlog hits zero the tally fades and the loop wraps
@@ -77,29 +78,32 @@ const READOUT_Y = 186;
 
 /** bucket-1 is the deep one — the prose's "most pending objects" bucket. */
 const BUCKETS = [
-  { name: "bucket-0", objects: 4, emitGap: 230 },
-  { name: "bucket-1", objects: 7, emitGap: 170 },
-  { name: "bucket-2", objects: 4, emitGap: 230 },
+  { name: "bucket-0", objects: 4, emitGap: 420 },
+  { name: "bucket-1", objects: 7, emitGap: 320 },
+  { name: "bucket-2", objects: 4, emitGap: 420 },
 ] as const;
 
 // ─── Timing (ms) ───────────────────────────────────────────────────────────
+//
+// Unhurried on purpose: one pull at a time, each beat given room to read, so
+// a viewer can follow a single object from its bucket to the tally column.
 
-const CRON_AT = 300; // the tick fires
-const TRIGGER_TRAVEL = 700; // cron port → bucket, staggered per lane
-const TRAVEL_IN = 480; // bucket → tail of its queue
-const MIN_WAIT = 120; // an object always lands at the head before departing
-const PULL_MS = 380; // queue head → worker slot
-const PROC_MS = 900; // base service time per object
-const PROC_JITTER = 250;
-const SLOT_GAP = 120; // slot frees → next pull begins
-const MIN_PULL_GAP = 90; // two slots freeing together still pull one at a time
-const SHUFFLE_MS = 150; // queue shuffles one slot toward the head
-const DONE_DWELL = 220; // finished object held in its slot, hollow
-const EXIT_MS = 420; // worker slot → tally column
-const FADE_MS = 350;
+const CRON_AT = 400; // the tick fires
+const TRIGGER_TRAVEL = 900; // cron port → bucket, staggered per lane
+const TRAVEL_IN = 700; // bucket → tail of its queue
+const MIN_WAIT = 350; // an object always dwells at the head before departing
+const PULL_MS = 550; // queue head → worker slot
+const PROC_MS = 1800; // base service time per object
+const PROC_JITTER = 400;
+const SLOT_GAP = 250; // slot frees → next pull begins
+const MIN_PULL_GAP = 550; // pulls are strictly one at a time, never bunched
+const SHUFFLE_MS = 260; // queue shuffles one slot toward the head
+const DONE_DWELL = 400; // finished object held in its slot, hollow
+const EXIT_MS = 650; // worker slot → tally column
+const FADE_MS = 500;
 
 const TRIGGER_ARRIVE = BUCKETS.map(
-  (_, lane) => CRON_AT + TRIGGER_TRAVEL + lane * 140,
+  (_, lane) => CRON_AT + TRIGGER_TRAVEL + lane * 200,
 );
 
 const rng = createSeededRandom("s3-pipeline");
@@ -118,10 +122,10 @@ interface Emission {
 const EMISSIONS: Emission[] = (() => {
   const out: Emission[] = [];
   BUCKETS.forEach((bucket, lane) => {
-    let t = TRIGGER_ARRIVE[lane] + 200;
+    let t = TRIGGER_ARRIVE[lane] + 260;
     for (let j = 0; j < bucket.objects; j++) {
       out.push({ index: out.length, lane, emitAt: t, arriveAt: t + TRAVEL_IN });
-      t += bucket.emitGap + Math.round(rng() * 70);
+      t += bucket.emitGap + Math.round(rng() * 90);
     }
   });
   return out;
@@ -229,9 +233,9 @@ const MAX_DEPTH = BUCKETS.map((_, lane) =>
 const LAST_SETTLE =
   Math.max(...RUNS.map((r) => r.endAt)) + DONE_DWELL + EXIT_MS;
 /** The full tally dwells — the batch's poster of completion — then fades. */
-const FADE_AT = LAST_SETTLE + 900;
+const FADE_AT = LAST_SETTLE + 1400;
 const FADE_END = FADE_AT + FADE_MS;
-const DURATION = Math.ceil((FADE_END + 500) / 200) * 200;
+const DURATION = Math.ceil((FADE_END + 700) / 200) * 200;
 
 const PULLS = [...RUNS].sort((a, b) => a.pullAt - b.pullAt);
 
@@ -240,7 +244,7 @@ const PULLS = [...RUNS].sort((a, b) => a.pullAt - b.pullAt);
  * buckets, the cursor is parked on a queue head, bucket-1's queue is visibly
  * the deepest, and a few interleaved chips already sit in the tally column.
  */
-const POSTER_TIME = PULLS[5].startAt + 250;
+const POSTER_TIME = PULLS[5].startAt + 400;
 
 // ─── Object tracks (bucket → queue → worker slot → tally) ──────────────────
 
@@ -248,7 +252,7 @@ const objectTrack = (run: ObjectRun): FlowTrack => {
   const laneY = LANE_Y[run.lane];
   const kfs: FlowKeyframe[] = [
     {
-      t: run.emitAt - 160,
+      t: run.emitAt - 240,
       x: BUCKET_X + 4,
       y: laneY,
       opacity: 0,
@@ -343,7 +347,7 @@ const triggerTrack = (lane: number): FlowTrack => {
       state: "trigger",
     },
     {
-      t: CRON_AT + 180,
+      t: CRON_AT + 240,
       x: CRON_X + 14,
       y: MID_Y + (laneY - MID_Y) * 0.12,
       opacity: 1,
@@ -352,15 +356,15 @@ const triggerTrack = (lane: number): FlowTrack => {
     },
     // A midpoint keyframe approximates the fan curve the chrome draws.
     {
-      t: arrive - 200,
+      t: arrive - 320,
       x: 40,
       y: MID_Y + (laneY - MID_Y) * 0.55,
       ease: "inOut",
     },
     { t: arrive, x: BUCKET_X - 14, y: laneY, ease: "out" },
-    { t: arrive + 130, x: BUCKET_X - 14, y: laneY, ease: "hold" },
+    { t: arrive + 220, x: BUCKET_X - 14, y: laneY, ease: "hold" },
     {
-      t: arrive + 380,
+      t: arrive + 600,
       x: BUCKET_X - 4,
       y: laneY,
       opacity: 0,
@@ -378,7 +382,7 @@ const pulseTrack = (n: number, delay: number): FlowTrack =>
   defineTrack(`s3p-pulse-${n}`, [
     { t: CRON_AT + delay, x: CRON_X, y: MID_Y, opacity: 0.9, scale: 0.4 },
     {
-      t: CRON_AT + delay + 480,
+      t: CRON_AT + delay + 700,
       x: CRON_X,
       y: MID_Y,
       opacity: 0,
@@ -387,30 +391,37 @@ const pulseTrack = (n: number, delay: number): FlowTrack =>
     },
   ]);
 
-const PULSE_TRACKS = [pulseTrack(0, 0), pulseTrack(1, 140)];
+const PULSE_TRACKS = [pulseTrack(0, 0), pulseTrack(1, 200)];
 
-// ─── Round-robin cursor (snaps to the queue head being pulled) ─────────────
+// ─── Round-robin cursor (glides to the queue head being pulled) ────────────
 
+/**
+ * The rotation made visible: the cursor eases from head to head over ~420ms
+ * and dwells on each one until well after its pull departs. Pulls are spaced
+ * at least MIN_PULL_GAP apart, so every glide gets its full travel and every
+ * dwell is long enough to register — no snapping, no jitter.
+ */
 const CURSOR_TRACK: FlowTrack = (() => {
   const kfs: FlowKeyframe[] = [
     {
-      t: PULLS[0].pullAt - 420,
+      t: PULLS[0].pullAt - 950,
       x: HEAD_X,
       y: LANE_Y[PULLS[0].lane],
       opacity: 0,
     },
     {
-      t: PULLS[0].pullAt - 240,
+      t: PULLS[0].pullAt - 550,
       x: HEAD_X,
       y: LANE_Y[PULLS[0].lane],
       opacity: 1,
       ease: "out",
     },
   ];
-  let prev = PULLS[0].pullAt - 240;
+  let prev = PULLS[0].pullAt - 550;
   for (let i = 1; i < PULLS.length; i++) {
-    const start = Math.max(prev + 40, PULLS[i].pullAt - 240);
-    const arrive = Math.max(start + 60, PULLS[i].pullAt - 80);
+    const start = Math.max(prev + 120, PULLS[i].pullAt - 600);
+    let arrive = Math.min(PULLS[i].pullAt - 180, start + 420);
+    if (arrive < start + 240) arrive = start + 240;
     kfs.push({
       t: start,
       x: HEAD_X,
@@ -423,8 +434,8 @@ const CURSOR_TRACK: FlowTrack = (() => {
   const lastLane = LANE_Y[PULLS[PULLS.length - 1].lane];
   const lastPull = PULLS[PULLS.length - 1].pullAt;
   kfs.push(
-    { t: lastPull + 500, x: HEAD_X, y: lastLane, ease: "hold" },
-    { t: lastPull + 800, x: HEAD_X, y: lastLane, opacity: 0, ease: "linear" },
+    { t: lastPull + 700, x: HEAD_X, y: lastLane, ease: "hold" },
+    { t: lastPull + 1300, x: HEAD_X, y: lastLane, opacity: 0, ease: "linear" },
   );
   return defineTrack("s3p-cursor", kfs);
 })();

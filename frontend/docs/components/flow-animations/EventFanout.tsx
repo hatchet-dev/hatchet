@@ -11,62 +11,58 @@ import { Text } from "@/components/flow/Text";
 import styles from "./eventfanout.module.css";
 
 /**
- * Flow animation: one event, many workflows (docs.hatchet.run/v1/events).
+ * Flow animation: one event, many tasks (docs.hatchet.run/v1/events).
  *
- * Events with keys (`user:created`, `order:paid`, …) are pushed once from the
- * left, absorbed by the central event node, and fanned out — one copy per
- * *subscribed* workflow — along dashed subscription connectors. Each copy
- * becomes an independent run in its workflow lane: it processes (accent
- * pulse), completes (green), and settles into that lane's run tally. Lanes
- * subscribe by key pattern (`user:*` wildcards included), so different keys
- * light up different subsets — `user:created` fans three ways while
- * `order:paid` triggers only `invoice`.
+ * A `user:signup` event is pushed once from the left, absorbed by the central
+ * event node, and fanned out — one copy per task that declared
+ * `on_events: ["user:signup"]` — along dashed connectors. Each copy becomes an
+ * independent run in its task lane: it processes (accent pulse), completes
+ * (green), and settles into that lane's run tally. Every push triggers all
+ * three tasks, because each one subscribed to the same event key.
  *
  * Everything is seeded/deterministic and built at module scope; the loop ends
  * with the tallies dimming out while nothing is in flight, so t = DURATION
  * wraps cleanly to the empty t = 0 composition.
  */
 
-// ─── Geometry (stage design units, 320 × 240 — half-column composition) ────
+// ─── Geometry (stage design units, 320 × 150 — flat fan-out composition) ───
 
 const STAGE_W = 320;
-const STAGE_H = 240;
+const STAGE_H = 150;
 
-const PUSH_Y = 126; // the push line and bus centerline
+const PUSH_Y = 75; // the push line and bus centerline
 const SPAWN_X = 10;
 const BUS_CX = 114;
 const BUS_W = 28;
-const BUS_H = 56;
+const BUS_H = 40;
 const FAN_X = 146; // junction node where copies split toward lanes
 
-const LANE_X0 = 200;
-const LANE_W = 114;
+const LANE_X0 = 194;
+const LANE_W = 120;
 const LANE_H = 26;
-const ENTRY_X = 198; // where the diagonal meets the lane row
-const PROC_X = 212; // processing socket inside the lane
+const ENTRY_X = 192; // where the diagonal meets the lane row
+const PROC_X = 206; // processing socket inside the lane
 
-const TALLY_X0 = 240;
+const TALLY_X0 = 236;
 const TALLY_PITCH = 18;
 const TALLY_SLOTS = 4;
 const tallySlotX = (slot: number) => TALLY_X0 + slot * TALLY_PITCH;
 
-// ─── Workflows and their event subscriptions ───────────────────────────────
+// ─── The event and the tasks subscribed to it ──────────────────────────────
 
-type EventKey = "user:created" | "user:updated" | "order:paid";
+const EVENT_KEY = "user:signup";
 
 interface Lane {
   name: string;
-  /** Subscription pattern shown on the lane (wildcards per the events docs). */
-  pattern: string;
   y: number;
-  keys: EventKey[];
 }
 
+/** Each task declared `on_events: ["user:signup"]`, so every push fans out
+ * to all three lanes. */
 const LANES: Lane[] = [
-  { name: "send-email", pattern: "user:created", y: 36, keys: ["user:created"] },
-  { name: "sync-crm", pattern: "user:*", y: 96, keys: ["user:created", "user:updated"] },
-  { name: "reindex", pattern: "user:*", y: 156, keys: ["user:created", "user:updated"] },
-  { name: "invoice", pattern: "order:paid", y: 216, keys: ["order:paid"] },
+  { name: "send_welcome_email", y: 30 },
+  { name: "grant_new_user_credits", y: 75 },
+  { name: "reward_referral", y: 120 },
 ];
 
 // ─── Timing constants (ms) ─────────────────────────────────────────────────
@@ -81,22 +77,14 @@ const ENTER_MS = 300; // lane entry → processing socket
 const DONE_MS = 340; // green completion beat at the socket
 const FLY_MS = 440; // socket → tally slot
 
-// ─── Seeded schedule: five pushes, three distinct keys ─────────────────────
+// ─── Seeded schedule: four pushes of the same event ────────────────────────
 
 const rng = createSeededRandom("event-fanout");
 
-const PUSH_BASE = [500, 3700, 6900, 10100, 13300];
-const EVENT_SEQUENCE: EventKey[] = [
-  "user:created",
-  "order:paid",
-  "user:updated",
-  "user:created",
-  "order:paid",
-];
+const PUSH_BASE = [500, 3700, 6900, 10100];
 
-const EVENTS = EVENT_SEQUENCE.map((key, i) => ({
-  key,
-  push: PUSH_BASE[i] + Math.round(rng() * 300 - 150),
+const EVENTS = PUSH_BASE.map((base) => ({
+  push: base + Math.round(rng() * 300 - 150),
 }));
 
 interface Run {
@@ -109,39 +97,32 @@ interface Run {
   tallyAt: number;
 }
 
-/** One run per (event, subscribed lane) — the fan-out itself. */
-const RUNS: Run[] = [];
-{
-  const laneCounts = LANES.map(() => 0);
-  EVENTS.forEach((ev, eventIndex) => {
-    let sibling = 0;
-    LANES.forEach((lane, laneIndex) => {
-      if (!lane.keys.includes(ev.key)) return;
-      const dep = ev.push + TRAVEL_IN + COPY_DELAY + sibling * STAGGER;
-      const procStart = dep + EXIT_MS + DIAG_MS + ENTER_MS;
-      const procEnd = procStart + Math.round(1000 + rng() * 600);
-      RUNS.push({
-        eventIndex,
-        laneIndex,
-        slot: laneCounts[laneIndex]++,
-        dep,
-        procStart,
-        procEnd,
-        tallyAt: procEnd + DONE_MS + FLY_MS,
-      });
-      sibling += 1;
-    });
-  });
-}
+/** One run per (event, subscribed task) — the fan-out itself. */
+const RUNS: Run[] = EVENTS.flatMap((ev, eventIndex) =>
+  LANES.map((_, laneIndex): Run => {
+    const dep = ev.push + TRAVEL_IN + COPY_DELAY + laneIndex * STAGGER;
+    const procStart = dep + EXIT_MS + DIAG_MS + ENTER_MS;
+    const procEnd = procStart + Math.round(1000 + rng() * 600);
+    return {
+      eventIndex,
+      laneIndex,
+      slot: eventIndex,
+      dep,
+      procStart,
+      procEnd,
+      tallyAt: procEnd + DONE_MS + FLY_MS,
+    };
+  }),
+);
 
 // ─── Loop bookkeeping ──────────────────────────────────────────────────────
 
 const lastTally = Math.max(...RUNS.map((r) => r.tallyAt));
 /** Wrap beat: tallies dim out at the end while nothing is in flight. */
 const DURATION = Math.ceil((lastTally + 700) / 100) * 100;
-/** Static frame: the 4th push (`user:created`) mid-fanout — three copies on
- * the connectors, earlier runs already settled into their tallies. */
-const POSTER_TIME = EVENTS[3].push + 1900;
+/** Static frame: the 3rd push mid-fanout — three copies on the connectors,
+ * earlier runs already settled into their tallies. */
+const POSTER_TIME = EVENTS[2].push + 1900;
 
 // ─── Tracks ────────────────────────────────────────────────────────────────
 
@@ -154,9 +135,22 @@ const EVENT_TRACKS = EVENTS.map((ev, i) => {
   return defineTrack(`event-${i}`, [
     { t: t0, x: SPAWN_X, y: PUSH_Y, opacity: 0, state: "push" },
     { t: t0 + 140, x: 26, y: PUSH_Y, opacity: 1, ease: "linear" },
-    { t: t0 + 560, x: 26 + 420 * speed, y: PUSH_Y, ease: "linear", state: "arriving" },
+    {
+      t: t0 + 560,
+      x: 26 + 420 * speed,
+      y: PUSH_Y,
+      ease: "linear",
+      state: "arriving",
+    },
     { t: arrive, x: BUS_CX, y: PUSH_Y, ease: "linear", state: "absorbed" },
-    { t: arrive + ABSORB_MS, x: BUS_CX, y: PUSH_Y, opacity: 0, scale: 0.4, ease: "in" },
+    {
+      t: arrive + ABSORB_MS,
+      x: BUS_CX,
+      y: PUSH_Y,
+      opacity: 0,
+      scale: 0.4,
+      ease: "in",
+    },
   ]);
 });
 
@@ -183,26 +177,72 @@ const RUN_TRACKS = RUNS.map((r) => {
 const BUS_TRACK = defineTrack("bus", [
   { t: 0, x: BUS_CX, y: PUSH_Y, state: "idle" },
   ...EVENTS.flatMap((ev): FlowKeyframe[] => [
-    { t: ev.push + TRAVEL_IN - 40, x: BUS_CX, y: PUSH_Y, state: "busy", ease: "hold" },
-    { t: ev.push + TRAVEL_IN + 340, x: BUS_CX, y: PUSH_Y, state: "idle", ease: "hold" },
+    {
+      t: ev.push + TRAVEL_IN - 40,
+      x: BUS_CX,
+      y: PUSH_Y,
+      state: "busy",
+      ease: "hold",
+    },
+    {
+      t: ev.push + TRAVEL_IN + 340,
+      x: BUS_CX,
+      y: PUSH_Y,
+      state: "idle",
+      ease: "hold",
+    },
   ]),
   { t: DURATION, x: BUS_CX, y: PUSH_Y, ease: "hold" },
 ]);
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
   <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
     {/* Push origin + dashed push line into the bus */}
-    <rect x={SPAWN_X - 2} y={PUSH_Y - 2} width={4} height={4} className={styles.chromeFill} />
-    <line x1={16} y1={PUSH_Y} x2={BUS_CX - BUS_W / 2 - 4} y2={PUSH_Y} className={styles.chromeDash} {...fine} />
-    {/* Fan junction: stub out of the bus, then one dashed subscription
-        connector per workflow lane */}
-    <line x1={BUS_CX + BUS_W / 2} y1={PUSH_Y} x2={FAN_X - 4} y2={PUSH_Y} className={styles.chromeDash} {...fine} />
-    <rect x={FAN_X - 2} y={PUSH_Y - 2} width={4} height={4} className={styles.chromeFill} />
+    <rect
+      x={SPAWN_X - 2}
+      y={PUSH_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
+    <line
+      x1={16}
+      y1={PUSH_Y}
+      x2={BUS_CX - BUS_W / 2 - 4}
+      y2={PUSH_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
+    {/* Fan junction: stub out of the bus, then one dashed connector per
+        subscribed task lane */}
+    <line
+      x1={BUS_CX + BUS_W / 2}
+      y1={PUSH_Y}
+      x2={FAN_X - 4}
+      y2={PUSH_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
+    <rect
+      x={FAN_X - 2}
+      y={PUSH_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
     {LANES.map((lane) => (
       <line
         key={lane.name}
@@ -214,7 +254,7 @@ const Chrome = () => (
         {...fine}
       />
     ))}
-    {/* Workflow lanes: row box, processing socket, tally slot ticks */}
+    {/* Task lanes: row box, processing socket, tally slot ticks */}
     {LANES.map((lane) => (
       <g key={lane.name}>
         <rect
@@ -287,10 +327,21 @@ const StageLabel = ({
 // ─── Export ────────────────────────────────────────────────────────────────
 
 const ARIA_LABEL =
-  "Animated diagram of Hatchet event fan-out: events like user:created and order:paid are each pushed once into a central event node, then fan out to every workflow subscribed to their key — send-email, sync-crm, reindex, and invoice — spawning a separate run in each that processes, completes, and lands in that workflow's run tally.";
+  "Animated diagram of Hatchet event fan-out: each push of the user:signup event lands in a central event node and fans out to every task that declared on_events for that key — send_welcome_email, grant_new_user_credits, and reward_referral — spawning an independent run in each that processes, completes, and lands in that task's run tally.";
 
-export const EventFanout = ({ style }: { style?: CSSProperties }) => (
-  <div className={styles.fanout} style={style}>
+export const EventFanout = ({
+  className,
+  style,
+  showCaption = true,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  showCaption?: boolean;
+}) => (
+  <div
+    className={[styles.fanout, className ?? ""].join(" ").trim()}
+    style={style}
+  >
     <Flow.Root
       duration={DURATION}
       posterTime={POSTER_TIME}
@@ -299,14 +350,19 @@ export const EventFanout = ({ style }: { style?: CSSProperties }) => (
     >
       <Flow.Stage width={STAGE_W} height={STAGE_H} className={styles.stage}>
         <Chrome />
-        <StageLabel x={22} y={136} caps muted>
+        <StageLabel x={22} y={PUSH_Y + 10} caps muted>
           push
         </StageLabel>
-        <StageLabel x={BUS_CX} y={86} caps>
+        <StageLabel x={BUS_CX} y={PUSH_Y - BUS_H / 2 - 12} caps>
           events
         </StageLabel>
         {LANES.map((lane) => (
-          <StageLabel key={lane.name} x={LANE_X0 + 2} y={lane.y - 23} anchor="left">
+          <StageLabel
+            key={lane.name}
+            x={LANE_X0 + 2}
+            y={lane.y - 23}
+            anchor="left"
+          >
             {lane.name}
           </StageLabel>
         ))}
@@ -319,16 +375,22 @@ export const EventFanout = ({ style }: { style?: CSSProperties }) => (
             muted
             small
           >
-            {lane.pattern}
+            {EVENT_KEY}
           </StageLabel>
         ))}
         <Flow.Token track={BUS_TRACK}>
-          <div className={styles.busBox} style={{ width: `calc(var(--flow-u) * ${BUS_W})`, height: `calc(var(--flow-u) * ${BUS_H})` }} />
+          <div
+            className={styles.busBox}
+            style={{
+              width: `calc(var(--flow-u) * ${BUS_W})`,
+              height: `calc(var(--flow-u) * ${BUS_H})`,
+            }}
+          />
         </Flow.Token>
-        {EVENTS.map((ev, i) => (
+        {EVENTS.map((_, i) => (
           <Flow.Token key={EVENT_TRACKS[i].id} track={EVENT_TRACKS[i]}>
             <div className={styles.square}>
-              <div className={styles.keyLabel}>{ev.key}</div>
+              <div className={styles.keyLabel}>{EVENT_KEY}</div>
             </div>
           </Flow.Token>
         ))}
@@ -339,8 +401,11 @@ export const EventFanout = ({ style }: { style?: CSSProperties }) => (
         ))}
       </Flow.Stage>
     </Flow.Root>
-    <Text.Small as="p" secondary balance className={`${styles.caption}`}>
-      Push an event once — every workflow subscribed to its key gets its own run.
-    </Text.Small>
+    {showCaption && (
+      <Text.Small as="p" secondary balance className={styles.caption}>
+        Push user:signup once — every task that declares it in on_events gets
+        its own run.
+      </Text.Small>
+    )}
   </div>
 );
