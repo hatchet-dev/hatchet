@@ -11,6 +11,8 @@ import { cancellationWorkflow } from './cancellation/cancellation-workflow';
 import { taskConditionWorkflow } from './conditions/complex-workflow';
 import { concurrencyCancelInProgressWorkflow } from './concurrency_cancel_in_progress/workflow';
 import { concurrencyCancelNewestWorkflow } from './concurrency_cancel_newest/workflow';
+import { concurrencyCancelExceptNewestWorkflow } from './concurrency_cancel_except_newest/workflow';
+import { concurrencyCancelExceptOldestWorkflow } from './concurrency_cancel_except_oldest/workflow';
 import { concurrencyMultipleKeysWorkflow } from './concurrency_multiple_keys/workflow';
 import { concurrencyWorkflowLevelWorkflow } from './concurrency_workflow_level/workflow';
 import { dag } from './dag/workflow';
@@ -95,6 +97,8 @@ const workflows = [
   taskConditionWorkflow,
   concurrencyCancelInProgressWorkflow,
   concurrencyCancelNewestWorkflow,
+  concurrencyCancelExceptNewestWorkflow,
+  concurrencyCancelExceptOldestWorkflow,
   concurrencyMultipleKeysWorkflow,
   concurrencyWorkflowLevelWorkflow,
   dag,

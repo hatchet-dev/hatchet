@@ -51,11 +51,13 @@ type Workflow struct {
 type WorkflowConcurrencyLimitStrategy string
 
 const (
-	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
-	CancelNewest     WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
-	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
-	DropNewest       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
-	QueueNewest      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
+	CancelInProgress   WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	CancelNewest       WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
+	GroupRoundRobin    WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	DropNewest         WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
+	QueueNewest        WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
+	CancelExceptNewest WorkflowConcurrencyLimitStrategy = "CANCEL_EXCEPT_NEWEST"
+	CancelExceptOldest WorkflowConcurrencyLimitStrategy = "CANCEL_EXCEPT_OLDEST"
 )
 
 type WorkflowConcurrency struct {

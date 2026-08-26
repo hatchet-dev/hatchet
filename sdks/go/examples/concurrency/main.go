@@ -119,6 +119,52 @@ func ConcurrencyCancelNewest(client *hatchet.Client) *hatchet.StandaloneTask {
 	// !!
 }
 
+func ConcurrencyCancelExceptNewest(client *hatchet.Client) *hatchet.StandaloneTask {
+	// > Cancel Except Newest
+	var maxRuns int32 = 1
+	strategy := types.CancelExceptNewest
+
+	return client.NewStandaloneTask("cancel-except-newest",
+		func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
+			// Random sleep between 200ms and 1000ms
+			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
+
+			return &TransformedOutput{
+				TransformedMessage: input.Message,
+			}, nil
+		},
+		hatchet.WithWorkflowConcurrency(types.Concurrency{
+			Expression:    "input.GroupKey",
+			MaxRuns:       &maxRuns,
+			LimitStrategy: &strategy,
+		}),
+	)
+	// !!
+}
+
+func ConcurrencyCancelExceptOldest(client *hatchet.Client) *hatchet.StandaloneTask {
+	// > Cancel Except Oldest
+	var maxRuns int32 = 1
+	strategy := types.CancelExceptOldest
+
+	return client.NewStandaloneTask("cancel-except-oldest",
+		func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
+			// Random sleep between 200ms and 1000ms
+			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
+
+			return &TransformedOutput{
+				TransformedMessage: input.Message,
+			}, nil
+		},
+		hatchet.WithWorkflowConcurrency(types.Concurrency{
+			Expression:    "input.GroupKey",
+			MaxRuns:       &maxRuns,
+			LimitStrategy: &strategy,
+		}),
+	)
+	// !!
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -132,6 +178,8 @@ func main() {
 			MultipleConcurrencyKeys(client),
 			ConcurrencyCancelInProgress(client),
 			ConcurrencyCancelNewest(client),
+			ConcurrencyCancelExceptNewest(client),
+			ConcurrencyCancelExceptOldest(client),
 		),
 		hatchet.WithSlots(10),
 	)

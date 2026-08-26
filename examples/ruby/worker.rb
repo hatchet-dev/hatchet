@@ -22,6 +22,8 @@ require_relative "concurrency_limit/worker"
 require_relative "concurrency_limit_rr/worker"
 require_relative "concurrency_cancel_in_progress/worker"
 require_relative "concurrency_cancel_newest/worker"
+require_relative "concurrency_cancel_except_newest/worker"
+require_relative "concurrency_cancel_except_oldest/worker"
 require_relative "concurrency_multiple_keys/worker"
 require_relative "concurrency_workflow_level/worker"
 require_relative "rate_limit/worker"
@@ -71,6 +73,8 @@ ALL_WORKFLOWS = [
   CONCURRENCY_LIMIT_RR_WORKFLOW,
   CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW,
   CONCURRENCY_CANCEL_NEWEST_WORKFLOW,
+  CONCURRENCY_CANCEL_EXCEPT_NEWEST_WORKFLOW,
+  CONCURRENCY_CANCEL_EXCEPT_OLDEST_WORKFLOW,
   CONCURRENCY_MULTIPLE_KEYS_WORKFLOW,
   CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW,
   RATE_LIMIT_WORKFLOW,
