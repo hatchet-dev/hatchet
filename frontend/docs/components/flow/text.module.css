@@ -1,0 +1,47 @@
+@layer flow-base {
+  .small {
+    font-size: var(--small);
+    line-height: calc(var(--rlh) * 1.5);
+    letter-spacing: 0.01em;
+  }
+
+  .micro {
+    font-size: var(--micro);
+    line-height: calc(var(--rlh) * 1.25);
+    letter-spacing: 0.04em;
+  }
+
+  .caps {
+    text-transform: uppercase;
+    text-box: trim-both cap alphabetic;
+    letter-spacing: 0.07em;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-weight: 500;
+  }
+
+  .brackets::before {
+    content: "[";
+  }
+  .brackets::after {
+    content: "]";
+  }
+
+  .balance {
+    text-wrap: balance;
+  }
+
+  .secondary {
+    color: var(--fg-secondary);
+  }
+
+  .tertiary {
+    color: var(--fg-tertiary);
+  }
+
+  .primary {
+    color: var(--fg);
+  }
+}
