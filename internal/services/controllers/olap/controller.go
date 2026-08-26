@@ -1075,7 +1075,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		} else {
 			workerIds = append(workerIds, uuid.Nil)
 		}
-
 	}
 
 	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
