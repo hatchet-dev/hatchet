@@ -2,7 +2,7 @@ import pytest
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential
 
-from examples.dag.worker import dag_workflow
+from examples.dag.worker import dag_workflow, DAGWorkflowInput
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -48,3 +48,22 @@ async def test_on_failure_task_is_skipped_not_stuck(hatchet: Hatchet) -> None:
     )
 
     assert on_failure_task.status == V1TaskStatus.COMPLETED
+    assert on_failure_task.output == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_on_failure_task_is_runs_on_failure(hatchet: Hatchet) -> None:
+    ref = dag_workflow.run(
+        input=DAGWorkflowInput(should_fail=True),
+        wait_for_result=False,
+    )
+
+    with pytest.raises(Exception):
+        await ref.aio_result()
+
+    on_failure_task = await get_on_failure_task(
+        hatchet=hatchet, run_id=ref.workflow_run_id
+    )
+
+    assert on_failure_task.status == V1TaskStatus.COMPLETED
+    assert on_failure_task.output == {"ran": True}
