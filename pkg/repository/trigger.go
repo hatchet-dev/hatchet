@@ -1556,10 +1556,6 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			task.DagInsertedAt = sqlchelpers.TimestamptzFromTime(stamp.dagInsertedAt)
 			task.IsOperatorRun = true
 		}
-
-		if _, ok := operatorDagTuples[task.ExternalID]; ok {
-			task.IsOperatorRun = true
-		}
 	}
 
 	if len(pausedWorkflowIds) > 0 {
@@ -1719,7 +1715,8 @@ type V1TaskWithPayload struct {
 	Runtime *sqlcv1.V1TaskRuntime `json:"runtime,omitempty"`
 	Payload []byte                `json:"payload"`
 
-	// IsOperatorRun is true for an operator-managed run's orchestrator task and for its children.
+	// IsOperatorRun is true for an operator-managed run's children. The orchestrator itself is
+	// never written to OLAP as a task, so it is never flagged here.
 	IsOperatorRun bool `json:"is_operator_run,omitempty"`
 }
 
