@@ -94,10 +94,6 @@ flowchart LR
     A -.-> C
     B -.-> D
     B -.-> E
-    style B stroke:#a855f7
-    style C stroke:#a855f7
-    style D stroke:#14b8a6
-    style E stroke:#14b8a6
 ```
 
 ### Define the Models
@@ -135,9 +131,6 @@ flowchart LR
     A ~~~ D
     A -.-> E
     style D fill:none,stroke:none
-    style B stroke:#a855f7
-    style C stroke:#a855f7
-    style E stroke:#a855f7
 ```
 
 <UniversalTabs items={["Python", "Typescript"]}>
@@ -182,10 +175,6 @@ flowchart LR
     A ~~~ D
     A -.-> E
     style D fill:none,stroke:none
-    classDef parent stroke:#3b82f6,stroke-width:2px
-    classDef leaf stroke:#a855f7,stroke-width:2px
-    class A parent
-    class B,C,E,F leaf
 ```
 
 Similarly to [Fetch Buckets](#fetch-buckets), this workflow needs to ensure each bucket has at most one poller in-flight at a time, preventing overlaps via the `CANCEL_NEWEST` strategy and constraining to a single run. Here, however, we group by bucket name using the CEL expression `input.bucket` to enforce per-bucket concurrency.
