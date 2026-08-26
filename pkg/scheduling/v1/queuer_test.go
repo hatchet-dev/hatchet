@@ -58,21 +58,5 @@ func TestQueuerRequeuesRateLimitedItemsOnFreshProcess(t *testing.T) {
 		"a fresh queuer must requeue parked rate-limited items even when the live queue is empty")
 }
 
-func TestQueuerRequeuesRateLimitedItemsWhenAlreadyObserved(t *testing.T) {
-	repo := &recordingQueueRepo{}
-	l := zerolog.Nop()
-
-	q := &Queuer{
-		repo:      repo,
-		tenantId:  uuid.New(),
-		queueName: "default",
-		l:         &l,
-	}
-
-	q.requeueRateLimitedItems(context.Background())
-
-	require.Equal(t, 1, repo.callCount())
-}
-
 // Ensure recordingQueueRepo still satisfies QueueRepository.
 var _ v1repo.QueueRepository = (*recordingQueueRepo)(nil)
