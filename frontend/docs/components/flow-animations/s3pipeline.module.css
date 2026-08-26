@@ -1,0 +1,220 @@
+.wrap {
+  display: grid;
+  gap: calc(var(--rlh) * 0.5);
+  justify-items: center;
+  width: 100%;
+}
+
+.flowRoot {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.caption {
+  margin: 0;
+  text-align: center;
+  max-width: 52ch;
+}
+
+/* ── Static chrome (SVG line work) ────────────────────────────────────── */
+
+.chrome {
+  pointer-events: none;
+}
+
+.chromeStroke {
+  stroke: var(--fg);
+}
+
+.chromeBox {
+  stroke: color-mix(in srgb, var(--fg) 60%, transparent);
+}
+
+.chromeDash {
+  stroke: color-mix(in srgb, var(--fg) 60%, transparent);
+  stroke-dasharray: 2 3;
+}
+
+/* Queue rails + the tally baseline — present, not loud. */
+.chromeRail {
+  stroke: color-mix(in srgb, var(--fg) 34%, transparent);
+  stroke-dasharray: 1 4;
+}
+
+/* Empty capacity: queue slot ticks + the worker's idle slots */
+.chromeGhost,
+.chromeTick {
+  stroke: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+
+.chromeFill {
+  fill: var(--fg);
+}
+
+/* ── Stage labels (micro mono caps, non-scaling) ──────────────────────── */
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.anchorLeft {
+  transform: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+/* Bucket names carry their own colour, pulled toward --fg so the micro type
+   keeps its contrast on either background. */
+.laneLabel {
+  color: color-mix(in srgb, var(--lane) 78%, var(--fg));
+}
+
+/* ── Bucket palette (same mixes as the fair-queueing diagram) ─────────── */
+
+.b0 {
+  --lane: var(--accent-1);
+}
+
+.b1 {
+  --lane: color-mix(in oklch, var(--accent-2) 62%, var(--accent-1));
+}
+
+.b2 {
+  --lane: color-mix(in oklch, var(--accent-2) 58%, var(--accent-3));
+}
+
+/* ── Object squares ───────────────────────────────────────────────────── */
+
+.obj {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 5.5);
+  height: calc(var(--flow-u) * 5.5);
+  background: var(--lane);
+  border: 1px solid transparent;
+}
+
+/* Just listed — streaming out of the bucket toward its queue */
+[data-flow-state="emitted"] .obj {
+  opacity: 0.85;
+}
+
+/* One of the three the worker is actually processing */
+[data-flow-state="running"] .obj {
+  animation: s3p-pulse 900ms ease-in-out infinite;
+}
+
+/* Finished work leaves hollow, on its way to the tally */
+[data-flow-state="done"] .obj {
+  background: transparent;
+  border-color: var(--lane);
+}
+
+/* Settled into the processed column — a translucent chip, like tape marks */
+[data-flow-state="tallied"] .obj {
+  background: color-mix(in srgb, var(--lane) 78%, transparent);
+  border-color: transparent;
+  animation: s3p-settle 260ms ease-out both;
+}
+
+/* ── list_objects trigger tasks (hollow, lane-coloured) ───────────────── */
+
+.trig {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 6.5);
+  height: calc(var(--flow-u) * 6.5);
+  border: 1.5px solid var(--lane);
+}
+
+/* ── Cron tick (radiating ring from the port) ─────────────────────────── */
+
+.pulse {
+  width: calc(var(--flow-u) * 9);
+  height: calc(var(--flow-u) * 9);
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+}
+
+/* ── Round-robin cursor (snaps to the queue head being pulled) ────────── */
+
+.cursor {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 12);
+  height: calc(var(--flow-u) * 12);
+  border: 1.5px solid var(--accent);
+}
+
+/* ── Worker progress bars (one per slot) ──────────────────────────────── */
+
+.loadBar {
+  position: absolute;
+  height: calc(var(--flow-u) * 2);
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* ── Live readouts (backlog / in flight / done) ───────────────────────── */
+
+.readout {
+  color: var(--fg-tertiary);
+  transition: color 200ms ease;
+}
+
+/* Backlog only matters once the queues are actually holding something */
+.readout[data-active="true"] {
+  color: var(--fg);
+}
+
+/* The payoff: the worker sits at its slot cap instead of past it */
+.readout[data-full="true"] {
+  color: var(--accent);
+}
+
+/* ── State animations ─────────────────────────────────────────────────── */
+
+@keyframes s3p-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.8);
+  }
+}
+
+@keyframes s3p-settle {
+  0% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* Static composition (reduced motion / pre-hydration): no keyframe motion */
+[data-flow-static] .obj {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .obj {
+    animation: none !important;
+  }
+
+  .readout {
+    transition: none;
+  }
+}

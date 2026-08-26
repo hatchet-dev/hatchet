@@ -6,13 +6,15 @@ import { Callout, Cards, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
-import CycleDiagram from "@/components/CycleDiagramWrapper";
-import BatchProcessingDiagram from "@/components/BatchProcessingDiagramWrapper";
-import FanoutDiagram from "@/components/FanoutDiagram";
+import { ChildCycle } from "@/components/flow-animations/ChildCycle";
+import { BatchProcessing } from "@/components/flow-animations/BatchProcessing";
+import { ChildFanout } from "@/components/flow-animations/ChildFanout";
 
 # Child Spawning
 
 A task can spawn child tasks at runtime — including other durable tasks or entire DAG workflows. Children run independently on any available worker, and the parent can wait for their results before continuing. You can spawn children out of any task (durable or not).
+
+<ChildFanout />
 
 <Callout type="info">
   While child spawning is not unique to durable tasks, we often recommend using
@@ -117,7 +119,7 @@ A durable task can spawn any runnable:
 
 Process a list of items whose length is only known at runtime. Spawn one child per item, collect all results, then continue. Document processing and batch processing are the canonical examples: when a batch of files arrives, a parent fans out to one child per document; each child parses, extracts, and validates its document in parallel across your worker fleet.
 
-<BatchProcessingDiagram />
+<BatchProcessing />
 
 [Concurrency](/v1/concurrency) controls how many children run at once. Hatchet distributes child tasks across available workers, so adding workers increases throughput without code changes. For rate-limited external services (OCR, LLM APIs), combine with [Rate Limits](/v1/rate-limits) to throttle child execution across all workers.
 
@@ -125,7 +127,7 @@ Process a list of items whose length is only known at runtime. Spawn one child p
 
 An agent loop runs by having a durable task spawn a new child run of itself with updated input until a termination condition is met. Each iteration is a separate child task, so you get full observability in the dashboard. AI agents use this when they reason about what to do next, spawn a subtask (or a sub-workflow), inspect the result, and decide whether to continue, branch, or stop.
 
-<CycleDiagram />
+<ChildCycle />
 
 ### Spawning trees of work
 
