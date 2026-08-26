@@ -74,7 +74,10 @@ const EASE: Record<Exclude<FlowEase, "hold">, (p: number) => number> = {
  * Validates ordering (dev only) and returns the track unchanged. Purely a
  * declaration helper so timelines read as data.
  */
-export const defineTrack = (id: string, keyframes: FlowKeyframe[]): FlowTrack => {
+export const defineTrack = (
+  id: string,
+  keyframes: FlowKeyframe[],
+): FlowTrack => {
   if (process.env.NODE_ENV !== "production") {
     for (let i = 1; i < keyframes.length; i++) {
       if (keyframes[i].t < keyframes[i - 1].t) {
@@ -99,15 +102,33 @@ export const resolveTrack = (track: FlowTrack): ResolvedFlowTrack => {
     opacity = k.opacity ?? opacity;
     scale = k.scale ?? scale;
     state = k.state ?? state;
-    return { t: k.t, x: k.x, y: k.y, opacity, scale, state, ease: k.ease ?? "inOut" };
+    return {
+      t: k.t,
+      x: k.x,
+      y: k.y,
+      opacity,
+      scale,
+      state,
+      ease: k.ease ?? "inOut",
+    };
   });
   return { id: track.id, keyframes };
 };
 
-const DEAD: FlowSample = { alive: false, x: 0, y: 0, opacity: 0, scale: 1, state: "idle" };
+const DEAD: FlowSample = {
+  alive: false,
+  x: 0,
+  y: 0,
+  opacity: 0,
+  scale: 1,
+  state: "idle",
+};
 
 /** Evaluates a resolved track at loop time `t` (ms). */
-export const sampleTrack = (track: ResolvedFlowTrack, t: number): FlowSample => {
+export const sampleTrack = (
+  track: ResolvedFlowTrack,
+  t: number,
+): FlowSample => {
   const kfs = track.keyframes;
   if (kfs.length === 0) return DEAD;
   const first = kfs[0];
@@ -119,11 +140,25 @@ export const sampleTrack = (track: ResolvedFlowTrack, t: number): FlowSample => 
   while (i < kfs.length - 1 && kfs[i + 1].t <= t) i++;
   const a = kfs[i];
   if (i === kfs.length - 1) {
-    return { alive: true, x: a.x, y: a.y, opacity: a.opacity, scale: a.scale, state: a.state };
+    return {
+      alive: true,
+      x: a.x,
+      y: a.y,
+      opacity: a.opacity,
+      scale: a.scale,
+      state: a.state,
+    };
   }
   const b = kfs[i + 1];
   if (b.ease === "hold") {
-    return { alive: true, x: a.x, y: a.y, opacity: a.opacity, scale: a.scale, state: a.state };
+    return {
+      alive: true,
+      x: a.x,
+      y: a.y,
+      opacity: a.opacity,
+      scale: a.scale,
+      state: a.state,
+    };
   }
   const p = (t - a.t) / (b.t - a.t);
   const e = EASE[b.ease](p);

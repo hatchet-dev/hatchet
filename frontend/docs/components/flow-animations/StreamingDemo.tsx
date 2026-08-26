@@ -111,7 +111,8 @@ const POSTER_TIME = EMITS[Math.floor(BARS.length * 0.55)] + 450;
 // ─── Tracks ────────────────────────────────────────────────────────────────
 
 /** Chunk flight time to reach stage x (constant speed after the fade-in). */
-const flightT = (e: number, x: number) => Math.round(e + 150 + ((x - 70) / 127) * (TRAVEL - 150));
+const flightT = (e: number, x: number) =>
+  Math.round(e + 150 + ((x - 70) / 127) * (TRAVEL - 150));
 
 const CHUNK_TRACKS: FlowTrack[] = BARS.map((_, i) => {
   const e = EMITS[i];
@@ -133,14 +134,20 @@ const BAR_TRACKS: FlowTrack[] = BARS.map((bar, i) =>
     { t: LANDS[i] + 550, x: bar.cx, y: bar.cy, ease: "hold", state: "settled" },
     { t: FADE_AT, x: bar.cx, y: bar.cy, ease: "hold" },
     { t: FADE_AT + 450, x: bar.cx, y: bar.cy, opacity: 0, ease: "linear" },
-  ])
+  ]),
 );
 
 /** Blinking caret: waits at the response line, hops after each landed word. */
 const CARET_TRACK = (() => {
   const kfs: FlowKeyframe[] = [
     { t: CARET_AT, x: INNER_X0 + 1, y: ROW_Y0, opacity: 0, state: "typing" },
-    { t: CARET_AT + 250, x: INNER_X0 + 1, y: ROW_Y0, opacity: 1, ease: "linear" },
+    {
+      t: CARET_AT + 250,
+      x: INNER_X0 + 1,
+      y: ROW_Y0,
+      opacity: 1,
+      ease: "linear",
+    },
   ];
   BARS.forEach((bar, i) => {
     kfs.push({
@@ -154,7 +161,7 @@ const CARET_TRACK = (() => {
   const last = kfs[kfs.length - 1];
   kfs.push(
     { t: LAST_LAND + 1000, x: last.x, y: last.y, ease: "hold" },
-    { t: LAST_LAND + 1350, x: last.x, y: last.y, opacity: 0, ease: "linear" }
+    { t: LAST_LAND + 1350, x: last.x, y: last.y, opacity: 0, ease: "linear" },
   );
   return defineTrack("caret", kfs);
 })();
@@ -184,7 +191,7 @@ const RELAY_TRACK = (() => {
   for (const p of passes) {
     kfs.push(
       { t: p, x: RELAY.x, y: RELAY.y, state: "ping", ease: "hold" },
-      { t: p + 260, x: RELAY.x, y: RELAY.y, state: "idle", ease: "hold" }
+      { t: p + 260, x: RELAY.x, y: RELAY.y, state: "idle", ease: "hold" },
     );
   }
   kfs.push({ t: DURATION, x: RELAY.x, y: RELAY.y, ease: "hold" });
@@ -210,8 +217,16 @@ const BUBBLE_TRACK = defineTrack("bubble", [
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
   <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
@@ -225,10 +240,36 @@ const Chrome = () => (
       {...stroke}
     />
     {/* Stream line: ports at both ends, dashed, broken around the relay node */}
-    <rect x={94} y={STREAM_Y - 2} width={4} height={4} className={styles.chromeFill} />
-    <line x1={102} y1={STREAM_Y} x2={134} y2={STREAM_Y} className={styles.chromeDash} {...fine} />
-    <line x1={152} y1={STREAM_Y} x2={186} y2={STREAM_Y} className={styles.chromeDash} {...fine} />
-    <rect x={190} y={STREAM_Y - 2} width={4} height={4} className={styles.chromeFill} />
+    <rect
+      x={94}
+      y={STREAM_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
+    <line
+      x1={102}
+      y1={STREAM_Y}
+      x2={134}
+      y2={STREAM_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
+    <line
+      x1={152}
+      y1={STREAM_Y}
+      x2={186}
+      y2={STREAM_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
+    <rect
+      x={190}
+      y={STREAM_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
     {/* Frontend chat panel (dashboard-mock chrome) */}
     <rect
       x={PANEL.x}
@@ -259,7 +300,13 @@ const Chrome = () => (
       strokeWidth={1}
       vectorEffect="non-scaling-stroke"
     />
-    <rect x={293} y={172} width={6} height={6} className={styles.chromeInputSend} />
+    <rect
+      x={293}
+      y={172}
+      width={6}
+      height={6}
+      className={styles.chromeInputSend}
+    />
   </svg>
 );
 
@@ -320,13 +367,22 @@ export const StreamingDemo = ({ style }: { style?: CSSProperties }) => (
         </StageLabel>
         <Flow.Token track={BUBBLE_TRACK}>
           <div className={styles.userBubble}>
-            <div className={styles.userLine} style={{ width: "calc(var(--flow-u) * 46)" }} />
-            <div className={styles.userLine} style={{ width: "calc(var(--flow-u) * 27)" }} />
+            <div
+              className={styles.userLine}
+              style={{ width: "calc(var(--flow-u) * 46)" }}
+            />
+            <div
+              className={styles.userLine}
+              style={{ width: "calc(var(--flow-u) * 27)" }}
+            />
           </div>
         </Flow.Token>
         {BAR_TRACKS.map((track, i) => (
           <Flow.Token key={track.id} track={track}>
-            <div className={styles.wordBar} style={{ width: `calc(var(--flow-u) * ${BARS[i].w})` }} />
+            <div
+              className={styles.wordBar}
+              style={{ width: `calc(var(--flow-u) * ${BARS[i].w})` }}
+            />
           </Flow.Token>
         ))}
         <Flow.Token track={CARET_TRACK}>

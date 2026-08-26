@@ -16,7 +16,12 @@ import {
   type FlowContextValue,
   type FlowFrameCallback,
 } from "./useFlow";
-import { resolveTrack, sampleTrack, type FlowSample, type FlowTrack } from "./timeline";
+import {
+  resolveTrack,
+  sampleTrack,
+  type FlowSample,
+  type FlowTrack,
+} from "./timeline";
 
 // ─── Root ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +76,9 @@ const Root = ({
 
   // Pause sources union — starts paused by "offscreen" until the
   // IntersectionObserver reports in.
-  const pauseSourcesRef = useRef<Set<string>>(new Set(pauseWhenOffscreen ? ["offscreen"] : []));
+  const pauseSourcesRef = useRef<Set<string>>(
+    new Set(pauseWhenOffscreen ? ["offscreen"] : []),
+  );
   const [isPaused, setIsPaused] = useState(pauseWhenOffscreen);
 
   const setPauseSource = useCallback((key: string, value: boolean) => {
@@ -103,7 +110,9 @@ const Root = ({
 
     if (pauseWhenHidden) {
       const onVis = () => setPauseSource("hidden", document.hidden);
-      document.addEventListener("visibilitychange", onVis, { signal: ac.signal });
+      document.addEventListener("visibilitychange", onVis, {
+        signal: ac.signal,
+      });
       onVis();
     }
 
@@ -201,7 +210,10 @@ const Root = ({
   useEffect(
     () =>
       subscribe((t) => {
-        rootRef.current?.style.setProperty("--flow-progress", String(t / duration));
+        rootRef.current?.style.setProperty(
+          "--flow-progress",
+          String(t / duration),
+        );
       }),
     [subscribe, duration],
   );
@@ -224,7 +236,11 @@ const Root = ({
         data-flow-static={isStatic || undefined}
         data-flow-paused={isPaused || paused || undefined}
       >
-        <div role="img" aria-label={ariaLabel} className={`${styles.root} ${className ?? ""}`}>
+        <div
+          role="img"
+          aria-label={ariaLabel}
+          className={`${styles.root} ${className ?? ""}`}
+        >
           {children}
         </div>
         {controls ? (
@@ -336,7 +352,9 @@ const Token = ({ track, className, children }: TokenProps) => {
         } as CSSProperties
       }
     >
-      <div className={`${styles.tokenInner} ${className ?? ""}`}>{children}</div>
+      <div className={`${styles.tokenInner} ${className ?? ""}`}>
+        {children}
+      </div>
     </div>
   );
 };

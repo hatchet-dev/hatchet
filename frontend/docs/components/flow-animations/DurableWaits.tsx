@@ -122,7 +122,11 @@ const FILLERS: Filler[] = [
 // ─── Track builders ────────────────────────────────────────────────────────
 
 /** Appear on the engine's queue strip, dwell, then get dispatched to a slot. */
-const enter = (spawn: number, arrive: number, slotY: number): FlowKeyframe[] => [
+const enter = (
+  spawn: number,
+  arrive: number,
+  slotY: number,
+): FlowKeyframe[] => [
   { t: spawn, x: QUEUE_SPAWN_X, y: QUEUE_Y, opacity: 0, state: "queued" },
   { t: spawn + 250, x: QUEUE_SPAWN_X, y: QUEUE_Y, opacity: 1, ease: "linear" },
   { t: spawn + 400, x: QUEUE_SPAWN_X, y: QUEUE_Y, ease: "hold" },
@@ -161,7 +165,13 @@ const B_TRACK = defineTrack("task-event", [
   { t: 11650, x: 150, y: ROW_YS[0], ease: "inOut" },
   { t: B_TRACKED, x: ROW_SPOT_X, y: ROW_YS[0], ease: "out", state: "tracked" },
   // The approval event resolves the record at the engine → re-dispatch
-  { t: EVENT_STRIKE, x: ROW_SPOT_X, y: ROW_YS[0], ease: "hold", state: "resuming" },
+  {
+    t: EVENT_STRIKE,
+    x: ROW_SPOT_X,
+    y: ROW_YS[0],
+    ease: "hold",
+    state: "resuming",
+  },
   { t: B_DISPATCH, x: ROW_SPOT_X, y: ROW_YS[0], ease: "hold" },
   { t: B_DISPATCH + 250, x: 140, y: ROW_YS[0], ease: "linear" },
   { t: B_BACK, x: SLOT_X, y: SLOT_YS[1], ease: "out", state: "active" },
@@ -172,7 +182,7 @@ const FILLER_TRACKS: FlowTrack[] = FILLERS.map((f, i) =>
   defineTrack(`filler-${i}`, [
     ...enter(f.spawn, f.arrive, SLOT_YS[f.slot]),
     ...complete(f.done, SLOT_YS[f.slot]),
-  ])
+  ]),
 );
 
 /** Depleting countdown beside the sleep record (compressed time). */
@@ -180,7 +190,13 @@ const TICK_TRACKS: FlowTrack[] = TICK_FADES.map((fade, i) => {
   const x = TICK_X0 + i * TICK_PITCH;
   return defineTrack(`tick-${i}`, [
     { t: A_TRACKED + 250, x, y: ROW_YS[1], opacity: 0 },
-    { t: A_TRACKED + 500 + i * 120, x, y: ROW_YS[1], opacity: 1, ease: "linear" },
+    {
+      t: A_TRACKED + 500 + i * 120,
+      x,
+      y: ROW_YS[1],
+      opacity: 1,
+      ease: "linear",
+    },
     { t: fade - 250, x, y: ROW_YS[1], ease: "hold" },
     { t: fade, x, y: ROW_YS[1], opacity: 0, ease: "linear" },
   ]);
@@ -192,7 +208,13 @@ const EVENT_TRACK = defineTrack("event", [
   { t: EVENT_SPAWN + 250, x: EVENT_X, y: 16, opacity: 1, ease: "linear" },
   { t: EVENT_STRIKE - 200, x: EVENT_X, y: 56, ease: "in" },
   { t: EVENT_STRIKE, x: EVENT_X, y: ROW_YS[0], ease: "in" },
-  { t: EVENT_STRIKE + 200, x: EVENT_X, y: ROW_YS[0], opacity: 0, ease: "linear" },
+  {
+    t: EVENT_STRIKE + 200,
+    x: EVENT_X,
+    y: ROW_YS[0],
+    opacity: 0,
+    ease: "linear",
+  },
 ]);
 
 /** Mono record text stamped into a row while the engine tracks the wait. */
@@ -200,7 +222,7 @@ const recordTrack = (
   id: string,
   rowY: number,
   showAt: number,
-  resolveAt: number
+  resolveAt: number,
 ): FlowTrack =>
   defineTrack(id, [
     { t: showAt, x: ROW_TEXT_X, y: rowY, opacity: 0 },
@@ -209,8 +231,18 @@ const recordTrack = (
     { t: resolveAt + 350, x: ROW_TEXT_X, y: rowY, opacity: 0, ease: "linear" },
   ]);
 
-const SLEEP_RECORD = recordTrack("record-sleep", ROW_YS[1], A_TRACKED + 100, A_RESUME);
-const APPROVAL_RECORD = recordTrack("record-approval", ROW_YS[0], B_TRACKED + 100, EVENT_STRIKE);
+const SLEEP_RECORD = recordTrack(
+  "record-sleep",
+  ROW_YS[1],
+  A_TRACKED + 100,
+  A_RESUME,
+);
+const APPROVAL_RECORD = recordTrack(
+  "record-approval",
+  ROW_YS[0],
+  B_TRACKED + 100,
+  EVENT_STRIKE,
+);
 
 // ─── Worker state: slot occupancy, load meter, idle dimming ────────────────
 
@@ -238,7 +270,12 @@ const WORKER_WINDOWS: Window[] = (() => {
   return merged;
 })();
 
-const stateTrack = (id: string, x: number, y: number, windows: Window[]): FlowTrack =>
+const stateTrack = (
+  id: string,
+  x: number,
+  y: number,
+  windows: Window[],
+): FlowTrack =>
   defineTrack(id, [
     { t: 0, x, y, state: "idle" },
     ...windows.flatMap(([a, b]): FlowKeyframe[] => [
@@ -248,22 +285,38 @@ const stateTrack = (id: string, x: number, y: number, windows: Window[]): FlowTr
     { t: DURATION, x, y, ease: "hold" },
   ]);
 
-const SLOT_TRACKS = SLOT_WINDOWS.map((w, i) => stateTrack(`slot-${i}`, SLOT_X, SLOT_YS[i], w));
-const METER_TRACKS = SLOT_WINDOWS.map((w, i) => stateTrack(`meter-${i}`, METER_XS[i], METER_Y, w));
+const SLOT_TRACKS = SLOT_WINDOWS.map((w, i) =>
+  stateTrack(`slot-${i}`, SLOT_X, SLOT_YS[i], w),
+);
+const METER_TRACKS = SLOT_WINDOWS.map((w, i) =>
+  stateTrack(`meter-${i}`, METER_XS[i], METER_Y, w),
+);
 const WORKER_TRACK = stateTrack(
   "worker-frame",
   WORKER.x + WORKER.w / 2,
   WORKER.y + WORKER.h / 2,
-  WORKER_WINDOWS
+  WORKER_WINDOWS,
 );
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
-  <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true" className={styles.chrome}>
+  <svg
+    viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+    aria-hidden="true"
+    className={styles.chrome}
+  >
     {/* Hatchet engine box with blueprint corner marks */}
     <rect
       x={ENGINE.x}
@@ -302,11 +355,38 @@ const Chrome = () => (
       />
     ))}
     {/* Divider between state list and queue */}
-    <line x1={18} y1={DIVIDER_Y} x2={132} y2={DIVIDER_Y} className={styles.chromeDash} {...fine} />
+    <line
+      x1={18}
+      y1={DIVIDER_Y}
+      x2={132}
+      y2={DIVIDER_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
     {/* Queue strip + dispatch connector to the worker */}
-    <rect x={20} y={QUEUE_Y - 2} width={4} height={4} className={styles.chromeFill} />
-    <line x1={28} y1={QUEUE_Y} x2={134} y2={QUEUE_Y} className={styles.chromeDash} {...fine} />
-    <line x1={146} y1={QUEUE_Y} x2={196} y2={QUEUE_Y} className={styles.chromeDash} {...fine} />
+    <rect
+      x={20}
+      y={QUEUE_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
+    <line
+      x1={28}
+      y1={QUEUE_Y}
+      x2={134}
+      y2={QUEUE_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
+    <line
+      x1={146}
+      y1={QUEUE_Y}
+      x2={196}
+      y2={QUEUE_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
     {/* Worker slot rows (the frame itself is a state-driven token) */}
     {SLOT_YS.map((y) => (
       <rect
@@ -320,8 +400,21 @@ const Chrome = () => (
       />
     ))}
     {/* Inbound event line from off-stage into the engine */}
-    <rect x={EVENT_X - 2} y={4} width={4} height={4} className={styles.chromeFill} />
-    <line x1={EVENT_X} y1={12} x2={EVENT_X} y2={40} className={styles.chromeDash} {...fine} />
+    <rect
+      x={EVENT_X - 2}
+      y={4}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
+    <line
+      x1={EVENT_X}
+      y1={12}
+      x2={EVENT_X}
+      y2={40}
+      className={styles.chromeDash}
+      {...fine}
+    />
   </svg>
 );
 
