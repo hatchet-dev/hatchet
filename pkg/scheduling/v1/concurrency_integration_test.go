@@ -724,3 +724,76 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		}
 	})
 }
+
+// TestConcurrency_RateLimitedFilledSlotTimesOutAndUnblocks is the filled-slot
+// half of the deadlock: GROUP_ROUND_ROBIN max=1 fills task A, A is then parked
+// in v1_rate_limited_queue_items (slot stays is_filled), and task B waits.
+// Once A's schedule_timeout_at has passed, A is not running, so the strategy
+// must cancel A and let B fill.
+func TestConcurrency_RateLimitedFilledSlotTimesOutAndUnblocks(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		s := setupStepConcurrencyTest(t, ctx, conf, "rl-filled-slot", "GROUP_ROUND_ROBIN", 1, 2)
+
+		res, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 1, "maxRuns=1 should fill exactly one slot")
+		require.Len(t, res.Cancelled, 0)
+
+		var filledCount int
+		err = conf.Pool.QueryRow(ctx, `
+			SELECT count(*) FROM v1_concurrency_slot
+			WHERE workflow_id = $1 AND is_filled
+		`, s.workflowId).Scan(&filledCount)
+		require.NoError(t, err)
+		require.Equal(t, 1, filledCount)
+
+		tag, err := conf.Pool.Exec(ctx, `
+			WITH moved AS (
+				DELETE FROM v1_queue_item
+				WHERE tenant_id = $1
+				RETURNING *
+			)
+			INSERT INTO v1_rate_limited_queue_items (
+				requeue_after, tenant_id, queue, task_id, task_inserted_at,
+				external_id, action_id, step_id, workflow_id, workflow_run_id,
+				schedule_timeout_at, step_timeout, priority, sticky,
+				desired_worker_id, retry_count, desired_worker_label, batch_key
+			)
+			SELECT
+				NOW() - INTERVAL '1 minute',
+				tenant_id, queue, task_id, task_inserted_at,
+				external_id, action_id, step_id, workflow_id, workflow_run_id,
+				schedule_timeout_at, step_timeout, priority, sticky,
+				desired_worker_id, retry_count, desired_worker_label, batch_key
+			FROM moved
+		`, s.tenantId)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, tag.RowsAffected(), "filled task must have had a queue item to park")
+
+		_, err = conf.Pool.Exec(ctx, `
+			UPDATE v1_concurrency_slot
+			SET schedule_timeout_at = NOW() - INTERVAL '1 minute'
+			WHERE workflow_id = $1 AND is_filled
+		`, s.workflowId)
+		require.NoError(t, err)
+
+		res2, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Len(t, res2.Cancelled, 1, "filled rate-limited slot past schedule timeout must be cancelled")
+		require.Equal(t, repo.CancelledReasonSchedulingTimedOut, res2.Cancelled[0].CancelledReason)
+
+		queued := res2.Queued
+		if len(queued) == 0 {
+			res3, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+			require.NoError(t, err)
+			queued = res3.Queued
+		}
+		require.Len(t, queued, 1, "waiting task must fill the slot after the rate-limited holder times out")
+
+		return nil
+	})
+}

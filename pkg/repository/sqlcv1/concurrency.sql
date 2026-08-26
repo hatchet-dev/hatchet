@@ -239,7 +239,16 @@ WITH eligible_slots_per_group AS (
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
         schedule_timeout_at < NOW() AND
-        is_filled = FALSE
+        -- Filled slots are only running if they have a v1_task_runtime row.
+        -- Rate-limited tasks stay is_filled while parked, so they must time out too.
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE
+                tr.task_id = v1_concurrency_slot.task_id AND
+                tr.task_inserted_at = v1_concurrency_slot.task_inserted_at AND
+                tr.retry_count = v1_concurrency_slot.task_retry_count
+        )
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE
