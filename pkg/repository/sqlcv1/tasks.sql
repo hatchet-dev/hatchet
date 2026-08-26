@@ -544,36 +544,9 @@ WHERE
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
 -- modify the events.
-WITH input AS (
-    SELECT
-        UNNEST(@taskIds::BIGINT[]) AS task_id,
-        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST(@eventKeys::TEXT[]) AS event_key
-), distinct_events AS (
-    SELECT DISTINCT
-        task_id, task_inserted_at
-    FROM
-        input
-), events_to_lock AS (
-    SELECT
-        e.id,
-        e.event_key,
-        e.data,
-		e.task_id,
-		e.task_inserted_at,
-        e.inserted_at,
-        e.external_id,
-        e.child_external_id
-    FROM
-        v1_task_event e
-    JOIN
-        distinct_events de
-		ON e.task_id = de.task_id
-		AND e.task_inserted_at = de.task_inserted_at
-    WHERE
-        e.tenant_id = @tenantId::uuid
-        AND e.event_type = 'SIGNAL_CREATED'
-)
+-- Note: this intentionally uses flat predicates for a single parent task (callers group
+-- their input by parent) so the planner can use the unique index on
+-- (tenant_id, task_id, task_inserted_at, event_type, event_key).
 SELECT
 	e.id,
     e.inserted_at,
@@ -582,9 +555,13 @@ SELECT
     e.external_id,
     e.child_external_id
 FROM
-	events_to_lock e
+	v1_task_event e
 WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+    e.tenant_id = @tenantId::uuid
+    AND e.task_id = @taskId::bigint
+    AND e.task_inserted_at = @taskInsertedAt::timestamptz
+    AND e.event_type = 'SIGNAL_CREATED'
+    AND e.event_key = ANY(@eventKeys::text[]);
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (

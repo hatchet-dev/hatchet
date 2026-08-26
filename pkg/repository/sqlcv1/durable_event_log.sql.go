@@ -1081,6 +1081,9 @@ WITH inputs AS (
     ORDER BY durable_task_id, durable_task_inserted_at
     FOR UPDATE
 ), satisfied_orders_to_apply AS (
+    -- note: joining on all four primary key columns (instead of filtering with an IN
+    -- subquery) lets the planner probe the primary key per input row rather than
+    -- scanning every log entry of the parent task
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
@@ -1090,14 +1093,20 @@ WITH inputs AS (
             PARTITION BY e.durable_task_id, e.durable_task_inserted_at
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
-    FROM v1_durable_event_log_entry e
-    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    FROM (
+        SELECT DISTINCT durable_task_id, durable_task_inserted_at, branch_id, node_id
+        FROM inputs
+    ) i
+    JOIN v1_durable_event_log_entry e
+        ON e.durable_task_id = i.durable_task_id
+        AND e.durable_task_inserted_at = i.durable_task_inserted_at
+        AND e.branch_id = i.branch_id
+        AND e.node_id = i.node_id
+    JOIN locked_log_files llf
+        ON llf.durable_task_id = e.durable_task_id
+        AND llf.durable_task_inserted_at = e.durable_task_inserted_at
     WHERE
         e.satisfied_order IS NULL
-        AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
-            SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
-            FROM inputs
-        )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
     SET

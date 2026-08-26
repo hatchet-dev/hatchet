@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -1846,6 +1847,73 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	return res, nil
 }
 
+// lockSignalCreatedEvents groups (task_id, task_inserted_at, event_key) triples by parent
+// task and runs one lookup per parent. The flat per-parent predicates let the planner use
+// the unique index on (tenant_id, task_id, task_inserted_at, event_type, event_key); a
+// single query joining against the full unnested input reads every SIGNAL_CREATED event
+// of each parent instead. Parents are processed in a deterministic order so concurrent
+// transactions touch rows in the same order.
+func (r *sharedRepository) lockSignalCreatedEvents(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	tenantId uuid.UUID,
+	taskIds []int64,
+	taskInsertedAts []pgtype.Timestamptz,
+	eventKeys []string,
+) ([]*sqlcv1.LockSignalCreatedEventsRow, error) {
+	type parent struct {
+		taskId     int64
+		insertedAt time.Time
+	}
+
+	groups := make(map[parent]*sqlcv1.LockSignalCreatedEventsParams)
+
+	for i := range taskIds {
+		p := parent{taskId: taskIds[i], insertedAt: taskInsertedAts[i].Time}
+
+		g, ok := groups[p]
+
+		if !ok {
+			g = &sqlcv1.LockSignalCreatedEventsParams{
+				Tenantid:       tenantId,
+				Taskid:         taskIds[i],
+				Taskinsertedat: taskInsertedAts[i],
+			}
+			groups[p] = g
+		}
+
+		g.Eventkeys = append(g.Eventkeys, eventKeys[i])
+	}
+
+	order := make([]parent, 0, len(groups))
+
+	for p := range groups {
+		order = append(order, p)
+	}
+
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].taskId != order[j].taskId {
+			return order[i].taskId < order[j].taskId
+		}
+
+		return order[i].insertedAt.Before(order[j].insertedAt)
+	})
+
+	events := make([]*sqlcv1.LockSignalCreatedEventsRow, 0, len(taskIds))
+
+	for _, p := range order {
+		res, err := r.queries.LockSignalCreatedEvents(ctx, tx, *groups[p])
+
+		if err != nil {
+			return nil, err
+		}
+
+		events = append(events, res...)
+	}
+
+	return events, nil
+}
+
 func (r *sharedRepository) registerChildWorkflows(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -1911,15 +1979,13 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, nil
 	}
 
-	matchingEvents, err := r.queries.LockSignalCreatedEvents(
+	matchingEvents, err := r.lockSignalCreatedEvents(
 		ctx,
 		tx,
-		sqlcv1.LockSignalCreatedEventsParams{
-			Tenantid:        tenantId,
-			Taskids:         potentialMatchTaskIds,
-			Taskinsertedats: potentialMatchTaskInsertedAts,
-			Eventkeys:       potentialMatchKeys,
-		},
+		tenantId,
+		potentialMatchTaskIds,
+		potentialMatchTaskInsertedAts,
+		potentialMatchKeys,
 	)
 
 	if err != nil {

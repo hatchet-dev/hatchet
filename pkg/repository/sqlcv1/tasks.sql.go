@@ -2588,36 +2588,6 @@ func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsFo
 }
 
 const lockSignalCreatedEvents = `-- name: LockSignalCreatedEvents :many
-WITH input AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::TEXT[]) AS event_key
-), distinct_events AS (
-    SELECT DISTINCT
-        task_id, task_inserted_at
-    FROM
-        input
-), events_to_lock AS (
-    SELECT
-        e.id,
-        e.event_key,
-        e.data,
-		e.task_id,
-		e.task_inserted_at,
-        e.inserted_at,
-        e.external_id,
-        e.child_external_id
-    FROM
-        v1_task_event e
-    JOIN
-        distinct_events de
-		ON e.task_id = de.task_id
-		AND e.task_inserted_at = de.task_inserted_at
-    WHERE
-        e.tenant_id = $4::uuid
-        AND e.event_type = 'SIGNAL_CREATED'
-)
 SELECT
 	e.id,
     e.inserted_at,
@@ -2626,16 +2596,20 @@ SELECT
     e.external_id,
     e.child_external_id
 FROM
-	events_to_lock e
+	v1_task_event e
 WHERE
-	e.event_key = ANY(SELECT event_key FROM input)
+    e.tenant_id = $1::uuid
+    AND e.task_id = $2::bigint
+    AND e.task_inserted_at = $3::timestamptz
+    AND e.event_type = 'SIGNAL_CREATED'
+    AND e.event_key = ANY($4::text[])
 `
 
 type LockSignalCreatedEventsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Eventkeys       []string             `json:"eventkeys"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Tenantid       uuid.UUID          `json:"tenantid"`
+	Taskid         int64              `json:"taskid"`
+	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	Eventkeys      []string           `json:"eventkeys"`
 }
 
 type LockSignalCreatedEventsRow struct {
@@ -2649,12 +2623,15 @@ type LockSignalCreatedEventsRow struct {
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
 // modify the events.
+// Note: this intentionally uses flat predicates for a single parent task (callers group
+// their input by parent) so the planner can use the unique index on
+// (tenant_id, task_id, task_inserted_at, event_type, event_key).
 func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg LockSignalCreatedEventsParams) ([]*LockSignalCreatedEventsRow, error) {
 	rows, err := db.Query(ctx, lockSignalCreatedEvents,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Eventkeys,
 		arg.Tenantid,
+		arg.Taskid,
+		arg.Taskinsertedat,
+		arg.Eventkeys,
 	)
 	if err != nil {
 		return nil, err

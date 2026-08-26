@@ -187,12 +187,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		eventKeys = append(eventKeys, opt.childSpawnKey())
 	}
 
-	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        tenantId,
-		Taskids:         eventTaskIds,
-		Taskinsertedats: eventTaskInsertedAts,
-		Eventkeys:       eventKeys,
-	})
+	lockedEvents, err := s.lockSignalCreatedEvents(ctx, tx, tenantId, eventTaskIds, eventTaskInsertedAts, eventKeys)
 
 	if err != nil {
 		return err
