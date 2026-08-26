@@ -50,12 +50,6 @@ func TestCancelExceptNewest_SingleBatchKeepsOnlyNewestQueued(t *testing.T) {
 	}
 }
 
-// The core property under test: across separate decide() calls - one per arrival, exactly as WAL
-// messages land in production - only the single newest queued arrival must ever be alive at once.
-// Each older arrival must be cancelled by the very call that supersedes it, not just eventually.
-// This is the scenario that the `return toFill, nil` bug (discarding a correctly-computed toCancel)
-// broke: superseded runs were dropped from the in-memory index without ever being cancelled in the
-// DB, so they sat QUEUED forever.
 func TestCancelExceptNewest_AcrossSuccessiveDecideCalls(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)
