@@ -227,8 +227,17 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
+            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.sort_id ASC
-        LIMIT @maxRuns::int
+        LIMIT (
+            SELECT @maxRuns::int - COUNT(*)::int
+            FROM v1_concurrency_slot wcs_all
+            WHERE
+                wcs_all.key = distinct_keys.key
+                AND wcs_all.tenant_id = @tenantId::uuid
+                AND wcs_all.strategy_id = @strategyId::bigint
+                AND wcs_all.is_filled = TRUE
+        )
     ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
