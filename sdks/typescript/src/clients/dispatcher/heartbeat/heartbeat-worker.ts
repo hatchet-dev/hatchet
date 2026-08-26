@@ -109,7 +109,7 @@ class HeartbeatWorker {
         const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);
 
-        const severity = classifyHeartbeatFailure(getGrpcErrorCode(e), this.missedHeartbeats);
+        const severity = classifyHeartbeatFailure(e, this.missedHeartbeats);
         if (severity !== 'silent') {
           postMessage({
             type: severity,
