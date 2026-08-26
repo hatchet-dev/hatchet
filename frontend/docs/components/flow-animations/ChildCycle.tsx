@@ -2,7 +2,6 @@
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { Flow, defineTrack, useFlow, useFlowFrame } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./childcycle.module.css";
 
 /**
@@ -429,17 +428,12 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of an agent reasoning loop: a durable parent spawns a child run of itself, the child runs, and the result reaches a termination check. On the first two iterations the verdict is to run again, and the token rides a loop-back rail into the parent to spawn the next iteration while a readout counts iterations one to three. On the third check the condition is met and the run exits to a complete box.";
 
-const CAPTION =
-  "Each iteration spawns a child run and checks the result; the loop exits when the termination condition is met.";
-
 export const ChildCycle = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div className={`${styles.wrap} ${className ?? ""}`} style={style}>
     <Flow.Root
@@ -480,10 +474,5 @@ export const ChildCycle = ({
         <IterationReadout />
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

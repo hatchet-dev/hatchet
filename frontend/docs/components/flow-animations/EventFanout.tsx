@@ -7,7 +7,6 @@ import {
   defineTrack,
   type FlowKeyframe,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./eventfanout.module.css";
 
 /**
@@ -332,11 +331,9 @@ const ARIA_LABEL =
 export const EventFanout = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div
     className={[styles.fanout, className ?? ""].join(" ").trim()}
@@ -401,11 +398,5 @@ export const EventFanout = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        Push user:signup once — every task that declares it in on_events gets
-        its own run.
-      </Text.Small>
-    )}
   </div>
 );

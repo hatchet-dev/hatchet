@@ -2,7 +2,6 @@
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { Flow, defineTrack, useFlow, useFlowFrame } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./childfanout.module.css";
 
 /**
@@ -248,17 +247,12 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of Hatchet child spawning: a parent run spawns four children that fan out to parallel lanes and run concurrently. Each child finishes at its own pace, flips to a completed status, and returns its result to the parent. The parent waits with an awaiting state until the last result lands, then completes.";
 
-const CAPTION =
-  "The parent spawns one child per item; children run in parallel and the parent awaits all results.";
-
 export const ChildFanout = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div className={`${styles.wrap} ${className ?? ""}`} style={style}>
     <Flow.Root
@@ -288,10 +282,5 @@ export const ChildFanout = ({
         <ResultsReadout />
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

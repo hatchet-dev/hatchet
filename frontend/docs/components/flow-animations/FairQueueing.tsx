@@ -11,7 +11,6 @@ import {
   type FlowTrack,
   type ResolvedFlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./fairqueueing.module.css";
 
 /**
@@ -81,7 +80,8 @@ const DURATION = ROTATION * 4;
 
 /** Pop `i` of the whole worker, extended in both directions off the loop. */
 const popTime = (i: number) => POP_START + i * POP_PITCH;
-const popTenant = (i: number) => TENANTS[((i % TENANTS.length) + TENANTS.length) % TENANTS.length];
+const popTenant = (i: number) =>
+  TENANTS[((i % TENANTS.length) + TENANTS.length) % TENANTS.length];
 
 const ARRIVE_LEAD = 1400; // source → sub-queue slot
 const ADVANCE_MS = 220; // one slot forward when the task ahead is popped
@@ -140,12 +140,26 @@ const POSTER_TIME = 3500;
  */
 const SHIFTS = [-3, -2, -1, 0, 1].map((n) => n * DURATION);
 
-const boundaryKeyframe = (resolved: ResolvedFlowTrack, t: number): FlowKeyframe => {
+const boundaryKeyframe = (
+  resolved: ResolvedFlowTrack,
+  t: number,
+): FlowKeyframe => {
   const s = sampleTrack(resolved, t);
-  return { t, x: s.x, y: s.y, opacity: s.opacity, scale: s.scale, state: s.state, ease: "linear" };
+  return {
+    t,
+    x: s.x,
+    y: s.y,
+    opacity: s.opacity,
+    scale: s.scale,
+    state: s.state,
+    ease: "linear",
+  };
 };
 
-const clipToLoop = (id: string, keyframes: FlowKeyframe[]): FlowTrack | null => {
+const clipToLoop = (
+  id: string,
+  keyframes: FlowKeyframe[],
+): FlowTrack | null => {
   const first = keyframes[0].t;
   const last = keyframes[keyframes.length - 1].t;
   if (last <= 0 || first >= DURATION) return null;
@@ -169,8 +183,8 @@ const loopTracks = (id: string, keyframes: FlowKeyframe[]): FlowTrack[] =>
   SHIFTS.map((shift) =>
     clipToLoop(
       `${id}~${shift}`,
-      keyframes.map((k) => ({ ...k, t: k.t + shift }))
-    )
+      keyframes.map((k) => ({ ...k, t: k.t + shift })),
+    ),
   ).filter((track): track is FlowTrack => track !== null);
 
 // ─── Task tracks (source → router → sub-queue → worker) ────────────────────
@@ -181,7 +195,8 @@ interface TaskTrack {
 }
 
 /** Loop time at which lane `laneIndex` is popped for the `nth` time. */
-const lanePopTime = (laneIndex: number, nth: number) => popTime(TENANTS.length * nth + laneIndex);
+const lanePopTime = (laneIndex: number, nth: number) =>
+  popTime(TENANTS.length * nth + laneIndex);
 
 const rng = createSeededRandom("fair-queueing");
 
@@ -207,20 +222,42 @@ const buildTaskTracks = (): TaskTrack[] =>
       let slot = advances.length;
       const keyframes: FlowKeyframe[] = [
         { t: spawn, x: SOURCE_X, y: INLET_Y, opacity: 0, state: "inflight" },
-        { t: spawn + 140, x: SOURCE_X + 10, y: INLET_Y, opacity: 1, ease: "linear" },
+        {
+          t: spawn + 140,
+          x: SOURCE_X + 10,
+          y: INLET_Y,
+          opacity: 1,
+          ease: "linear",
+        },
         { t: spawn + toRouter, x: ROUTER_X, y: INLET_Y, ease: "linear" },
         { t: spawn + toEntry, x: ENTRY_X, y: laneY, ease: "linear" },
-        { t: arrive, x: slotX(slot), y: laneY, ease: "linear", state: "queued" },
+        {
+          t: arrive,
+          x: slotX(slot),
+          y: laneY,
+          ease: "linear",
+          state: "queued",
+        },
       ];
       for (const t of advances) {
         keyframes.push({ t, x: slotX(slot), y: laneY, ease: "hold" });
         slot -= 1;
-        keyframes.push({ t: t + ADVANCE_MS, x: slotX(slot), y: laneY, ease: "linear" });
+        keyframes.push({
+          t: t + ADVANCE_MS,
+          x: slotX(slot),
+          y: laneY,
+          ease: "linear",
+        });
       }
       keyframes.push(
         { t: depart, x: HEAD_X, y: laneY, ease: "hold", state: "serving" },
         { t: depart + POP_TRAVEL, x: WORKER_X, y: WORKER_Y, ease: "linear" },
-        { t: depart + POP_TRAVEL + POP_DWELL, x: WORKER_X, y: WORKER_Y, ease: "hold" },
+        {
+          t: depart + POP_TRAVEL + POP_DWELL,
+          x: WORKER_X,
+          y: WORKER_Y,
+          ease: "hold",
+        },
         {
           t: depart + POP_TRAVEL + POP_DWELL + POP_FADE,
           x: WORKER_X,
@@ -228,10 +265,13 @@ const buildTaskTracks = (): TaskTrack[] =>
           opacity: 0,
           scale: 0.4,
           ease: "linear",
-        }
+        },
       );
 
-      return loopTracks(`fq-${tenant}-${j}`, keyframes).map((track) => ({ tenant, track }));
+      return loopTracks(`fq-${tenant}-${j}`, keyframes).map((track) => ({
+        tenant,
+        track,
+      }));
     });
   });
 
@@ -243,11 +283,30 @@ const buildTapeTracks = (): TaskTrack[] =>
   Array.from({ length: DURATION / POP_PITCH }, (_, i) => i).flatMap((i) => {
     const at = popTime(i);
     const keyframes: FlowKeyframe[] = [
-      { t: at, x: tapeX(0), y: TAPE_Y, opacity: 0, scale: 0.5, state: "served" },
-      { t: at + 200, x: tapeX(0), y: TAPE_Y, opacity: 1, scale: 1, ease: "linear" },
+      {
+        t: at,
+        x: tapeX(0),
+        y: TAPE_Y,
+        opacity: 0,
+        scale: 0.5,
+        state: "served",
+      },
+      {
+        t: at + 200,
+        x: tapeX(0),
+        y: TAPE_Y,
+        opacity: 1,
+        scale: 1,
+        ease: "linear",
+      },
     ];
     for (let age = 1; age < TAPE_N; age++) {
-      keyframes.push({ t: at + age * POP_PITCH, x: tapeX(age - 1), y: TAPE_Y, ease: "hold" });
+      keyframes.push({
+        t: at + age * POP_PITCH,
+        x: tapeX(age - 1),
+        y: TAPE_Y,
+        ease: "hold",
+      });
       keyframes.push({
         t: at + age * POP_PITCH + TAPE_SLIDE,
         x: tapeX(age),
@@ -257,14 +316,19 @@ const buildTapeTracks = (): TaskTrack[] =>
     }
     // Scrolls off the oldest end exactly as the next pop lands on the newest.
     keyframes.push(
-      { t: at + TAPE_N * POP_PITCH, x: tapeX(TAPE_N - 1), y: TAPE_Y, ease: "hold" },
+      {
+        t: at + TAPE_N * POP_PITCH,
+        x: tapeX(TAPE_N - 1),
+        y: TAPE_Y,
+        ease: "hold",
+      },
       {
         t: at + TAPE_N * POP_PITCH + TAPE_SLIDE,
         x: tapeX(TAPE_N),
         y: TAPE_Y,
         opacity: 0,
         ease: "linear",
-      }
+      },
     );
     return loopTracks(`fq-tape-${i}`, keyframes).map((track) => ({
       tenant: popTenant(i),
@@ -284,41 +348,74 @@ const TAPE_TRACKS = buildTapeTracks();
  */
 const CURSOR_TRACK = clipToLoop(
   "fq-cursor",
-  Array.from({ length: DURATION / POP_PITCH + 4 }, (_, n) => n - 2).flatMap((i): FlowKeyframe[] => [
-    {
-      t: popTime(i) - CURSOR_SNAP - CURSOR_LEAD,
-      x: HEAD_X,
-      y: LANE_Y[popTenant(i - 1)],
-      ease: "hold",
-    },
-    { t: popTime(i) - CURSOR_LEAD, x: HEAD_X, y: LANE_Y[popTenant(i)], ease: "linear" },
-  ])
+  Array.from({ length: DURATION / POP_PITCH + 4 }, (_, n) => n - 2).flatMap(
+    (i): FlowKeyframe[] => [
+      {
+        t: popTime(i) - CURSOR_SNAP - CURSOR_LEAD,
+        x: HEAD_X,
+        y: LANE_Y[popTenant(i - 1)],
+        ease: "hold",
+      },
+      {
+        t: popTime(i) - CURSOR_LEAD,
+        x: HEAD_X,
+        y: LANE_Y[popTenant(i)],
+        ease: "linear",
+      },
+    ],
+  ),
 );
 
 /** The worker lights up for each pop it absorbs — twelve beats per loop. */
 const WORKER_TRACK = clipToLoop(
   "fq-worker",
-  Array.from({ length: DURATION / POP_PITCH + 4 }, (_, n) => n - 2).flatMap((i): FlowKeyframe[] => [
-    { t: popTime(i) + POP_TRAVEL, x: WORKER_X, y: WORKER_Y, ease: "hold", state: "busy" },
-    {
-      t: popTime(i) + POP_TRAVEL + POP_DWELL + POP_FADE,
-      x: WORKER_X,
-      y: WORKER_Y,
-      ease: "hold",
-      state: "idle",
-    },
-  ])
+  Array.from({ length: DURATION / POP_PITCH + 4 }, (_, n) => n - 2).flatMap(
+    (i): FlowKeyframe[] => [
+      {
+        t: popTime(i) + POP_TRAVEL,
+        x: WORKER_X,
+        y: WORKER_Y,
+        ease: "hold",
+        state: "busy",
+      },
+      {
+        t: popTime(i) + POP_TRAVEL + POP_DWELL + POP_FADE,
+        x: WORKER_X,
+        y: WORKER_Y,
+        ease: "hold",
+        state: "idle",
+      },
+    ],
+  ),
 );
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
-  <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true" className={styles.chrome}>
+  <svg
+    viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+    aria-hidden="true"
+    className={styles.chrome}
+  >
     {/* Source port + the single mixed inbound stream */}
-    <rect x={SOURCE_X - 2} y={INLET_Y - 2} width={4} height={4} className={styles.chromeFill} />
+    <rect
+      x={SOURCE_X - 2}
+      y={INLET_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
     <line
       x1={SOURCE_X + 4}
       y1={INLET_Y}
@@ -400,7 +497,10 @@ const StageLabel = ({
     ]
       .filter(Boolean)
       .join(" ")}
-    style={{ left: `calc(var(--flow-u) * ${x})`, top: `calc(var(--flow-u) * ${y})` }}
+    style={{
+      left: `calc(var(--flow-u) * ${x})`,
+      top: `calc(var(--flow-u) * ${y})`,
+    }}
   >
     {children}
   </div>
@@ -411,16 +511,7 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of round-robin fair queueing: one mixed stream of tasks is split by a router into three per-tenant sub-queues labelled purple, orange and green. Purple arrives in bursts and stays five or six tasks deep while orange and green stay two deep, but a single worker pops one task from each sub-queue in turn, so the served tape along the top repeats purple, orange, green — purple's backlog never starves the other tenants.";
 
-const CAPTION =
-  "One queue per tenant, popped in rotation: purple's backlog can't crowd out orange or green.";
-
-export const FairQueueing = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const FairQueueing = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.wrap} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -475,10 +566,5 @@ export const FairQueueing = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

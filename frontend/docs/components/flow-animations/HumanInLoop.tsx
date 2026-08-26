@@ -7,7 +7,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./humaninloop.module.css";
 
 /**
@@ -369,23 +368,15 @@ const StageLabel = ({
 
 // ─── Export ────────────────────────────────────────────────────────────────
 
-const CAPTION =
-  "While a task waits for approval it is just a record on the engine — no worker slot is held until the human responds.";
-
 const ARIA_LABEL =
   "Animated diagram of a human-in-the-loop wait: an agent task runs on a worker, hits wait for approval, leaves the worker, and parks as a durable record on the Hatchet engine. The freed slot takes other work and the worker then dims to idle, consuming nothing, while the task waits. A human approval arrives at the engine, resolves the record, and the engine re-dispatches the task to a free slot, where it completes.";
 
 interface HumanInLoopProps {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }
 
-export const HumanInLoop = ({
-  className,
-  style,
-  showCaption = true,
-}: HumanInLoopProps) => (
+export const HumanInLoop = ({ className, style }: HumanInLoopProps) => (
   <div className={`${styles.wrap} ${className ?? ""}`} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -443,10 +434,5 @@ export const HumanInLoop = ({
         </Flow.Token>
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

@@ -9,7 +9,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./batchprocessing.module.css";
 
 /**
@@ -388,17 +387,12 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of fan-out with limited concurrency: a stream of nine items queues up in a single channel while three processing slots pull from the head, so at most three children run at once. The queue visibly backs up while all slots are busy, finished items fly to a completed grid, and a tally counts up from zero to nine.";
 
-const CAPTION =
-  "One child per item: three slots process in parallel while the rest of the queue waits.";
-
 export const BatchProcessing = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div className={`${styles.wrap} ${className ?? ""}`} style={style}>
     <Flow.Root
@@ -434,10 +428,5 @@ export const BatchProcessing = ({
         <CompletedReadout />
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

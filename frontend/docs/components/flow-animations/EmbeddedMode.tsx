@@ -1,8 +1,12 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { Flow, defineTrack, type FlowKeyframe, type FlowTrack } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
+import {
+  Flow,
+  defineTrack,
+  type FlowKeyframe,
+  type FlowTrack,
+} from "@/components/flow";
 import styles from "./embeddedmode.module.css";
 
 /**
@@ -30,11 +34,19 @@ type Component = (typeof COMPONENTS)[number];
 
 /** Phase 1 — three separate services in a row in the upper half. */
 const SEP_Y = 86;
-const SEP_X: Record<Component, number> = { worker: 52, engine: 160, postgres: 268 };
+const SEP_X: Record<Component, number> = {
+  worker: 52,
+  engine: 160,
+  postgres: 268,
+};
 
 /** Phase 2 — the same boxes inside one process boundary at center. */
 const PROC_Y = 128;
-const PROC_X: Record<Component, number> = { worker: 86, engine: 160, postgres: 234 };
+const PROC_X: Record<Component, number> = {
+  worker: 86,
+  engine: 160,
+  postgres: 234,
+};
 const PROC_BOUND = { cx: 160, cy: PROC_Y };
 const PROC_LABEL_Y = 84;
 
@@ -88,7 +100,10 @@ const boxTrack = (c: Component): FlowTrack =>
     { t: DURATION, x: SEP_X[c], y: SEP_Y, opacity: 1, ease: "linear" },
   ]);
 
-const BOX_TRACKS = COMPONENTS.map((c) => ({ component: c, track: boxTrack(c) }));
+const BOX_TRACKS = COMPONENTS.map((c) => ({
+  component: c,
+  track: boxTrack(c),
+}));
 
 // ─── Phase scenery (links, labels, boundary — fading tokens) ───────────────
 
@@ -127,13 +142,27 @@ const CONNECTOR_TRACKS = CONNECTORS.map((c) => ({
   track: mergedSceneTrack(`em-conn-${c.id}`, c.cx, PROC_Y),
 }));
 
-const PROC_BOUND_TRACK = mergedSceneTrack("em-procbound", PROC_BOUND.cx, PROC_BOUND.cy);
-const PROC_LABEL_TRACK = mergedSceneTrack("em-proclabel", PROC_BOUND.cx, PROC_LABEL_Y);
+const PROC_BOUND_TRACK = mergedSceneTrack(
+  "em-procbound",
+  PROC_BOUND.cx,
+  PROC_BOUND.cy,
+);
+const PROC_LABEL_TRACK = mergedSceneTrack(
+  "em-proclabel",
+  PROC_BOUND.cx,
+  PROC_LABEL_Y,
+);
 
 // ─── Chatter (dispatch → result → persist, in both phases) ─────────────────
 
 /** One dot: fade in at the start point, travel, absorbed at the end point. */
-const dotKeyframes = (t: number, x0: number, x1: number, y: number, travel: number): FlowKeyframe[] => [
+const dotKeyframes = (
+  t: number,
+  x0: number,
+  x1: number,
+  y: number,
+  travel: number,
+): FlowKeyframe[] => [
   { t, x: x0, y, opacity: 0 },
   { t: t + 100, x: x0 + (x1 > x0 ? 4 : -4), y, opacity: 1, ease: "linear" },
   { t: t + travel, x: x1, y, ease: "linear" },
@@ -175,12 +204,19 @@ const MERGED_HOPS: HopSpec = {
 
 const chatterCycle = (id: string, start: number, spec: HopSpec): FlowTrack[] =>
   spec.hops.map(([x0, x1], i) =>
-    defineTrack(`${id}-${i}`, dotKeyframes(start + spec.beats[i], x0, x1, spec.y, spec.travel))
+    defineTrack(
+      `${id}-${i}`,
+      dotKeyframes(start + spec.beats[i], x0, x1, spec.y, spec.travel),
+    ),
   );
 
 const DOT_TRACKS: FlowTrack[] = [
-  ...[600, 2500].flatMap((t, i) => chatterCycle(`em-sep-${i}`, t, SEPARATED_HOPS)),
-  ...[7000, 8900, 10800, 12700].flatMap((t, i) => chatterCycle(`em-proc-${i}`, t, MERGED_HOPS)),
+  ...[600, 2500].flatMap((t, i) =>
+    chatterCycle(`em-sep-${i}`, t, SEPARATED_HOPS),
+  ),
+  ...[7000, 8900, 10800, 12700].flatMap((t, i) =>
+    chatterCycle(`em-proc-${i}`, t, MERGED_HOPS),
+  ),
 ];
 
 // ─── Export ────────────────────────────────────────────────────────────────
@@ -188,15 +224,7 @@ const DOT_TRACKS: FlowTrack[] = [
 const ARIA_LABEL =
   "Animated diagram of Hatchet embedded mode. It opens on three separate services — a worker, the Hatchet engine, and a postgres database — each in its own dashed process boundary, exchanging messages over dashed network links. The links then fall away and the three boxes glide together into a single dashed boundary labelled worker process, where the same messages continue as short in-process hops.";
 
-const CAPTION = "The engine and its database move in-process: one worker process, nothing else to run.";
-
-export const EmbeddedMode = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const EmbeddedMode = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.wrap} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -207,17 +235,25 @@ export const EmbeddedMode = ({
       <Flow.Stage width={STAGE_W} height={STAGE_H} className={styles.stage}>
         {LINK_TRACKS.map(({ span, track }) => (
           <Flow.Token key={track.id} track={track}>
-            <div className={styles.linkLine} style={{ width: `calc(var(--flow-u) * ${span})` }} />
+            <div
+              className={styles.linkLine}
+              style={{ width: `calc(var(--flow-u) * ${span})` }}
+            />
           </Flow.Token>
         ))}
         {NETWORK_LABEL_TRACKS.map(({ track }) => (
           <Flow.Token key={track.id} track={track}>
-            <div className={`${styles.tokenLabel} ${styles.labelMuted}`}>network</div>
+            <div className={`${styles.tokenLabel} ${styles.labelMuted}`}>
+              network
+            </div>
           </Flow.Token>
         ))}
         {CONNECTOR_TRACKS.map(({ span, track }) => (
           <Flow.Token key={track.id} track={track}>
-            <div className={styles.linkLine} style={{ width: `calc(var(--flow-u) * ${span})` }} />
+            <div
+              className={styles.linkLine}
+              style={{ width: `calc(var(--flow-u) * ${span})` }}
+            />
           </Flow.Token>
         ))}
         <Flow.Token track={PROC_BOUND_TRACK}>
@@ -230,7 +266,9 @@ export const EmbeddedMode = ({
           <Flow.Token key={track.id} track={track}>
             <div className={styles.component}>
               <div className={`${styles.componentBox} ${styles[component]}`} />
-              <div className={`${styles.tokenLabel} ${styles.componentLabel}`}>{component}</div>
+              <div className={`${styles.tokenLabel} ${styles.componentLabel}`}>
+                {component}
+              </div>
             </div>
           </Flow.Token>
         ))}
@@ -241,10 +279,5 @@ export const EmbeddedMode = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

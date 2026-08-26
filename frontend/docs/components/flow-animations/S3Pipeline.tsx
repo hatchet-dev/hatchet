@@ -10,7 +10,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./s3pipeline.module.css";
 
 /**
@@ -753,17 +752,12 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of the S3 processing pipeline. A cron tick fires at a port on the left and three hollow list_objects tasks fan out, one per S3 bucket. Each bucket then streams its objects into its own queue — bucket-1 holds the most and its queue grows deepest. A single worker with three slots pulls the queue heads round-robin, so its slots hold objects from different buckets at once, each with a progress bar. Finished objects settle into a processed column on the right whose interleaved colours show that no bucket monopolized the worker; when the backlog reaches zero the batch fades and the loop restarts.";
 
-const CAPTION =
-  "One cron tick fans out list_objects per bucket; a three-slot worker drains the queues round-robin, so bucket-1's backlog can't monopolize the pool.";
-
 export const S3Pipeline = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div
     className={[styles.wrap, className].filter(Boolean).join(" ")}
@@ -825,10 +819,5 @@ export const S3Pipeline = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

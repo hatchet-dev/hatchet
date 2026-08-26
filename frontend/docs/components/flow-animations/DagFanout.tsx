@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from "react";
 import { Flow, defineTrack, type FlowKeyframe } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./dagfanout.module.css";
 
 /**
@@ -248,19 +247,14 @@ const Chrome = () => (
 const ARIA_LABEL =
   "Animated diagram of DAG fan-out: a trigger fires three sibling tasks at once. The tasks run in parallel and finish at different times; as each completes, its output travels a converging edge and docks beside the result task. The result stays a dashed waiting outline until all three outputs have arrived, then materializes — a downstream task runs only after every parallel branch has completed.";
 
-const CAPTION =
-  "The trigger fans out to parallel tasks; the result exists only after every branch completes.";
-
 // ─── Export ────────────────────────────────────────────────────────────────
 
 export const DagFanout = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div
     className={[styles.wrap, className].filter(Boolean).join(" ")}
@@ -305,10 +299,5 @@ export const DagFanout = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

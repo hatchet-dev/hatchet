@@ -10,7 +10,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./headoflineblocking.module.css";
 
 /**
@@ -102,7 +101,7 @@ const POSTER_TIME = 5450;
 const rng = createSeededRandom("head-of-line-blocking");
 const BOB_SPAWNS = Array.from(
   { length: BOB_N },
-  (_, slot) => FLOOD_START + slot * FLOOD_GAP + Math.round(rng() * 60) - 30
+  (_, slot) => FLOOD_START + slot * FLOOD_GAP + Math.round(rng() * 60) - 30,
 );
 
 // ─── Track builders ────────────────────────────────────────────────────────
@@ -115,7 +114,12 @@ const BOB_SPAWNS = Array.from(
 const shiftKeyframes = (slot: number, shifts: number): FlowKeyframe[] =>
   Array.from({ length: shifts }, (_, j) => [
     { t: cycleAt(j), x: slotX(slot - j), y: QUEUE_Y, ease: "hold" as const },
-    { t: cycleAt(j) + SHIFT_MS, x: slotX(slot - j - 1), y: QUEUE_Y, ease: "inOut" as const },
+    {
+      t: cycleAt(j) + SHIFT_MS,
+      x: slotX(slot - j - 1),
+      y: QUEUE_Y,
+      ease: "inOut" as const,
+    },
   ]).flat();
 
 /** Tail of a task that never gets served inside the loop: hold, then reset. */
@@ -132,7 +136,10 @@ const strandedKeyframes = (restX: number): FlowKeyframe[] => [
 const bobTrack = (slot: number): FlowTrack => {
   const spawn = BOB_SPAWNS[slot];
   const enter = spawn + LANE_MS;
-  const parked = enter + Math.round((slotX(slot) - CHANNEL_X0 - 4) * CHANNEL_MS_PER_U) + SETTLE_MS;
+  const parked =
+    enter +
+    Math.round((slotX(slot) - CHANNEL_X0 - 4) * CHANNEL_MS_PER_U) +
+    SETTLE_MS;
   const approach: FlowKeyframe[] = [
     { t: spawn, x: BOB_PORT.x, y: BOB_PORT.y, opacity: 0, state: "queued" },
     { t: spawn + 150, x: 28, y: 37, opacity: 1, ease: "linear" },
@@ -151,7 +158,13 @@ const bobTrack = (slot: number): FlowTrack => {
     ...approach,
     ...shiftKeyframes(slot, slot),
     { t: served, x: HEAD_X, y: QUEUE_Y, ease: "hold" },
-    { t: served + TO_WORKER_MS, x: WORKER_X, y: QUEUE_Y, ease: "inOut", state: "processing" },
+    {
+      t: served + TO_WORKER_MS,
+      x: WORKER_X,
+      y: QUEUE_Y,
+      ease: "inOut",
+      state: "processing",
+    },
     {
       t: served + TO_WORKER_MS + PROC_MS,
       x: WORKER_X,
@@ -177,7 +190,13 @@ const BOB_TRACKS = Array.from({ length: BOB_N }, (_, slot) => bobTrack(slot));
  * FIFO hands her the tail slot and she never reaches the head in this loop.
  */
 const ALICE_TRACK = defineTrack("hlb-alice", [
-  { t: ALICE_SPAWN, x: ALICE_PORT.x, y: ALICE_PORT.y, opacity: 0, state: "waiting" },
+  {
+    t: ALICE_SPAWN,
+    x: ALICE_PORT.x,
+    y: ALICE_PORT.y,
+    opacity: 0,
+    state: "waiting",
+  },
   { t: ALICE_SPAWN + 150, x: 26, y: 76, opacity: 1, ease: "linear" },
   { t: ALICE_SPAWN + 500, x: 44, y: 64, ease: "linear" },
   { t: ALICE_SETTLED, x: slotX(ALICE_SLOT), y: QUEUE_Y, ease: "out" },
@@ -209,8 +228,10 @@ const WORKER_TRACK = defineTrack("hlb-worker", [
 
 // ─── Live readout (per-frame text, no React renders) ───────────────────────
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const ramp = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
+const ramp = (t: number, a: number, b: number) =>
+  clamp((t - a) / (b - a), 0, 1);
 
 /** A service has "landed" once the line has finished closing up behind it. */
 const servicesLanded = (t: number) => {
@@ -268,11 +289,23 @@ const AheadReadout = () => {
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
-  <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true" className={styles.chrome}>
+  <svg
+    viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+    aria-hidden="true"
+    className={styles.chrome}
+  >
     {/* Tenant ports + their dashed approaches into the tail of the queue */}
     {[BOB_PORT, ALICE_PORT].map((port) => (
       <rect
@@ -358,16 +391,7 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of head-of-line blocking in a single shared FIFO queue. Bob's upload floods the queue and fills every slot. Alice's one-page upload arrives next and FIFO places her at the tail, furthest from the worker. The worker serves one task at a time from the head, so the line shifts forward slowly and Alice is still stuck behind ten of Bob's files at the end of the loop.";
 
-const CAPTION =
-  "One shared FIFO queue: Bob's flood fills it, and Alice's one-page upload waits at the back for every one of his files to finish.";
-
-export const HeadOfLineBlocking = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const HeadOfLineBlocking = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.wrap} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -415,10 +439,5 @@ export const HeadOfLineBlocking = ({
         <AheadReadout />
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

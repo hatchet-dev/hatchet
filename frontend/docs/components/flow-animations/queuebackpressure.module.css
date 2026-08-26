@@ -13,12 +13,6 @@
   width: 100%;
 }
 
-.caption {
-  margin: 0;
-  text-align: center;
-  max-width: 52ch;
-}
-
 /* ── Static chrome (SVG line work) ────────────────────────────────────── */
 
 .chromeStroke {

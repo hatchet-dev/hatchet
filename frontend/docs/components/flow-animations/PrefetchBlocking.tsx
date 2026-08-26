@@ -8,7 +8,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./prefetchblocking.module.css";
 
 /**
@@ -117,7 +116,16 @@ const TASKS: Task[] = [];
     const start = pickup + PICKUP_MS;
     const done = start + (long ? LONG_MS : 620 + Math.round(rng() * 170));
     const gone = done + HOLD_DONE + FADE_MS;
-    TASKS.push({ index, long, depart, land: depart + TRAVEL_IN, pickup, start, done, gone });
+    TASKS.push({
+      index,
+      long,
+      depart,
+      land: depart + TRAVEL_IN,
+      pickup,
+      start,
+      done,
+      gone,
+    });
     pickup = gone + NEXT_GAP;
   }
 }
@@ -164,14 +172,25 @@ const taskTrack = (task: Task): FlowTrack => {
     { t: 0, x: QUEUE_X, y: queueY, opacity: 1, scale: 1, state: "queued" },
     { t: task.depart, x: QUEUE_X, y: queueY, ease: "hold" },
     { t: task.depart + 260, x: FEED_X, y: W1.row, ease: "in" },
-    { t: task.land, x: BUF_XS[task.index], y: W1.row, ease: "out", state: "reserved" },
+    {
+      t: task.land,
+      x: BUF_XS[task.index],
+      y: W1.row,
+      ease: "out",
+      state: "reserved",
+    },
   ];
   // Every earlier pickup advances this task one position toward the head.
   for (let j = 0; j < task.index; j++) {
     const from = task.index - j;
     kfs.push(
       { t: TASKS[j].pickup, x: BUF_XS[from], y: W1.row, ease: "hold" },
-      { t: TASKS[j].pickup + SHIFT_MS, x: BUF_XS[from - 1], y: W1.row, ease: "inOut" }
+      {
+        t: TASKS[j].pickup + SHIFT_MS,
+        x: BUF_XS[from - 1],
+        y: W1.row,
+        ease: "inOut",
+      },
     );
   }
   kfs.push(
@@ -179,15 +198,23 @@ const taskTrack = (task: Task): FlowTrack => {
     { t: task.start, x: EXEC_X, y: W1.row, ease: "inOut", state: "executing" },
     { t: task.done, x: EXEC_X, y: W1.row, ease: "hold", state: "done" },
     { t: task.done + HOLD_DONE, x: EXEC_X, y: W1.row, ease: "hold" },
-    { t: task.gone, x: EXEC_X, y: W1.row, opacity: 0, scale: 1.3, ease: "out" }
+    { t: task.gone, x: EXEC_X, y: W1.row, opacity: 0, scale: 1.3, ease: "out" },
   );
   // Re-queue invisibly off the left edge, then slide back into the slot the
   // loop started from — t = DURATION is byte-for-byte the t = 0 composition.
   const refill = REFILL_AT + task.index * REFILL_GAP;
   kfs.push(
-    { t: refill, x: -16, y: queueY, opacity: 0, scale: 1, ease: "hold", state: "queued" },
+    {
+      t: refill,
+      x: -16,
+      y: queueY,
+      opacity: 0,
+      scale: 1,
+      ease: "hold",
+      state: "queued",
+    },
     { t: refill + TRAVEL_IN, x: QUEUE_X, y: queueY, opacity: 1, ease: "out" },
-    { t: DURATION, x: QUEUE_X, y: queueY, ease: "hold" }
+    { t: DURATION, x: QUEUE_X, y: queueY, ease: "hold" },
   );
   return defineTrack(`prefetch-task-${task.index}`, kfs);
 };
@@ -252,25 +279,57 @@ const QUEUE_REFILLED_AT = DURATION - 760;
 const WORKLOAD_TAG = defineTrack("prefetch-workload-tag", [
   { t: 0, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 1 },
   { t: QUEUE_EMPTY_AT, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
-  { t: QUEUE_EMPTY_AT + 220, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 0, ease: "linear" },
+  {
+    t: QUEUE_EMPTY_AT + 220,
+    x: QUEUE_X,
+    y: QUEUE_TAG_Y,
+    opacity: 0,
+    ease: "linear",
+  },
   { t: QUEUE_REFILLED_AT, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
-  { t: QUEUE_REFILLED_AT + 300, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 1, ease: "linear" },
+  {
+    t: QUEUE_REFILLED_AT + 300,
+    x: QUEUE_X,
+    y: QUEUE_TAG_Y,
+    opacity: 1,
+    ease: "linear",
+  },
   { t: DURATION, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
 ]);
 
 const DRAINED_TAG = defineTrack("prefetch-drained-tag", [
   { t: 0, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 0 },
   { t: QUEUE_EMPTY_AT + 220, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
-  { t: QUEUE_EMPTY_AT + 520, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 1, ease: "linear" },
+  {
+    t: QUEUE_EMPTY_AT + 520,
+    x: QUEUE_X,
+    y: QUEUE_TAG_Y,
+    opacity: 1,
+    ease: "linear",
+  },
   { t: QUEUE_REFILLED_AT - 300, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
-  { t: QUEUE_REFILLED_AT, x: QUEUE_X, y: QUEUE_TAG_Y, opacity: 0, ease: "linear" },
+  {
+    t: QUEUE_REFILLED_AT,
+    x: QUEUE_X,
+    y: QUEUE_TAG_Y,
+    opacity: 0,
+    ease: "linear",
+  },
   { t: DURATION, x: QUEUE_X, y: QUEUE_TAG_Y, ease: "hold" },
 ]);
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 /** The four prefetch positions drawn as empty capacity, one worker's worth. */
 const BufferSlots = ({ row }: { row: number }) => (
@@ -289,7 +348,15 @@ const BufferSlots = ({ row }: { row: number }) => (
   </>
 );
 
-const WorkerBox = ({ top, bottom, row }: { top: number; bottom: number; row: number }) => (
+const WorkerBox = ({
+  top,
+  bottom,
+  row,
+}: {
+  top: number;
+  bottom: number;
+  row: number;
+}) => (
   <>
     <rect
       x={WORKER_X0}
@@ -313,7 +380,11 @@ const WorkerBox = ({ top, bottom, row }: { top: number; bottom: number; row: num
 );
 
 const Chrome = () => (
-  <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true" className={styles.chrome}>
+  <svg
+    viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+    aria-hidden="true"
+    className={styles.chrome}
+  >
     {/* Broker queue: brackets around four slots */}
     <path
       d={`M ${QUEUE_X - 15} ${QUEUE_TOP + 5} L ${QUEUE_X - 15} ${QUEUE_TOP} L ${QUEUE_X + 15} ${QUEUE_TOP} L ${QUEUE_X + 15} ${QUEUE_TOP + 5}`}
@@ -386,16 +457,7 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of Celery's default worker prefetch count. Worker 1 has one concurrency slot and a prefetch multiplier of 4, so it pulls all four queued tasks — one long, three short — into its own local buffer at once. It runs the long task in its single slot while the three short tasks it already claimed sit reserved behind it, unacknowledged and so unable to be reassigned. Worker 2 stays idle with an empty buffer for the entire run, because the queue was already drained.";
 
-const CAPTION =
-  "A worker prefetches four tasks at once: the three short ones are stuck behind the long one, and the idle worker can't take them.";
-
-export const PrefetchBlocking = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const PrefetchBlocking = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.wrap} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -448,15 +510,16 @@ export const PrefetchBlocking = ({
         </Flow.Token>
         {TASK_TRACKS.map((track, i) => (
           <Flow.Token key={track.id} track={track}>
-            <div className={TASKS[i].long ? `${styles.task} ${styles.taskLong}` : styles.task} />
+            <div
+              className={
+                TASKS[i].long
+                  ? `${styles.task} ${styles.taskLong}`
+                  : styles.task
+              }
+            />
           </Flow.Token>
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

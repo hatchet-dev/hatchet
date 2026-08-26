@@ -10,7 +10,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./queuebackpressure.module.css";
 
 /**
@@ -467,16 +466,7 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of a task queue absorbing a burst of uploads. Upload tasks arrive faster than the worker can process them, so they pile up in the queue as backlog instead of hitting the worker all at once. The worker pulls the head of the queue only when one of its five slots frees, so it never runs more than five files at a time, and the backlog drains at the worker's own pace.";
 
-const CAPTION =
-  "The queue absorbs the burst: uploads pile up as backlog while the worker keeps to the five tasks its slots allow.";
-
-export const QueueBackpressure = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const QueueBackpressure = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.wrap} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -506,10 +496,5 @@ export const QueueBackpressure = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

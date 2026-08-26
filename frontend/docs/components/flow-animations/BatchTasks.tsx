@@ -1,8 +1,12 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { Flow, defineTrack, type FlowKeyframe, type FlowTrack } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
+import {
+  Flow,
+  defineTrack,
+  type FlowKeyframe,
+  type FlowTrack,
+} from "@/components/flow";
 import styles from "./batchtasks.module.css";
 
 /**
@@ -109,7 +113,7 @@ const BEAT1 = makeBeat(
     { lane: "c", spawn: 700 },
     { lane: "b", spawn: 1050 },
   ],
-  1050 + TRAVEL_IN + 200 // shortly after the third task lands: size wins
+  1050 + TRAVEL_IN + 200, // shortly after the third task lands: size wins
 );
 
 /** Beat 2 — only two tasks arrive; the interval timer forces a partial flush. */
@@ -119,7 +123,7 @@ const BEAT2 = makeBeat(
     { lane: "b", spawn: 6800 },
     { lane: "c", spawn: 7900 },
   ],
-  6800 + TRAVEL_IN + INTERVAL // exactly when the tick-bar runs out
+  6800 + TRAVEL_IN + INTERVAL, // exactly when the tick-bar runs out
 );
 
 const BEATS = [BEAT1, BEAT2];
@@ -145,28 +149,55 @@ const taskTrack = (beat: Beat, i: number): FlowTrack => {
   const slotY = SLOT_YS[i];
   const stack = stackY(beat.tasks.length, i);
   const retDepart = beat.procEnd + 100 + i * RET_STAGGER;
-  const busEnd = retDepart + DROP_MS + Math.round((WORKER_X - TURN_X[lane]) * BUS_SPEED);
+  const busEnd =
+    retDepart + DROP_MS + Math.round((WORKER_X - TURN_X[lane]) * BUS_SPEED);
   const portAt = busEnd + RISE_MS;
   return defineTrack(`batch-${beat.id}-task-${i}`, [
     { t: spawn, x: 10, y: laneY, opacity: 0, state: "inflight" },
     { t: spawn + 180, x: 26, y: laneY, opacity: 1, ease: "linear" },
     { t: spawn + 560, x: 112, y: laneY, ease: "linear" },
-    { t: spawn + TRAVEL_IN, x: BUF_X, y: slotY, ease: "out", state: "buffered" },
+    {
+      t: spawn + TRAVEL_IN,
+      x: BUF_X,
+      y: slotY,
+      ease: "out",
+      state: "buffered",
+    },
     { t: beat.flush, x: BUF_X, y: slotY, ease: "hold" },
-    { t: beat.flush + FUSE_MS, x: BUF_X, y: stack, ease: "inOut", state: "batched" },
+    {
+      t: beat.flush + FUSE_MS,
+      x: BUF_X,
+      y: stack,
+      ease: "inOut",
+      state: "batched",
+    },
     { t: beat.depart, x: BUF_X, y: stack, ease: "hold" },
-    { t: beat.arrive, x: WORKER_X, y: stack, ease: "inOut", state: "processing" },
+    {
+      t: beat.arrive,
+      x: WORKER_X,
+      y: stack,
+      ease: "inOut",
+      state: "processing",
+    },
     { t: beat.procEnd, x: WORKER_X, y: stack, ease: "hold", state: "result" },
     { t: retDepart, x: WORKER_X, y: stack, ease: "hold" },
     { t: retDepart + DROP_MS, x: WORKER_X, y: BUS_Y, ease: "in" },
     { t: busEnd, x: TURN_X[lane], y: BUS_Y, ease: "linear" },
     { t: portAt, x: PORT_X, y: laneY, ease: "out", state: "delivered" },
     { t: portAt + DWELL_MS, x: PORT_X, y: laneY, ease: "hold" },
-    { t: portAt + DWELL_MS + FADE_MS, x: PORT_X, y: laneY, opacity: 0, ease: "linear" },
+    {
+      t: portAt + DWELL_MS + FADE_MS,
+      x: PORT_X,
+      y: laneY,
+      opacity: 0,
+      ease: "linear",
+    },
   ]);
 };
 
-const TASK_TRACKS = BEATS.flatMap((beat) => beat.tasks.map((_, i) => taskTrack(beat, i)));
+const TASK_TRACKS = BEATS.flatMap((beat) =>
+  beat.tasks.map((_, i) => taskTrack(beat, i)),
+);
 
 /** The bracket that fuses around a flushing batch and rides to the handler. */
 const bracketTrack = (beat: Beat): FlowTrack =>
@@ -176,7 +207,13 @@ const bracketTrack = (beat: Beat): FlowTrack =>
     { t: beat.depart, x: BUF_X, y: WORKER_Y, ease: "hold" },
     { t: beat.arrive, x: WORKER_X, y: WORKER_Y, ease: "inOut" },
     { t: beat.procEnd, x: WORKER_X, y: WORKER_Y, ease: "hold" },
-    { t: beat.procEnd + 220, x: WORKER_X, y: WORKER_Y, opacity: 0, ease: "linear" },
+    {
+      t: beat.procEnd + 220,
+      x: WORKER_X,
+      y: WORKER_Y,
+      opacity: 0,
+      ease: "linear",
+    },
   ]);
 
 const BRACKET_TRACKS = BEATS.map(bracketTrack);
@@ -196,10 +233,16 @@ const tickTrack = (j: number): FlowTrack => {
     if (vanish <= beat.flush) {
       kfs.push(
         { t: vanish, x, y: TICK_Y, ease: "hold" },
-        { t: vanish + 140, x, y: TICK_Y, opacity: 0, ease: "linear" }
+        { t: vanish + 140, x, y: TICK_Y, opacity: 0, ease: "linear" },
       );
     }
-    kfs.push({ t: beat.flush + 200, x, y: TICK_Y, ease: "hold", state: "idle" });
+    kfs.push({
+      t: beat.flush + 200,
+      x,
+      y: TICK_Y,
+      ease: "hold",
+      state: "idle",
+    });
     kfs.push({ t: beat.flush + 400, x, y: TICK_Y, opacity: 1, ease: "linear" });
   }
   kfs.push({ t: DURATION, x, y: TICK_Y, ease: "hold" });
@@ -220,15 +263,33 @@ const WORKER_TRACK = defineTrack("batch-worker", [
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
-  <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true" className={styles.chrome}>
+  <svg
+    viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+    aria-hidden="true"
+    className={styles.chrome}
+  >
     {/* Caller ports + dashed lanes toward the buffer */}
     {LANES.map((lane) => (
       <g key={lane}>
-        <rect x={8} y={LANE[lane] - 2} width={4} height={4} className={styles.chromeFill} />
+        <rect
+          x={8}
+          y={LANE[lane] - 2}
+          width={4}
+          height={4}
+          className={styles.chromeFill}
+        />
         <line
           x1={16}
           y1={LANE[lane]}
@@ -275,7 +336,14 @@ const Chrome = () => (
       />
     ))}
     {/* Buffer → handler connector */}
-    <line x1={162} y1={WORKER_Y} x2={236} y2={WORKER_Y} className={styles.chromeDash} {...fine} />
+    <line
+      x1={162}
+      y1={WORKER_Y}
+      x2={236}
+      y2={WORKER_Y}
+      className={styles.chromeDash}
+      {...fine}
+    />
     {/* Return bus: handler → back toward the callers */}
     <path
       d={`M ${WORKER_X} ${WORKER_Y + WORKER_H / 2 + 4} V ${BUS_Y} H 88`}
@@ -316,16 +384,7 @@ const StageLabel = ({
 const ARIA_LABEL =
   "Animated diagram of Hatchet batch tasks: tasks from three callers accumulate in a batch buffer that flushes when it reaches max size or when the interval timer runs out. Each batch executes in a single handler invocation, and each caller receives back only its own result.";
 
-const CAPTION =
-  "Tasks accumulate into a batch and flush when max size or interval are reached.";
-
-export const BatchTasks = ({
-  style,
-  showCaption = true,
-}: {
-  style?: CSSProperties;
-  showCaption?: boolean;
-}) => (
+export const BatchTasks = ({ style }: { style?: CSSProperties }) => (
   <div className={styles.batchTasks} style={style}>
     <Flow.Root
       duration={DURATION}
@@ -370,10 +429,5 @@ export const BatchTasks = ({
         ))}
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

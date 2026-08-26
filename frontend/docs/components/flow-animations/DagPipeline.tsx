@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from "react";
 import { Flow, defineTrack, type FlowKeyframe } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./dagpipeline.module.css";
 
 /**
@@ -225,19 +224,14 @@ const Node = ({ label }: { label: string }) => (
 const ARIA_LABEL =
   "Animated diagram of a DAG run: task A fans out to tasks B and C, which both feed task D, which feeds task E. A run pulse travels the edges and each task flips from queued to running to done. B and C run in parallel; B finishes first, and the join task D holds in a waiting state until C also completes, because a task starts only after all of its parents have finished.";
 
-const CAPTION =
-  "Independent tasks run in parallel; a child task starts only once every parent has completed.";
-
 // ─── Export ────────────────────────────────────────────────────────────────
 
 export const DagPipeline = ({
   className,
   style,
-  showCaption = true,
 }: {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }) => (
   <div
     className={[styles.wrap, className].filter(Boolean).join(" ")}
@@ -290,10 +284,5 @@ export const DagPipeline = ({
         </Flow.Token>
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );

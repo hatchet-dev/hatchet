@@ -7,7 +7,6 @@ import {
   type FlowKeyframe,
   type FlowTrack,
 } from "@/components/flow";
-import { Text } from "@/components/flow/Text";
 import styles from "./durableexecution.module.css";
 
 /**
@@ -455,22 +454,17 @@ const RECORD_LABELS = [
   "step 4 · done",
 ];
 
-const CAPTION =
-  "Every completed step is checkpointed to the durable event log. After a crash, replay restores progress from the log — completed work is never repeated.";
-
 const ARIA_LABEL =
   "Animated diagram of durable execution: a durable task runs step by step on a worker, and each completed step writes a checkpoint into the Hatchet engine's durable event log. Mid-run the worker crashes and the in-flight step is lost, but the log persists. The engine re-dispatches the task to a second worker, which quickly replays steps 1 and 2 from the log without re-executing them, then continues live from step 3 and completes, checkpointing the remaining steps.";
 
 interface DurableExecutionProps {
   className?: string;
   style?: CSSProperties;
-  showCaption?: boolean;
 }
 
 export const DurableExecution = ({
   className,
   style,
-  showCaption = true,
 }: DurableExecutionProps) => (
   <div className={`${styles.wrap} ${className ?? ""}`} style={style}>
     <Flow.Root
@@ -538,10 +532,5 @@ export const DurableExecution = ({
         </Flow.Token>
       </Flow.Stage>
     </Flow.Root>
-    {showCaption && (
-      <Text.Small as="p" secondary balance className={styles.caption}>
-        {CAPTION}
-      </Text.Small>
-    )}
   </div>
 );
