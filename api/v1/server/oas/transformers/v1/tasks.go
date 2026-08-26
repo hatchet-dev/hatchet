@@ -402,6 +402,12 @@ func ToWorkflowRunDetails(
 		duration = &durInt
 	}
 
+	var startedAt *time.Time
+
+	if workflowRun.StartedAt.Valid {
+		startedAt = &workflowRun.StartedAt.Time
+	}
+
 	input := jsonToMap(workflowRun.Input)
 	output := emptyJSON()
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
@@ -433,7 +439,7 @@ func ToWorkflowRunDetails(
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
-		StartedAt:          &workflowRun.StartedAt.Time,
+		StartedAt:          startedAt,
 		Status:             wrStatus,
 		TenantId:           workflowRun.TenantID,
 		WorkflowId:         workflowRun.WorkflowID,
