@@ -1,0 +1,161 @@
+.fanout {
+  display: grid;
+  gap: calc(var(--rlh) * 0.75);
+  justify-items: center;
+  width: 100%;
+}
+
+.flowRoot {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.caption {
+  margin: 0;
+  text-align: center;
+  max-width: calc(var(--rlh) * 32);
+}
+
+/* ── Static chrome (SVG line work) ────────────────────────────────────── */
+
+.chromeFill {
+  fill: var(--fg);
+}
+
+.chromeDash {
+  stroke: var(--fg-secondary);
+  stroke-dasharray: 2 3;
+}
+
+.laneBox {
+  stroke: var(--fg);
+}
+
+.chromeSocket {
+  stroke: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+
+.chromeTick {
+  stroke: color-mix(in srgb, var(--fg) 55%, transparent);
+}
+
+/* ── Stage labels (tiny mono, non-scaling) ────────────────────────────── */
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.anchorLeft {
+  transform: none;
+}
+
+.anchorRight {
+  transform: translate(-100%, 0);
+}
+
+.labelCaps {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+.labelSmall {
+  font-size: max(8px, calc(var(--micro) * 0.85));
+}
+
+/* ── Tokens ───────────────────────────────────────────────────────────── */
+
+.square {
+  position: relative;
+  width: calc(var(--flow-u) * 4.5);
+  height: calc(var(--flow-u) * 4.5);
+  background: var(--fg);
+}
+
+/* Event key riding above the pushed token; fades before reaching the bus */
+.keyLabel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: max(8px, calc(var(--micro) * 0.85));
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  white-space: nowrap;
+  transition: opacity 240ms ease;
+}
+
+[data-flow-state="arriving"] .keyLabel,
+[data-flow-state="absorbed"] .keyLabel {
+  opacity: 0;
+}
+
+/* Run processing in its lane socket: accent + pulse */
+[data-flow-state="run"] .square {
+  background: var(--accent);
+  animation: ef-pulse 900ms ease-in-out infinite;
+}
+
+/* Completed: green beat, then fly to the tally… */
+[data-flow-state="done"] .square,
+[data-flow-state="tallied"] .square {
+  background: var(--accent-3);
+}
+
+/* …and settle toward a dimmer archived tally cell */
+[data-flow-state="settled"] .square {
+  background: color-mix(in srgb, var(--accent-3) 62%, transparent);
+  transition: background-color 700ms ease;
+}
+
+/* The event node's border flashes accent as it absorbs an event */
+.busBox {
+  border: 1.5px solid var(--fg);
+  transition: border-color 220ms ease;
+}
+
+[data-flow-state="busy"] .busBox {
+  border-color: var(--accent);
+}
+
+/* ── State animations ─────────────────────────────────────────────────── */
+
+@keyframes ef-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.78);
+  }
+}
+
+/* Static composition (reduced motion / pre-hydration): no keyframe motion */
+[data-flow-static] .square {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .square {
+    animation: none !important;
+  }
+  .keyLabel {
+    transition: none;
+  }
+}

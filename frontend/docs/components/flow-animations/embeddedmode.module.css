@@ -1,0 +1,104 @@
+.wrap {
+  display: grid;
+  gap: calc(var(--rlh) * 0.5);
+  justify-items: center;
+  width: 100%;
+}
+
+.flowRoot {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.caption {
+  max-width: calc(var(--rlh) * 32);
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Token labels (micro mono caps, non-scaling, ride their tokens) ────── */
+
+.tokenLabel {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+/* ── Component boxes (worker · engine · postgres) ─────────────────────── */
+
+/* Token children are centered on the track position; the label hangs below
+   its box from the same anchor. */
+.component {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.componentBox {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 36);
+  height: calc(var(--flow-u) * 36);
+  border: 1.5px solid var(--fg);
+}
+
+/* The engine is the thing being embedded — it carries the accent. */
+.engine {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Postgres reads as storage: faint platter lines inside the box. */
+.postgres {
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent calc(var(--flow-u) * 7),
+    color-mix(in srgb, var(--fg) 45%, transparent) calc(var(--flow-u) * 7),
+    color-mix(in srgb, var(--fg) 45%, transparent) calc(var(--flow-u) * 7 + 1px)
+  );
+  background-clip: content-box;
+  padding: calc(var(--flow-u) * 6);
+}
+
+.componentLabel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, calc(var(--flow-u) * 24));
+}
+
+/* ── Network links / in-process connectors ────────────────────────────── */
+
+.linkLine {
+  height: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--fg) 60%, transparent);
+}
+
+/* ── The worker-process boundary (the punchline) ──────────────────────── */
+
+.processBoundary {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 240);
+  height: calc(var(--flow-u) * 68);
+  border: 1px dashed var(--fg);
+}
+
+/* ── Chatter dots ─────────────────────────────────────────────────────── */
+
+.dot {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  background: var(--accent);
+}

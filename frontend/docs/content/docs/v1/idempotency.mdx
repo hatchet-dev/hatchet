@@ -6,6 +6,7 @@ import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
+import { IdempotencyKeys } from "@/components/flow-animations/IdempotencyKeys";
 
 # Idempotency
 
@@ -14,6 +15,8 @@ import { snippets } from "@/lib/generated/snippets";
 </Callout>
 
 If you need to prevent more than one run of a task from occurring within a given time window, for instance because of duplicate event sends from a webhook that can trigger duplicate runs in Hatchet, you can achieve this by adding **idempotency** configuration to your workflow or standalone task.
+
+<IdempotencyKeys />
 
 ## Types of Idempotency in Hatchet
 

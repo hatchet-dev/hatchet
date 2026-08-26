@@ -6,6 +6,7 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
+import { ScheduleTimeline } from "@/components/flow-animations/ScheduleTimeline";
 
 # Scheduled Runs
 
@@ -14,6 +15,8 @@ Scheduled runs allow you to trigger a task at a specific time in the future. Som
 - Sending a reminder email at a specific time after a user took an action.
 - Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
 - Allowing a customer to decide when they want your application to perform a specific task. For instance, if your application is a simple alarm app that sends a customer a notification at a time that they specify, you might create a scheduled run for each alarm that the customer sets.
+
+<ScheduleTimeline />
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
 

@@ -1,0 +1,264 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.root {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+/* ── Static chrome (SVG line work) ────────────────────────────────────── */
+
+.chromeStroke {
+  stroke: var(--fg);
+}
+
+.chromeDash {
+  stroke: var(--fg-secondary);
+  stroke-dasharray: 2 3;
+}
+
+.chromeFill {
+  fill: var(--fg);
+}
+
+/* Frontend chat panel — dashboard-mock chrome (cyan-tinted card) */
+.chromePanel {
+  fill: hsl(var(--cyan) / 0.04);
+  stroke: hsl(var(--cyan) / 0.3);
+}
+
+.chromeSep {
+  stroke: hsl(var(--cyan) / 0.16);
+}
+
+/* Chat input mock */
+.chromeInput {
+  fill: hsl(var(--cyan) / 0.04);
+  stroke: hsl(var(--cyan) / 0.2);
+}
+
+.chromeInputSend {
+  fill: hsl(var(--cyan) / 0.28);
+}
+
+/* ── Stage labels (micro mono caps, non-scaling) ──────────────────────── */
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.anchorLeft {
+  transform: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+/* Code-shaped labels keep their casing */
+.labelCode {
+  text-transform: none;
+}
+
+/* ── The agent task pill inside the worker ────────────────────────────── */
+
+.agentPill {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+  transition:
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+/* Streaming out chunks: accent blue, pulsing */
+[data-flow-state="running"] .agentPill {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: sd-pulse 900ms ease-in-out infinite;
+}
+
+/* Task complete: green */
+[data-flow-state="done"] .agentPill {
+  border-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+/* ── The Hatchet relay node on the stream line ────────────────────────── */
+
+.relay {
+  width: calc(var(--flow-u) * 14);
+  height: calc(var(--flow-u) * 14);
+  border: 1.5px solid var(--fg);
+  background: var(--bg);
+}
+
+[data-flow-state="ping"] .relay {
+  animation: sd-ping 300ms ease-out both;
+}
+
+/* ── Stream tokens ────────────────────────────────────────────────────── */
+
+/* A streamed chunk (LLM output token) */
+.chunk {
+  width: calc(var(--flow-u) * 4);
+  height: calc(var(--flow-u) * 4);
+  background: var(--accent);
+}
+
+/* The user's request heading back to the agent */
+.req {
+  width: calc(var(--flow-u) * 4.5);
+  height: calc(var(--flow-u) * 4.5);
+  background: var(--accent-1);
+}
+
+/* ── Chat panel internals ─────────────────────────────────────────────── */
+
+/* Header status dot */
+.panelDot {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  border-radius: 50%;
+  background: var(--fg-tertiary);
+  transition: background-color 300ms ease;
+}
+
+[data-flow-state="busy"] .panelDot {
+  background: var(--accent);
+  animation: sd-breathe 1100ms ease-in-out infinite;
+}
+
+[data-flow-state="ok"] .panelDot {
+  background: var(--accent-3);
+}
+
+/* The user's message bubble (right-aligned, like a chat UI) */
+.userBubble {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 64);
+  height: calc(var(--flow-u) * 20);
+  padding-inline: calc(var(--flow-u) * 5);
+  border: 1px solid color-mix(in srgb, var(--fg) 40%, transparent);
+  border-radius: calc(var(--flow-u) * 3);
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: calc(var(--flow-u) * 3.5);
+}
+
+.userLine {
+  height: calc(var(--flow-u) * 3.5);
+  background: color-mix(in srgb, var(--fg) 50%, transparent);
+}
+
+/* One streamed word of the response: lands accent-bright, settles to text */
+.wordBar {
+  height: calc(var(--flow-u) * 4.5);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .wordBar {
+  background: var(--accent);
+  transition: none;
+}
+
+/* Blinking caret at the response's leading edge */
+.caret {
+  width: calc(var(--flow-u) * 2);
+  height: calc(var(--flow-u) * 6.5);
+  background: var(--accent);
+}
+
+[data-flow-state="typing"] .caret {
+  animation: sd-caret 950ms linear infinite;
+}
+
+[data-flow-state="done"] .caret {
+  background: var(--accent-3);
+}
+
+/* ── State animations ─────────────────────────────────────────────────── */
+
+@keyframes sd-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+@keyframes sd-ping {
+  0%,
+  55% {
+    border-color: var(--accent);
+  }
+  100% {
+    border-color: var(--fg);
+  }
+}
+
+@keyframes sd-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes sd-caret {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  52%,
+  95% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Static composition (reduced motion / pre-hydration): no keyframe motion */
+[data-flow-static] .agentPill,
+[data-flow-static] .relay,
+[data-flow-static] .panelDot,
+[data-flow-static] .caret {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentPill,
+  .relay,
+  .panelDot,
+  .caret {
+    animation: none !important;
+  }
+}
