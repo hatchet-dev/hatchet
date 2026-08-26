@@ -413,6 +413,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
+	seenTasks := make(map[int64]struct{})
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
@@ -420,6 +421,11 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// deleted from the v1_queue_items table, so we should not assign them
 	for id, assignedItem := range queueItemIdsToAssignedItem {
 		if _, ok := queuedItemsMap[id]; ok {
+			if _, alreadySeen := seenTasks[assignedItem.QueueItem.TaskID]; alreadySeen {
+				// deduping tasks that are queued twice
+				continue
+			}
+
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
 			workerIds = append(workerIds, assignedItem.WorkerId)
@@ -1163,11 +1169,17 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	taskIds := make([]int64, 0, len(assignments))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(assignments))
 	workerIds := make([]uuid.UUID, 0, len(assignments))
+	seenTasks := make(map[int64]struct{}, len(assignments))
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
 	for _, assignment := range assignments {
 		if assignment == nil {
+			continue
+		}
+
+		if _, alreadySeen := seenTasks[assignment.TaskID]; alreadySeen {
+			// deduping tasks that are queued twice
 			continue
 		}
 
