@@ -24,14 +24,20 @@ type operatorDagFixture struct {
 	workflowId    uuid.UUID
 }
 
-func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64, totalTasks int) operatorDagFixture {
+func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64) operatorDagFixture {
+	t.Helper()
+
+	return seedOperatorDagWithExternalId(t, ctx, repo, dagId, uuid.New())
+}
+
+func seedOperatorDagWithExternalId(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64, dagExternalId uuid.UUID) operatorDagFixture {
 	t.Helper()
 
 	f := operatorDagFixture{
 		tenantId:      uuid.New(),
 		dagId:         dagId,
 		dagInsertedAt: pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true},
-		dagExternalId: uuid.New(),
+		dagExternalId: dagExternalId,
 		workflowId:    uuid.New(),
 	}
 
@@ -47,7 +53,6 @@ func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl
 		},
 		Input:              []byte(`{}`),
 		AdditionalMetadata: []byte(`{}`),
-		TotalTasks:         totalTasks,
 		IsOperatorRun:      true,
 	}
 
@@ -92,7 +97,8 @@ func (f operatorDagFixture) createChild(t *testing.T, ctx context.Context, repo 
 			DagID:              pgtype.Int8{Int64: f.dagId, Valid: true},
 			DagInsertedAt:      f.dagInsertedAt,
 		},
-		Payload: []byte(`{}`),
+		Payload:       []byte(`{}`),
+		IsOperatorRun: true,
 	}
 
 	_, locksNotAcquired, err := repo.CreateTasks(ctx, child.tenantId, []*V1TaskWithPayload{task})
@@ -110,9 +116,32 @@ func (f operatorDagFixture) applyChildEvents(t *testing.T, ctx context.Context, 
 		eventExternalIdToWorkflowRunId[e.ExternalID] = f.dagExternalId
 	}
 
-	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId)
+	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, f.operatorRunIds())
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
+}
+
+func (f operatorDagFixture) operatorRunIds() map[uuid.UUID]struct{} {
+	return map[uuid.UUID]struct{}{f.dagExternalId: {}}
+}
+
+func (f operatorDagFixture) orchestratorUpdate(status sqlcv1.V1ReadableStatusOlap, retryCount int32) OrchestratorDAGStatusUpdateOpt {
+	return OrchestratorDAGStatusUpdateOpt{
+		DagId:          f.dagId,
+		DagInsertedAt:  f.dagInsertedAt,
+		ReadableStatus: status,
+		RetryCount:     retryCount,
+	}
+}
+
+func (f operatorDagFixture) applyOrchestratorEvents(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, updates ...OrchestratorDAGStatusUpdateOpt) *StatusUpdateResult {
+	t.Helper()
+
+	result, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, nil, nil, updates, f.operatorRunIds())
+	require.NoError(t, err)
+	require.Empty(t, locksNotAcquired)
+
+	return result
 }
 
 func (f operatorDagFixture) assertDagStatus(t *testing.T, ctx context.Context, pool *pgxpool.Pool, wantStatus string) {
@@ -141,7 +170,7 @@ func (f operatorDagFixture) assertDagStatus(t *testing.T, ctx context.Context, p
 	assert.Equal(t, wantStatus, runStatus, "v1_runs_olap.readable_status")
 }
 
-func TestOperatorDAG_ChildrenConvergeStatus(t *testing.T) {
+func TestOperatorDAG_StatusComesFromOrchestratorNotChildren(t *testing.T) {
 	basePool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -153,9 +182,8 @@ func TestOperatorDAG_ChildrenConvergeStatus(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
-	f := seedOperatorDag(t, ctx, repo, 100, 2)
+	f := seedOperatorDag(t, ctx, repo, 100)
 
-	// the DAG row exists, plus a self-mapping junction row for the orchestrator's events
 	var selfMappings int
 	err := pool.QueryRow(ctx, `
 		SELECT COUNT(*)
@@ -170,7 +198,6 @@ func TestOperatorDAG_ChildrenConvergeStatus(t *testing.T) {
 	childA := f.createChild(t, ctx, repo, 101)
 	childB := f.createChild(t, ctx, repo, 102)
 
-	// children must not appear as standalone runs
 	var childRuns int
 	err = pool.QueryRow(ctx, `
 		SELECT COUNT(*)
@@ -180,19 +207,19 @@ func TestOperatorDAG_ChildrenConvergeStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, childRuns, "children should not be v1_runs_olap rows")
 
+	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
+	f.assertDagStatus(t, ctx, pool, "RUNNING")
+
+	// every child completing must NOT complete the DAG: only the orchestrator can do that
 	f.applyChildEvents(t, ctx, repo, []sqlcv1.CreateTaskEventsOLAPParams{
 		childA.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
 		childA.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0),
-	})
-
-	// one of two children finished: the DAG is still running
-	f.assertDagStatus(t, ctx, pool, "RUNNING")
-
-	f.applyChildEvents(t, ctx, repo, []sqlcv1.CreateTaskEventsOLAPParams{
 		childB.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
 		childB.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0),
 	})
+	f.assertDagStatus(t, ctx, pool, "RUNNING")
 
+	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
 	f.assertDagStatus(t, ctx, pool, "COMPLETED")
 }
 
@@ -208,14 +235,9 @@ func TestOperatorDAG_OrchestratorFailureOverride(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
-	// total_tasks = 3, but only one child will ever be created: the operator died mid-run
-	f := seedOperatorDag(t, ctx, repo, 200, 3)
+	f := seedOperatorDag(t, ctx, repo, 200)
 
-	// a non-reset RUNNING event (orchestrator started) moves the DAG out of QUEUED
-	result, err := repo.ApplyOrchestratorEventsToDAGs(ctx, f.tenantId, []OrchestratorDAGStatusUpdate{
-		{DagId: f.dagId, DagInsertedAt: f.dagInsertedAt, ReadableStatus: sqlcv1.V1ReadableStatusOlapRUNNING},
-	})
-	require.NoError(t, err)
+	result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
 	require.Len(t, result.DAGRows, 1)
 	f.assertDagStatus(t, ctx, pool, "RUNNING")
 
@@ -224,34 +246,185 @@ func TestOperatorDAG_OrchestratorFailureOverride(t *testing.T) {
 		child.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
 	})
 
-	// orchestrator failed terminally (e.g. timed out) while the run is incomplete
-	result, err = repo.ApplyOrchestratorEventsToDAGs(ctx, f.tenantId, []OrchestratorDAGStatusUpdate{
-		{DagId: f.dagId, DagInsertedAt: f.dagInsertedAt, ReadableStatus: sqlcv1.V1ReadableStatusOlapFAILED},
-	})
-	require.NoError(t, err)
+	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0))
 	require.Len(t, result.DAGRows, 1)
 	f.assertDagStatus(t, ctx, pool, "FAILED")
 
-	// a late child event recomputes the DAG status from counts; with only 1 of 3
-	// tasks created, the recompute must not downgrade the terminal status
+	// a late child event must not disturb the terminal status
 	f.applyChildEvents(t, ctx, repo, []sqlcv1.CreateTaskEventsOLAPParams{
 		child.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0),
 	})
 	f.assertDagStatus(t, ctx, pool, "FAILED")
 
-	// a non-reset RUNNING event must not revive a failed DAG
-	result, err = repo.ApplyOrchestratorEventsToDAGs(ctx, f.tenantId, []OrchestratorDAGStatusUpdate{
-		{DagId: f.dagId, DagInsertedAt: f.dagInsertedAt, ReadableStatus: sqlcv1.V1ReadableStatusOlapRUNNING},
-	})
-	require.NoError(t, err)
+	// a stale RUNNING from the same attempt must not revive a failed DAG
+	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
 	require.Empty(t, result.DAGRows)
 	f.assertDagStatus(t, ctx, pool, "FAILED")
 
-	// a retry (user replay) resets the DAG back to RUNNING
-	result, err = repo.ApplyOrchestratorEventsToDAGs(ctx, f.tenantId, []OrchestratorDAGStatusUpdate{
-		{DagId: f.dagId, DagInsertedAt: f.dagInsertedAt, ReadableStatus: sqlcv1.V1ReadableStatusOlapRUNNING, IsReset: true},
-	})
+	// a retry is a strictly newer attempt, so it resets the DAG
+	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapQUEUED, 1))
+	require.Len(t, result.DAGRows, 1)
+	f.assertDagStatus(t, ctx, pool, "QUEUED")
+
+	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 1))
+	f.assertDagStatus(t, ctx, pool, "RUNNING")
+
+	// a straggler from the previous attempt can no longer clobber the new one
+	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0))
+	require.Empty(t, result.DAGRows)
+	f.assertDagStatus(t, ctx, pool, "RUNNING")
+}
+
+// Keying admission on the attempt number is what makes delivery order irrelevant, which is what
+// lets these updates run without an advisory lock on the workflow run.
+func TestOperatorDAG_OrchestratorEventsAreOrderIndependent(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	testCases := []struct {
+		name  string
+		dagId int64
+		apply func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt
+	}{
+		{
+			name:  "reversed",
+			dagId: 310,
+			apply: func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt {
+				return []OrchestratorDAGStatusUpdateOpt{
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapQUEUED, 1),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+				}
+			},
+		},
+		{
+			name:  "interleaved with duplicates",
+			dagId: 320,
+			apply: func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt {
+				return []OrchestratorDAGStatusUpdateOpt{
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapQUEUED, 1),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := seedOperatorDag(t, ctx, repo, tc.dagId)
+
+			// one batch per update, so each is its own transaction like real delivery
+			for _, update := range tc.apply(f) {
+				f.applyOrchestratorEvents(t, ctx, repo, update)
+			}
+
+			f.assertDagStatus(t, ctx, pool, "RUNNING")
+		})
+	}
+}
+
+// Only one update per DAG reaches the query, so a batch must collapse to the highest update, not the last.
+func TestOperatorDAG_HighestUpdateInBatchWins(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	testCases := []struct {
+		name    string
+		want    string
+		dagId   int64
+		updates func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt
+	}{
+		{
+			name:  "terminal outcome is not discarded by a later same-attempt RUNNING",
+			dagId: 330,
+			want:  "FAILED",
+			updates: func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt {
+				return []OrchestratorDAGStatusUpdateOpt{
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+				}
+			},
+		},
+		{
+			name:  "newer attempt beats an earlier attempt's terminal outcome",
+			dagId: 340,
+			want:  "RUNNING",
+			updates: func(f operatorDagFixture) []OrchestratorDAGStatusUpdateOpt {
+				return []OrchestratorDAGStatusUpdateOpt{
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+					f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0),
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := seedOperatorDag(t, ctx, repo, tc.dagId)
+
+			f.applyOrchestratorEvents(t, ctx, repo, tc.updates(f)...)
+			f.assertDagStatus(t, ctx, pool, tc.want)
+		})
+	}
+}
+
+func TestOperatorDAG_UpdatesIgnoreWorkflowRunAdvisoryLock(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	// held for the whole test, so nothing below may depend on taking it
+	dagExternalId := uuid.New()
+
+	blocker, err := pool.Begin(ctx)
 	require.NoError(t, err)
+	defer blocker.Rollback(ctx) // nolint: errcheck
+
+	_, err = blocker.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", workflowRunAdvisoryInt(dagExternalId))
+	require.NoError(t, err)
+
+	f := seedOperatorDagWithExternalId(t, ctx, repo, 500, dagExternalId)
+	f.assertDagStatus(t, ctx, pool, "QUEUED")
+
+	child := f.createChild(t, ctx, repo, 501)
+
+	f.applyChildEvents(t, ctx, repo, []sqlcv1.CreateTaskEventsOLAPParams{
+		child.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+	})
+
+	result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
 	require.Len(t, result.DAGRows, 1)
 	f.assertDagStatus(t, ctx, pool, "RUNNING")
+
+	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0))
+	require.Len(t, result.DAGRows, 1)
+	f.assertDagStatus(t, ctx, pool, "FAILED")
 }
