@@ -11,7 +11,8 @@ ALTER TABLE v1_dags_olap
 -- FROM v1_dag_to_task_olap dt
 -- WHERE
 --     (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
---     AND (dt.dag_id, dt.dag_inserted_at) = (dt.task_id, dt.task_inserted_at);
+--     AND (dt.dag_id, dt.dag_inserted_at) = (dt.task_id, dt.task_inserted_at)
+--     AND d.inserted_at > << timestamp here >>;
 -- +goose StatementEnd
 
 -- +goose Down
