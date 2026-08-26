@@ -41,8 +41,17 @@ runs:
 
     - name: Build Hatchet embedded runner
       shell: bash
-      working-directory: hack/embedded
-      run: go build -o "$RUNNER_TEMP/hatchet-embedded-ci" .
+      run: |
+        BUILD_DIR="$RUNNER_TEMP/hatchet-embedded-build"
+        rm -rf "$BUILD_DIR"
+        cp -R hack/embedded "$BUILD_DIR"
+        cd "$BUILD_DIR"
+
+        # retarget the relative replace and re-tidy so the build survives
+        # root go.mod drift (e.g. PR merge commits with a newer main)
+        go mod edit -replace "github.com/hatchet-dev/hatchet=$GITHUB_WORKSPACE"
+        go mod tidy
+        go build -o "$RUNNER_TEMP/hatchet-embedded-ci" .
 
     - name: Start Hatchet embedded
       shell: bash
