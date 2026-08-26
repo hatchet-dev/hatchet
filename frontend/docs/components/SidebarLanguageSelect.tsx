@@ -66,7 +66,7 @@ export function SidebarLanguageSelect() {
           <Select.Content
             position="popper"
             sideOffset={6}
-            className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-fd-border bg-fd-popover font-mono text-fd-popover-foreground shadow-lg"
+            className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-fd-border bg-fd-popover text-fd-popover-foreground shadow-lg"
           >
             <Select.Viewport className="p-1">
               {DOC_LANGUAGES.map((lang) => (

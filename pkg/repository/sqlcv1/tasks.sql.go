@@ -1663,7 +1663,15 @@ SELECT
     display_name,
     workflow_version_id,
     step_id,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -1677,19 +1685,20 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID                 int64              `json:"id"`
-	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID         uuid.UUID          `json:"external_id"`
-	RetryCount         int32              `json:"retry_count"`
-	WorkflowID         uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-	StepReadableID     string             `json:"step_readable_id"`
-	ActionID           string             `json:"action_id"`
-	DisplayName        string             `json:"display_name"`
-	WorkflowVersionID  uuid.UUID          `json:"workflow_version_id"`
-	StepID             uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator  bool               `json:"is_dag_orchestrator"`
+	ID                            int64              `json:"id"`
+	InsertedAt                    pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID                    uuid.UUID          `json:"external_id"`
+	RetryCount                    int32              `json:"retry_count"`
+	WorkflowID                    uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID                 uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata            []byte             `json:"additional_metadata"`
+	StepReadableID                string             `json:"step_readable_id"`
+	ActionID                      string             `json:"action_id"`
+	DisplayName                   string             `json:"display_name"`
+	WorkflowVersionID             uuid.UUID          `json:"workflow_version_id"`
+	StepID                        uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator             bool               `json:"is_dag_orchestrator"`
+	WasTriggeredByDagOrchestrator bool               `json:"was_triggered_by_dag_orchestrator"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1715,6 +1724,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsDagOrchestrator,
+			&i.WasTriggeredByDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}

@@ -3334,6 +3334,7 @@ type V1DagsOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
 }
 
 type V1DurableEventLogBranchPoint struct {
