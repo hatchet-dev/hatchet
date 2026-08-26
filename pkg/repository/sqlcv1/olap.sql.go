@@ -3050,7 +3050,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key
+    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key, d.latest_retry_count
 FROM
     v1_dags_olap d
 JOIN
@@ -3074,6 +3074,7 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid u
 		&i.ParentTaskExternalID,
 		&i.TotalTasks,
 		&i.IdempotencyKey,
+		&i.LatestRetryCount,
 	)
 	return &i, err
 }
@@ -3569,6 +3570,14 @@ WITH tenants AS (
             FROM
                 distinct_dags dd
         )
+        -- see UpdateDAGStatusesFromMQ
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_dag_to_task_olap dt
+            WHERE
+                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
+        )
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -3623,9 +3632,6 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -3832,11 +3838,23 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS dag_id,
         UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
-    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key
-    FROM v1_dags_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT dag_inserted_at, dag_id, tenant_id
-        FROM inputs
+    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count
+    FROM v1_dags_olap d
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT dag_inserted_at, dag_id, tenant_id
+            FROM inputs
+        )
+    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
+    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
+    -- this classifies correctly even for dags created by a pod that predates this change
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE
+            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
     )
     ORDER BY inserted_at, id
     FOR UPDATE
@@ -3870,9 +3888,6 @@ WITH inputs AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -3957,31 +3972,46 @@ WITH inputs AS (
         UNNEST($1::BIGINT[]) AS dag_id,
         UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($3::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST($4::BOOLEAN[]) AS is_reset
+        UNNEST($4::INTEGER[]) AS retry_count
 ), locked_dags AS (
     SELECT
         d.id,
         d.inserted_at,
         d.tenant_id,
         i.new_readable_status,
-        i.is_reset
+        i.retry_count AS new_retry_count
     FROM v1_dags_olap d
     JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE d.tenant_id = $5::UUID
+    WHERE
+        d.tenant_id = $5::UUID
+        AND (
+            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+            -- from the previous attempt can no longer clobber it
+            (
+                i.retry_count > d.latest_retry_count
+            ) OR
+            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+            (
+                i.retry_count = d.latest_retry_count
+                AND v1_status_to_priority(i.new_readable_status) > v1_status_to_priority(d.readable_status)
+            ) OR
+            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+            -- RUNNING by priority, so it needs an explicit escape hatch
+            (
+                i.retry_count = d.latest_retry_count
+                AND d.readable_status = 'EVICTED'
+                AND i.new_readable_status != 'EVICTED'
+            )
+        )
     ORDER BY d.inserted_at, d.id
-    FOR UPDATE
+    FOR UPDATE OF d
 ), updated_dags AS (
     UPDATE v1_dags_olap d
-    SET readable_status = ld.new_readable_status
+    SET
+        readable_status = ld.new_readable_status,
+        latest_retry_count = ld.new_retry_count
     FROM locked_dags ld
-    WHERE
-        (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
-        AND d.readable_status != ld.new_readable_status
-        AND (
-            (ld.new_readable_status IN ('FAILED', 'CANCELLED') AND d.readable_status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND ld.is_reset AND d.readable_status IN ('QUEUED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND NOT ld.is_reset AND d.readable_status = 'QUEUED')
-        )
+    WHERE (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
     RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
 )
 SELECT
@@ -3998,7 +4028,7 @@ type UpdateDAGStatusesFromOrchestratorEventsParams struct {
 	Dagids         []int64                `json:"dagids"`
 	Daginsertedats []pgtype.Timestamptz   `json:"daginsertedats"`
 	Statuses       []V1ReadableStatusOlap `json:"statuses"`
-	Isresets       []bool                 `json:"isresets"`
+	Retrycounts    []int32                `json:"retrycounts"`
 	Tenantid       uuid.UUID              `json:"tenantid"`
 }
 
@@ -4011,17 +4041,14 @@ type UpdateDAGStatusesFromOrchestratorEventsRow struct {
 	WorkflowID     uuid.UUID            `json:"workflow_id"`
 }
 
-// Applies orchestrator task lifecycle events to their operator-managed DAGs. The orchestrator
-// has no v1_tasks_olap row, so its terminal failures must be forced onto the DAG directly:
-// children may never be created, in which case count-based derivation cannot converge. Retry
-// events reset a terminal DAG back to RUNNING; non-reset RUNNING events only move a DAG out of
-// QUEUED. Completion is never applied here — it must come from child task counting.
+// important: need to dedupe the dags before calling this query to make
+// sure each dag only gets one candidate update per call
 func (q *Queries) UpdateDAGStatusesFromOrchestratorEvents(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromOrchestratorEventsParams) ([]*UpdateDAGStatusesFromOrchestratorEventsRow, error) {
 	rows, err := db.Query(ctx, updateDAGStatusesFromOrchestratorEvents,
 		arg.Dagids,
 		arg.Daginsertedats,
 		arg.Statuses,
-		arg.Isresets,
+		arg.Retrycounts,
 		arg.Tenantid,
 	)
 	if err != nil {
