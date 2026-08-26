@@ -394,7 +394,14 @@ func ToWorkflowRunDetails(
 	opts ...PayloadOption,
 ) (gen.V1WorkflowRunDetails, error) {
 	o := applyPayloadOptions(opts)
-	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
+
+	var duration *int
+
+	if workflowRun.StartedAt.Valid && workflowRun.FinishedAt.Valid {
+		durInt := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
+		duration = &durInt
+	}
+
 	input := jsonToMap(workflowRun.Input)
 	output := emptyJSON()
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
@@ -417,7 +424,7 @@ func ToWorkflowRunDetails(
 		AdditionalMetadata:   additionalMetadataPtr,
 		CreatedAt:            &workflowRun.CreatedAt.Time,
 		DisplayName:          workflowRun.DisplayName,
-		Duration:             &duration,
+		Duration:             duration,
 		ErrorMessage:         &workflowRun.ErrorMessage,
 		FinishedAt:           &workflowRun.FinishedAt.Time,
 		ParentTaskExternalId: workflowRun.ParentTaskExternalId,
