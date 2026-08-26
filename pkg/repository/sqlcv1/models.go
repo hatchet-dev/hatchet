@@ -3332,7 +3332,6 @@ type V1DagsOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
-	IsOperatorRun        bool                 `json:"is_operator_run"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
 }
 

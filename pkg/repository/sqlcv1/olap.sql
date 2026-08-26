@@ -1025,14 +1025,23 @@ WITH inputs AS (
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
     SELECT *
-    FROM v1_dags_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT dag_inserted_at, dag_id, tenant_id
-        FROM inputs
+    FROM v1_dags_olap d
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT dag_inserted_at, dag_id, tenant_id
+            FROM inputs
+        )
+    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
+    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
+    -- this classifies correctly even for dags created by a pod that predates this change
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE
+            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
     )
-    -- don't need to update operator dags because they'll be updated by the
-    -- separate UpdateDAGStatusesFromOrchestratorEvents
-    AND NOT is_operator_run
     ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
@@ -1163,7 +1172,14 @@ WITH tenants AS (
             FROM
                 distinct_dags dd
         )
-        AND NOT d.is_operator_run
+        -- see UpdateDAGStatusesFromMQ
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_dag_to_task_olap dt
+            WHERE
+                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
+        )
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
