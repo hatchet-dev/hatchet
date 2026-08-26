@@ -49,6 +49,11 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 # !!
 
 
+@dag_workflow.on_failure_task()
+def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"status": "should not run"}
+
+
 @dag_workflow.task(parents=[step1, step3])
 async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print(
