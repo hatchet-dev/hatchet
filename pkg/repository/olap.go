@@ -1997,8 +1997,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		}
 	}
 
-	// In the same transaction as the events themselves, so an orchestrator's outcome can't be
-	// consumed and then dropped if the batch fails afterwards.
+	// same transaction as the events, so an outcome can't be consumed and then dropped on failure
 	orchestratorDAGRows, err := r.applyOrchestratorEventsToDAGs(ctx, tx, tenantId, orchestratorUpdates)
 
 	if err != nil {
@@ -2504,9 +2503,8 @@ type OrchestratorDAGStatusUpdateOpt struct {
 	RetryCount     int32
 }
 
-// dedupeOrchestratorUpdates picks one update per DAG the same way prepareStatusUpdateBatch does for tasks:
-// highest retry count wins, then highest status priority. Deduping on arrival order instead would let
-// a stale RUNNING in the same batch discard a terminal outcome the query would otherwise have applied.
+// Picks one update per DAG like prepareStatusUpdateBatch does for tasks: highest retry count wins, then
+// highest status priority. Going by arrival order would let a stale RUNNING discard a terminal outcome.
 func dedupeOrchestratorUpdates(updates []OrchestratorDAGStatusUpdateOpt) []OrchestratorDAGStatusUpdateOpt {
 	winners := make(map[IdInsertedAt]OrchestratorDAGStatusUpdateOpt, len(updates))
 	order := make([]IdInsertedAt, 0, len(updates))
