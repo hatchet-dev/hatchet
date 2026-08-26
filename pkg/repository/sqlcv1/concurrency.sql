@@ -176,8 +176,17 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
             AND wcs_all.strategy_id = @strategyId::bigint
+            AND wcs_all.is_filled = FALSE
         ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
-        LIMIT @maxRuns::int
+        LIMIT (
+            SELECT @maxRuns::int - COUNT(*)::int
+            FROM v1_workflow_concurrency_slot wcs_all
+            WHERE
+                wcs_all.key = distinct_keys.key
+                AND wcs_all.tenant_id = @tenantId::uuid
+                AND wcs_all.strategy_id = @strategyId::bigint
+                AND wcs_all.is_filled = TRUE
+        )
     ) wsc ON true
 ), eligible_slots AS (
     SELECT
