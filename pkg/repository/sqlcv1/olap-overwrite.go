@@ -1218,14 +1218,6 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_dag_to_task_olap dt ON (i.id, i.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
-    -- operator DAGs never derive their status from children; see UpdateDAGStatusesFromMQ
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_dag_to_task_olap self
-        WHERE
-            (self.dag_id, self.dag_inserted_at) = (i.id, i.inserted_at)
-            AND (self.task_id, self.task_inserted_at) = (i.id, i.inserted_at)
-    )
     GROUP BY i.id, i.inserted_at, i.total_tasks
 ), dag_statuses AS (
     SELECT
