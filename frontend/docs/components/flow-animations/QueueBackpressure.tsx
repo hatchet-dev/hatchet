@@ -20,16 +20,16 @@ import styles from "./queuebackpressure.module.css";
  *
  * Beat 1 (calm) — two uploads trickle in and pass straight through the empty
  * tray onto the worker; backlog stays at 0.
- * Beat 2 (the flood) — ten uploads land in ~1.5s, far faster than the worker
- * drains them. The tray fills leftward, one slot per waiting task, and the
- * backlog readout climbs to 8.
- * Beat 3 (the payoff) — throughout, the worker holds exactly two tasks in
+ * Beat 2 (the flood) — a dozen uploads land in ~1.5s, far faster than the
+ * worker drains them. The tray fills leftward, one slot per waiting task, and
+ * the backlog readout climbs.
+ * Beat 3 (the payoff) — throughout, the worker holds at most five tasks in
  * flight, one per capacity slot, each with its own progress bar. It never
- * takes a third upload just because ten arrived; it pulls the head of the
+ * takes a sixth upload just because a dozen arrived; it pulls the head of the
  * queue only when a slot frees, the tray shuffles right, and the backlog
  * drains back to 0 — the same state the loop starts in.
  *
- * The schedule is a tiny FIFO simulation run once at module scope (two worker
+ * The schedule is a tiny FIFO simulation run once at module scope (five worker
  * slots, fixed service time), so every pull time, queue depth and shuffle is
  * derived data rather than hand-typed magic — and identical on the server, on
  * the poster frame, and on every loop iteration. The only randomness is a
@@ -40,10 +40,10 @@ import styles from "./queuebackpressure.module.css";
 // ─── Geometry (stage design units, 320 × 132 — wide inline composition) ────
 
 const STAGE_W = 320;
-const STAGE_H = 132;
+const STAGE_H = 160;
 
 /** Everything travels along one horizontal axis, left to right. */
-const AXIS_Y = 76;
+const AXIS_Y = 84;
 
 /** Upload source: a port on the left edge feeding the inbound lane. */
 const SRC_X = 10;
@@ -51,15 +51,16 @@ const SRC_X = 10;
 /** Queue tray: slot 0 is the head (nearest the worker); it fills leftward. */
 const HEAD_X = 174;
 const SLOT_PITCH = 13;
-const TRAY_TOP = 69;
-const TRAY_BOTTOM = 83;
+const TRAY_TOP = 77;
+const TRAY_BOTTOM = 91;
 const slotX = (depth: number) => HEAD_X - depth * SLOT_PITCH;
 
-/** Worker: one box, one row per capacity slot, each row a square + progress bar. */
-const CONCURRENCY = 2;
-const WORKER_BOX = { x: 228, y: 52, w: 50, h: 48 };
+/** Worker: one box, one row per capacity slot, each row a square + progress bar.
+    Five slots, matching the `slots` example in the surrounding prose. */
+const CONCURRENCY = 5;
+const WORKER_BOX = { x: 228, y: 50, w: 50, h: 68 };
 const RUN_X = 241;
-const RUN_YS = [64, 88] as const;
+const RUN_YS = [58, 71, 84, 97, 110] as const;
 const BAR_X = 250;
 const BAR_W = 20;
 const BAR_H = 2;
@@ -71,17 +72,17 @@ const EXIT_X = 298;
 
 const TRAVEL_IN = 650; // upload port → tail of the queue
 const PULL_MS = 420; // head of the queue → worker slot
-const PROC_MS = 1000; // one file processed on the worker
+const PROC_MS = 1400; // one file processed on the worker
 const SLOT_GAP = 100; // slot frees → next pull begins
 const SHUFFLE_MS = 150; // queue shuffles one slot toward the head
 const EXIT_MS = 460; // worker → off the right edge
 const FADE_MS = 260;
 const SPAWN_FADE = 140;
 
-/** Beat 2: ten uploads in a row, each one landing before the last is served. */
-const BURST_SIZE = 10;
+/** Beat 2: a dozen uploads in a row, arriving faster than five slots drain. */
+const BURST_SIZE = 12;
 const BURST_START = 3000;
-const BURST_GAP = 150;
+const BURST_GAP = 120;
 
 const jitter = createSeededRandom("queue-backpressure");
 
@@ -89,7 +90,7 @@ const SPAWNS: number[] = [
   200, // beat 1 — a calm pair, the pre-Bob steady state
   1500,
   ...Array.from({ length: BURST_SIZE }, (_, i) =>
-    Math.round(BURST_START + i * BURST_GAP + (jitter() - 0.5) * 60)
+    Math.round(BURST_START + i * BURST_GAP + (jitter() - 0.5) * 60),
   ),
 ];
 
@@ -120,7 +121,8 @@ const TASKS: Task[] = (() => {
     const arriveAt = spawnAt + TRAVEL_IN;
     // FIFO: the head of the queue goes to whichever slot frees first.
     let slot = 0;
-    for (let s = 1; s < CONCURRENCY; s++) if (slotFree[s] < slotFree[slot]) slot = s;
+    for (let s = 1; s < CONCURRENCY; s++)
+      if (slotFree[s] < slotFree[slot]) slot = s;
     const pullAt = Math.max(arriveAt, slotFree[slot]);
     const startAt = pullAt + PULL_MS;
     const endAt = startAt + PROC_MS;
@@ -155,9 +157,9 @@ const LAST_END = Math.max(...TASKS.map((t) => t.exitAt + FADE_MS));
 const DURATION = Math.ceil((LAST_END + 400) / 200) * 200;
 
 /**
- * Static frame: peak backlog. The tray is holding the burst, two more uploads
- * are still in the inbound lane, and the worker is at 2 of 2 — the whole
- * argument of the paragraph in a single frame.
+ * Static frame: peak backlog. The tray is holding the burst, more uploads are
+ * still in the inbound lane, and the worker is at 5 of 5 — the whole argument
+ * of the paragraph in a single frame.
  */
 const POSTER_TIME = TASKS[TASKS.length - 3].arriveAt + 60;
 
@@ -170,10 +172,22 @@ const POSTER_TIME = TASKS[TASKS.length - 3].arriveAt + 60;
 const taskTrack = (task: Task): FlowTrack => {
   const kfs: FlowKeyframe[] = [
     { t: task.spawnAt, x: SRC_X, y: AXIS_Y, opacity: 0, state: "inflight" },
-    { t: task.spawnAt + SPAWN_FADE, x: SRC_X + 8, y: AXIS_Y, opacity: 1, ease: "linear" },
+    {
+      t: task.spawnAt + SPAWN_FADE,
+      x: SRC_X + 8,
+      y: AXIS_Y,
+      opacity: 1,
+      ease: "linear",
+    },
   ];
   let depth = task.enterDepth;
-  kfs.push({ t: task.arriveAt, x: slotX(depth), y: AXIS_Y, ease: "linear", state: "queued" });
+  kfs.push({
+    t: task.arriveAt,
+    x: slotX(depth),
+    y: AXIS_Y,
+    ease: "linear",
+    state: "queued",
+  });
   task.shuffles.forEach((at, i) => {
     // Never overrun the next event, however tightly two pulls land together.
     const next = task.shuffles[i + 1] ?? task.pullAt;
@@ -184,10 +198,28 @@ const taskTrack = (task: Task): FlowTrack => {
   });
   kfs.push(
     { t: task.pullAt, x: slotX(0), y: AXIS_Y, ease: "hold" },
-    { t: task.startAt, x: RUN_X, y: RUN_YS[task.slot], ease: "inOut", state: "running" },
-    { t: task.endAt, x: RUN_X, y: RUN_YS[task.slot], ease: "hold", state: "done" },
+    {
+      t: task.startAt,
+      x: RUN_X,
+      y: RUN_YS[task.slot],
+      ease: "inOut",
+      state: "running",
+    },
+    {
+      t: task.endAt,
+      x: RUN_X,
+      y: RUN_YS[task.slot],
+      ease: "hold",
+      state: "done",
+    },
     { t: task.exitAt, x: EXIT_X, y: AXIS_Y, ease: "in" },
-    { t: task.exitAt + FADE_MS, x: EXIT_X + 6, y: AXIS_Y, opacity: 0, ease: "linear" }
+    {
+      t: task.exitAt + FADE_MS,
+      x: EXIT_X + 6,
+      y: AXIS_Y,
+      opacity: 0,
+      ease: "linear",
+    },
   );
   return defineTrack(`qbp-task-${task.index}`, kfs);
 };
@@ -219,7 +251,8 @@ const sampleLoad = (t: number): LoadFrame => {
 };
 
 const backlogText = (f: LoadFrame) => `backlog · ${f.backlog}`;
-const inFlightText = (f: LoadFrame) => `in flight · ${f.inFlight} / ${CONCURRENCY}`;
+const inFlightText = (f: LoadFrame) =>
+  `in flight · ${f.inFlight} / ${CONCURRENCY}`;
 
 /**
  * The two numbers that carry the argument — backlog under the tray, in-flight
@@ -281,7 +314,7 @@ const LiveLayer = () => {
         data-active={initial.backlog > 0 ? "true" : "false"}
         style={{
           left: `calc(var(--flow-u) * ${(TRAY_LEFT + TRAY_RIGHT) / 2})`,
-          top: `calc(var(--flow-u) * 110)`,
+          top: `calc(var(--flow-u) * 136)`,
         }}
       >
         {backlogText(initial)}
@@ -292,7 +325,7 @@ const LiveLayer = () => {
         data-full={initial.inFlight >= CONCURRENCY ? "true" : "false"}
         style={{
           left: `calc(var(--flow-u) * ${WORKER_BOX.x + WORKER_BOX.w / 2})`,
-          top: `calc(var(--flow-u) * 110)`,
+          top: `calc(var(--flow-u) * 136)`,
         }}
       >
         {inFlightText(initial)}
@@ -303,13 +336,27 @@ const LiveLayer = () => {
 
 // ─── Static chrome ─────────────────────────────────────────────────────────
 
-const stroke = { fill: "none", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" } as const;
-const fine = { fill: "none", strokeWidth: 1, vectorEffect: "non-scaling-stroke" } as const;
+const stroke = {
+  fill: "none",
+  strokeWidth: 1.5,
+  vectorEffect: "non-scaling-stroke",
+} as const;
+const fine = {
+  fill: "none",
+  strokeWidth: 1,
+  vectorEffect: "non-scaling-stroke",
+} as const;
 
 const Chrome = () => (
   <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
     {/* Upload port + inbound lane */}
-    <rect x={6} y={AXIS_Y - 2} width={4} height={4} className={styles.chromeFill} />
+    <rect
+      x={6}
+      y={AXIS_Y - 2}
+      width={4}
+      height={4}
+      className={styles.chromeFill}
+    />
     <line
       x1={14}
       y1={AXIS_Y}
@@ -406,7 +453,10 @@ const StageLabel = ({
 }) => (
   <div
     className={`${styles.stageLabel} ${anchor === "left" ? styles.anchorLeft : ""}`}
-    style={{ left: `calc(var(--flow-u) * ${x})`, top: `calc(var(--flow-u) * ${y})` }}
+    style={{
+      left: `calc(var(--flow-u) * ${x})`,
+      top: `calc(var(--flow-u) * ${y})`,
+    }}
   >
     {children}
   </div>
@@ -415,10 +465,10 @@ const StageLabel = ({
 // ─── Export ────────────────────────────────────────────────────────────────
 
 const ARIA_LABEL =
-  "Animated diagram of a task queue absorbing a burst of uploads. Upload tasks arrive faster than the worker can process them, so they pile up in the queue as backlog instead of hitting the worker all at once. The worker pulls the head of the queue only when one of its two slots frees, so it never runs more than two files at a time, and the backlog drains at the worker's own pace.";
+  "Animated diagram of a task queue absorbing a burst of uploads. Upload tasks arrive faster than the worker can process them, so they pile up in the queue as backlog instead of hitting the worker all at once. The worker pulls the head of the queue only when one of its five slots frees, so it never runs more than five files at a time, and the backlog drains at the worker's own pace.";
 
 const CAPTION =
-  "The queue absorbs the burst: uploads pile up as backlog while the worker keeps to the two tasks it can run at a time.";
+  "The queue absorbs the burst: uploads pile up as backlog while the worker keeps to the five tasks its slots allow.";
 
 export const QueueBackpressure = ({
   style,
