@@ -506,6 +506,9 @@ func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) in
 	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
 		return cancelInProgressCompare
 	}
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST {
+		return cancelExceptCompare
+	}
 	return priorityCompare
 }
 
@@ -550,10 +553,13 @@ func decideCancelExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
 	}
 	// somewhat awkward here, but we want to keep the first elements (because oldest-first comparator),
 	// so we need to pop and then reinsert.
-	if sq.queued.len() > int(sq.maxRuns) {
+	// maxRuns is clamped to 0 here to guard against a negative value (e.g. from data written before
+	// MaxRuns positivity validation was enforced) producing an out-of-range slice index below.
+	maxRuns := max(0, int(sq.maxRuns))
+	if sq.queued.len() > maxRuns {
 		popped := sq.queued.pop(sq.queued.len())
-		toCancel = popped[sq.maxRuns:]
-		for _, s := range popped[:sq.maxRuns] {
+		toCancel = popped[maxRuns:]
+		for _, s := range popped[:maxRuns] {
 			sq.queued.insert(s)
 		}
 	}

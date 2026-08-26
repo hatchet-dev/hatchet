@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 
@@ -27,7 +27,7 @@ class ConcurrencyExpression(BaseModel):
     """
 
     expression: str
-    max_runs: int
+    max_runs: int = Field(gt=0)
     limit_strategy: ConcurrencyLimitStrategy
 
     def to_proto(self) -> Concurrency:
