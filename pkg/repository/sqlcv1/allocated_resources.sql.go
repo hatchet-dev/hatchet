@@ -95,7 +95,8 @@ type CountAllocatedResourcesByTenantRow struct {
 // scheduled_run_count: pending scheduled refs only (not deleted, and no
 // WorkflowRunTriggeredBy.scheduledId — fired runs are excluded).
 // webhook_count: row count on v1_incoming_webhook.
-// NULL tenantIds counts every tenant on the shard; otherwise only those IDs.
+// NULL tenantIds drops the tenant filter (hourly shard-wide collect).
+// The result is still one row per tenant, not a summed shard total.
 func (q *Queries) CountAllocatedResourcesByTenant(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*CountAllocatedResourcesByTenantRow, error) {
 	rows, err := db.Query(ctx, countAllocatedResourcesByTenant, tenantids)
 	if err != nil {

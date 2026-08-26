@@ -147,8 +147,9 @@ type WorkflowScheduleRepository interface {
 	DeleteInvalidCron(ctx context.Context, id uuid.UUID) error
 
 	// CountAllocatedResourcesByTenant returns live cron, pending schedule, and
-	// incoming-webhook counts grouped by tenant. A nil/empty tenantIds slice
-	// counts every tenant on this shard.
+	// incoming-webhook counts grouped by tenant (one row per tenant). A
+	// nil/empty tenantIds slice is an unfiltered shard scan for the hourly
+	// collect; it does not sum tenants together.
 	CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.CountAllocatedResourcesByTenantRow, error)
 
 	// RegisterAllocatedResourceChangeCallback runs after a successful create,
