@@ -434,11 +434,11 @@ WITH selected_retry_count AS (
     LIMIT 1
 ), error_message AS (
     SELECT
-        COALESCE(error_message, additional__event_message) AS error_message
+        error_message
     FROM
         relevant_events
     WHERE
-        readable_status IN ('FAILED', 'CANCELLED')
+        readable_status = 'FAILED'
     ORDER BY
         event_timestamp DESC
     LIMIT 1
@@ -1634,13 +1634,13 @@ WITH runs AS (
     JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
 ), error_message AS (
     SELECT
-        COALESCE(e.error_message, e.additional__event_message) AS error_message
+        e.error_message
     FROM
         relevant_events e
     WHERE
-        e.readable_status IN ('FAILED', 'CANCELLED')
+        e.readable_status = 'FAILED'
     ORDER BY
-        e.retry_count DESC, e.event_timestamp DESC
+        e.retry_count DESC
     LIMIT 1
 ), output_event_external_id AS (
     SELECT
