@@ -620,10 +620,6 @@ WHERE
     wsc.workflow_run_id = sr.workflow_run_id;
 
 -- name: RunParentCancelExceptNewest :exec
--- Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST: fill the oldest
--- maxRuns eligible runs, never evict an already-admitted run. "Except newest" only changes what
--- happens to *tasks* that don't get admitted (RunChildCancelExceptNewest spares the newest maxRuns
--- of those instead of cancelling them outright) - the admission policy itself doesn't change.
 WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM v1_workflow_concurrency_slot

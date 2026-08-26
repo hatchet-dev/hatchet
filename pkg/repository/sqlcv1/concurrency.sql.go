@@ -1625,10 +1625,6 @@ type RunParentCancelExceptNewestParams struct {
 	Maxruns    int32     `json:"maxruns"`
 }
 
-// Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST: fill the oldest
-// maxRuns eligible runs, never evict an already-admitted run. "Except newest" only changes what
-// happens to *tasks* that don't get admitted (RunChildCancelExceptNewest spares the newest maxRuns
-// of those instead of cancelling them outright) - the admission policy itself doesn't change.
 func (q *Queries) RunParentCancelExceptNewest(ctx context.Context, db DBTX, arg RunParentCancelExceptNewestParams) error {
 	_, err := db.Exec(ctx, runParentCancelExceptNewest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
 	return err

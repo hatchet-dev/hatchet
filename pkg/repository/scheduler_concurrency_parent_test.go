@@ -19,30 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// This file exercises the OLD (SQL-based) scheduler's parent/child concurrency mechanism -
-// ParentStrategyID / RunParentX / RunChildX in scheduler_concurrency.go - directly against a real
-// Postgres database.
-//
-// This is the ONLY way to reach that code path today. It is NOT reachable via any modern SDK
-// (Python, TypeScript, Go v1, Ruby): the v1 admin server's CreateStepConcurrency insert
-// (pkg/repository/sqlcv1/workflows.sql, "CreateStepConcurrency") never sets parent_strategy_id.
-// parent_strategy_id is only ever populated by the legacy create_v1_step_concurrency() trigger
-// (sql/schema/v1-core.sql), which fires off the deprecated v0 Workflow.concurrencyGroupExpression
-// column - a path no current SDK's `hatchet.workflow(concurrency=...)` call reaches, since it always
-// goes through the v1 CreateWorkflowVersionRequest (see runnables/workflow.py: even a single
-// ConcurrencyExpression is sent via the deprecated singular `concurrency` proto field, but
-// internal/services/admin/v1/server.go merges it into the same ordered `concurrency []CreateConcurrencyOpts`
-// chain as concurrency_arr, and pkg/repository/workflow.go's CreateStepConcurrency never sets
-// parent_strategy_id for any row created that way).
-//
-// Concretely: with a *single-task* workflow, the sdks/python/examples/concurrency_cancel_except_newest_with_parent_concurrency
-// example does NOT exercise this file's code path despite the name -
-// pkg/repository/workflow.go:mergeWorkflowConcurrencyOntoSingleTask folds workflow-level concurrency
-// onto the sole task instead, leaving parent_strategy_id NULL. With >1 task the merge doesn't fire and
-// the workflow's own declared strategy (only that one - a separate task-level `concurrency=[...]`
-// array is always independent, parent_strategy_id NULL regardless of task count) does get a real
-// parent_strategy_id, exercising this file's code path end to end.
-
 func createConcurrencyRepositoryForTest(pool *pgxpool.Pool) *ConcurrencyRepositoryImpl {
 	logger := zerolog.New(io.Discard)
 
@@ -58,29 +34,12 @@ func createConcurrencyRepositoryForTest(pool *pgxpool.Pool) *ConcurrencyReposito
 	}
 }
 
-// seedParentChildConcurrency creates a real v1_workflow_concurrency ("parent") row and a matching
-// v1_step_concurrency ("child") row with parent_strategy_id set - the shape the legacy
-// create_v1_step_concurrency() trigger produces, and the only shape that ever exercises
-// strategy.ParentStrategyID.Valid in scheduler_concurrency.go. The trigger always mirrors the same
-// max_concurrency onto both rows (sql/schema/v1-core.sql: `NEW."maxRuns"` is used for both the
-// parent INSERT and every child INSERT), and RunConcurrencyStrategy's parent-branch calls
-// (RunParentGroupRoundRobin, RunParentCancelInProgress, RunParentCancelNewest, ...) all pass the
-// CHILD strategy's MaxConcurrency as the parent admission limit - never the parent row's own stored
-// max_concurrency - so this fixture keeps both values equal, matching that invariant.
 func seedParentChildConcurrency(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, strategy string, maxRuns int32) (workflowID, workflowVersionID uuid.UUID, parentStrategyID, childStrategyID int64) {
 	t.Helper()
 
 	workflowID = uuid.New()
 	workflowVersionID = uuid.New()
 
-	// The child row must exist before the parent row, because v1_workflow_concurrency.child_strategy_ids
-	// (populated by the real create_v1_step_concurrency() trigger with the ids of the child rows it just
-	// created) cannot be left NULL or empty here: after_v1_concurrency_slot_insert_function's
-	// ARRAY_AGG(DISTINCT wc.child_strategy_ids) rejects both a null array ("cannot accumulate null
-	// arrays") and an empty array ("cannot accumulate empty arrays") when aggregating this BIGINT[]
-	// column, since it can't determine the resulting array's dimensionality. So: create the child
-	// first (parent_strategy_id NULL), then the parent (with a real, non-empty child_strategy_ids),
-	// then link the child to it.
 	err := pool.QueryRow(ctx, `
 		INSERT INTO v1_step_concurrency (workflow_id, workflow_version_id, step_id, strategy, expression, tenant_id, max_concurrency)
 		VALUES ($1, $2, $3, $4::v1_concurrency_strategy, 'input.group', $5, $6)
@@ -101,16 +60,6 @@ func seedParentChildConcurrency(t *testing.T, ctx context.Context, pool *pgxpool
 	return workflowID, workflowVersionID, parentStrategyID, childStrategyID
 }
 
-// insertParentedConcurrencySlot inserts one task-level concurrency slot for a brand-new workflow
-// run, gated by the given parent+child strategy pair - mirroring one `aio_run()` call in the Python
-// "with_parent_concurrency" examples, except with a real parent_strategy_id so the fixture actually
-// reaches the code under test. Inserting with parent_strategy_id set fires
-// after_v1_concurrency_slot_insert_function(), which auto-creates the matching (initially unfilled)
-// v1_workflow_concurrency_slot admission-gate row for this run.
-//
-// If isFilled is true, both the task-level slot and its just-created parent admission-gate row are
-// marked filled, simulating a run that was already admitted and is actively executing (i.e. the
-// "occupying" run in the Python examples).
 func insertParentedConcurrencySlot(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID, workflowID, workflowVersionID uuid.UUID, parentStrategyID, childStrategyID, taskID int64, insertedAt time.Time, isFilled bool) uuid.UUID {
 	t.Helper()
 
@@ -156,23 +105,6 @@ func remainingConcurrencySlotTaskIDs(t *testing.T, ctx context.Context, pool *pg
 	return ids
 }
 
-// TestCancelExceptNewestWithParentStrategy_SinglePollKeepsNewestQueued is a direct repro of the gap
-// this file documents above: RunCancelExceptNewest's parent branch (runCancelExceptNewest in
-// scheduler_concurrency.go) currently calls RunParentCancelNewest/RunChildCancelNewest - plain
-// CANCEL_NEWEST semantics - because RunParentCancelExceptNewest/RunChildCancelExceptNewest don't
-// exist yet. Under CANCEL_NEWEST, every queued run that doesn't fit is cancelled outright, including
-// the newest one. CANCEL_EXCEPT_NEWEST must instead leave the single newest queued run alone (still
-// queued, to be promoted once the running slot frees), cancelling only the runs strictly older than
-// it (and older than what's already running).
-//
-// One task (100) is seeded already running (both its parent and child slots filled). Ten more
-// (101..110) are seeded queued, in arrival order, competing for the same maxRuns=1 group. A single
-// call to RunConcurrencyStrategy must cancel 101..109 and leave the running task (100) and the
-// newest queued task (110) untouched.
-//
-// This currently FAILS: task 110 gets cancelled along with the rest, because the parent branch is
-// still wired to CANCEL_NEWEST. It will pass once RunParentCancelExceptNewest/RunChildCancelExceptNewest
-// are implemented with real "except newest" semantics.
 func TestCancelExceptNewestWithParentStrategy_SinglePollKeepsNewestQueued(t *testing.T) {
 	t.Parallel()
 
@@ -225,12 +157,6 @@ func TestCancelExceptNewestWithParentStrategy_SinglePollKeepsNewestQueued(t *tes
 		"the running run (100) and the newest queued run (110) must both still have a concurrency slot")
 }
 
-// TestCancelExceptNewestWithParentStrategy_PromotesSurvivorOnNextPoll extends the above: once the
-// occupying run's slot frees, the surviving newest queued run must be promoted on the very next
-// RunConcurrencyStrategy call - it should not need a fresh arrival on this key to be reconsidered.
-//
-// This currently fails at the same assertion as the single-poll test above (task 110 never survives
-// to be promoted, because it's cancelled on the first call).
 func TestCancelExceptNewestWithParentStrategy_PromotesSurvivorOnNextPoll(t *testing.T) {
 	t.Parallel()
 

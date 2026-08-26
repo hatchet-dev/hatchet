@@ -681,16 +681,6 @@ func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChil
 	return items, nil
 }
 
-// Used for CANCEL_EXCEPT_NEWEST scheduling when a strategy has a parent strategy. Same shape as
-// RunChildCancelNewest (a task only competes once its run's parent slot is admitted; everything not
-// eligible to run is a cancel candidate) except: unlike CANCEL_NEWEST, the newest maxRuns tasks for a
-// key are spared from cancellation even if their run was never admitted by the parent - they stay
-// queued rather than being cancelled outright, so they can run once the parent admits their run (or
-// be superseded by even newer arrivals on a later poll, since this is recomputed fresh every call).
-// The "newest maxRuns" ranking (all_slots_ranked/newest_queued below) deliberately does NOT join to
-// tmp_workflow_concurrency_slot like `slots` does: a task whose run was never admitted must still be
-// able to qualify as "newest" and be spared, or this strategy would degrade to plain CANCEL_NEWEST
-// for every task waiting on parent admission - exactly the bug this query exists to fix.
 const runChildCancelExceptNewest = `-- name: RunChildCancelExceptNewest :many
 WITH slots AS (
     SELECT
