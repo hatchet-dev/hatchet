@@ -1,0 +1,76 @@
+name: Hatchet Embedded
+description: >-
+  Start an Hatchet embedded engine built from this checkout (via
+  hatchet-embedded) with a bundled Postgres, then export DATABASE_URL and
+  HATCHET_CLIENT_* to the job env. Engine config can be tuned by setting
+  SERVER_* env vars on the step that uses this action.
+
+inputs:
+  pg-only:
+    description: Start only the embedded Postgres, no Hatchet engine
+    default: "false"
+  pg-port:
+    description: Port for the embedded Postgres
+    default: "5431"
+  pg-version:
+    description: Postgres major version
+    default: "17"
+  rabbitmq-url:
+    description: Use RabbitMQ at this URL instead of the Postgres message queue
+    default: ""
+  grpc-port:
+    description: Port for the engine gRPC server
+    default: "7070"
+  api-port:
+    description: Port for the REST API
+    default: "8080"
+  log-file:
+    description: File to write engine logs to
+    default: embedded.log
+
+runs:
+  using: composite
+  steps:
+    - name: Cache embedded Postgres binaries
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.embedded-postgres-go
+        key: embedded-postgres-${{ runner.os }}-${{ inputs.pg-version }}-${{ hashFiles('hack/embedded/go.sum') }}
+        restore-keys: |
+          embedded-postgres-${{ runner.os }}-${{ inputs.pg-version }}-
+
+    - name: Build Hatchet embedded runner
+      shell: bash
+      working-directory: hack/embedded
+      run: go build -o "$RUNNER_TEMP/hatchet-embedded-ci" .
+
+    - name: Start Hatchet embedded
+      shell: bash
+      run: |
+        ENV_FILE="$RUNNER_TEMP/hatchet-embedded.env"
+        FLAGS=(
+          --env-file "$ENV_FILE"
+          --pg-port "${{ inputs.pg-port }}"
+          --pg-version "${{ inputs.pg-version }}"
+          --grpc-port "${{ inputs.grpc-port }}"
+          --api-port "${{ inputs.api-port }}"
+        )
+        if [ "${{ inputs.pg-only }}" = "true" ]; then
+          FLAGS+=(--pg-only)
+        fi
+        if [ -n "${{ inputs.rabbitmq-url }}" ]; then
+          FLAGS+=(--rabbitmq-url "${{ inputs.rabbitmq-url }}")
+        fi
+
+        "$RUNNER_TEMP/hatchet-embedded-ci" "${FLAGS[@]}" > "${{ inputs.log-file }}" 2>&1 &
+
+        for _ in $(seq 1 150); do
+          [ -f "$ENV_FILE" ] && break
+          sleep 2
+        done
+        if [ ! -f "$ENV_FILE" ]; then
+          echo "Hatchet embedded did not become ready"
+          cat "${{ inputs.log-file }}"
+          exit 1
+        fi
+        cat "$ENV_FILE" >> "$GITHUB_ENV"

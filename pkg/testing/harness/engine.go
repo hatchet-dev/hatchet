@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 	"go.uber.org/goleak"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/random"
+	"github.com/hatchet-dev/hatchet/pkg/testing/embeddedpg"
 )
 
 func getEnvConfig() (string, bool, string, bool, bool) {
@@ -253,67 +253,13 @@ func startEngine() func() {
 	}
 }
 
-func startPostgres(ctx context.Context, pgVersion string) (string, func() error) {
-	// Find an available port for PostgreSQL
-	pgPort, err := findAvailablePort(5432)
+func startPostgres(_ context.Context, pgVersion string) (string, func() error) {
+	pg, err := embeddedpg.Start("user", "password", "test", 0, pgVersion)
 	if err != nil {
-		log.Fatalf("failed to find available port for postgres: %v", err)
+		log.Fatalf("failed to start embedded postgres: %v", err)
 	}
 
-	postgresContainer, err := postgres.Run(
-		ctx,
-		fmt.Sprintf("postgres:%s", pgVersion),
-		postgres.WithDatabase("test"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
-		testcontainers.WithHostPortAccess(pgPort),
-	)
-
-	if err != nil {
-		log.Fatalf("failed to start postgres container: %v", err)
-	}
-
-	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		log.Fatalf("failed to get connection string: %v", err)
-	}
-
-	// loop until the database is ready
-	for i := 0; i < 10; i++ {
-		var db *pgx.Conn
-		db, err = pgx.Connect(ctx, connStr)
-
-		if err != nil {
-			time.Sleep(time.Second * 2)
-			continue
-		}
-
-		// make sure we can ping the database
-		err = db.Ping(ctx)
-
-		if err != nil {
-			time.Sleep(time.Second * 2)
-			continue
-		}
-
-		db.Close(ctx)
-
-		return connStr, func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			defer cancel()
-			if err := postgresContainer.Terminate(ctx); err != nil {
-				return fmt.Errorf("failed to terminate postgres container: %w", err)
-			}
-			return nil
-		}
-	}
-
-	log.Fatalf("failed to connect to postgres container after 10 attempts: %v", err)
-
-	// this should never be reached
-	return "", func() error {
-		return nil
-	}
+	return pg.ConnStr, pg.Stop
 }
 
 func startRabbitMQ(ctx context.Context) (string, func() error) {
@@ -543,31 +489,6 @@ func setTestingKeysInEnv() {
 	_ = os.Setenv("SERVER_ENCRYPTION_MASTER_KEYSET", string(masterKeyBytes))
 	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET", string(privateEc256))
 	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET", string(publicEc256))
-}
-
-// findAvailablePort returns an available port starting from the given port
-// It will only attempt a maximum of 100 ports before giving up
-func findAvailablePort(startPort int) (int, error) {
-	port := startPort
-	maxAttempts := 100
-	// Use min to limit the search to either port+100 or 65535, whichever is smaller
-	maxPort := min(startPort+maxAttempts-1, 65535)
-
-	for port <= maxPort {
-		addr := ":" + strconv.Itoa(port)
-		listener, err := net.Listen("tcp", addr)
-
-		if err == nil {
-			// Port is available, close the listener and return the port
-			listener.Close()
-			return port, nil
-		}
-
-		// Try the next port
-		port++
-	}
-
-	return 0, fmt.Errorf("no available port found in range %d-%d", startPort, maxPort)
 }
 
 func WaitEngineReady(ctx context.Context, timeout time.Duration) error {

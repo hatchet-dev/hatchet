@@ -1,0 +1,92 @@
+name: Hatchet Embedded (released sidecar)
+description: >-
+  Download a released hatchet-embedded sidecar (the same binary the TypeScript
+  and Python SDKs download), start it with its bundled Postgres, and export
+  HATCHET_CLIENT_* to the job env. The release tag is exported as
+  HATCHET_ENGINE_VERSION.
+
+inputs:
+  version:
+    description: hatchet-embedded release tag, or "latest"
+    default: latest
+  log-file:
+    description: File to write engine logs to
+    default: embedded.log
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve sidecar release
+      id: resolve
+      shell: bash
+      run: |
+        TAG="${{ inputs.version }}"
+        if [ "$TAG" = "latest" ]; then
+          TAG=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/hatchet-dev/hatchet-embedded/releases/latest)
+          TAG="${TAG##*/}"
+        fi
+        case "$TAG" in
+          v*) ;;
+          *) echo "could not resolve hatchet-embedded release tag (got '$TAG')"; exit 1 ;;
+        esac
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+    - name: Cache sidecar binary
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.hatchet/embedded
+        key: hatchet-embedded-sidecar-${{ runner.os }}-${{ steps.resolve.outputs.tag }}
+
+    - name: Cache embedded Postgres binaries
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.embedded-postgres-go
+        key: embedded-postgres-${{ runner.os }}-sidecar-${{ steps.resolve.outputs.tag }}
+        restore-keys: |
+          embedded-postgres-${{ runner.os }}-sidecar-
+
+    - name: Download sidecar
+      shell: bash
+      run: |
+        TAG="${{ steps.resolve.outputs.tag }}"
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+        ASSET="hatchet-embedded-sidecar_${OS}_${ARCH}"
+        BIN="$HOME/.hatchet/embedded/$TAG/$ASSET"
+
+        if [ ! -x "$BIN" ]; then
+          mkdir -p "$(dirname "$BIN")"
+          curl -fsSL -o "$BIN" "https://github.com/hatchet-dev/hatchet-embedded/releases/download/$TAG/$ASSET"
+          curl -fsSL -o "$RUNNER_TEMP/sidecar-checksums.txt" "https://github.com/hatchet-dev/hatchet-embedded/releases/download/$TAG/checksums.txt"
+          (cd "$(dirname "$BIN")" && grep " ${ASSET}\$" "$RUNNER_TEMP/sidecar-checksums.txt" | sha256sum -c -)
+          chmod +x "$BIN"
+        fi
+
+        echo "SIDECAR_BIN=$BIN" >> "$GITHUB_ENV"
+        echo "HATCHET_ENGINE_VERSION=$TAG" >> "$GITHUB_ENV"
+
+    - name: Start sidecar
+      shell: bash
+      run: |
+        HANDSHAKE="$RUNNER_TEMP/hatchet-handshake.json"
+
+        # the sidecar exits when its stdin closes, so keep it open for the job
+        sleep infinity | "$SIDECAR_BIN" -handshake-file "$HANDSHAKE" > "${{ inputs.log-file }}" 2>&1 &
+
+        for _ in $(seq 1 150); do
+          [ -s "$HANDSHAKE" ] && break
+          sleep 2
+        done
+        if [ ! -s "$HANDSHAKE" ]; then
+          echo "hatchet-embedded sidecar did not become ready"
+          cat "${{ inputs.log-file }}"
+          exit 1
+        fi
+
+        {
+          echo "HATCHET_CLIENT_TOKEN=$(jq -r .token "$HANDSHAKE")"
+          echo "HATCHET_CLIENT_TENANT_ID=$(jq -r .tenant_id "$HANDSHAKE")"
+          echo "HATCHET_CLIENT_HOST_PORT=$(jq -r .grpc_address "$HANDSHAKE")"
+          echo "HATCHET_CLIENT_SERVER_URL=$(jq -r .api_url "$HANDSHAKE")"
+          echo "HATCHET_CLIENT_TLS_STRATEGY=none"
+        } >> "$GITHUB_ENV"

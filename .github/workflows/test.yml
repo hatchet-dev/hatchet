@@ -55,8 +55,10 @@ jobs:
         with:
           ruby-version: "3.2"
 
-      - name: Compose
-        run: docker compose up -d
+      - name: Start embedded Postgres
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          pg-only: "true"
 
       - name: Generate
         run: |
@@ -67,9 +69,6 @@ jobs:
       - name: Check for diff
         run: git diff --exit-code
 
-      - name: Teardown
-        run: docker compose down
-
   unit:
     runs-on: ubicloud-standard-8
     steps:
@@ -78,6 +77,14 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
+
+      - name: Cache embedded Postgres binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.embedded-postgres-go
+          key: embedded-postgres-${{ runner.os }}-unit-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            embedded-postgres-${{ runner.os }}-
 
       - name: Go deps
         run: go mod download
@@ -111,12 +118,13 @@ jobs:
           version: 10.16.1
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d rabbitmq nats
+
+      - name: Start embedded Postgres
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          pg-only: "true"
 
       - name: Go deps
         run: go mod download
@@ -136,132 +144,33 @@ jobs:
   e2e:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Install Task
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-        with:
-          version: 10.16.1
-          run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
-        run: docker compose up -d --wait
+        run: docker compose up -d --wait rabbitmq
 
       - name: Go deps
         run: go mod download
 
-      - name: Prepare
-        run: |
-          cat > .env <<EOF
-          HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-          SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-          SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-
-          SERVER_LOGGER_LEVEL=warn
-          SERVER_LOGGER_FORMAT=console
-          DATABASE_LOGGER_LEVEL=warn
-          DATABASE_LOGGER_FORMAT=console
-
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-          SERVER_PORT=8080
-          SERVER_URL=http://localhost:8080
-
-          SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
-          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_INSECURE=false
-          SERVER_AUTH_SET_EMAIL_VERIFIED=true
-          SERVER_MSGQUEUE_KIND=rabbitmq
-          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
-          SERVER_GRPC_INSECURE=true
-          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
-          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
-          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
-          SERVER_SECURITY_CHECK_ENABLED=false
-          EOF
-
-      - name: Generate
-        run: |
-          go run ./cmd/hatchet-migrate
-          task generate-certs
-          task generate-local-encryption-keys
-
-      - name: Run engine
-        run: |
-          set -a
-          . .env
-          set +a
-
-          export SERVER_MSGQUEUE_KIND=rabbitmq
-          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
-          ENGINE_PID=$!
-          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
-          API_PID=$!
-
-          for i in {1..60}; do
-            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
-              echo "Hatchet engine and API are ready"
-              break
-            fi
-
-            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
-              echo "Hatchet engine exited before becoming ready"
-              cat /tmp/hatchet-engine.log
-              exit 1
-            fi
-
-            if ! kill -0 "$API_PID" 2>/dev/null; then
-              echo "Hatchet API exited before becoming ready"
-              cat /tmp/hatchet-api.log
-              exit 1
-            fi
-
-            sleep 2
-          done
-
-          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
-            echo "Timed out waiting for Hatchet engine/API to become ready"
-            echo "=== Engine logs ==="
-            cat /tmp/hatchet-engine.log
-            echo "=== API logs ==="
-            cat /tmp/hatchet-api.log
-            exit 1
-          fi
-
-      - name: Generate API token
-        run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
+      - name: Start Hatchet embedded
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          rabbitmq-url: amqp://user:password@127.0.0.1:5672/
 
       - name: Test
         run: |
           go test -tags e2e ./... -p 1 -v -failfast
+
+      - name: Show engine logs on failure
+        if: failure()
+        run: cat embedded.log || true
 
       - name: Teardown
         run: docker compose down
@@ -269,137 +178,30 @@ jobs:
   e2e-pgmq:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Install Task
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-        with:
-          version: 10.16.1
-          run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
-      - name: Compose
-        run: docker compose up -d --wait
-
       - name: Go deps
         run: go mod download
 
-      - name: Prepare
-        run: |
-          cat > .env <<EOF
-          HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-          SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-          SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-
-          SERVER_LOGGER_LEVEL=warn
-          SERVER_LOGGER_FORMAT=console
-          DATABASE_LOGGER_LEVEL=warn
-          DATABASE_LOGGER_FORMAT=console
-
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-          SERVER_PORT=8080
-          SERVER_URL=http://localhost:8080
-
-          SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
-          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_INSECURE=false
-          SERVER_AUTH_SET_EMAIL_VERIFIED=true
-
-          SERVER_TASKQUEUE_KIND=postgres
-          SERVER_MSGQUEUE_KIND=rabbitmq
-          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
-          SERVER_GRPC_INSECURE=true
-          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
-          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
-          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
-          SERVER_SECURITY_CHECK_ENABLED=false
-          EOF
-
-      - name: Generate
-        run: |
-          go run ./cmd/hatchet-migrate
-          task generate-certs
-          task generate-local-encryption-keys
-
-      - name: Run engine
-        run: |
-          set -a
-          . .env
-          set +a
-
-          export SERVER_MSGQUEUE_KIND=rabbitmq
-          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
-          ENGINE_PID=$!
-          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
-          API_PID=$!
-
-          for i in {1..60}; do
-            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
-              echo "Hatchet engine and API are ready"
-              break
-            fi
-
-            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
-              echo "Hatchet engine exited before becoming ready"
-              cat /tmp/hatchet-engine.log
-              exit 1
-            fi
-
-            if ! kill -0 "$API_PID" 2>/dev/null; then
-              echo "Hatchet API exited before becoming ready"
-              cat /tmp/hatchet-api.log
-              exit 1
-            fi
-
-            sleep 2
-          done
-
-          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
-            echo "Timed out waiting for Hatchet engine/API to become ready"
-            echo "=== Engine logs ==="
-            cat /tmp/hatchet-engine.log
-            echo "=== API logs ==="
-            cat /tmp/hatchet-api.log
-            exit 1
-          fi
-
-      - name: Generate API token
-        run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
+      - name: Start Hatchet embedded
+        uses: ./.github/actions/hatchet-embedded
+        env:
+          SERVER_TASKQUEUE_KIND: postgres
 
       - name: Test
         run: |
           go test -tags e2e ./... -p 1 -v -failfast
 
-      - name: Teardown
-        run: docker compose down
+      - name: Show engine logs on failure
+        if: failure()
+        run: cat embedded.log || true
 
   load:
     runs-on: ubicloud-standard-8
@@ -408,7 +210,7 @@ jobs:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
-        pg-version: ["17-alpine"]
+        pg-version: ["17"]
         optimistic-scheduling: ["true", "false"]
 
     steps:
@@ -429,6 +231,14 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
+
+      - name: Cache embedded Postgres binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.embedded-postgres-go
+          key: embedded-postgres-${{ runner.os }}-load-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            embedded-postgres-${{ runner.os }}-
 
       - name: Go deps
         run: go mod download
@@ -456,7 +266,7 @@ jobs:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
-        pg-version: ["17-alpine"]
+        pg-version: ["17"]
         optimistic-scheduling: ["true", "false"]
 
     steps:
@@ -477,6 +287,14 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
+
+      - name: Cache embedded Postgres binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.embedded-postgres-go
+          key: embedded-postgres-${{ runner.os }}-load-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            embedded-postgres-${{ runner.os }}-
 
       - name: Go deps
         run: go mod download
@@ -561,7 +379,7 @@ jobs:
       matrix:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
-        pg-version: ["17-alpine"]
+        pg-version: ["17"]
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -581,6 +399,14 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
+
+      - name: Cache embedded Postgres binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.embedded-postgres-go
+          key: embedded-postgres-${{ runner.os }}-load-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            embedded-postgres-${{ runner.os }}-
 
       - name: Go deps
         run: go mod download
