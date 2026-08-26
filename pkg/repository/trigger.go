@@ -1124,9 +1124,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			stepId := step.ID
 			taskExternalId := stepsToExternalIds[i][stepId]
 
-			// if this is an on failure step, create match conditions for every other step in the DAG
+			// if this is an on failure step, create match conditions for every other step in the DAG.
+			// This only applies when triggering the whole DAG at once (no targetActionId): an
+			// operator-targeted trigger for a single step (including the on-failure step) has
+			// already had its wait/skip conditions resolved by the caller and must go through the
+			// direct-create branch below instead.
 			switch {
-			case step.JobKind == sqlcv1.JobKindONFAILURE:
+			case step.JobKind == sqlcv1.JobKindONFAILURE && tuple.targetActionId == nil:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
