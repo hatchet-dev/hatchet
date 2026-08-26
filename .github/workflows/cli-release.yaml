@@ -58,6 +58,11 @@ jobs:
         with:
           version: 10.16.1
 
+      - name: Set up Python (docs snippet generation for the embedded UI)
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.14"
+
       - name: Install quill (for macOS code signing)
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/quill/main/install.sh | sh -s -- -b /usr/local/bin
