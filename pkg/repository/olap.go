@@ -218,6 +218,8 @@ type UpdateTaskStatusRow struct {
 	LatestWorkerId uuid.UUID
 	WorkflowId     uuid.UUID
 	IsDAGTask      bool
+	DagID          pgtype.Int8
+	DagInsertedAt  pgtype.Timestamptz
 }
 
 type UpdateDAGStatusRow struct {
@@ -1797,7 +1799,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 }
 
-func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows []*sqlcv1.ReconcileTaskStatusesFromEventsRow) sqlcv1.UpdateDAGStatusesFromMQParams {
+func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromStatusRows(taskRows []UpdateTaskStatusRow) sqlcv1.UpdateDAGStatusesFromMQParams {
 	seen := make(map[IdInsertedAt]struct{})
 	tenantIds := make([]uuid.UUID, 0)
 	dagIds := make([]int64, 0)
@@ -1812,7 +1814,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows [
 
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
-			tenantIds = append(tenantIds, row.TenantID)
+			tenantIds = append(tenantIds, row.TenantId)
 			dagIds = append(dagIds, row.DagID.Int64)
 			dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
 		}
@@ -1822,6 +1824,23 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromReconcile(taskRows [
 		Tenantids:      tenantIds,
 		Dagids:         dagIds,
 		Daginsertedats: dagInsertedAts,
+	}
+}
+
+// initialStateToReadableStatus maps a task's initial state to the OLAP readable status its row is
+// initially written with. A task created directly in a terminal state (skipped, cancelled, failed)
+// never runs, so writing QUEUED and relying on a separate status event to correct it would leave
+// the row's truth dependent on cross-message ordering; instead the insert carries the real status.
+func initialStateToReadableStatus(initialState sqlcv1.V1TaskInitialState) sqlcv1.V1ReadableStatusOlap {
+	switch initialState {
+	case sqlcv1.V1TaskInitialStateFAILED:
+		return sqlcv1.V1ReadableStatusOlapFAILED
+	case sqlcv1.V1TaskInitialStateCANCELLED:
+		return sqlcv1.V1ReadableStatusOlapCANCELLED
+	case sqlcv1.V1TaskInitialStateSKIPPED:
+		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+	default:
+		return sqlcv1.V1ReadableStatusOlapQUEUED
 	}
 }
 
@@ -2281,6 +2300,8 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
 	minInsertedAt := pgtype.Timestamptz{}
 
+	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
+
 	for _, task := range tasks {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[task.WorkflowRunID]; notAcquired {
 			continue
@@ -2318,6 +2339,27 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
 
+		initialStatus := initialStateToReadableStatus(task.InitialState)
+		params.ReadableStatuses = append(params.ReadableStatuses, string(initialStatus))
+
+		// A row initially written as terminal is a status outcome in its own right: the trailing
+		// status event becomes a same-priority no-op against it, so nothing downstream would
+		// otherwise report it. Record it like any reconciled status change; it flows into
+		// notifications and the DAG rollup below.
+		if initialStatus != sqlcv1.V1ReadableStatusOlapQUEUED {
+			initiallyWrittenAsTerminalRows = append(initiallyWrittenAsTerminalRows, UpdateTaskStatusRow{
+				TenantId:       task.TenantID,
+				TaskId:         task.ID,
+				TaskInsertedAt: task.InsertedAt,
+				ReadableStatus: initialStatus,
+				ExternalId:     task.ExternalID,
+				WorkflowId:     task.WorkflowID,
+				IsDAGTask:      task.DagID.Valid,
+				DagID:          task.DagID,
+				DagInsertedAt:  task.DagInsertedAt,
+			})
+		}
+
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt
 		}
@@ -2350,25 +2392,31 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	var dagRows []*sqlcv1.UpdateDAGStatusesFromMQRow
 	var taskStatusRows []UpdateTaskStatusRow
 
-	if len(reconciledTasks) > 0 {
-		for _, rt := range reconciledTasks {
-			taskStatusRows = append(taskStatusRows, UpdateTaskStatusRow{
-				TenantId:       rt.TenantID,
-				TaskId:         rt.ID,
-				TaskInsertedAt: rt.InsertedAt,
-				ReadableStatus: rt.ReadableStatus,
-				ExternalId:     rt.ExternalID,
-				WorkflowId:     rt.WorkflowID,
-				IsDAGTask:      rt.DagID.Valid,
-			})
-		}
+	for _, rt := range reconciledTasks {
+		taskStatusRows = append(taskStatusRows, UpdateTaskStatusRow{
+			TenantId:       rt.TenantID,
+			TaskId:         rt.ID,
+			TaskInsertedAt: rt.InsertedAt,
+			ReadableStatus: rt.ReadableStatus,
+			ExternalId:     rt.ExternalID,
+			WorkflowId:     rt.WorkflowID,
+			IsDAGTask:      rt.DagID.Valid,
+			DagID:          rt.DagID,
+			DagInsertedAt:  rt.DagInsertedAt,
+		})
+	}
 
-		dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromReconcile(reconciledTasks)
-		if len(dagStatusUpdates.Dagids) > 0 {
-			dagRows, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
-			}
+	// Disjoint from the reconciled rows: a task written as terminal never executes, so the only
+	// event history it can have is its own trailing status event, which matches the initially
+	// written status exactly and so never passes reconcile's strictly-newer guards.
+	taskStatusRows = append(taskStatusRows, initiallyWrittenAsTerminalRows...)
+
+	dagStatusUpdates := r.prepareDAGStatusUpdateBatchFromStatusRows(taskStatusRows)
+
+	if len(dagStatusUpdates.Dagids) > 0 {
+		dagRows, err = r.queries.UpdateDAGStatusesFromMQ(ctx, tx, dagStatusUpdates)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
 		}
 	}
 
