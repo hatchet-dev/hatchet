@@ -2,17 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "./button";
 import { CookieIcon } from "@radix-ui/react-icons";
 import posthog from "posthog-js";
 import { useConsent } from "@/context/ConsentContext";
 
-export default function CookieConsent({
-  variant = "default",
-  demo = false,
-  onAcceptCallback = () => {},
-  onDeclineCallback = () => {},
-}) {
+export default function CookieConsent() {
   const { region, isHydrated, hasExplicitChoice, grantConsent, denyConsent } =
     useConsent();
   const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +21,7 @@ export default function CookieConsent({
   useEffect(() => {
     if (!isHydrated) return;
 
-    if (hasExplicitChoice && !demo) {
+    if (hasExplicitChoice) {
       setIsOpen(false);
       const timeout = setTimeout(() => setHide(true), 700);
       return () => clearTimeout(timeout);
@@ -35,7 +29,7 @@ export default function CookieConsent({
 
     setHide(false);
     setIsOpen(true);
-  }, [isHydrated, hasExplicitChoice, demo]);
+  }, [isHydrated, hasExplicitChoice]);
 
   const dismiss = useCallback(() => {
     setIsOpen(false);
@@ -46,15 +40,13 @@ export default function CookieConsent({
     posthog.capture("accept-cookies", { accepted: true });
     grantConsent();
     dismiss();
-    onAcceptCallback();
-  }, [grantConsent, dismiss, onAcceptCallback]);
+  }, [grantConsent, dismiss]);
 
   const declineClick = useCallback(() => {
     posthog.capture("accept-cookies", { accepted: false });
     denyConsent();
     dismiss();
-    onDeclineCallback();
-  }, [denyConsent, dismiss, onDeclineCallback]);
+  }, [denyConsent, dismiss]);
 
   const body = isRequest
     ? "We use cookies and similar technologies for analytics and marketing. You can allow these cookies or continue with only essential cookies."
@@ -62,85 +54,47 @@ export default function CookieConsent({
   const acceptLabel = isRequest ? "Accept" : "Got it";
   const declineLabel = isRequest ? "Decline" : "Opt out";
 
-  // Default banner
-  if (variant === "default") {
-    return (
-      <div
-        className={cn(
-          "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-md duration-700",
-          !isOpen
-            ? "transition-[opacity,transform] translate-y-8 opacity-0"
-            : "transition-[opacity,transform] translate-y-0 opacity-100",
-          hide && "hidden",
-        )}
-      >
-        <div className="dark:bg-card bg-background rounded-md m-3 border border-border shadow-lg">
-          <div className="grid gap-2">
-            <div className="border-b border-border h-14 flex items-center justify-between p-4">
-              <h1 className="text-lg font-medium">We use cookies</h1>
-              <CookieIcon className="h-[1.2rem] w-[1.2rem]" />
-            </div>
-            <div className="p-4">
-              <p className="text-sm font-normal text-start">
-                {body}
-                <br />
-                <br />
-                <a
-                  href="https://hatchet.run/policies/cookie"
-                  className="text-xs underline"
-                >
-                  Learn more.
-                </a>
-              </p>
-            </div>
-            <div className="flex gap-2 p-4 py-5 border-t border-border dark:bg-background/20">
-              <Button onClick={acceptClick} className="w-full">
-                {acceptLabel}
-              </Button>
-              <Button
-                onClick={declineClick}
-                className="w-full"
-                variant="secondary"
-              >
-                {declineLabel}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Small banner variant
   return (
     <div
       className={cn(
-        "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-md duration-700",
+        "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-sm duration-700",
         !isOpen
           ? "transition-[opacity,transform] translate-y-8 opacity-0"
           : "transition-[opacity,transform] translate-y-0 opacity-100",
         hide && "hidden",
       )}
     >
-      <div className="m-3 dark:bg-card bg-background border border-border rounded-lg">
-        <div className="flex items-center justify-between p-3">
-          <h1 className="text-lg font-medium">We use cookies</h1>
-          <CookieIcon className="h-[1.2rem] w-[1.2rem]" />
-        </div>
-        <div className="p-3 -mt-2">
-          <p className="text-sm text-left text-muted-foreground">{body}</p>
-        </div>
-        <div className="p-3 flex items-center gap-2 mt-2 border-t">
-          <Button onClick={acceptClick} className="w-full h-9 rounded-full">
-            {acceptLabel.toLowerCase()}
-          </Button>
-          <Button
-            onClick={declineClick}
-            className="w-full h-9 rounded-full"
-            variant="outline"
-          >
-            {declineLabel.toLowerCase()}
-          </Button>
+      <div className="m-3 rounded-lg border border-fd-border bg-fd-popover text-fd-popover-foreground shadow-lg">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">We use cookies</h2>
+            <CookieIcon className="h-4 w-4 text-fd-muted-foreground" />
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-fd-muted-foreground">
+            {body}{" "}
+            <a
+              href="https://hatchet.run/policies/cookie"
+              className="underline underline-offset-2 hover:text-fd-foreground"
+            >
+              Learn more.
+            </a>
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={acceptClick}
+              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
+            >
+              {acceptLabel}
+            </button>
+            <button
+              type="button"
+              onClick={declineClick}
+              className="h-8 flex-1 rounded-md border border-fd-border text-[13px] font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              {declineLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>
