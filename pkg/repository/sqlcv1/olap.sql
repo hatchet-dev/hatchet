@@ -590,7 +590,7 @@ WITH input AS (
 ), error_message AS (
     SELECT
         DISTINCT ON (e.task_id) e.task_id::bigint,
-        COALESCE(e.error_message, e.additional__event_message) AS error_message
+        e.error_message
     FROM
         relevant_events e
     JOIN
@@ -600,9 +600,9 @@ WITH input AS (
             AND e.task_inserted_at = mrc.task_inserted_at
             AND e.retry_count = mrc.max_retry_count
     WHERE
-        e.readable_status = ANY(ARRAY['FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        e.readable_status = 'FAILED'
     ORDER BY
-        e.task_id, e.retry_count DESC, e.event_timestamp DESC
+        e.task_id, e.retry_count DESC
 ), task_output AS (
     SELECT
         DISTINCT ON (task_id)
@@ -1431,13 +1431,13 @@ WITH input AS (
 ), error_message AS (
     SELECT
         DISTINCT ON (e.run_id) e.run_id::bigint,
-        COALESCE(e.error_message, e.additional__event_message) AS error_message
+        e.error_message
     FROM
         relevant_events e
     WHERE
-        e.readable_status IN ('FAILED', 'CANCELLED')
+        e.readable_status = 'FAILED'
     ORDER BY
-        e.run_id, e.retry_count DESC, e.event_timestamp DESC
+        e.run_id, e.retry_count DESC
 ), task_output AS (
     SELECT
         run_id,
