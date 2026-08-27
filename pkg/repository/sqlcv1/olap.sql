@@ -312,60 +312,68 @@ LIMIT @eventLimit::bigint OFFSET @eventOffset::bigint;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id, dt.task_inserted_at
+    SELECT dt.task_id, dt.task_inserted_at, dt.dag_id, dt.dag_inserted_at
     FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
+        AND (
+            dt.task_id != dt.dag_id
+            OR NOT EXISTS (
+                SELECT 1
+                FROM v1_dag_to_task_olap other
+                WHERE other.dag_id = dt.dag_id
+                    AND other.dag_inserted_at = dt.dag_inserted_at
+                    AND other.task_id != other.dag_id
+            )
+        )
 ), aggregated_events AS (
-  SELECT
-    tenant_id,
-    task_id,
-    task_inserted_at,
-    retry_count,
-    event_type,
-    durable_invocation_count,
-    MIN(event_timestamp)::timestamptz AS time_first_seen,
-    MAX(event_timestamp)::timestamptz AS time_last_seen,
-    COUNT(*) AS count,
-    MIN(id) AS first_id
-  FROM v1_task_events_olap
-  WHERE
-    tenant_id = @tenantId::uuid
-    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+    SELECT
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        t.dag_id,
+        t.dag_inserted_at,
+        e.retry_count,
+        e.event_type,
+        e.durable_invocation_count,
+        MIN(e.event_timestamp)::timestamptz AS time_first_seen,
+        MAX(e.event_timestamp)::timestamptz AS time_last_seen,
+        COUNT(*) AS count,
+        MIN(e.id) AS first_id
+    FROM v1_task_events_olap e
+    JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+    GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
 SELECT
-  a.tenant_id,
-  a.task_id,
-  a.task_inserted_at,
-  a.retry_count,
-  a.event_type,
-  a.durable_invocation_count,
-  a.time_first_seen,
-  a.time_last_seen,
-  a.count,
-  t.id,
-  t.event_timestamp,
-  t.readable_status,
-  t.error_message,
-  t.output,
-  t.external_id AS event_external_id,
-  t.worker_id,
-  t.additional__event_data,
-  t.additional__event_message,
-  tsk.display_name,
-  tsk.external_id AS task_external_id
+    a.tenant_id,
+    a.task_id,
+    a.task_inserted_at,
+    a.retry_count,
+    a.event_type,
+    a.durable_invocation_count,
+    a.time_first_seen,
+    a.time_last_seen,
+    a.count,
+    e.id,
+    e.event_timestamp,
+    e.readable_status,
+    e.error_message,
+    e.output,
+    e.external_id AS event_external_id,
+    e.worker_id,
+    e.additional__event_data,
+    e.additional__event_message,
+    COALESCE(t.display_name, d.display_name) AS display_name,
+    COALESCE(t.external_id, d.external_id) AS task_external_id
 FROM aggregated_events a
-JOIN v1_task_events_olap t
-  ON t.tenant_id = a.tenant_id
-  AND t.task_id = a.task_id
-  AND t.task_inserted_at = a.task_inserted_at
-  AND t.id = a.first_id
-JOIN v1_tasks_olap tsk
-    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
-ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.id) = (a.task_id, a.task_inserted_at, a.tenant_id, a.first_id)
+LEFT JOIN v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (e.task_inserted_at, e.task_id, e.tenant_id)
+LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (a.dag_inserted_at, a.dag_id, a.tenant_id)
+ORDER BY a.time_first_seen DESC, e.event_timestamp DESC;
 
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
