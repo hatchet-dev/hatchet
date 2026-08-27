@@ -120,6 +120,11 @@ type WorkerRepository interface {
 	// ListAvailableSlotsForWorkersAndTypes returns available slot units by worker for a set of slot types.
 	ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotTypes []string) (map[uuid.UUID]map[string]int32, error)
 
+	// RegisterAllocatedResourceChangeCallback runs after a successful worker
+	// create, delete, pause/unpause, or active-status change. Heartbeats do
+	// not fire. The callback receives the tenant id.
+	RegisterAllocatedResourceChangeCallback(callback TenantScopedCallback[struct{}])
+
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
@@ -156,11 +161,23 @@ type WorkerRepository interface {
 
 type workerRepository struct {
 	*sharedRepository
+
+	allocatedChangeCallbacks []TenantScopedCallback[struct{}]
 }
 
 func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	return &workerRepository{
 		sharedRepository: shared,
+	}
+}
+
+func (w *workerRepository) RegisterAllocatedResourceChangeCallback(callback TenantScopedCallback[struct{}]) {
+	w.allocatedChangeCallbacks = append(w.allocatedChangeCallbacks, callback)
+}
+
+func (w *workerRepository) notifyAllocatedResourceChange(tenantId uuid.UUID) {
+	for _, cb := range w.allocatedChangeCallbacks {
+		cb.Do(w.l, tenantId, struct{}{})
 	}
 }
 
@@ -697,6 +714,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 
 	postWorker()
 	postWorkerSlot()
+	w.notifyAllocatedResourceChange(tenantId)
 
 	return worker, nil
 }
@@ -781,6 +799,10 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
+	if opts.IsActive != nil || opts.IsPaused != nil {
+		w.notifyAllocatedResourceChange(tenantId)
+	}
+
 	return worker, nil
 }
 
@@ -830,8 +852,11 @@ func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UU
 
 func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
 	_, err := w.queries.DeleteWorker(ctx, w.pool, workerId)
-
-	return err
+	if err != nil {
+		return err
+	}
+	w.notifyAllocatedResourceChange(tenantId)
+	return nil
 }
 
 func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
@@ -845,6 +870,7 @@ func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantI
 		return nil, fmt.Errorf("could not update worker active status: %w", err)
 	}
 
+	w.notifyAllocatedResourceChange(tenantId)
 	return worker, nil
 }
 
@@ -912,6 +938,10 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 
 	if err := commit(ctx); err != nil {
 		return false, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	if result.RowsAffected() > 0 {
+		w.notifyAllocatedResourceChange(tenantId)
 	}
 
 	return result.RowsAffected() == int64(batchSize), nil
