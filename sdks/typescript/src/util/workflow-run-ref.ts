@@ -90,9 +90,11 @@ export default class WorkflowRunRef<T> {
     return getWorkflowRunId(this.workflowRunId);
   }
 
-  async stream(): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
+  async stream(opts?: {
+    signal?: AbortSignal;
+  }): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
     const workflowRunId = await getWorkflowRunId(this.workflowRunId);
-    return this.client.stream(workflowRunId);
+    return this.client.stream(workflowRunId, { signal: opts?.signal ?? this.defaultSignal });
   }
 
   get output(): Promise<T> {

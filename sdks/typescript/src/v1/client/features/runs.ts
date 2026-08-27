@@ -348,12 +348,21 @@ export class RunsClient {
 
   /**
    * Subscribes to a stream of events for a task or workflow run by its ID.
+   *
+   * The subscription reconnects across engine redeploys/restarts with exponential
+   * backoff (matching `.result()`'s error handling). Pass `opts.signal` to stop
+   * the subscription and tear down the underlying gRPC stream; an aborted signal
+   * surfaces as an error from the iterator.
    * @param workflowRunId - The ID of the run to subscribe to.
+   * @param opts - Optional settings. `signal` aborts the subscription.
    * @returns A promise that resolves to the stream of events.
    */
-  async *subscribeToStream(workflowRunId: string): AsyncIterableIterator<string> {
+  async *subscribeToStream(
+    workflowRunId: string,
+    opts?: { signal?: AbortSignal }
+  ): AsyncIterableIterator<string> {
     const ref = this.runRef(workflowRunId);
-    const stream = await ref.stream();
+    const stream = await ref.stream({ signal: opts?.signal });
 
     for await (const event of stream) {
       if (event.type === RunEventType.STEP_RUN_EVENT_TYPE_STREAM) {

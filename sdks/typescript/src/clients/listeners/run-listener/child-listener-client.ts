@@ -1,5 +1,6 @@
 import { Channel, ClientFactory, Status } from 'nice-grpc';
 import { getGrpcErrorCode } from '@util/grpc-error';
+import { isAbortError } from 'abort-controller-x';
 import { EventEmitter, on } from 'events';
 import {
   DispatcherClient as PbDispatcherClient,
@@ -10,14 +11,19 @@ import {
   WorkflowEvent,
 } from '@hatchet/protoc/dispatcher';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
-import HatchetError from '@util/errors/hatchet-error';
+import { getErrorMessage } from '@util/errors/hatchet-error';
 import { Logger } from '@hatchet/util/logger';
 import sleep from '@hatchet/util/sleep';
+import { bindAbortSignalHandler, throwIfAborted } from '@hatchet/util/abort-error';
+import { classifyListenerFailure } from '@clients/dispatcher/listener-severity';
 import { Api } from '../../rest';
 import { RunGrpcPooledListener } from './pooled-child-listener-client';
 
-const DEFAULT_EVENT_LISTENER_RETRY_INTERVAL = 5; // seconds
-const DEFAULT_EVENT_LISTENER_RETRY_COUNT = 5;
+// Reconnect backoff for the run event stream. Mirrors the pooled workflow-run
+// listener (RunGrpcPooledListener) so `.stream()` recovers from engine
+// redeploys/restarts the same way `.result()` does.
+const BASE_RETRY_INTERVAL_MS = 100;
+const MAX_RETRY_INTERVAL_MS = 5000;
 
 export enum RunEventType {
   STEP_RUN_EVENT_TYPE_STARTED = 'STEP_RUN_EVENT_TYPE_STARTED',
@@ -72,28 +78,92 @@ export interface StepRunEvent {
   workflowRunId: string;
 }
 
+export interface RunEventListenerOpts {
+  /**
+   * Optional AbortSignal. When aborted, the listener stops reconnecting, cancels
+   * the underlying gRPC stream, and surfaces the abort to `stream()` consumers as
+   * an error — matching the pooled `.result()` path.
+   */
+  signal?: AbortSignal;
+  logger?: Logger;
+}
+
 export class RunEventListener {
   client: DispatcherClient;
 
   q: Array<StepRunEvent> = [];
   eventEmitter = new EventEmitter();
 
-  pollInterval: ReturnType<typeof setInterval> | undefined;
+  private signal?: AbortSignal;
+  logger?: Logger;
 
-  constructor(client: DispatcherClient) {
+  /** AbortController for the in-flight gRPC subscription; recreated per attempt. */
+  private abortController?: AbortController;
+
+  /** Set once the listener should stop for good (completed, aborted, or hung up). */
+  private done = false;
+
+  /** True when termination was caused by the caller-supplied AbortSignal. */
+  private externallyAborted = false;
+
+  constructor(client: DispatcherClient, opts?: RunEventListenerOpts) {
     this.client = client;
+    this.signal = opts?.signal;
+    this.logger = opts?.logger;
+
+    if (this.signal) {
+      if (this.signal.aborted) {
+        this.externallyAborted = true;
+        this.done = true;
+      } else {
+        bindAbortSignalHandler(this.signal, () => {
+          this.externallyAborted = true;
+          this.close();
+        });
+      }
+    }
   }
 
-  static forRunId(workflowRunId: string, client: DispatcherClient): RunEventListener {
-    const listener = new RunEventListener(client);
-    listener.listenForRunId(workflowRunId);
+  static forRunId(
+    workflowRunId: string,
+    client: DispatcherClient,
+    opts?: RunEventListenerOpts
+  ): RunEventListener {
+    const listener = new RunEventListener(client, opts);
+    listener.start(() => listener.listenForRunId(workflowRunId));
     return listener;
   }
 
-  static forAdditionalMeta(key: string, value: string, client: DispatcherClient): RunEventListener {
-    const listener = new RunEventListener(client);
-    listener.listenForAdditionalMeta(key, value);
+  static forAdditionalMeta(
+    key: string,
+    value: string,
+    client: DispatcherClient,
+    opts?: RunEventListenerOpts
+  ): RunEventListener {
+    const listener = new RunEventListener(client, opts);
+    listener.start(() => listener.listenForAdditionalMeta(key, value));
     return listener;
+  }
+
+  /**
+   * Kicks off the detached listen loop and guarantees an unexpected rejection can
+   * never surface as an unhandled promise rejection — it terminates the stream
+   * cleanly instead, the same way the pooled listener's `init()` does.
+   */
+  private start(run: () => Promise<void>) {
+    run().catch((e) => {
+      this.logger?.error(`Run event listener stopped unexpectedly: ${getErrorMessage(e)}`);
+      this.close();
+      this.eventEmitter.emit('complete');
+    });
+  }
+
+  /**
+   * Stop reconnecting and cancel the in-flight gRPC stream. Idempotent.
+   */
+  close() {
+    this.done = true;
+    this.abortController?.abort();
   }
 
   emit(event: StepRunEvent) {
@@ -102,30 +172,41 @@ export class RunEventListener {
   }
 
   async listenForRunId(workflowRunId: string) {
-    const listenerFactory = () =>
-      this.client.subscribeToWorkflowEvents({
-        workflowRunId,
-      });
-
-    return this.listenLoop(listenerFactory);
+    return this.listenLoop((signal) =>
+      this.client.subscribeToWorkflowEvents({ workflowRunId }, { signal })
+    );
   }
 
   async listenForAdditionalMeta(key: string, value: string) {
-    const listenerFactory = () =>
-      this.client.subscribeToWorkflowEvents({
-        additionalMetaKey: key,
-        additionalMetaValue: value,
-      });
-
-    return this.listenLoop(listenerFactory);
+    return this.listenLoop((signal) =>
+      this.client.subscribeToWorkflowEvents(
+        { additionalMetaKey: key, additionalMetaValue: value },
+        { signal }
+      )
+    );
   }
 
-  async listenLoop(listenerFactory: () => AsyncIterable<WorkflowEvent>) {
-    let listener = listenerFactory();
+  async listenLoop(listenerFactory: (signal: AbortSignal) => AsyncIterable<WorkflowEvent>) {
+    let retries = 0;
 
-    while (true) {
+    while (!this.done) {
+      if (retries > 0) {
+        const backoff = Math.min(
+          BASE_RETRY_INTERVAL_MS * 2 ** (retries - 1),
+          MAX_RETRY_INTERVAL_MS
+        );
+        this.logger?.info(`Retrying run event listener in ${backoff / 1000}s...`);
+        await sleep(backoff);
+        if (this.done) break;
+      }
+
+      this.abortController = new AbortController();
+
       try {
-        for await (const workflowEvent of listener) {
+        for await (const workflowEvent of listenerFactory(this.abortController.signal)) {
+          // A successful message means the connection is healthy again.
+          retries = 0;
+
           const eventType = resourceTypeMap[workflowEvent.resourceType]?.[workflowEvent.eventType];
           if (eventType) {
             this.emit({
@@ -135,60 +216,82 @@ export class RunEventListener {
               workflowRunId: workflowEvent.workflowRunId,
             });
           }
+
+          if (workflowEvent.hangup) {
+            this.done = true;
+            break;
+          }
         }
 
-        this.eventEmitter.emit('complete');
-        return;
+        // Stream ended without an error and without an explicit hangup. Preserve
+        // the long-standing behavior of treating a clean EOF as "server is done".
+        this.done = true;
       } catch (e: unknown) {
-        if (getGrpcErrorCode(e) === Status.CANCELLED) {
-          this.eventEmitter.emit('complete');
-          return;
+        if (isAbortError(e) || this.done || getGrpcErrorCode(e) === Status.CANCELLED) {
+          this.done = true;
+          break;
         }
-        if (getGrpcErrorCode(e) === Status.UNAVAILABLE) {
-          listener = await this.retrySubscribe(listenerFactory);
-        } else {
-          throw e;
-        }
-      }
-    }
-  }
 
-  async retrySubscribe(listenerFactory: () => AsyncIterable<WorkflowEvent>) {
-    let retries = 0;
-
-    while (retries < DEFAULT_EVENT_LISTENER_RETRY_COUNT) {
-      try {
-        await sleep(DEFAULT_EVENT_LISTENER_RETRY_INTERVAL);
-        return listenerFactory();
-      } catch {
+        // Every other error (UNAVAILABLE from an engine redeploy, RST_STREAM,
+        // transient network failures, ...) is retryable: keep reconnecting with
+        // exponential backoff, exactly like the pooled `.result()` listener.
         retries += 1;
+        const severity = classifyListenerFailure(e, retries);
+        if (severity !== 'silent') {
+          this.logger?.[severity](`Run event listener error: ${getErrorMessage(e)}`);
+        }
       }
     }
 
-    throw new HatchetError(
-      `Could not subscribe to the worker after ${DEFAULT_EVENT_LISTENER_RETRY_COUNT} retries`
-    );
+    this.eventEmitter.emit('complete');
   }
 
   async *stream(): AsyncGenerator<StepRunEvent, void, unknown> {
-    let completed = false;
+    let completed = this.done;
 
-    this.eventEmitter.once('complete', () => {
+    const onComplete = () => {
       completed = true;
       this.eventEmitter.emit('event');
-    });
+    };
+    this.eventEmitter.once('complete', onComplete);
 
-    for await (const _ of on(this.eventEmitter, 'event')) {
+    try {
+      // Skip waiting on 'event' entirely if the loop already finished before we
+      // subscribed (e.g. a signal that was aborted before `stream()` was called).
+      if (!completed) {
+        for await (const _ of on(this.eventEmitter, 'event')) {
+          while (this.q.length > 0) {
+            const r = this.q.shift();
+            if (r) {
+              yield r;
+            }
+          }
+
+          if (completed && this.q.length === 0) {
+            break;
+          }
+        }
+      }
+
+      // Flush anything buffered before the loop terminated.
       while (this.q.length > 0) {
         const r = this.q.shift();
         if (r) {
           yield r;
         }
       }
+    } finally {
+      // Consumer stopped iterating (return/break/throw) or we finished: tear down
+      // the reconnect loop and the underlying gRPC stream so we don't leak a
+      // subscription that keeps reconnecting across redeploys.
+      this.eventEmitter.removeListener('complete', onComplete);
+      this.close();
+    }
 
-      if (completed && this.q.length === 0) {
-        break;
-      }
+    // Only reached when iteration completed on its own (not via consumer return).
+    // Surface a caller-triggered abort as an error, mirroring `.result()`.
+    if (this.externallyAborted) {
+      throwIfAborted(this.signal, 'Run event stream aborted');
     }
   }
 }
@@ -220,20 +323,33 @@ export class RunListenerClient {
     });
   }
 
-  async stream(workflowRunId: string): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
-    const listener = RunEventListener.forRunId(workflowRunId, this.client);
+  async stream(
+    workflowRunId: string,
+    opts?: { signal?: AbortSignal }
+  ): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
+    const listener = RunEventListener.forRunId(workflowRunId, this.client, {
+      signal: opts?.signal,
+      logger: this.logger,
+    });
     return listener.stream();
   }
 
-  async streamByRunId(workflowRunId: string): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
-    return this.stream(workflowRunId);
+  async streamByRunId(
+    workflowRunId: string,
+    opts?: { signal?: AbortSignal }
+  ): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
+    return this.stream(workflowRunId, opts);
   }
 
   async streamByAdditionalMeta(
     key: string,
-    value: string
+    value: string,
+    opts?: { signal?: AbortSignal }
   ): Promise<AsyncGenerator<StepRunEvent, void, unknown>> {
-    const listener = RunEventListener.forAdditionalMeta(key, value, this.client);
+    const listener = RunEventListener.forAdditionalMeta(key, value, this.client, {
+      signal: opts?.signal,
+      logger: this.logger,
+    });
     return listener.stream();
   }
 }
