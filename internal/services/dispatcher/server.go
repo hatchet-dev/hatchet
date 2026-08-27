@@ -715,8 +715,15 @@ type StreamEventBuffer struct {
 	cancel                    context.CancelFunc
 	timeoutDuration           time.Duration
 	gracePeriod               time.Duration
+	hangupQuietPeriod         time.Duration
+	hangupMaxWait             time.Duration
+	pendingHangup             *contracts.WorkflowEvent
+	hangupReceivedAt          time.Time
+	lastStreamTime            time.Time
 	mu                        sync.Mutex
 }
+
+const defaultHangupQuietPeriod = 500 * time.Millisecond
 
 func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -728,6 +735,8 @@ func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 		stepRunIdToCompletionTime: make(map[uuid.UUID]time.Time),
 		timeoutDuration:           timeout,
 		gracePeriod:               2 * time.Second, // Wait 2 seconds after completion for late events
+		hangupQuietPeriod:         defaultHangupQuietPeriod,
+		hangupMaxWait:             timeout,
 		eventsChan:                make(chan *contracts.WorkflowEvent, 100),
 		timedOutEventProducer:     make(chan timeoutEvent, 100),
 		ctx:                       ctx,
@@ -736,6 +745,7 @@ func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 
 	go buffer.processTimeoutEvents()
 	go buffer.periodicCleanup()
+	go buffer.hangupDrainLoop()
 
 	return buffer
 }
@@ -749,6 +759,24 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 		(event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED ||
 			event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED ||
 			event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED)
+}
+
+func isWorkflowRunHangup(event *contracts.WorkflowEvent) bool {
+	if event == nil {
+		return false
+	}
+
+	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
+		return false
+	}
+
+	if event.Hangup {
+		return true
+	}
+
+	return event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED ||
+		event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED ||
+		event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
 }
 
 func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
@@ -804,6 +832,7 @@ func (b *StreamEventBuffer) processTimeoutEvents() {
 						for _, e := range bufferedEvents {
 							select {
 							case b.eventsChan <- e:
+								b.lastStreamTime = time.Now()
 							case <-b.ctx.Done():
 								b.mu.Unlock()
 								return
@@ -831,6 +860,90 @@ func (b *StreamEventBuffer) Events() <-chan *contracts.WorkflowEvent {
 // context cancellation.
 func (b *StreamEventBuffer) Close() {
 	b.cancel()
+}
+
+func (b *StreamEventBuffer) sendEventLocked(event *contracts.WorkflowEvent) bool {
+	select {
+	case b.eventsChan <- event:
+		return true
+	case <-b.ctx.Done():
+		return false
+	}
+}
+
+func (b *StreamEventBuffer) bufferedStreamCountLocked() int {
+	n := 0
+	for _, events := range b.stepRunIdToWorkflowEvents {
+		n += len(events)
+	}
+	return n
+}
+
+func (b *StreamEventBuffer) flushBufferedStreamEventsLocked() {
+	for stepRunId, events := range b.stepRunIdToWorkflowEvents {
+		if len(events) == 0 {
+			continue
+		}
+
+		slices.SortFunc(events, sortByEventIndex)
+
+		for _, e := range events {
+			if !b.sendEventLocked(e) {
+				return
+			}
+		}
+
+		delete(b.stepRunIdToWorkflowEvents, stepRunId)
+		delete(b.stepRunIdToLastSeenTime, stepRunId)
+		b.stepRunIdToExpectedIndex[stepRunId] = -1
+	}
+}
+
+func (b *StreamEventBuffer) hangupDrainLoop() {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-ticker.C:
+			b.maybeReleaseHangup()
+		}
+	}
+}
+
+func (b *StreamEventBuffer) maybeReleaseHangup() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.pendingHangup == nil {
+		return
+	}
+
+	now := time.Now()
+	sinceHangup := now.Sub(b.hangupReceivedAt)
+	bufferEmpty := b.bufferedStreamCountLocked() == 0
+
+	if !bufferEmpty {
+		if sinceHangup < b.hangupMaxWait {
+			return
+		}
+	} else {
+		anchor := b.hangupReceivedAt
+		if !b.lastStreamTime.IsZero() && b.lastStreamTime.After(b.hangupReceivedAt) {
+			anchor = b.lastStreamTime
+		}
+
+		if now.Sub(anchor) < b.hangupQuietPeriod && sinceHangup < b.hangupMaxWait {
+			return
+		}
+	}
+
+	b.flushBufferedStreamEventsLocked()
+	hangup := b.pendingHangup
+	b.pendingHangup = nil
+	b.sendEventLocked(hangup)
 }
 
 func (b *StreamEventBuffer) periodicCleanup() {
@@ -863,8 +976,17 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	stepRunId := uuid.MustParse(event.ResourceId)
 	now := time.Now()
+
+	if isWorkflowRunHangup(event) {
+		if b.pendingHangup == nil {
+			b.pendingHangup = event
+			b.hangupReceivedAt = now
+		}
+		return
+	}
+
+	stepRunId := uuid.MustParse(event.ResourceId)
 
 	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_STEP_RUN ||
 		event.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
@@ -898,6 +1020,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	}
 
 	b.stepRunIdToLastSeenTime[stepRunId] = now
+	b.lastStreamTime = now
 
 	if _, exists := b.stepRunIdToExpectedIndex[stepRunId]; !exists {
 		// IMPORTANT: Events are zero-indexed

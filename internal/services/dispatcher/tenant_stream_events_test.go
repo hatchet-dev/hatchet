@@ -112,12 +112,91 @@ func TestStreamBuffer_WorkflowRunHangupIsReleased(t *testing.T) {
 	buffer.AddEvent(hangup)
 
 	select {
+	case <-buffer.Events():
+		t.Fatal("workflow hangup must wait for the quiet period")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	select {
 	case got := <-buffer.Events():
 		require.True(t, got.Hangup)
 		assert.Equal(t, contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN, got.ResourceType)
 		assert.Equal(t, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, got.EventType)
 		assert.Equal(t, WORKFLOW_RUN_ID, got.WorkflowRunId)
-	case <-time.After(time.Second):
-		t.Fatal("expected hangup event to be released immediately")
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected hangup event after quiet period")
 	}
+}
+
+func TestStreamBuffer_WorkflowHangupWaitsForMissingIndex(t *testing.T) {
+	t.Parallel()
+
+	buffer := newStreamEventBufferForTest(5*time.Second, 50*time.Millisecond, 5*time.Second)
+	defer buffer.Close()
+
+	ix0, ix1, ix2 := int64(0), int64(1), int64(2)
+	event1 := genEvent("c01", false, &ix1)
+	event2 := genEvent("c02", false, &ix2)
+	event0 := genEvent("c00", false, &ix0)
+	hangup := genWorkflowHangup()
+
+	buffer.AddEvent(event1)
+	buffer.AddEvent(event2)
+	buffer.AddEvent(hangup)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("should not emit hangup or out-of-order chunks before index 0")
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	buffer.AddEvent(event0)
+
+	got := make([]*contracts.WorkflowEvent, 0, 4)
+	for i := 0; i < 4; i++ {
+		select {
+		case e := <-buffer.Events():
+			got = append(got, e)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("expected event %d, got %d", i, len(got))
+		}
+	}
+
+	require.Len(t, got, 4)
+	assert.Equal(t, event0, got[0])
+	assert.Equal(t, event1, got[1])
+	assert.Equal(t, event2, got[2])
+	require.True(t, got[3].Hangup)
+}
+
+func TestStreamBuffer_WorkflowHangupAcceptsLateStreamChunks(t *testing.T) {
+	t.Parallel()
+
+	buffer := newStreamEventBufferForTest(5*time.Second, 150*time.Millisecond, 5*time.Second)
+	defer buffer.Close()
+
+	ix0, ix1 := int64(0), int64(1)
+	event0 := genEvent("c00", false, &ix0)
+	event1 := genEvent("c01", false, &ix1)
+	hangup := genWorkflowHangup()
+
+	buffer.AddEvent(event0)
+	buffer.AddEvent(hangup)
+	time.Sleep(40 * time.Millisecond)
+	buffer.AddEvent(event1)
+
+	got := make([]*contracts.WorkflowEvent, 0, 3)
+	for i := 0; i < 3; i++ {
+		select {
+		case e := <-buffer.Events():
+			got = append(got, e)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("expected event %d, got %d", i, len(got))
+		}
+	}
+
+	require.Len(t, got, 3)
+	assert.Equal(t, event0, got[0])
+	assert.Equal(t, event1, got[1])
+	require.True(t, got[2].Hangup)
 }
