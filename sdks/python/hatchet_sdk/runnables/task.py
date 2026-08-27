@@ -66,6 +66,7 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.utils.executor import hatchet_to_thread
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -312,7 +313,7 @@ class Task(Generic[TWorkflowInput, R]):
             return entered_value, to_exit
 
         if is_sync_context_manager(value):
-            entered_value = await asyncio.to_thread(value.__enter__)
+            entered_value = await hatchet_to_thread(value.__enter__)
 
             if cms_to_exit is not None:
                 to_exit = value
@@ -402,7 +403,7 @@ class Task(Generic[TWorkflowInput, R]):
 
                     return DependencyToInject(
                         name=name,
-                        value=await asyncio.to_thread(item._fn, input, ctx, **deps),
+                        value=await hatchet_to_thread(item._fn, input, ctx, **deps),
                     )
 
         return None
@@ -450,7 +451,7 @@ class Task(Generic[TWorkflowInput, R]):
                 if is_async_context_manager(cm):
                     await cm.__aexit__(None, None, None)
                 elif is_sync_context_manager(cm):
-                    await asyncio.to_thread(cm.__exit__, None, None, None)
+                    await hatchet_to_thread(cm.__exit__, None, None, None)
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None

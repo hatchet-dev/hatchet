@@ -351,8 +351,9 @@ class WorkerActionListenerProcess:
 
     # TODO move event methods to separate class
     async def _get_event(self) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.event_queue.get)
+        from hatchet_sdk.utils.executor import hatchet_to_thread
+
+        return await hatchet_to_thread(self.event_queue.get)
 
     async def start_event_send_loop(self) -> None:
         while True:
@@ -529,8 +530,9 @@ class WorkerActionListenerProcess:
         This is the primary shutdown trigger — the parent calls
         _stop_listener_event.set() instead of sending SIGTERM.
         """
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._stop_event.wait)
+        from hatchet_sdk.utils.executor import hatchet_to_thread
+
+        await hatchet_to_thread(self._stop_event.wait)
         await self._stop_action_loop()
 
     async def _stop_action_loop(self) -> None:

@@ -126,7 +126,9 @@ class WorkerActionRunLoopManager:
         logger.debug("action runner loop stopped")
 
     async def _get_action(self) -> Action | STOP_LOOP_TYPE:
-        return await self.loop.run_in_executor(None, self.action_queue.get)
+        from hatchet_sdk.utils.executor import hatchet_to_thread
+
+        return await hatchet_to_thread(self.action_queue.get)
 
     async def exit_gracefully(self) -> None:
         if self.killing:

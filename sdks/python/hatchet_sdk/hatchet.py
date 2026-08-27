@@ -136,7 +136,9 @@ class Hatchet:
         sidecar without blocking the event loop, and return once it has fully
         exited. No-op when no embedded engine is running in this process.
         """
-        await asyncio.to_thread(self.stop_embedded)
+        from hatchet_sdk.utils.executor import hatchet_to_thread
+
+        await hatchet_to_thread(self.stop_embedded)
 
     @property
     def cel(self) -> CELClient:

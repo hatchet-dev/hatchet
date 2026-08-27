@@ -31,6 +31,7 @@ from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
+from hatchet_sdk.utils.executor import hatchet_to_thread, shutdown_executor
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -733,6 +734,10 @@ class Worker:
         if self._action_runner is not None:
             self._action_runner.cleanup()
 
+        # Shut down the dedicated Hatchet internal executor so threads are
+        # reclaimed on worker exit (issue #4803).
+        shutdown_executor()
+
         # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner is not None:
             self._legacy_durable_action_runner.cleanup()
@@ -749,7 +754,7 @@ class Worker:
         stops routing new work here while in-flight tasks finish.
         """
         try:
-            worker_id = await asyncio.to_thread(self._worker_id_queue.get, timeout=10)
+            worker_id = await hatchet_to_thread(self._worker_id_queue.get, timeout=10)
         except Exception:
             logger.warning("could not read worker_id; skipping pause")
             return
@@ -805,9 +810,8 @@ class Worker:
             self._durable_event_queue.put(STOP_LOOP)
 
         if self._durable_action_listener_process is not None:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self._durable_action_listener_process.join(),  # type: ignore[union-attr]
+            await hatchet_to_thread(
+                self._durable_action_listener_process.join,  # type: ignore[union-attr]
             )
 
         try:

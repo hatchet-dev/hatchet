@@ -62,6 +62,7 @@ from hatchet_sdk.utils.timedelta_to_expression import (
     expr_to_timedelta,
     timedelta_to_expr,
 )
+from hatchet_sdk.utils.executor import hatchet_to_thread
 from hatchet_sdk.utils.typing import (
     DataclassInstance,
     JSONSerializableMapping,
@@ -179,7 +180,7 @@ class Context:
         ]
 
     async def aio_upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
-        await asyncio.to_thread(self.upsert_worker_labels, labels)
+        await hatchet_to_thread(self.upsert_worker_labels, labels)
 
     @property
     def data(self) -> ActionPayload:
@@ -520,7 +521,7 @@ class Context:
         :return: None
         """
 
-        await asyncio.to_thread(self.log, line, raise_on_error)
+        await hatchet_to_thread(self.log, line, raise_on_error)
 
     def release_slot(self) -> None:
         """
@@ -536,7 +537,7 @@ class Context:
 
         :return: None
         """
-        return await asyncio.to_thread(
+        return await hatchet_to_thread(
             self._dispatcher_client.release_slot, self.task_run_id
         )
 
@@ -604,7 +605,7 @@ class Context:
         :return: None
         """
 
-        await asyncio.to_thread(self.refresh_timeout, increment_by)
+        await hatchet_to_thread(self.refresh_timeout, increment_by)
 
     @property
     def retry_count(self) -> int:
@@ -1186,7 +1187,7 @@ class DurableContext(Context):
         return result
 
     async def _now(self) -> MemoNowResult:
-        ts = await asyncio.to_thread(datetime.now, timezone.utc)
+        ts = await hatchet_to_thread(datetime.now, timezone.utc)
         return MemoNowResult(ts=ts)
 
     async def aio_now(self) -> datetime:
