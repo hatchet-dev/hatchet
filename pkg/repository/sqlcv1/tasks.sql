@@ -275,7 +275,15 @@ SELECT
     display_name,
     workflow_version_id,
     step_id,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -412,8 +420,6 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
-        -- evicted tasks are not eligible for timeout
-        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT

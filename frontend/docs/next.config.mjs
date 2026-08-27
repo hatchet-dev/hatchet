@@ -20,8 +20,8 @@ const nextConfig = {
       // --- New site: section index redirects ---
       { source: '/', destination: '/v1', permanent: false, basePath: false },
       { source: '/get-started', destination: '/v1', permanent: false, basePath: false },
-      { source: '/reference', destination: '/reference/python/client', permanent: false, basePath: false },
-      { source: '/reference/', destination: '/reference/python/client', permanent: false, basePath: false },
+      { source: '/reference', destination: '/reference/changelog', permanent: false, basePath: false },
+      { source: '/reference/', destination: '/reference/changelog', permanent: false, basePath: false },
       { source: '/reference/python', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/python/', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/typescript', destination: '/reference/typescript/client', permanent: false, basePath: false },

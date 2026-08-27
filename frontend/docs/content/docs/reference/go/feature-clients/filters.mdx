@@ -1,0 +1,134 @@
+---
+title: "Filters"
+---
+
+# Filters Client
+
+Accessed via `client.Filters()` on the [Hatchet client](../client).
+
+## FiltersClient
+
+FiltersClient provides methods for interacting with filters
+
+Methods:
+
+| Name     | Description                            |
+| -------- | -------------------------------------- |
+| `Create` | Create creates a new filter.           |
+| `Delete` | Delete deletes a filter by its ID.     |
+| `Get`    | Get gets a filter by its ID.           |
+| `List`   | List lists filters for a given tenant. |
+| `Update` | Update updates a filter by its ID.     |
+
+### Functions
+
+#### `Create`
+
+Create creates a new filter.
+
+```go
+func (c *FiltersClient) Create(ctx context.Context, opts rest.V1CreateFilterRequest) (*rest.V1Filter, error)
+```
+
+Parameters:
+
+| Name   | Type                         |
+| ------ | ---------------------------- |
+| `ctx`  | `context.Context`            |
+| `opts` | `rest.V1CreateFilterRequest` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.V1Filter` |
+| `error`          |
+
+#### `Delete`
+
+Delete deletes a filter by its ID.
+
+```go
+func (c *FiltersClient) Delete(ctx context.Context, filterID string) (*rest.V1Filter, error)
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `filterID` | `string`          |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.V1Filter` |
+| `error`          |
+
+#### `Get`
+
+Get gets a filter by its ID.
+
+```go
+func (c *FiltersClient) Get(ctx context.Context, filterID string) (*rest.V1Filter, error)
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `filterID` | `string`          |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.V1Filter` |
+| `error`          |
+
+#### `List`
+
+List lists filters for a given tenant.
+
+```go
+func (c *FiltersClient) List(ctx context.Context, opts *rest.V1FilterListParams) (*rest.V1FilterList, error)
+```
+
+Parameters:
+
+| Name   | Type                       |
+| ------ | -------------------------- |
+| `ctx`  | `context.Context`          |
+| `opts` | `*rest.V1FilterListParams` |
+
+Returns:
+
+| Type                 |
+| -------------------- |
+| `*rest.V1FilterList` |
+| `error`              |
+
+#### `Update`
+
+Update updates a filter by its ID.
+
+```go
+func (c *FiltersClient) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error)
+```
+
+Parameters:
+
+| Name       | Type                                 |
+| ---------- | ------------------------------------ |
+| `ctx`      | `context.Context`                    |
+| `filterID` | `string`                             |
+| `opts`     | `rest.V1FilterUpdateJSONRequestBody` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.V1Filter` |
+| `error`          |
