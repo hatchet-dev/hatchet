@@ -18,6 +18,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
+// tenantStreamMsgTTL is the per-message TTL (in milliseconds, RabbitMQ string
+// form) for tenant-stream publishes. It must comfortably exceed the
+// dispatcher's stream reorder/hangup-drain window (5s) so chunks published
+// while a consumer is briefly busy still get delivered.
+const tenantStreamMsgTTL = "30000"
+
 // PubSub implements msgqueue.PubSub over RabbitMQ. Tenant topics map to the
 // legacy per-tenant fanout exchanges ("<uuid>_v1") and scheduler partition
 // topics map to the scheduler's exclusive queue on the default exchange, so
@@ -246,7 +252,19 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	exchange := ""
 	routingKey := topic.Name()
 
+	// scheduler wake-ups expire immediately: the well-known partition queue
+	// outlives its consumer, so anything longer piles up stale wake signals
+	// while a scheduler is down
+	expiration := "0"
+
 	if topic.Kind() == msgqueue.TopicKindTenantStream {
+		// tenant-stream subscriber queues are exclusive + auto-delete, so
+		// queued messages vanish with the subscriber. A TTL of 0 also drops
+		// messages whenever the consumer is momentarily busy (burst of stream
+		// chunks vs. per-delivery acks), which loses mid-stream chunks under
+		// load. A short real TTL survives those windows without unbounded
+		// buildup.
+		expiration = tenantStreamMsgTTL
 		// tenant streams ride the per-tenant fanout exchange; declare it lazily
 		if _, ok := p.exchangeCache.Get(topic.Name()); !ok {
 			if err := p.declareExchange(pub, topic.Name()); err != nil {
@@ -261,15 +279,14 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		routingKey = ""
 	}
 
-	// never persistent, expire immediately without an active consumer: this is
-	// an at-most-once notification path
+	// never persistent: this is an at-most-once notification path
 	//
 	// no timeout here on purpose: amqp091-go takes the context as `_` and
 	// clears socket deadlines after the handshake, so a publish is bounded
 	// only by TCP flow control on the pool's shared connection
 	err = pub.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
 		Body:       body,
-		Expiration: "0",
+		Expiration: expiration,
 	})
 
 	if err != nil {
