@@ -10,20 +10,19 @@ from examples.bug_tests.durable_callback_ordering.worker import (
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_replayed_completions_resume_in_recorded_order() -> None:
-    """Concurrent durable mids replay after eviction without NonDeterminismError.
+    input = RootInput()
 
-    Each mid gathers staggered first-generation children, so second-generation
-    spawns are emitted in completion order rather than spawn order. The short
-    eviction TTL forces replays mid-flight; the run only completes cleanly if
-    cached completions are consumed in the recorded satisfied order.
-    """
-    params = RootInput()
-
-    result = await asyncio.wait_for(callback_ordering_root.aio_run(params), timeout=300)
-
-    assert sorted(result.completed_mids) == list(range(params.durables))
-    assert len(result.mid_invocation_counts) == params.durables
-    assert max(result.mid_invocation_counts) >= 2, (
-        "no mid was evicted and replayed; the test did not exercise "
-        "callback ordering on replay"
+    results = await asyncio.wait_for(
+        callback_ordering_root.aio_run_many(
+            [callback_ordering_root.create_bulk_run_item(input) for _ in range(10)]
+        ),
+        timeout=30,
     )
+
+    for result in results:
+        assert sorted(result.completed_mids) == list(range(input.durables))
+        assert len(result.mid_invocation_counts) == input.durables
+        assert max(result.mid_invocation_counts) >= 2, (
+            "no mid was evicted and replayed; the test did not exercise "
+            "callback ordering on replay"
+        )
