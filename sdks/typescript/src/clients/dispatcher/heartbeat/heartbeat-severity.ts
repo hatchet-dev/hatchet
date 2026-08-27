@@ -1,4 +1,4 @@
-import { isConnectionError, isTimeoutOrAbortError } from '@util/grpc-error';
+import { getGrpcErrorCode, isConnectionError, isTimeoutOrAbortError } from '@util/grpc-error';
 import { FailureSeverity, classifyRepeatedFailure } from '@util/failure-severity';
 
 export const MAX_MISSED_HEARTBEATS = 3;
