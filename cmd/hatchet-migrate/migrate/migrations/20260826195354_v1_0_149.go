@@ -17,9 +17,8 @@ func init() {
 const statusesOlapTenantInsertedAtIndexName = "v1_statuses_olap_tenant_inserted_at_idx"
 
 func upV10149(ctx context.Context, db *sql.DB) error {
-	// A previously failed concurrent build can leave the index behind in an INVALID
-	// state, which IF NOT EXISTS would silently keep. Drop it so the create below
-	// builds a usable index.
+	// A failed concurrent build can leave the index in an INVALID state, which
+	// IF NOT EXISTS would silently keep.
 	exists, valid, err := statusesOlapIndexState(ctx, db)
 	if err != nil {
 		return err
@@ -77,7 +76,7 @@ func downV10149(ctx context.Context, db *sql.DB) error {
 	}
 
 	if isHypertable {
-		// DROP INDEX CONCURRENTLY is likewise unsupported on hypertables
+		// DROP INDEX CONCURRENTLY is not supported on hypertables
 		_, err = db.ExecContext(ctx, "DROP INDEX IF EXISTS "+statusesOlapTenantInsertedAtIndexName)
 		return err
 	}
