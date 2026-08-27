@@ -153,15 +153,6 @@ CompletionOrderKey = tuple[TaskExternalId, InvocationCount]
 
 @dataclass
 class OrderedCompletionQueue:
-    """Completions for one (task, invocation) in server delivery order.
-
-    The server releases entry_completed messages in the recorded
-    satisfied_order. A waiter may only consume its completion once every
-    earlier-delivered completion for the same invocation has been consumed;
-    otherwise coroutines resume in wait-registration order instead of the
-    recorded order and re-emit events in a different sequence than the log.
-    """
-
     pending: deque[tuple[PendingCallback, "DurableTaskEventLogEntryResult"]] = field(
         default_factory=deque
     )
