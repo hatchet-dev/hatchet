@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -116,6 +117,34 @@ func workflowRunEventTypeForOlapStatus(status sqlcv1.V1ReadableStatusOlap) (cont
 	default:
 		return 0, false
 	}
+}
+
+func workflowRunEventTypeFromOutputEvents(events []*v1.TaskOutputEvent) contracts.ResourceEventType {
+	hasFailed := false
+	hasCancelled := false
+
+	for _, e := range events {
+		if e == nil {
+			continue
+		}
+
+		switch {
+		case e.IsFailed():
+			hasFailed = true
+		case e.IsCancelled():
+			hasCancelled = true
+		}
+	}
+
+	if hasFailed {
+		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
+	}
+
+	if hasCancelled {
+		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
+	}
+
+	return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 }
 
 func msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {

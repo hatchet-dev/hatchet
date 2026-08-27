@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,59 @@ func TestWorkflowRunEventTypeForOlapStatus(t *testing.T) {
 			gotType, gotTerminal := workflowRunEventTypeForOlapStatus(tt.status)
 			assert.Equal(t, tt.wantTerminal, gotTerminal)
 			assert.Equal(t, tt.wantType, gotType)
+		})
+	}
+}
+
+func TestWorkflowRunEventTypeFromOutputEvents(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		events   []*v1.TaskOutputEvent
+		wantType contracts.ResourceEventType
+	}{
+		{
+			name:     "empty defaults to completed",
+			events:   nil,
+			wantType: contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
+		},
+		{
+			name: "all completed",
+			events: []*v1.TaskOutputEvent{
+				{EventType: sqlcv1.V1TaskEventTypeCOMPLETED},
+			},
+			wantType: contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
+		},
+		{
+			name: "failed wins over completed",
+			events: []*v1.TaskOutputEvent{
+				{EventType: sqlcv1.V1TaskEventTypeCOMPLETED},
+				{EventType: sqlcv1.V1TaskEventTypeFAILED},
+			},
+			wantType: contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED,
+		},
+		{
+			name: "cancelled",
+			events: []*v1.TaskOutputEvent{
+				{EventType: sqlcv1.V1TaskEventTypeCANCELLED},
+			},
+			wantType: contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED,
+		},
+		{
+			name: "failed wins over cancelled",
+			events: []*v1.TaskOutputEvent{
+				{EventType: sqlcv1.V1TaskEventTypeCANCELLED},
+				{EventType: sqlcv1.V1TaskEventTypeFAILED},
+			},
+			wantType: contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.wantType, workflowRunEventTypeFromOutputEvents(tt.events))
 		})
 	}
 }

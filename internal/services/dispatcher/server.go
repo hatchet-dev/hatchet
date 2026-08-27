@@ -2222,8 +2222,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
-				workflowRunIds := make([]uuid.UUID, 0)
-				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
+				res := make([]*contracts.WorkflowEvent, 0, len(events))
 
 				for _, e := range events {
 					wri, err := uuid.Parse(e.WorkflowRunId)
@@ -2236,26 +2235,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 						continue
 					}
 
-					workflowRunIds = append(workflowRunIds, wri)
-					workflowRunIdsToEvents[e.WorkflowRunId] = append(workflowRunIdsToEvents[e.WorkflowRunId], e)
-				}
-
-				workflowRuns, err := s.listWorkflowRuns(ctx, tenantId, workflowRunIds)
-
-				if err != nil {
-					return nil, err
-				}
-
-				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
-
-				for _, wr := range workflowRuns {
-					workflowRunIdsToRow[wr.WorkflowRunId] = wr
-				}
-
-				res := make([]*contracts.WorkflowEvent, 0)
-
-				for _, es := range workflowRunIdsToEvents {
-					res = append(res, es...)
+					res = append(res, e)
 				}
 
 				return res, nil
@@ -2299,8 +2279,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		return nil
 	}
 
-	// Bind the tenant fanout before waiting on OLAP so stream chunks published
-	// during hydration are not dropped.
+	// Bind the tenant fanout before waiting on core so stream chunks published
+	// while the run is looked up are not dropped.
 	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
@@ -2327,22 +2307,13 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			return nil
 		}
 
-		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, workflowRunId)
+		tasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{workflowRunId})
 
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(time.Second):
-				}
-				continue
-			}
-
 			return err
 		}
 
-		if wr == nil || wr.WorkflowRun == nil {
+		if len(tasks) == 0 {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -2351,16 +2322,30 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 			continue
 		}
 
-		if wr.WorkflowRun.TenantID != tenantId {
-			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
+		foundWorkflowRun = true
+
+		finalized, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{workflowRunId})
+
+		if err != nil {
+			return err
 		}
 
-		span.SetAttributes(attribute.String("workflow_run.status", string(wr.WorkflowRun.ReadableStatus)))
+		var finalizedRun *v1.ListFinalizedWorkflowRunsResponse
 
-		if eventType, terminal := workflowRunEventTypeForOlapStatus(wr.WorkflowRun.ReadableStatus); terminal {
+		for _, wr := range finalized {
+			if wr.WorkflowRunId == workflowRunId {
+				finalizedRun = wr
+				break
+			}
+		}
+
+		if finalizedRun != nil {
+			eventType := workflowRunEventTypeFromOutputEvents(finalizedRun.OutputEvents)
+			span.SetAttributes(attribute.String("workflow_run.status", eventType.String()))
+
 			s.l.Warn().Ctx(ctx).
 				Str("workflow_run_id", workflowRunId.String()).
-				Str("status", string(wr.WorkflowRun.ReadableStatus)).
+				Str("status", eventType.String()).
 				Msg("workflow run already in terminal state, sending hangup")
 
 			streamBuffer.AddEvent(&contracts.WorkflowEvent{
@@ -2371,12 +2356,10 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				Hangup:         true,
 				EventTimestamp: timestamppb.Now(),
 			})
-
-			foundWorkflowRun = true
-			break
+		} else {
+			span.SetAttributes(attribute.String("workflow_run.status", "RUNNING"))
 		}
 
-		foundWorkflowRun = true
 		break
 	}
 
