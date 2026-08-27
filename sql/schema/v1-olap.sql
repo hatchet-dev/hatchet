@@ -315,7 +315,7 @@ CREATE TABLE v1_statuses_olap (
     PRIMARY KEY (external_id, inserted_at)
 );
 
-CREATE INDEX v1_statuses_olap_tenant_inserted_at_idx ON v1_statuses_olap (tenant_id, inserted_at) INCLUDE (readable_status);
+CREATE INDEX v1_statuses_olap_tenant_inserted_at_idx ON v1_statuses_olap (tenant_id, inserted_at);
 
 
 -- EVENT DEFINITIONS --

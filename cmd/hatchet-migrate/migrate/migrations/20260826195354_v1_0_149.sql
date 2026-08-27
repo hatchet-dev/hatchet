@@ -3,8 +3,7 @@
 
 -- For v1_statuses_olap
 CREATE INDEX CONCURRENTLY IF NOT EXISTS v1_statuses_olap_tenant_inserted_at_idx
-ON v1_statuses_olap (tenant_id, inserted_at)
-INCLUDE (readable_status);
+ON v1_statuses_olap (tenant_id, inserted_at);
 
 -- +goose Down
 -- +goose NO TRANSACTION
