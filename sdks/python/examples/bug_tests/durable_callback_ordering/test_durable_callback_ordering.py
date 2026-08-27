@@ -14,7 +14,7 @@ async def test_replayed_completions_resume_in_recorded_order() -> None:
 
     results = await asyncio.wait_for(
         callback_ordering_root.aio_run_many(
-            [callback_ordering_root.create_bulk_run_item(input) for _ in range(10)]
+            [callback_ordering_root.create_bulk_run_item(input) for _ in range(25)]
         ),
         timeout=30,
     )
