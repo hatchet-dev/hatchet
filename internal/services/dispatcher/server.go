@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -2174,52 +2175,15 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	deregister := s.streamSessions.Register(cancel)
 	defer deregister()
 
-	retries := 0
-	foundWorkflowRun := false
-
-	for retries < 10 {
-		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, workflowRunId)
-
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				retries++
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			return err
-		}
-
-		if wr == nil || wr.WorkflowRun == nil {
-			retries++
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if wr.WorkflowRun.TenantID != tenantId {
-			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
-		}
-
-		if wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED ||
-			wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED ||
-			wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
-			return nil
-		}
-
-		foundWorkflowRun = true
-		break
-	}
-
-	if !foundWorkflowRun {
-		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
-	}
+	ctx, span := telemetry.NewSpan(ctx, "subscribe-to-workflow-events-by-run-id")
+	defer span.End()
+	span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 
 	wg := sync.WaitGroup{}
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	streamBuffer := NewStreamEventBuffer(s.streamEventBufferTimeout)
-	defer streamBuffer.Close()
 
 	// Handle events from the stream buffer
 	go func() {
@@ -2335,25 +2299,92 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		return nil
 	}
 
-	// subscribe to the task queue for the tenant
+	// Bind the tenant fanout before waiting on OLAP so stream chunks published
+	// during hydration are not dropped.
 	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
+		streamBuffer.Close()
 		return fmt.Errorf("could not subscribe to shared tenant queue: %w", err)
 	}
 
-	<-ctx.Done()
+	defer func() {
+		// Close the buffer before unsubscribing so in-flight f callbacks cannot
+		// block on a full channel while waitFor waits on those same callbacks.
+		streamBuffer.Close()
 
-	// the consumer goroutine has exited with the context, so close the buffer now:
-	// otherwise in-flight f callbacks block sending to the buffer's full channel until
-	// this function returns, and waitFor below waits on those same callbacks
-	streamBuffer.Close()
+		if err := cleanupQueue(); err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not cleanup queue")
+		}
 
-	if err := cleanupQueue(); err != nil {
-		return fmt.Errorf("could not cleanup queue: %w", err)
+		waitFor(&wg, 60*time.Second, s.l)
+	}()
+
+	foundWorkflowRun := false
+
+	for retries := 0; retries < 10; retries++ {
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, workflowRunId)
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(time.Second):
+				}
+				continue
+			}
+
+			return err
+		}
+
+		if wr == nil || wr.WorkflowRun == nil {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Second):
+			}
+			continue
+		}
+
+		if wr.WorkflowRun.TenantID != tenantId {
+			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
+		}
+
+		span.SetAttributes(attribute.String("workflow_run.status", string(wr.WorkflowRun.ReadableStatus)))
+
+		if eventType, terminal := workflowRunEventTypeForOlapStatus(wr.WorkflowRun.ReadableStatus); terminal {
+			s.l.Warn().Ctx(ctx).
+				Str("workflow_run_id", workflowRunId.String()).
+				Str("status", string(wr.WorkflowRun.ReadableStatus)).
+				Msg("workflow run already in terminal state, sending hangup")
+
+			streamBuffer.AddEvent(&contracts.WorkflowEvent{
+				WorkflowRunId:  workflowRunId.String(),
+				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
+				ResourceId:     workflowRunId.String(),
+				EventType:      eventType,
+				Hangup:         true,
+				EventTimestamp: timestamppb.Now(),
+			})
+
+			foundWorkflowRun = true
+			break
+		}
+
+		foundWorkflowRun = true
+		break
 	}
 
-	waitFor(&wg, 60*time.Second, s.l)
+	if !foundWorkflowRun {
+		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
+	}
+
+	<-ctx.Done()
 
 	return nil
 }

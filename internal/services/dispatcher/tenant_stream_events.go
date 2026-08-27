@@ -90,14 +90,8 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 		}
 	}),
 	msgqueue.MsgIDWorkflowRunFinished: eventConverter(func(payload *tasktypes.NotifyFinalizedPayload) *contracts.WorkflowEvent {
-		eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-
-		switch payload.Status {
-		case sqlcv1.V1ReadableStatusOlapCANCELLED:
-			eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
-		case sqlcv1.V1ReadableStatusOlapFAILED:
-			eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
-		case sqlcv1.V1ReadableStatusOlapCOMPLETED:
+		eventType, ok := workflowRunEventTypeForOlapStatus(payload.Status)
+		if !ok {
 			eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 		}
 
@@ -109,6 +103,19 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventTimestamp: timestamppb.New(time.Now()),
 		}
 	}),
+}
+
+func workflowRunEventTypeForOlapStatus(status sqlcv1.V1ReadableStatusOlap) (contracts.ResourceEventType, bool) {
+	switch status {
+	case sqlcv1.V1ReadableStatusOlapCANCELLED:
+		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED, true
+	case sqlcv1.V1ReadableStatusOlapFAILED:
+		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED, true
+	case sqlcv1.V1ReadableStatusOlapCOMPLETED:
+		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, true
+	default:
+		return 0, false
+	}
 }
 
 func msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
