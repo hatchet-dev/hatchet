@@ -148,6 +148,11 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_a,
     spawn_index_child_b,
 )
+from examples.bug_tests.durable_callback_ordering.worker import (
+    callback_ordering_leaf,
+    callback_ordering_mid,
+    callback_ordering_root,
+)
 from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
 
 from examples.workflow_pause.worker import pausable_workflow
@@ -301,6 +306,9 @@ def main() -> None:
             durable_spawner_dag,
             mixed_spawner_dag,
             evictable_durable,
+            callback_ordering_leaf,
+            callback_ordering_mid,
+            callback_ordering_root,
         ],
         lifespan=lifespan,
     )
