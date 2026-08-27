@@ -24,3 +24,7 @@
   </a>
 </Callout>
 ```
+
+## SDK Changes
+
+- Any changes that touch hatchet/sdks/** need to be accompanied by a version bump and changelog entry.
