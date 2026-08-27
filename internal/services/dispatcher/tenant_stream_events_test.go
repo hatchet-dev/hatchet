@@ -169,6 +169,62 @@ func TestStreamBuffer_WorkflowHangupWaitsForMissingIndex(t *testing.T) {
 	require.True(t, got[3].Hangup)
 }
 
+// TestStreamBuffer_ChunksAfterTerminalEventAreDelivered reproduces the
+// production loss pattern: the step-run terminal event leapfrogs late stream
+// chunks (separate per-msgId flush buffers), and the stragglers arriving after
+// it must still be delivered instead of buffering against a reset expected
+// index and being discarded by periodicCleanup.
+func TestStreamBuffer_ChunksAfterTerminalEventAreDelivered(t *testing.T) {
+	t.Parallel()
+
+	buffer := newStreamEventBufferForTest(5*time.Second, 100*time.Millisecond, 5*time.Second)
+	defer buffer.Close()
+
+	ix0, ix1, ix2, ix3 := int64(0), int64(1), int64(2), int64(3)
+
+	terminal := &contracts.WorkflowEvent{
+		WorkflowRunId:  WORKFLOW_RUN_ID,
+		ResourceId:     RESOURCE,
+		ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
+		EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
+		EventTimestamp: timestamppb.Now(),
+	}
+
+	// c00 flows through; c02/c03 buffer waiting on the missing c01; the
+	// terminal event then flushes the buffer while c01 is still in flight
+	buffer.AddEvent(genEvent("c00", false, &ix0))
+	buffer.AddEvent(genEvent("c02", false, &ix2))
+	buffer.AddEvent(genEvent("c03", false, &ix3))
+	buffer.AddEvent(terminal)
+
+	// the straggler arrives after the terminal event
+	buffer.AddEvent(genEvent("c01", false, &ix1))
+	buffer.AddEvent(genWorkflowHangup())
+
+	payloads := make([]string, 0, 4)
+	sawHangup := false
+
+	for i := 0; i < 6; i++ {
+		select {
+		case e := <-buffer.Events():
+			if e.Hangup {
+				sawHangup = true
+				continue
+			}
+			if e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+				payloads = append(payloads, e.EventPayload)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out after %d events: %v", len(payloads), payloads)
+		}
+	}
+
+	// the terminal flush emits buffered chunks past the hole, so the straggler
+	// lands out of order — but it must not be lost
+	assert.ElementsMatch(t, []string{"c00", "c01", "c02", "c03"}, payloads)
+	require.True(t, sawHangup)
+}
+
 func TestStreamBuffer_WorkflowHangupAcceptsLateStreamChunks(t *testing.T) {
 	t.Parallel()
 

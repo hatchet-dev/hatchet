@@ -960,6 +960,19 @@ func (b *StreamEventBuffer) periodicCleanup() {
 
 			for stepRunId, completionTime := range b.stepRunIdToCompletionTime {
 				if now.Sub(completionTime) > b.gracePeriod {
+					// flush leftovers instead of discarding them: buffered
+					// events here are real chunks the client never saw
+					if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
+						slices.SortFunc(events, sortByEventIndex)
+
+						for _, e := range events {
+							if !b.sendEventLocked(e) {
+								b.mu.Unlock()
+								return
+							}
+						}
+					}
+
 					delete(b.stepRunIdToWorkflowEvents, stepRunId)
 					delete(b.stepRunIdToExpectedIndex, stepRunId)
 					delete(b.stepRunIdToLastSeenTime, stepRunId)
@@ -1004,9 +1017,15 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 				}
 
 				delete(b.stepRunIdToWorkflowEvents, stepRunId)
-				delete(b.stepRunIdToExpectedIndex, stepRunId)
 				delete(b.stepRunIdToLastSeenTime, stepRunId)
 			}
+
+			// The terminal event can leapfrog late stream chunks (they ride
+			// separate per-msgId flush buffers), so accept whatever index
+			// arrives next instead of resetting to 0: a straggler would
+			// otherwise buffer against an impossible expected index and be
+			// discarded by periodicCleanup, silently losing chunks.
+			b.stepRunIdToExpectedIndex[stepRunId] = -1
 
 			b.stepRunIdToCompletionTime[stepRunId] = now
 		}
