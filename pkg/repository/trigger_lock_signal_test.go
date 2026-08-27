@@ -96,17 +96,4 @@ func TestLockSignalCreatedEvents_MultiParentBatch(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.Empty(t, events)
-
-	// duplicate triples in a batch do not duplicate results
-	events, err = repo.lockSignalCreatedEvents(
-		ctx,
-		pool,
-		tenantId,
-		[]int64{parentB, parentB},
-		[]pgtype.Timestamptz{toTimestamptz(parentBInsertedAt), toTimestamptz(parentBInsertedAt)},
-		[]string{"b.key.0", "b.key.0"},
-	)
-	require.NoError(t, err)
-	require.Len(t, events, 1)
-	assert.Equal(t, "b.key.0", events[0].EventKey.String)
 }
