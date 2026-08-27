@@ -318,6 +318,16 @@ WITH tasks AS (
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
+        AND (
+            dt.task_id != dt.dag_id
+            OR NOT EXISTS (
+                SELECT 1
+                FROM v1_dag_to_task_olap other
+                WHERE other.dag_id = dt.dag_id
+                    AND other.dag_inserted_at = dt.dag_inserted_at
+                    AND other.task_id != other.dag_id
+            )
+        )
 ), aggregated_events AS (
     SELECT
         e.tenant_id,
