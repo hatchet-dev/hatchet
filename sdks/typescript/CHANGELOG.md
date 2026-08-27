@@ -5,6 +5,11 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.3] - 2026-08-13
+
+- Fixed `context.putStream` so it gracefully handles errors rather than silently swallowing them.
+
+
 ## [1.28.2] - 2026-08-10
 
 ### Fixed
