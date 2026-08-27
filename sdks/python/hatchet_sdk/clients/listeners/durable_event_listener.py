@@ -484,6 +484,16 @@ class DurableEventListener:
             if completed_key not in queue.delivered:
                 queue.delivered.add(completed_key)
                 queue.pending.append((completed_key, result))
+            elif all(k != completed_key for k, _ in queue.pending):
+                # Re-delivery of a completion that already drained (reconnect,
+                # worker-status re-send, or a repeated wait on a node deduped by
+                # child key). Its satisfied_order was released before anything
+                # still queued, so handing it straight to a waiter keeps order.
+                redelivered_future = self._pending_callbacks.get(completed_key)
+                if redelivered_future is not None:
+                    del self._pending_callbacks[completed_key]
+                    if not redelivered_future.done():
+                        redelivered_future.set_result(result)
             self._ordered_completions[order_key] = queue
             self._drain_ordered_completions(order_key)
         elif response.HasField("eviction_ack"):
