@@ -900,7 +900,7 @@ func (b *StreamEventBuffer) flushBufferedStreamEventsLocked() {
 }
 
 func (b *StreamEventBuffer) hangupDrainLoop() {
-	ticker := time.NewTicker(50 * time.Millisecond)
+	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
