@@ -8,17 +8,6 @@ from examples.bug_tests.durable_callback_ordering.worker import (
 )
 
 
-def _exception_text(error: BaseException) -> str:
-    parts = [f"{type(error).__name__}: {error}"]
-    if isinstance(error, BaseExceptionGroup):
-        parts.extend(_exception_text(nested) for nested in error.exceptions)
-    if error.__cause__ is not None:
-        parts.append(_exception_text(error.__cause__))
-    if error.__context__ is not None and error.__context__ is not error.__cause__:
-        parts.append(_exception_text(error.__context__))
-    return "\n".join(parts)
-
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_replayed_completions_resume_in_recorded_order() -> None:
     input = RootInput()
@@ -31,10 +20,10 @@ async def test_replayed_completions_resume_in_recorded_order() -> None:
             timeout=60,
         )
     except Exception as error:
-        evidence = _exception_text(error)
-        if "NonDeterminismError" in evidence:
+        if "NonDeterminismError" in str(error):
             pytest.fail(
-                "replayed completions were consumed out of recorded order:\n" + evidence
+                "replayed completions were consumed out of recorded order:\n"
+                + str(error)
             )
         raise
 
