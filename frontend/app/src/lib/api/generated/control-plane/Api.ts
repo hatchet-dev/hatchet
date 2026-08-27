@@ -40,6 +40,7 @@ import {
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationInvoices,
   OrganizationMember,
   OrganizationPaymentMethodList,
   OrganizationTenant,
@@ -1718,6 +1719,26 @@ export class Api<
   ) =>
     this.request<OrganizationCreditBalance, APIErrors>({
       path: `/api/v1/control-plane/billing/organizations/${organization}/credit-balance`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get upcoming invoice previews and previous invoices for an organization
+   *
+   * @tags Billing
+   * @name OrganizationInvoicesGet
+   * @summary Get invoices for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/invoices
+   * @secure
+   */
+  organizationInvoicesGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationInvoices, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/invoices`,
       method: "GET",
       secure: true,
       format: "json",
