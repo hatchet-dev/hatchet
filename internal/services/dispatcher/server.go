@@ -2318,11 +2318,12 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				if !ok {
 					return
 				}
-
+				ctx, span := telemetry.NewSpan(ctx, "send-streambuffer-events")
+				span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 				sendMu.Lock()
 				err := stream.Send(event)
 				sendMu.Unlock()
-
+				span.End()
 				if err != nil {
 					s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event to client")
 					cancel()
@@ -2340,7 +2341,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	f := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
-
+		ctx, span := telemetry.NewSpan(ctx, "get-workflow-events")
+		defer span.End()
+		span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
