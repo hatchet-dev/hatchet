@@ -1005,28 +1005,14 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 		event.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
 
 		if isTerminalEvent(event) {
-			if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
-				slices.SortFunc(events, sortByEventIndex)
-
-				for _, e := range events {
-					select {
-					case b.eventsChan <- e:
-					case <-b.ctx.Done():
-						return
-					}
-				}
-
-				delete(b.stepRunIdToWorkflowEvents, stepRunId)
-				delete(b.stepRunIdToLastSeenTime, stepRunId)
-			}
-
 			// The terminal event can leapfrog late stream chunks (they ride
-			// separate per-msgId flush buffers), so accept whatever index
-			// arrives next instead of resetting to 0: a straggler would
-			// otherwise buffer against an impossible expected index and be
-			// discarded by periodicCleanup, silently losing chunks.
-			b.stepRunIdToExpectedIndex[stepRunId] = -1
-
+			// separate per-msgId flush buffers), so don't flush buffered
+			// chunks past a hole here and don't reset the expected index:
+			// the straggler usually arrives moments later, fills the hole,
+			// and the buffer drains in order. The hangup drain (which holds
+			// the hangup until buffers are empty) and periodicCleanup (which
+			// flushes leftovers after the grace period) cover chunks that
+			// never arrive.
 			b.stepRunIdToCompletionTime[stepRunId] = now
 		}
 

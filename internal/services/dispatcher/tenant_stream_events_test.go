@@ -172,8 +172,9 @@ func TestStreamBuffer_WorkflowHangupWaitsForMissingIndex(t *testing.T) {
 // TestStreamBuffer_ChunksAfterTerminalEventAreDelivered reproduces the
 // production loss pattern: the step-run terminal event leapfrogs late stream
 // chunks (separate per-msgId flush buffers), and the stragglers arriving after
-// it must still be delivered instead of buffering against a reset expected
-// index and being discarded by periodicCleanup.
+// it must still be delivered — in order, since the buffer holds chunks past
+// the hole until the straggler fills it rather than flushing on the terminal
+// event.
 func TestStreamBuffer_ChunksAfterTerminalEventAreDelivered(t *testing.T) {
 	t.Parallel()
 
@@ -219,9 +220,8 @@ func TestStreamBuffer_ChunksAfterTerminalEventAreDelivered(t *testing.T) {
 		}
 	}
 
-	// the terminal flush emits buffered chunks past the hole, so the straggler
-	// lands out of order — but it must not be lost
-	assert.ElementsMatch(t, []string{"c00", "c01", "c02", "c03"}, payloads)
+	// the straggler fills the hole, so everything drains in order
+	assert.Equal(t, []string{"c00", "c01", "c02", "c03"}, payloads)
 	require.True(t, sawHangup)
 }
 
