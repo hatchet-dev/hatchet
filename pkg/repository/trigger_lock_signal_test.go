@@ -39,7 +39,7 @@ func TestLockSignalCreatedEvents_MultiParentBatch(t *testing.T) {
 	ctx := context.Background()
 	repo := createTaskRepository(pool)
 
-	// creates the range partitions for v1_task_event
+	// v1_task_event is range-partitioned; inserts require the partitions to exist
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
 	tenantId := uuid.New()
@@ -56,7 +56,6 @@ func TestLockSignalCreatedEvents_MultiParentBatch(t *testing.T) {
 	insertSignalCreatedEvent(t, ctx, repo, tenantId, parentA, parentAInsertedAt, "a.key.1")
 	insertSignalCreatedEvent(t, ctx, repo, tenantId, parentA, parentAInsertedAt, "a.key.2")
 
-	// parent B has two signal events
 	insertSignalCreatedEvent(t, ctx, repo, tenantId, parentB, parentBInsertedAt, "b.key.0")
 	insertSignalCreatedEvent(t, ctx, repo, tenantId, parentB, parentBInsertedAt, "b.key.1")
 
@@ -98,7 +97,7 @@ func TestLockSignalCreatedEvents_MultiParentBatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, events)
 
-	// duplicate triples in a batch do not duplicate results per key set semantics of ANY()
+	// duplicate triples in a batch do not duplicate results
 	events, err = repo.lockSignalCreatedEvents(
 		ctx,
 		pool,

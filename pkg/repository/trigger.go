@@ -1848,11 +1848,10 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 }
 
 // lockSignalCreatedEvents groups (task_id, task_inserted_at, event_key) triples by parent
-// task and runs one lookup per parent. The flat per-parent predicates let the planner use
-// the unique index on (tenant_id, task_id, task_inserted_at, event_type, event_key); a
-// single query joining against the full unnested input reads every SIGNAL_CREATED event
-// of each parent instead. Parents are processed in a deterministic order so concurrent
-// transactions touch rows in the same order.
+// task and runs one lookup per parent: the flat per-parent predicates are required for the
+// planner to use the unique index on (tenant_id, task_id, task_inserted_at, event_type,
+// event_key). Parents are processed in sorted order so concurrent transactions touch rows
+// in the same order.
 func (r *sharedRepository) lockSignalCreatedEvents(
 	ctx context.Context,
 	tx sqlcv1.DBTX,

@@ -2623,9 +2623,9 @@ type LockSignalCreatedEventsRow struct {
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
 // modify the events.
-// Note: this intentionally uses flat predicates for a single parent task (callers group
-// their input by parent) so the planner can use the unique index on
-// (tenant_id, task_id, task_inserted_at, event_type, event_key).
+// The flat single-parent predicates are required for the planner to use the unique index
+// on (tenant_id, task_id, task_inserted_at, event_type, event_key); callers group their
+// input by parent task.
 func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg LockSignalCreatedEventsParams) ([]*LockSignalCreatedEventsRow, error) {
 	rows, err := db.Query(ctx, lockSignalCreatedEvents,
 		arg.Tenantid,

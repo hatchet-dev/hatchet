@@ -1081,9 +1081,8 @@ WITH inputs AS (
     ORDER BY durable_task_id, durable_task_inserted_at
     FOR UPDATE
 ), satisfied_orders_to_apply AS (
-    -- note: joining on all four primary key columns (instead of filtering with an IN
-    -- subquery) lets the planner probe the primary key per input row rather than
-    -- scanning every log entry of the parent task
+    -- joining on all four primary key columns lets the planner probe the primary key
+    -- per input row rather than scanning every log entry of the parent task
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
