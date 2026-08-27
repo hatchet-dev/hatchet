@@ -364,9 +364,9 @@ WITH locked_runtime AS (
     FROM
         v1_task_runtime
     WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
+        tenant_id = $3::uuid
+        AND task_id = $1::bigint
+        AND task_inserted_at = $2::timestamptz
         AND retry_count = $4::int
         AND evicted_at IS NULL
         AND (timeout_at IS NULL OR timeout_at > NOW())
@@ -374,9 +374,9 @@ WITH locked_runtime AS (
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot
     WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
+        tenant_id = $3::uuid
+        AND task_id = $1::bigint
+        AND task_inserted_at = $2::timestamptz
         AND retry_count = $4::int
 ), updated_runtime AS (
     UPDATE v1_task_runtime
@@ -388,29 +388,41 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted"
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = $1::bigint
+          AND durable_task_inserted_at = $2::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events
 `
 
 type EvictTaskParams struct {
-	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	Tenantid       uuid.UUID          `json:"tenantid"`
 	Retrycount     int32              `json:"retrycount"`
+}
+
+type EvictTaskRow struct {
+	Evicted                     int32 `json:"evicted"`
+	HasUnsatisfiedDurableEvents bool  `json:"has_unsatisfied_durable_events"`
 }
 
 // Marks a task as evicted in v1_task_runtime and releases worker slots.
 // Skips rows whose execution timeout has already passed so the timeout
 // mechanism handles them instead of producing a spurious EVICTED status.
-func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (int32, error) {
+func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (*EvictTaskRow, error) {
 	row := db.QueryRow(ctx, evictTask,
-		arg.Tenantid,
 		arg.Taskid,
 		arg.Taskinsertedat,
+		arg.Tenantid,
 		arg.Retrycount,
 	)
-	var evicted int32
-	err := row.Scan(&evicted)
-	return evicted, err
+	var i EvictTaskRow
+	err := row.Scan(&i.Evicted, &i.HasUnsatisfiedDurableEvents)
+	return &i, err
 }
 
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many

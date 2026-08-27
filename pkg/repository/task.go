@@ -248,6 +248,14 @@ type RefreshTimeoutBy struct {
 
 type WasEvicted bool
 
+type EvictTaskResult struct {
+	WasEvicted bool
+
+	// need to track this because if a task is evicted with no unsatisfied entries, it'll never get
+	// requeued (because nothing would wake it up) and it'll hang forever until it times out and replays
+	HasUnsatisfiedEntries bool
+}
+
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
@@ -309,7 +317,7 @@ type TaskRepository interface {
 
 	ReleaseSlot(ctx context.Context, tenantId, externalId uuid.UUID) (*sqlcv1.V1TaskRuntime, error)
 
-	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error)
+	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (*EvictTaskResult, error)
 
 	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
@@ -1906,11 +1914,11 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 	return resp, nil
 }
 
-func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error) {
+func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (*EvictTaskResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	defer rollback()
@@ -1921,7 +1929,7 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 		Tenantid:              tenantId,
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return false, err
+		return nil, err
 	}
 
 	evicted, err := r.queries.EvictTask(ctx, tx, sqlcv1.EvictTaskParams{
@@ -1930,25 +1938,22 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 		Taskinsertedat: task.InsertedAt,
 		Retrycount:     task.RetryCount,
 	})
-	if err != nil {
-		return false, err
-	}
 
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	return WasEvicted(evicted > 0), nil
-}
-
-func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
 		return nil, err
 	}
 
-	defer rollback()
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
 
+	return &EvictTaskResult{
+		WasEvicted:            evicted.Evicted > 0,
+		HasUnsatisfiedEntries: evicted.HasUnsatisfiedDurableEvents,
+	}, nil
+}
+
+func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -1958,6 +1963,13 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 		taskInsertedAts[i] = t.InsertedAt
 		retryCounts[i] = t.RetryCount
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
 
 	rows, err := r.queries.RestoreEvictedTasks(ctx, tx, sqlcv1.RestoreEvictedTasksParams{
 		Tenantid:        tenantId,

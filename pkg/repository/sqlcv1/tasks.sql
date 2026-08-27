@@ -1128,7 +1128,14 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = @taskId::bigint
+          AND durable_task_inserted_at = @taskInsertedAt::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events;
 
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
