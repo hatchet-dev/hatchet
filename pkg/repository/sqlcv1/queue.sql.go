@@ -1362,6 +1362,42 @@ func (q *Queries) ListWorkerActionSets(ctx context.Context, db DBTX, arg ListWor
 	return items, nil
 }
 
+const lockTaskRuntimesForFlush = `-- name: LockTaskRuntimesForFlush :exec
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS retry_count
+)
+SELECT task_id, task_inserted_at, retry_count, worker_id, batch_id, batch_size, batch_index, batch_key, tenant_id, timeout_at, evicted_at
+FROM v1_task_runtime
+WHERE
+    (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM input
+    )
+    AND tenant_id = $1::uuid
+ORDER BY task_id, task_inserted_at, retry_count
+FOR UPDATE
+`
+
+type LockTaskRuntimesForFlushParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+}
+
+func (q *Queries) LockTaskRuntimesForFlush(ctx context.Context, db DBTX, arg LockTaskRuntimesForFlushParams) error {
+	_, err := db.Exec(ctx, lockTaskRuntimesForFlush,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+	)
+	return err
+}
+
 const moveBatchedQueueItems = `-- name: MoveBatchedQueueItems :many
 WITH moved_items AS (
     DELETE FROM v1_batched_queue_item

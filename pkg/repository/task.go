@@ -1954,13 +1954,6 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -1970,6 +1963,13 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 		taskInsertedAts[i] = t.InsertedAt
 		retryCounts[i] = t.RetryCount
 	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
 
 	rows, err := r.queries.RestoreEvictedTasks(ctx, tx, sqlcv1.RestoreEvictedTasksParams{
 		Tenantid:        tenantId,
