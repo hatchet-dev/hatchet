@@ -839,6 +839,97 @@ export interface Coupon {
   percent?: number;
 }
 
+export interface OrganizationInvoiceLineItemDiscount {
+  /** Discount amount in cents. */
+  amountOffCents: number;
+  /**
+   * Percentage discount, when the reward is a percent-off coupon.
+   * @format float
+   */
+  percentOff?: number;
+  /** Display name of the applied reward, when available. */
+  rewardName?: string;
+}
+
+export interface OrganizationInvoiceLineItem {
+  /** Plan or feature name to display for this line item. */
+  displayName: string;
+  /** Detailed description of the line item. */
+  description: string;
+  /** Amount before discounts and tax, in cents. */
+  subtotalCents: number;
+  /** Amount after discounts and tax, in cents. */
+  totalCents: number;
+  /** Autumn plan ID this line item belongs to. */
+  planId: string;
+  /** Autumn feature ID for usage line items, when present. */
+  featureId?: string;
+  /**
+   * Quantity billed for this line item.
+   * @format double
+   */
+  quantity: number;
+  /**
+   * Start of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodStart?: string;
+  /**
+   * End of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodEnd?: string;
+  /** Discounts applied to this line item. */
+  discounts?: OrganizationInvoiceLineItemDiscount[];
+}
+
+export interface OrganizationInvoicePreview {
+  /** Plan IDs contributing line items to this upcoming invoice. */
+  planIds: string[];
+  /**
+   * When this invoice will be created.
+   * @format date-time
+   */
+  invoiceAt: string;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /** Total before discounts, in cents. */
+  subtotalCents: number;
+  /** Total after discounts, in cents. */
+  totalCents: number;
+  /** Usage accrued in the closing cycle plus recurring charges for the opening cycle. */
+  lineItems: OrganizationInvoiceLineItem[];
+}
+
+export interface OrganizationInvoice {
+  /** Plan IDs included on this invoice. */
+  planIds: string[];
+  /** Stripe invoice ID. */
+  stripeId: string;
+  /** Billing processor that owns this invoice. */
+  processorType?: string;
+  /** Invoice status (paid, open, draft, void, uncollectible). */
+  status: string;
+  /** Invoice total in cents. */
+  totalCents: number;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /**
+   * When the invoice was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /** URL to open the hosted invoice page. */
+  hostedInvoiceUrl?: string;
+}
+
+export interface OrganizationInvoices {
+  /** Upcoming invoices for the organization's subscriptions. */
+  invoicePreviews: OrganizationInvoicePreview[];
+  /** Previously issued invoices, most recent first. */
+  invoices: OrganizationInvoice[];
+}
+
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
