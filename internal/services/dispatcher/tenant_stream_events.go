@@ -17,14 +17,16 @@ import (
 
 // eventConverter adapts a per-payload field mapping into a converter over raw
 // tenant-stream payloads: each payload is decoded as T and mapped to a
-// contracts.WorkflowEvent.
+// contracts.WorkflowEvent. A nil result skips the payload.
 func eventConverter[T any](toEvent func(payload *T) *contracts.WorkflowEvent) func(payloads [][]byte) []*contracts.WorkflowEvent {
 	return func(payloads [][]byte) []*contracts.WorkflowEvent {
 		converted := msgqueue.JSONConvert[T](payloads)
 		workflowEvents := []*contracts.WorkflowEvent{}
 
 		for _, payload := range converted {
-			workflowEvents = append(workflowEvents, toEvent(payload))
+			if event := toEvent(payload); event != nil {
+				workflowEvents = append(workflowEvents, event)
+			}
 		}
 
 		return workflowEvents
@@ -93,7 +95,10 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 	msgqueue.MsgIDWorkflowRunFinished: eventConverter(func(payload *tasktypes.NotifyFinalizedPayload) *contracts.WorkflowEvent {
 		eventType, ok := workflowRunEventTypeForOlapStatus(payload.Status)
 		if !ok {
-			eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+			// non-terminal statuses (e.g. RUNNING from a DAG's QUEUED->RUNNING
+			// transition) must not become hangup-triggering COMPLETED events:
+			// that closes subscriber streams the moment a DAG run starts
+			return nil
 		}
 
 		return &contracts.WorkflowEvent{

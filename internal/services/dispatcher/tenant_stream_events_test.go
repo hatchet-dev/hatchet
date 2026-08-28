@@ -3,10 +3,15 @@
 package dispatcher
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +44,40 @@ func TestWorkflowRunEventTypeForOlapStatus(t *testing.T) {
 			assert.Equal(t, tt.wantType, gotType)
 		})
 	}
+}
+
+// TestWorkflowRunFinishedConverterDropsNonTerminalStatuses reproduces the
+// premature-hangup bug for DAG runs: the OLAP controller's DAG status updater
+// used to publish QUEUED->RUNNING transitions as workflow-run-finished, and
+// the converter coerced the unknown RUNNING status into COMPLETED, hanging up
+// stream subscribers the moment the run started. Non-terminal statuses must
+// produce no event at all.
+func TestWorkflowRunFinishedConverterDropsNonTerminalStatuses(t *testing.T) {
+	t.Parallel()
+
+	convert := workflowEventConverters[msgqueue.MsgIDWorkflowRunFinished]
+	require.NotNil(t, convert)
+
+	runId := uuid.New()
+
+	payload := func(status sqlcv1.V1ReadableStatusOlap) []byte {
+		body, err := json.Marshal(tasktypes.NotifyFinalizedPayload{
+			ExternalId: runId,
+			Status:     status,
+		})
+		require.NoError(t, err)
+		return body
+	}
+
+	events := convert([][]byte{
+		payload(sqlcv1.V1ReadableStatusOlapQUEUED),
+		payload(sqlcv1.V1ReadableStatusOlapRUNNING),
+		payload(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+	})
+
+	require.Len(t, events, 1)
+	assert.Equal(t, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, events[0].EventType)
+	assert.Equal(t, runId.String(), events[0].WorkflowRunId)
 }
 
 func TestWorkflowRunEventTypeFromOutputEvents(t *testing.T) {
