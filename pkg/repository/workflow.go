@@ -271,6 +271,8 @@ type WorkflowRepository interface {
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
 	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
+
+	ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
 }
 
 type workflowRepository struct {
@@ -1558,6 +1560,13 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 	}
 
 	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+}
+
+func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-unpaused-workflows-with-paused-queue-items")
+	defer span.End()
+
+	return r.queries.ListUnpausedWorkflowsWithPausedQueueItems(ctx, r.pool, tenantId)
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {

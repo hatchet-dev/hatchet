@@ -1301,6 +1301,40 @@ func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids
 	return items, nil
 }
 
+const listUnpausedWorkflowsWithPausedQueueItems = `-- name: ListUnpausedWorkflowsWithPausedQueueItems :many
+SELECT w."id"
+FROM "Workflow" w
+WHERE
+    w."tenantId" = $1::UUID
+    AND w."deletedAt" IS NULL
+    AND w."isPaused" = FALSE
+    AND EXISTS (
+        SELECT 1
+        FROM v1_paused_workflow_queue_item qi
+        WHERE qi.workflow_id = w."id" AND qi.tenant_id = $1::UUID
+    )
+`
+
+func (q *Queries) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listUnpausedWorkflowsWithPausedQueueItems, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkerActionSets = `-- name: ListWorkerActionSets :many
 WITH worker_actions AS MATERIALIZED (
     SELECT
@@ -1495,12 +1529,17 @@ func (q *Queries) MoveBatchedQueueItems(ctx context.Context, db DBTX, ids []int6
 
 const movePausedWorkflowConcurrencySlots = `-- name: MovePausedWorkflowConcurrencySlots :exec
 WITH tasks_to_move AS (
-    SELECT DISTINCT task_id, task_inserted_at, task_retry_count
-    FROM v1_concurrency_slot
+    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
     WHERE
-        workflow_id = ANY($1::UUID[])
-        AND tenant_id = $2::UUID
-        AND is_filled = FALSE
+        cs.workflow_id = ANY($1::UUID[])
+        AND cs.tenant_id = $2::UUID
+        AND cs.is_filled = FALSE
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = cs.workflow_id AND w."isPaused"
+        )
 ), deleted_slots AS (
     DELETE FROM v1_concurrency_slot cs
     USING tasks_to_move p
@@ -1566,8 +1605,15 @@ func (q *Queries) MovePausedWorkflowConcurrencySlots(ctx context.Context, db DBT
 
 const movePausedWorkflowQueueItems = `-- name: MovePausedWorkflowQueueItems :exec
 WITH moved_items AS (
-    DELETE FROM v1_queue_item
-    WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
+    DELETE FROM v1_queue_item qi
+    WHERE
+        qi.workflow_id = ANY($1::UUID[])
+        AND qi.tenant_id = $2::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
     RETURNING id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
 ), released_slots AS (
     DELETE FROM v1_concurrency_slot cs
@@ -1633,8 +1679,15 @@ func (q *Queries) MovePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg
 
 const movePausedWorkflowRateLimitedQueueItems = `-- name: MovePausedWorkflowRateLimitedQueueItems :exec
 WITH moved_items AS (
-    DELETE FROM v1_rate_limited_queue_items
-    WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
+    DELETE FROM v1_rate_limited_queue_items qi
+    WHERE
+        qi.workflow_id = ANY($1::UUID[])
+        AND qi.tenant_id = $2::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
     RETURNING requeue_after, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
 ), released_slots AS (
     DELETE FROM v1_concurrency_slot cs

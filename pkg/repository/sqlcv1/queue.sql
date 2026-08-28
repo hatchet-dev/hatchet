@@ -1059,8 +1059,15 @@ WHERE q.tenant_id = i.tenant_id
 
 -- name: MovePausedWorkflowQueueItems :exec
 WITH moved_items AS (
-    DELETE FROM v1_queue_item
-    WHERE workflow_id = ANY(@workflowIds::UUID[]) AND tenant_id = @tenantId::UUID
+    DELETE FROM v1_queue_item qi
+    WHERE
+        qi.workflow_id = ANY(@workflowIds::UUID[])
+        AND qi.tenant_id = @tenantId::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
     RETURNING *
 ), released_slots AS (
     DELETE FROM v1_concurrency_slot cs
@@ -1116,12 +1123,17 @@ RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: MovePausedWorkflowConcurrencySlots :exec
 WITH tasks_to_move AS (
-    SELECT DISTINCT task_id, task_inserted_at, task_retry_count
-    FROM v1_concurrency_slot
+    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
     WHERE
-        workflow_id = ANY(@workflowIds::UUID[])
-        AND tenant_id = @tenantId::UUID
-        AND is_filled = FALSE
+        cs.workflow_id = ANY(@workflowIds::UUID[])
+        AND cs.tenant_id = @tenantId::UUID
+        AND cs.is_filled = FALSE
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = cs.workflow_id AND w."isPaused"
+        )
 ), deleted_slots AS (
     DELETE FROM v1_concurrency_slot cs
     USING tasks_to_move p
@@ -1177,8 +1189,15 @@ RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: MovePausedWorkflowRateLimitedQueueItems :exec
 WITH moved_items AS (
-    DELETE FROM v1_rate_limited_queue_items
-    WHERE workflow_id = ANY(@workflowIds::UUID[]) AND tenant_id = @tenantId::UUID
+    DELETE FROM v1_rate_limited_queue_items qi
+    WHERE
+        qi.workflow_id = ANY(@workflowIds::UUID[])
+        AND qi.tenant_id = @tenantId::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
     RETURNING *
 ), released_slots AS (
     DELETE FROM v1_concurrency_slot cs
@@ -1367,6 +1386,19 @@ JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_in
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
 RETURNING strategy_id
 ;
+
+-- name: ListUnpausedWorkflowsWithPausedQueueItems :many
+SELECT w."id"
+FROM "Workflow" w
+WHERE
+    w."tenantId" = @tenantId::UUID
+    AND w."deletedAt" IS NULL
+    AND w."isPaused" = FALSE
+    AND EXISTS (
+        SELECT 1
+        FROM v1_paused_workflow_queue_item qi
+        WHERE qi.workflow_id = w."id" AND qi.tenant_id = @tenantId::UUID
+    );
 
 -- name: ListExpiredPausedWorkflowQueueItems :many
 SELECT
