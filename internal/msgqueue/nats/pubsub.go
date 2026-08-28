@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -24,6 +26,15 @@ type PubSub struct {
 	nc            *natsgo.Conn
 	l             *zerolog.Logger
 	subjectPrefix string
+
+	// pubErrL rate-limits the publish-failure log to one line per minute: a
+	// slow or down broker fails every Pub and would otherwise emit one error
+	// per message. Failures remain visible via the "error" result label on
+	// hatchet_pubsub_publish_duration_seconds.
+	pubErrL *zerolog.Logger
+
+	// registry feeds the hatchet_pubsub_nats_* client metrics at scrape time.
+	registry *subRegistry
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -120,6 +131,15 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	l := opts.l
 
+	// Async errors are logged at most once per minute: nats.go invokes the
+	// handler per protocol error, and during an incident a single broker-side
+	// condition can fire it tens of times per second. The handler is also the
+	// wrong place to count client-side drops — it fires only on the transition
+	// into slow-consumer state, staying silent while stuck in it — so drop
+	// accounting lives in hatchet_pubsub_nats_client_drops_total (fed by
+	// Subscription.Dropped()), and this log is just a human-readable pointer.
+	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
+
 	connectOpts := []natsgo.Option{
 		// Reconnect behavior is deliberately fixed rather than configurable.
 		// MaxReconnects(-1) retries forever: any finite limit permanently
@@ -154,11 +174,21 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			l.Info().Msg("nats pubsub connection closed")
 		}),
 		natsgo.ErrorHandler(func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
-			subject := ""
+			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
-				subject = sub.Subject
+				e = e.Str("subject", sub.Subject)
+				// Dropped/Pending are cheap mutex-guarded getters; still, only
+				// read them for the one event per minute that survives sampling.
+				if e.Enabled() {
+					if dropped, derr := sub.Dropped(); derr == nil {
+						e = e.Int("dropped_total", dropped)
+					}
+					if pendingMsgs, pendingBytes, perr := sub.Pending(); perr == nil {
+						e = e.Int("pending_msgs", pendingMsgs).Int("pending_bytes", pendingBytes)
+					}
+				}
 			}
-			l.Error().Err(err).Str("subject", subject).Msg("nats pubsub async error")
+			e.Msg("nats pubsub async error")
 		}),
 	}
 
@@ -200,13 +230,23 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		prefix = defaultSubjectPrefix
 	}
 
+	// Distinct sampler from asyncErrL: publish failures and async subscription
+	// errors are separate signals, and a flood of one must not swallow the
+	// other's one line per minute.
+	pubErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
+
 	p := &PubSub{
 		nc:            nc,
 		l:             l,
 		subjectPrefix: prefix,
+		pubErrL:       &pubErrL,
+		registry:      newSubRegistry(),
 	}
 
+	unregisterCollector := prommetrics.RegisterNATSPubSubStatsProvider(p.registry.stats)
+
 	return func() error {
+		unregisterCollector()
 		nc.Close()
 		return nil
 	}, p, nil
@@ -260,7 +300,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	}
 
 	if err := p.nc.Publish(subject, body); err != nil {
-		p.l.Error().Ctx(ctx).Err(err).Str("subject", subject).Msg("error publishing pubsub message")
+		p.pubErrL.Error().Ctx(ctx).Err(err).Str("subject", subject).Msg("error publishing pubsub message")
 		return err
 	}
 
@@ -309,7 +349,12 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
+	p.registry.add(sub, topic.Kind())
+
 	return func() error {
+		// Fold the final Dropped() count into the registry before Unsubscribe
+		// invalidates the subscription.
+		p.registry.remove(sub)
 		return sub.Unsubscribe()
 	}, nil
 }
