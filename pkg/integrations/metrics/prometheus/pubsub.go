@@ -29,21 +29,16 @@ var (
 	}, []string{"kind", "topic_kind"})
 )
 
-// RegisterNATSClientDrops registers a counter that republishes one NATS
-// subscription's cumulative Dropped() count at scrape time, labelled with the
-// given topic kind, and returns a function that unregisters it. Registering a
-// second counter for the same topic kind fails with
-// prometheus.AlreadyRegisteredError.
-func RegisterNATSClientDrops(topicKind string, dropped func() float64) (func(), error) {
+// RegisterNATSClientDrops exposes dropped() as a counter labelled with the
+// topic kind; the returned func unregisters it. Panics on double registration.
+func RegisterNATSClientDrops(topicKind string, dropped func() float64) func() {
 	c := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name:        string(PubSubNATSClientDropsTotal),
 		Help:        "Messages dropped client-side by the nats.go pub/sub subscription on pending-limit violations, from Subscription.Dropped().",
 		ConstLabels: prometheus.Labels{"topic_kind": topicKind},
 	}, dropped)
 
-	if err := prometheus.Register(c); err != nil {
-		return nil, err
-	}
+	prometheus.MustRegister(c)
 
-	return func() { prometheus.Unregister(c) }, nil
+	return func() { prometheus.Unregister(c) }
 }

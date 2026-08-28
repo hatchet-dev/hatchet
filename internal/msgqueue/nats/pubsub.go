@@ -323,33 +323,26 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
-	// A scheduler process holds exactly one partition subscription, so its
-	// cumulative Dropped() can be republished directly at scrape time; the
-	// async ErrorHandler under-counts (it fires only on the transition into
-	// slow-consumer state) and tenant-stream subscriptions come and go, so
-	// they are covered by the sampled slow-consumer log instead.
-	var unregisterDrops func()
-	if topic.Kind() == msgqueue.TopicKindSchedulerPartition {
-		unregister, err := prommetrics.RegisterNATSClientDrops(string(topic.Kind()), func() float64 {
-			dropped, err := sub.Dropped()
-			if err != nil {
-				// unreadable (unsubscribing); the collector is about to be
-				// unregistered anyway
-				return 0
-			}
-			return float64(dropped)
-		})
-		if err != nil {
-			p.l.Warn().Err(err).Str("subject", subject).Msg("nats pubsub drops counter already registered, skipping")
-		} else {
-			unregisterDrops = unregister
-		}
-	}
+	unregisterDrops := p.registerDropsCounter(topic, sub)
 
 	return func() error {
-		if unregisterDrops != nil {
-			unregisterDrops()
-		}
+		unregisterDrops()
 		return sub.Unsubscribe()
 	}, nil
+}
+
+// registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
+// counter, only for scheduler-partition topics: one long-lived subscription per scheduler pod (its partition).
+func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
+	if topic.Kind() != msgqueue.TopicKindSchedulerPartition {
+		return func() {}
+	}
+
+	return prommetrics.RegisterNATSClientDrops(string(topic.Kind()), func() float64 {
+		dropped, err := sub.Dropped()
+		if err != nil {
+			return 0
+		}
+		return float64(dropped)
+	})
 }
