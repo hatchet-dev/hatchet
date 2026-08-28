@@ -185,8 +185,17 @@ type NodeId = number;
 type PendingEventAckKey = `${TaskExternalId}:${InvocationCount}`;
 type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
 type PendingEvictionAckKey = `${TaskExternalId}:${InvocationCount}`;
+type CompletionOrderKey = `${TaskExternalId}:${InvocationCount}`;
+
+interface OrderedCompletionQueue {
+  pending: Array<{ key: PendingCallbackKey; result: DurableTaskEventLogEntryResult }>;
+  delivered: Set<PendingCallbackKey>;
+}
 
 function ackKey(taskExtId: string, invocationCount: number): PendingEventAckKey {
+  return `${taskExtId}:${invocationCount}`;
+}
+function completionOrderKey(taskExtId: string, invocationCount: number): CompletionOrderKey {
   return `${taskExtId}:${invocationCount}`;
 }
 function callbackKey(
@@ -232,13 +241,11 @@ export class DurableListenerClient {
     PendingCallbackKey,
     Deferred<DurableTaskEventLogEntryResult>
   >();
-  // Completions that arrived before waitForCallback() registered a deferred
-  // in _pendingCallbacks. This happens when the server delivers an
-  // entryCompleted between the event ack and the waitForCallback call
-  // (e.g. an already-satisfied sleep delivered via polling).
-  private _bufferedCompletions = new TTLMap<PendingCallbackKey, DurableTaskEventLogEntryResult>(
-    10_000
-  );
+  // Completions held in server delivery order until their waiters can
+  // consume them without overtaking an earlier-delivered completion.
+  // The TTL only garbage-collects queues for invocations that died
+  // without consuming everything; the server stall-evicts long before.
+  private _orderedCompletions = new TTLMap<CompletionOrderKey, OrderedCompletionQueue>(300_000);
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
 
   private _receiveAbort: AbortController | undefined;
@@ -293,7 +300,7 @@ export class DurableListenerClient {
       this._receiveAbort.abort();
     }
     this._failPendingAcks(new Error('DurableListener stopped'));
-    this._bufferedCompletions.destroy();
+    this._orderedCompletions.destroy();
   }
 
   private async _connect(): Promise<void> {
@@ -442,7 +449,7 @@ export class DurableListenerClient {
       d.reject(exc);
     }
     this._pendingCallbacks.clear();
-    this._bufferedCompletions.clear();
+    this._orderedCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
@@ -507,13 +514,30 @@ export class DurableListenerClient {
         ref?.nodeId ?? 0
       );
       const result = eventLogEntryResultFromProto(completed);
-      const pending = this._pendingCallbacks.get(key);
-      if (pending) {
-        pending.resolve(result);
-        this._pendingCallbacks.delete(key);
-      } else {
-        this._bufferedCompletions.set(key, result);
+      const orderKey = completionOrderKey(
+        ref?.durableTaskExternalId ?? '',
+        ref?.invocationCount ?? 0
+      );
+      const queue: OrderedCompletionQueue = this._orderedCompletions.get(orderKey) ?? {
+        pending: [],
+        delivered: new Set(),
+      };
+      if (!queue.delivered.has(key)) {
+        queue.delivered.add(key);
+        queue.pending.push({ key, result });
+      } else if (queue.pending.every((entry) => entry.key !== key)) {
+        // Re-delivery of a completion that already drained (reconnect,
+        // worker-status re-send, or a repeated wait on a node deduped by
+        // child key). Its satisfied order was released before anything
+        // still queued, so handing it straight to a waiter keeps order.
+        const redelivered = this._pendingCallbacks.get(key);
+        if (redelivered) {
+          this._pendingCallbacks.delete(key);
+          redelivered.resolve(result);
+        }
       }
+      this._orderedCompletions.set(orderKey, queue);
+      this._drainOrderedCompletions(orderKey);
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
       const key = evictionKey(ack.durableTaskExternalId, ack.invocationCount);
@@ -647,6 +671,25 @@ export class DurableListenerClient {
     return d.promise;
   }
 
+  // Hands queued completions to their waiters strictly in delivery order.
+  // Stops at the first completion whose waiter has not registered yet:
+  // releasing a later completion first would resume its coroutine ahead of
+  // the recorded order and diverge the re-emitted event sequence.
+  private _drainOrderedCompletions(orderKey: CompletionOrderKey): void {
+    const queue = this._orderedCompletions.get(orderKey);
+    if (!queue) return;
+
+    while (queue.pending.length > 0) {
+      const [head] = queue.pending;
+      const waiter = this._pendingCallbacks.get(head.key);
+      if (!waiter) break;
+
+      queue.pending.shift();
+      this._pendingCallbacks.delete(head.key);
+      waiter.resolve(head.result);
+    }
+  }
+
   async waitForCallback(
     durableTaskExternalId: string,
     invocationCount: number,
@@ -656,18 +699,15 @@ export class DurableListenerClient {
   ): Promise<DurableTaskEventLogEntryResult> {
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
-    const early = this._bufferedCompletions.get(key);
-    if (early) {
-      this._bufferedCompletions.delete(key);
-      return early;
+    let d = this._pendingCallbacks.get(key);
+    if (!d) {
+      d = deferred<DurableTaskEventLogEntryResult>();
+      this._pendingCallbacks.set(key, d);
+      this._drainOrderedCompletions(completionOrderKey(durableTaskExternalId, invocationCount));
+      if (this._pendingCallbacks.has(key)) {
+        this._pollWorkerStatus();
+      }
     }
-
-    if (!this._pendingCallbacks.has(key)) {
-      this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
-      this._pollWorkerStatus();
-    }
-
-    const d = this._pendingCallbacks.get(key)!;
     const signal = opts?.signal;
 
     if (!signal) {
@@ -723,10 +763,10 @@ export class DurableListenerClient {
       }
     }
 
-    for (const k of this._bufferedCompletions.keys()) {
+    for (const k of this._orderedCompletions.keys()) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        this._bufferedCompletions.delete(k);
+        this._orderedCompletions.delete(k);
       }
     }
   }

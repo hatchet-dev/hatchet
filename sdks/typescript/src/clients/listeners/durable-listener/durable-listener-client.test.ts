@@ -375,19 +375,23 @@ describe('DurableListenerClient reconnection', () => {
       return expect(d.promise).rejects.toThrow('disconnected');
     });
 
-    it('preserves buffered completions (server-side state survives reconnection)', () => {
+    it('preserves ordered completions (server-side state survives reconnection)', () => {
       const l = listener as any;
-      const completion = {
-        durableTaskExternalId: 'task',
-        nodeId: 1,
-        payload: {},
+      const queue = {
+        pending: [
+          {
+            key: 'task:1:0:1',
+            result: { durableTaskExternalId: 'task', nodeId: 1, payload: {} },
+          },
+        ],
+        delivered: new Set(['task:1:0:1']),
       };
-      l._bufferedCompletions.set('task:1:0:1', completion);
+      l._orderedCompletions.set('task:1', queue);
 
       l._failPendingAcks(new Error('disconnected'));
 
-      expect(l._bufferedCompletions.size).toBe(1);
-      expect(l._bufferedCompletions.get('task:1:0:1')).toBe(completion);
+      expect(l._orderedCompletions.size).toBe(1);
+      expect(l._orderedCompletions.get('task:1')).toBe(queue);
     });
   });
 
@@ -411,17 +415,21 @@ describe('DurableListenerClient reconnection', () => {
       return expect(d.promise).rejects.toThrow('stopped');
     });
 
-    it('clears buffered completions', () => {
+    it('clears ordered completions', () => {
       const l = listener as any;
-      l._bufferedCompletions.set('task:1:0:1', {
-        durableTaskExternalId: 'task',
-        nodeId: 1,
-        payload: {},
+      l._orderedCompletions.set('task:1', {
+        pending: [
+          {
+            key: 'task:1:0:1',
+            result: { durableTaskExternalId: 'task', nodeId: 1, payload: {} },
+          },
+        ],
+        delivered: new Set(['task:1:0:1']),
       });
 
       l._failAllPending(new Error('stopped'));
 
-      expect(l._bufferedCompletions.size).toBe(0);
+      expect(l._orderedCompletions.size).toBe(0);
     });
 
     it('also rejects pending event acks and eviction acks', () => {
@@ -518,6 +526,69 @@ describe('DurableListenerClient reconnection', () => {
       ctrl.error(new Error('transport failure'));
       await settle();
       await assertion;
+    });
+  });
+
+  // ── completion ordering ──
+
+  describe('completion ordering', () => {
+    function entryCompleted(nodeId: number, invocationCount = 1, branchId = 0) {
+      return {
+        entryCompleted: {
+          ref: { durableTaskExternalId: 'task', invocationCount, branchId, nodeId },
+          isFailure: false,
+          errorMessage: undefined,
+          payload: new TextEncoder().encode(JSON.stringify({ node: nodeId })),
+        },
+      };
+    }
+
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+    });
+
+    it('resolves a completion that arrived before its waiter registered', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+
+      const result = await listener.waitForCallback('task', 1, 0, 1);
+
+      expect(result.payload).toEqual({ node: 1 });
+      expect(l._orderedCompletions.get('task:1').pending).toHaveLength(0);
+    });
+
+    it('holds a later completion until every earlier completion has been consumed', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      let secondResolved = false;
+      const second = listener.waitForCallback('task', 1, 0, 2).then((r) => {
+        secondResolved = true;
+        return r;
+      });
+      await settle(10);
+      expect(secondResolved).toBe(false);
+
+      const first = await listener.waitForCallback('task', 1, 0, 1);
+      expect(first.payload).toEqual({ node: 1 });
+      expect((await second).payload).toEqual({ node: 2 });
+    });
+
+    it('resolves a re-delivered completion directly to its waiter', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      await listener.waitForCallback('task', 1, 0, 1);
+
+      l._handleResponse(entryCompleted(2));
+      const secondWait = listener.waitForCallback('task', 1, 0, 1);
+      l._handleResponse(entryCompleted(1));
+
+      const result = await secondWait;
+      expect(result.payload).toEqual({ node: 1 });
+      expect(l._orderedCompletions.get('task:1').pending).toHaveLength(1);
     });
   });
 
