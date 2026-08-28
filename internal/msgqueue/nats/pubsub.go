@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -25,7 +26,6 @@ type PubSub struct {
 	nc            *natsgo.Conn
 	l             *zerolog.Logger
 	subjectPrefix string
-	tracker       *subTracker
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -122,12 +122,9 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	l := opts.l
 
-	// Sampled to one line per minute: during an incident a single broker-side
-	// condition can fire the handler tens of times per second. Drop accounting
-	// lives in subTracker (see stats.go); this log is a human-readable pointer.
+	// Sampled to one line per minute; for tenant-stream subscriptions this
+	// log is the only drop signal.
 	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
-
-	tracker := newSubTracker()
 
 	connectOpts := []natsgo.Option{
 		// Reconnect behavior is deliberately fixed rather than configurable.
@@ -165,8 +162,6 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		natsgo.ErrorHandler(func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
 			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
-				tracker.accountDrops(sub)
-
 				e = e.Str("subject", sub.Subject)
 				if e.Enabled() {
 					if dropped, derr := sub.Dropped(); derr == nil {
@@ -223,7 +218,6 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		nc:            nc,
 		l:             l,
 		subjectPrefix: prefix,
-		tracker:       tracker,
 	}
 
 	return func() error {
@@ -329,10 +323,33 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
-	p.tracker.add(sub, topic.Kind())
+	// A scheduler process holds exactly one partition subscription, so its
+	// cumulative Dropped() can be republished directly at scrape time; the
+	// async ErrorHandler under-counts (it fires only on the transition into
+	// slow-consumer state) and tenant-stream subscriptions come and go, so
+	// they are covered by the sampled slow-consumer log instead.
+	var unregisterDrops func()
+	if topic.Kind() == msgqueue.TopicKindSchedulerPartition {
+		unregister, err := prommetrics.RegisterNATSClientDrops(string(topic.Kind()), func() float64 {
+			dropped, err := sub.Dropped()
+			if err != nil {
+				// unreadable (unsubscribing); the collector is about to be
+				// unregistered anyway
+				return 0
+			}
+			return float64(dropped)
+		})
+		if err != nil {
+			p.l.Warn().Err(err).Str("subject", subject).Msg("nats pubsub drops counter already registered, skipping")
+		} else {
+			unregisterDrops = unregister
+		}
+	}
 
 	return func() error {
-		p.tracker.remove(sub)
+		if unregisterDrops != nil {
+			unregisterDrops()
+		}
 		return sub.Unsubscribe()
 	}, nil
 }
