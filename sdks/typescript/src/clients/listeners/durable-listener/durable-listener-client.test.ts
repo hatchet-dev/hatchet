@@ -577,6 +577,19 @@ describe('DurableListenerClient reconnection', () => {
       expect((await second).payload).toEqual({ node: 2 });
     });
 
+    it('resumes waiters in release order even when the head waiter registers last', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const resumed: number[] = [];
+      const second = listener.waitForCallback('task', 1, 0, 2).then(() => resumed.push(2));
+      const first = listener.waitForCallback('task', 1, 0, 1).then(() => resumed.push(1));
+
+      await Promise.all([first, second]);
+      expect(resumed).toEqual([1, 2]);
+    });
+
     it('resolves a re-delivered completion directly to its waiter', async () => {
       const l = listener as any;
       l._handleResponse(entryCompleted(1));

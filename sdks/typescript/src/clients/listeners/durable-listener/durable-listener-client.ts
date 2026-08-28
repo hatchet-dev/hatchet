@@ -671,22 +671,52 @@ export class DurableListenerClient {
     return d.promise;
   }
 
+  private _drainsInProgress = new Set<CompletionOrderKey>();
+  private _drainRerunRequests = new Set<CompletionOrderKey>();
+
   // Hands queued completions to their waiters strictly in delivery order.
   // Stops at the first completion whose waiter has not registered yet:
   // releasing a later completion first would resume its coroutine ahead of
   // the recorded order and diverge the re-emitted event sequence.
   private _drainOrderedCompletions(orderKey: CompletionOrderKey): void {
-    const queue = this._orderedCompletions.get(orderKey);
-    if (!queue) return;
+    if (this._drainsInProgress.has(orderKey)) {
+      this._drainRerunRequests.add(orderKey);
+      return;
+    }
+    this._drainsInProgress.add(orderKey);
+    void this._drainLoop(orderKey).finally(() => {
+      this._drainsInProgress.delete(orderKey);
+      if (this._drainRerunRequests.delete(orderKey)) {
+        this._drainOrderedCompletions(orderKey);
+      }
+    });
+  }
 
-    while (queue.pending.length > 0) {
+  private async _drainLoop(orderKey: CompletionOrderKey): Promise<void> {
+    let released = false;
+    while (true) {
+      if (released) {
+        // A macrotask boundary between releases lets the just-resumed waiter
+        // run to its next suspension point (emitting its next durable event)
+        // before the following completion is released. Resolving several
+        // deferreds back-to-back would instead resume them in the order their
+        // continuations happened to be attached, not in release order.
+        await new Promise<void>((resolve) => {
+          setImmediate(resolve);
+        });
+      }
+
+      const queue = this._orderedCompletions.get(orderKey);
+      if (!queue || queue.pending.length === 0) return;
+
       const [head] = queue.pending;
       const waiter = this._pendingCallbacks.get(head.key);
-      if (!waiter) break;
+      if (!waiter) return;
 
       queue.pending.shift();
       this._pendingCallbacks.delete(head.key);
       waiter.resolve(head.result);
+      released = true;
     }
   }
 
