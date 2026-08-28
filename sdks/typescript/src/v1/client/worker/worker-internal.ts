@@ -462,15 +462,18 @@ export class InternalWorker {
 
     this.evictionManager = new DurableEvictionManager({
       durableSlots: totalDurableSlots,
-      cancelLocal: (key: ActionKey) => {
+      cancelLocal: (key: ActionKey, invocationCount: number) => {
         const err = new TaskRunTerminatedError('evicted');
         const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
+        // A newer invocation may already be registered under this key (the
+        // server restored the run before the eviction ack arrived); it must
+        // not be aborted for the old invocation's eviction.
+        const ctxMatchesEvictedInvocation = ctx && (ctx.invocationCount ?? 1) === invocationCount;
         if (ctx) {
-          const invocationCount = ctx.invocationCount ?? 1;
           // Abort before cleanup: waiters must settle as aborted (eviction),
           // not with cleanup's generic rejection, which would surface as a
           // task failure.
-          if (ctx.abortController) {
+          if (ctxMatchesEvictedInvocation && ctx.abortController) {
             ctx.abortController.abort(err);
           }
           this.client.durableListener.cleanupTaskState(
@@ -479,17 +482,15 @@ export class InternalWorker {
           );
         }
         const future = this.futures[key];
-        if (future) {
+        if (future && ctxMatchesEvictedInvocation) {
           future.promise.catch(() => undefined);
           future.cancel(CancellationReason.EVICTED_BY_WORKER);
         }
       },
       requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord) => {
-        const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
-        const invocationCount = ctx?.invocationCount ?? 1;
         await this.client.durableListener.sendEvictInvocation(
           rec.taskRunExternalId,
-          invocationCount,
+          rec.invocationCount,
           rec.evictionReason
         );
       },
@@ -504,14 +505,17 @@ export class InternalWorker {
     return this.evictionManager;
   }
 
-  private cleanupRun(key: ActionKey): void {
-    const ctx = this.contexts[key];
+  private cleanupRun(key: ActionKey, attemptContext?: Context<any, any>): void {
+    const ctx = attemptContext ?? this.contexts[key];
     if (ctx instanceof DurableContext) {
       this.client.durableListener.cleanupTaskState(
         ctx.action.taskRunExternalId,
         ctx.invocationCount
       );
     }
+    // A restored invocation may have re-registered under this key while this
+    // attempt was shutting down; the key-owned state now belongs to it.
+    if (attemptContext && this.contexts[key] !== attemptContext) return;
     this.evictionManager?.unregisterRun(key);
     delete this.futures[key];
     delete this.contexts[key];
@@ -564,7 +568,7 @@ export class InternalWorker {
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
         this.logger.error(`Could not find step '${actionId}'`);
-        this.cleanupRun(actionKey);
+        this.cleanupRun(actionKey, context);
         return;
       }
 
@@ -654,7 +658,7 @@ export class InternalWorker {
             `Could not send action event: ${actionEventError.message || actionEventError}`
           );
         } finally {
-          this.cleanupRun(actionKey);
+          this.cleanupRun(actionKey, context);
         }
       };
 
@@ -692,7 +696,7 @@ export class InternalWorker {
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
-          this.cleanupRun(actionKey);
+          this.cleanupRun(actionKey, context);
         }
       };
 
@@ -748,7 +752,7 @@ export class InternalWorker {
           );
         }
       } finally {
-        this.cleanupRun(actionKey);
+        this.cleanupRun(actionKey, context);
       }
     } catch (e: any) {
       this.cleanupRun(actionKey);

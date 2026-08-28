@@ -905,7 +905,16 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   private _sendEventLock: Promise<void> = Promise.resolve();
 
   private _serializeSendEvent<R>(send: () => Promise<R>): Promise<R> {
-    const result = this._sendEventLock.then(send, send);
+    // Re-check cancellation when the queued send actually executes: once this
+    // invocation is aborted (evicted), a queued send must not reach the
+    // server, where it could race the eviction and append to the event log
+    // out of recorded order. Python gets this for free from task
+    // cancellation killing coroutines queued on the send lock.
+    const runSend = () => {
+      this.throwIfCancelled();
+      return send();
+    };
+    const result = this._sendEventLock.then(runSend, runSend);
     this._sendEventLock = result.then(
       () => undefined,
       () => undefined
