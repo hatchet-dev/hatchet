@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -106,10 +105,6 @@ func TenantStreamMsgIDs() []string {
 	return slices.Sorted(maps.Keys(tenantStreamMsgIDs))
 }
 
-// One line per minute, shared across all callers in the process: a down
-// pub/sub broker fails every publish and would otherwise log at message rate.
-var tenantStreamPubErrSampler = &zerolog.BurstSampler{Burst: 1, Period: time.Minute}
-
 // PubTenantMessage writes a tenant-scoped message to its destinations: a
 // durable send to queue via mq (when queue is non-nil), plus a publish to the
 // tenant stream when the message ID is one the dispatcher's streams consume.
@@ -134,8 +129,7 @@ func PubTenantMessage(ctx context.Context, l *zerolog.Logger, mq MessageQueue, p
 			return err
 		}
 
-		sampled := l.Sample(tenantStreamPubErrSampler)
-		sampled.Warn().Ctx(ctx).Err(err).Str("message_id", msg.ID).Msg("could not publish message to tenant stream")
+		l.Warn().Ctx(ctx).Err(err).Str("message_id", msg.ID).Msg("could not publish message to tenant stream")
 	}
 
 	return nil

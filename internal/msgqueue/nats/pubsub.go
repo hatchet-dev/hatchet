@@ -25,12 +25,7 @@ type PubSub struct {
 	nc            *natsgo.Conn
 	l             *zerolog.Logger
 	subjectPrefix string
-
-	// pubErrL samples the publish-failure log to one line per minute: a down
-	// broker fails every Pub and would otherwise log at message rate.
-	pubErrL *zerolog.Logger
-
-	tracker *subTracker
+	tracker       *subTracker
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -132,6 +127,8 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	// lives in subTracker (see stats.go); this log is a human-readable pointer.
 	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
 
+	tracker := newSubTracker()
+
 	connectOpts := []natsgo.Option{
 		// Reconnect behavior is deliberately fixed rather than configurable.
 		// MaxReconnects(-1) retries forever: any finite limit permanently
@@ -168,6 +165,8 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		natsgo.ErrorHandler(func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
 			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
+				tracker.accountDrops(sub)
+
 				e = e.Str("subject", sub.Subject)
 				if e.Enabled() {
 					if dropped, derr := sub.Dropped(); derr == nil {
@@ -220,23 +219,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		prefix = defaultSubjectPrefix
 	}
 
-	// Distinct sampler from asyncErrL so a flood of one signal does not
-	// swallow the other's one line per minute.
-	pubErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
-
 	p := &PubSub{
 		nc:            nc,
 		l:             l,
 		subjectPrefix: prefix,
-		pubErrL:       &pubErrL,
-		tracker:       newSubTracker(),
+		tracker:       tracker,
 	}
 
-	stopStats := make(chan struct{})
-	go p.tracker.run(stopStats)
-
 	return func() error {
-		close(stopStats)
 		nc.Close()
 		return nil
 	}, p, nil
@@ -290,7 +280,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	}
 
 	if err := p.nc.Publish(subject, body); err != nil {
-		p.pubErrL.Error().Ctx(ctx).Err(err).Str("subject", subject).Msg("error publishing pubsub message")
+		p.l.Error().Ctx(ctx).Err(err).Str("subject", subject).Msg("error publishing pubsub message")
 		return err
 	}
 

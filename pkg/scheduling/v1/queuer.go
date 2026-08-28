@@ -436,7 +436,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
-							prometheus.ObserveSchedulingLatency(timeInQueueSeconds)
 							if tenantMetricsEnabled {
 								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
 								prometheus.TenantQueuedToAssignedTimeByWorkflowBuckets.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Observe(timeInQueueSeconds)

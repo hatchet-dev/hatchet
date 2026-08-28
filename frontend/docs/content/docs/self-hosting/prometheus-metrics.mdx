@@ -90,13 +90,9 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
 | `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
-| `hatchet_scheduling_latency_p50_seconds`  | Gauge     | True p50 of queued-to-assigned time over a 30s sliding window (NaN when idle)     |
-| `hatchet_scheduling_latency_p99_seconds`  | Gauge     | True p99 of queued-to-assigned time over a 30s sliding window (NaN when idle)     |
 | `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
 | `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
 | `hatchet_pubsub_nats_client_drops_total`  | Counter   | Messages dropped client-side by NATS pub/sub subscriptions (slow consumer)        |
-| `hatchet_pubsub_nats_pending_msgs`        | Gauge     | Messages buffered client-side, max across NATS subscriptions of the topic kind    |
-| `hatchet_pubsub_nats_pending_bytes`       | Gauge     | Bytes buffered client-side, max across NATS subscriptions of the topic kind       |
 
 The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
 `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
@@ -113,13 +109,12 @@ Two caveats when comparing backends:
   between the publishing and subscribing pods. Messages published by engines
   that predate the `published_at` stamp are not observed at all.
 
-The `hatchet_pubsub_nats_*` metrics exist only with the NATS backend and are
-labelled by `topic_kind` alone. The drops counter is read from the NATS
-client's per-subscription drop counter and keeps accumulating across
-subscription churn; the pending gauges report the hottest live subscription of
-each topic kind. Hatchet uses the nats.go default pending limits (500,000
-messages / 64 MiB per subscription), so pending values approaching those
-limits mean the subscriber is about to drop messages.
+`hatchet_pubsub_nats_client_drops_total` exists only with the NATS backend and
+is labelled by `topic_kind` alone. It is read from the NATS client's
+per-subscription drop counter (`Subscription.Dropped()`) and keeps
+accumulating across subscription churn. Drops happen when a subscription
+exceeds the nats.go default pending limits (500,000 messages / 64 MiB per
+subscription).
 
 #### Example PromQL Queries
 
