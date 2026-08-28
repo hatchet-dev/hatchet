@@ -1001,16 +1001,15 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		return durableRefs, nil
 	}
 
-	var workflowRefs []WorkflowRunRef
+	results := make([]*WorkflowRunRef, len(inputs))
 
 	var wg sync.WaitGroup
 	var otherErrs []error
 	var collisions []*IdempotencyCollisionError
 	var errsMutex sync.Mutex
-	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
 
-	for _, input := range inputs {
+	for i, input := range inputs {
 		go func() {
 			defer wg.Done()
 
@@ -1025,13 +1024,18 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 				errsMutex.Unlock()
 				return
 			}
-			workflowRefsMutex.Lock()
-			workflowRefs = append(workflowRefs, *workflowRef)
-			workflowRefsMutex.Unlock()
+			results[i] = workflowRef
 		}()
 	}
 
 	wg.Wait()
+
+	workflowRefs := make([]WorkflowRunRef, 0, len(inputs))
+	for _, ref := range results {
+		if ref != nil {
+			workflowRefs = append(workflowRefs, *ref)
+		}
+	}
 
 	if err := errors.Join(otherErrs...); err != nil {
 		span.SetStatus(codes.Error, err.Error())
