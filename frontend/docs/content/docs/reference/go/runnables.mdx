@@ -294,7 +294,7 @@ Returns:
 
 #### `RunMany`
 
-RunMany executes multiple standalone task instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+RunMany executes multiple standalone task instances with different inputs. The returned results are in the same order as the inputs. Returns workflow run IDs that can be used to track the run statuses.
 
 ```go
 func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)

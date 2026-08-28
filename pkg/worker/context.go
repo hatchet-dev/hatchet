@@ -768,6 +768,7 @@ type SpawnWorkflowsOpts struct {
 	Input               any
 	Key                 *string
 	Sticky              *bool
+	Priority            *int32
 	AdditionalMetadata  *map[string]string
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
@@ -818,6 +819,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				ChildKey:            c.Key,
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
+				Priority:            c.Priority,
 				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
