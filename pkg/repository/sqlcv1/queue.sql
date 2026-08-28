@@ -249,12 +249,14 @@ WITH input AS (
     SELECT
         id,
         inserted_at,
+        retry_count,
         worker_id
     FROM
         (
             SELECT
                 UNNEST(@taskIds::bigint[]) AS id,
                 UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+                UNNEST(@taskRetryCounts::integer[]) AS retry_count,
                 UNNEST(@workerIds::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
@@ -272,7 +274,7 @@ WITH input AS (
     FROM
         v1_task t
     JOIN
-        input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
+        input i ON (t.id, t.inserted_at, t.retry_count) = (i.id, i.inserted_at, i.retry_count)
     WHERE
         t.inserted_at >= @minTaskInsertedAt::timestamptz
     ORDER BY t.id
@@ -345,6 +347,7 @@ WHERE v1_task_runtime.evicted_at IS NOT NULL
 SELECT
     asr.task_id,
     asr.task_inserted_at,
+    asr.retry_count,
     asr.worker_id,
     ut.is_durable
 FROM
