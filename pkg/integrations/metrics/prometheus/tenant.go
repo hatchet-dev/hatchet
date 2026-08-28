@@ -129,7 +129,7 @@ var (
 	TenantQueuedToAssignedTimeBuckets = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    string(TenantQueuedToAssignedTimeSeconds),
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
-		Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 10},
+		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	}, []string{"tenant_id"})
 
 	TenantQueuedToAssignedByWorkflowCounter = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -140,7 +140,7 @@ var (
 	TenantQueuedToAssignedTimeByWorkflowBuckets = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    string(TenantQueuedToAssignedTimeSecondsByWorkflow),
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker, by workflow name",
-		Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 10},
+		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	}, []string{"tenant_id", "workflow_name"})
 
 	TenantReassignedTasks = promauto.NewCounterVec(prometheus.CounterOpts{

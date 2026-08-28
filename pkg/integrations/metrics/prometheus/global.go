@@ -82,7 +82,7 @@ var (
 	QueuedToAssignedTimeBuckets = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    string(QueuedToAssignedTimeSeconds),
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
-		Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 10},
+		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	})
 
 	ReassignedTasks = promauto.NewCounter(prometheus.CounterOpts{

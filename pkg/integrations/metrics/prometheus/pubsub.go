@@ -13,7 +13,7 @@ const (
 	PubSubNATSClientDropsTotal   PubSubHatchetMetric = "hatchet_pubsub_nats_client_drops_total"
 )
 
-var pubSubBuckets = []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+var pubSubBuckets = []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15}
 
 var (
 	PubSubPublishDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
