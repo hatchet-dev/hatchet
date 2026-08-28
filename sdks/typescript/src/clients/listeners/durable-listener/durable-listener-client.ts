@@ -727,25 +727,29 @@ export class DurableListenerClient {
     nodeId: number,
     opts?: { signal?: AbortSignal }
   ): Promise<DurableTaskEventLogEntryResult> {
+    const signal = opts?.signal;
+    if (signal?.aborted) {
+      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
+    }
+
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
     let d = this._pendingCallbacks.get(key);
     if (!d) {
       d = deferred<DurableTaskEventLogEntryResult>();
+      // A deferred can outlive its waiters (eviction aborts the caller while
+      // the entry stays registered); a later cleanupTaskState rejection must
+      // not crash the process as an unhandled rejection.
+      d.promise.catch(() => {});
       this._pendingCallbacks.set(key, d);
       this._drainOrderedCompletions(completionOrderKey(durableTaskExternalId, invocationCount));
       if (this._pendingCallbacks.has(key)) {
         this._pollWorkerStatus();
       }
     }
-    const signal = opts?.signal;
 
     if (!signal) {
       return d.promise;
-    }
-
-    if (signal.aborted) {
-      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
     }
 
     return new Promise<DurableTaskEventLogEntryResult>((resolve, reject) => {
