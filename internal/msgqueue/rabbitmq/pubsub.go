@@ -252,18 +252,11 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	exchange := ""
 	routingKey := topic.Name()
 
-	// scheduler wake-ups expire immediately: the well-known partition queue
-	// outlives its consumer, so anything longer piles up stale wake signals
-	// while a scheduler is down
+	// scheduler wake-ups expire immediately
 	expiration := "0"
 
 	if topic.Kind() == msgqueue.TopicKindTenantStream {
-		// tenant-stream subscriber queues are exclusive + auto-delete, so
-		// queued messages vanish with the subscriber. A TTL of 0 also drops
-		// messages whenever the consumer is momentarily busy (burst of stream
-		// chunks vs. per-delivery acks), which loses mid-stream chunks under
-		// load. A short real TTL survives those windows without unbounded
-		// buildup.
+		// we need a ttl of above 0 for tenant streams so they don't get dropped on network blips
 		expiration = tenantStreamMsgTTL
 		// tenant streams ride the per-tenant fanout exchange; declare it lazily
 		if _, ok := p.exchangeCache.Get(topic.Name()); !ok {
