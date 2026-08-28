@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added support for `CANCEL_EXCEPT_NEWEST` and `CANCEL_EXCEPT_OLDEST` concurrency strategies.
 
+
+## [1.29.2] - 2026-08-10
+
+### Fixed
+
+- Improved error handling around failed heartbeats
+
+
 ## [1.28.2] - 2026-08-10
 
 ### Fixed

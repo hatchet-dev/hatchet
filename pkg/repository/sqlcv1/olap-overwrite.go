@@ -1081,7 +1081,8 @@ WITH inputs AS (
         UNNEST($19::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($20::UUID[]) AS parent_task_external_id,
         UNNEST($21::BOOLEAN[]) AS is_durable,
-		UNNEST($22::TEXT[]) AS idempotency_key
+		UNNEST($22::TEXT[]) AS idempotency_key,
+        UNNEST(CAST($23::TEXT[] AS v1_readable_status_olap[])) AS readable_status
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1106,7 +1107,8 @@ INSERT INTO v1_tasks_olap (
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	idempotency_key
+	idempotency_key,
+    readable_status
 )
 SELECT
     tenant_id,
@@ -1131,7 +1133,8 @@ SELECT
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	idempotency_key
+	idempotency_key,
+    readable_status
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -1159,6 +1162,7 @@ type CreateTasksOLAPParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencykeys"`
+	ReadableStatuses      []string             `json:"readablestatuses"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -1185,6 +1189,7 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
 		arg.IdempotencyKeys,
+		arg.ReadableStatuses,
 	)
 	return err
 }
