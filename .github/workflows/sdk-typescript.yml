@@ -157,7 +157,7 @@ jobs:
         run: ${{ matrix.install-cmd }}
 
       - name: Unit tests
-        run: ${{ matrix.unit-test-cmd }}
+        run: ${{ matrix.test-cmd }}
 
   test-e2e:
     runs-on: ubicloud-standard-4
@@ -273,7 +273,7 @@ jobs:
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
-          ${{ matrix.e2e-test-cmd }}
+          ${{ matrix.test-cmd }}
 
       - name: Upload engine logs
         if: always()
