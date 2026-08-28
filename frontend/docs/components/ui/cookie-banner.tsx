@@ -83,7 +83,7 @@ export default function CookieConsent() {
             <button
               type="button"
               onClick={acceptClick}
-              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90"
+              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90 dark:bg-white dark:text-fd-primary-foreground dark:hover:bg-white/90"
             >
               {acceptLabel}
             </button>
