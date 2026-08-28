@@ -552,10 +552,12 @@ export class DurableListenerClient {
         `received server eviction notification for task ${evict.durableTaskExternalId} ` +
           `invocation ${evict.invocationCount}: ${evict.reason}`
       );
-      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
+      // onServerEvict aborts the run first so waiters settle as aborted
+      // (eviction) rather than with cleanup's generic rejection.
       if (this.onServerEvict) {
         this.onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
       }
+      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
     } else if (response.error) {
       const { error } = response;
       const { ref } = error;

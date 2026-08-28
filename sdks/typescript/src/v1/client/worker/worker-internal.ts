@@ -467,13 +467,16 @@ export class InternalWorker {
         const ctx = this.contexts[key] as DurableContext<any, any> | undefined;
         if (ctx) {
           const invocationCount = ctx.invocationCount ?? 1;
+          // Abort before cleanup: waiters must settle as aborted (eviction),
+          // not with cleanup's generic rejection, which would surface as a
+          // task failure.
+          if (ctx.abortController) {
+            ctx.abortController.abort(err);
+          }
           this.client.durableListener.cleanupTaskState(
             ctx.action.taskRunExternalId,
             invocationCount
           );
-          if (ctx.abortController) {
-            ctx.abortController.abort(err);
-          }
         }
         const future = this.futures[key];
         if (future) {
