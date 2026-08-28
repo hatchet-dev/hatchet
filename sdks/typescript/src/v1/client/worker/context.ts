@@ -899,6 +899,20 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   private _engineVersion: string | undefined;
   private _waitKey: number = 0;
 
+  // Serializes sendEvent calls from concurrent coroutines in this invocation.
+  // The listener keys pending acks by (task, invocation), so overlapping sends
+  // would overwrite each other's ack and cross-wire branch/node assignments.
+  private _sendEventLock: Promise<void> = Promise.resolve();
+
+  private _serializeSendEvent<R>(send: () => Promise<R>): Promise<R> {
+    const result = this._sendEventLock.then(send, send);
+    this._sendEventLock = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  }
+
   constructor(
     action: Action,
     v1: HatchetClient,
@@ -1019,17 +1033,15 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     const rendered = Render(ConditionAction.CREATE, conditions);
     const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'waitFor',
         waitForConditions: {
           sleepConditions: pbConditions.sleepConditions,
           userEventConditions: pbConditions.userEventConditions,
         },
         label,
-      }
+      })
     );
 
     const resourceId =
@@ -1251,13 +1263,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return triggerOpts;
     });
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'runChildren',
         triggerOpts: triggerOptsList,
-      }
+      })
     );
 
     const results = await Promise.all(
@@ -1297,13 +1307,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'memo',
         memoKey,
-      }
+      })
     );
 
     if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {

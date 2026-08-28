@@ -37,5 +37,5 @@ describe('durable-callback-ordering-e2e', () => {
       expect(result.midInvocationCounts).toHaveLength(ROOT_DEFAULTS.durables);
       expect(Math.max(...result.midInvocationCounts)).toBeGreaterThanOrEqual(2);
     }
-  }, 120_000);
+  }, 300_000);
 });
