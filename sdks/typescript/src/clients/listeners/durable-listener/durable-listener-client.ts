@@ -32,6 +32,7 @@ import {
 } from '@hatchet/protoc/v1/shared/condition';
 import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
+import { TaskRunTerminatedError } from '@hatchet/util/errors/task-run-terminated-error';
 import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import sleep from '@hatchet/util/sleep';
 import { classifyListenerFailure } from '@clients/dispatcher/listener-severity';
@@ -783,10 +784,15 @@ export class DurableListenerClient {
   }
 
   cleanupTaskState(durableTaskExternalId: string, invocationCount: number): void {
+    // Rejecting with TaskRunTerminatedError marks any coroutine still blocked
+    // on this invocation's state as evicted rather than failed, matching
+    // Python's future cancellation on cleanup.
+    const evicted = () => new TaskRunTerminatedError('evicted', 'task state cleaned up');
+
     for (const [k, d] of this._pendingCallbacks) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        d.reject(new Error('task state cleaned up'));
+        d.reject(evicted());
         this._pendingCallbacks.delete(k);
       }
     }
@@ -794,7 +800,7 @@ export class DurableListenerClient {
     for (const [k, d] of this._pendingEventAcks) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        d.reject(new Error('task state cleaned up'));
+        d.reject(evicted());
         this._pendingEventAcks.delete(k);
       }
     }

@@ -666,6 +666,12 @@ export class InternalWorker {
             return;
           }
 
+          // The run was evicted or cancelled by the worker, not failed by
+          // user code; the server already accounts for it.
+          if (isTaskRunTerminatedError(error)) {
+            return;
+          }
+
           this.logger.error(taskRunLog(taskName, taskRunExternalId, `failed: ${error.message}`));
 
           if (error.stack) {
