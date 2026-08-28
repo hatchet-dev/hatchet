@@ -12,13 +12,7 @@ hatchet = Hatchet()
 
 
 @hatchet.task(
-    concurrency=[
-        ConcurrencyExpression(
-            expression="'*'",
-            max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        )
-    ],
+    concurrency=1,
     execution_timeout=timedelta(seconds=3),
     schedule_timeout=timedelta(seconds=15),
 )
