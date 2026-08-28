@@ -182,7 +182,7 @@ Returns:
 
 #### `RunMany`
 
-RunMany executes multiple workflow instances with different inputs.
+RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs.
 
 ```go
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error)
