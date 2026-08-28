@@ -57,10 +57,8 @@ export default function CookieConsent() {
   return (
     <div
       className={cn(
-        "fixed z-[200] bottom-0 left-0 right-0 sm:left-auto sm:right-4 sm:bottom-4 w-full sm:max-w-sm duration-700",
-        !isOpen
-          ? "transition-[opacity,transform] translate-y-8 opacity-0"
-          : "transition-[opacity,transform] translate-y-0 opacity-100",
+        "fixed z-[200] bottom-0 left-0 right-0 sm:left-auto sm:right-4 sm:bottom-4 w-full sm:max-w-sm transition-opacity duration-700",
+        !isOpen ? "opacity-0 pointer-events-none" : "opacity-100",
         hide && "hidden",
       )}
     >
@@ -83,14 +81,14 @@ export default function CookieConsent() {
             <button
               type="button"
               onClick={acceptClick}
-              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90 dark:bg-white dark:text-fd-primary-foreground dark:hover:bg-white/90"
+              className="h-8 flex-1 cursor-pointer rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90 dark:bg-white dark:text-fd-primary-foreground dark:hover:bg-white/90"
             >
               {acceptLabel}
             </button>
             <button
               type="button"
               onClick={declineClick}
-              className="h-8 flex-1 rounded-md border border-fd-border text-[13px] font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+              className="h-8 flex-1 cursor-pointer rounded-md border border-fd-border text-[13px] font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
             >
               {declineLabel}
             </button>
