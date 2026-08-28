@@ -46,13 +46,16 @@ func TestWorkflowRunEventTypeForOlapStatus(t *testing.T) {
 	}
 }
 
-// TestWorkflowRunFinishedConverterDropsNonTerminalStatuses reproduces the
-// premature-hangup bug for DAG runs: the OLAP controller's DAG status updater
-// used to publish QUEUED->RUNNING transitions as workflow-run-finished, and
-// the converter coerced the unknown RUNNING status into COMPLETED, hanging up
-// stream subscribers the moment the run started. Non-terminal statuses must
-// produce no event at all.
-func TestWorkflowRunFinishedConverterDropsNonTerminalStatuses(t *testing.T) {
+// TestWorkflowRunFinishedConverterErrorsOnNonTerminalStatus guards against the
+// premature-hangup bug for DAG runs re-entering in a different shape: the OLAP
+// controller's DAG status updater used to publish QUEUED->RUNNING transitions
+// as workflow-run-finished, and the converter used to coerce the unknown
+// RUNNING status into COMPLETED, hanging up stream subscribers the moment the
+// run started. notifyDAGsUpdated and notifyTasksUpdated now only ever publish
+// terminal statuses, so a non-terminal status reaching this converter is a bug
+// upstream and must fail loudly rather than being silently dropped or
+// defaulted to COMPLETED.
+func TestWorkflowRunFinishedConverterErrorsOnNonTerminalStatus(t *testing.T) {
 	t.Parallel()
 
 	convert := workflowEventConverters[msgqueue.MsgIDWorkflowRunFinished]
@@ -69,12 +72,17 @@ func TestWorkflowRunFinishedConverterDropsNonTerminalStatuses(t *testing.T) {
 		return body
 	}
 
-	events := convert([][]byte{
-		payload(sqlcv1.V1ReadableStatusOlapQUEUED),
-		payload(sqlcv1.V1ReadableStatusOlapRUNNING),
-		payload(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-	})
+	events, err := convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapRUNNING)})
+	require.Error(t, err)
+	assert.Nil(t, events)
+	assert.Contains(t, err.Error(), runId.String())
 
+	events, err = convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapQUEUED)})
+	require.Error(t, err)
+	assert.Nil(t, events)
+
+	events, err = convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapCOMPLETED)})
+	require.NoError(t, err)
 	require.Len(t, events, 1)
 	assert.Equal(t, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, events[0].EventType)
 	assert.Equal(t, runId.String(), events[0].WorkflowRunId)

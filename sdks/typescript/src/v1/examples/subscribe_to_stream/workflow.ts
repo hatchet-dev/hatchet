@@ -23,7 +23,11 @@ export const longStream = hatchet.task({
 // An onFailure handler makes the run a DAG. DAG QUEUED->RUNNING used to be
 // published as workflow-run-finished, which hung up stream subscribers as
 // soon as the run started.
-export const dagStream = hatchet.task({
+export const dagStream = hatchet.workflow({
+  name: 'subscribe-stream-dag',
+});
+
+dagStream.task({
   name: 'subscribe-stream-dag',
   fn: async (_, ctx) => {
     await sleep(PRE_STREAM_SLEEP_MS);
@@ -31,5 +35,9 @@ export const dagStream = hatchet.task({
       await ctx.putStream(chunk);
     }
   },
-  onFailure: async () => {},
+});
+
+dagStream.onFailure({
+  name: 'subscribe-stream-dag-on-failure',
+  fn: async () => {},
 });

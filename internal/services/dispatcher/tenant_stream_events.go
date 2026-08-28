@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -17,19 +18,24 @@ import (
 
 // eventConverter adapts a per-payload field mapping into a converter over raw
 // tenant-stream payloads: each payload is decoded as T and mapped to a
-// contracts.WorkflowEvent. A nil result skips the payload.
-func eventConverter[T any](toEvent func(payload *T) *contracts.WorkflowEvent) func(payloads [][]byte) []*contracts.WorkflowEvent {
-	return func(payloads [][]byte) []*contracts.WorkflowEvent {
+// contracts.WorkflowEvent. A nil result (with no error) skips the payload.
+func eventConverter[T any](toEvent func(payload *T) (*contracts.WorkflowEvent, error)) func(payloads [][]byte) ([]*contracts.WorkflowEvent, error) {
+	return func(payloads [][]byte) ([]*contracts.WorkflowEvent, error) {
 		converted := msgqueue.JSONConvert[T](payloads)
 		workflowEvents := []*contracts.WorkflowEvent{}
 
 		for _, payload := range converted {
-			if event := toEvent(payload); event != nil {
+			event, err := toEvent(payload)
+			if err != nil {
+				return nil, err
+			}
+
+			if event != nil {
 				workflowEvents = append(workflowEvents, event)
 			}
 		}
 
-		return workflowEvents
+		return workflowEvents, nil
 	}
 }
 
@@ -38,8 +44,8 @@ func eventConverter[T any](toEvent func(payload *T) *contracts.WorkflowEvent) fu
 // converter. Together with workflowRunMatchers, its keys are the source of
 // truth for the message IDs the streams consume: msgqueue's tenant-stream
 // publish allowlist is asserted against them in TestTenantStreamMsgIDsInSync.
-var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.WorkflowEvent{
-	msgqueue.MsgIDCreatedTask: eventConverter(func(payload *tasktypes.CreatedTaskPayload) *contracts.WorkflowEvent {
+var workflowEventConverters = map[string]func(payloads [][]byte) ([]*contracts.WorkflowEvent, error){
+	msgqueue.MsgIDCreatedTask: eventConverter(func(payload *tasktypes.CreatedTaskPayload) (*contracts.WorkflowEvent, error) {
 		return &contracts.WorkflowEvent{
 			WorkflowRunId:  payload.WorkflowRunID.String(),
 			ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -47,9 +53,9 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
 			EventTimestamp: timestamppb.New(payload.InsertedAt.Time),
 			RetryCount:     &payload.RetryCount,
-		}
+		}, nil
 	}),
-	msgqueue.MsgIDTaskCompleted: eventConverter(func(payload *tasktypes.CompletedTaskPayload) *contracts.WorkflowEvent {
+	msgqueue.MsgIDTaskCompleted: eventConverter(func(payload *tasktypes.CompletedTaskPayload) (*contracts.WorkflowEvent, error) {
 		return &contracts.WorkflowEvent{
 			WorkflowRunId:  payload.WorkflowRunId.String(),
 			ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -58,9 +64,9 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventTimestamp: timestamppb.New(time.Now()),
 			RetryCount:     &payload.RetryCount,
 			EventPayload:   string(payload.Output),
-		}
+		}, nil
 	}),
-	msgqueue.MsgIDTaskFailed: eventConverter(func(payload *tasktypes.FailedTaskPayload) *contracts.WorkflowEvent {
+	msgqueue.MsgIDTaskFailed: eventConverter(func(payload *tasktypes.FailedTaskPayload) (*contracts.WorkflowEvent, error) {
 		return &contracts.WorkflowEvent{
 			WorkflowRunId:  payload.WorkflowRunId.String(),
 			ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -69,9 +75,9 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventTimestamp: timestamppb.New(time.Now()),
 			RetryCount:     &payload.RetryCount,
 			EventPayload:   payload.ErrorMsg,
-		}
+		}, nil
 	}),
-	msgqueue.MsgIDTaskCancelled: eventConverter(func(payload *tasktypes.CancelledTaskPayload) *contracts.WorkflowEvent {
+	msgqueue.MsgIDTaskCancelled: eventConverter(func(payload *tasktypes.CancelledTaskPayload) (*contracts.WorkflowEvent, error) {
 		return &contracts.WorkflowEvent{
 			WorkflowRunId:  payload.WorkflowRunId.String(),
 			ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -79,9 +85,9 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED,
 			EventTimestamp: timestamppb.New(time.Now()),
 			RetryCount:     &payload.RetryCount,
-		}
+		}, nil
 	}),
-	msgqueue.MsgIDTaskStreamEvent: eventConverter(func(payload *tasktypes.StreamEventPayload) *contracts.WorkflowEvent {
+	msgqueue.MsgIDTaskStreamEvent: eventConverter(func(payload *tasktypes.StreamEventPayload) (*contracts.WorkflowEvent, error) {
 		return &contracts.WorkflowEvent{
 			WorkflowRunId:  payload.WorkflowRunId.String(),
 			ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -90,15 +96,18 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			EventTimestamp: timestamppb.New(payload.CreatedAt),
 			EventPayload:   string(payload.Payload),
 			EventIndex:     payload.EventIndex,
-		}
+		}, nil
 	}),
-	msgqueue.MsgIDWorkflowRunFinished: eventConverter(func(payload *tasktypes.NotifyFinalizedPayload) *contracts.WorkflowEvent {
+	msgqueue.MsgIDWorkflowRunFinished: eventConverter(func(payload *tasktypes.NotifyFinalizedPayload) (*contracts.WorkflowEvent, error) {
 		eventType, ok := workflowRunEventTypeForOlapStatus(payload.Status)
 		if !ok {
-			// non-terminal statuses (e.g. RUNNING from a DAG's QUEUED->RUNNING
-			// transition) must not become hangup-triggering COMPLETED events:
-			// that closes subscriber streams the moment a DAG run starts
-			return nil
+			// The OLAP controller only ever publishes terminal statuses
+			// (COMPLETED/CANCELLED/FAILED) as workflow-run-finished (see
+			// notifyDAGsUpdated and notifyTasksUpdated). Anything else reaching
+			// here is a bug upstream, not a case to paper over: silently
+			// dropping it (or worse, coercing it to COMPLETED) previously hid
+			// the DAG QUEUED->RUNNING hangup bug instead of surfacing it.
+			return nil, fmt.Errorf("unexpected non-terminal status %q for workflow-run-finished event on run %s", payload.Status, payload.ExternalId)
 		}
 
 		return &contracts.WorkflowEvent{
@@ -107,7 +116,7 @@ var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.Wo
 			ResourceId:     payload.ExternalId.String(),
 			EventType:      eventType,
 			EventTimestamp: timestamppb.New(time.Now()),
-		}
+		}, nil
 	}),
 }
 
@@ -156,7 +165,13 @@ func msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*c
 	workflowEvents := []*contracts.WorkflowEvent{}
 
 	if convert, ok := workflowEventConverters[msgId]; ok {
-		workflowEvents = convert(payloads)
+		var err error
+
+		workflowEvents, err = convert(payloads)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	matches, err := filter(workflowEvents)
