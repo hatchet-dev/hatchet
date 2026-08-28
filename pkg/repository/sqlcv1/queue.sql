@@ -226,6 +226,24 @@ WHERE
 RETURNING
     id;
 
+-- name: LockTaskRuntimesForFlush :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@retryCounts::integer[]) AS retry_count
+)
+SELECT *
+FROM v1_task_runtime
+WHERE
+    (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM input
+    )
+    AND tenant_id = @tenantId::uuid
+ORDER BY task_id, task_inserted_at, retry_count
+FOR UPDATE;
+
 -- name: UpdateTasksToAssigned :many
 WITH input AS (
     SELECT

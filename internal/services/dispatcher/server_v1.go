@@ -1302,7 +1302,7 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("task not found: %v", err))
 	}
 
-	wasEvicted, err := d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
+	evictRes, err := d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		RetryCount: task.RetryCount,
@@ -1311,7 +1311,21 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to evict task: %v", err))
 	}
 
-	if wasEvicted {
+	if !evictRes.HasUnsatisfiedEntries {
+		// see comment on the `EvictTaskResult` - if the evicted task has no unsatisfied entries, we have to immediately restore it,
+		// otherwise it can hang forever since nothing will ever wake it up. note that this does cause some churn, but I think that's okay
+		// in exchange for not hitting the indefinitely hang case
+		restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(invocation.tenantId, task.ExternalID, "all durable events satisfied at eviction time")
+		if msgErr != nil {
+			return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to build restore message: %v", msgErr))
+		}
+
+		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); sendErr != nil {
+			return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to publish restore message: %v", sendErr))
+		}
+	}
+
+	if evictRes.WasEvicted {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(
 			invocation.tenantId,
 			tasktypes.CreateMonitoringEventPayload{
