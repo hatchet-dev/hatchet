@@ -1925,7 +1925,7 @@ func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX
 	return db.Exec(ctx, reactivateInactiveQueuesWithItems)
 }
 
-const requeuePausedWorkflowConcurrencySlots = `-- name: RequeuePausedWorkflowConcurrencySlots :exec
+const requeuePausedWorkflowConcurrencySlots = `-- name: RequeuePausedWorkflowConcurrencySlots :many
 WITH ready_items AS (
     SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key
     FROM v1_paused_workflow_queue_item pqi
@@ -1995,6 +1995,7 @@ SELECT
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
+RETURNING strategy_id
 `
 
 type RequeuePausedWorkflowConcurrencySlotsParams struct {
@@ -2002,12 +2003,27 @@ type RequeuePausedWorkflowConcurrencySlotsParams struct {
 	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
-func (q *Queries) RequeuePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg RequeuePausedWorkflowConcurrencySlotsParams) error {
-	_, err := db.Exec(ctx, requeuePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
-	return err
+func (q *Queries) RequeuePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg RequeuePausedWorkflowConcurrencySlotsParams) ([]int64, error) {
+	rows, err := db.Query(ctx, requeuePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var strategy_id int64
+		if err := rows.Scan(&strategy_id); err != nil {
+			return nil, err
+		}
+		items = append(items, strategy_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :exec
+const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :many
 WITH ready_items AS (
     SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key
     FROM v1_paused_workflow_queue_item pqi
@@ -2067,7 +2083,7 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
+RETURNING queue
 `
 
 type RequeuePausedWorkflowQueueItemsParams struct {
@@ -2075,9 +2091,24 @@ type RequeuePausedWorkflowQueueItemsParams struct {
 	Tenantid    uuid.UUID   `json:"tenantid"`
 }
 
-func (q *Queries) RequeuePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg RequeuePausedWorkflowQueueItemsParams) error {
-	_, err := db.Exec(ctx, requeuePausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
-	return err
+func (q *Queries) RequeuePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg RequeuePausedWorkflowQueueItemsParams) ([]string, error) {
+	rows, err := db.Query(ctx, requeuePausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var queue string
+		if err := rows.Scan(&queue); err != nil {
+			return nil, err
+		}
+		items = append(items, queue)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :many

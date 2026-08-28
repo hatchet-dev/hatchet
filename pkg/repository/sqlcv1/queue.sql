@@ -1232,7 +1232,7 @@ ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
 
--- name: RequeuePausedWorkflowQueueItems :exec
+-- name: RequeuePausedWorkflowQueueItems :many
 WITH ready_items AS (
     SELECT pqi.*
     FROM v1_paused_workflow_queue_item pqi
@@ -1292,10 +1292,10 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
+RETURNING queue
 ;
 
--- name: RequeuePausedWorkflowConcurrencySlots :exec
+-- name: RequeuePausedWorkflowConcurrencySlots :many
 WITH ready_items AS (
     SELECT pqi.*
     FROM v1_paused_workflow_queue_item pqi
@@ -1365,6 +1365,7 @@ SELECT
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
+RETURNING strategy_id
 ;
 
 -- name: ListExpiredPausedWorkflowQueueItems :many

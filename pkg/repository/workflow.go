@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -269,7 +270,7 @@ type WorkflowRepository interface {
 
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
-	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 }
 
 type workflowRepository struct {
@@ -1518,37 +1519,45 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 	return commit(ctx)
 }
 
-func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {
 	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
 	defer span.End()
 
 	if len(workflowIds) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	defer rollback()
 
-	if err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+	queueNames, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
-	}); err != nil {
-		return err
+	})
+
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
+	concurrencyStrategyIds, err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
-	}); err != nil {
-		return err
+	})
+
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return commit(ctx)
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
