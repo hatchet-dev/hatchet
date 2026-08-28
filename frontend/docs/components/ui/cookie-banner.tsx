@@ -57,7 +57,7 @@ export default function CookieConsent() {
   return (
     <div
       className={cn(
-        "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-sm duration-700",
+        "fixed z-[200] bottom-0 left-0 right-0 sm:left-auto sm:right-4 sm:bottom-4 w-full sm:max-w-sm duration-700",
         !isOpen
           ? "transition-[opacity,transform] translate-y-8 opacity-0"
           : "transition-[opacity,transform] translate-y-0 opacity-100",
@@ -83,7 +83,7 @@ export default function CookieConsent() {
             <button
               type="button"
               onClick={acceptClick}
-              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
+              className="h-8 flex-1 rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90"
             >
               {acceptLabel}
             </button>

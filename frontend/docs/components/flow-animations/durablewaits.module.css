@@ -72,9 +72,9 @@
   animation: dw-pulse 900ms ease-in-out infinite;
 }
 
-/* Hit a wait: hollows out — no compute burned from here on */
+/* Called sleep(24h): hollows out — no compute burned from here on */
 [data-flow-state="waiting"] .square,
-[data-flow-state="tracked"] .square {
+[data-flow-state="parked"] .square {
   background: transparent;
   border: 1.5px dashed var(--fg);
 }
@@ -89,22 +89,21 @@
   background: var(--accent-3);
 }
 
-/* Countdown ticks beside the sleep record */
-.tick {
-  width: calc(var(--flow-u) * 2);
-  height: calc(var(--flow-u) * 5);
-  background: color-mix(in srgb, var(--fg) 75%, transparent);
+/* The sleep(24h) call, flashed as a mono chip at the running task */
+.callChip {
+  padding: calc(var(--flow-u) * 1.25) calc(var(--flow-u) * 2);
+  border: 1.5px solid var(--accent);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-/* The approval event token */
-.eventDot {
-  width: calc(var(--flow-u) * 5);
-  height: calc(var(--flow-u) * 5);
-  border-radius: 50%;
-  background: var(--accent-3);
-}
-
-/* Mono record entries in the engine's durable-state rows (left-anchored) */
+/* Mono record entry in the engine's durable-state row (left-anchored) */
 .record {
   transform: translateX(50%);
   font-family: var(--font-mono);
@@ -116,15 +115,34 @@
   pointer-events: none;
 }
 
-/* Record resolves (timer elapsed / event arrived): flashes green */
+/* Record resolves (the timer elapsed): flashes green */
 [data-flow-state="resolved"] .record {
   color: var(--accent-3);
 }
 
+/* Depleting countdown ticks beside the sleep record */
+.tick {
+  width: calc(var(--flow-u) * 2);
+  height: calc(var(--flow-u) * 5);
+  background: color-mix(in srgb, var(--fg) 75%, transparent);
+}
+
+/* Dwell annotation under the record: sleeping work holds no worker slot */
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* Slot occupancy fill (sits under the task squares) */
 .slotFill {
-  width: calc(var(--flow-u) * 80);
-  height: calc(var(--flow-u) * 20);
+  width: calc(var(--flow-u) * 84);
+  height: calc(var(--flow-u) * 22);
   background: transparent;
   transition: background-color 250ms ease;
 }
@@ -147,8 +165,8 @@
 
 /* The worker frame dims to idle when nothing is running — unburdened */
 .workerFrame {
-  width: calc(var(--flow-u) * 112);
-  height: calc(var(--flow-u) * 136);
+  width: calc(var(--flow-u) * 108);
+  height: calc(var(--flow-u) * 112);
   border: 1.5px solid color-mix(in srgb, var(--fg) 45%, transparent);
   transition: border-color 400ms ease;
 }
