@@ -21,9 +21,9 @@ async def test_workflow_pause_under_concurrency(hatchet: Hatchet) -> None:
     while time.time() < start + 10:
         details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-        assert details.status == RunStatus.QUEUED, (
-            f"Run {ref.workflow_run_id} is not queued."
-        )
+        assert (
+            details.status == RunStatus.QUEUED
+        ), f"Run {ref.workflow_run_id} is not queued."
 
         await asyncio.sleep(1)
 
