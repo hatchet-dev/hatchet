@@ -1,5 +1,6 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
+import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
 import { source } from "@/lib/source";
 import { HatchetLogo } from "@/components/HatchetLogo";
@@ -48,10 +49,20 @@ export default function Layout({ children }: { children: ReactNode }) {
       tree={tree}
       tabs={tabs}
       nav={{ title: <HatchetLogo />, url: "https://hatchet.run" }}
-      githubUrl="https://github.com/hatchet-dev/hatchet"
       sidebar={{
         defaultOpenLevel: 0,
         banner: <SidebarLanguageSelect />,
+        footer: (
+          <a
+            href="https://cloud.hatchet.run?utm_source=docs&utm_medium=sidebar"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex grow items-center gap-2 rounded-md px-2 py-1.5 text-[0.8125rem] text-fd-muted-foreground transition-colors hover:text-fd-accent-foreground"
+          >
+            <Cloud className="size-4" />
+            Hatchet Cloud
+          </a>
+        ),
       }}
     >
       {children}

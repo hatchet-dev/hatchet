@@ -6,10 +6,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
+import { SlotCost } from "@/components/flow-animations/SlotCost";
 
 # Task Slot Cost
 
 Every worker has a fixed number of slots that limit how many tasks it runs at once, set with the `slots` option on the worker and defaulting to 100. By default a task consumes one slot while it runs. Slot cost lets a task consume more than one slot, so a task that needs more memory or CPU takes up more of a worker's capacity and the worker runs fewer of them at the same time.
+
+<SlotCost />
 
 ## Setting slot cost
 
