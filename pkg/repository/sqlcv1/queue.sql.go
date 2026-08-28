@@ -1493,11 +1493,90 @@ func (q *Queries) MoveBatchedQueueItems(ctx context.Context, db DBTX, ids []int6
 	return items, nil
 }
 
+const movePausedWorkflowConcurrencySlots = `-- name: MovePausedWorkflowConcurrencySlots :exec
+WITH tasks_to_move AS (
+    SELECT DISTINCT task_id, task_inserted_at, task_retry_count
+    FROM v1_concurrency_slot
+    WHERE
+        workflow_id = ANY($1::UUID[])
+        AND tenant_id = $2::UUID
+        AND is_filled = FALSE
+), deleted_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING tasks_to_move p
+    WHERE
+        cs.task_id = p.task_id
+        AND cs.task_inserted_at = p.task_inserted_at
+        AND cs.task_retry_count = p.task_retry_count
+    RETURNING cs.task_id
+)
+
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+)
+SELECT
+    t.tenant_id,
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.action_id,
+    t.step_id,
+    t.workflow_id,
+    t.workflow_run_id,
+    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
+    t.step_timeout,
+    COALESCE(t.priority, 1),
+    t.sticky,
+    t.desired_worker_id,
+    t.retry_count,
+    t.desired_worker_label,
+    t.batch_key
+FROM tasks_to_move p
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (p.task_id, p.task_inserted_at, p.task_retry_count)
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type MovePausedWorkflowConcurrencySlotsParams struct {
+	Workflowids []uuid.UUID `json:"workflowids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) MovePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg MovePausedWorkflowConcurrencySlotsParams) error {
+	_, err := db.Exec(ctx, movePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
+	return err
+}
+
 const movePausedWorkflowQueueItems = `-- name: MovePausedWorkflowQueueItems :exec
 WITH moved_items AS (
     DELETE FROM v1_queue_item
     WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
     RETURNING id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE
+        cs.task_id = mi.task_id
+        AND cs.task_inserted_at = mi.task_inserted_at
+        AND cs.task_retry_count = mi.retry_count
+    RETURNING cs.task_id
 )
 
 INSERT INTO v1_paused_workflow_queue_item (
@@ -1549,6 +1628,73 @@ type MovePausedWorkflowQueueItemsParams struct {
 
 func (q *Queries) MovePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg MovePausedWorkflowQueueItemsParams) error {
 	_, err := db.Exec(ctx, movePausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
+	return err
+}
+
+const movePausedWorkflowRateLimitedQueueItems = `-- name: MovePausedWorkflowRateLimitedQueueItems :exec
+WITH moved_items AS (
+    DELETE FROM v1_rate_limited_queue_items
+    WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
+    RETURNING requeue_after, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE
+        cs.task_id = mi.task_id
+        AND cs.task_inserted_at = mi.task_inserted_at
+        AND cs.task_retry_count = mi.retry_count
+    RETURNING cs.task_id
+)
+
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+FROM moved_items
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type MovePausedWorkflowRateLimitedQueueItemsParams struct {
+	Workflowids []uuid.UUID `json:"workflowids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) MovePausedWorkflowRateLimitedQueueItems(ctx context.Context, db DBTX, arg MovePausedWorkflowRateLimitedQueueItemsParams) error {
+	_, err := db.Exec(ctx, movePausedWorkflowRateLimitedQueueItems, arg.Workflowids, arg.Tenantid)
 	return err
 }
 
@@ -1779,13 +1925,99 @@ func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX
 	return db.Exec(ctx, reactivateInactiveQueuesWithItems)
 }
 
+const requeuePausedWorkflowConcurrencySlots = `-- name: RequeuePausedWorkflowConcurrencySlots :exec
+WITH ready_items AS (
+    SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    WHERE
+        pqi.workflow_id = ANY($1::UUID[])
+        AND pqi.tenant_id = $2::UUID
+        AND t.concurrency_strategy_ids[1] IS NOT NULL
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
+), deleted_items AS (
+    DELETE FROM v1_paused_workflow_queue_item
+    WHERE (task_inserted_at, task_id, retry_count) IN (
+        SELECT task_inserted_at, task_id, retry_count
+        FROM ready_items
+    )
+    RETURNING tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
+)
+
+INSERT INTO v1_concurrency_slot (
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    external_id,
+    tenant_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    parent_strategy_id,
+    next_parent_strategy_ids,
+    strategy_id,
+    next_strategy_ids,
+    priority,
+    key,
+    next_keys,
+    queue_to_notify,
+    schedule_timeout_at
+)
+
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.tenant_id,
+    t.workflow_id,
+    t.workflow_version_id,
+    t.workflow_run_id,
+    t.concurrency_parent_strategy_ids[1],
+    CASE
+        WHEN array_length(t.concurrency_parent_strategy_ids, 1) > 1 THEN t.concurrency_parent_strategy_ids[2:array_length(t.concurrency_parent_strategy_ids, 1)]
+        ELSE '{}'::bigint[]
+    END,
+    t.concurrency_strategy_ids[1],
+    CASE
+        WHEN array_length(t.concurrency_strategy_ids, 1) > 1 THEN t.concurrency_strategy_ids[2:array_length(t.concurrency_strategy_ids, 1)]
+        ELSE '{}'::bigint[]
+    END,
+    ri.priority,
+    t.concurrency_keys[1],
+    CASE
+        WHEN array_length(t.concurrency_keys, 1) > 1 THEN t.concurrency_keys[2:array_length(t.concurrency_keys, 1)]
+        ELSE '{}'::text[]
+    END,
+    t.queue,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
+FROM ready_items ri
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
+`
+
+type RequeuePausedWorkflowConcurrencySlotsParams struct {
+	Workflowids []uuid.UUID `json:"workflowids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) RequeuePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg RequeuePausedWorkflowConcurrencySlotsParams) error {
+	_, err := db.Exec(ctx, requeuePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
+	return err
+}
+
 const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :exec
 WITH ready_items AS (
-    SELECT tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
-    FROM v1_paused_workflow_queue_item
-    WHERE workflow_id = ANY($1::UUID[]) AND tenant_id = $2::UUID
-    ORDER BY task_inserted_at, task_id, retry_count
-    FOR UPDATE SKIP LOCKED
+    SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    WHERE
+        pqi.workflow_id = ANY($1::UUID[])
+        AND pqi.tenant_id = $2::UUID
+        AND t.concurrency_strategy_ids[1] IS NULL
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
     DELETE FROM v1_paused_workflow_queue_item
     WHERE (task_inserted_at, task_id, retry_count) IN (

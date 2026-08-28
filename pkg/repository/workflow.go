@@ -1482,20 +1482,73 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
 	defer span.End()
 
-	return r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+	if len(workflowIds) == 0 {
+		return nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	}); err != nil {
+		return err
+	}
+
+	if err := r.queries.MovePausedWorkflowRateLimitedQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowRateLimitedQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	}); err != nil {
+		return err
+	}
+
+	return commit(ctx)
 }
 
 func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
 	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
 	defer span.End()
 
-	return r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+	if len(workflowIds) == 0 {
+		return nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	}); err != nil {
+		return err
+	}
+
+	return commit(ctx)
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
