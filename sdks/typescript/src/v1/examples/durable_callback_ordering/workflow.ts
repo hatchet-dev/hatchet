@@ -10,26 +10,44 @@ const EVICTION_POLICY: EvictionPolicy = {
   priority: 0,
 };
 
-export interface LeafInput {
+export type LeafInput = {
   mid: number;
   branch: number;
   delayMs: number;
   generation: number;
-}
+};
 
-export interface MidInput {
+export type LeafOutput = {
+  mid: number;
+  branch: number;
+  generation: number;
+};
+
+export type MidInput = {
   mid: number;
   branches: number;
   childDelayMs: number;
   delayStepMs: number;
-}
+};
 
-export interface RootInput {
+export type MidOutput = {
+  mid: number;
+  completedBranches: number[];
+  invocationCount: number;
+};
+
+export type RootInput = {
   durables?: number;
   branches?: number;
   childDelayMs?: number;
   delayStepMs?: number;
-}
+};
+
+export type RootOutput = {
+  rootInvocationCount: number;
+  midInvocationCounts: number[];
+  completedMids: number[];
+};
 
 export const ROOT_DEFAULTS = {
   durables: 4,
@@ -38,21 +56,21 @@ export const ROOT_DEFAULTS = {
   delayStepMs: 3,
 };
 
-export const callbackOrderingLeaf = hatchet.task({
+export const callbackOrderingLeaf = hatchet.task<LeafInput, LeafOutput>({
   name: `${WORKFLOW_PREFIX}-leaf`,
   executionTimeout: '1m',
-  fn: async (input: LeafInput) => {
+  fn: async (input) => {
     await sleep(input.delayMs);
     return { mid: input.mid, branch: input.branch, generation: input.generation };
   },
 });
 
-export const callbackOrderingMid = hatchet.durableTask({
+export const callbackOrderingMid = hatchet.durableTask<MidInput, MidOutput>({
   name: `${WORKFLOW_PREFIX}-mid`,
   executionTimeout: '5m',
   retries: 0,
   evictionPolicy: EVICTION_POLICY,
-  fn: async (input: MidInput, ctx) => {
+  fn: async (input, ctx) => {
     // Staggered first-generation children complete out of spawn order, so each
     // branch's second-generation spawn is emitted in completion order. Replays
     // after eviction must re-deliver those completions in the recorded order or
@@ -86,12 +104,12 @@ export const callbackOrderingMid = hatchet.durableTask({
   },
 });
 
-export const callbackOrderingRoot = hatchet.durableTask({
+export const callbackOrderingRoot = hatchet.durableTask<RootInput, RootOutput>({
   name: `${WORKFLOW_PREFIX}-root`,
   executionTimeout: '10m',
   retries: 0,
   evictionPolicy: EVICTION_POLICY,
-  fn: async (input: RootInput, ctx) => {
+  fn: async (input, ctx) => {
     const durables = input.durables ?? ROOT_DEFAULTS.durables;
     const results = await Promise.all(
       Array.from({ length: durables }, (_, midIndex) =>

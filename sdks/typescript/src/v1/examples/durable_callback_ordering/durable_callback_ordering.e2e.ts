@@ -23,7 +23,8 @@ describe('durable-callback-ordering-e2e', () => {
     } catch (error) {
       if (String(error).includes('NonDeterminismError')) {
         throw new Error(
-          `replayed completions were consumed out of recorded order:\n${String(error)}`
+          `replayed completions were consumed out of recorded order:\n${String(error)}`,
+          { cause: error }
         );
       }
       throw error;
