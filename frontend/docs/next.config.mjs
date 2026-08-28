@@ -1,31 +1,11 @@
-// Using ESM for Nextra v4
-import nextra from 'nextra'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { createMDX } from 'fumadocs-mdx/next'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// Configure Nextra for MDX and docs
-const withNextra = nextra({
-  theme: 'nextra-theme-docs',
-  themeConfig: './theme.config.tsx',
-  defaultShowCopyCode: true,
-  readingTime: true,
-  staticImage: true,
-  latex: false,
-})
+const withMDX = createMDX()
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack(config) {
-    config.resolve.alias['@theguild/remark-mermaid/mermaid'] = path.resolve(
-      __dirname,
-      'components/Mermaid.tsx',
-    )
-    return config
-  },
+  pageExtensions: ['ts', 'tsx'],
   transpilePackages: ["react-tweet"],
-  swcMinify: false,
   images: {
     unoptimized: true,
   },
@@ -40,8 +20,8 @@ const nextConfig = {
       // --- New site: section index redirects ---
       { source: '/', destination: '/v1', permanent: false, basePath: false },
       { source: '/get-started', destination: '/v1', permanent: false, basePath: false },
-      { source: '/reference', destination: '/reference/python/client', permanent: false, basePath: false },
-      { source: '/reference/', destination: '/reference/python/client', permanent: false, basePath: false },
+      { source: '/reference', destination: '/reference/changelog', permanent: false, basePath: false },
+      { source: '/reference/', destination: '/reference/changelog', permanent: false, basePath: false },
       { source: '/reference/python', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/python/', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/typescript', destination: '/reference/typescript/client', permanent: false, basePath: false },
@@ -202,4 +182,4 @@ const nextConfig = {
   },
 }
 
-export default withNextra(nextConfig)
+export default withMDX(nextConfig)

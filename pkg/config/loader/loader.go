@@ -452,6 +452,10 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 		override(cf)
 	}
 
+	if cf.VersionOverride != "" {
+		version = cf.VersionOverride
+	}
+
 	return createControllerLayer(dc, cf, version)
 }
 
@@ -905,7 +909,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
+	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
@@ -950,6 +954,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if cf.Runtime.AllowedOriginsString != "" {
 		cf.Runtime.AllowedOrigins = getStrArr(cf.Runtime.AllowedOriginsString)
+	}
+
+	if cf.Runtime.OperatorInfraBlockedCIDRsString != "" {
+		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
 	}
 
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
@@ -1096,6 +1104,8 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 			natsmq.WithPubSubURL(natsURL),
 			natsmq.WithPubSubUsername(cf.MessageQueue.PubSub.NATS.Username),
 			natsmq.WithPubSubPassword(cf.MessageQueue.PubSub.NATS.Password),
+			natsmq.WithPubSubTLSEnabled(cf.MessageQueue.PubSub.NATS.TLSEnabled),
+			natsmq.WithPubSubTLSRootCAFile(cf.MessageQueue.PubSub.NATS.TLSRootCAFile),
 			natsmq.WithPubSubSubjectPrefix(cf.MessageQueue.PubSub.NATS.SubjectPrefix),
 			natsmq.WithPubSubLogger(l),
 		)

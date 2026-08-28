@@ -327,6 +327,40 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		bufferedRetryCounts = append(bufferedRetryCounts, buffered.QueueItem.RetryCount)
 	}
 
+	// lock existing runtime rows before any queue items are deleted, so this transaction's
+	// lock order stays consistent with RestoreEvictedTasks; see LockTaskRuntimesForFlush
+	lockCount := len(r.Assigned) + len(r.SchedulingTimedOut) + len(bufferedTaskIds)
+	lockTaskIds := make([]int64, 0, lockCount)
+	lockTaskInsertedAts := make([]pgtype.Timestamptz, 0, lockCount)
+	lockRetryCounts := make([]int32, 0, lockCount)
+
+	for _, assignedItem := range r.Assigned {
+		lockTaskIds = append(lockTaskIds, assignedItem.QueueItem.TaskID)
+		lockTaskInsertedAts = append(lockTaskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
+		lockRetryCounts = append(lockRetryCounts, assignedItem.QueueItem.RetryCount)
+	}
+
+	for _, id := range r.SchedulingTimedOut {
+		lockTaskIds = append(lockTaskIds, id.TaskID)
+		lockTaskInsertedAts = append(lockTaskInsertedAts, id.TaskInsertedAt)
+		lockRetryCounts = append(lockRetryCounts, id.RetryCount)
+	}
+
+	lockTaskIds = append(lockTaskIds, bufferedTaskIds...)
+	lockTaskInsertedAts = append(lockTaskInsertedAts, bufferedTaskInsertedAts...)
+	lockRetryCounts = append(lockRetryCounts, bufferedRetryCounts...)
+
+	if len(lockTaskIds) > 0 {
+		if err := d.queries.LockTaskRuntimesForFlush(ctx, tx, sqlcv1.LockTaskRuntimesForFlushParams{
+			Tenantid:        tenantId,
+			Taskids:         lockTaskIds,
+			Taskinsertedats: lockTaskInsertedAts,
+			Retrycounts:     lockRetryCounts,
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// move batch queue items from v1_queue_item -> v1_batched_queue_item (replaces trigger-based redirect)
 	batchedQueueItemIDs := make([]int64, 0, len(r.Batched))
 
@@ -894,18 +928,37 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	return stepIdToRequests, nil
 }
 
-func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, stepIds []uuid.UUID) (map[string]bool, error) {
+func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[string]bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
 	defer span.End()
 
 	uniqueStepIds := listutils.Uniq(stepIds)
 	res := make(map[string]bool, len(uniqueStepIds))
 
-	for _, stepID := range uniqueStepIds {
-		res[stepID.String()] = false
+	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
+
+	for _, stepId := range uniqueStepIds {
+		if value, found := d.stepIdHasBatchConfigCache.Get(stepId); found {
+			res[stepId.String()] = value
+		} else {
+			res[stepId.String()] = false
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+		}
 	}
 
-	steps, err := d.queries.ListStepsWithBatchConfig(ctx, d.pool, uniqueStepIds)
+	if len(stepIdsToLookup) == 0 {
+		return res, nil
+	}
+
+	var queryTx sqlcv1.DBTX
+
+	if tx != nil {
+		queryTx = tx.tx
+	} else {
+		queryTx = d.pool
+	}
+
+	steps, err := d.queries.ListStepsWithBatchConfig(ctx, queryTx, stepIdsToLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -914,7 +967,46 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, stepIds []uui
 		res[step.String()] = true
 	}
 
+	// cache the outcome for every looked-up step — steps without a batch config
+	// cache false, so the common case also skips the DB lookup
+	for _, stepId := range stepIdsToLookup {
+		d.stepIdHasBatchConfigCache.Add(stepId, res[stepId.String()])
+	}
+
 	return res, nil
+}
+
+// ListWorkflowNamesByIds resolves workflow ids to names through the shared
+// workflowIdNameCache, fetching only uncached ids from the database. Ids which cannot be
+// resolved are absent from the result.
+func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	workflowIdToName := make(map[uuid.UUID]string, len(workflowIds))
+	misses := make([]uuid.UUID, 0)
+
+	for _, id := range workflowIds {
+		if name, ok := d.workflowIdNameCache.Get(id); ok {
+			workflowIdToName[id] = name
+		} else {
+			misses = append(misses, id)
+		}
+	}
+
+	if len(misses) == 0 {
+		return workflowIdToName, nil
+	}
+
+	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool, misses)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		d.workflowIdNameCache.Add(row.ID, row.Name)
+		workflowIdToName[row.ID] = row.Name
+	}
+
+	return workflowIdToName, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {

@@ -1,0 +1,96 @@
+---
+title: "Rate Limits"
+---
+
+# Rate Limits Client
+
+Bases: `BaseRestClient`
+
+The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
+
+Methods:
+
+| Name       | Description                          |
+| ---------- | ------------------------------------ |
+| `aio_list` | List all rate limits for the tenant. |
+| `aio_put`  | Put a rate limit for a given key.    |
+| `list`     | List all rate limits for the tenant. |
+| `put`      | Put a rate limit for a given key.    |
+
+### Functions
+
+#### `aio_list`
+
+List all rate limits for the tenant.
+
+Parameters:
+
+| Name                 | Type                                | Description                                  | Default |
+| -------------------- | ----------------------------------- | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                       | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                       | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                       | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `RateLimitOrderByField \| None`     | The field to order results by.               | `None`  |
+| `order_by_direction` | `RateLimitOrderByDirection \| None` | The direction to order results.              | `None`  |
+
+Returns:
+
+| Type            | Description            |
+| --------------- | ---------------------- |
+| `RateLimitList` | A list of rate limits. |
+
+#### `aio_put`
+
+Put a rate limit for a given key.
+
+Parameters:
+
+| Name       | Type                | Description                        | Default    |
+| ---------- | ------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`               | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`               | The rate limit to set.             | _required_ |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `list`
+
+List all rate limits for the tenant.
+
+Parameters:
+
+| Name                 | Type                                | Description                                  | Default |
+| -------------------- | ----------------------------------- | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                       | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                       | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                       | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `RateLimitOrderByField \| None`     | The field to order results by.               | `None`  |
+| `order_by_direction` | `RateLimitOrderByDirection \| None` | The direction to order results.              | `None`  |
+
+Returns:
+
+| Type            | Description            |
+| --------------- | ---------------------- |
+| `RateLimitList` | A list of rate limits. |
+
+#### `put`
+
+Put a rate limit for a given key.
+
+Parameters:
+
+| Name       | Type                | Description                        | Default    |
+| ---------- | ------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`               | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`               | The rate limit to set.             | _required_ |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |

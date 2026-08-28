@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "changelog",
+    "python",
+    "typescript",
+    "go",
+    "ruby",
+    "cli"
+  ],
+  "title": "Reference",
+  "root": true,
+  "description": "SDK & CLI reference",
+  "icon": "Code"
+}

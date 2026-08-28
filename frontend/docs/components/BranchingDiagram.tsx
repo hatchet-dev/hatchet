@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { brand, state, fill, inactive, gradient } from "./diagram-colors";
 

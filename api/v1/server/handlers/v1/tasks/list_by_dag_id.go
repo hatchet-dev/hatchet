@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -28,6 +29,8 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		return nil, unauthorized
 	}
 
+	ctx.Set("tenant-member", tenantMember)
+
 	dagIds := request.Params.DagIds
 
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
@@ -41,7 +44,7 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		return nil, err
 	}
 
-	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId)
+	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1DagListTasks200JSONResponse(

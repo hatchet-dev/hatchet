@@ -8,6 +8,7 @@ import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import {
   MemberEmail,
+  payloadsLockedForRole,
   RoleBadge,
 } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { useMutation } from '@tanstack/react-query';
@@ -42,6 +43,17 @@ export function PendingInvitesSection({
     {
       columnLabel: 'Role',
       cellRenderer: (invite: TenantInvite) => <RoleBadge role={invite.role} />,
+    },
+    {
+      columnLabel: 'Payloads',
+      cellRenderer: (invite: TenantInvite) => (
+        <span className="text-sm text-muted-foreground">
+          {payloadsLockedForRole(invite.role) ||
+          invite.canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
+      ),
     },
     {
       columnLabel: 'Created',

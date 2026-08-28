@@ -24,7 +24,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface EditMemberRoleModalProps {
   open: boolean;
@@ -49,6 +49,13 @@ export function EditMemberRoleModal({
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const orgApi = useOrganizationApi();
+
+  useEffect(() => {
+    if (open) {
+      setRole(member.role);
+      setFormErrors([]);
+    }
+  }, [open, member]);
 
   const memberUpdate = orgApi.organizationMemberUpdateMutation(
     member.metadata.id,

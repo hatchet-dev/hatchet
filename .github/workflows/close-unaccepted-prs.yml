@@ -1,0 +1,174 @@
+name: "Close PRs without an accepted issue"
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize]
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: close-unaccepted-prs-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  close-unaccepted-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const ACCEPTED_LABEL = 'accepted';
+            const MARKER = '<!-- close-unaccepted-prs -->';
+            const CUTOFF = Date.parse('2026-08-01T00:00:00Z');
+
+            async function isMaintainer(login) {
+              if (!login) return false;
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: login,
+                });
+                return ['admin', 'maintain', 'write'].includes(data.role_name)
+                  || ['admin', 'write'].includes(data.permission);
+              } catch (err) {
+                core.info(`could not resolve permission for ${login}: ${err.message}`);
+                return null;
+              }
+            }
+
+            const message = [
+              MARKER,
+              "Thanks for taking the time to open this pull request! :heart:",
+              "",
+              "To keep our review queue focused, we only accept pull requests that are linked to an " +
+                "issue the Hatchet team has already triaged, labelled `" + ACCEPTED_LABEL + "`, and " +
+                "assigned to you.",
+              "",
+              "We couldn't find a linked issue that's both accepted and assigned to you, so we're " +
+                "closing this PR for now. This isn't a reflection of the quality of your work — it " +
+                "just helps us make sure effort goes into changes we're ready to merge, and that two " +
+                "people don't unknowingly build the same thing.",
+              "",
+              "**What to do next:**",
+              "1. Open (or find) an issue describing the change, and comment there to say you'd like " +
+                "to take it on.",
+              "2. Wait for a maintainer to add the `" + ACCEPTED_LABEL + "` label and assign the " +
+                "issue to you.",
+              "3. Link the issue from this PR using a closing keyword (e.g. `Closes #123`) in the " +
+                "description, then reopen the PR.",
+              "Thanks again for contributing to Hatchet! :axe:",
+            ].join('\n');
+
+            async function linkedAcceptedIssue(number, author) {
+              const query = `
+                query($owner:String!, $repo:String!, $number:Int!) {
+                  repository(owner:$owner, name:$repo) {
+                    pullRequest(number:$number) {
+                      closingIssuesReferences(first:20) {
+                        nodes {
+                          number
+                          labels(first:50) { nodes { name } }
+                          assignees(first:20) { nodes { login } }
+                        }
+                      }
+                    }
+                  }
+                }`;
+              const res = await github.graphql(query, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number,
+              });
+              const nodes = res.repository.pullRequest.closingIssuesReferences.nodes || [];
+              return nodes.some(issue =>
+                (issue.labels.nodes || []).some(l => l.name.toLowerCase() === ACCEPTED_LABEL)
+                && (issue.assignees.nodes || []).some(a => a.login.toLowerCase() === author.toLowerCase())
+              );
+            }
+
+            async function alreadyNotified(number) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                per_page: 100,
+              });
+              return comments.some(c => c.body && c.body.includes(MARKER));
+            }
+
+            async function processPR(pr) {
+              const number = pr.number;
+
+              if (Date.parse(pr.created_at) < CUTOFF) {
+                core.info(`#${number}: opened before cutoff, skipping`);
+                return;
+              }
+              if (pr.draft) {
+                core.info(`#${number}: draft, skipping`);
+                return;
+              }
+              if (pr.user && pr.user.type === 'Bot') {
+                core.info(`#${number}: bot author, skipping`);
+                return;
+              }
+              const author = pr.user && pr.user.login;
+              const maintainer = await isMaintainer(author);
+              if (maintainer === null) {
+                core.info(`#${number}: permission lookup failed, leaving open`);
+                return;
+              }
+              if (maintainer) {
+                core.info(`#${number}: author is a maintainer, skipping`);
+                return;
+              }
+              if ((pr.labels || []).some(l => l.name.toLowerCase() === ACCEPTED_LABEL)) {
+                core.info(`#${number}: has ${ACCEPTED_LABEL} label, skipping`);
+                return;
+              }
+              if (await linkedAcceptedIssue(number, author)) {
+                core.info(`#${number}: linked to an accepted issue, skipping`);
+                return;
+              }
+
+              if (!(await alreadyNotified(number))) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                  body: message,
+                });
+              }
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: number,
+                state: 'closed',
+              });
+              core.info(`#${number}: closed (no accepted linked issue)`);
+            }
+
+            if (context.payload.pull_request) {
+              await processPR(context.payload.pull_request);
+            } else {
+              const prs = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              });
+              core.info(`Scanning ${prs.length} open PR(s)`);
+              for (const pr of prs) {
+                try {
+                  await processPR(pr);
+                } catch (err) {
+                  core.warning(`#${pr.number}: ${err.message}`);
+                }
+              }
+            }

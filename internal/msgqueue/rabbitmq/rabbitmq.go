@@ -163,7 +163,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 		pubMaxChans = 20
 	}
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans, channelPoolQueueDurable, channelPoolRolePub)
 
 	if err != nil {
 		cancel()
@@ -176,7 +176,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 		subMaxChans = 100
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans, channelPoolQueueDurable, channelPoolRoleSub)
 
 	if err != nil {
 		pubChannelPool.Close()

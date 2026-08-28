@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/puddle/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+)
+
+const (
+	channelPoolQueueDurable = "durable"
+	channelPoolQueuePubSub  = "pubsub"
+	channelPoolRolePub      = "pub"
+	channelPoolRoleSub      = "sub"
+
+	channelPoolAcquiredMetric = "hatchet.msgqueue.rabbitmq.channel_pool.acquired"
+	channelPoolMaxMetric      = "hatchet.msgqueue.rabbitmq.channel_pool.max"
 )
 
 type channelPool struct {
@@ -22,6 +35,8 @@ type channelPool struct {
 
 	conn   *amqp.Connection
 	connMu sync.Mutex
+
+	metricReg metric.Registration
 }
 
 // redactURL masks the password in a connection URL (as url.URL.Redacted does).
@@ -63,7 +78,18 @@ func (p *channelPool) hasActiveConnection() bool {
 	return p.conn != nil && !p.conn.IsClosed()
 }
 
-func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32) (*channelPool, error) {
+func (p *channelPool) Close() {
+	if p.metricReg != nil {
+		_ = p.metricReg.Unregister()
+		p.metricReg = nil
+	}
+
+	if p.Pool != nil {
+		p.Pool.Close()
+	}
+}
+
+func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32, queue, role string) (*channelPool, error) {
 	p := &channelPool{
 		l:   l,
 		url: url,
@@ -142,6 +168,54 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChann
 	}
 
 	p.Pool = pool
+	p.registerMetrics(queue, role)
 
 	return p, nil
+}
+
+func (p *channelPool) registerMetrics(queue, role string) {
+	meter := otel.Meter("hatchet.run/metrics")
+
+	acquired, err := meter.Int64ObservableGauge(
+		channelPoolAcquiredMetric,
+		metric.WithDescription("AMQP channels currently acquired from the RabbitMQ channel pool"),
+		metric.WithUnit("{channel}"),
+	)
+	if err != nil {
+		p.l.Warn().Err(err).Msg("cannot create channel pool acquired gauge")
+		return
+	}
+
+	maxChans, err := meter.Int64ObservableGauge(
+		channelPoolMaxMetric,
+		metric.WithDescription("Configured maximum AMQP channels in the RabbitMQ channel pool"),
+		metric.WithUnit("{channel}"),
+	)
+	if err != nil {
+		p.l.Warn().Err(err).Msg("cannot create channel pool max gauge")
+		return
+	}
+
+	attrs := metric.WithAttributes(
+		attribute.String("queue", queue),
+		attribute.String("pool", role),
+	)
+
+	reg, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		if p.Pool == nil {
+			return nil
+		}
+
+		st := p.Stat()
+		o.ObserveInt64(acquired, int64(st.AcquiredResources()), attrs)
+		o.ObserveInt64(maxChans, int64(st.MaxResources()), attrs)
+
+		return nil
+	}, acquired, maxChans)
+	if err != nil {
+		p.l.Warn().Err(err).Msg("cannot register channel pool metric callback")
+		return
+	}
+
+	p.metricReg = reg
 }

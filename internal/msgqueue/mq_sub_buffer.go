@@ -149,6 +149,8 @@ func (m *MQSubBuffer) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe in mq buffer: %w", err)
 	}
 
+	go m.runEvictor(ctx)
+
 	cleanup := func() error {
 		defer cancel()
 		if err := cleanupQueue(); err != nil {
@@ -177,10 +179,29 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 
 	k := getKey(msg.TenantID, msg.ID)
 
-	msgBuf, ok := m.buffers.Load(k)
+	var msgBuf *msgIdBuffer
 
-	if !ok {
-		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+	for {
+		var ok bool
+		msgBuf, ok = m.buffers.Load(k)
+
+		if !ok {
+			newBuf := newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush)
+
+			var loaded bool
+			msgBuf, loaded = m.buffers.LoadOrStore(k, newBuf)
+
+			if loaded {
+				// lost the store race; stop the discarded buffer's goroutines
+				newBuf.stop()
+			}
+		}
+
+		// the buffer may have been evicted between the load and the acquire, in
+		// which case it is no longer in the map and we create a fresh one
+		if msgBuf.tryAcquire() {
+			break
+		}
 	}
 
 	// Signal early flush if the send would block due to capacity.
@@ -196,6 +217,7 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 		msgBuf.msgIdBufferCh <- msgWithResult
 	}
 	msgBuf.notifier <- struct{}{}
+	msgBuf.release()
 
 	// wait for the message to be processed
 	err, ok := <-msgWithResult.result
@@ -212,8 +234,32 @@ func getKey(tenantId uuid.UUID, msgId string) string {
 	return tenantId.String() + msgId
 }
 
+// runEvictor periodically removes buffers that have not seen a message for
+// BUFFER_IDLE_TIMEOUT. Without eviction the buffers map grows with every
+// (tenantId, msgId) pair seen over the lifetime of the process.
+func (m *MQSubBuffer) runEvictor(ctx context.Context) {
+	ticker := time.NewTicker(BUFFER_IDLE_TIMEOUT / 2)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.buffers.Range(func(k string, b *msgIdBuffer) bool {
+				if len(b.msgIdBufferCh) == 0 && b.tryEvict(BUFFER_IDLE_TIMEOUT) {
+					m.buffers.Delete(k)
+					b.stop()
+				}
+
+				return true
+			})
+		}
+	}
+}
+
 type msgIdBuffer struct {
-	bufferCore
+	*bufferCore
 
 	tenantId      uuid.UUID
 	msgId         string
@@ -222,6 +268,8 @@ type msgIdBuffer struct {
 }
 
 func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+	ctx, stop := context.WithCancel(ctx)
+
 	b := &msgIdBuffer{
 		bufferCore:    newBufferCore(flushInterval, bufferSize, maxConcurrency, disableImmediateFlush, false),
 		tenantId:      tenantID,
@@ -229,7 +277,8 @@ func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst D
 		msgIdBufferCh: make(chan *msgWithResultCh, bufferSize),
 		dst:           dst,
 	}
-	b.startFlusher(ctx, b.flush)
+	b.stop = stop
+	b.startFlusher(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	return b
 }

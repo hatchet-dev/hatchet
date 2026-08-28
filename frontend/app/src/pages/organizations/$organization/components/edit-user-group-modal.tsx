@@ -1,5 +1,6 @@
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
@@ -53,12 +55,16 @@ export function EditUserGroupModal({
 
   const [name, setName] = useState(group.name);
   const [role, setRole] = useState<TenantMemberRoleType>(group.role);
+  const [canViewPayloads, setCanViewPayloads] = useState(
+    group.canViewPayloads ?? true,
+  );
   const [tags, setTags] = useState<string[]>(group.tags);
 
   useEffect(() => {
     if (open) {
       setName(group.name);
       setRole(group.role);
+      setCanViewPayloads(group.canViewPayloads ?? true);
       setTags(group.tags);
     }
   }, [open, group]);
@@ -134,8 +140,11 @@ export function EditUserGroupModal({
     setTags((prev) => prev.filter((t) => t !== tag));
 
   const updateGroup = useCallback(
-    (data: { name?: string; role: TenantMemberRoleType }) =>
-      updateMutation.mutateAsync(data),
+    (data: {
+      name?: string;
+      role: TenantMemberRoleType;
+      canViewPayloads: boolean;
+    }) => updateMutation.mutateAsync(data),
     [updateMutation],
   );
 
@@ -157,18 +166,32 @@ export function EditUserGroupModal({
   const isPending = updateMutation.isPending || tagsMutation.isPending;
   const isMemberMutating =
     addMemberMutation.isPending || removeMemberMutation.isPending;
+  const payloadsLocked = payloadsLockedForRole(role);
 
   const handleSave = useCallback(async () => {
     try {
       await Promise.all([
-        updateGroup({ name: name.trim() || undefined, role }),
+        updateGroup({
+          name: name.trim() || undefined,
+          role,
+          canViewPayloads: payloadsLocked ? true : canViewPayloads,
+        }),
         saveGroupTags(tags),
       ]);
       onOpenChange(false);
     } catch {
       // errors already shown via onError toast handlers
     }
-  }, [updateGroup, saveGroupTags, name, role, tags, onOpenChange]);
+  }, [
+    updateGroup,
+    saveGroupTags,
+    name,
+    role,
+    payloadsLocked,
+    canViewPayloads,
+    tags,
+    onOpenChange,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -209,8 +232,30 @@ export function EditUserGroupModal({
                   <SelectItem value={TenantMemberRoleType.OWNER}>
                     OWNER
                   </SelectItem>
+                  <SelectItem value={TenantMemberRoleType.VIEWER}>
+                    VIEWER
+                  </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="edit-group-canViewPayloads"
+                checked={payloadsLocked || canViewPayloads}
+                onCheckedChange={(checked) =>
+                  setCanViewPayloads(checked === true)
+                }
+                disabled={isPending || payloadsLocked}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="edit-group-canViewPayloads">
+                  Can view payloads
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from members of this group.
+                </p>
+              </div>
             </div>
           </div>
 

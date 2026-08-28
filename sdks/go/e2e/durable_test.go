@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	v0client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -564,4 +565,68 @@ func TestDurableErrorOnErrorInChild(t *testing.T) {
 		}
 		return *parentStatus == rest.V1TaskStatusCOMPLETED, nil
 	})
+}
+
+func TestEventLookbackBeforeWait(t *testing.T) {
+	ctx := newTestContext(t)
+	scope := uuid.NewString()
+
+	err := sharedClient.Events().Push(ctx, lookbackEventKey, LookbackEvent{Order: "first"}, v0client.WithFilterScope(&scope))
+	require.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
+
+	ref, err := testEventLookback.RunNoWait(ctx, EventLookbackInput{Scope: scope})
+	require.NoError(t, err)
+
+	result := workflowResultWithin(t, ref, 60*time.Second)
+	output := resultMap(t, result, "durable-event-lookback")
+
+	assert.Equal(t, "first", output["order"])
+	assert.Less(t, output["elapsed"].(float64), 3.0,
+		"event lookback should find the event pushed before the wait started, so the wait should be near-instantaneous")
+}
+
+func TestOrGroupEventLookbackBeforeWait(t *testing.T) {
+	ctx := newTestContext(t)
+	scope := uuid.NewString()
+
+	err := sharedClient.Events().Push(ctx, lookbackEventKey, LookbackEvent{Order: "first"}, v0client.WithFilterScope(&scope))
+	require.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
+
+	ref, err := testOrEventLookback.RunNoWait(ctx, EventLookbackInput{Scope: scope})
+	require.NoError(t, err)
+
+	result := workflowResultWithin(t, ref, 60*time.Second)
+	output := resultMap(t, result, "durable-or-event-lookback")
+
+	assert.Less(t, output["elapsed"].(float64), float64(sleepTime),
+		"the user event branch of the or-group should match via lookback before the sleep branch fires")
+}
+
+func TestTwoEventWaitsSecondPushedFirst(t *testing.T) {
+	ctx := newTestContext(t)
+	scope := uuid.NewString()
+
+	err := sharedClient.Events().Push(ctx, lookbackKey2, LookbackEvent{Order: "second"}, v0client.WithFilterScope(&scope))
+	require.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
+
+	ref, err := testTwoEventsLookback.RunNoWait(ctx, EventLookbackInput{Scope: scope})
+	require.NoError(t, err)
+
+	time.Sleep(3 * time.Second)
+
+	err = sharedClient.Events().Push(ctx, lookbackKey1, LookbackEvent{Order: "first"}, v0client.WithFilterScope(&scope))
+	require.NoError(t, err)
+
+	result := workflowResultWithin(t, ref, 60*time.Second)
+	output := resultMap(t, result, "durable-two-events-lookback")
+
+	assert.Equal(t, "first", output["order1"])
+	assert.Equal(t, "second", output["order2"],
+		"the second wait should find the event pushed before the task started via lookback")
 }

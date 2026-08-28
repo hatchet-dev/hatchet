@@ -1,0 +1,114 @@
+---
+title: "Batch Tasks"
+---
+
+import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Batch Tasks
+
+<Callout type="warning">
+  Batch tasks are in beta and may change in future releases.
+</Callout>
+For tasks that do not need to be executed immediately, you can use batch tasks
+to automatically accumulate tasks and execute them in a single batch. The input
+to a batch task is a map that associates the ID of the originating task with
+it's input. The output *must* be the same shape, using the same keys, to send
+outputs back to the original call site (unless output broadcasting is used, see
+[Broadcasting outputs](#broadcasting-outputs)). For the caller of a batch task,
+the batched execution is hidden. It is called, and receives output, the same way
+as a normal task. Though each batch will be executed in one handler function,
+the call site only receives output corresponding to its input, not the output
+for the entire batch.
+
+## Batch flushing behavior
+
+Batches will accumulate tasks continuously, preventing them from executing until one of the following conditions is true:
+
+- The max size for the batch is reached.
+- The maximum interval has elapsed since the last batch flush.
+- The size of the payloads for the buffered tasks has exceeded the 4Mb gRPC message limit.
+
+In the following example, the batch task will be executed once 3 tasks have accumulated, or every 200ms, whichever comes first.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet src={snippets.python.batch_assign.worker.declaring_a_batch_task} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.typescript.batch_assign.workflow.declaring_a_batch_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.go.batch_assign.main.declaring_a_batch_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.batch_assign.worker.declaring_a_batch_task} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Batch keys
+
+To allow for accumulation of multiple batches simultaneously using the same workflow, batch keys can be used.
+For example, if you had multiple tenants, and wanted to ensure that each batch execution did not mix inputs from multiple
+tenants, batch keys can be used to partition the inputs. In the following example, the batches will flush independently based on the `group` value.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.python.batch_assign.worker.declaring_a_keyed_batch_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet
+      src={
+        snippets.typescript.batch_assign.workflow.declaring_a_keyed_batch_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.go.batch_assign.main.declaring_a_keyed_batch_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.batch_assign.worker.declaring_a_keyed_batch_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Broadcasting outputs
+
+In the default case, batch outputs are mapped 1-1 back to the callers. So if you called a batch task with input `a` and `b` at separate
+call sites, you would receive back outputs `a'` and `b'` respectively, despite the fact they would both be executed at the same time, in the same handler.
+However, if you wish to return the same input back to all callsites, you can use output broadcasting.
+In the following example, every task will receive the same output regardless of call site. Note, however, that this will only return
+the same output to every task buffered into the same batch. See the batch flushing rules above for more details.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.python.batch_assign.worker.declaring_a_broadcast_batch_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet
+      src={
+        snippets.typescript.batch_assign.workflow
+          .declaring_a_broadcast_batch_task
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.go.batch_assign.main.declaring_a_broadcast_batch_task}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.batch_assign.worker.declaring_a_broadcast_batch_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>

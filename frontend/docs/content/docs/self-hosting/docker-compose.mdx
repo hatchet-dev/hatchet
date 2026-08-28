@@ -1,0 +1,278 @@
+---
+title: "Docker Compose"
+---
+
+import { Tabs, Steps, Callout, FileTree } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+import LatestImageTags from "@/components/LatestImageTags";
+
+<LatestImageTags />
+
+# Docker Compose Deployment
+
+This guide shows how to deploy Hatchet using Docker Compose for a production-ready deployment. If you'd like to get up and running quickly, you can also deploy Hatchet using the `hatchet-lite` image following the tutorial here: [Hatchet Lite Deployment](/self-hosting/hatchet-lite).
+
+This guide uses RabbitMQ as a message broker for Hatchet. This is optional: if you'd like to use Postgres as a message broker, modify the `setup-config` service in the `docker-compose.yml` file with the following env var, and delete all RabbitMQ references:
+
+```sh
+SERVER_MSGQUEUE_KIND=postgres
+```
+
+## Quickstart
+
+<Steps>
+
+### Prerequisites
+
+This deployment requires [Docker](https://docs.docker.com/engine/install/) installed locally to work.
+
+### Create files
+
+We will be creating a `docker-compose.yml` file in the root of your repository:
+
+<FileTree>
+  <FileTree.Folder name="root" defaultOpen>
+    <FileTree.File name="docker-compose.yml" />
+  </FileTree.Folder>
+</FileTree>
+
+```yaml filename="docker-compose.yml" copy
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15.6
+    command: postgres -c 'max_connections=1000'
+    restart: always
+    hostname: "postgres"
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    ports:
+      - "5435:5432"
+    volumes:
+      - hatchet_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    hostname: "rabbitmq"
+    ports:
+      - "5673:5672" # RabbitMQ
+      - "15673:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+    volumes:
+      - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
+      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+  migration:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+    command: /hatchet/hatchet-migrate
+    environment:
+      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  setup-config:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+    command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
+    environment:
+      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
+      SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet-engine:7070
+    volumes:
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  hatchet-engine:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+    command: /hatchet/hatchet-engine --config /hatchet/config
+    restart: on-failure
+    depends_on:
+      setup-config:
+        condition: service_completed_successfully
+      migration:
+        condition: service_completed_successfully
+    ports:
+      - "7077:7070"
+    environment:
+      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+    volumes:
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+  hatchet-dashboard:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
+    command: sh ./entrypoint.sh --config /hatchet/config
+    ports:
+      - 8080:80
+    restart: on-failure
+    depends_on:
+      setup-config:
+        condition: service_completed_successfully
+      migration:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+    volumes:
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+
+volumes:
+  hatchet_postgres_data:
+  hatchet_rabbitmq_data:
+  hatchet_rabbitmq.conf:
+  hatchet_config:
+  hatchet_certs:
+```
+
+### Get Hatchet up and running
+
+To start the services, run the following command in the root of your repository:
+
+```bash
+docker compose up
+```
+
+Wait for the `hatchet-engine` and `hatchet-dashboard` services to start.
+
+### Accessing Hatchet
+
+Once the Hatchet instance is running, you can access the Hatchet UI at [http://localhost:8080](http://localhost:8080).
+
+By default, a user is created with the following credentials:
+
+```
+Email: admin@example.com
+Password: Admin123!!
+```
+
+## Run tasks against the Hatchet instance
+
+To run tasks against this instance, you will first need to create an API token for your worker. There are two ways to do this:
+
+1. **Using a CLI command**:
+
+   You can run the following command to create a token:
+
+   ```sh
+   docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52
+   ```
+
+2. **Using the Hatchet dashboard**:
+   - Log in to the Hatchet dashboard.
+   - Navigate to the "Settings" page.
+   - Click on the "API Tokens" tab.
+   - Click on "Create API Token".
+
+Now that you have an API token, see the guide [here](https://docs.hatchet.run/home/setup) for how to run your first task.
+
+</Steps>
+
+## Repulling images
+
+The docker compose file above uses the `latest` tag for all images. This means that if you want to pull the latest version of the images, you can run the following command:
+
+```bash
+docker compose pull
+```
+
+## Connecting to the engine from within Docker
+
+If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `hatchet-engine` as the hostname. For example:
+
+```yaml
+SERVER_GRPC_BROADCAST_ADDRESS: "hatchet-engine:7070"
+```
+
+Make sure your worker depends on hatchet-engine:
+
+```yaml
+worker:
+  depends_on:
+    hatchet-engine:
+      condition: service_started
+```
+
+<Callout type="info">
+  **Note:** modifying the GRPC broadcast address or server URL will require
+  re-issuing an API token.
+</Callout>
+
+## Additional Docker configuration
+
+### Increase Postgres shared memory
+
+By default, containers have a 64 MB shared memory segment (`/dev/shm`). For larger Hatchet deployments this can be too small and may lead to slow queries or an unresponsive dashboard. Increase the shared memory size for the `postgres` service:
+
+```yaml filename="docker-compose.yml" copy
+# ...
+services:
+  postgres:
+    image: postgres:15.6
+    shm_size: 1g # Increase shared memory (adjust as needed)
+    command: postgres -c 'max_connections=1000'
+    restart: always
+    hostname: "postgres"
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    ports:
+      - "5435:5432"
+    volumes:
+      - hatchet_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+# ...
+```
+
+## Running without authentication
+
+<Callout type="warning">
+  Auth-disabled mode is for local development only.
+</Callout>
+
+The compose stack above is fully authenticated. To run it without a login screen, swap the `setup-config`, `hatchet-engine` and `hatchet-dashboard` services to their `-dev` variants, which are built with authentication compiled out:
+
+```yaml filename="docker-compose.yml"
+setup-config:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:latest
+  # ... rest of the service unchanged
+hatchet-engine:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:latest
+  # ... rest of the service unchanged
+hatchet-dashboard:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:latest
+  # ... rest of the service unchanged
+```
+
+Workers still authenticate over gRPC with the fixed worker token the dev images ship which you can view under **Settings → API Tokens** in the dashboard.
+
+If you only want a single-container local instance, `hatchet server start --disable-auth` runs the all-in-one `hatchet-lite-dev` image instead. See [Running Hatchet Locally](/reference/cli/running-hatchet-locally#running-without-authentication) for details.

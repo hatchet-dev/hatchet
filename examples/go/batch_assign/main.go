@@ -42,8 +42,6 @@ func main() {
 	}
 
 	// > Declaring a batch task
-	// batchSimple buffers up to 3 concurrent runs (or flushes after 200ms, whichever
-	// comes first) and processes them together in a single execution.
 	batchSimple := client.NewStandaloneBatchTask("batch-simple",
 		func(ctx hatchet.Context, tasks map[string]SimpleInput) (map[string]SimpleOutput, error) {
 			out := make(map[string]SimpleOutput, len(tasks))
@@ -57,12 +55,8 @@ func main() {
 			MaxInterval: durationPtr(200 * time.Millisecond),
 		},
 	)
-	// !!
 
 	// > Declaring a keyed batch task
-	// batchKeyed partitions buffered runs by the "group" field of their input (evaluated
-	// as a CEL expression against the input), so runs from different groups never end up
-	// in the same batch.
 	batchKeyed := client.NewStandaloneBatchTask("batch-keyed",
 		func(ctx hatchet.Context, tasks map[string]KeyedInput) (map[string]KeyedOutput, error) {
 			uniqueGroups := make(map[string]struct{})
@@ -87,11 +81,8 @@ func main() {
 			GroupKey:    stringPtr("input.group"),
 		},
 	)
-	// !!
 
 	// > Declaring a broadcast batch task
-	// When BroadcastOutput is true, the handler returns a single value that is sent as
-	// the result to every run in the batch, instead of a map keyed by batch member id.
 	batchBroadcast := client.NewStandaloneBatchTask("batch-broadcast",
 		func(ctx hatchet.Context, tasks map[string]SimpleInput) (BroadcastSumOutput, error) {
 			sum := 0
@@ -106,7 +97,6 @@ func main() {
 			BroadcastOutput: true,
 		},
 	)
-	// !!
 
 	worker, err := client.NewWorker("batch-assign-worker",
 		hatchet.WithWorkflows(batchSimple, batchKeyed, batchBroadcast),

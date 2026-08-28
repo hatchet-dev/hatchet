@@ -27,7 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -88,6 +88,8 @@ type ServerConfigFile struct {
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
+
+	VersionOverride string `mapstructure:"versionOverride" json:"versionOverride,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -247,9 +249,18 @@ type ConfigFileRuntime struct {
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 
+	// Whether this instance is running in embedded mode
+	Embedded bool `mapstructure:"embedded" json:"embedded,omitempty" default:"false"`
+
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
+
+	// Comma-separated CIDR ranges whose forwarding headers are trusted when deriving the client IP for rate limiting
+	APITrustedProxies []string `mapstructure:"apiTrustedProxies" json:"apiTrustedProxies,omitempty"`
+
+	// Trust forwarding headers from loopback/link-local/private peers by default; set false to trust only APITrustedProxies
+	APITrustPrivateProxies bool `mapstructure:"apiTrustPrivateProxies" json:"apiTrustPrivateProxies,omitempty" default:"true"`
 
 	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
 	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
@@ -281,6 +292,21 @@ type ConfigFileRuntime struct {
 	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
+
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
+	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
+	// on top of the built-in reserved/private denylist. Populated from
+	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
+
+	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding
+	// (SERVER_OPERATOR_INFRA_BLOCKED_CIDRS). Example: "10.0.0.0/8 fd00::/8".
+	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
+	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
+
+	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
+	// orchestrates concurrently)
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
@@ -565,12 +591,20 @@ type PubSubNATSConfigFile struct {
 	// URL is comma-separated seed URL(s). Prefer bare hosts (e.g.
 	// nats://nats:4222); put auth in Username/Password so rediscovered
 	// cluster peers authenticate too. URL-embedded user:pass still works for
-	// single-server/dev. Use tls:// for TLS. No durable-MQ inheritance —
-	// NATS is pub/sub only.
+	// single-server/dev. No durable-MQ inheritance — NATS is pub/sub only.
 	URL string `mapstructure:"url" json:"url,omitempty"`
 
 	Username string `mapstructure:"username" json:"username,omitempty"`
 	Password string `mapstructure:"password" json:"password,omitempty"`
+
+	// TLSEnabled requires TLS with a TLS-first handshake (the server must
+	// enable handshake_first). Without TLSRootCAFile, verification uses the
+	// system roots.
+	TLSEnabled bool `mapstructure:"tlsEnabled" json:"tlsEnabled,omitempty"`
+
+	// TLSRootCAFile is a PEM CA bundle for server verification. Requires
+	// TLSEnabled.
+	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 
 	// SubjectPrefix is prepended (with a trailing ".") to topic names.
 	// Empty defaults to "hatchet.pubsub".
@@ -669,10 +703,18 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// Operations listed here bypass the tenant RBAC check. Use this for
-	// extension operations (e.g. cloud) that handle their own authorization
-	// in handlers. OSS operations in rbac.yaml are still fully checked.
+	// Operations listed here bypass the tenant RBAC check for every role. Use this for read-only
+	// extension operations (e.g. cloud) that aren't known to the base OpenAPI spec / rbac.yaml and
+	// so would otherwise be denied to every role, including OWNER. OSS operations in rbac.yaml are
+	// still fully checked.
 	AllowedOperations []string
+
+	// AllowedWriteOperations behaves like AllowedOperations (bypasses the tenant RBAC check for
+	// operations unknown to rbac.yaml) except for the VIEWER role, which is denied - VIEWER must
+	// stay read-only even for extension operations the base RBAC system has no knowledge of. Use
+	// this for mutating extension operations (create/update/delete); use AllowedOperations for
+	// read-only ones.
+	AllowedWriteOperations []string
 }
 
 type PylonConfig struct {
@@ -745,7 +787,7 @@ type ServerConfig struct {
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPoolV1 *v1.SchedulingPool
+	SchedulingPoolV1 scheduling.Pool
 
 	Sampling ConfigFileSampling
 
@@ -821,11 +863,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
 	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
+	_ = v.BindEnv("runtime.apiTrustedProxies", "SERVER_API_TRUSTED_PROXIES")
+	_ = v.BindEnv("runtime.apiTrustPrivateProxies", "SERVER_API_TRUST_PRIVATE_PROXIES")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
+	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
+	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -938,6 +984,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.nats.username", "SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME")
 	_ = v.BindEnv("msgQueue.pubSub.nats.password", "SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD")
 	_ = v.BindEnv("msgQueue.pubSub.nats.subjectPrefix", "SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX")
+	_ = v.BindEnv("msgQueue.pubSub.nats.tlsEnabled", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED")
+	_ = v.BindEnv("msgQueue.pubSub.nats.tlsRootCAFile", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
@@ -1064,4 +1112,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
+
+	// misc options
+	_ = v.BindEnv("versionOverride", "SERVER_VERSION_OVERRIDE")
 }

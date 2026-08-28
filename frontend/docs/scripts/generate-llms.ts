@@ -22,7 +22,7 @@ import { snippets } from "../lib/generated/snippets/index.js";
 // ---------------------------------------------------------------------------
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_ROOT = path.resolve(SCRIPT_DIR, "..");
-const PAGES_DIR = path.join(DOCS_ROOT, "pages");
+const CONTENT_DIR = path.join(DOCS_ROOT, "content/docs");
 const OUTPUT_DIR = path.join(DOCS_ROOT, "public");
 
 const DOCS_BASE_URL = "https://docs.hatchet.run";
@@ -68,7 +68,7 @@ function resolveSnippetPath(
 }
 
 // ---------------------------------------------------------------------------
-// _meta.js parsing
+// meta.json parsing (fumadocs content layout)
 // ---------------------------------------------------------------------------
 interface DocPage {
   title: string;
@@ -76,125 +76,84 @@ interface DocPage {
   href: string;
   filepath: string;
   section: string;
+  unlisted?: boolean;
 }
 
-/**
- * Parse a _meta.js file into a plain object.
- *
- * **Limitations:** This uses regex to convert simple JS object literals to
- * JSON. It only supports _meta.js files that export a plain object with:
- *   - Simple unquoted or quoted string keys (no computed `[expr]` keys)
- *   - String or plain-object values (no function calls, template literals,
- *     spread operators, or variable references)
- *   - No inline or block comments
- *
- * If your _meta.js file uses any of these unsupported constructs, either
- * simplify it or extend this parser (e.g. with @babel/parser + eval).
- */
-function parseMetaJs(filepath: string): Record<string, any> {
-  const raw = fs.readFileSync(filepath, "utf-8");
-  let content = raw.replace("export default ", "");
-  // Quote unquoted object keys for JSON parsing
-  const pattern = /^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/gm;
-  content = content.replace(pattern, '$1"$2":');
-  // Apply twice to catch keys that were adjacent
-  content = content.replace(pattern, '$1"$2":');
-  // Quote unquoted keys inside inline objects (e.g. { collapsed: true })
-  content = content.replace(
-    /(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:/g,
-    '$1"$2":',
-  );
-  // Remove trailing commas before closing braces
-  content = content.replace(/,(\s*\n?\s*})(\s*);?/g, "$1");
-  // Strip trailing semicolon from export default {...};
-  content = content.replace(/\s*;\s*$/, "");
-
-  try {
-    return JSON.parse(content);
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Failed to parse _meta.js at ${filepath}: ${message}.\n` +
-        `The regex-based parser only supports simple object literals ` +
-        `(no computed keys, spread operators, comments, or expressions). ` +
-        `Simplify the file or switch to a proper JS parser.\n` +
-        `--- transformed content ---\n${content}`,
-    );
-  }
+interface MetaJson {
+  title?: string;
+  pages?: string[];
 }
 
-function isDocPage(key: string, value: any): boolean {
-  if (key.trim().startsWith("--")) return false;
-  if (key.trim().startsWith("_")) return false;
-  if (typeof value === "string") return true;
-  if (typeof value === "object" && value !== null) {
-    if (value.display === "hidden") return false;
-    if ("title" in value) return true;
-  }
-  return false;
+function readMeta(dir: string): MetaJson | null {
+  const metaPath = path.join(dir, "meta.json");
+  if (!fs.existsSync(metaPath)) return null;
+  return JSON.parse(fs.readFileSync(metaPath, "utf-8"));
 }
 
-function extractTitle(value: any): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && value !== null && "title" in value)
-    return value.title;
-  return "";
+function readFrontmatterTitle(mdxPath: string): string | null {
+  const src = fs.readFileSync(mdxPath, "utf-8");
+  const fm = /^---\n([\s\S]*?)\n---/.exec(src);
+  if (!fm) return null;
+  const line = fm[1].split("\n").find((l) => /^title\s*:/.test(l));
+  if (!line) return null;
+  return line
+    .replace(/^title\s*:\s*/, "")
+    .replace(/^["']|["']$/g, "")
+    .replace(/\\"/g, '"');
 }
+
+const SEPARATOR_RE = /^---.*---$/;
+const LINK_RE = /^\[.*\]\(.*\)$/;
 
 function collectPagesFromDir(
   dir: string,
   urlPrefix: string,
   sectionTitle: string,
   pages: DocPage[],
+  unlisted = false,
 ): void {
-  const metaPath = path.join(dir, "_meta.js");
-  if (!fs.existsSync(metaPath)) return;
+  const meta = readMeta(dir);
 
-  const meta = parseMetaJs(metaPath);
+  // fumadocs routes every content file even when meta.json omits it, so
+  // unlisted pages still need /llms mirrors for their markdown links
+  const listed = new Set(meta?.pages ?? []);
+  const keys: string[] = [...listed];
+  const onDisk = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() || e.name.endsWith(".mdx"))
+    .map((e) => e.name.replace(/\.mdx$/, ""))
+    .sort();
+  for (const key of onDisk) {
+    if (!listed.has(key)) keys.push(key);
+  }
 
-  for (const [key, value] of Object.entries(meta)) {
-    if (!isDocPage(key, value)) continue;
+  for (const key of keys) {
+    if (SEPARATOR_RE.test(key) || LINK_RE.test(key)) continue;
 
-    const title = extractTitle(value as any);
+    const keyUnlisted = unlisted || !listed.has(key);
+
     const subDir = path.join(dir, key);
-    const href = `${DOCS_BASE_URL}/${urlPrefix}/${key}`;
-
-    // Check if this key is a folder with its own _meta.js (sub-section)
-    const subMetaPath = path.join(subDir, "_meta.js");
-    if (fs.existsSync(subMetaPath)) {
-      // Add the index page for this folder if it exists and isn't hidden
-      const indexMdx = path.join(subDir, "index.mdx");
-      if (fs.existsSync(indexMdx)) {
-        const indexValue = parseMetaJs(subMetaPath)["index"];
-        if (!indexValue || (typeof indexValue === "object" && indexValue.display !== "hidden")) {
-          pages.push({
-            title: title || key,
-            slug: key,
-            href,
-            filepath: indexMdx,
-            section: sectionTitle,
-          });
-        }
-      }
-      // Recurse into sub-section
-      collectPagesFromDir(subDir, `${urlPrefix}/${key}`, sectionTitle, pages);
+    if (fs.existsSync(subDir) && fs.statSync(subDir).isDirectory()) {
+      collectPagesFromDir(
+        subDir,
+        `${urlPrefix}/${key}`,
+        sectionTitle,
+        pages,
+        keyUnlisted,
+      );
       continue;
     }
 
-    // Plain .mdx file
-    let mdxPath = path.join(dir, key + ".mdx");
-    if (!fs.existsSync(mdxPath)) {
-      mdxPath = path.join(subDir, "index.mdx");
-    }
+    const mdxPath = path.join(dir, key + ".mdx");
     if (!fs.existsSync(mdxPath)) continue;
 
     pages.push({
-      title: title || key,
+      title: readFrontmatterTitle(mdxPath) ?? key,
       slug: key,
-      href,
+      href: `${DOCS_BASE_URL}/${urlPrefix}/${key}`,
       filepath: mdxPath,
       section: sectionTitle,
+      unlisted: keyUnlisted || undefined,
     });
   }
 }
@@ -202,48 +161,56 @@ function collectPagesFromDir(
 function collectPages(): DocPage[] {
   const pages: DocPage[] = [];
 
-  const rootMetaPath = path.join(PAGES_DIR, "_meta.js");
-  if (!fs.existsSync(rootMetaPath)) return pages;
-
-  const rootMeta = parseMetaJs(rootMetaPath);
-  const sectionOrder = Object.keys(rootMeta).filter(
-    (k) => !k.startsWith("_"),
-  );
+  const rootMeta = readMeta(CONTENT_DIR);
+  if (!rootMeta?.pages) return pages;
 
   // Sections to exclude from search index and llms output
   const EXCLUDED_SECTIONS = new Set(["agent-instructions"]);
 
-  for (const sectionKey of sectionOrder) {
+  for (const sectionKey of rootMeta.pages) {
+    if (SEPARATOR_RE.test(sectionKey) || LINK_RE.test(sectionKey)) continue;
     if (EXCLUDED_SECTIONS.has(sectionKey)) continue;
 
-    const sectionDir = path.join(PAGES_DIR, sectionKey);
-    const sectionMetaPath = path.join(sectionDir, "_meta.js");
+    const sectionDir = path.join(CONTENT_DIR, sectionKey);
+    if (!fs.existsSync(sectionDir)) continue;
 
-    const sectionValue = rootMeta[sectionKey] ?? {};
-    const sectionTitle =
-      typeof sectionValue === "object"
-        ? extractTitle(sectionValue as any)
-        : sectionKey;
-
-    if (!fs.existsSync(sectionMetaPath)) {
-      // Plain top-level .mdx file
-      const mdxPath = path.join(PAGES_DIR, sectionKey + ".mdx");
-      if (fs.existsSync(mdxPath)) {
-        pages.push({
-          title: sectionTitle || sectionKey,
-          slug: sectionKey,
-          href: `${DOCS_BASE_URL}/${sectionKey}`,
-          filepath: mdxPath,
-          section: sectionTitle || sectionKey,
-        });
-      }
-      continue;
-    }
-
-    // Recurse into section directory
+    const sectionTitle = readMeta(sectionDir)?.title ?? sectionKey;
     collectPagesFromDir(sectionDir, sectionKey, sectionTitle, pages);
   }
 
+  return pages;
+}
+
+// Collect every page from the filesystem, regardless of meta.json listings.
+// Fumadocs renders pages that are not listed in any meta.json, and every
+// rendered page links to its /llms/<path>.md export, so the per-page markdown
+// must cover the full content tree — not just the sidebar.
+function collectAllPagesFromFs(): DocPage[] {
+  const pages: DocPage[] = [];
+
+  const walk = (dir: string, urlPrefix: string): void => {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, urlPrefix ? `${urlPrefix}/${entry.name}` : entry.name);
+        continue;
+      }
+      if (!entry.name.endsWith(".mdx")) continue;
+      const key = entry.name.slice(0, -".mdx".length);
+      pages.push({
+        title: readFrontmatterTitle(full) ?? key,
+        slug: key,
+        href: `${DOCS_BASE_URL}/${urlPrefix ? `${urlPrefix}/` : ""}${key}`,
+        filepath: full,
+        section: "",
+      });
+    }
+  };
+
+  walk(CONTENT_DIR, "");
   return pages;
 }
 
@@ -291,21 +258,24 @@ function resolveSnippets(
 
 function convertCallouts(text: string): string {
   const pattern = /<Callout\s+type=["'](\w+)["']\s*>([\s\S]*?)<\/Callout>/g;
-  return text.replace(pattern, (_match, calloutType: string, content: string) => {
-    const label = calloutType.charAt(0).toUpperCase() + calloutType.slice(1);
-    const trimmed = content.trim();
-    const lines = trimmed.split("\n");
-    if (lines.length === 1) {
-      return `> **${label}:** ${trimmed}`;
-    }
-    return (
-      `> **${label}:** ${lines[0]}\n` +
-      lines
-        .slice(1)
-        .map((l) => (l.trim() ? `> ${l}` : ">"))
-        .join("\n")
-    );
-  });
+  return text.replace(
+    pattern,
+    (_match, calloutType: string, content: string) => {
+      const label = calloutType.charAt(0).toUpperCase() + calloutType.slice(1);
+      const trimmed = content.trim();
+      const lines = trimmed.split("\n");
+      if (lines.length === 1) {
+        return `> **${label}:** ${trimmed}`;
+      }
+      return (
+        `> **${label}:** ${lines[0]}\n` +
+        lines
+          .slice(1)
+          .map((l) => (l.trim() ? `> ${l}` : ">"))
+          .join("\n")
+      );
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -412,10 +382,7 @@ function extractTabContents(
   return result;
 }
 
-function expandUniversalTabs(
-  text: string,
-  languages: string[] | null,
-): string {
+function expandUniversalTabs(text: string, languages: string[] | null): string {
   const pattern =
     /<UniversalTabs\s+items=\{(\[[^\]]*\])\}(?:\s+optionKey=["']([^"']*)["'])?(?:\s+variant=["'][^"']*["'])?\s*>((?:(?!<UniversalTabs)[\s\S])*?)<\/UniversalTabs>/g;
 
@@ -437,7 +404,12 @@ function expandUniversalTabs(
     for (const [label, content] of tabContents) {
       const langKey = TAB_LABEL_TO_LANG[label.toLowerCase()];
 
-      if (isLanguageTabs && langKey && languages && !languages.includes(langKey))
+      if (
+        isLanguageTabs &&
+        langKey &&
+        languages &&
+        !languages.includes(langKey)
+      )
         continue;
 
       parts.push(`#### ${label}\n\n${content.trim()}`);
@@ -457,8 +429,7 @@ function expandUniversalTabs(
 }
 
 function expandStandaloneTabs(text: string): string {
-  const pattern =
-    /<Tabs\s+items=\{(\[[\s\S]*?\])\}\s*>([\s\S]*?)<\/Tabs>/g;
+  const pattern = /<Tabs\s+items=\{(\[[\s\S]*?\])\}\s*>([\s\S]*?)<\/Tabs>/g;
 
   return text.replace(pattern, (_match, itemsStr: string, inner: string) => {
     let items = itemsStr.match(/"([^"]*)"/g)?.map((s) => s.slice(1, -1)) ?? [];
@@ -507,11 +478,7 @@ function convertCards(text: string): string {
 }
 
 function convertFileTree(text: string): string {
-  function walkFileTree(
-    content: string,
-    lines: string[],
-    depth: number,
-  ): void {
+  function walkFileTree(content: string, lines: string[], depth: number): void {
     const folderPattern =
       /<FileTree\.Folder\s+name=["']([^"']*)["'][^>]*>([\s\S]*?)<\/FileTree\.Folder>/g;
     let folderMatch: RegExpExecArray | null;
@@ -519,8 +486,7 @@ function convertFileTree(text: string): string {
       lines.push("  ".repeat(depth) + folderMatch[1] + "/");
       walkFileTree(folderMatch[2], lines, depth + 1);
     }
-    const filePattern =
-      /<FileTree\.File\s+name=["']([^"']*)["'][^>]*\s*\/>/g;
+    const filePattern = /<FileTree\.File\s+name=["']([^"']*)["'][^>]*\s*\/>/g;
     let fileMatch: RegExpExecArray | null;
     while ((fileMatch = filePattern.exec(content)) !== null) {
       lines.push("  ".repeat(depth) + fileMatch[1]);
@@ -542,7 +508,11 @@ function convertMarkdownTables(text: string): string {
   text = text.replace(/^\|[-|\s:]+\|$/gm, "");
   // Convert data/header rows: strip pipes and join cells with commas
   text = text.replace(/^\|(.+)\|$/gm, (_match, inner: string) =>
-    inner.split("|").map((c: string) => c.trim()).filter(Boolean).join(", "),
+    inner
+      .split("|")
+      .map((c: string) => c.trim())
+      .filter(Boolean)
+      .join(", "),
   );
   return text;
 }
@@ -572,8 +542,7 @@ function resolveMdxComponentImports(
     return text;
   }
 
-  const mdxImportPattern =
-    /import\s+(\w+)\s+from\s+["']([^"']*\.mdx)["']/g;
+  const mdxImportPattern = /import\s+(\w+)\s+from\s+["']([^"']*\.mdx)["']/g;
 
   // Collect all MDX component imports first
   const imports: Array<{ componentName: string; relPath: string }> = [];
@@ -630,7 +599,7 @@ function convertMdxToMarkdown(
   filepath?: string,
   depth?: number,
 ): string {
-  let text = content;
+  let text = content.replace(/^---\n[\s\S]*?\n---\n+/, "");
 
   if (filepath) {
     text = resolveMdxComponentImports(
@@ -748,7 +717,8 @@ function splitByH2(
   markdown: string,
 ): Array<{ heading: string; slug: string; content: string }> {
   const lines = markdown.split("\n");
-  const sections: Array<{ heading: string; slug: string; content: string }> = [];
+  const sections: Array<{ heading: string; slug: string; content: string }> =
+    [];
   let currentHeading = "";
   let currentSlug = "";
   let currentLines: string[] = [];
@@ -822,9 +792,7 @@ function buildSearchIndex(
     for (const section of sections) {
       if (!section.content.trim()) continue;
 
-      let id = section.slug
-        ? `${pageRoute}#${section.slug}`
-        : pageRoute;
+      let id = section.slug ? `${pageRoute}#${section.slug}` : pageRoute;
 
       if (seenIds.has(id)) {
         let suffix = 2;
@@ -911,6 +879,7 @@ function generatePerPageMarkdown(
   languages: string[] | null,
 ): void {
   const llmsDir = path.join(OUTPUT_DIR, "llms");
+  fs.rmSync(llmsDir, { recursive: true, force: true });
 
   for (const page of pages) {
     const raw = fs.readFileSync(page.filepath, "utf-8");
@@ -931,9 +900,7 @@ function generatePerPageMarkdown(
     }
   }
 
-  console.log(
-    `  Wrote ${pages.length} per-page markdown files to ${llmsDir}/`,
-  );
+  console.log(`  Wrote ${pages.length} per-page markdown files to ${llmsDir}/`);
 }
 
 // ---------------------------------------------------------------------------
@@ -965,19 +932,22 @@ function main(): void {
 
   console.log("Collecting pages from _meta.js files...");
   const pages = collectPages();
-  console.log(`  Found ${pages.length} pages`);
+  const listedPages = pages.filter((p) => !p.unlisted);
+  console.log(
+    `  Found ${pages.length} pages (${pages.length - listedPages.length} unlisted)`,
+  );
 
   console.log("Generating llms.txt...");
-  const llmsTxt = generateLlmsTxt(pages);
+  const llmsTxt = generateLlmsTxt(listedPages);
 
   console.log("Generating llms-full.txt...");
-  const llmsFullTxt = generateLlmsFullTxt(pages, snippetTree, languages);
+  const llmsFullTxt = generateLlmsFullTxt(listedPages, snippetTree, languages);
 
   console.log("Generating per-page markdown files...");
-  generatePerPageMarkdown(pages, snippetTree, languages);
+  generatePerPageMarkdown(collectAllPagesFromFs(), snippetTree, languages);
 
   console.log("Building MiniSearch index...");
-  const searchIndexJson = buildSearchIndex(pages, snippetTree, languages);
+  const searchIndexJson = buildSearchIndex(listedPages, snippetTree, languages);
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -991,9 +961,7 @@ function main(): void {
 
   const searchIndexPath = path.join(OUTPUT_DIR, "llms-search-index.json");
   fs.writeFileSync(searchIndexPath, searchIndexJson);
-  console.log(
-    `  Wrote ${searchIndexPath} (${searchIndexJson.length} bytes)`,
-  );
+  console.log(`  Wrote ${searchIndexPath} (${searchIndexJson.length} bytes)`);
 
   if (languages) {
     console.log(`  Languages: ${languages.join(", ")}`);

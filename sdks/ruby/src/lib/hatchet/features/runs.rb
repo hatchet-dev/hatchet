@@ -72,8 +72,7 @@ module Hatchet
     # convenient Ruby interface.
     #
     # @example Creating a workflow run
-    #   runs = Features::Runs.new(rest_client, config)
-    #   response = runs.create(
+    #   response = hatchet.runs.create(
     #     name: "my-workflow",
     #     input: { key: "value" },
     #     additional_metadata: { source: "api" }
@@ -289,7 +288,7 @@ module Hatchet
       # @raise [ArgumentError] If the workflow_name or input parameters are nil or invalid
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Creating a workflow run
-      #   response = runs.create(
+      #   response = hatchet.runs.create(
       #     name: "simple-workflow",
       #     input: { user_id: 123, action: "process_data" },
       #     additional_metadata: { source: "api", priority: "high" }
@@ -446,9 +445,9 @@ module Hatchet
       # @raise [Timeout::Error] If the timeout is reached before completion
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Poll with default settings (1s interval, no timeout)
-      #   result = runs.poll("workflow-run-123")
+      #   result = hatchet.runs.poll("workflow-run-123")
       # @example Poll with custom interval and timeout
-      #   result = runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
+      #   result = hatchet.runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
       # @since 0.1.0
       def poll(workflow_run_id, interval: 1.0, timeout: nil)
         start_time = Time.now

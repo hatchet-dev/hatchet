@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "cel",
+    "crons",
+    "filters",
+    "logs",
+    "metrics",
+    "ratelimits",
+    "runs",
+    "schedules",
+    "tenant",
+    "webhooks",
+    "workers",
+    "workflows"
+  ],
+  "title": "Feature Clients"
+}

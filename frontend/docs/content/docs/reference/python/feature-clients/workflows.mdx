@@ -1,0 +1,238 @@
+---
+title: "Workflows"
+---
+
+# Workflows Client
+
+Bases: `BaseRestClient`
+
+The workflows client is a client for managing workflows programmatically within Hatchet.
+
+Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
+
+Methods:
+
+| Name              | Description                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `aio_delete`      | Permanently delete a workflow.                                                                |
+| `aio_get`         | Get a workflow by its ID.                                                                     |
+| `aio_get_version` | Get a workflow version by the workflow ID and an optional version.                            |
+| `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
+| `aio_pause`       | Pause a workflow.                                                                             |
+| `aio_unpause`     | Unpause a workflow.                                                                           |
+| `delete`          | Permanently delete a workflow.                                                                |
+| `get`             | Get a workflow by its ID.                                                                     |
+| `get_version`     | Get a workflow version by the workflow ID and an optional version.                            |
+| `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
+| `pause`           | Pause a workflow.                                                                             |
+| `unpause`         | Unpause a workflow.                                                                           |
+
+### Functions
+
+#### `aio_delete`
+
+Permanently delete a workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+Parameters:
+
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `aio_get`
+
+Get a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description   |
+| ---------- | ------------- |
+| `Workflow` | The workflow. |
+
+#### `aio_get_version`
+
+Get a workflow version by the workflow ID and an optional version.
+
+Parameters:
+
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
+
+Returns:
+
+| Type              | Description           |
+| ----------------- | --------------------- |
+| `WorkflowVersion` | The workflow version. |
+
+#### `aio_list`
+
+List all workflows in the tenant determined by the client config that match optional filters.
+
+Parameters:
+
+| Name            | Type          | Description                            | Default |
+| --------------- | ------------- | -------------------------------------- | ------- |
+| `workflow_name` | `str \| None` | The name of the workflow to filter by. | `None`  |
+| `limit`         | `int \| None` | The maximum number of items to return. | `None`  |
+| `offset`        | `int \| None` | The offset to start the list from.     | `None`  |
+
+Returns:
+
+| Type           | Description          |
+| -------------- | -------------------- |
+| `WorkflowList` | A list of workflows. |
+
+#### `aio_pause`
+
+Pause a workflow.
+
+Parameters:
+
+| Name                                           | Type                       | Description                                                                   | Default    |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------- | ---------- |
+| `workflow_id`                                  | `str`                      | The ID of the workflow to pause.                                              | _required_ |
+| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped. | _required_ |
+| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.             | `'QUEUE'`  |
+| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.        | `'QUEUE'`  |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The updated workflow. |
+
+#### `aio_unpause`
+
+Unpause a workflow.
+
+Parameters:
+
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The updated workflow. |
+
+#### `delete`
+
+Permanently delete a workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+Parameters:
+
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `get`
+
+Get a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description   |
+| ---------- | ------------- |
+| `Workflow` | The workflow. |
+
+#### `get_version`
+
+Get a workflow version by the workflow ID and an optional version.
+
+Parameters:
+
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
+
+Returns:
+
+| Type              | Description           |
+| ----------------- | --------------------- |
+| `WorkflowVersion` | The workflow version. |
+
+#### `list`
+
+List all workflows in the tenant determined by the client config that match optional filters.
+
+Parameters:
+
+| Name            | Type          | Description                            | Default |
+| --------------- | ------------- | -------------------------------------- | ------- |
+| `workflow_name` | `str \| None` | The name of the workflow to filter by. | `None`  |
+| `limit`         | `int \| None` | The maximum number of items to return. | `None`  |
+| `offset`        | `int \| None` | The offset to start the list from.     | `None`  |
+
+Returns:
+
+| Type           | Description          |
+| -------------- | -------------------- |
+| `WorkflowList` | A list of workflows. |
+
+#### `pause`
+
+Pause a workflow.
+
+Parameters:
+
+| Name                                           | Type                       | Description                                                                   | Default    |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------- | ---------- |
+| `workflow_id`                                  | `str`                      | The ID of the workflow to pause.                                              | _required_ |
+| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped. | _required_ |
+| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.             | `'QUEUE'`  |
+| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.        | `'QUEUE'`  |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The updated workflow. |
+
+#### `unpause`
+
+Unpause a workflow.
+
+Parameters:
+
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The updated workflow. |

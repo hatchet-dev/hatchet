@@ -40,6 +40,16 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
+from examples.conditions.worker import (
+    task_condition_workflow,
+    cancel_if_workflow,
+    skip_if_sleep_workflow,
+    skip_if_or_workflow,
+    cancel_if_event_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_or_workflow,
+    wait_for_event_only_workflow,
+)
 from examples.conditions.worker import task_condition_workflow
 from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
@@ -79,8 +89,10 @@ from examples.durable_event.worker import (
     durable_event_task_with_filter,
 )
 from examples.durable_eviction.worker import (
+    branch_child,
     bulk_child_task as eviction_bulk_child_task,
     child_task as eviction_child_task,
+    concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
     evictable_sleep,
@@ -136,6 +148,20 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     spawn_index_child_a,
     spawn_index_child_b,
 )
+from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
+
+from examples.workflow_pause.worker import pausable_workflow
+from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
+from examples.bug_tests.durable_dag_child.worker import (
+    dag_spawning_dag,
+    diamond_dag,
+    durable_spawner_dag,
+    mixed_spawner_dag,
+    multi_spawner_dag,
+    parent_dag,
+    spawned_child,
+    spawned_child_dag,
+)
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -144,7 +170,7 @@ hatchet = Hatchet()
 def main() -> None:
     worker = hatchet.worker(
         "e2e-test-worker",
-        slots=100,
+        slots=250,
         workflows=[
             affinity_worker_workflow,
             batch_simple,
@@ -178,6 +204,12 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
+            skip_if_sleep_workflow,
+            skip_if_or_workflow,
+            cancel_if_event_workflow,
+            cancel_if_sleep_workflow,
+            cancel_if_or_workflow,
+            wait_for_event_only_workflow,
             cron_input_example_send_greeting,
             cancellation_workflow,
             sync_fanout_parent,
@@ -229,6 +261,8 @@ def main() -> None:
             non_evictable_sleep,
             eviction_child_task,
             eviction_bulk_child_task,
+            concurrent_branches,
+            branch_child,
             memo_now_caching,
             wait_for_event_lookback,
             wait_for_or_event_lookback,
@@ -255,6 +289,18 @@ def main() -> None:
             idempotent_status_based_task_with_retries,
             error_raising_durable_parent,
             error_raising_task,
+            cancel_if_workflow,
+            pausable_workflow,
+            scope_waiter,
+            parent_dag,
+            spawned_child,
+            spawned_child_dag,
+            dag_spawning_dag,
+            diamond_dag,
+            multi_spawner_dag,
+            durable_spawner_dag,
+            mixed_spawner_dag,
+            evictable_durable,
         ],
         lifespan=lifespan,
     )

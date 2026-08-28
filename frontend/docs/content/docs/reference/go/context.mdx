@@ -1,0 +1,828 @@
+---
+title: "Context"
+---
+
+# Context
+
+The Hatchet `Context` provides helper methods and useful data to tasks at runtime. It is passed as the first argument to all task functions.
+
+There are two context types you'll encounter:
+
+- `hatchet.Context` - The standard context for regular tasks, with methods for logging, parent output retrieval, streaming, and more. It embeds Go's `context.Context`, so it can be passed anywhere a standard context is expected (including as the `ctx` argument to the run methods when spawning child workflows from inside a task).
+- `hatchet.DurableContext` - An extended context for durable tasks that adds methods for durable execution like `SleepFor`, `WaitForEvent`, and `Memo`. Durable waits are "global": they wait in real time and survive transient failures like worker restarts.
+
+Results of durable waits (`*SingleWaitResult`, `*WaitResult`) expose `Unmarshal` methods to decode the matched payload; `hatchet.EventInto(event, &dest)` is a convenience wrapper for the single-event case.
+
+## Context
+
+Methods:
+
+| Name                         | Description                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `SetContext`                 | SetContext replaces the underlying context.Context, for example to attach a deadline.                                           |
+| `GetContext`                 | GetContext returns the underlying context.Context.                                                                              |
+| `Worker`                     | Worker returns the worker executing the task, which exposes its ID, labels, and registered workflows.                           |
+| `StepOutput`                 | StepOutput decodes the output of the named upstream step into target, which must be a pointer.                                  |
+| `TriggerDataKeys`            | TriggerDataKeys lists the keys available to TriggerData.                                                                        |
+| `TriggerData`                | TriggerData decodes the payload of a matched trigger condition (such as a wait-for event) into target, which must be a pointer. |
+| `StepRunErrors`              | StepRunErrors returns the errors of upstream task runs, keyed by task name.                                                     |
+| `TriggeredByEvent`           | TriggeredByEvent reports whether the current run was triggered by an event.                                                     |
+| `WorkflowInput`              | WorkflowInput decodes the workflow input into target, which must be a pointer.                                                  |
+| `BatchInputInto`             | BatchInputInto decodes the buffered items of a batch task's START_BATCH action into target, which must be a pointer.            |
+| `UserData`                   | UserData decodes the user data attached to the step into target, which must be a pointer.                                       |
+| `AdditionalMetadata`         | AdditionalMetadata returns the additional metadata sent with the current run.                                                   |
+| `StepName`                   | StepName returns the name of the currently running task.                                                                        |
+| `StepRunId`                  | StepRunId returns the ID of the current task run.                                                                               |
+| `StepId`                     | StepId returns the ID of the step (the task declaration, not the run).                                                          |
+| `WorkflowRunId`              | WorkflowRunId returns the ID of the current workflow run.                                                                       |
+| `WorkflowId`                 | WorkflowId returns the ID of the workflow this task belongs to, or nil if unknown.                                              |
+| `WorkflowVersionId`          | WorkflowVersionId returns the ID of the workflow version this task belongs to, or nil if unknown.                               |
+| `Log`                        | Log sends a log line to the Hatchet API for the current task run.                                                               |
+| `StreamEvent`                | StreamEvent sends a raw stream event for the current task run, which separate consumers can subscribe to.                       |
+| `PutStream`                  | PutStream sends a stream event for the current task run, which separate consumers can subscribe to.                             |
+| `SpawnWorkflow`              | SpawnWorkflow triggers a child workflow run from within the current task.                                                       |
+| `SpawnWorkflows`             | SpawnWorkflows triggers multiple child workflow runs from within the current task.                                              |
+| `ReleaseSlot`                | ReleaseSlot manually releases the worker slot held by the current task run to free up capacity.                                 |
+| `RefreshTimeout`             | RefreshTimeout extends the execution timeout of the current task run by the given duration string, such as "5m".                |
+| `RetryCount`                 | RetryCount returns the number of times the current task run has been retried.                                                   |
+| `ParentOutput`               | ParentOutput decodes the output of a parent task into output, which must be a pointer.                                          |
+| `WasSkipped`                 | WasSkipped reports whether the given parent task was skipped.                                                                   |
+| `TenantId`                   | TenantId returns the ID of the tenant the run is executing in.                                                                  |
+| `WorkerId`                   | WorkerId returns the ID of the worker executing the task.                                                                       |
+| `ActionId`                   | ActionId returns the action ID of the currently running task.                                                                   |
+| `DurableTaskInvocationCount` | DurableTaskInvocationCount returns the invocation count for durable task replay tracking.                                       |
+| `Priority`                   | Priority returns the priority the current run was triggered with.                                                               |
+| `FilterPayload`              | FilterPayload returns the payload of the event filter that matched, if the run was triggered through a filter.                  |
+| `ParentWorkflowRunId`        | ParentWorkflowRunId returns the workflow run ID of the parent run, if this run was spawned as a child workflow.                 |
+| `ChildIndex`                 | ChildIndex returns the index of this run among its parent's child workflow runs, if applicable.                                 |
+| `ChildKey`                   | ChildKey returns the deduplication key this run was spawned with, if applicable.                                                |
+| `TriggeringEventId`          | TriggeringEventId returns the ID of the event that triggered this run, if it was triggered by an event.                         |
+| `TriggeringEventKey`         | TriggeringEventKey returns the key of the event that triggered this run, if it was triggered by an event.                       |
+
+### Functions
+
+#### `SetContext`
+
+SetContext replaces the underlying context.Context, for example to attach a deadline.
+
+```go
+func SetContext(ctx context.Context)
+```
+
+Parameters:
+
+| Name  | Type              |
+| ----- | ----------------- |
+| `ctx` | `context.Context` |
+
+#### `GetContext`
+
+GetContext returns the underlying context.Context.
+
+```go
+func GetContext() context.Context
+```
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `context.Context` |
+
+#### `Worker`
+
+Worker returns the worker executing the task, which exposes its ID, labels, and registered workflows.
+
+```go
+func Worker() HatchetWorkerContext
+```
+
+Returns:
+
+| Type                   |
+| ---------------------- |
+| `HatchetWorkerContext` |
+
+#### `StepOutput`
+
+StepOutput decodes the output of the named upstream step into target, which must be a pointer. Prefer ParentOutput, which takes a task reference instead of a name.
+
+```go
+func StepOutput(step string, target interface{}) error
+```
+
+Parameters:
+
+| Name     | Type          |
+| -------- | ------------- |
+| `step`   | `string`      |
+| `target` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `TriggerDataKeys`
+
+TriggerDataKeys lists the keys available to TriggerData.
+
+```go
+func TriggerDataKeys() []string
+```
+
+Returns:
+
+| Type       |
+| ---------- |
+| `[]string` |
+
+#### `TriggerData`
+
+TriggerData decodes the payload of a matched trigger condition (such as a wait-for event) into target, which must be a pointer.
+
+```go
+func TriggerData(key string, target interface{}) error
+```
+
+Parameters:
+
+| Name     | Type          |
+| -------- | ------------- |
+| `key`    | `string`      |
+| `target` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `StepRunErrors`
+
+StepRunErrors returns the errors of upstream task runs, keyed by task name. Intended for use in an on-failure task.
+
+```go
+func StepRunErrors() map[string]string
+```
+
+Returns:
+
+| Type                |
+| ------------------- |
+| `map[string]string` |
+
+#### `TriggeredByEvent`
+
+TriggeredByEvent reports whether the current run was triggered by an event.
+
+```go
+func TriggeredByEvent() bool
+```
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |
+
+#### `WorkflowInput`
+
+WorkflowInput decodes the workflow input into target, which must be a pointer. Prefer the typed input argument passed to the task function.
+
+```go
+func WorkflowInput(target interface{}) error
+```
+
+Parameters:
+
+| Name     | Type          |
+| -------- | ------------- |
+| `target` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `BatchInputInto`
+
+BatchInputInto decodes the buffered items of a batch task's START_BATCH action into target, which must be a pointer. The decoded value is a map keyed by each buffered item's task run external id.
+
+```go
+func BatchInputInto(target interface{}) error
+```
+
+Parameters:
+
+| Name     | Type          |
+| -------- | ------------- |
+| `target` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `UserData`
+
+UserData decodes the user data attached to the step into target, which must be a pointer.
+
+```go
+func UserData(target interface{}) error
+```
+
+Parameters:
+
+| Name     | Type          |
+| -------- | ------------- |
+| `target` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `AdditionalMetadata`
+
+AdditionalMetadata returns the additional metadata sent with the current run.
+
+```go
+func AdditionalMetadata() map[string]string
+```
+
+Returns:
+
+| Type                |
+| ------------------- |
+| `map[string]string` |
+
+#### `StepName`
+
+StepName returns the name of the currently running task.
+
+```go
+func StepName() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `StepRunId`
+
+StepRunId returns the ID of the current task run.
+
+```go
+func StepRunId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `StepId`
+
+StepId returns the ID of the step (the task declaration, not the run).
+
+```go
+func StepId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `WorkflowRunId`
+
+WorkflowRunId returns the ID of the current workflow run.
+
+```go
+func WorkflowRunId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `WorkflowId`
+
+WorkflowId returns the ID of the workflow this task belongs to, or nil if unknown.
+
+```go
+func WorkflowId() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+#### `WorkflowVersionId`
+
+WorkflowVersionId returns the ID of the workflow version this task belongs to, or nil if unknown.
+
+```go
+func WorkflowVersionId() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+#### `Log`
+
+Log sends a log line to the Hatchet API for the current task run.
+
+```go
+func Log(message string)
+```
+
+Parameters:
+
+| Name      | Type     |
+| --------- | -------- |
+| `message` | `string` |
+
+#### `StreamEvent`
+
+StreamEvent sends a raw stream event for the current task run, which separate consumers can subscribe to.
+
+```go
+func StreamEvent(message []byte)
+```
+
+Parameters:
+
+| Name      | Type     |
+| --------- | -------- |
+| `message` | `[]byte` |
+
+#### `PutStream`
+
+PutStream sends a stream event for the current task run, which separate consumers can subscribe to.
+
+```go
+func PutStream(message string)
+```
+
+Parameters:
+
+| Name      | Type     |
+| --------- | -------- |
+| `message` | `string` |
+
+#### `SpawnWorkflow`
+
+SpawnWorkflow triggers a child workflow run from within the current task. Prefer passing this context to a workflow's Run method, which spawns a child run automatically.
+
+```go
+func SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
+```
+
+Parameters:
+
+| Name           | Type                 |
+| -------------- | -------------------- |
+| `workflowName` | `string`             |
+| `input`        | `any`                |
+| `opts`         | `*SpawnWorkflowOpts` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `*client.Workflow` |
+| `error`            |
+
+#### `SpawnWorkflows`
+
+SpawnWorkflows triggers multiple child workflow runs from within the current task.
+
+```go
+func SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error)
+```
+
+Parameters:
+
+| Name             | Type                    |
+| ---------------- | ----------------------- |
+| `childWorkflows` | `[]*SpawnWorkflowsOpts` |
+
+Returns:
+
+| Type                 |
+| -------------------- |
+| `[]*client.Workflow` |
+| `error`              |
+
+#### `ReleaseSlot`
+
+ReleaseSlot manually releases the worker slot held by the current task run to free up capacity. Advanced feature; use with caution.
+
+```go
+func ReleaseSlot() error
+```
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `RefreshTimeout`
+
+RefreshTimeout extends the execution timeout of the current task run by the given duration string, such as "5m".
+
+```go
+func RefreshTimeout(incrementTimeoutBy string) error
+```
+
+Parameters:
+
+| Name                 | Type     |
+| -------------------- | -------- |
+| `incrementTimeoutBy` | `string` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `RetryCount`
+
+RetryCount returns the number of times the current task run has been retried.
+
+```go
+func RetryCount() int
+```
+
+Returns:
+
+| Type  |
+| ----- |
+| `int` |
+
+#### `ParentOutput`
+
+ParentOutput decodes the output of a parent task into output, which must be a pointer. Pass the task reference returned by NewTask.
+
+```go
+func ParentOutput(parent create.NamedTask, output interface{}) error
+```
+
+Parameters:
+
+| Name     | Type               |
+| -------- | ------------------ |
+| `parent` | `create.NamedTask` |
+| `output` | `interface{}`      |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `WasSkipped`
+
+WasSkipped reports whether the given parent task was skipped.
+
+```go
+func WasSkipped(parent create.NamedTask) bool
+```
+
+Parameters:
+
+| Name     | Type               |
+| -------- | ------------------ |
+| `parent` | `create.NamedTask` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |
+
+#### `TenantId`
+
+TenantId returns the ID of the tenant the run is executing in.
+
+```go
+func TenantId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `WorkerId`
+
+WorkerId returns the ID of the worker executing the task.
+
+```go
+func WorkerId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `ActionId`
+
+ActionId returns the action ID of the currently running task.
+
+```go
+func ActionId() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |
+
+#### `DurableTaskInvocationCount`
+
+DurableTaskInvocationCount returns the invocation count for durable task replay tracking. Returns 0 if not set (non-durable tasks).
+
+```go
+func DurableTaskInvocationCount() int32
+```
+
+Returns:
+
+| Type    |
+| ------- |
+| `int32` |
+
+#### `Priority`
+
+Priority returns the priority the current run was triggered with.
+
+```go
+func Priority() int32
+```
+
+Returns:
+
+| Type    |
+| ------- |
+| `int32` |
+
+#### `FilterPayload`
+
+FilterPayload returns the payload of the event filter that matched, if the run was triggered through a filter.
+
+```go
+func FilterPayload() map[string]interface{}
+```
+
+Returns:
+
+| Type                     |
+| ------------------------ |
+| `map[string]interface{}` |
+
+#### `ParentWorkflowRunId`
+
+ParentWorkflowRunId returns the workflow run ID of the parent run, if this run was spawned as a child workflow.
+
+```go
+func ParentWorkflowRunId() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+#### `ChildIndex`
+
+ChildIndex returns the index of this run among its parent's child workflow runs, if applicable.
+
+```go
+func ChildIndex() *int32
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `*int32` |
+
+#### `ChildKey`
+
+ChildKey returns the deduplication key this run was spawned with, if applicable.
+
+```go
+func ChildKey() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+#### `TriggeringEventId`
+
+TriggeringEventId returns the ID of the event that triggered this run, if it was triggered by an event.
+
+```go
+func TriggeringEventId() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+#### `TriggeringEventKey`
+
+TriggeringEventKey returns the key of the event that triggered this run, if it was triggered by an event.
+
+```go
+func TriggeringEventKey() *string
+```
+
+Returns:
+
+| Type      |
+| --------- |
+| `*string` |
+
+## DurableContext
+
+Methods:
+
+| Name              | Description                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `SleepFor`        | SleepFor pauses execution for the specified duration and returns after that time has elapsed.     |
+| `WaitForEvent`    | WaitForEvent pauses execution until the specified user event is received.                         |
+| `WaitFor`         | WaitFor pauses execution until the specified conditions are met.                                  |
+| `Memo`            | Memo executes fn, JSON-serializes the result, and persists it via the engine's durable event log. |
+| `Now`             | Now returns the current time, memoized via Memo so replays return the same value.                 |
+| `InvocationCount` | InvocationCount returns the current invocation count for this durable task.                       |
+| `SleepUntil`      | SleepUntil sleeps until the specified absolute time.                                              |
+
+### Functions
+
+#### `SleepFor`
+
+SleepFor pauses execution for the specified duration and returns after that time has elapsed. Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+
+```go
+func SleepFor(duration time.Duration) (*SingleWaitResult, error)
+```
+
+Parameters:
+
+| Name       | Type            |
+| ---------- | --------------- |
+| `duration` | `time.Duration` |
+
+Returns:
+
+| Type                |
+| ------------------- |
+| `*SingleWaitResult` |
+| `error`             |
+
+#### `WaitForEvent`
+
+WaitForEvent pauses execution until the specified user event is received. Options such as condition.WithEventScope and condition.WithConsiderEventsSince can be used to scope the wait and match events pushed before the wait started.
+
+```go
+func WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error)
+```
+
+Parameters:
+
+| Name         | Type                                 |
+| ------------ | ------------------------------------ |
+| `eventKey`   | `string`                             |
+| `expression` | `string`                             |
+| `opts`       | `...condition.UserEventConditionOpt` |
+
+Returns:
+
+| Type                |
+| ------------------- |
+| `*SingleWaitResult` |
+| `error`             |
+
+#### `WaitFor`
+
+WaitFor pauses execution until the specified conditions are met. Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
+
+```go
+func WaitFor(conditions condition.Condition) (*WaitResult, error)
+```
+
+Parameters:
+
+| Name         | Type                  |
+| ------------ | --------------------- |
+| `conditions` | `condition.Condition` |
+
+Returns:
+
+| Type          |
+| ------------- |
+| `*WaitResult` |
+| `error`       |
+
+#### `Memo`
+
+Memo executes fn, JSON-serializes the result, and persists it via the engine's durable event log. On replay, the cached payload is returned without re-executing fn. Callers should json.Unmarshal the returned bytes into their concrete type. If the engine does not support durable memoization, fn is executed and the result is cached in process only (it will not survive replay). The key must be unique within the task.
+
+```go
+func Memo(key string, fn func() (any, error)) (json.RawMessage, error)
+```
+
+Parameters:
+
+| Name  | Type                  |
+| ----- | --------------------- |
+| `key` | `string`              |
+| `fn`  | `func() (any, error)` |
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `json.RawMessage` |
+| `error`           |
+
+#### `Now`
+
+Now returns the current time, memoized via Memo so replays return the same value.
+
+```go
+func Now() (time.Time, error)
+```
+
+Returns:
+
+| Type        |
+| ----------- |
+| `time.Time` |
+| `error`     |
+
+#### `InvocationCount`
+
+InvocationCount returns the current invocation count for this durable task. Increments each time the task is started (including after eviction/restore).
+
+```go
+func InvocationCount() int32
+```
+
+Returns:
+
+| Type    |
+| ------- |
+| `int32` |
+
+#### `SleepUntil`
+
+SleepUntil sleeps until the specified absolute time. Combines Now() with SleepFor.
+
+```go
+func SleepUntil(t time.Time) (*SingleWaitResult, error)
+```
+
+Parameters:
+
+| Name | Type        |
+| ---- | ----------- |
+| `t`  | `time.Time` |
+
+Returns:
+
+| Type                |
+| ------------------- |
+| `*SingleWaitResult` |
+| `error`             |
