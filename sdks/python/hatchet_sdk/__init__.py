@@ -139,7 +139,14 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     or_,
 )
-from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
+from hatchet_sdk.config import (
+    ClientConfig,
+    ClientTLSConfig,
+    EmbeddedHatchetConfig,
+    HealthcheckConfig,
+    OpenTelemetryConfig,
+    TenacityConfig,
+)
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
@@ -229,6 +236,7 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
+    "EmbeddedHatchetConfig",
     "EmptyModel",
     "Event",
     "EventData",
@@ -245,6 +253,7 @@ __all__ = [
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "HealthcheckConfig",
     "IdempotencyCollisionError",
     "Job",
     "JobRun",
@@ -293,6 +302,7 @@ __all__ = [
     "TaskDefaults",
     "TaskRunError",
     "TaskRunRef",
+    "TenacityConfig",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",

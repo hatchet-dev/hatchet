@@ -433,13 +433,6 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, err
 	}
 
-	// if the worker is not active, the listener should reconnect
-	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		span.RecordError(err)
-		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
-	}
-
 	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
 
 	if err != nil {
@@ -451,6 +444,17 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		}
 
 		return nil, err
+	}
+
+	// If the worker's listen stream is down, tell it to reconnect — but only after
+	// recording the heartbeat above. The process is alive and still executing its
+	// in-flight tasks, so a stale stream must not cause those tasks to be reassigned
+	// (reassignment triggers on lastHeartbeatAt). New work is independently gated on
+	// isActive = true, so a fresh heartbeat here cannot route tasks to a streamless
+	// worker.
+	if worker.LastListenerEstablished.Valid && !worker.IsActive {
+		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
@@ -1327,10 +1331,10 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	if task.IsDurable.Bool {
 		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
-			{ID: task.ID, InsertedAt: task.InsertedAt},
+			{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()},
 		})
 		if err == nil {
-			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 				durableInvCount = *count
 			}
 		}
@@ -1628,7 +1632,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1660,7 +1664,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 
@@ -1718,7 +1722,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1779,7 +1783,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 

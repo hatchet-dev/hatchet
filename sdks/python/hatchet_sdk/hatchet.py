@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import warnings
 from collections.abc import Callable
@@ -11,7 +12,8 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, EmbeddedHatchetConfig
+from hatchet_sdk.embedded import resolve_embedded_connection
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -93,6 +95,48 @@ class Hatchet:
             )
 
         self._client = client if client else Client(config=_config, debug=_debug)
+
+    @classmethod
+    def from_embedded(cls, config: ClientConfig | None = None) -> "Hatchet":
+        """
+        Run a full Hatchet engine locally via the hatchet-embedded sidecar
+        (downloaded on first use) and return a client wired to it. By default
+        the sidecar starts a bundled Postgres; pass `database_url` in the
+        options to point it at your own instead.
+
+        :param config: Base client configuration to use; the connection fields
+            (token, tenant, addresses, TLS) are overridden to point at the
+            embedded engine. Set `config.embedded` to configure the embedded
+            engine itself (e.g. database URL, ports, etc.).
+        :return: A Hatchet client instance connected to the embedded engine.
+        """
+        return cls(
+            config=resolve_embedded_connection(
+                config or ClientConfig(embedded=EmbeddedHatchetConfig())
+            )
+        )
+
+    def stop_embedded(self) -> None:
+        """
+        Gracefully stop the embedded engine started in this process by
+        `Hatchet.from_embedded()` and block until it has fully exited,
+        including its bundled Postgres. The embedded engine is process-wide:
+        every client created via `Hatchet.from_embedded()` in this process
+        shares it. Call this before your process exits
+        so the engine's shutdown output does not print after your program has
+        returned. No-op when no embedded engine is running in this process.
+        """
+        from hatchet_sdk.embedded import stop_embedded_sidecar
+
+        stop_embedded_sidecar()
+
+    async def aio_stop_embedded(self) -> None:
+        """
+        Async variant of `stop_embedded`: gracefully stop the embedded engine
+        sidecar without blocking the event loop, and return once it has fully
+        exited. No-op when no embedded engine is running in this process.
+        """
+        await asyncio.to_thread(self.stop_embedded)
 
     @property
     def cel(self) -> CELClient:

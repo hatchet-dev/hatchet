@@ -54,6 +54,8 @@
     "single-sign-on",
     "user-roles",
     "user-groups",
+    "---Local Testing---",
+    "embedded",
     "---Evaluating Hatchet?---",
     "architecture-and-guarantees",
     "cloud-vs-oss",

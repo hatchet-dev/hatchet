@@ -327,6 +327,40 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		bufferedRetryCounts = append(bufferedRetryCounts, buffered.QueueItem.RetryCount)
 	}
 
+	// lock existing runtime rows before any queue items are deleted, so this transaction's
+	// lock order stays consistent with RestoreEvictedTasks; see LockTaskRuntimesForFlush
+	lockCount := len(r.Assigned) + len(r.SchedulingTimedOut) + len(bufferedTaskIds)
+	lockTaskIds := make([]int64, 0, lockCount)
+	lockTaskInsertedAts := make([]pgtype.Timestamptz, 0, lockCount)
+	lockRetryCounts := make([]int32, 0, lockCount)
+
+	for _, assignedItem := range r.Assigned {
+		lockTaskIds = append(lockTaskIds, assignedItem.QueueItem.TaskID)
+		lockTaskInsertedAts = append(lockTaskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
+		lockRetryCounts = append(lockRetryCounts, assignedItem.QueueItem.RetryCount)
+	}
+
+	for _, id := range r.SchedulingTimedOut {
+		lockTaskIds = append(lockTaskIds, id.TaskID)
+		lockTaskInsertedAts = append(lockTaskInsertedAts, id.TaskInsertedAt)
+		lockRetryCounts = append(lockRetryCounts, id.RetryCount)
+	}
+
+	lockTaskIds = append(lockTaskIds, bufferedTaskIds...)
+	lockTaskInsertedAts = append(lockTaskInsertedAts, bufferedTaskInsertedAts...)
+	lockRetryCounts = append(lockRetryCounts, bufferedRetryCounts...)
+
+	if len(lockTaskIds) > 0 {
+		if err := d.queries.LockTaskRuntimesForFlush(ctx, tx, sqlcv1.LockTaskRuntimesForFlushParams{
+			Tenantid:        tenantId,
+			Taskids:         lockTaskIds,
+			Taskinsertedats: lockTaskInsertedAts,
+			Retrycounts:     lockRetryCounts,
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// move batch queue items from v1_queue_item -> v1_batched_queue_item (replaces trigger-based redirect)
 	batchedQueueItemIDs := make([]int64, 0, len(r.Batched))
 
