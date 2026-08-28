@@ -450,7 +450,24 @@ WITH input AS (
         unnest($8::uuid[]) AS triggering_event_external_id,
         unnest($9::text[]) AS triggering_event_key,
 		unnest($10::text[]) AS batch_key
+), deleted_stale_queue_items AS (
+    DELETE FROM v1_queue_item qi
+    USING input i
+    WHERE (qi.task_id, qi.task_inserted_at) = (i.task_id, i.task_inserted_at)
+), deleted_stale_batched_queue_items AS (
+    DELETE FROM v1_batched_queue_item bqi
+    USING input i
+    WHERE (bqi.task_id, bqi.task_inserted_at) = (i.task_id, i.task_inserted_at)
+), deleted_stale_rate_limited_queue_items AS (
+    DELETE FROM v1_rate_limited_queue_items rlqi
+    USING input i
+    WHERE (rlqi.task_id, rlqi.task_inserted_at) = (i.task_id, i.task_inserted_at)
+), deleted_stale_paused_workflow_queue_items AS (
+    DELETE FROM v1_paused_workflow_queue_item pwqi
+    USING input i
+    WHERE (pwqi.task_id, pwqi.task_inserted_at) = (i.task_id, i.task_inserted_at)
 )
+
 UPDATE
     v1_task
 SET
