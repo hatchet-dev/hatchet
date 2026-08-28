@@ -436,6 +436,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
+							// the histogram's top bucket clamps its p99 at 15s;
+							// the sliding-window gauges report true quantiles
+							prometheus.ObserveSchedulingLatency(timeInQueueSeconds)
 							if tenantMetricsEnabled {
 								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
 								prometheus.TenantQueuedToAssignedTimeByWorkflowBuckets.WithLabelValues(q.tenantId.String(), workflowNames[qi.WorkflowID]).Observe(timeInQueueSeconds)

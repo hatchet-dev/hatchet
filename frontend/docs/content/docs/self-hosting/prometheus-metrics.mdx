@@ -90,6 +90,9 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
 | `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
+| `hatchet_scheduling_latency_p50_seconds`  | Gauge     | True p50 of queued-to-assigned time over a 30s sliding window (NaN when idle)     |
+| `hatchet_scheduling_latency_p99_seconds`  | Gauge     | True p99 of queued-to-assigned time over a 30s sliding window (NaN when idle)     |
+| `hatchet_scheduling_latency_samples_dropped_total` | Counter | Latency samples dropped when a second exceeds the quantile window capacity |
 | `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
 | `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
 | `hatchet_pubsub_nats_client_drops_total`  | Counter   | Messages dropped client-side by NATS pub/sub subscriptions (slow consumer)        |
