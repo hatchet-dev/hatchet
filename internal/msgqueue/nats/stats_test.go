@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,15 +15,12 @@ import (
 
 var errBadSub = errors.New("nats: invalid subscription")
 
-// fakeSub implements subscriptionStats without a live NATS server. A non-nil
-// err mimics nats.go's ErrBadSubscription after Unsubscribe, which fails all
-// three getters.
+// fakeSub implements natsSub without a live NATS server. A non-nil err mimics
+// nats.go's ErrBadSubscription after Unsubscribe.
 type fakeSub struct {
 	dropped      int
 	pendingMsgs  int
 	pendingBytes int
-	limitMsgs    int
-	limitBytes   int
 	err          error
 }
 
@@ -39,126 +38,58 @@ func (f *fakeSub) Pending() (int, int, error) {
 	return f.pendingMsgs, f.pendingBytes, nil
 }
 
-func (f *fakeSub) PendingLimits() (int, int, error) {
-	if f.err != nil {
-		return -1, -1, f.err
-	}
-	return f.limitMsgs, f.limitBytes, nil
-}
-
-func kindStats(t *testing.T, stats []prommetrics.NATSPubSubStats, kind msgqueue.TopicKind) prommetrics.NATSPubSubStats {
+func metricValue(t *testing.T, m prometheus.Metric) float64 {
 	t.Helper()
 
-	for _, s := range stats {
-		if s.TopicKind == string(kind) {
-			return s
-		}
+	pb := &dto.Metric{}
+	require.NoError(t, m.Write(pb))
+
+	if pb.Counter != nil {
+		return pb.Counter.GetValue()
+	}
+	return pb.Gauge.GetValue()
+}
+
+func TestSubTrackerDropsMonotonicAndPendingMax(t *testing.T) {
+	tr := newSubTracker()
+	kind := string(msgqueue.TopicKindTenantStream)
+
+	// the exported counter is process-global, so measure deltas from its
+	// value at test start
+	drops := prommetrics.NATSPubSubClientDrops.WithLabelValues(kind)
+	base := metricValue(t, drops)
+	droppedTotal := func() float64 { return metricValue(t, drops) - base }
+	pendingMsgs := func() float64 {
+		return metricValue(t, prommetrics.NATSPubSubPendingMsgs.WithLabelValues(kind))
 	}
 
-	t.Fatalf("no stats entry for topic kind %q", kind)
-	return prommetrics.NATSPubSubStats{}
-}
+	sub1 := &fakeSub{dropped: 3, pendingMsgs: 5, pendingBytes: 100}
+	sub2 := &fakeSub{dropped: 4, pendingMsgs: 9, pendingBytes: 50}
+	tr.add(sub1, msgqueue.TopicKindTenantStream)
+	tr.add(sub2, msgqueue.TopicKindTenantStream)
 
-func TestSubRegistryDropsMonotonicAcrossRemoval(t *testing.T) {
-	reg := newSubRegistry()
-	kind := msgqueue.TopicKindTenantStream
+	tr.tick()
+	assert.Equal(t, 7.0, droppedTotal(), "sum across live subscriptions")
+	assert.Equal(t, 9.0, pendingMsgs(), "max across subscriptions")
+	assert.Equal(t, 100.0, metricValue(t, prommetrics.NATSPubSubPendingBytes.WithLabelValues(kind)))
 
-	sub1 := &fakeSub{dropped: 3, limitMsgs: 500_000, limitBytes: 64 * 1024 * 1024}
-	sub2 := &fakeSub{dropped: 4, limitMsgs: 500_000, limitBytes: 64 * 1024 * 1024}
-
-	reg.add(sub1, kind)
-	reg.add(sub2, kind)
-
-	st := kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 7, st.DroppedTotal, "live subscriptions sum")
-	assert.True(t, st.HasLiveSubs)
-
-	// Removal folds the final Dropped() into the accumulator: the counter must
-	// not go backwards when a subscription disappears.
+	// a subscription stuck in slow-consumer state keeps accumulating between ticks
 	sub1.dropped = 5
-	reg.remove(sub1)
-	sub1.err = errBadSub // Unsubscribe would invalidate the getters
+	tr.tick()
+	assert.Equal(t, 9.0, droppedTotal())
 
-	st = kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 9, st.DroppedTotal, "folded final count of removed sub plus live sub")
-	assert.True(t, st.HasLiveSubs)
+	// removal folds the delta since the last tick before Unsubscribe
+	// invalidates the getters; a second remove must not double-count
+	sub1.dropped = 6
+	tr.remove(sub1)
+	sub1.err = errBadSub
+	tr.remove(sub1)
+	assert.Equal(t, 10.0, droppedTotal())
 
-	sub2.dropped = 6
-	reg.remove(sub2)
+	// unreadable subscriptions are skipped — the counter never decreases and
+	// the pending gauges reset to 0 rather than holding a stale value
 	sub2.err = errBadSub
-
-	st = kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 11, st.DroppedTotal, "accumulator only, no live subs")
-	assert.False(t, st.HasLiveSubs, "no pending gauges without live subscriptions")
-
-	// The kind keeps being exported after all its subscriptions are gone.
-	st = kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 11, st.DroppedTotal)
-}
-
-func TestSubRegistryRemoveIsIdempotent(t *testing.T) {
-	reg := newSubRegistry()
-	kind := msgqueue.TopicKindSchedulerPartition
-
-	sub := &fakeSub{dropped: 5}
-	reg.add(sub, kind)
-
-	reg.remove(sub)
-	reg.remove(sub)
-
-	st := kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 5, st.DroppedTotal, "double remove must not double-fold")
-}
-
-func TestSubRegistryRatchetHoldsWhenFinalCountIsLost(t *testing.T) {
-	reg := newSubRegistry()
-	kind := msgqueue.TopicKindTenantStream
-
-	sub := &fakeSub{dropped: 10}
-	reg.add(sub, kind)
-
-	st := kindStats(t, reg.stats(), kind)
-	require.EqualValues(t, 10, st.DroppedTotal)
-
-	// The subscription becomes invalid while still registered (e.g. the
-	// connection closed underneath it, or a scrape raced remove): its live
-	// count is unreadable and nothing was folded, but the exported counter
-	// must not drop below what a previous scrape reported.
-	sub.err = errBadSub
-
-	st = kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 10, st.DroppedTotal, "high-water mark holds the counter")
-
-	reg.remove(sub)
-
-	st = kindStats(t, reg.stats(), kind)
-	assert.EqualValues(t, 10, st.DroppedTotal)
-}
-
-func TestSubRegistryPendingGaugesUseMax(t *testing.T) {
-	reg := newSubRegistry()
-	kind := msgqueue.TopicKindTenantStream
-
-	reg.add(&fakeSub{pendingMsgs: 5, pendingBytes: 100, limitMsgs: 500_000, limitBytes: 64 * 1024 * 1024}, kind)
-	reg.add(&fakeSub{pendingMsgs: 9, pendingBytes: 50, limitMsgs: 500_000, limitBytes: 64 * 1024 * 1024}, kind)
-
-	st := kindStats(t, reg.stats(), kind)
-	assert.True(t, st.HasLiveSubs)
-	assert.Equal(t, 9, st.MaxPendingMsgs, "max message count across subscriptions")
-	assert.Equal(t, 100, st.MaxPendingBytes, "max byte count across subscriptions")
-	assert.Equal(t, 500_000, st.PendingLimitMsgs)
-	assert.Equal(t, 64*1024*1024, st.PendingLimitBytes)
-}
-
-func TestSubRegistrySeparatesTopicKinds(t *testing.T) {
-	reg := newSubRegistry()
-
-	reg.add(&fakeSub{dropped: 1}, msgqueue.TopicKindTenantStream)
-	reg.add(&fakeSub{dropped: 2}, msgqueue.TopicKindSchedulerPartition)
-
-	stats := reg.stats()
-	require.Len(t, stats, 2)
-
-	assert.EqualValues(t, 1, kindStats(t, stats, msgqueue.TopicKindTenantStream).DroppedTotal)
-	assert.EqualValues(t, 2, kindStats(t, stats, msgqueue.TopicKindSchedulerPartition).DroppedTotal)
+	tr.tick()
+	assert.Equal(t, 10.0, droppedTotal())
+	assert.Equal(t, 0.0, pendingMsgs())
 }

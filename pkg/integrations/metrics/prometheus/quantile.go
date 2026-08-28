@@ -5,43 +5,35 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
-	// schedulingLatencyWindowSeconds is the sliding window over which the
-	// scheduling latency quantile gauges are computed.
 	schedulingLatencyWindowSeconds = 30
 
-	// schedulingLatencyPerSecondCap bounds window memory: at most
-	// windowSeconds * perSecondCap float64 samples (~8 MiB at 30 * 34k).
-	// When a single second exceeds the cap, further samples for that second
-	// are dropped and counted in
-	// hatchet_scheduling_latency_samples_dropped_total (drop-newest is the
-	// simplest predictable degradation; sample order within one second
-	// carries little information, so the quantiles stay representative).
-	schedulingLatencyPerSecondCap = 34_000
+	// Bounds window memory at windowSeconds * cap float64 samples (~24 MiB).
+	// Sized well above the highest assignment rate seen in production
+	// (~94k/s), so silently discarding a second's excess samples is
+	// effectively unreachable.
+	schedulingLatencyPerSecondCap = 100_000
 )
 
 // quantileWindow tracks a sliding window of observations as a ring of
-// per-second sample slices. Observe is a cheap append under a mutex; quantile
-// computation snapshots the in-window samples and sorts outside the lock.
+// per-second sample slices.
 type quantileWindow struct {
-	mu sync.Mutex
-
-	// buckets[i] holds the samples for unix second secs[i]; a bucket is
-	// reused (reset to length zero, keeping capacity) when its ring slot is
-	// claimed by a new second.
+	mu      sync.Mutex
 	buckets [][]float64
-	secs    []int64
+	secs    []int64 // secs[i] is the unix second buckets[i] currently holds
 
 	windowSecs   int
 	perSecondCap int
 
-	now    func() time.Time
-	onDrop func()
+	now func() time.Time
 }
 
-func newQuantileWindow(windowSecs, perSecondCap int, now func() time.Time, onDrop func()) *quantileWindow {
+func newQuantileWindow(windowSecs, perSecondCap int, now func() time.Time) *quantileWindow {
 	secs := make([]int64, windowSecs)
 	for i := range secs {
 		secs[i] = -1
@@ -53,7 +45,6 @@ func newQuantileWindow(windowSecs, perSecondCap int, now func() time.Time, onDro
 		windowSecs:   windowSecs,
 		perSecondCap: perSecondCap,
 		now:          now,
-		onDrop:       onDrop,
 	}
 }
 
@@ -62,28 +53,23 @@ func (w *quantileWindow) Observe(v float64) {
 	idx := int(sec % int64(w.windowSecs))
 
 	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	if w.secs[idx] != sec {
+		// the slot's previous second aged out of the window; discard its
+		// samples but keep the bucket's capacity
 		w.buckets[idx] = w.buckets[idx][:0]
 		w.secs[idx] = sec
 	}
 
-	if len(w.buckets[idx]) >= w.perSecondCap {
-		w.mu.Unlock()
-		if w.onDrop != nil {
-			w.onDrop()
-		}
-		return
+	if len(w.buckets[idx]) < w.perSecondCap {
+		w.buckets[idx] = append(w.buckets[idx], v)
 	}
-
-	w.buckets[idx] = append(w.buckets[idx], v)
-
-	w.mu.Unlock()
 }
 
-// quantiles returns the p50 and p99 of the samples observed within the
-// window, or (NaN, NaN) when the window is empty.
-func (w *quantileWindow) quantiles() (p50 float64, p99 float64) {
+// quantile returns the nearest-rank q-quantile (0 < q <= 1) of the samples in
+// the window, or NaN when the window is empty.
+func (w *quantileWindow) quantile(q float64) float64 {
 	oldest := w.now().Unix() - int64(w.windowSecs) + 1
 
 	w.mu.Lock()
@@ -97,7 +83,7 @@ func (w *quantileWindow) quantiles() (p50 float64, p99 float64) {
 
 	if total == 0 {
 		w.mu.Unlock()
-		return math.NaN(), math.NaN()
+		return math.NaN()
 	}
 
 	snapshot := make([]float64, 0, total)
@@ -111,56 +97,34 @@ func (w *quantileWindow) quantiles() (p50 float64, p99 float64) {
 
 	sort.Float64s(snapshot)
 
-	return quantileSorted(snapshot, 0.5), quantileSorted(snapshot, 0.99)
+	return snapshot[int(math.Ceil(q*float64(len(snapshot))))-1]
 }
 
-// quantileSorted returns the nearest-rank quantile of a sorted, non-empty
-// slice.
-func quantileSorted(sorted []float64, q float64) float64 {
-	rank := int(math.Ceil(q*float64(len(sorted)))) - 1
-	if rank < 0 {
-		rank = 0
-	}
-	if rank >= len(sorted) {
-		rank = len(sorted) - 1
-	}
-	return sorted[rank]
-}
+var schedulingLatencyWindow = newQuantileWindow(
+	schedulingLatencyWindowSeconds,
+	schedulingLatencyPerSecondCap,
+	time.Now,
+)
 
+// The gauges compute quantiles lazily at scrape time. Processes that never
+// schedule report NaN, which client_golang renders literally and Prometheus
+// stores as a gap — not a misleading 0.
 var (
-	schedulingLatencyWindow = newQuantileWindow(
-		schedulingLatencyWindowSeconds,
-		schedulingLatencyPerSecondCap,
-		time.Now,
-		SchedulingLatencySamplesDropped.Inc,
-	)
+	_ = promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "hatchet_scheduling_latency_p50_seconds",
+		Help: "True p50 of queued-to-assigned time over a 30s sliding window of this process's samples; NaN when the window is empty. Unlike hatchet_queued_to_assigned_time_seconds, not clamped by histogram buckets.",
+	}, func() float64 { return schedulingLatencyWindow.quantile(0.5) })
 
-	schedulingLatencyLoopOnce sync.Once
+	_ = promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "hatchet_scheduling_latency_p99_seconds",
+		Help: "True p99 of queued-to-assigned time over a 30s sliding window of this process's samples; NaN when the window is empty. Unlike hatchet_queued_to_assigned_time_seconds, not clamped by histogram buckets.",
+	}, func() float64 { return schedulingLatencyWindow.quantile(0.99) })
 )
 
 // ObserveSchedulingLatency records a queued-to-assigned duration for the true
-// quantile gauges (hatchet_scheduling_latency_p50_seconds / _p99_seconds).
-// It exists alongside hatchet_queued_to_assigned_time_seconds because that
-// histogram's top bucket is 15s, so its estimated p99 clamps during incidents;
-// these gauges sort the actual samples.
-//
-// The first call starts a process-lifetime goroutine that recomputes the
-// quantiles once per second, so processes that never schedule (API pods,
-// other engine roles) pay nothing and their gauges stay NaN. NaN (the
-// registered gauges' initial value, see global.go) is what client_golang
-// renders when the window is empty: Prometheus stores it as a gap-producing
-// non-value, unlike a misleading 0.
+// quantile gauges. They exist alongside hatchet_queued_to_assigned_time_seconds
+// because that histogram's 15s top bucket clamps its estimated p99 during
+// incidents.
 func ObserveSchedulingLatency(seconds float64) {
-	schedulingLatencyLoopOnce.Do(func() {
-		go func() {
-			ticker := time.NewTicker(time.Second)
-			for range ticker.C {
-				p50, p99 := schedulingLatencyWindow.quantiles()
-				SchedulingLatencyP50.Set(p50)
-				SchedulingLatencyP99.Set(p99)
-			}
-		}()
-	})
-
 	schedulingLatencyWindow.Observe(seconds)
 }

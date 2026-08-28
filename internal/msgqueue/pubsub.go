@@ -106,10 +106,8 @@ func TenantStreamMsgIDs() []string {
 	return slices.Sorted(maps.Keys(tenantStreamMsgIDs))
 }
 
-// tenantStreamPubErrSampler rate-limits the tenant-stream publish-failure warn
-// to one line per minute, shared across all callers in the process: a slow or
-// down pub/sub broker fails every publish and would otherwise flood the log at
-// message rate. BurstSampler is safe for concurrent use.
+// One line per minute, shared across all callers in the process: a down
+// pub/sub broker fails every publish and would otherwise log at message rate.
 var tenantStreamPubErrSampler = &zerolog.BurstSampler{Burst: 1, Period: time.Minute}
 
 // PubTenantMessage writes a tenant-scoped message to its destinations: a

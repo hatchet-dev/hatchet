@@ -12,7 +12,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -27,14 +26,11 @@ type PubSub struct {
 	l             *zerolog.Logger
 	subjectPrefix string
 
-	// pubErrL rate-limits the publish-failure log to one line per minute: a
-	// slow or down broker fails every Pub and would otherwise emit one error
-	// per message. Failures remain visible via the "error" result label on
-	// hatchet_pubsub_publish_duration_seconds.
+	// pubErrL samples the publish-failure log to one line per minute: a down
+	// broker fails every Pub and would otherwise log at message rate.
 	pubErrL *zerolog.Logger
 
-	// registry feeds the hatchet_pubsub_nats_* client metrics at scrape time.
-	registry *subRegistry
+	tracker *subTracker
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -131,13 +127,9 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	l := opts.l
 
-	// Async errors are logged at most once per minute: nats.go invokes the
-	// handler per protocol error, and during an incident a single broker-side
-	// condition can fire it tens of times per second. The handler is also the
-	// wrong place to count client-side drops — it fires only on the transition
-	// into slow-consumer state, staying silent while stuck in it — so drop
-	// accounting lives in hatchet_pubsub_nats_client_drops_total (fed by
-	// Subscription.Dropped()), and this log is just a human-readable pointer.
+	// Sampled to one line per minute: during an incident a single broker-side
+	// condition can fire the handler tens of times per second. Drop accounting
+	// lives in subTracker (see stats.go); this log is a human-readable pointer.
 	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
 
 	connectOpts := []natsgo.Option{
@@ -177,8 +169,6 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
 				e = e.Str("subject", sub.Subject)
-				// Dropped/Pending are cheap mutex-guarded getters; still, only
-				// read them for the one event per minute that survives sampling.
 				if e.Enabled() {
 					if dropped, derr := sub.Dropped(); derr == nil {
 						e = e.Int("dropped_total", dropped)
@@ -230,9 +220,8 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		prefix = defaultSubjectPrefix
 	}
 
-	// Distinct sampler from asyncErrL: publish failures and async subscription
-	// errors are separate signals, and a flood of one must not swallow the
-	// other's one line per minute.
+	// Distinct sampler from asyncErrL so a flood of one signal does not
+	// swallow the other's one line per minute.
 	pubErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
 
 	p := &PubSub{
@@ -240,13 +229,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		l:             l,
 		subjectPrefix: prefix,
 		pubErrL:       &pubErrL,
-		registry:      newSubRegistry(),
+		tracker:       newSubTracker(),
 	}
 
-	unregisterCollector := prommetrics.RegisterNATSPubSubStatsProvider(p.registry.stats)
+	stopStats := make(chan struct{})
+	go p.tracker.run(stopStats)
 
 	return func() error {
-		unregisterCollector()
+		close(stopStats)
 		nc.Close()
 		return nil
 	}, p, nil
@@ -349,12 +339,10 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
-	p.registry.add(sub, topic.Kind())
+	p.tracker.add(sub, topic.Kind())
 
 	return func() error {
-		// Fold the final Dropped() count into the registry before Unsubscribe
-		// invalidates the subscription.
-		p.registry.remove(sub)
+		p.tracker.remove(sub)
 		return sub.Unsubscribe()
 	}, nil
 }

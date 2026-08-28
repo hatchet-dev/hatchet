@@ -1,164 +1,139 @@
 package nats
 
 import (
-	"maps"
 	"sync"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
-// subscriptionStats is the subset of *natsgo.Subscription the registry reads.
-// It exists so the drops-accumulator logic is testable without a live NATS
-// server.
-type subscriptionStats interface {
+const statsInterval = 15 * time.Second
+
+// natsSub is the subset of *natsgo.Subscription the tracker reads, split out
+// so drop accounting is testable without a live NATS server.
+type natsSub interface {
 	Dropped() (int, error)
 	Pending() (int, int, error)
-	PendingLimits() (int, int, error)
 }
 
-// subRegistry tracks live subscriptions with their topic kind and feeds the
-// Prometheus collector at scrape time. Removed subscriptions fold their final
-// Dropped() count into a per-kind accumulator so the exported drops counter
-// survives subscription churn.
-//
-// Engine pods hold one subscription per tenant stream, so add/remove stay
-// O(1) map operations and stats never calls into nats.go while holding the
-// lock.
-type subRegistry struct {
-	mu   sync.Mutex
-	subs map[subscriptionStats]msgqueue.TopicKind
-
-	// removedDrops accumulates the final Dropped() counts of removed
-	// subscriptions per kind. A kind gains a (zero) entry on its first add, so
-	// its drops counter keeps being exported even once all subscriptions of
-	// the kind are gone (a series vanishing mid-scrape reads as a counter
-	// reset to rate()).
-	removedDrops map[msgqueue.TopicKind]uint64
-
-	// reportedDrops is a per-kind high-water mark of exported totals. It
-	// guards against one race: stats can snapshot removedDrops before a
-	// concurrent remove folds a subscription's final count, then fail the
-	// live Dropped() read because the subscription already unsubscribed —
-	// without the ratchet that scrape would report a lower total than the
-	// previous one.
-	reportedDrops map[msgqueue.TopicKind]uint64
+// subTracker feeds the hatchet_pubsub_nats_* client metrics. Dropped() is the
+// only reliable drop signal — the async ErrorHandler fires just on the
+// transition into slow-consumer state and stays silent while stuck in it — so
+// the tracker adds per-subscription Dropped() deltas to the exported counter
+// on every tick and once more on remove, keeping it monotonic and eventually
+// exact.
+type subTracker struct {
+	mu    sync.Mutex
+	subs  map[natsSub]*subState
+	kinds map[msgqueue.TopicKind]struct{}
 }
 
-func newSubRegistry() *subRegistry {
-	return &subRegistry{
-		subs:          make(map[subscriptionStats]msgqueue.TopicKind),
-		removedDrops:  make(map[msgqueue.TopicKind]uint64),
-		reportedDrops: make(map[msgqueue.TopicKind]uint64),
+type subState struct {
+	kind        msgqueue.TopicKind
+	lastDropped int
+}
+
+func newSubTracker() *subTracker {
+	return &subTracker{
+		subs:  make(map[natsSub]*subState),
+		kinds: make(map[msgqueue.TopicKind]struct{}),
 	}
 }
 
-func (r *subRegistry) add(sub subscriptionStats, kind msgqueue.TopicKind) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// run refreshes the exported metrics every statsInterval until stop is closed.
+func (t *subTracker) run(stop <-chan struct{}) {
+	ticker := time.NewTicker(statsInterval)
+	defer ticker.Stop()
 
-	r.subs[sub] = kind
-
-	if _, ok := r.removedDrops[kind]; !ok {
-		r.removedDrops[kind] = 0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			t.tick()
+		}
 	}
 }
 
-// remove must run before the subscription is unsubscribed: Dropped() errors on
-// a closed subscription and the final count would be lost. Safe to call more
-// than once.
-func (r *subRegistry) remove(sub subscriptionStats) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (t *subTracker) add(sub natsSub, kind msgqueue.TopicKind) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
-	kind, ok := r.subs[sub]
-	if !ok {
+	t.subs[sub] = &subState{kind: kind}
+	t.kinds[kind] = struct{}{}
+
+	// materialize the counter series at 0 so rate() sees the first drop as an
+	// increase rather than the series appearing
+	prommetrics.NATSPubSubClientDrops.WithLabelValues(string(kind))
+}
+
+// remove must run before Unsubscribe, which invalidates Dropped() and would
+// lose the drops since the last tick. Idempotent.
+func (t *subTracker) remove(sub natsSub) {
+	t.mu.Lock()
+	st, ok := t.subs[sub]
+	delete(t.subs, sub)
+	t.mu.Unlock()
+
+	if ok {
+		t.accountDrops(sub, st)
+	}
+}
+
+// accountDrops adds the subscription's drop delta since the last read to the
+// exported counter. Deltas are computed under the lock, so tick racing remove
+// on the same subscription never double-counts.
+func (t *subTracker) accountDrops(sub natsSub, st *subState) {
+	dropped, err := sub.Dropped()
+	if err != nil {
 		return
 	}
 
-	delete(r.subs, sub)
+	t.mu.Lock()
+	delta := dropped - st.lastDropped
+	if delta > 0 {
+		st.lastDropped = dropped
+	}
+	t.mu.Unlock()
 
-	if dropped, err := sub.Dropped(); err == nil && dropped > 0 {
-		r.removedDrops[kind] += uint64(dropped)
+	if delta > 0 {
+		prommetrics.NATSPubSubClientDrops.WithLabelValues(string(st.kind)).Add(float64(delta))
 	}
 }
 
-// stats snapshots the registry under the lock, then queries nats.go per
-// subscription outside it. Subscriptions that error (unsubscribed between
-// snapshot and query) are skipped; remove has folded or will fold their final
-// drop counts.
-func (r *subRegistry) stats() []prommetrics.NATSPubSubStats {
-	r.mu.Lock()
-
+// tick accounts drop deltas for live subscriptions and sets the pending
+// gauges to the max across live subscriptions per topic kind (max surfaces
+// one hot subscription; 0 once a kind has none left, never a stale value).
+func (t *subTracker) tick() {
 	type liveSub struct {
-		sub  subscriptionStats
-		kind msgqueue.TopicKind
+		sub natsSub
+		st  *subState
 	}
 
-	live := make([]liveSub, 0, len(r.subs))
-	for sub, kind := range r.subs {
-		live = append(live, liveSub{sub: sub, kind: kind})
+	t.mu.Lock()
+	live := make([]liveSub, 0, len(t.subs))
+	for sub, st := range t.subs {
+		live = append(live, liveSub{sub: sub, st: st})
 	}
-
-	base := maps.Clone(r.removedDrops)
-
-	r.mu.Unlock()
-
-	perKind := make(map[msgqueue.TopicKind]*prommetrics.NATSPubSubStats, len(base))
-
-	kindStats := func(kind msgqueue.TopicKind) *prommetrics.NATSPubSubStats {
-		st, ok := perKind[kind]
-		if !ok {
-			st = &prommetrics.NATSPubSubStats{
-				TopicKind:    string(kind),
-				DroppedTotal: base[kind],
-			}
-			perKind[kind] = st
-		}
-		return st
+	maxMsgs := make(map[msgqueue.TopicKind]int, len(t.kinds))
+	maxBytes := make(map[msgqueue.TopicKind]int, len(t.kinds))
+	for kind := range t.kinds {
+		maxMsgs[kind], maxBytes[kind] = 0, 0
 	}
-
-	for kind := range base {
-		kindStats(kind)
-	}
+	t.mu.Unlock()
 
 	for _, ls := range live {
-		st := kindStats(ls.kind)
+		t.accountDrops(ls.sub, ls.st)
 
-		if dropped, err := ls.sub.Dropped(); err == nil && dropped > 0 {
-			st.DroppedTotal += uint64(dropped)
+		if msgs, bytes, err := ls.sub.Pending(); err == nil {
+			maxMsgs[ls.st.kind] = max(maxMsgs[ls.st.kind], msgs)
+			maxBytes[ls.st.kind] = max(maxBytes[ls.st.kind], bytes)
 		}
-
-		pendingMsgs, pendingBytes, err := ls.sub.Pending()
-		if err != nil {
-			continue
-		}
-
-		limitMsgs, limitBytes, err := ls.sub.PendingLimits()
-		if err != nil {
-			continue
-		}
-
-		st.HasLiveSubs = true
-		st.MaxPendingMsgs = max(st.MaxPendingMsgs, pendingMsgs)
-		st.MaxPendingBytes = max(st.MaxPendingBytes, pendingBytes)
-		st.PendingLimitMsgs = max(st.PendingLimitMsgs, limitMsgs)
-		st.PendingLimitBytes = max(st.PendingLimitBytes, limitBytes)
 	}
 
-	r.mu.Lock()
-
-	out := make([]prommetrics.NATSPubSubStats, 0, len(perKind))
-	for kind, st := range perKind {
-		if hw := r.reportedDrops[kind]; st.DroppedTotal < hw {
-			st.DroppedTotal = hw
-		} else {
-			r.reportedDrops[kind] = st.DroppedTotal
-		}
-		out = append(out, *st)
+	for kind := range maxMsgs {
+		prommetrics.NATSPubSubPendingMsgs.WithLabelValues(string(kind)).Set(float64(maxMsgs[kind]))
+		prommetrics.NATSPubSubPendingBytes.WithLabelValues(string(kind)).Set(float64(maxBytes[kind]))
 	}
-
-	r.mu.Unlock()
-
-	return out
 }
