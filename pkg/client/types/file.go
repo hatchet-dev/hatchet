@@ -54,8 +54,6 @@ const (
 	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
 	CancelNewest     WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
 	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
-	DropNewest       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
-	QueueNewest      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
 type WorkflowConcurrency struct {
