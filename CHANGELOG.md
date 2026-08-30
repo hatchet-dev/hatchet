@@ -1,3 +1,39 @@
+## [0.105.2] - 2026-08-25
+
+Hatchet v0.105.2 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
+
+### Highlights
+
+- Workflows can now be paused: in-flight runs keep running, new runs stay queued until unpause (up to the queue TTL), and cron or scheduled triggers can either queue or drop their runs while paused. Useful for halting a workflow with a high error rate, or queueing jobs during the day and unpausing to run them overnight. See [Pausing Workflows](https://docs.hatchet.run/v1/pausing-workflows?utm_source=changelog&utm_campaign=v0.105.2).
+- Payload visibility can now be restricted per tenant member. Combined with the read-only `VIEWER` role, members can view runs, workflows, workers, events, logs, and metrics without seeing payload contents or modifying anything.
+- Early beta: Hatchet Embedded now supports the TypeScript and Python SDKs, running a full Hatchet engine directly next to your workers for local development, end-to-end testing, and CI. See [Embedded Mode](https://docs.hatchet.run/v1/embedded?utm_source=changelog&utm_campaign=v0.105.2).
+- Go SDK: stream listeners stay alive across exit races, and previously missing durable wait and webhook arguments were added.
+- `hatchet-lite` now hands `SIGTERM` through to the engine, so containers shut down gracefully instead of waiting to be killed.
+
+### Fixed
+
+- Engine: evicted tasks can now time out instead of hanging ([#4772](https://github.com/hatchet-dev/hatchet/pull/4772)).
+- Engine: durable user events are isolated by scope ([#4721](https://github.com/hatchet-dev/hatchet/pull/4721)).
+- Engine: retry backoff no longer overflows on high retry counts ([#4719](https://github.com/hatchet-dev/hatchet/pull/4719)).
+- Engine: lookups of missing rows return `NotFound` instead of `Internal` ([#4744](https://github.com/hatchet-dev/hatchet/pull/4744), [#4757](https://github.com/hatchet-dev/hatchet/pull/4757)).
+
+## [0.101.27] - 2026-08-17
+
+Hatchet v0.101.27 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, adding a read-only `VIEWER` role, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
+
+### Highlights
+
+- [Launching Idempotency Keys and Batch Tasks](https://hatchet.run/announcement/idempotency-keys-and-batch-tasks?utm_source=changelog&utm_campaign=v0.101.27). Batch tasks aggregate multiple tasks and spawn them as a single batch, reducing API calls and downstream resource usage. See documentation on [Idempotency](https://docs.hatchet.run/v1/idempotency?utm_source=changelog&utm_campaign=v0.101.27) and [Batch Tasks](https://docs.hatchet.run/v1/batch-tasks?utm_source=changelog&utm_campaign=v0.101.27).
+- The dashboard can be served from a subpath rather than the domain root, via `BASE_PATH` on the static file server or `LITE_FRONTEND_BASE_PATH` on `hatchet-lite`.
+- A new read-only `VIEWER` tenant member role that cannot modify anything.
+- `hatchet_tenant_queued_to_assigned` and `hatchet_tenant_queued_to_assigned_time_seconds` are now also exported broken down by workflow name, and `hatchet_tenant_queue_size` carries a `workflow_name` label.
+- A new `hatchet_tenant_additional_metadata_queue_size` gauge reports queue depth per additional metadata key-value pair. Only keys prefixed with `prom_` are exported, so opting a key in is explicit and cardinality stays bounded. An item counts towards every metadata key it carries, so series should not be summed across keys.
+- Per-tenant operation timers are now jittered across their full interval on startup, and persisted intervals are loaded lazily. This avoids query storms when controllers restart on deployments with many tenants. The idempotency lookup is also skipped when a task carries no keys.
+- `/api/v1/stable/tasks/{task}/task-events` endpoint no longer ignores its limit and offset parameters.
+- Tasks with equal worker label affinity are now round-robined across the tied workers instead of packing onto one worker until its slots fill.
+- The Go SDK warns when a child workflow result is still pending after its parent task context is cancelled.
+- Dashboard: onboarding use case selection, wider labels in the trace view, and a restored domain redirect modal.
+
 ## [0.98.9] - 2026-07-28
 
 Hatchet v0.98.9 is a feature release. It adds idempotency keys for tasks and workflows, task batching, and an embedded engine the Go SDK can run in-process, alongside a new default for concurrency scheduling and a batch of dashboard and hardening fixes.

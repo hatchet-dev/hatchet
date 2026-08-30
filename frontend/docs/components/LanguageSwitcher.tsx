@@ -1,5 +1,6 @@
+"use client";
+
 import React from "react";
-import { useRouter } from "next/router";
 import { useLanguage } from "../context/LanguageContext";
 import {
   DOC_LANGUAGES,
@@ -40,8 +41,7 @@ function resolveSelected(lang: string) {
 }
 
 export default function LanguageSwitcher() {
-  const router = useRouter();
-  const basePath = router.basePath || "";
+  const basePath = "";
   const { selectedLanguage, setSelectedLanguage } = useLanguage();
   const current = resolveSelected(selectedLanguage);
 

@@ -60,7 +60,7 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	var shutdown func(context.Context) error
 	if embeddedCfg != nil {
 		if embeddedBackend == nil {
-			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet-embedded")
 		}
 		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
 		if err != nil {
@@ -83,6 +83,8 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	}, nil
 }
 
+// Close shuts down the client. It is a no-op unless the client runs in embedded mode,
+// in which case it shuts down the in-process engine.
 func (c *Client) Close(ctx context.Context) error {
 	if c.embeddedShutdown != nil {
 		return c.embeddedShutdown(ctx)
@@ -776,13 +778,23 @@ type WorkflowRunRef struct {
 	resultFn   func() (*WorkflowResult, error)
 }
 
-// V0Workflow returns the underlying v0Client.Workflow.
+// Result blocks until the workflow run completes and returns its result.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	return wr.resultWithContext(nil)
+}
+
+func (wr *WorkflowRunRef) resultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	if wr.resultFn != nil {
 		return wr.resultFn()
 	}
 
-	result, err := wr.v0Workflow.Result()
+	var result *v0Client.WorkflowResult
+	var err error
+	if ctx == nil {
+		result, err = wr.v0Workflow.Result()
+	} else {
+		result, err = wr.v0Workflow.ResultWithContext(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -880,7 +892,7 @@ func (tr *TaskResult) Into(dest any) error {
 	return nil
 }
 
-// Raw returns the raw workflow result as interface{}.
+// Raw returns the raw, undecoded workflow result.
 func (wr *WorkflowResult) Raw() any {
 	return wr.result
 }

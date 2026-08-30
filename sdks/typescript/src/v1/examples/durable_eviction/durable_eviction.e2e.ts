@@ -16,6 +16,24 @@ import {
   evictableSleepForGracefulTermination,
 } from './workflow';
 
+const TS_NODE_BIN = require.resolve('ts-node/dist/bin.js');
+
+// Spawns the worker script via `node <ts-node bin>` directly rather than
+// through a package-manager `exec` subcommand (e.g. `pnpm exec`), since the
+// package manager available on PATH varies across CI matrix entries (pnpm vs bun).
+async function spawnWorker(scriptPath: string, env: NodeJS.ProcessEnv) {
+  const { spawn } = await import('child_process');
+  return spawn(
+    process.execPath,
+    [TS_NODE_BIN, '-r', 'tsconfig-paths/register', '-P', 'tsconfig.json', scriptPath],
+    {
+      cwd: process.cwd(),
+      env,
+      stdio: 'pipe',
+    }
+  );
+}
+
 function getTaskStatuses(details: any): V1TaskStatus[] {
   return (details?.tasks || []).map((t: any) => t.status);
 }
@@ -342,29 +360,12 @@ describe('durable-eviction-e2e', () => {
 
   it('capacity eviction fires with durable_slots=1 and ttl=undefined', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/capacity-worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8105',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/capacity-worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8105',
+    });
 
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
@@ -405,29 +406,12 @@ describe('durable-eviction-e2e', () => {
 
   it('capacity eviction restore completes', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/capacity-worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8106',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/capacity-worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8106',
+    });
 
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
@@ -472,7 +456,6 @@ describe('durable-eviction-e2e', () => {
 
   it('graceful termination evicts waiting runs', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
     const namespace = 'graceful-termination-evicts-waiting-runs';
 
@@ -480,28 +463,12 @@ describe('durable-eviction-e2e', () => {
       namespace,
     });
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
-          HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
+      HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
+    });
 
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});

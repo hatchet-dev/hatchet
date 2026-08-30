@@ -29,6 +29,7 @@ var embedMigrations embed.FS
 
 type runMigrationsOpt struct {
 	upToPenultimate bool
+	upToVersion     int64
 	databaseURL     string
 }
 
@@ -37,6 +38,12 @@ type RunMigrationsOpt func(*runMigrationsOpt)
 func WithUpToPenultimate() RunMigrationsOpt {
 	return func(o *runMigrationsOpt) {
 		o.upToPenultimate = true
+	}
+}
+
+func WithUpToVersion(version int64) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.upToVersion = version
 	}
 }
 
@@ -272,6 +279,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	}
 
 	switch {
+	case options.upToVersion != 0:
+		err = goose.UpTo(db, ".", options.upToVersion)
+		if err != nil {
+			return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply migrations up to version", err)
+		}
 	case options.upToPenultimate:
 		migrations, err := listMigrations()
 

@@ -24,6 +24,7 @@ import { TokenSuccessDialog } from './components/token-success-dialog';
 import { type AvailableUseCaseKey } from './components/use-case-options';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -65,6 +66,7 @@ export default function Overview() {
     installMethodOptions.native.value,
   );
   const hasTrackedWorkerConnection = useRef(false);
+  const { isSelfHosted } = useControlPlane();
 
   // The raw stored value is normalized on every read, so malformed or
   // stale entries fall back to the defaults.
@@ -238,17 +240,23 @@ export default function Overview() {
       qualifiedRunQueryParams(
         selectionConfirmedAt ?? new Date(0).toISOString(),
       ),
+      isSelfHosted,
     ),
     enabled: !!tenantId && !!selectionConfirmedAt && !onboarding.hidden,
-    refetchInterval: (query) =>
-      selectedTab === workflowStepOptions.runTask.value &&
-      (query.state.data?.rows?.length ?? 0) === 0
+    refetchInterval: (query) => {
+      const hasRows =
+        query.state.data !== 'timeout' &&
+        (query.state.data?.rows?.length ?? 0) > 0;
+      return selectedTab === workflowStepOptions.runTask.value && !hasRows
         ? 2000
-        : false,
+        : false;
+    },
   });
 
   const hasQualifiedRun =
-    !!selectionConfirmedAt && (qualifiedRunQuery.data?.rows?.length ?? 0) > 0;
+    !!selectionConfirmedAt &&
+    qualifiedRunQuery.data !== 'timeout' &&
+    (qualifiedRunQuery.data?.rows?.length ?? 0) > 0;
 
   // The connection event fires once for each tenant, so a tenant switch
   // without a remount must re-arm it.

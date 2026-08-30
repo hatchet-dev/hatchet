@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
@@ -107,6 +108,7 @@ const N_ACTIONS_TO_PREVIEW = 10;
 export default function WorkerDetail() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
   const { refetchInterval } = useRefetchInterval();
   const [showAllActions, setShowAllActions] = useState(false);
 
@@ -202,26 +204,32 @@ export default function WorkerDetail() {
           </div>
           <div className="flex flex-row gap-2">
             <WorkerStatus status={worker.status} health={healthy} />
-            <DropdownMenu>
-              <DropdownMenuTrigger>
-                <Button aria-label="Worker Actions" size="icon" variant="ghost">
-                  <BiDotsVertical />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  disabled={worker.status === 'INACTIVE'}
-                  onClick={() => {
-                    updateWorker.mutate({
-                      isPaused: worker.status === 'PAUSED' ? false : true,
-                    });
-                  }}
-                >
-                  {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run
-                  Assignment
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {canWrite && (
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                  <Button
+                    aria-label="Worker Actions"
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <BiDotsVertical />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    disabled={worker.status === 'INACTIVE'}
+                    onClick={() => {
+                      updateWorker.mutate({
+                        isPaused: worker.status === 'PAUSED' ? false : true,
+                      });
+                    }}
+                  >
+                    {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run
+                    Assignment
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 

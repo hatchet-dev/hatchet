@@ -37,6 +37,7 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
+	operatorsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/operators"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -77,6 +78,7 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
+	*operatorsv1.V1OperatorsService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
@@ -106,6 +108,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
+		V1OperatorsService:     operatorsv1.NewV1OperatorsService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
@@ -704,6 +707,25 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return webhook, webhook.TenantID.String(), nil
 	})
 
+	populatorMW.RegisterGetter("v1-http-operator", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid operator id")
+		}
+
+		operator, err := t.config.V1.Operators().GetOperatorById(
+			context.Background(),
+			idUuid,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return operator, operator.TenantID.String(), nil
+	})
+
 	authnMW := authn.NewAuthN(t.config)
 	authzMW, err := authz.NewAuthZ(t.config)
 	if err != nil {
@@ -740,22 +762,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		LogUserAgent: true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			statusCode := v.Status
-
-			// note that the status code is not set yet as it gets picked up by the global err handler
-			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
-			if v.Error != nil && statusCode == 200 {
-				statusCode = 500
+			if v.Error != nil && statusCode == http.StatusOK {
+				statusCode = http.StatusInternalServerError
 			}
 
-			var e *zerolog.Event
+			level := accessLogLevel(statusCode)
 
-			switch {
-			case statusCode >= 500:
-				e = t.config.Logger.Error().Err(v.Error)
-			case statusCode >= 400:
-				e = t.config.Logger.Warn()
-			default:
-				e = t.config.Logger.Info()
+			e := t.config.Logger.WithLevel(level)
+
+			if level == zerolog.ErrorLevel {
+				e = e.Err(v.Error)
 			}
 
 			e.
@@ -792,4 +808,20 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	)
 
 	return populatorMW, nil
+}
+
+// accessLogLevel resolves the log level for an API access log entry.
+// A 499 (client closed request) is the client's outcome, not a server fault, so it logs
+// at info.
+func accessLogLevel(status int) zerolog.Level {
+	switch {
+	case status == hatchetmiddleware.StatusClientClosedRequest:
+		return zerolog.InfoLevel
+	case status >= http.StatusInternalServerError:
+		return zerolog.ErrorLevel
+	case status >= http.StatusBadRequest:
+		return zerolog.WarnLevel
+	default:
+		return zerolog.InfoLevel
+	}
 }

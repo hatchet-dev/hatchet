@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Textarea } from '@/components/v1/ui/textarea';
+import useCanWrite from '@/hooks/use-can-write';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
@@ -23,6 +24,7 @@ interface FilterDetailViewProps {
 }
 
 export function FilterDetailView({ filterId }: FilterDetailViewProps) {
+  const canWrite = useCanWrite();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [payloadError, setPayloadError] = useState<string | null>(null);
@@ -121,47 +123,49 @@ export function FilterDetailView({ filterId }: FilterDetailViewProps) {
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2 pt-2">
-            {!isEditing ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleEdit}
-                leftIcon={<EditIcon className="size-4" />}
-              >
-                Edit
-              </Button>
-            ) : (
-              <>
+        {canWrite && (
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2 pt-2">
+              {!isEditing ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleCancel}
-                  leftIcon={<XIcon className="size-4" />}
+                  onClick={handleEdit}
+                  leftIcon={<EditIcon className="size-4" />}
                 >
-                  Cancel
+                  Edit
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSubmit(onSubmit)}
-                  disabled={mutations.update.isPending}
-                  leftIcon={<SaveIcon className="size-4" />}
-                >
-                  {mutations.update.isPending ? 'Saving...' : 'Save'}
-                </Button>
-              </>
-            )}
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              leftIcon={<Trash2Icon className="size-4" />}
-            >
-              Delete
-            </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancel}
+                    leftIcon={<XIcon className="size-4" />}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit(onSubmit)}
+                    disabled={mutations.update.isPending}
+                    leftIcon={<SaveIcon className="size-4" />}
+                  >
+                    {mutations.update.isPending ? 'Saving...' : 'Save'}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                leftIcon={<Trash2Icon className="size-4" />}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="space-y-4">
           <div className="space-y-2">

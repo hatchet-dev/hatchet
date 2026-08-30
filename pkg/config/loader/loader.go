@@ -47,9 +47,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
-	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1alpha"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -452,6 +450,10 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 		override(cf)
 	}
 
+	if cf.VersionOverride != "" {
+		version = cf.VersionOverride
+	}
+
 	return createControllerLayer(dc, cf, version)
 }
 
@@ -830,65 +832,28 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
 	}
 
-	// The v1alpha scheduler is all-or-nothing per shard: the flag selects which
-	// implementation backs the scheduling pool for the whole process.
-	var schedulingPoolV1 scheduling.Pool
-	var cleanupSchedulingPoolV1 func() error
+	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
+		dc.V1.Scheduler(),
+		dc.V1.Tasks(),
+		concurrencyOutbox,
+		&queueLogger,
+		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.SchedulerConcurrencyRateLimit,
+		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
+		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.SchedulerCheckActiveMinInterval,
+		cf.Runtime.SchedulerCheckActiveMaxInterval,
+		cf.Runtime.SchedulerAdvisoryLockTimeout,
+		cf.Runtime.OptimisticSchedulingEnabled,
+		cf.Runtime.OptimisticSchedulingSlots,
+		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+		promGate,
+	)
 
-	if cf.Runtime.V1AlphaSchedulerEnabled {
-		pool, cleanupPool, err := v1alpha.NewSchedulingPool(
-			dc.V1.Scheduler(),
-			dc.V1.Tasks(),
-			concurrencyOutbox,
-			&queueLogger,
-			cf.Runtime.SingleQueueLimit,
-			cf.Runtime.SchedulerConcurrencyRateLimit,
-			cf.Runtime.SchedulerConcurrencyPollingMinInterval,
-			cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
-			cf.Runtime.SchedulerCheckActiveMinInterval,
-			cf.Runtime.SchedulerCheckActiveMaxInterval,
-			cf.Runtime.SchedulerAdvisoryLockTimeout,
-			cf.Runtime.OptimisticSchedulingEnabled,
-			cf.Runtime.OptimisticSchedulingSlots,
-			cf.Runtime.ConcurrencyInMemoryIndexEnabled,
-			promGate,
-		)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create scheduling pool (v1alpha): %w", err)
-		}
-
-		schedulingPoolV1 = pool
-		cleanupSchedulingPoolV1 = cleanupPool
-	} else {
-		pool, cleanupPool, err := v1.NewSchedulingPool(
-			dc.V1.Scheduler(),
-			dc.V1.Tasks(),
-			concurrencyOutbox,
-			&queueLogger,
-			cf.Runtime.SingleQueueLimit,
-			cf.Runtime.SchedulerConcurrencyRateLimit,
-			cf.Runtime.SchedulerConcurrencyPollingMinInterval,
-			cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
-			cf.Runtime.SchedulerCheckActiveMinInterval,
-			cf.Runtime.SchedulerCheckActiveMaxInterval,
-			cf.Runtime.SchedulerAdvisoryLockTimeout,
-			cf.Runtime.OptimisticSchedulingEnabled,
-			cf.Runtime.OptimisticSchedulingSlots,
-			cf.Runtime.ConcurrencyInMemoryIndexEnabled,
-			promGate,
-		)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
-		}
-
-		schedulingPoolV1 = pool
-		cleanupSchedulingPoolV1 = cleanupPool
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	// the prometheus extension is written against the shared extension contract
-	// in pkg/scheduling, so one registration serves either implementation
 	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
@@ -934,6 +899,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if cf.Runtime.AllowedOriginsString != "" {
 		cf.Runtime.AllowedOrigins = getStrArr(cf.Runtime.AllowedOriginsString)
+	}
+
+	if cf.Runtime.OperatorInfraBlockedCIDRsString != "" {
+		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
 	}
 
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
@@ -1080,6 +1049,8 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 			natsmq.WithPubSubURL(natsURL),
 			natsmq.WithPubSubUsername(cf.MessageQueue.PubSub.NATS.Username),
 			natsmq.WithPubSubPassword(cf.MessageQueue.PubSub.NATS.Password),
+			natsmq.WithPubSubTLSEnabled(cf.MessageQueue.PubSub.NATS.TLSEnabled),
+			natsmq.WithPubSubTLSRootCAFile(cf.MessageQueue.PubSub.NATS.TLSRootCAFile),
 			natsmq.WithPubSubSubjectPrefix(cf.MessageQueue.PubSub.NATS.SubjectPrefix),
 			natsmq.WithPubSubLogger(l),
 		)

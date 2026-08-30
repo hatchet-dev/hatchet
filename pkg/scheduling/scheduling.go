@@ -35,22 +35,17 @@ type AssignedItemWithTask struct {
 	Task         *v1.V1TaskWithPayload
 }
 
-// Sentinel errors returned from optimistic scheduling. Defined here (rather
-// than per implementation) so errors.Is checks in the engine match whichever
-// scheduler implementation a shard runs.
+// Sentinel errors returned from optimistic scheduling.
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-// Pool is the engine-facing surface of a tenant scheduling pool. It is
-// implemented by both scheduling/v1 and scheduling/v1alpha, so a shard can
-// select the scheduler implementation with a feature flag at startup.
+// Pool is the engine-facing surface of a tenant scheduling pool.
 type Pool interface {
 	GetResultsCh() chan *QueueResults
 	GetConcurrencyResultsCh() chan *ConcurrencyResults
 
 	// AddExtension registers a scheduler extension (metrics, autoscaling, ...)
-	// against the pool. Extensions are written once against the shared contract
-	// in this package and work with either implementation.
+	// against the pool.
 	AddExtension(ext SchedulerExtension)
 
 	SetTenants(tenants []*sqlcv1.Tenant)

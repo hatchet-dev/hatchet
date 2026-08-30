@@ -5,6 +5,45 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.1] - 2026-08-25
+
+### Added
+
+- Adds `Hatchet.stop_embedded()` and `Hatchet.aio_stop_embedded()` to gracefully stop the embedded engine sidecar and wait until it has fully exited, including its bundled Postgres.
+
+## [1.38.0] - 2026-08-24
+
+### Added
+
+- Adds embedded mode: `Hatchet.from_embedded()` runs a full Hatchet engine locally via the `hatchet-embedded-sidecar` binary, downloaded on first use, verified against release checksums on every start, and shut down with your process.
+
+## [1.37.5] - 2026-08-21
+
+### Fixed
+
+- Correctly implements retry behavior on event pushes, which previously were silently ignored by Tenacity
+
+## [1.37.4] - 2026-08-20
+
+### Fixed
+
+- Reverts a broken TLS change from 1.37.3
+
+## [1.37.3] - 2026-08-19
+
+### Fixed
+
+- Correctly passes TLS config through to the API client
+- Passes the configured TLS server name (SNI) through to the REST client
+- Removes a call to `asyncio.to_thread` that was causing durable callback ordering to end up out-of-ordering, causing non-determinism errors.
+- Fixes a possible memory leak with satisfied (pending) durable callbacks not being removed when invocations get stale
+
+## [1.37.2] - 2026-08-12
+
+### Fixed
+
+- Reduces the amount of noise in the logs / Sentry / etc. when action listener reconnects happen and heartbeats fail, as they should auto-recover and can happen on e.g. redeployments.
+
 ## [1.37.1] - 2026-08-03
 
 ### Fixed
@@ -16,7 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adds beta `batch_task` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
-
 
 ## [1.36.0] - 2026-07-21
 
@@ -77,7 +115,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rolled back required SDK dependencies to the state at `v1.29.5`.
-
 
 ## [1.33.14] - 2026-06-26
 

@@ -74,6 +74,9 @@ export const controlPlaneApi = new ControlPlaneApi({
   timeout: CONTROL_PLANE_REQUEST_TIMEOUT_MS,
 });
 
+export const SELF_HOSTED_LIST_TIMEOUT_MS =
+  api.instance.defaults.timeout || 30_000;
+
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
 cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
 

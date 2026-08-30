@@ -73,8 +73,20 @@ func SleepCondition(duration time.Duration) condition.Condition {
 }
 
 // UserEventCondition creates a condition that waits for a user event.
-func UserEventCondition(eventKey, expression string) condition.Condition {
-	return condition.UserEventCondition(eventKey, expression)
+func UserEventCondition(eventKey, expression string, opts ...condition.UserEventConditionOpt) condition.Condition {
+	return condition.UserEventCondition(eventKey, expression, opts...)
+}
+
+// WithEventScope restricts a user event condition to events pushed with a matching scope.
+func WithEventScope(scope string) condition.UserEventConditionOpt {
+	return condition.WithEventScope(scope)
+}
+
+// WithConsiderEventsSince makes a user event condition also match events pushed
+// after the given time but before the wait was registered (event lookback).
+// Requires WithEventScope to be set as well.
+func WithConsiderEventsSince(since time.Time) condition.UserEventConditionOpt {
+	return condition.WithConsiderEventsSince(since)
 }
 
 // ParentCondition creates a condition based on a parent task's output.

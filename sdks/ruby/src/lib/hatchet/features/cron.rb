@@ -8,7 +8,7 @@ module Hatchet
     # listing, and retrieving cron workflow triggers.
     #
     # @example Creating a cron trigger
-    #   cron = cron_client.create(
+    #   cron = hatchet.cron.create(
     #     workflow_name: "my-workflow",
     #     cron_name: "daily-run",
     #     expression: "0 0 * * *",
@@ -45,7 +45,7 @@ module Hatchet
       # @raise [ArgumentError] If the cron expression is invalid
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   cron = cron_client.create(
+      #   cron = hatchet.cron.create(
       #     workflow_name: "my-workflow",
       #     cron_name: "hourly-run",
       #     expression: "0 * * * *",
@@ -76,7 +76,7 @@ module Hatchet
       # @return [void]
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   cron_client.delete("cron-123")
+      #   hatchet.cron.delete("cron-123")
       def delete(cron_id)
         @workflow_api.workflow_cron_delete(@config.tenant_id, cron_id.to_s)
       end
@@ -94,7 +94,7 @@ module Hatchet
       # @return [Object] A list of cron workflows
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   crons = cron_client.list(limit: 10, workflow_name: "my-workflow")
+      #   crons = hatchet.cron.list(limit: 10, workflow_name: "my-workflow")
       def list(offset: nil, limit: nil, workflow_id: nil, additional_metadata: nil,
                order_by_field: nil, order_by_direction: nil, workflow_name: nil, cron_name: nil)
         @workflow_api.cron_workflow_list(
@@ -118,7 +118,7 @@ module Hatchet
       # @return [Object] The requested cron workflow instance
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   cron = cron_client.get("cron-123")
+      #   cron = hatchet.cron.get("cron-123")
       def get(cron_id)
         @workflow_api.workflow_cron_get(@config.tenant_id, cron_id.to_s)
       end

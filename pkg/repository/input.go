@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type TaskInput struct {
@@ -12,6 +14,13 @@ type TaskInput struct {
 	TriggerData *MatchData `json:"trigger_datas"`
 
 	FilterPayload map[string]interface{} `json:"filter_payload"`
+
+	// task run external IDs of parent tasks in a durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
+
+	// run-level desired worker labels, carried on the DAG orchestrator task so it can
+	// propagate them to the child steps it triggers (child steps route to the same worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
@@ -38,7 +47,7 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	return i
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte, dagParentTaskRunIds []uuid.UUID) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -58,9 +67,10 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 	}
 
 	return &TaskInput{
-		Input:         input,
-		TriggerData:   triggerData,
-		FilterPayload: filterPayloadMap,
+		Input:               input,
+		TriggerData:         triggerData,
+		FilterPayload:       filterPayloadMap,
+		DagParentTaskRunIds: dagParentTaskRunIds,
 	}
 }
 
@@ -117,11 +127,13 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	triggers["filter_payload"] = t.FilterPayload
 
 	return &V1StepRunData{
-		Input:         t.Input,
-		TriggeredBy:   "manual",
-		Parents:       parents,
-		Triggers:      triggers,
-		StepRunErrors: stepRunErrors,
+		Input:               t.Input,
+		TriggeredBy:         "manual",
+		Parents:             parents,
+		Triggers:            triggers,
+		StepRunErrors:       stepRunErrors,
+		DagParentTaskRunIds: t.DagParentTaskRunIds,
+		DesiredWorkerLabels: t.DesiredWorkerLabels,
 	}
 }
 
@@ -156,6 +168,13 @@ type V1StepRunData struct {
 
 	// errors in upstream steps (only used in on-failure step)
 	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
+
+	// task run external IDs of parent tasks in a durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
+
+	// run-level desired worker labels, carried on the DAG orchestrator task so it can
+	// propagate them to the child steps it triggers
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {

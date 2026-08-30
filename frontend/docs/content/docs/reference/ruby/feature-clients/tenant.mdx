@@ -1,0 +1,43 @@
+---
+title: "Tenant"
+---
+
+# Tenant Client
+
+Tenant client for interacting with the current Hatchet tenant.
+
+This class provides a high-level interface for retrieving tenant information from the Hatchet system.
+
+```ruby
+tenant_info = hatchet.tenant.get
+```
+
+It is available on the main client as `hatchet.tenant`.
+
+Methods:
+
+| Name  | Description             |
+| ----- | ----------------------- |
+| `get` | Get the current tenant. |
+
+### Functions
+
+#### `get`
+
+Get the current tenant.
+
+```ruby
+tenant = hatchet.tenant.get
+```
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The tenant details. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

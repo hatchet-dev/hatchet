@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   Command,
   CommandEmpty,
@@ -40,6 +41,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { appRoutes } from '@/router';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -124,6 +126,7 @@ type CreateTenantInviteFormProps = {
     email: string;
     role?: TenantMemberRole;
     tenantId?: string;
+    canViewPayloads: boolean;
   }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
@@ -150,11 +153,16 @@ const CreateTenantInviteForm = ({
 
   const schema = useMemo(() => {
     const availableRoles = props.isControlPlaneEnabled
-      ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
+      ? [
+          TenantMemberRole.ADMIN,
+          TenantMemberRole.MEMBER,
+          TenantMemberRole.VIEWER,
+        ]
       : [
           TenantMemberRole.OWNER,
           TenantMemberRole.ADMIN,
           TenantMemberRole.MEMBER,
+          TenantMemberRole.VIEWER,
         ];
     const roleSchema = z.enum(
       availableRoles as [TenantMemberRole, ...TenantMemberRole[]],
@@ -167,6 +175,7 @@ const CreateTenantInviteForm = ({
       tenantId: showTenantSelect
         ? z.string({ required_error: 'Select a tenant' }).min(1)
         : z.string().optional(),
+      canViewPayloads: z.boolean(),
     });
   }, [props.isControlPlaneEnabled, showTenantSelect]);
 
@@ -174,14 +183,21 @@ const CreateTenantInviteForm = ({
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       email: props.defaultEmail ?? '',
       tenantId: props.defaultTenantId,
+      canViewPayloads: true,
     },
   });
+
+  // Keep the stored flag intact while OWNER/ADMIN are selected so switching
+  // back to MEMBER/VIEWER restores the prior choice. Force true only in the
+  // checkbox UI and on submit.
+  const payloadsLocked = payloadsLockedForRole(watch('role'));
 
   const emailError =
     errors.email?.message?.toString() || props.fieldErrors?.email;
@@ -203,7 +219,12 @@ const CreateTenantInviteForm = ({
       <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
-            props.onSubmit(d);
+            props.onSubmit({
+              ...d,
+              canViewPayloads: payloadsLockedForRole(d.role)
+                ? true
+                : d.canViewPayloads,
+            });
           })}
         >
           <div className="grid gap-4">
@@ -325,6 +346,7 @@ const CreateTenantInviteForm = ({
                           )}
                           <SelectItem value="ADMIN">Admin</SelectItem>
                           <SelectItem value="MEMBER">Member</SelectItem>
+                          <SelectItem value="VIEWER">Viewer</SelectItem>
                         </SelectContent>
                       </Select>
                     );
@@ -335,6 +357,29 @@ const CreateTenantInviteForm = ({
                 )}
               </div>
             )}
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="canViewPayloads"
+                render={({ field }) => (
+                  <Checkbox
+                    id="canViewPayloads"
+                    checked={payloadsLocked || field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={props.isLoading || payloadsLocked}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="canViewPayloads">Can view payloads</Label>
+                <p className="text-xs text-muted-foreground">
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from this user.
+                </p>
+              </div>
+            </div>
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               {showTenantSelect ? 'Add to tenant' : 'Invite user'}
@@ -430,7 +475,12 @@ export const CreateTenantInviteModal = ({
     mutationKey: ['tenant-add-or-invite'],
     mutationFn: async (
       args:
-        | { mode: 'add'; tenantId: string; memberId: string }
+        | {
+            mode: 'add';
+            tenantId: string;
+            memberId: string;
+            canViewPayloads: boolean;
+          }
         | { mode: 'invite'; tenantId: string; data: CreateTenantInviteRequest },
     ) => {
       // Org mode: the invitee is an existing org member, so add them to the
@@ -439,7 +489,10 @@ export const CreateTenantInviteModal = ({
       if (args.mode === 'add') {
         await orgApi
           .organizationTenantMembersAddMutation(organizationId!, args.tenantId)
-          .mutationFn({ memberIds: [args.memberId] });
+          .mutationFn({
+            memberIds: [args.memberId],
+            canViewPayloads: args.canViewPayloads,
+          });
         return { tenantId: args.tenantId, invite: undefined };
       }
 
@@ -475,7 +528,12 @@ export const CreateTenantInviteModal = ({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <CreateTenantInviteForm
         isLoading={createMutation.isPending}
-        onSubmit={({ email, role, tenantId: selectedTenantId }) => {
+        onSubmit={({
+          email,
+          role,
+          tenantId: selectedTenantId,
+          canViewPayloads,
+        }) => {
           // Clear any prior errors before re-submitting.
           setFieldErrors({});
           setFormErrors([]);
@@ -510,6 +568,7 @@ export const CreateTenantInviteModal = ({
               mode: 'add',
               tenantId: inviteTenantId,
               memberId: member.metadata.id,
+              canViewPayloads,
             });
             return;
           }
@@ -518,7 +577,11 @@ export const CreateTenantInviteModal = ({
           createMutation.mutate({
             mode: 'invite',
             tenantId: inviteTenantId,
-            data: { email, role: role as TenantMemberRole },
+            data: {
+              email,
+              role: role as TenantMemberRole,
+              canViewPayloads,
+            },
           });
         }}
         fieldErrors={fieldErrors}

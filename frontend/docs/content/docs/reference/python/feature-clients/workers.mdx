@@ -1,0 +1,176 @@
+---
+title: "Workers"
+---
+
+# Workers Client
+
+Bases: `BaseRestClient`
+
+The workers client is a client for managing workers programmatically within Hatchet.
+
+Methods:
+
+| Name          | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
+| `aio_get`     | Get a worker by its ID.                                         |
+| `aio_list`    | List all workers in the tenant determined by the client config. |
+| `aio_pause`   | Pause a worker by its ID.                                       |
+| `aio_unpause` | Unpause a worker by its ID.                                     |
+| `aio_update`  | Update a worker by its ID.                                      |
+| `get`         | Get a worker by its ID.                                         |
+| `list`        | List all workers in the tenant determined by the client config. |
+| `pause`       | Pause a worker by its ID.                                       |
+| `unpause`     | Unpause a worker by its ID.                                     |
+| `update`      | Update a worker by its ID.                                      |
+
+### Functions
+
+#### `aio_get`
+
+Get a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description |
+| -------- | ----------- |
+| `Worker` | The worker. |
+
+#### `aio_list`
+
+List all workers in the tenant determined by the client config.
+
+Returns:
+
+| Type         | Description        |
+| ------------ | ------------------ |
+| `WorkerList` | A list of workers. |
+
+#### `aio_pause`
+
+Pause a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                    | Default    |
+| ----------- | ----- | ------------------------------ | ---------- |
+| `worker_id` | `str` | The ID of the worker to pause. | _required_ |
+
+Returns:
+
+| Type     | Description        |
+| -------- | ------------------ |
+| `Worker` | The paused worker. |
+
+#### `aio_unpause`
+
+Unpause a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                      | Default    |
+| ----------- | ----- | -------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to unpause. | _required_ |
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `Worker` | The unpaused worker. |
+
+#### `aio_update`
+
+Update a worker by its ID.
+
+Parameters:
+
+| Name        | Type                  | Description                     | Default    |
+| ----------- | --------------------- | ------------------------------- | ---------- |
+| `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
+| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Worker` | The updated worker. |
+
+#### `get`
+
+Get a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description |
+| -------- | ----------- |
+| `Worker` | The worker. |
+
+#### `list`
+
+List all workers in the tenant determined by the client config.
+
+Returns:
+
+| Type         | Description        |
+| ------------ | ------------------ |
+| `WorkerList` | A list of workers. |
+
+#### `pause`
+
+Pause a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                    | Default    |
+| ----------- | ----- | ------------------------------ | ---------- |
+| `worker_id` | `str` | The ID of the worker to pause. | _required_ |
+
+Returns:
+
+| Type     | Description        |
+| -------- | ------------------ |
+| `Worker` | The paused worker. |
+
+#### `unpause`
+
+Unpause a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                      | Default    |
+| ----------- | ----- | -------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to unpause. | _required_ |
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `Worker` | The unpaused worker. |
+
+#### `update`
+
+Update a worker by its ID.
+
+Parameters:
+
+| Name        | Type                  | Description                     | Default    |
+| ----------- | --------------------- | ------------------------------- | ---------- |
+| `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
+| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Worker` | The updated worker. |

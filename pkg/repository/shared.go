@@ -1,11 +1,14 @@
 package repository
 
 import (
+	"context"
+	"errors"
 	"log"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -15,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
-	celgo "github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 )
 
@@ -32,6 +34,8 @@ type sharedRepository struct {
 	l       *zerolog.Logger
 	queries *sqlcv1.Queries
 
+	limitConfig limits.LimitConfigFile
+
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
 	concurrencyStrategyCache *cache.Cache
@@ -39,16 +43,17 @@ type sharedRepository struct {
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
 	workflowIdNameCache         *expirable.LRU[uuid.UUID, string]
 	stepsInWorkflowVersionCache *expirable.LRU[uuid.UUID, []*sqlcv1.ListStepsByWorkflowVersionIdsRow]
+	stepIdConfigCache           *expirable.LRU[uuid.UUID, *sqlcv1.ListStepsByIdsRow]
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
+	stepIdMatchConditionsCache  *expirable.LRU[uuid.UUID, []*sqlcv1.V1StepMatchCondition]
 
-	celParser       *cel.CELParser
-	env             *celgo.Env
-	celProgramCache *lru.Cache[uint64, celgo.Program]
-	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
-	payloadStore    PayloadStoreRepository
-	m               TenantLimitRepository
+	celParser         *cel.CELParser
+	boolExprEvaluator *cel.BoolExprEvaluator
+	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	payloadStore      PayloadStoreRepository
+	m                 TenantLimitRepository
 }
 
 func newSharedRepository(
@@ -71,19 +76,18 @@ func newSharedRepository(
 	// a workflow id always maps to the same name, so a long TTL is safe
 	workflowIdNameCache := expirable.NewLRU(10000, func(key uuid.UUID, value string) {}, time.Hour)
 	stepsInWorkflowVersionCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute)
+	stepIdConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute)
 	stepIdLabelsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute)
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
 	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
+	stepIdMatchConditionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute)
 
 	celParser := cel.NewCELParser()
 
-	env, err := celgo.NewEnv(
-		celgo.Variable("input", celgo.MapType(celgo.StringType, celgo.DynType)),
-		celgo.Variable("output", celgo.MapType(celgo.StringType, celgo.DynType)),
-	)
+	boolExprEvaluator, err := cel.NewBoolExprEvaluator()
 
 	if err != nil {
-		log.Fatalf("failed to create CEL environment: %v", err)
+		log.Fatalf("failed to create CEL bool expr evaluator: %v", err)
 	}
 
 	lookupCache, err := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](20000)
@@ -92,30 +96,26 @@ func newSharedRepository(
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
-	celProgramCache, err := lru.New[uint64, celgo.Program](50000)
-
-	if err != nil {
-		log.Fatalf("failed to create CEL program cache: %v", err)
-	}
-
 	s := &sharedRepository{
 		pool:                        pool,
 		ddlPool:                     ddlPool,
 		v:                           v,
 		l:                           l,
 		queries:                     queries,
+		limitConfig:                 c,
 		queueCache:                  queueCache,
 		stepExpressionCache:         stepExpressionCache,
 		concurrencyStrategyCache:    concurrencyStrategyCache,
 		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
 		workflowIdNameCache:         workflowIdNameCache,
 		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
+		stepIdConfigCache:           stepIdConfigCache,
 		stepIdLabelsCache:           stepIdLabelsCache,
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
+		stepIdMatchConditionsCache:  stepIdMatchConditionsCache,
 		celParser:                   celParser,
-		env:                         env,
-		celProgramCache:             celProgramCache,
+		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
 	}
@@ -125,6 +125,35 @@ func newSharedRepository(
 	s.m = tenantLimitRepository
 
 	return s, s.cleanup
+}
+
+func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
+	// fixme: can probably cache this?
+	entitlement, err := s.queries.GetTenantEntitlement(ctx, db, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.DagOperator, nil
+}
+
+func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	enabled, err := s.isDagOperatorEnabled(ctx, s.pool, tenantId)
+
+	if err != nil {
+		return false, err
+	}
+
+	if !enabled {
+		return false, nil
+	}
+
+	return s.queries.TenantHasDAGOperator(ctx, s.pool, tenantId)
 }
 
 func (s *sharedRepository) cleanup() error {

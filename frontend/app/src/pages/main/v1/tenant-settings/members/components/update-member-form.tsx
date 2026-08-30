@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   DialogContent,
   DialogHeader,
@@ -18,12 +19,14 @@ import {
 import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
   role: z.nativeEnum(TenantMemberRole),
+  canViewPayloads: z.boolean(),
 });
 
 interface UpdateMemberFormProps {
@@ -43,13 +46,20 @@ export function UpdateMemberForm({
   const {
     handleSubmit,
     control,
+    watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       role: props.member.role,
+      canViewPayloads: props.member.canViewPayloads ?? true,
     },
   });
+
+  // Keep the stored flag intact while OWNER/ADMIN are selected so switching
+  // back to MEMBER/VIEWER restores the prior choice. Force true only in the
+  // checkbox UI and on submit.
+  const payloadsLocked = payloadsLockedForRole(watch('role'));
 
   const roleError = errors.role?.message?.toString();
 
@@ -61,7 +71,12 @@ export function UpdateMemberForm({
       <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
-            props.onSubmit(d);
+            props.onSubmit({
+              ...d,
+              canViewPayloads: payloadsLockedForRole(d.role)
+                ? true
+                : d.canViewPayloads,
+            });
           })}
         >
           <div className="grid gap-4">
@@ -106,6 +121,7 @@ export function UpdateMemberForm({
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="VIEWER">Viewer</SelectItem>
                       </SelectContent>
                     </Select>
                   );
@@ -114,6 +130,29 @@ export function UpdateMemberForm({
               {roleError && (
                 <div className="text-sm text-red-500">{roleError}</div>
               )}
+            </div>
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="canViewPayloads"
+                render={({ field }) => (
+                  <Checkbox
+                    id="canViewPayloads"
+                    checked={payloadsLocked || field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={props.isLoading || payloadsLocked}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="canViewPayloads">Can view payloads</Label>
+                <p className="text-xs text-muted-foreground">
+                  Owners and admins always see payloads. Uncheck to hide inputs,
+                  outputs, and events from this member.
+                </p>
+              </div>
             </div>
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}

@@ -201,6 +201,9 @@ TenantMember:
     role:
       $ref: "#/TenantMemberRole"
       description: The role of the user in the tenant.
+    canViewPayloads:
+      type: boolean
+      description: Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true.
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
@@ -228,6 +231,7 @@ TenantMemberRole:
     - "OWNER"
     - "ADMIN"
     - "MEMBER"
+    - "VIEWER"
   type: string
 
 TenantList:
@@ -252,6 +256,9 @@ CreateTenantInviteRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads. Defaults to true.
   required:
     - email
     - role
@@ -314,6 +321,9 @@ UpdateTenantInviteRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads.
   required:
     - role
   type: object
@@ -325,6 +335,9 @@ UpdateTenantMemberRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether this member can view payloads. Ignored for OWNER and ADMIN, who always can.
   required:
     - role
   type: object
@@ -339,6 +352,9 @@ TenantInvite:
     role:
       $ref: "#/TenantMemberRole"
       description: The role of the user in the tenant.
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads. Defaults to true.
     tenantId:
       type: string
       description: The tenant id associated with this tenant invite.

@@ -1,0 +1,38 @@
+---
+title: "Introduction"
+---
+
+# Self-Hosting the Hatchet Control Plane
+
+Self-hosting Hatchet means running your own instance of the **Hatchet Control Plane** - the central orchestration system that manages workflows, schedules tasks, and coordinates worker execution. This is different from running workers, which can connect to any Hatchet instance (self-hosted or Hatchet Cloud).
+
+## What You're Self-Hosting
+
+When you self-host Hatchet, you're deploying:
+
+- **API Server** - REST APIs for workflow management
+- **Engine** - gRPC API for core workflow orchestration and task scheduling
+- **Database** - PostgreSQL for storing workflow state and metadata
+- **Message Queue (optional)** - RabbitMQ for inter-service communication and high-throughput real-time updates
+- **Dashboard** - Web UI for monitoring workflows and debugging
+
+Your **workers** (the processes that execute your workflow steps) will connect to your self-hosted control plane and execute tasks.
+
+## Deployment Options
+
+The fastest way to get a Hatchet instance running locally is with the [Hatchet CLI](/cli) (which wraps Hatchet Lite):
+
+```sh
+hatchet server start
+```
+
+There are currently three supported ways to self-host the Hatchet Control Plane:
+
+Docker:
+
+1. [Hatchet Lite](/self-hosting/hatchet-lite) - Single docker image with bundled engine and API (development, testing, or low-throughput production)
+2. [Docker Compose](/self-hosting/docker-compose) - Multi-container setup with PostgreSQL and RabbitMQ (production)
+
+Kubernetes:
+
+1. [Quickstart with Helm](/self-hosting/kubernetes-quickstart) - Production-ready Helm charts (production)

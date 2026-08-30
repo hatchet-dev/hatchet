@@ -1,0 +1,38 @@
+---
+title: "CEL"
+---
+
+# CEL Client
+
+Accessed via `client.CEL()` on the [Hatchet client](../client).
+
+## CELClient
+
+CELClient provides methods for evaluating CEL expressions
+
+### Functions
+
+#### `Debug`
+
+Debug evaluates a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production.
+
+```go
+func (c *CELClient) Debug(ctx context.Context, expression string, input map[string]any, additionalMetadata, filterPayload *map[string]any) (*rest.V1CELDebugResponse, error)
+```
+
+Parameters:
+
+| Name                 | Type              |
+| -------------------- | ----------------- |
+| `ctx`                | `context.Context` |
+| `expression`         | `string`          |
+| `input`              | `map[string]any`  |
+| `additionalMetadata` | `*map[string]any` |
+| `filterPayload`      | `*map[string]any` |
+
+Returns:
+
+| Type                       |
+| -------------------------- |
+| `*rest.V1CELDebugResponse` |
+| `error`                    |

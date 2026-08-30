@@ -1,0 +1,185 @@
+---
+title: "Crons"
+---
+
+# Crons Client
+
+Accessed via `client.Crons()` on the [Hatchet client](../client).
+
+## CronsClient
+
+CronsClient provides methods for interacting with cron workflow triggers
+
+Methods:
+
+| Name     | Description                                                                             |
+| -------- | --------------------------------------------------------------------------------------- |
+| `Create` | Create creates a new cron workflow trigger.                                             |
+| `Delete` | Delete removes a cron workflow trigger.                                                 |
+| `Get`    | Get retrieves a specific cron workflow trigger by its ID.                               |
+| `List`   | List retrieves a collection of cron workflow triggers based on the provided parameters. |
+
+### Functions
+
+#### `Create`
+
+Create creates a new cron workflow trigger.
+
+```go
+func (c *CronsClient) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error)
+```
+
+Parameters:
+
+| Name           | Type                |
+| -------------- | ------------------- |
+| `ctx`          | `context.Context`   |
+| `workflowName` | `string`            |
+| `cron`         | `CreateCronTrigger` |
+
+Returns:
+
+| Type                  |
+| --------------------- |
+| `*rest.CronWorkflows` |
+| `error`               |
+
+#### `Delete`
+
+Delete removes a cron workflow trigger.
+
+```go
+func (c *CronsClient) Delete(ctx context.Context, cronId string) error
+```
+
+Parameters:
+
+| Name     | Type              |
+| -------- | ----------------- |
+| `ctx`    | `context.Context` |
+| `cronId` | `string`          |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `Get`
+
+Get retrieves a specific cron workflow trigger by its ID.
+
+```go
+func (c *CronsClient) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
+```
+
+Parameters:
+
+| Name     | Type              |
+| -------- | ----------------- |
+| `ctx`    | `context.Context` |
+| `cronId` | `string`          |
+
+Returns:
+
+| Type                  |
+| --------------------- |
+| `*rest.CronWorkflows` |
+| `error`               |
+
+#### `List`
+
+List retrieves a collection of cron workflow triggers based on the provided parameters.
+
+```go
+func (c *CronsClient) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error)
+```
+
+Parameters:
+
+| Name   | Type                          |
+| ------ | ----------------------------- |
+| `ctx`  | `context.Context`             |
+| `opts` | `rest.CronWorkflowListParams` |
+
+Returns:
+
+| Type                      |
+| ------------------------- |
+| `*rest.CronWorkflowsList` |
+| `error`                   |
+
+## Related types
+
+### RunPriority
+
+RunPriority is the priority for a workflow run.
+
+```go
+const (
+	// RunPriorityLow is the lowest priority for a workflow run.
+	RunPriorityLow	RunPriority	= 1
+	// RunPriorityMedium is the medium priority for a workflow run.
+	RunPriorityMedium	RunPriority	= 2
+	// RunPriorityHigh is the highest priority for a workflow run.
+	RunPriorityHigh	RunPriority	= 3
+)
+```
+
+### CreateCronTrigger
+
+CreateCronTrigger contains the configuration for creating a cron trigger.
+
+Fields:
+
+| Name                 | Type                     | Description                                                                   |
+| -------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `Name`               | `string`                 | Name is the unique identifier for the cron trigger.                           |
+| `Expression`         | `string`                 | Expression is the cron expression that defines the schedule.                  |
+| `Input`              | `map[string]interface{}` | (optional) Input is the input data for the workflow.                          |
+| `AdditionalMetadata` | `map[string]interface{}` | (optional) AdditionalMetadata is metadata to associate with the cron trigger. |
+| `Priority`           | `*RunPriority`           | (optional) Priority is the priority of the run triggered by the cron.         |
+
+### `IsValidCronExpression`
+
+IsValidCronExpression validates that a string is a valid cron expression.
+
+```go
+func IsValidCronExpression(expression string) bool
+```
+
+Parameters:
+
+| Name         | Type     |
+| ------------ | -------- |
+| `expression` | `string` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |
+
+### InvalidCronExpressionError
+
+InvalidCronExpressionError represents an error when an invalid cron expression is provided.
+
+Fields:
+
+| Name         | Type     | Description |
+| ------------ | -------- | ----------- |
+| `Expression` | `string` |             |
+
+#### Functions
+
+##### `Error`
+
+```go
+func (e *InvalidCronExpressionError) Error() string
+```
+
+Returns:
+
+| Type     |
+| -------- |
+| `string` |

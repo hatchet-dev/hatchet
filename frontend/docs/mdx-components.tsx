@@ -1,14 +1,22 @@
-// MDX components for Nextra 4
-import { Callout, Cards, Steps, Tabs, FileTree } from "nextra/components";
+import defaultMdxComponents from "fumadocs-ui/mdx";
+import {
+  Callout,
+  Cards,
+  Steps,
+  Tabs,
+  FileTree,
+} from "@/components/nextra-compat";
+import { Mermaid } from "@/components/Mermaid";
 
-export function useMDXComponents(components: Record<string, unknown>) {
+export function getMDXComponents(components: Record<string, unknown> = {}) {
   return {
-    ...components,
-    // Adding Nextra components so they can be used in MDX files
+    ...defaultMdxComponents,
     Callout,
     Cards,
     Steps,
     Tabs,
     FileTree,
+    Mermaid,
+    ...components,
   };
 }

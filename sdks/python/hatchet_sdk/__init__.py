@@ -139,7 +139,14 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     or_,
 )
-from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
+from hatchet_sdk.config import (
+    ClientConfig,
+    ClientTLSConfig,
+    EmbeddedHatchetConfig,
+    HealthcheckConfig,
+    OpenTelemetryConfig,
+    TenacityConfig,
+)
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
@@ -156,6 +163,7 @@ from hatchet_sdk.exceptions import (
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     DefaultFilter,
@@ -228,6 +236,7 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
+    "EmbeddedHatchetConfig",
     "EmptyModel",
     "Event",
     "EventData",
@@ -237,12 +246,14 @@ __all__ = [
     "EventOrderByField",
     "EventWorkflowRunSummary",
     "EvictionNotSupportedError",
+    "EvictionPolicy",
     "FailedTaskRunExceptionGroup",
     "GetStepRunDiffResponse",
     "GithubAppInstallation",
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "HealthcheckConfig",
     "IdempotencyCollisionError",
     "Job",
     "JobRun",
@@ -291,6 +302,7 @@ __all__ = [
     "TaskDefaults",
     "TaskRunError",
     "TaskRunRef",
+    "TenacityConfig",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
