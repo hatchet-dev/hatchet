@@ -2,9 +2,10 @@ module github.com/hatchet-dev/hatchet/sdks/go/examples/embedded
 
 go 1.26.4
 
-require github.com/hatchet-dev/hatchet-embedded v0.105.0
-
-require github.com/hatchet-dev/hatchet v0.105.0 // indirect
+require (
+	github.com/hatchet-dev/hatchet v0.105.0
+	github.com/hatchet-dev/hatchet-embedded v0.105.0
+)
 
 require (
 	cel.dev/expr v0.25.3 // indirect
@@ -57,7 +58,6 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/hatchet-dev/hatchet/sdks/go v0.0.0
 	github.com/hatchet-dev/pgoutbox v0.4.0 // indirect
 	github.com/hatchet-dev/timediff v0.0.4 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6 // indirect
@@ -144,7 +144,3 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/hatchet-dev/hatchet => ../../../..
-
-replace github.com/hatchet-dev/hatchet/sdks/go => ../..
