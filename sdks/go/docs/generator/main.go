@@ -900,11 +900,11 @@ func renderClientPage(p *pkgDocs, accessors []accessor) string {
 		b.WriteString(table([]string{"Name", "Description"}, methodRows(p, methods)) + "\n")
 
 		b.WriteString("### Feature clients\n\n")
-		b.WriteString("The client exposes lazily-initialized [feature clients](./feature-clients/" + accessors[0].page + ") as methods:\n\n")
+		b.WriteString("The client exposes lazily-initialized [feature clients](/reference/go/feature-clients/" + accessors[0].page + ") as methods:\n\n")
 		for _, a := range accessors {
 			fmt.Fprintf(&b, "#### `%s()`\n\n", a.method)
 			desc := synopsis(p, a.doc)
-			fmt.Fprintf(&b, "%s See the [%s client](./feature-clients/%s).\n\n", desc, a.title, a.page)
+			fmt.Fprintf(&b, "%s See the [%s client](/reference/go/feature-clients/%s).\n\n", desc, a.title, a.page)
 		}
 
 		b.WriteString("### Functions\n\n")
@@ -992,7 +992,7 @@ const runnablesIntro = `Runnables in the Hatchet Go SDK are things that can be r
 - ` + "`Workflow`" + `, which lets you declare tasks with ` + "`NewTask`" + ` and call the run methods
 - ` + "`StandaloneTask`" + `, which is a single task returned by ` + "`client.NewStandaloneTask`" + ` (or its durable/batch variants) and supports the same run methods
 
-Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](./client) for the constructors.
+Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](/reference/go/client) for the constructors.
 `
 
 func renderRunnablesPage(p *pkgDocs) string {
@@ -1064,7 +1064,7 @@ func renderRunnablesPage(p *pkgDocs) string {
 	}
 	if len(condFns) > 0 {
 		b.WriteString("## Conditions\n\n")
-		b.WriteString("Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):\n\n")
+		b.WriteString("Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):\n\n")
 		b.WriteString(optionTable(p, condFns) + "\n")
 	}
 
@@ -1115,7 +1115,7 @@ func renderFeaturePage(features *pkgDocs, a accessor) string {
 	b.WriteString(frontmatter(a.title))
 	b.WriteString(generatedNotice())
 	fmt.Fprintf(&b, "# %s Client\n\n", a.title)
-	fmt.Fprintf(&b, "Accessed via `client.%s()` on the [Hatchet client](../client).\n\n", a.method)
+	fmt.Fprintf(&b, "Accessed via `client.%s()` on the [Hatchet client](/reference/go/client).\n\n", a.method)
 
 	// The features package keeps one file per feature client; render the client type
 	// first, then every other exported declaration from the same file.

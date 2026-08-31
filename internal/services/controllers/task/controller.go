@@ -1198,8 +1198,49 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 		return fmt.Errorf("failed to move newly paused workflows: %w", err)
 	}
 
-	if err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows); err != nil {
+	queueNames, concurrencyStrategyIds, err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows)
+
+	if err != nil {
 		return fmt.Errorf("failed to requeued tasks for newly unpaused workflows: %w", err)
+	}
+
+	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
+		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) notifySchedulerOfRequeuedItems(ctx context.Context, tenantId uuid.UUID, queueNames []string, concurrencyStrategyIds []int64) error {
+	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not get tenant for scheduler notification: %w", err)
+	}
+
+	if !tenant.SchedulerPartitionId.Valid {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCheckTenantQueue,
+		true,
+		false,
+		tasktypes.CheckTenantQueuesPayload{
+			QueueNames:  queueNames,
+			StrategyIds: concurrencyStrategyIds,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to build check-tenant-queue message for queues %v: %w", queueNames, err)
+	}
+
+	if err := tc.pubsub.Pub(ctx, msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String), msg); err != nil {
+		return fmt.Errorf("failed to notify scheduler for queues %v: %w", queueNames, err)
 	}
 
 	return nil

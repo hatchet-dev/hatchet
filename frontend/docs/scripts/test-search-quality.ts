@@ -551,6 +551,47 @@ const TEST_CASES: SearchTestCase[] = [
   },
 
   // -------------------------------------------------------------------------
+  // Embedded mode / local development
+  // -------------------------------------------------------------------------
+  {
+    name: "embedded",
+    query: "embedded",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "local development → embedded",
+    query: "local development",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "run hatchet locally without docker",
+    query: "run hatchet locally without docker",
+    expectAnyOf: ["v1/embedded"],
+    topN: 10,
+  },
+  {
+    name: "in-process engine → embedded",
+    query: "in-process engine",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "embedded postgres",
+    query: "embedded postgres",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "local testing → embedded",
+    query: "local testing",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "testing in ci → embedded",
+    query: "testing workers in ci",
+    expectAnyOf: ["v1/embedded"],
+    topN: 10,
+  },
+
+  // -------------------------------------------------------------------------
   // Code-specific searches
   // -------------------------------------------------------------------------
   {

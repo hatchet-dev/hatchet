@@ -1059,9 +1059,24 @@ WHERE q.tenant_id = i.tenant_id
 
 -- name: MovePausedWorkflowQueueItems :exec
 WITH moved_items AS (
-    DELETE FROM v1_queue_item
-    WHERE workflow_id = ANY(@workflowIds::UUID[]) AND tenant_id = @tenantId::UUID
+    DELETE FROM v1_queue_item qi
+    WHERE
+        qi.workflow_id = ANY(@workflowIds::UUID[])
+        AND qi.tenant_id = @tenantId::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
     RETURNING *
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE
+        cs.task_id = mi.task_id
+        AND cs.task_inserted_at = mi.task_inserted_at
+        AND cs.task_retry_count = mi.retry_count
+    RETURNING cs.task_id
 )
 
 INSERT INTO v1_paused_workflow_queue_item (
@@ -1106,13 +1121,147 @@ ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
 
--- name: RequeuePausedWorkflowQueueItems :exec
+-- name: MovePausedWorkflowConcurrencySlots :exec
+WITH tasks_to_move AS (
+    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    WHERE
+        cs.workflow_id = ANY(@workflowIds::UUID[])
+        AND cs.tenant_id = @tenantId::UUID
+        AND cs.is_filled = FALSE
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = cs.workflow_id AND w."isPaused"
+        )
+), deleted_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING tasks_to_move p
+    WHERE
+        cs.task_id = p.task_id
+        AND cs.task_inserted_at = p.task_inserted_at
+        AND cs.task_retry_count = p.task_retry_count
+    RETURNING cs.task_id
+)
+
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+)
+SELECT
+    t.tenant_id,
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.action_id,
+    t.step_id,
+    t.workflow_id,
+    t.workflow_run_id,
+    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
+    t.step_timeout,
+    COALESCE(t.priority, 1),
+    t.sticky,
+    t.desired_worker_id,
+    t.retry_count,
+    t.desired_worker_label,
+    t.batch_key
+FROM tasks_to_move p
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (p.task_id, p.task_inserted_at, p.task_retry_count)
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count;
+
+
+-- name: MovePausedWorkflowRateLimitedQueueItems :exec
+WITH moved_items AS (
+    DELETE FROM v1_rate_limited_queue_items qi
+    WHERE
+        qi.workflow_id = ANY(@workflowIds::UUID[])
+        AND qi.tenant_id = @tenantId::UUID
+        AND EXISTS (
+            SELECT 1
+            FROM "Workflow" w
+            WHERE w."id" = qi.workflow_id AND w."isPaused"
+        )
+    RETURNING *
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE
+        cs.task_id = mi.task_id
+        AND cs.task_inserted_at = mi.task_inserted_at
+        AND cs.task_retry_count = mi.retry_count
+    RETURNING cs.task_id
+)
+
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+FROM moved_items
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count;
+
+
+-- name: RequeuePausedWorkflowQueueItems :many
 WITH ready_items AS (
-    SELECT *
-    FROM v1_paused_workflow_queue_item
-    WHERE workflow_id = ANY(@workflowIds::UUID[]) AND tenant_id = @tenantId::UUID
-    ORDER BY task_inserted_at, task_id, retry_count
-    FOR UPDATE SKIP LOCKED
+    SELECT pqi.*
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    WHERE
+        pqi.workflow_id = ANY(@workflowIds::UUID[])
+        AND pqi.tenant_id = @tenantId::UUID
+        AND t.concurrency_strategy_ids[1] IS NULL
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
     DELETE FROM v1_paused_workflow_queue_item
     WHERE (task_inserted_at, task_id, retry_count) IN (
@@ -1162,8 +1311,94 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
+RETURNING queue
 ;
+
+-- name: RequeuePausedWorkflowConcurrencySlots :many
+WITH ready_items AS (
+    SELECT pqi.*
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    WHERE
+        pqi.workflow_id = ANY(@workflowIds::UUID[])
+        AND pqi.tenant_id = @tenantId::UUID
+        AND t.concurrency_strategy_ids[1] IS NOT NULL
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
+), deleted_items AS (
+    DELETE FROM v1_paused_workflow_queue_item
+    WHERE (task_inserted_at, task_id, retry_count) IN (
+        SELECT task_inserted_at, task_id, retry_count
+        FROM ready_items
+    )
+    RETURNING *
+)
+
+INSERT INTO v1_concurrency_slot (
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    external_id,
+    tenant_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    parent_strategy_id,
+    next_parent_strategy_ids,
+    strategy_id,
+    next_strategy_ids,
+    priority,
+    key,
+    next_keys,
+    queue_to_notify,
+    schedule_timeout_at
+)
+
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.tenant_id,
+    t.workflow_id,
+    t.workflow_version_id,
+    t.workflow_run_id,
+    t.concurrency_parent_strategy_ids[1],
+    CASE
+        WHEN array_length(t.concurrency_parent_strategy_ids, 1) > 1 THEN t.concurrency_parent_strategy_ids[2:array_length(t.concurrency_parent_strategy_ids, 1)]
+        ELSE '{}'::bigint[]
+    END,
+    t.concurrency_strategy_ids[1],
+    CASE
+        WHEN array_length(t.concurrency_strategy_ids, 1) > 1 THEN t.concurrency_strategy_ids[2:array_length(t.concurrency_strategy_ids, 1)]
+        ELSE '{}'::bigint[]
+    END,
+    ri.priority,
+    t.concurrency_keys[1],
+    CASE
+        WHEN array_length(t.concurrency_keys, 1) > 1 THEN t.concurrency_keys[2:array_length(t.concurrency_keys, 1)]
+        ELSE '{}'::text[]
+    END,
+    t.queue,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
+FROM ready_items ri
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
+RETURNING strategy_id
+;
+
+-- name: ListUnpausedWorkflowsWithPausedQueueItems :many
+SELECT w."id"
+FROM "Workflow" w
+WHERE
+    w."tenantId" = @tenantId::UUID
+    AND w."deletedAt" IS NULL
+    AND w."isPaused" = FALSE
+    AND EXISTS (
+        SELECT 1
+        FROM v1_paused_workflow_queue_item qi
+        WHERE qi.workflow_id = w."id" AND qi.tenant_id = @tenantId::UUID
+    );
 
 -- name: ListExpiredPausedWorkflowQueueItems :many
 SELECT
