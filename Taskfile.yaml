@@ -56,7 +56,10 @@ tasks:
         SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
         EOF
   fmt-go:
-    cmd: gofmt -s -w .
+    # *_go127.go hold Go 1.27 generic methods, which the go1.26 gofmt parser rejects.
+    # gofmt ignores build tags, so those files are excluded here and formatted with a
+    # go1.27+ toolchain instead. -exec ... + batches args to avoid ARG_MAX limits.
+    cmd: find . -type f -name '*.go' -not -name '*_go127.go' -exec gofmt -s -w {} +
   fmt-app:
     dir: frontend/app
     cmd: pnpm run prettier:fix && pnpm run prettier:check
@@ -233,7 +236,10 @@ tasks:
   generate-sdk-docs-go:
     dir: sdks/go
     cmds:
-      - go run ./docs/generator
+      # Pin to Go 1.27+ so the generator's parser can read the generic-method (go1.27)
+      # files and document both the go1.27 and pre-go1.27 signatures. An older toolchain
+      # can't parse the generic files and would emit only the reflection signatures.
+      - GOTOOLCHAIN=go1.27.0 go run ./docs/generator
   generate-sdk-docs-ruby:
     dir: sdks/ruby
     cmds:

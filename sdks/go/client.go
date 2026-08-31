@@ -650,23 +650,10 @@ func promoteTaskTriggers(taskOptions []TaskOption, workflowOptions []WorkflowOpt
 	return workflowOptions
 }
 
-// NewStandaloneTask creates a standalone task that can be triggered independently.
-// This is a specialized workflow containing only one task, making it easier to create
-// simple single-task workflows without the workflow boilerplate.
-//
-// The function parameter must have the signature:
-//
-//	func(ctx hatchet.Context, input any) (any, error)
-//
-// Function signatures are validated at runtime using reflection.
-//
-// Options can be any combination of WorkflowOption and TaskOption.
-func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask {
-	if name == "" {
-		panic("standalone task name cannot be empty")
-	}
-
-	// Separate workflow and task options
+// splitStandaloneOptions separates the mixed workflow/task options passed to the standalone
+// constructors and promotes task-level triggers (cron/events) to the workflow. Shared by
+// both the Go 1.27+ generic constructors and the reflection-based fallback.
+func splitStandaloneOptions(name string, options []StandaloneTaskOption) ([]WorkflowOption, []TaskOption) {
 	var workflowOptions []WorkflowOption
 	var taskOptions []TaskOption
 
@@ -677,22 +664,11 @@ func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTas
 		case TaskOption:
 			taskOptions = append(taskOptions, o)
 		default:
-			panic("invalid option type for standalone task - must be WorkflowOption or TaskOption")
+			panic("invalid option type for standalone task '" + name + "' - must be WorkflowOption or TaskOption")
 		}
 	}
 
-	workflowOptions = promoteTaskTriggers(taskOptions, workflowOptions)
-
-	// Create a workflow with the same name as the task
-	workflow := c.NewWorkflow(name, workflowOptions...)
-
-	// Create the single task within the workflow
-	task := workflow.NewTask(name, fn, taskOptions...)
-
-	return &StandaloneTask{
-		workflow: workflow,
-		task:     task,
-	}
+	return promoteTaskTriggers(taskOptions, workflowOptions), taskOptions
 }
 
 // NewStandaloneBatchTask creates a standalone batch task that can be triggered independently.
@@ -746,51 +722,6 @@ func (c *Client) NewStandaloneBatchTask(name string, fn any, batch BatchConfig, 
 	}
 }
 
-// NewStandaloneDurableTask creates a standalone durable task that can be triggered independently.
-// This is a specialized workflow containing only one durable task, making it easier to create
-// simple single-task workflows with durable functionality.
-//
-// The function parameter must have the signature:
-//
-//	func(ctx hatchet.DurableContext, input any) (any, error)
-//
-// Function signatures are validated at runtime using reflection.
-//
-// Options can be any combination of WorkflowOption and TaskOption.
-func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask {
-	if name == "" {
-		panic("standalone durable task name cannot be empty")
-	}
-
-	// Separate workflow and task options
-	var workflowOptions []WorkflowOption
-	var taskOptions []TaskOption
-
-	for _, opt := range options {
-		switch o := opt.(type) {
-		case WorkflowOption:
-			workflowOptions = append(workflowOptions, o)
-		case TaskOption:
-			taskOptions = append(taskOptions, o)
-		default:
-			panic("invalid option type for standalone durable task - must be WorkflowOption or TaskOption")
-		}
-	}
-
-	workflowOptions = promoteTaskTriggers(taskOptions, workflowOptions)
-
-	// Create a workflow with the same name as the task
-	workflow := c.NewWorkflow(name, workflowOptions...)
-
-	// Create the single durable task within the workflow
-	task := workflow.NewDurableTask(name, fn, taskOptions...)
-
-	return &StandaloneTask{
-		workflow: workflow,
-		task:     task,
-	}
-}
-
 // Run executes the standalone task with the provided input and waits for completion.
 func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error) {
 	workflowRunRef, err := st.workflow.Run(ctx, input, opts...)
@@ -823,12 +754,6 @@ func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]W
 	}
 
 	return workflowRefs, nil
-}
-
-// OnFailure sets a failure handler for the standalone task.
-// The handler will be called when the standalone task fails.
-func (st *StandaloneTask) OnFailure(fn any) {
-	st.workflow.OnFailure(fn)
 }
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.

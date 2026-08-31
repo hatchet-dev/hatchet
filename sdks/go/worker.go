@@ -23,7 +23,6 @@ type workerConfig struct {
 
 type WorkflowBase interface {
 	GetName() string
-	OnFailure(fn any)
 
 	// Internal use only. Will be removed in the future.
 	Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn)

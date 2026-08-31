@@ -86,17 +86,17 @@ type DesiredWorkerLabels struct {
 	// value of the affinity
 	StrValue *string `protobuf:"bytes,1,opt,name=str_value,json=strValue,proto3,oneof" json:"str_value,omitempty"`
 	IntValue *int32  `protobuf:"varint,2,opt,name=int_value,json=intValue,proto3,oneof" json:"int_value,omitempty"`
-	// *
+	//*
 	// (optional) Specifies whether the affinity setting is required.
 	// If required, the worker will not accept actions that do not have a truthy affinity setting.
 	//
 	// Defaults to false.
 	Required *bool `protobuf:"varint,3,opt,name=required,proto3,oneof" json:"required,omitempty"`
-	// *
+	//*
 	// (optional) Specifies the comparator for the affinity setting.
 	// If not set, the default is EQUAL.
 	Comparator *WorkerLabelComparator `protobuf:"varint,4,opt,name=comparator,proto3,enum=v1.WorkerLabelComparator,oneof" json:"comparator,omitempty"`
-	// *
+	//*
 	// (optional) Specifies the weight of the affinity setting.
 	// If not set, the default is 100.
 	Weight *int32 `protobuf:"varint,5,opt,name=weight,proto3,oneof" json:"weight,omitempty"`
