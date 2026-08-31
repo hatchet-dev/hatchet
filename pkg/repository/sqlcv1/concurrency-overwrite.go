@@ -734,33 +734,43 @@ WITH slots AS (
         slots
     WHERE
         rn <= $3::int
-), all_slots_ranked AS (
-    -- Ranks every (non-timed-out) task for this strategy regardless of parent admission, so a task
-    -- whose run was never admitted can still be recognized as one of the newest maxRuns and spared.
-    SELECT
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        row_number() OVER (PARTITION BY key ORDER BY sort_id ASC) AS rn,
-        count(*) OVER (PARTITION BY key) AS key_count
-    FROM
-        v1_concurrency_slot
-    WHERE
-        tenant_id = $1::uuid AND
-        strategy_id = $2::bigint AND
-        (
-            schedule_timeout_at >= NOW() OR
-            is_filled = TRUE
-        )
-), newest_queued AS (
+), queued_survivors AS (
+    -- The tasks kept queued as survivors after this pass: of every (non-timed-out) task for this
+    -- strategy that is NOT being promoted to run, the newest maxRuns by arrival. The running band is
+    -- subtracted here rather than assumed to occupy the oldest maxRuns ranks, so the survivor set is
+    -- always exactly maxRuns (never running-band + maxRuns), and a task whose run was never admitted
+    -- can still qualify - without that this would degrade to plain CANCEL_NEWEST for tasks waiting on
+    -- parent admission.
     SELECT
         task_id,
         task_inserted_at,
         task_retry_count
-    FROM
-        all_slots_ranked
+    FROM (
+        SELECT
+            task_id,
+            task_inserted_at,
+            task_retry_count,
+            row_number() OVER (PARTITION BY key ORDER BY sort_id DESC) AS rn_survivor
+        FROM
+            v1_concurrency_slot
+        WHERE
+            tenant_id = $1::uuid AND
+            strategy_id = $2::bigint AND
+            (
+                schedule_timeout_at >= NOW() OR
+                is_filled = TRUE
+            ) AND
+            (task_inserted_at, task_id, task_retry_count) NOT IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count
+                FROM
+                    eligible_running_slots ers
+            )
+    ) ranked
     WHERE
-        rn > key_count - $3::int
+        rn_survivor <= $3::int
 ), all_slots AS (
     SELECT
         cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at,
@@ -790,11 +800,11 @@ WITH slots AS (
                 ) AND
                 (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                     SELECT
-                        nq.task_inserted_at,
-                        nq.task_id,
-                        nq.task_retry_count
+                        qs.task_inserted_at,
+                        qs.task_id,
+                        qs.task_retry_count
                     FROM
-                        newest_queued nq
+                        queued_survivors qs
                 ) AND
                 (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
                     SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
@@ -831,11 +841,11 @@ WITH slots AS (
             ) AND
             (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                 SELECT
-                    nq.task_inserted_at,
-                    nq.task_id,
-                    nq.task_retry_count
+                    qs.task_inserted_at,
+                    qs.task_id,
+                    qs.task_retry_count
                 FROM
-                    newest_queued nq
+                    queued_survivors qs
             ) AND
             (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
@@ -979,14 +989,12 @@ func (q *Queries) RunChildCancelQueuedExceptNewest(ctx context.Context, db DBTX,
 }
 
 // Used for CANCEL_QUEUED_EXCEPT_OLDEST scheduling when a strategy has a parent strategy. Same shape as
-// RunChildCancelQueuedExceptNewest, except the spared band is the oldest maxRuns of the queued backlog
-// instead of the newest: since all_slots_ranked already ranks oldest-first, "oldest maxRuns still
-// queued" is just the next maxRuns ranks after the ones already running (rn <= 2*maxRuns covers both
-// bands), so no key_count/reverse ranking is needed the way RunChildCancelQueuedExceptNewest needs it. As
-// with RunChildCancelQueuedExceptNewest, this ranking deliberately does NOT join to
-// tmp_workflow_concurrency_slot: a task whose run was never admitted must still be able to qualify
-// as one of the oldest maxRuns and be spared, or this would degrade to plain CANCEL_NEWEST for every
-// task waiting on parent admission.
+// RunChildCancelQueuedExceptNewest, except queued_survivors keeps the oldest maxRuns of the non-running
+// backlog instead of the newest (ORDER BY sort_id ASC vs DESC). As with RunChildCancelQueuedExceptNewest,
+// the survivor ranking deliberately does NOT join to tmp_workflow_concurrency_slot - a task whose run was
+// never admitted must still be able to qualify as one of the oldest maxRuns and be spared, or this would
+// degrade to plain CANCEL_NEWEST for every task waiting on parent admission - and it subtracts the running
+// band explicitly so the survivor set is always exactly maxRuns.
 const runChildCancelQueuedExceptOldest = `-- name: RunChildCancelQueuedExceptOldest :many
 WITH slots AS (
     SELECT
@@ -1040,32 +1048,43 @@ WITH slots AS (
         slots
     WHERE
         rn <= $3::int
-), all_slots_ranked AS (
-    -- Ranks every (non-timed-out) task for this strategy regardless of parent admission, so a task
-    -- whose run was never admitted can still be recognized as one of the oldest maxRuns and spared.
-    SELECT
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        row_number() OVER (PARTITION BY key ORDER BY sort_id ASC) AS rn
-    FROM
-        v1_concurrency_slot
-    WHERE
-        tenant_id = $1::uuid AND
-        strategy_id = $2::bigint AND
-        (
-            schedule_timeout_at >= NOW() OR
-            is_filled = TRUE
-        )
-), oldest_survivors AS (
+), queued_survivors AS (
+    -- The tasks kept queued as survivors after this pass: of every (non-timed-out) task for this
+    -- strategy that is NOT being promoted to run, the oldest maxRuns by arrival. The running band is
+    -- subtracted here rather than assumed to occupy the oldest maxRuns ranks, so the survivor set is
+    -- always exactly maxRuns (never running-band + maxRuns), and a task whose run was never admitted
+    -- can still qualify - without that this would degrade to plain CANCEL_NEWEST for tasks waiting on
+    -- parent admission.
     SELECT
         task_id,
         task_inserted_at,
         task_retry_count
-    FROM
-        all_slots_ranked
+    FROM (
+        SELECT
+            task_id,
+            task_inserted_at,
+            task_retry_count,
+            row_number() OVER (PARTITION BY key ORDER BY sort_id ASC) AS rn_survivor
+        FROM
+            v1_concurrency_slot
+        WHERE
+            tenant_id = $1::uuid AND
+            strategy_id = $2::bigint AND
+            (
+                schedule_timeout_at >= NOW() OR
+                is_filled = TRUE
+            ) AND
+            (task_inserted_at, task_id, task_retry_count) NOT IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count
+                FROM
+                    eligible_running_slots ers
+            )
+    ) ranked
     WHERE
-        rn <= 2 * $3::int
+        rn_survivor <= $3::int
 ), all_slots AS (
     SELECT
         cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at,
@@ -1095,11 +1114,11 @@ WITH slots AS (
                 ) AND
                 (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                     SELECT
-                        os.task_inserted_at,
-                        os.task_id,
-                        os.task_retry_count
+                        qs.task_inserted_at,
+                        qs.task_id,
+                        qs.task_retry_count
                     FROM
-                        oldest_survivors os
+                        queued_survivors qs
                 ) AND
                 (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
                     SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
@@ -1136,11 +1155,11 @@ WITH slots AS (
             ) AND
             (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                 SELECT
-                    os.task_inserted_at,
-                    os.task_id,
-                    os.task_retry_count
+                    qs.task_inserted_at,
+                    qs.task_id,
+                    qs.task_retry_count
                 FROM
-                    oldest_survivors os
+                    queued_survivors qs
             ) AND
             (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id

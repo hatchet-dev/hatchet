@@ -16,14 +16,16 @@ class WorkflowInput(BaseModel):
     group: str
 
 
-concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow = hatchet.workflow(
-    name="ConcurrencyCancelQueuedExceptNewestWithParentConcurrency",
-    input_validator=WorkflowInput,
-    concurrency=ConcurrencyExpression(
-        expression="input.group",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST,
-    ),
+concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow = (
+    hatchet.workflow(
+        name="ConcurrencyCancelQueuedExceptNewestWithParentConcurrency",
+        input_validator=WorkflowInput,
+        concurrency=ConcurrencyExpression(
+            expression="input.group",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST,
+        ),
+    )
 )
 
 
@@ -43,7 +45,9 @@ async def task_2(input: WorkflowInput, ctx: Context) -> None:
 def main() -> None:
     worker = hatchet.worker(
         "concurrency-cancel-queued-except-newest-with-parent-concurrency-worker",
-        workflows=[concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow],
+        workflows=[
+            concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow
+        ],
     )
     worker.start()
 
