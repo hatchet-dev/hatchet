@@ -79,10 +79,10 @@ type IdempotencyConfig struct {
 
 type CreateConcurrencyOpts struct {
 	// (optional) the maximum number of concurrent workflow runs, default 1
-	MaxRuns *int32
+	MaxRuns *int32 `json:"maxRuns,omitempty" validate:"omitempty,min=1"`
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST"`
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
 
 	// (required) a concurrency expression for evaluating the concurrency key
 	Expression string `validate:"celworkflowrunstr"`

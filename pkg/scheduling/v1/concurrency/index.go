@@ -81,6 +81,15 @@ func priorityCompare(a, b slot) int {
 	return cmp.Compare(a.taskId, b.taskId)
 }
 
+// cancelQueuedExceptCompare is the ordering shared by CANCEL_QUEUED_EXCEPT_NEWEST and CANCEL_QUEUED_EXCEPT_OLDEST. It does not consider priority,
+// but only the inserted time, and if that matches, then the ordering of the task ids.
+func cancelQueuedExceptCompare(a, b slot) int {
+	if a.taskInsertedAtNs != b.taskInsertedAtNs {
+		return cmp.Compare(a.taskInsertedAtNs, b.taskInsertedAtNs)
+	}
+	return cmp.Compare(a.taskId, b.taskId)
+}
+
 // cancelInProgressCompare is priorityCompare with the recency tiebreak reversed: higher priority
 // first, then LATER taskInsertedAt, then HIGHER taskId. Among equal-priority slots it keeps the
 // NEWEST, matching the legacy runCancelInProgress SQL (ORDER BY sort_id DESC) - CANCEL_IN_PROGRESS
