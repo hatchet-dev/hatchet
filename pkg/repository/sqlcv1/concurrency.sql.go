@@ -109,6 +109,23 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const createParentTempTable = `-- name: CreateParentTempTable :exec
+CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
+SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
+FROM v1_workflow_concurrency_slot
+WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint
+`
+
+type CreateParentTempTableParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+}
+
+func (q *Queries) CreateParentTempTable(ctx context.Context, db DBTX, arg CreateParentTempTableParams) error {
+	_, err := db.Exec(ctx, createParentTempTable, arg.Tenantid, arg.Strategyid)
+	return err
+}
+
 const deactivateStaleStepConcurrency = `-- name: DeactivateStaleStepConcurrency :exec
 WITH tenant_step_concurrencies AS (
     SELECT sc.id

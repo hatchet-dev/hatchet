@@ -1,3 +1,9 @@
+-- name: CreateParentTempTable :exec
+CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
+SELECT *
+FROM v1_workflow_concurrency_slot
+WHERE tenant_id = @tenantId::uuid AND strategy_id = @strategyId::bigint;
+
 -- name: ListActiveConcurrencyStrategies :many
 SELECT
     sc.*

@@ -395,17 +395,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
@@ -626,18 +619,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
 			}, nil
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
-
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -887,17 +872,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptOldest(
 			}, nil
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
@@ -1149,18 +1127,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			}, nil
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
-
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
