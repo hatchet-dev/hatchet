@@ -603,6 +603,29 @@ describe('DurableListenerClient reconnection', () => {
       expect(result.payload).toEqual({ node: 1 });
       expect(l._orderedCompletions.get('task:1').pending).toHaveLength(1);
     });
+
+    it('does not let a non-blocking consumer registered first stall later waiters', async () => {
+      const l = listener as any;
+      listener.consumeCallbackWithoutBlocking('task', 1, 0, 1);
+
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const result = await listener.waitForCallback('task', 1, 0, 2);
+      expect(result.payload).toEqual({ node: 2 });
+    });
+
+    it('unblocks the queue when a non-blocking consumer registers after its completion arrived', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const waiter = listener.waitForCallback('task', 1, 0, 2);
+      listener.consumeCallbackWithoutBlocking('task', 1, 0, 1);
+
+      const result = await waiter;
+      expect(result.payload).toEqual({ node: 2 });
+    });
   });
 
   // ── listener remains operational after reconnect ──
