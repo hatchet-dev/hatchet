@@ -12,10 +12,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// replaying a task already has a queue item shouldn't create a duplicate queue item for the same task,
-// which has been happening before. instead, we should just use a last-write-wins strategy and delete the prior queue
-// item(s) for the task
-func TestReplayQueuedTaskDoesNotDuplicateQueueItems(t *testing.T) {
+// replaying a task that already has a queue item used to create a duplicate queue item for the same
+// task at a different retry count. the preflight check must reject replays of tasks that are still
+// waiting in the queue so this can't happen.
+func TestReplayQueuedTaskIsRejected(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -83,12 +83,14 @@ func TestReplayQueuedTaskDoesNotDuplicateQueueItems(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Len(t, replayed.ReplayedTasks, 1)
+	require.Empty(t, replayed.ReplayedTasks,
+		"replaying a task that is still waiting in the queue must be rejected by the preflight check")
 
 	var taskRetryCount int32
 	require.NoError(t, pool.QueryRow(ctx, `
 		SELECT retry_count FROM v1_task WHERE id = $1`, task.ID).Scan(&taskRetryCount))
+	require.Equal(t, int32(0), taskRetryCount)
 
-	require.Equal(t, []int32{taskRetryCount}, listQueueItemRetryCounts(),
-		"replaying a queued task must leave exactly one queue item, at the task's current retry count")
+	require.Equal(t, []int32{0}, listQueueItemRetryCounts(),
+		"a rejected replay must leave the existing queue item untouched")
 }

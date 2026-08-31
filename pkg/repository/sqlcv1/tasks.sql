@@ -928,7 +928,7 @@ FROM
 
 -- name: PreflightCheckTasksForReplay :many
 -- Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
--- concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
+-- concurrency slots, retry queue items, or pending queue items. Returns the tasks which cannot be replayed.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::bigint[]) AS task_id,
@@ -952,6 +952,14 @@ LEFT JOIN
     v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
 LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+LEFT JOIN
+    v1_queue_item qi ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+LEFT JOIN
+    v1_batched_queue_item bqi ON bqi.task_id = t.id AND bqi.task_inserted_at = t.inserted_at AND bqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_rate_limited_queue_items rlqi ON rlqi.task_id = t.id AND rlqi.task_inserted_at = t.inserted_at AND rlqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_paused_workflow_queue_item pwqi ON pwqi.task_id = t.id AND pwqi.task_inserted_at = t.inserted_at AND pwqi.retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
     AND NOT EXISTS (
@@ -963,7 +971,15 @@ WHERE
             AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
             AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
     )
-    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+    AND (
+        tr.task_id IS NOT NULL
+        OR cs.task_id IS NOT NULL
+        OR rqi.task_id IS NOT NULL
+        OR qi.task_id IS NOT NULL
+        OR bqi.task_id IS NOT NULL
+        OR rlqi.task_id IS NOT NULL
+        OR pwqi.task_id IS NOT NULL
+    )
 ;
 
 -- name: ListAllTasksInDags :many
