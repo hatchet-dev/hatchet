@@ -76,6 +76,58 @@ async def test_workflow_unpause(hatchet: Hatchet) -> None:
         await asyncio.sleep(1)
 
 
+async def trigger_workflows(test_run_id: str, runs: set[str]) -> None:
+    while True:
+        ref = await pausable_workflow.aio_run(
+            wait_for_result=False,
+            additional_metadata={"test_run_id": test_run_id},
+        )
+        runs.add(ref.workflow_run_id)
+        await asyncio.sleep(0.125)
+
+
+async def poll_until_completed(hatchet: Hatchet, run_id: str, timeout: int) -> bool:
+    start = time.time()
+
+    while time.time() - start < timeout:
+        details = await hatchet.runs.aio_get_details(run_id)
+
+        if details.status == RunStatus.COMPLETED:
+            return True
+
+    return False
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_unpause_no_stranded_runs(hatchet: Hatchet) -> None:
+    test_run_id = str(uuid4())
+    run_ids = set[str]()
+
+    t = asyncio.create_task(trigger_workflows(test_run_id, run_ids))
+
+    await asyncio.sleep(3)
+
+    await pausable_workflow.aio_pause(
+        queue_ttl=timedelta(minutes=10),
+    )
+
+    await asyncio.sleep(3)
+
+    await pausable_workflow.aio_unpause()
+
+    await asyncio.sleep(3)
+
+    t.cancel()
+
+    await asyncio.sleep(3)
+
+    completed_flags = await asyncio.gather(
+        *[poll_until_completed(hatchet, run_id, 10) for run_id in run_ids]
+    )
+
+    assert all(completed_flags)
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())

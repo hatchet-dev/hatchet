@@ -162,6 +162,7 @@ from examples.bug_tests.durable_dag_child.worker import (
     spawned_child,
     spawned_child_dag,
 )
+from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -301,6 +302,7 @@ def main() -> None:
             durable_spawner_dag,
             mixed_spawner_dag,
             evictable_durable,
+            workflow_pause_concurrency_bug_task,
         ],
         lifespan=lifespan,
     )
