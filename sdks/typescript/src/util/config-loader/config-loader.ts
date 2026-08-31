@@ -64,7 +64,7 @@ export class ConfigLoader {
 
     if (!token) {
       throw new Error(
-        'No token provided. Provide it by setting the HATCHET_CLIENT_TOKEN environment variable, or for local development run Hatchet embedded with `HatchetEmbeddedClient.init()` from @hatchet-dev/typescript-sdk/v1/embedded — no token or Docker required.'
+        'API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable. For local development, you can run Hatchet embedded via HatchetEmbeddedClient.init() (imported from @hatchet-dev/typescript-sdk/v1/embedded). More docs here: https://docs.hatchet.run/v1/embedded'
       );
     }
 
