@@ -8,6 +8,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 import LatestImageTags from "@/components/LatestImageTags";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
+import { EmbeddedMode } from "@/components/flow-animations/EmbeddedMode";
 
 <LatestImageTags versionRepo="hatchet-embedded" />
 
@@ -16,6 +17,8 @@ import { snippets } from "@/lib/generated/snippets";
 Hatchet can run in an [embedded mode](https://github.com/hatchet-dev/hatchet-embedded) from inside your workers. The goal is to make local testing as easy as possible and be able to test workers end to end in ephemeral CI environments. There is no need to provision tenants, users, or API tokens to get started.
 
 When using the embedded mode, you get a full Hatchet engine running locally without any external dependencies including Postgres. By default it uses [embedded-postgres](https://github.com/fergusstrange/embedded-postgres) to provision a Postgres database.
+
+<EmbeddedMode />
 
 ## How it works
 

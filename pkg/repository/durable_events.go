@@ -1504,10 +1504,11 @@ func (r *durableEventsRepository) appendDurableEventLog(ctx context.Context, opt
 				return nil, nil, nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
 			}
 
-			// A re-executed child that is being cancelled or skipped this time around never
-			// runs, so no completion event will arrive for it: its entry is terminal at
-			// creation. The operator marks such steps complete locally when it triggers them.
-			isSatisfied := childrenToReplay[triggerOpts.ExternalId] && (triggerOpts.IsCancelled || triggerOpts.IsSkipped)
+			// A child that is being cancelled or skipped never runs, so no completion event
+			// will arrive for it (trigger.go creates it directly in a terminal state,
+			// bypassing the match pipeline): its entry is terminal at creation regardless of
+			// whether this is a first run or a replay.
+			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
 				Kind:                sqlcv1.V1DurableEventLogKindRUN,
@@ -2388,7 +2389,7 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 
 	for i, t := range tasks {
 		taskIds[i] = t.ID
-		taskInsertedAts[i] = t.InsertedAt
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMicros(t.InsertedAtUnixMicros)
 		tenantIds[i] = tenantId
 	}
 
@@ -2406,8 +2407,8 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 
 	for _, logFile := range logFiles {
 		key := IdInsertedAt{
-			ID:         logFile.DurableTaskID,
-			InsertedAt: logFile.DurableTaskInsertedAt,
+			ID:                   logFile.DurableTaskID,
+			InsertedAtUnixMicros: logFile.DurableTaskInsertedAt.Time.UnixMicro(),
 		}
 
 		result[key] = &logFile.LatestInvocationCount

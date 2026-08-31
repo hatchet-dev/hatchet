@@ -275,7 +275,15 @@ SELECT
     display_name,
     workflow_version_id,
     step_id,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -1120,7 +1128,14 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = @taskId::bigint
+          AND durable_task_inserted_at = @taskInsertedAt::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events;
 
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
