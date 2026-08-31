@@ -5,29 +5,105 @@ FROM v1_workflow_concurrency_slot
 WHERE tenant_id = @tenantId::uuid AND strategy_id = @strategyId::bigint;
 
 -- name: ListActiveConcurrencyStrategies :many
+-- Rows referencing a tenant strategy (tenant_strategy_id set) are excluded: the tenant
+-- strategy itself is returned instead, with zero-uuid workflow columns, and is what gets
+-- registered with the concurrency manager.
 SELECT
-    sc.*
+    sc.id,
+    sc.parent_strategy_id,
+    sc.workflow_id,
+    sc.workflow_version_id,
+    sc.step_id,
+    sc.is_active,
+    sc.last_active_at,
+    sc.strategy,
+    sc.expression,
+    sc.tenant_id,
+    sc.max_concurrency
 FROM
     v1_step_concurrency sc
 JOIN
     "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
 WHERE
     sc.tenant_id = @tenantId::uuid AND
-    sc.is_active = TRUE;
+    sc.is_active = TRUE AND
+    sc.tenant_strategy_id IS NULL
+UNION ALL
+SELECT
+    tc.id,
+    NULL::bigint AS parent_strategy_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS workflow_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS workflow_version_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS step_id,
+    tc.is_active,
+    tc.last_active_at,
+    tc.strategy,
+    tc.expression,
+    tc.tenant_id,
+    tc.max_concurrency
+FROM
+    v1_tenant_concurrency tc
+WHERE
+    tc.tenant_id = @tenantId::uuid AND
+    tc.is_active = TRUE;
 
 -- name: GetConcurrencyStrategyById :one
+-- Strategy ids are unique across v1_step_concurrency and v1_tenant_concurrency (shared
+-- sequence), so at most one branch matches.
 SELECT
-    sc.*
+    sc.id,
+    sc.parent_strategy_id,
+    sc.workflow_id,
+    sc.workflow_version_id,
+    sc.step_id,
+    sc.is_active,
+    sc.last_active_at,
+    sc.strategy,
+    sc.expression,
+    sc.tenant_id,
+    sc.max_concurrency
 FROM
     v1_step_concurrency sc
 WHERE
     sc.tenant_id = @tenantId::uuid AND
-    sc.id = @id::bigint;
+    sc.id = @id::bigint
+UNION ALL
+SELECT
+    tc.id,
+    NULL::bigint AS parent_strategy_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS workflow_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS workflow_version_id,
+    '00000000-0000-0000-0000-000000000000'::uuid AS step_id,
+    tc.is_active,
+    tc.last_active_at,
+    tc.strategy,
+    tc.expression,
+    tc.tenant_id,
+    tc.max_concurrency
+FROM
+    v1_tenant_concurrency tc
+WHERE
+    tc.tenant_id = @tenantId::uuid AND
+    tc.id = @id::bigint;
 
 -- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.*, s."readableId" AS step_readable_id
+SELECT
+    c.id,
+    c.parent_strategy_id,
+    c.workflow_id,
+    c.workflow_version_id,
+    c.step_id,
+    c.is_active,
+    c.last_active_at,
+    COALESCE(tc.strategy, c.strategy)::v1_concurrency_strategy AS strategy,
+    COALESCE(tc.expression, c.expression)::text AS expression,
+    c.tenant_id,
+    COALESCE(tc.max_concurrency, c.max_concurrency)::int AS max_concurrency,
+    tc.name AS tenant_strategy_name,
+    s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
+LEFT JOIN v1_tenant_concurrency tc ON tc.id = c.tenant_strategy_id
 WHERE
     tenant_id = @tenantId::UUID
     AND workflow_version_id = @workflowVersionId::UUID
@@ -59,13 +135,28 @@ GROUP BY
     wcs.key;
 
 -- name: ListConcurrencyStrategiesByStepId :many
+-- For rows referencing a tenant strategy, the id and definition resolve through
+-- v1_tenant_concurrency: tasks must carry the tenant strategy's id on their slots so the
+-- limit is shared across workflows.
 SELECT
-    *
+    COALESCE(tc.id, sc.id)::bigint AS id,
+    sc.parent_strategy_id,
+    sc.workflow_id,
+    sc.workflow_version_id,
+    sc.step_id,
+    sc.is_active,
+    sc.last_active_at,
+    COALESCE(tc.strategy, sc.strategy)::v1_concurrency_strategy AS strategy,
+    COALESCE(tc.expression, sc.expression)::text AS expression,
+    sc.tenant_id,
+    COALESCE(tc.max_concurrency, sc.max_concurrency)::int AS max_concurrency
 FROM
-    v1_step_concurrency
+    v1_step_concurrency sc
+LEFT JOIN
+    v1_tenant_concurrency tc ON tc.id = sc.tenant_strategy_id
 WHERE
-    tenant_id = @tenantId::uuid AND
-    step_id = ANY(@stepIds::uuid[])
+    sc.tenant_id = @tenantId::uuid AND
+    sc.step_id = ANY(@stepIds::uuid[])
 ;
 
 -- name: CheckStrategyActive :one
@@ -92,7 +183,8 @@ WITH latest_workflow_version AS (
         sc.tenant_id = @tenantId::uuid AND
         sc.workflow_id = @workflowId::uuid AND
         sc.workflow_version_id = @workflowVersionId::uuid AND
-        sc.is_active = TRUE
+        sc.is_active = TRUE AND
+        sc.tenant_strategy_id IS NULL
     ORDER BY
         sc.id ASC
     LIMIT 1
@@ -1362,3 +1454,57 @@ WHERE task_id = $2
   AND task_retry_count = $4
   AND strategy_id = $5
 RETURNING *;
+
+-- name: UpsertTenantConcurrencyStrategy :one
+INSERT INTO v1_tenant_concurrency (
+    tenant_id,
+    name,
+    strategy,
+    expression,
+    max_concurrency
+) VALUES (
+    @tenantId::uuid,
+    @name::text,
+    @strategy::v1_concurrency_strategy,
+    @expression::text,
+    @maxConcurrency::int
+)
+ON CONFLICT (tenant_id, name)
+DO UPDATE SET
+    strategy = EXCLUDED.strategy,
+    expression = EXCLUDED.expression,
+    max_concurrency = EXCLUDED.max_concurrency,
+    is_active = TRUE,
+    last_active_at = NOW()
+RETURNING *;
+
+-- name: GetTenantConcurrencyStrategiesByNames :many
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    name = ANY(@names::text[]);
+
+-- name: DeactivateStaleTenantConcurrency :exec
+WITH stale_tenant_concurrencies AS (
+    SELECT tc.id
+    FROM v1_tenant_concurrency tc
+    WHERE tc.tenant_id = @tenantId::UUID
+        AND tc.is_active = TRUE
+        -- we use 25 hours because there's a 1-hour cache on updating last_active_at
+        AND tc.last_active_at < NOW() - INTERVAL '25 hours'
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = tc.id
+                AND cs.tenant_id = @tenantId::UUID -- tenant id filter to force index usage
+        )
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_tenant_concurrency tc
+SET is_active = FALSE
+FROM stale_tenant_concurrencies
+WHERE tc.id = stale_tenant_concurrencies.id;

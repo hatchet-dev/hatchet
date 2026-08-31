@@ -324,6 +324,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			SharedConcurrency:      opts.SharedConcurrency,
 			SlotCost:               opts.SlotCost,
 		},
 	}
@@ -431,6 +432,7 @@ func (w *workflowDeclarationImpl[I, O]) BatchTask(opts create.WorkflowTask[I, O]
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			SharedConcurrency:      opts.SharedConcurrency,
 			SlotCost:               opts.SlotCost,
 			Batch:                  batch,
 		},
@@ -539,6 +541,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           labels,
 			Concurrency:            opts.Concurrency,
+			SharedConcurrency:      opts.SharedConcurrency,
 		},
 	}
 
@@ -610,6 +613,7 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			SharedConcurrency:      opts.SharedConcurrency,
 		},
 	}
 
@@ -778,6 +782,49 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 	if w.OnFailureTask != nil {
 		req.OnFailureTask = w.OnFailureTask.Dump(w.name, w.TaskDefaults)
+	}
+
+	// Collect shared concurrency definitions (entries with an expression) from all tasks so
+	// they are upserted server-side as part of this workflow registration. Name-only entries
+	// are references to strategies registered elsewhere and carry no definition.
+	sharedDefs := make(map[string]*contracts.SharedConcurrencyDef)
+
+	collectSharedDefs := func(strategies []types.SharedConcurrencyOpts) {
+		for _, shared := range strategies {
+			if shared.Expression == "" {
+				continue
+			}
+
+			def := &contracts.SharedConcurrencyDef{
+				Name:       shared.Name,
+				Expression: shared.Expression,
+				MaxRuns:    shared.MaxRuns,
+			}
+
+			if shared.LimitStrategy != nil {
+				strategyInt := contracts.ConcurrencyLimitStrategy_value[string(*shared.LimitStrategy)]
+				strategyEnum := contracts.ConcurrencyLimitStrategy(strategyInt)
+				def.LimitStrategy = &strategyEnum
+			}
+
+			sharedDefs[shared.Name] = def
+		}
+	}
+
+	for _, t := range w.tasks {
+		collectSharedDefs(t.SharedConcurrency)
+	}
+
+	for _, t := range w.durableTasks {
+		collectSharedDefs(t.SharedConcurrency)
+	}
+
+	if w.OnFailureTask != nil {
+		collectSharedDefs(w.OnFailureTask.SharedConcurrency)
+	}
+
+	for _, def := range sharedDefs {
+		req.SharedConcurrencyDefs = append(req.SharedConcurrencyDefs, def)
 	}
 
 	if w.StickyStrategy != nil {

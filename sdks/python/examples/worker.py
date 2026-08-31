@@ -36,6 +36,11 @@ from examples.concurrency_cancel_queued_except_oldest.worker import (
 from examples.concurrency_cancel_queued_except_oldest_with_parent_concurrency.worker import (
     concurrency_cancel_queued_except_oldest_with_parent_concurrency_workflow,
 )
+from examples.concurrency_shared.worker import (
+    concurrency_shared_mixed_workflow,
+    concurrency_shared_workflow_a,
+    concurrency_shared_workflow_b,
+)
 from examples.concurrency_cancel_in_progress.worker import (
     concurrency_cancel_in_progress_workflow,
 )
@@ -231,6 +236,9 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
+            concurrency_shared_workflow_a,
+            concurrency_shared_workflow_b,
+            concurrency_shared_mixed_workflow,
             concurrency_cancel_queued_except_newest_workflow,
             concurrency_cancel_queued_except_oldest_workflow,
             concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow,

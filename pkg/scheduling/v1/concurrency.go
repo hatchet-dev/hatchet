@@ -64,7 +64,10 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var concurrencyStrategy *concurrency.ConcurrencyStrategy
-	if conf.concurrencyInMemoryIndexEnabled && !strategy.ParentStrategyID.Valid {
+	// Tenant-scoped strategies (zero-uuid workflow columns in their descriptor) are only
+	// supported by the in-memory index, so they always take that path regardless of the
+	// config flag.
+	if (conf.concurrencyInMemoryIndexEnabled || strategy.WorkflowID == uuid.Nil) && !strategy.ParentStrategyID.Valid {
 		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
 	} else {
 		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
@@ -218,6 +221,13 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
+	// Tenant-scoped strategies are not tied to a workflow version: they only deactivate
+	// via the stale sweep and reactivate on slot insert, so there is no
+	// workflow-version-based active check to run for them.
+	if c.strategy.WorkflowID == uuid.Nil {
+		return
+	}
+
 	ticker := randomticker.NewRandomTicker(
 		c.minCheckActiveInterval,
 		c.maxCheckActiveInterval,

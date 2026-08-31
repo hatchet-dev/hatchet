@@ -29,6 +29,7 @@ import {
   IdempotencyConfig,
   BatchTaskConfig,
   BatchTaskFn,
+  SharedConcurrency,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -311,9 +312,11 @@ export type TaskDefaults = {
   workerLabels?: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels'];
 
   /**
-   * (optional) the concurrency options for the task.
+   * (optional) the concurrency options for the task. Entries may be inline `Concurrency`
+   * strategies or references to tenant-scoped `SharedConcurrency` strategies (which are
+   * upserted by the worker before workflow registration).
    */
-  concurrency?: Concurrency | Concurrency[];
+  concurrency?: Concurrency | SharedConcurrency | (Concurrency | SharedConcurrency)[];
 };
 
 /**

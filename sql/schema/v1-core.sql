@@ -229,6 +229,17 @@ CREATE TABLE v1_workflow_concurrency (
 CREATE TABLE v1_step_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
     -- strategies on a step in the same order.
+    --
+    -- IMPORTANT: v1_tenant_concurrency borrows this column's identity sequence (via a
+    -- pg_get_serial_sequence default) so strategy ids are unique across both tables.
+    -- Postgres records NO dependency for that borrow, so treat the following as breaking
+    -- changes for v1_tenant_concurrency even though nothing will fail at migration time:
+    --   - renaming this table or dropping/re-identifying this column (tenant inserts start
+    --     erroring at runtime)
+    --   - TRUNCATE ... RESTART IDENTITY (resets the shared counter and mints colliding ids)
+    --   - sequence fixup scripts (e.g. after logical-replication cutover) must setval from
+    --     GREATEST(max(v1_step_concurrency.id), max(v1_tenant_concurrency.id)), not from
+    --     this table alone
     id bigint GENERATED ALWAYS AS IDENTITY,
     -- The parent_strategy_id exists if concurrency is defined at the workflow level
     parent_strategy_id BIGINT,
@@ -243,7 +254,35 @@ CREATE TABLE v1_step_concurrency (
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
     max_concurrency INTEGER NOT NULL,
+    -- When set, this row references a tenant-scoped strategy in v1_tenant_concurrency: the
+    -- step consumes that strategy's limit (shared across workflows) and this row's own
+    -- strategy/expression/max_concurrency columns are point-in-time copies which must not
+    -- be read; the definition always resolves through the referenced row.
+    tenant_strategy_id BIGINT,
     CONSTRAINT v1_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
+);
+
+-- Tenant-scoped concurrency strategies, registered independently of any workflow and
+-- referenced by steps via v1_step_concurrency.tenant_strategy_id so tasks across different
+-- workflows consume the same concurrency limit.
+CREATE TABLE v1_tenant_concurrency (
+    -- Draws from v1_step_concurrency's identity sequence so strategy ids are unique across
+    -- both tables: concurrency slots, outbox topics, leases, and advisory locks all key on
+    -- the bare strategy id. The borrow is a runtime name lookup with no recorded catalog
+    -- dependency; see the warning on v1_step_concurrency.id before changing either side.
+    id bigint NOT NULL DEFAULT nextval(pg_get_serial_sequence('v1_step_concurrency', 'id')),
+    tenant_id UUID NOT NULL,
+    -- The strategy name, unique per tenant; steps reference the strategy by name at
+    -- registration time.
+    name TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    strategy v1_concurrency_strategy NOT NULL,
+    expression TEXT NOT NULL,
+    max_concurrency INTEGER NOT NULL,
+    CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_tenant_concurrency_tenant_name_ux UNIQUE (tenant_id, name)
 );
 
 CREATE OR REPLACE FUNCTION create_v1_step_concurrency()
@@ -1099,6 +1138,28 @@ BEGIN
         strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
         strategy.step_id = inactive_strategies.step_id AND
         strategy.id = inactive_strategies.id;
+
+    -- Same reactivation for tenant-scoped strategies: their slots carry the tenant
+    -- strategy's id, which (by the shared id sequence) never matches a step strategy.
+    WITH inactive_tenant_strategies AS (
+        SELECT
+            strategy.*
+        FROM
+            new_table cs
+        JOIN
+            v1_tenant_concurrency strategy ON strategy.id = cs.strategy_id
+        WHERE
+            strategy.is_active = FALSE
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
+        ORDER BY
+            strategy.id
+        FOR UPDATE
+    )
+    UPDATE v1_tenant_concurrency strategy
+    SET is_active = TRUE, last_active_at = NOW()
+    FROM inactive_tenant_strategies
+    WHERE
+        strategy.id = inactive_tenant_strategies.id;
 
     RETURN NULL;
 END;

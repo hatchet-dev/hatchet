@@ -59,6 +59,10 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) the workflow concurrency groups
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 
+	// (optional) tenant-scoped shared concurrency strategies to upsert before creating the
+	// workflow version, so its steps can reference them by name
+	SharedConcurrency []CreateSharedConcurrencyOpts `json:"sharedConcurrency,omitempty" validate:"omitempty,dive"`
+
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
@@ -79,6 +83,20 @@ type IdempotencyConfig struct {
 
 type CreateConcurrencyOpts struct {
 	// (optional) the maximum number of concurrent workflow runs, default 1
+	MaxRuns *int32 `json:"maxRuns,omitempty" validate:"omitempty,min=1"`
+
+	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
+
+	// (required) a concurrency expression for evaluating the concurrency key
+	Expression string `validate:"celworkflowrunstr"`
+}
+
+type CreateSharedConcurrencyOpts struct {
+	// (required) the strategy name, unique per tenant
+	Name string `validate:"required,hatchetName"`
+
+	// (optional) the maximum number of concurrent runs, default 1
 	MaxRuns *int32 `json:"maxRuns,omitempty" validate:"omitempty,min=1"`
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
@@ -133,6 +151,10 @@ type CreateStepOpts struct {
 
 	// (optional) the step concurrency options
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
+
+	// (optional) names of tenant-scoped shared concurrency strategies this step consumes;
+	// each name must refer to an already-registered shared strategy
+	SharedConcurrency []string `json:"sharedConcurrency,omitempty" validate:"omitempty,dive,hatchetName"`
 
 	// (optional) batch execution configuration
 	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
@@ -318,6 +340,32 @@ func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenant
 	return r.listStepMatchConditions(ctx, r.pool, tenantId, stepIds)
 }
 
+func (r *workflowRepository) upsertSharedConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateSharedConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	var maxRuns int32 = 1
+
+	if opts.MaxRuns != nil {
+		maxRuns = *opts.MaxRuns
+	}
+
+	strategy := sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
+
+	if opts.LimitStrategy != nil {
+		strategy = sqlcv1.V1ConcurrencyStrategy(*opts.LimitStrategy)
+	}
+
+	return r.queries.UpsertTenantConcurrencyStrategy(ctx, dbtx, sqlcv1.UpsertTenantConcurrencyStrategyParams{
+		Tenantid:       tenantId,
+		Name:           opts.Name,
+		Strategy:       strategy,
+		Expression:     opts.Expression,
+		Maxconcurrency: maxRuns,
+	})
+}
+
 type JobRunHasCycleError struct {
 	JobName string
 }
@@ -351,6 +399,14 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	}
 
 	defer rollback()
+
+	// Upsert shared concurrency strategies first, in the same transaction, so the steps
+	// created below can reference them by name.
+	for i := range opts.SharedConcurrency {
+		if _, err := r.upsertSharedConcurrencyStrategy(ctx, tx, tenantId, &opts.SharedConcurrency[i]); err != nil {
+			return nil, fmt.Errorf("could not upsert shared concurrency strategy %s: %w", opts.SharedConcurrency[i].Name, err)
+		}
+	}
 
 	var workflowId uuid.UUID
 	var oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow
@@ -1204,6 +1260,60 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			}
 		}
 
+		if len(stepOpts.SharedConcurrency) > 0 {
+			strategies, err := r.queries.GetTenantConcurrencyStrategiesByNames(ctx, tx, sqlcv1.GetTenantConcurrencyStrategiesByNamesParams{
+				Tenantid: tenantId,
+				Names:    stepOpts.SharedConcurrency,
+			})
+
+			if err != nil {
+				return nil, err
+			}
+
+			strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
+
+			for _, strategy := range strategies {
+				strategiesByName[strategy.Name] = strategy
+			}
+
+			missingNames := make([]string, 0)
+
+			for _, name := range stepOpts.SharedConcurrency {
+				tenantStrategy, ok := strategiesByName[name]
+
+				if !ok {
+					missingNames = append(missingNames, name)
+					continue
+				}
+
+				// The referencing row carries a point-in-time copy of the definition (the
+				// columns are NOT NULL), but the definition always resolves through
+				// v1_tenant_concurrency when the step's strategies are read.
+				_, err := r.queries.CreateStepConcurrency(
+					ctx,
+					tx,
+					sqlcv1.CreateStepConcurrencyParams{
+						Workflowid:        workflowId,
+						Workflowversionid: workflowVersionId,
+						Stepid:            stepId,
+						Tenantid:          tenantId,
+						Expression:        tenantStrategy.Expression,
+						Maxconcurrency:    tenantStrategy.MaxConcurrency,
+						Strategy:          tenantStrategy.Strategy,
+						TenantStrategyId:  pgtype.Int8{Int64: tenantStrategy.ID, Valid: true},
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if len(missingNames) > 0 {
+				return nil, fmt.Errorf("unknown shared concurrency strategies: %s (step %s); register them with PutSharedConcurrencyStrategy first", strings.Join(missingNames, ", "), stepOpts.ReadableId)
+			}
+		}
+
 		if len(stepOpts.TriggerConditions) > 0 {
 			for _, condition := range stepOpts.TriggerConditions {
 				var parentReadableId pgtype.Text
@@ -1611,8 +1721,15 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 		}
 	}
 
+	// Tenant-scoped shared concurrency definitions are tenant-level state, not workflow
+	// shape: changing one must update the strategy in place, not mint a new workflow
+	// version, so hash a copy with the definitions stripped. The names steps reference
+	// remain part of the hash via CreateStepOpts.SharedConcurrency.
+	hashOpts := *opts
+	hashOpts.SharedConcurrency = nil
+
 	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(opts)
+	declaredValues, err := datautils.ToJSONMap(&hashOpts)
 
 	if err != nil {
 		return "", opts, err

@@ -314,8 +314,17 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
 	for _, c := range t.concurrencyStrategies {
-		if _, ok := strategiesSet[c.strategy.ID]; ok {
-			newArr = append(newArr, c)
+		if strat, ok := strategiesSet[c.strategy.ID]; ok {
+			// If the definition changed (e.g. a shared strategy was re-registered with a
+			// different max_concurrency or expression), replace the manager so the
+			// in-memory index is rebuilt against the new definition.
+			if concurrencyStrategyChanged(c.strategy, strat) {
+				go c.cleanup()
+
+				newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strat, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+			} else {
+				newArr = append(newArr, c)
+			}
 
 			// delete from set
 			delete(strategiesSet, c.strategy.ID)
@@ -331,6 +340,15 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	t.concurrencyStrategies = newArr
+}
+
+// concurrencyStrategyChanged reports whether a strategy's scheduling-relevant definition
+// differs between two versions of the same strategy row.
+func concurrencyStrategyChanged(prev, next *sqlcv1.V1StepConcurrency) bool {
+	return prev.Expression != next.Expression ||
+		prev.Strategy != next.Strategy ||
+		prev.MaxConcurrency != next.MaxConcurrency ||
+		prev.ParentStrategyID != next.ParentStrategyID
 }
 
 func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {

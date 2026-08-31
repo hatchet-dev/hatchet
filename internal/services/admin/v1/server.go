@@ -1104,6 +1104,28 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 	}
 
+	sharedConcurrency := make([]v1.CreateSharedConcurrencyOpts, 0, len(req.SharedConcurrencyDefs))
+
+	for _, def := range req.SharedConcurrencyDefs {
+		if def == nil {
+			continue
+		}
+
+		var limitStrategy *string
+
+		if def.LimitStrategy != nil && def.LimitStrategy.String() != "" {
+			s := def.LimitStrategy.String()
+			limitStrategy = &s
+		}
+
+		sharedConcurrency = append(sharedConcurrency, v1.CreateSharedConcurrencyOpts{
+			Name:          def.Name,
+			Expression:    def.Expression,
+			MaxRuns:       def.MaxRuns,
+			LimitStrategy: limitStrategy,
+		})
+	}
+
 	return &v1.CreateWorkflowVersionOpts{
 		Name:            req.Name,
 		Concurrency:     concurrency,
@@ -1118,6 +1140,8 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		DefaultFilters:  defaultFilters,
 		InputJsonSchema: req.InputJsonSchema,
 		Idempotency:     idempotency,
+
+		SharedConcurrency: sharedConcurrency,
 	}, nil
 }
 
@@ -1382,6 +1406,8 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				})
 			}
 		}
+
+		steps[j].SharedConcurrency = stepCp.SharedConcurrency
 
 		if stepCp.Batch != nil {
 

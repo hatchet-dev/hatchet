@@ -350,6 +350,7 @@ type taskConfig struct {
 	onCron                 []string
 	onEvents               []string
 	concurrency            []*types.Concurrency
+	sharedConcurrency      []types.SharedConcurrencyOpts
 	rateLimits             []*types.RateLimit
 	isDurable              bool
 	parents                []create.NamedTask
@@ -432,6 +433,17 @@ func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
 func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
 	return func(config *taskConfig) {
 		config.concurrency = concurrency
+	}
+}
+
+// WithSharedConcurrency attaches tenant-scoped shared concurrency strategies to this task
+// so it shares their limits with tasks from other workflows. Entries carrying an
+// Expression are upserted (registered or updated in place) as part of workflow
+// registration; entries with only a Name reference a strategy registered elsewhere (e.g.
+// by another service's workflow registration).
+func WithSharedConcurrency(strategies ...types.SharedConcurrencyOpts) TaskOption {
+	return func(config *taskConfig) {
+		config.sharedConcurrency = strategies
 	}
 }
 
@@ -589,6 +601,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		ExecutionTimeout:       config.executionTimeout,
 		ScheduleTimeout:        config.scheduleTimeout,
 		Concurrency:            config.concurrency,
+		SharedConcurrency:      config.sharedConcurrency,
 		RateLimits:             config.rateLimits,
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
@@ -763,6 +776,7 @@ func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options 
 		ExecutionTimeout:       config.executionTimeout,
 		ScheduleTimeout:        config.scheduleTimeout,
 		Concurrency:            config.concurrency,
+		SharedConcurrency:      config.sharedConcurrency,
 		RateLimits:             config.rateLimits,
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,

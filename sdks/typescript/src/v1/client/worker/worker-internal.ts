@@ -20,6 +20,8 @@ import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hat
 import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
 import {
   Concurrency,
+  SharedConcurrency,
+  isSharedConcurrency,
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
@@ -258,6 +260,7 @@ export class InternalWorker {
           rateLimits: [],
           workerLabels: {},
           concurrency: [],
+          sharedConcurrency: [],
           isDurable: false,
           slotRequests: { default: 1 },
         };
@@ -282,6 +285,7 @@ export class InternalWorker {
             onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           concurrency: [],
+          sharedConcurrency: [],
           backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
@@ -386,7 +390,22 @@ export class InternalWorker {
         }
       }
 
+      // shared concurrency strategies referenced by tasks are upserted server-side as part
+      // of this workflow registration
+      const sharedDefs = new Map<string, SharedConcurrency>();
+      [...workflow._tasks, ...workflow._durableTasks].forEach((task) => {
+        taskConcurrencyArr(task, workflow)
+          .filter(isSharedConcurrency)
+          .forEach((c) => sharedDefs.set(c.name, c));
+      });
+
       const registeredWorkflow = this.client.admin.putWorkflow({
+        sharedConcurrencyDefs: [...sharedDefs.values()].map((shared) => ({
+          name: shared.name,
+          expression: shared.expression,
+          maxRuns: shared.maxRuns,
+          limitStrategy: shared.limitStrategy,
+        })),
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
@@ -419,18 +438,15 @@ export class InternalWorker {
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           batch: mapBatchConfigPb(batchOf(task)),
           concurrency: (() => {
-            const taskConcurrency = task.concurrency
-              ? Array.isArray(task.concurrency)
-                ? task.concurrency
-                : [task.concurrency]
-              : workflow.taskDefaults?.concurrency
-                ? Array.isArray(workflow.taskDefaults.concurrency)
-                  ? workflow.taskDefaults.concurrency
-                  : [workflow.taskDefaults.concurrency]
-                : [];
-            assertValidConcurrencyArr(taskConcurrency);
-            return taskConcurrency;
+            const inline = taskConcurrencyArr(task, workflow).filter(
+              (c): c is Concurrency => !isSharedConcurrency(c)
+            );
+            assertValidConcurrencyArr(inline);
+            return inline;
           })(),
+          sharedConcurrency: taskConcurrencyArr(task, workflow)
+            .filter(isSharedConcurrency)
+            .map((c) => c.name),
         })),
         concurrency: concurrencySolo,
         defaultFilters:
@@ -1381,6 +1397,23 @@ function batchOf(
   task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
 ): CreateWorkflowTaskOpts<any, any>['batch'] {
   return 'batch' in task ? task.batch : undefined;
+}
+
+export function taskConcurrencyArr(
+  task: { concurrency?: Concurrency | SharedConcurrency | (Concurrency | SharedConcurrency)[] },
+  workflow: { taskDefaults?: { concurrency?: Concurrency | Concurrency[] } }
+): (Concurrency | SharedConcurrency)[] {
+  if (task.concurrency) {
+    return Array.isArray(task.concurrency) ? task.concurrency : [task.concurrency];
+  }
+
+  if (workflow.taskDefaults?.concurrency) {
+    return Array.isArray(workflow.taskDefaults.concurrency)
+      ? workflow.taskDefaults.concurrency
+      : [workflow.taskDefaults.concurrency];
+  }
+
+  return [];
 }
 
 export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {

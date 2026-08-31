@@ -605,6 +605,9 @@ WHERE workflow_id = @workflowId::uuid
   AND id = @workflowConcurrencyId::bigint;
 
 -- name: CreateStepConcurrency :one
+-- When tenant_strategy_id is set, this row references a tenant-scoped strategy: the
+-- strategy/expression/max_concurrency values are point-in-time copies and the definition
+-- always resolves through v1_tenant_concurrency.
 INSERT INTO v1_step_concurrency (
     workflow_id,
     workflow_version_id,
@@ -612,7 +615,8 @@ INSERT INTO v1_step_concurrency (
     strategy,
     expression,
     tenant_id,
-    max_concurrency
+    max_concurrency,
+    tenant_strategy_id
 )
 VALUES (
     @workflowId::uuid,
@@ -621,7 +625,8 @@ VALUES (
     @strategy::v1_concurrency_strategy,
     @expression::text,
     @tenantId::uuid,
-    @maxConcurrency::integer
+    @maxConcurrency::integer,
+    sqlc.narg('tenantStrategyId')::bigint
 ) RETURNING *;
 
 -- name: CreateStepMatchCondition :one

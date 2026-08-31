@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
+from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency, SharedConcurrencyDef
 
 
 class ConcurrencyLimitStrategy(str, Enum):
@@ -43,4 +43,33 @@ class ConcurrencyExpression(BaseModel):
             expression="'constant'",
             max_runs=max_runs,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        )
+
+
+class SharedConcurrency(BaseModel):
+    """
+    A tenant-scoped shared concurrency strategy. Unlike `ConcurrencyExpression`, a shared
+    strategy is registered independently of any workflow and referenced by tasks by name,
+    so tasks across different workflows consume the same concurrency limit.
+
+    Re-registering an existing name updates the strategy in place.
+
+    Args:
+        name (str): Unique (per tenant) name of the strategy.
+        expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
+        max_runs (int): Maximum number of concurrent runs, defaults to 1.
+        limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
+    """
+
+    name: str
+    expression: str
+    max_runs: int = Field(gt=0, default=1)
+    limit_strategy: ConcurrencyLimitStrategy = ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
+
+    def to_proto(self) -> SharedConcurrencyDef:
+        return SharedConcurrencyDef(
+            name=self.name,
+            expression=self.expression,
+            max_runs=self.max_runs,
+            limit_strategy=self.limit_strategy,
         )

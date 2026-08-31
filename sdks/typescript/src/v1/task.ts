@@ -38,6 +38,48 @@ export type Concurrency = {
 };
 
 /**
+ * A tenant-scoped shared concurrency strategy. Unlike `Concurrency`, a shared strategy is
+ * registered independently of any workflow (by name) and referenced by tasks across
+ * different workflows, so all of them consume the same concurrency limit.
+ *
+ * Re-registering an existing name updates the strategy in place.
+ */
+export type SharedConcurrency = {
+  /**
+   * required: the unique (per tenant) name of the shared strategy
+   */
+  name: string;
+
+  /**
+   * required: the CEL expression to use for concurrency
+   *
+   * @example
+   * ```
+   * "input.key" // use the value of the key in the input
+   * ```
+   */
+  expression: string;
+
+  /**
+   * (optional) the maximum number of concurrent runs
+   *
+   * default: 1
+   */
+  maxRuns?: number;
+
+  /**
+   * (optional) the strategy to use when the concurrency limit is reached
+   *
+   * default: CANCEL_IN_PROGRESS
+   */
+  limitStrategy?: ConcurrencyLimitStrategy;
+};
+
+export function isSharedConcurrency(c: Concurrency | SharedConcurrency): c is SharedConcurrency {
+  return 'name' in c && typeof (c as SharedConcurrency).name === 'string';
+}
+
+/**
  * @deprecated use Concurrency instead
  */
 export type TaskConcurrency = Concurrency;

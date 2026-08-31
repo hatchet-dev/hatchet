@@ -60,7 +60,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.concurrency import ConcurrencyExpression, SharedConcurrency
 from hatchet_sdk.types.labels import (
     _warn_if_dict_desired_worker_labels,
 )
@@ -273,6 +273,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 if self._config.idempotency
                 else None
             ),
+            shared_concurrency_defs=[
+                shared.to_proto() for shared in self.shared_concurrency_defs
+            ],
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -359,6 +362,18 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     @property
     def input_validator_type(self) -> type[TWorkflowInput]:
         return cast(type[TWorkflowInput], self._config.input_validator._type)
+
+    @property
+    def shared_concurrency_defs(self) -> list[SharedConcurrency]:
+        """The distinct tenant-scoped shared concurrency strategies referenced by this
+        workflow's tasks, deduplicated by name."""
+        defs_by_name: dict[str, SharedConcurrency] = {}
+
+        for task in self.tasks:
+            for shared in task.shared_concurrency_defs:
+                defs_by_name[shared.name] = shared
+
+        return list(defs_by_name.values())
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
@@ -1422,7 +1437,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1711,7 +1726,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1824,7 +1839,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1895,7 +1910,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],

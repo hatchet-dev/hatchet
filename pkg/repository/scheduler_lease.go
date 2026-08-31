@@ -233,15 +233,33 @@ func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantI
 	ctx, span := telemetry.NewSpan(ctx, "list-concurrency-strategies")
 	defer span.End()
 
-	return d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
+	rows, err := d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	strategies := make([]*sqlcv1.V1StepConcurrency, len(rows))
+
+	for i, row := range rows {
+		strategies[i] = row.ToV1StepConcurrency()
+	}
+
+	return strategies, nil
 }
 
 func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-concurrency-strategy")
 	defer span.End()
 
-	return d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
+	row, err := d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
 		ID:       id,
 		Tenantid: tenantId,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return row.ToV1StepConcurrency(), nil
 }

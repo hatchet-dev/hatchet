@@ -114,6 +114,13 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
+	// Tenant-scoped strategies (zero-uuid workflow columns in their descriptor) are not
+	// tied to a workflow version, so they never retire via the workflow-version check;
+	// they deactivate via the stale sweep instead.
+	if strategy.WorkflowID == uuid.Nil {
+		return nil
+	}
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
 	if err != nil {
@@ -191,6 +198,13 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
 		}
+	}
+
+	// Strategies with no runnable branch (e.g. NONE, which exists so tasks of a removed
+	// strategy can still enqueue) must return an empty result rather than nil: the
+	// scheduler dereferences the embedded result and would panic on nil.
+	if res == nil {
+		res = &RunConcurrencyResult{}
 	}
 
 	return res, nil
@@ -1345,7 +1359,11 @@ func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Conte
 }
 
 func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error {
-	return c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId)
+	if err := c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId); err != nil {
+		return err
+	}
+
+	return c.queries.DeactivateStaleTenantConcurrency(ctx, c.pool, tenantId)
 }
 
 func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {

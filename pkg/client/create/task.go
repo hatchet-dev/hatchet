@@ -52,6 +52,12 @@ type WorkflowTask[I, O any] struct {
 	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
+	// (optional) SharedConcurrency lists tenant-scoped shared concurrency strategies this
+	// task consumes. An entry with an Expression is upserted (registered or updated in
+	// place) as part of workflow registration; an entry with only a Name references a
+	// strategy registered elsewhere.
+	SharedConcurrency []types.SharedConcurrencyOpts
+
 	// WaitFor represents a set of conditions which must be satisfied before the task can run.
 	WaitFor condition.Condition
 
@@ -101,6 +107,12 @@ type WorkflowOnFailureTask[I, O any] struct {
 
 	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
+
+	// (optional) SharedConcurrency lists tenant-scoped shared concurrency strategies this
+	// task consumes. An entry with an Expression is upserted (registered or updated in
+	// place) as part of workflow registration; an entry with only a Name references a
+	// strategy registered elsewhere.
+	SharedConcurrency []types.SharedConcurrencyOpts
 }
 
 // TaskCreateOpts defines options for creating a standalone task.
@@ -139,6 +151,12 @@ type StandaloneTask struct {
 
 	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
+
+	// (optional) SharedConcurrency lists tenant-scoped shared concurrency strategies this
+	// task consumes. An entry with an Expression is upserted (registered or updated in
+	// place) as part of workflow registration; an entry with only a Name references a
+	// strategy registered elsewhere.
+	SharedConcurrency []types.SharedConcurrencyOpts
 
 	// (optional) The event names that trigger the workflow
 	OnEvents []string

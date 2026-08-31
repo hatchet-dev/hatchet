@@ -26,6 +26,16 @@ type Concurrency struct {
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
 }
 
+// SharedConcurrencyOpts defines a tenant-scoped shared concurrency strategy which is
+// registered independently of any workflow and referenced by tasks by name, so tasks from
+// different workflows can consume the same concurrency limit.
+type SharedConcurrencyOpts struct {
+	Name          string                            `yaml:"name,omitempty"`
+	Expression    string                            `yaml:"expression,omitempty"`
+	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
+	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+}
+
 // Deprecated: Workflow is part of the legacy v0 workflow definition system.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Workflow struct {
