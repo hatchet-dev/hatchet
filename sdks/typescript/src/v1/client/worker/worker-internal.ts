@@ -537,8 +537,6 @@ export class InternalWorker {
     const { actionId, taskRunExternalId, taskName } = action;
     const actionKey = action.key;
 
-    console.log(
-    );
     try {
       const isDurable = this.durable_action_set.has(actionId);
       let context: Context<any, any>;
