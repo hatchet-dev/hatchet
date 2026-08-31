@@ -15,12 +15,15 @@ for working with Hatchet workers, workflows, tasks, and our various feature clie
 
 Methods:
 
-| Name           | Description                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------- |
-| `worker`       | Create a Hatchet worker on which to run workflows.                                                            |
-| `workflow`     | Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.               |
-| `task`         | A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.           |
-| `durable_task` | A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow. |
+| Name                | Description                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `worker`            | Create a Hatchet worker on which to run workflows.                                                            |
+| `workflow`          | Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.               |
+| `task`              | A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.           |
+| `durable_task`      | A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow. |
+| `from_embedded`     | Run a full Hatchet engine locally and return a client wired to it.                                            |
+| `stop_embedded`     | Gracefully stop the embedded engine started by `Hatchet.from_embedded()`.                                     |
+| `aio_stop_embedded` | Async variant of `stop_embedded`.                                                                             |
 
 ### Attributes
 
@@ -199,3 +202,103 @@ Returns:
 | Type                                                                                                                                                                                                                                               | Description                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Callable[[Callable[Concatenate[EmptyModel, DurableContext, P], R \| CoroutineLike[R]]], Standalone[EmptyModel, R]] \| Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
+
+#### `from_embedded` `classmethod`
+
+Run a full Hatchet engine locally and return a client wired to it.
+No API token and no Docker required, which makes this the fastest way
+to run Hatchet for local development. The engine runs as the
+hatchet-embedded sidecar process (downloaded on first use) and starts
+a bundled Postgres by default; set `database_url` on `config.embedded`
+to use your own Postgres instead. You can read more about the embedded
+engine in [the docs](/v1/embedded).
+
+Parameters:
+
+| Name     | Type                   | Description                                                                                                                                                                                                                                                    | Default |
+| -------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `config` | `ClientConfig \| None` | Base client configuration to use; the connection fields (token, tenant, addresses, TLS) are overridden to point at the embedded engine. Set `config.embedded` (an `EmbeddedHatchetConfig`) to configure the embedded engine itself (e.g. database URL, ports). | `None`  |
+
+Returns:
+
+| Type      | Description                                                 |
+| --------- | ----------------------------------------------------------- |
+| `Hatchet` | A Hatchet client instance connected to the embedded engine. |
+
+#### `stop_embedded`
+
+Gracefully stop the embedded engine started by `Hatchet.from_embedded()`.
+
+Blocks until the engine has fully exited, including its bundled
+Postgres. The embedded engine is process-wide: every client created
+via `Hatchet.from_embedded()` in this process shares it. Call this
+before your process exits so the engine's shutdown output does not
+print after your program has returned. No-op when no embedded engine
+is running in this process.
+
+#### `aio_stop_embedded`
+
+Async variant of `stop_embedded`.
+
+Gracefully stops the embedded engine without blocking the event loop,
+and returns once the engine has fully exited. No-op when no embedded
+engine is running in this process.
+
+## Embedded Engine Configuration
+
+Bases: `BaseSettings`
+
+Configuration for the embedded Hatchet engine started by `Hatchet.from_embedded()`.
+Set it on `ClientConfig.embedded`. Every field can also be set via an environment
+variable prefixed with `HATCHET_CLIENT_EMBEDDED_`, e.g. `HATCHET_CLIENT_EMBEDDED_DATABASE_URL`.
+You can read more about the embedded engine in [the docs](/v1/embedded).
+
+### Attributes
+
+#### `version = None` `class-attribute` `instance-attribute`
+
+The hatchet-embedded release tag to download. Defaults to the latest release. Tags correspond to the Hatchet engine version baked into the sidecar, so pinning this pins the engine.
+
+#### `binary_path = None` `class-attribute` `instance-attribute`
+
+Path to an existing sidecar binary. When set, the download is skipped.
+
+#### `checksum = None` `class-attribute` `instance-attribute`
+
+The expected sha256 hex digest of the sidecar binary. When set, it replaces the release's checksums.txt as the trust anchor, so a compromised release channel cannot substitute the binary. Pin it together with `version`.
+
+#### `database_url = None` `class-attribute` `instance-attribute`
+
+Connection string for an existing Postgres to use instead of the bundled one.
+
+#### `postgres_data_dir = None` `class-attribute` `instance-attribute`
+
+Directory to store the bundled Postgres runtime and data under. Defaults to a per-project directory derived from the working directory.
+
+#### `grpc_port = None` `class-attribute` `instance-attribute`
+
+Override the port the embedded engine's gRPC server listens on.
+
+#### `api_port = None` `class-attribute` `instance-attribute`
+
+Override the port the embedded REST API listens on.
+
+#### `start_api = True` `class-attribute` `instance-attribute`
+
+Set to `False` to start only the engine and gRPC server, without the REST API.
+
+#### `run_migrations = True` `class-attribute` `instance-attribute`
+
+Set to `False` to skip running database migrations on startup.
+
+#### `rabbitmq_url = None` `class-attribute` `instance-attribute`
+
+Connection string for a RabbitMQ instance to use as the message queue instead of Postgres.
+
+#### `log_level = None` `class-attribute` `instance-attribute`
+
+Log level for the embedded engine.
+
+#### `ready_timeout_seconds = DEFAULT_READY_TIMEOUT_SECONDS` `class-attribute` `instance-attribute`
+
+How long to wait, in seconds, for the embedded engine to become ready before raising an error. Defaults to 300 seconds.

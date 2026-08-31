@@ -22,3 +22,25 @@ This is the Python SDK reference, documenting methods available for interacting 
         - workflow
         - task
         - durable_task
+        - from_embedded
+        - stop_embedded
+        - aio_stop_embedded
+
+## Embedded Engine Configuration
+
+::: config.EmbeddedHatchetConfig
+    options:
+      inherited_members: false
+      members:
+        - version
+        - binary_path
+        - checksum
+        - database_url
+        - postgres_data_dir
+        - grpc_port
+        - api_port
+        - start_api
+        - run_migrations
+        - rabbitmq_url
+        - log_level
+        - ready_timeout_seconds

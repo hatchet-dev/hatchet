@@ -546,6 +546,20 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 | `WithRunPriority`         | `WithRunPriority(priority RunPriority)`                          | WithRunPriority sets the priority for the workflow run.                                              |
 | `WithRunSticky`           | `WithRunSticky(sticky bool)`                                     | WithRunSticky enables stickiness for the child workflow run.                                         |
 
+## Embedded options
+
+Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Hatchet](/v1/embedded).
+
+| Name                        | Signature                             | Description                                                                                      |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `WithEmbeddedAPIPort`       | `WithEmbeddedAPIPort(port int)`       | WithEmbeddedAPIPort overrides the port the embedded API server listens on.                       |
+| `WithEmbeddedDatabaseURL`   | `WithEmbeddedDatabaseURL(url string)` | WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead of the bundled one. |
+| `WithEmbeddedGRPCPort`      | `WithEmbeddedGRPCPort(port int)`      | WithEmbeddedGRPCPort overrides the port the embedded engine's gRPC server listens on.            |
+| `WithEmbeddedLogLevel`      | `WithEmbeddedLogLevel(level string)`  | WithEmbeddedLogLevel sets the embedded engine's log level.                                       |
+| `WithEmbeddedRabbitMQ`      | `WithEmbeddedRabbitMQ(url string)`    | WithEmbeddedRabbitMQ points the engine at a RabbitMQ instance for its message queue.             |
+| `WithoutEmbeddedAPI`        | `WithoutEmbeddedAPI()`                | WithoutEmbeddedAPI disables the embedded API server.                                             |
+| `WithoutEmbeddedMigrations` | `WithoutEmbeddedMigrations()`         | WithoutEmbeddedMigrations disables database migrations at engine startup.                        |
+
 ## Conditions
 
 Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):
@@ -652,139 +666,25 @@ Fields:
 
 ### DesiredWorkerLabel
 
+### EmbeddedBackend
+
+EmbeddedBackend boots the embedded engine and returns a shutdown function. The hatchet-embedded package provides the implementation and registers it via RegisterEmbeddedBackend when imported.
+
 ### EmbeddedConfig
+
+EmbeddedConfig configures the embedded engine started by WithEmbedded. The WithEmbedded\* options set these fields.
 
 Fields:
 
-| Name            | Type      | Description |
-| --------------- | --------- | ----------- |
-| `GRPCPort`      | `*int`    |             |
-| `APIPort`       | `*int`    |             |
-| `StartAPI`      | `*bool`   |             |
-| `RunMigrations` | `*bool`   |             |
-| `RabbitMQURL`   | `*string` |             |
-| `LogLevel`      | `*string` |             |
-| `DatabaseURL`   | `string`  |             |
-
-### EmbeddedOption
-
-#### Functions
-
-##### `WithEmbeddedAPIPort`
-
-```go
-func WithEmbeddedAPIPort(port int) EmbeddedOption
-```
-
-Parameters:
-
-| Name   | Type  |
-| ------ | ----- |
-| `port` | `int` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedDatabaseURL`
-
-WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead of the bundled one.
-
-```go
-func WithEmbeddedDatabaseURL(url string) EmbeddedOption
-```
-
-Parameters:
-
-| Name  | Type     |
-| ----- | -------- |
-| `url` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedGRPCPort`
-
-```go
-func WithEmbeddedGRPCPort(port int) EmbeddedOption
-```
-
-Parameters:
-
-| Name   | Type  |
-| ------ | ----- |
-| `port` | `int` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedLogLevel`
-
-```go
-func WithEmbeddedLogLevel(level string) EmbeddedOption
-```
-
-Parameters:
-
-| Name    | Type     |
-| ------- | -------- |
-| `level` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedRabbitMQ`
-
-```go
-func WithEmbeddedRabbitMQ(url string) EmbeddedOption
-```
-
-Parameters:
-
-| Name  | Type     |
-| ----- | -------- |
-| `url` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithoutEmbeddedAPI`
-
-```go
-func WithoutEmbeddedAPI() EmbeddedOption
-```
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithoutEmbeddedMigrations`
-
-```go
-func WithoutEmbeddedMigrations() EmbeddedOption
-```
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
+| Name            | Type      | Description                                                                                         |
+| --------------- | --------- | --------------------------------------------------------------------------------------------------- |
+| `GRPCPort`      | `*int`    | GRPCPort overrides the port the embedded engine's gRPC server listens on.                           |
+| `APIPort`       | `*int`    | APIPort overrides the port the embedded API server listens on.                                      |
+| `StartAPI`      | `*bool`   | StartAPI controls whether the embedded API server starts. Defaults to true.                         |
+| `RunMigrations` | `*bool`   | RunMigrations controls whether the engine applies database migrations at startup. Defaults to true. |
+| `RabbitMQURL`   | `*string` | RabbitMQURL points the engine at a RabbitMQ instance for its message queue.                         |
+| `LogLevel`      | `*string` | LogLevel sets the embedded engine's log level.                                                      |
+| `DatabaseURL`   | `string`  | DatabaseURL points the engine at an existing Postgres database instead of the bundled one.          |
 
 ### EventUnmarshaller
 
@@ -1046,6 +946,8 @@ Returns:
 
 ### `RegisterEmbeddedBackend`
 
+RegisterEmbeddedBackend registers the function that boots the embedded engine. The hatchet-embedded package calls it from an init function, so a blank import of that package is all an application needs.
+
 ```go
 func RegisterEmbeddedBackend(b EmbeddedBackend)
 ```
@@ -1120,7 +1022,9 @@ Returns:
 
 ### `WithEmbedded`
 
-WithEmbedded runs Hatchet in-process. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
+WithEmbedded runs a full Hatchet engine in-process for local development, with no API token or Docker required. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
+
+Requires a blank import of the hatchet-embedded package (github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See the [Embedded Hatchet guide](https://docs.hatchet.run/v1/embedded) for usage.
 
 ```go
 func WithEmbedded(opts ...EmbeddedOption) client.ClientOpt
