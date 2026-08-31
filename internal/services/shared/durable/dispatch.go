@@ -21,8 +21,8 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 
 	for _, cb := range callbacks {
 		idInsertedAtTuples = append(idInsertedAtTuples, v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
+			ID:                   cb.DurableTaskId,
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -33,11 +33,12 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	}
 
 	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
+	restorePublished := make(map[uuid.UUID]struct{})
 
 	for _, cb := range callbacks {
 		key := v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
+			ID:                   cb.DurableTaskId,
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		}
 
 		dispatcherLookup, ok := idInsertedAtToDispatcherId[key]
@@ -48,6 +49,12 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 		}
 
 		if dispatcherLookup.IsEvicted {
+			if _, ok := restorePublished[cb.DurableTaskExternalId]; ok {
+				continue
+			}
+
+			restorePublished[cb.DurableTaskExternalId] = struct{}{}
+
 			l.Debug().Msgf("task %d is evicted, publishing restore message", cb.DurableTaskId)
 
 			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied while task evicted")

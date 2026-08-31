@@ -27,6 +27,7 @@ from hatchet_sdk.clients.rest.api.healthcheck_api import HealthcheckApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api.metadata_api import MetadataApi
 from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
+from hatchet_sdk.clients.rest.api.operator_api import OperatorApi
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 from hatchet_sdk.clients.rest.api.sns_api import SNSApi
 from hatchet_sdk.clients.rest.api.slack_api import SlackApi
@@ -149,6 +150,13 @@ from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
 from hatchet_sdk.clients.rest.models.otel_span_list import OtelSpanList
 from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
+from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
+from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
+    PauseWorkflowRequestPause,
+)
+from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
+    PauseWorkflowRequestUnpause,
+)
 from hatchet_sdk.clients.rest.models.pull_request import PullRequest
 from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
 from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
@@ -296,6 +304,9 @@ from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_create_http_operator_request import (
+    V1CreateHTTPOperatorRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
 )
@@ -332,6 +343,8 @@ from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
 )
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
+from hatchet_sdk.clients.rest.models.v1_http_operator import V1HTTPOperator
+from hatchet_sdk.clients.rest.models.v1_http_operator_list import V1HTTPOperatorList
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
@@ -365,6 +378,9 @@ from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_update_http_operator_request import (
+    V1UpdateHTTPOperatorRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,
@@ -424,6 +440,9 @@ from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurr
 from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
+from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+    WorkflowPauseScheduledCronRunQueueBehavior,
+)
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (

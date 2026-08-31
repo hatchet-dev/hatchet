@@ -26,6 +26,12 @@ export function eventTypeToSeverity(
   }
 }
 
+export function isFailureEventType(
+  eventType: V1TaskEventType | undefined,
+): boolean {
+  return eventTypeToSeverity(eventType) === StepRunEventSeverity.CRITICAL;
+}
+
 export function mapEventTypeToTitle(
   eventType: V1TaskEventType | undefined,
 ): string {

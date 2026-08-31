@@ -164,7 +164,11 @@ WITH lookup_rows AS (
         t.step_readable_id,
         l.external_id AS workflow_run_external_id,
         t.workflow_id,
-        t.step_id
+        t.step_id,
+        t.is_dag_orchestrator,
+        t.workflow_version_id,
+        t.parent_task_external_id,
+        t.is_durable
     FROM
         lookup_rows l
     JOIN
@@ -190,7 +194,11 @@ SELECT
     t.step_readable_id,
     t.external_id AS workflow_run_external_id,
     t.workflow_id,
-    t.step_id
+    t.step_id,
+    t.is_dag_orchestrator,
+    t.workflow_version_id,
+    t.parent_task_external_id,
+    t.is_durable
 FROM
     lookup_rows l
 JOIN
@@ -204,6 +212,15 @@ SELECT
     *
 FROM
     tasks_from_dags;
+
+-- name: GetTaskByExternalId :one
+SELECT t.*
+FROM v1_lookup_table l
+JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
+WHERE
+    l.external_id = @externalId::uuid
+    AND l.tenant_id = @tenantId::uuid
+;
 
 -- name: LookupExternalIds :many
 SELECT
@@ -257,7 +274,16 @@ SELECT
     action_id,
     display_name,
     workflow_version_id,
-    step_id
+    step_id,
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -394,8 +420,6 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
-        -- evicted tasks are not eligible for timeout
-        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -409,7 +433,7 @@ SELECT
     v1_task.step_id,
     v1_task.external_id,
     v1_task.workflow_run_id,
-    v1_task.step_timeout,
+    COALESCE(v1_task.step_timeout, '60s') AS step_timeout,
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff,
@@ -808,6 +832,37 @@ ORDER BY
     task_outputs.inserted_at,
     task_outputs.retry_count DESC;
 
+-- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
+WITH task_outputs AS (
+    SELECT
+        lt.external_id AS task_run_external_id,
+        e.id AS task_event_id,
+        e.inserted_at AS task_event_inserted_at,
+        e.external_id AS output_event_external_id,
+        e.retry_count
+    FROM v1_lookup_table lt
+    JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
+    WHERE
+        lt.external_id = ANY(@taskExternalIds::uuid[])
+        AND e.event_type = 'COMPLETED'
+), max_retry_counts AS (
+    SELECT
+        task_run_external_id,
+        MAX(retry_count) AS max_retry_count
+    FROM
+        task_outputs
+    GROUP BY
+        task_run_external_id
+)
+SELECT
+    o.task_run_external_id,
+    o.output_event_external_id,
+    o.task_event_id,
+    o.task_event_inserted_at
+FROM task_outputs o
+JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task_run_external_id, mrc.max_retry_count)
+;
+
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 WITH input AS (
@@ -1073,7 +1128,14 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = @taskId::bigint
+          AND durable_task_inserted_at = @taskInsertedAt::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events;
 
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
@@ -1273,6 +1335,22 @@ WITH queued_tasks AS (
     GROUP BY
         t.step_readable_id,
         t.queue
+), paused_workflow_queued_tasks AS (
+    SELECT
+        t.step_readable_id,
+        t.queue,
+        COUNT(*) as count,
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+    FROM
+        v1_paused_workflow_queue_item pqi
+    JOIN
+        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+    WHERE
+        pqi.tenant_id = @tenantId::uuid
+    GROUP BY
+        t.step_readable_id,
+        t.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1406,6 +1484,20 @@ SELECT
     oldest::TIMESTAMPTZ,
     oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
+
+UNION ALL
+
+SELECT
+    'queued' as row_kind,
+    step_readable_id,
+    queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
+FROM paused_workflow_queued_tasks
 
 UNION ALL
 

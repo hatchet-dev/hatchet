@@ -8,7 +8,10 @@ Bases: `BaseRestClient`
 
 The webhooks client provides methods for managing incoming webhooks in Hatchet.
 
-Webhooks allow external systems to trigger Hatchet workflows by sending HTTP requests to dedicated endpoints. This enables real-time integration with third-party services like GitHub, Stripe, Slack, or any system that can send webhook events.
+Webhooks allow external systems to trigger Hatchet workflows by sending HTTP
+requests to dedicated endpoints. This enables real-time integration with
+third-party services like GitHub, Stripe, Slack, or any system that can send
+webhook events.
 
 Methods:
 
@@ -33,14 +36,15 @@ Create a new webhook.
 
 Parameters:
 
-| Name                   | Type                                                             | Description                                                                      | Default    |
-| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------- |
-| `source_name`          | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.          | _required_ |
-| `name`                 | `str`                                                            | The name of the webhook.                                                         | _required_ |
-| `event_key_expression` | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.        | _required_ |
-| `auth`                 | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC). | _required_ |
-| `scope_expression`     | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.  | `None`     |
-| `static_payload`       | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                  | `None`     |
+| Name                               | Type                                                             | Description                                                                           | Default    |
+| ---------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------- |
+| `source_name`                      | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.               | _required_ |
+| `name`                             | `str`                                                            | The name of the webhook.                                                              | _required_ |
+| `event_key_expression`             | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.             | _required_ |
+| `auth`                             | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC).      | _required_ |
+| `scope_expression`                 | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.       | `None`     |
+| `static_payload`                   | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                       | `None`     |
+| `return_event_as_response_payload` | `bool`                                                           | Whether to return the triggered event as the response payload of the webhook request. | `True`     |
 
 Returns:
 
@@ -105,12 +109,13 @@ Update a webhook by its name.
 
 Parameters:
 
-| Name                   | Type                     | Description                                                                        | Default    |
-| ---------------------- | ------------------------ | ---------------------------------------------------------------------------------- | ---------- |
-| `webhook_name`         | `str`                    | The name of the webhook to update.                                                 | _required_ |
-| `event_key_expression` | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload. | `None`     |
-| `scope_expression`     | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.     | `None`     |
-| `static_payload`       | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                     | `None`     |
+| Name                               | Type                     | Description                                                                           | Default    |
+| ---------------------------------- | ------------------------ | ------------------------------------------------------------------------------------- | ---------- |
+| `webhook_name`                     | `str`                    | The name of the webhook to update.                                                    | _required_ |
+| `event_key_expression`             | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload.    | `None`     |
+| `scope_expression`                 | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.        | `None`     |
+| `static_payload`                   | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                        | `None`     |
+| `return_event_as_response_payload` | `bool \| None`           | Whether to return the triggered event as the response payload of the webhook request. | `None`     |
 
 Returns:
 
@@ -124,14 +129,15 @@ Create a new webhook.
 
 Parameters:
 
-| Name                   | Type                                                             | Description                                                                      | Default    |
-| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------- |
-| `source_name`          | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.          | _required_ |
-| `name`                 | `str`                                                            | The name of the webhook.                                                         | _required_ |
-| `event_key_expression` | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.        | _required_ |
-| `auth`                 | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC). | _required_ |
-| `scope_expression`     | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.  | `None`     |
-| `static_payload`       | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                  | `None`     |
+| Name                               | Type                                                             | Description                                                                           | Default    |
+| ---------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------- |
+| `source_name`                      | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.               | _required_ |
+| `name`                             | `str`                                                            | The name of the webhook.                                                              | _required_ |
+| `event_key_expression`             | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.             | _required_ |
+| `auth`                             | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC).      | _required_ |
+| `scope_expression`                 | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.       | `None`     |
+| `static_payload`                   | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                       | `None`     |
+| `return_event_as_response_payload` | `bool`                                                           | Whether to return the triggered event as the response payload of the webhook request. | `True`     |
 
 Returns:
 
@@ -196,12 +202,13 @@ Update a webhook by its name.
 
 Parameters:
 
-| Name                   | Type                     | Description                                                                        | Default    |
-| ---------------------- | ------------------------ | ---------------------------------------------------------------------------------- | ---------- |
-| `webhook_name`         | `str`                    | The name of the webhook to update.                                                 | _required_ |
-| `event_key_expression` | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload. | `None`     |
-| `scope_expression`     | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.     | `None`     |
-| `static_payload`       | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                     | `None`     |
+| Name                               | Type                     | Description                                                                           | Default    |
+| ---------------------------------- | ------------------------ | ------------------------------------------------------------------------------------- | ---------- |
+| `webhook_name`                     | `str`                    | The name of the webhook to update.                                                    | _required_ |
+| `event_key_expression`             | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload.    | `None`     |
+| `scope_expression`                 | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.        | `None`     |
+| `static_payload`                   | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                        | `None`     |
+| `return_event_as_response_payload` | `bool \| None`           | Whether to return the triggered event as the response payload of the webhook request. | `None`     |
 
 Returns:
 

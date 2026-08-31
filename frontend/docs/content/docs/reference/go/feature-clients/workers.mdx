@@ -1,0 +1,109 @@
+---
+title: "Workers"
+---
+
+# Workers Client
+
+Accessed via `client.Workers()` on the [Hatchet client](../client).
+
+## WorkersClient
+
+WorkersClient provides methods for interacting with workers
+
+Methods:
+
+| Name      | Description                                |
+| --------- | ------------------------------------------ |
+| `Get`     | Get retrieves a worker by its ID.          |
+| `List`    | List retrieves all workers for the tenant. |
+| `Pause`   | Pause pauses a worker.                     |
+| `Unpause` | Unpause unpauses a worker.                 |
+
+### Functions
+
+#### `Get`
+
+Get retrieves a worker by its ID.
+
+```go
+func (w *WorkersClient) Get(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `workerId` | `string`          |
+
+Returns:
+
+| Type           |
+| -------------- |
+| `*rest.Worker` |
+| `error`        |
+
+#### `List`
+
+List retrieves all workers for the tenant.
+
+```go
+func (w *WorkersClient) List(ctx context.Context) (*rest.WorkerList, error)
+```
+
+Parameters:
+
+| Name  | Type              |
+| ----- | ----------------- |
+| `ctx` | `context.Context` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `*rest.WorkerList` |
+| `error`            |
+
+#### `Pause`
+
+Pause pauses a worker.
+
+```go
+func (w *WorkersClient) Pause(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `workerId` | `string`          |
+
+Returns:
+
+| Type           |
+| -------------- |
+| `*rest.Worker` |
+| `error`        |
+
+#### `Unpause`
+
+Unpause unpauses a worker.
+
+```go
+func (w *WorkersClient) Unpause(ctx context.Context, workerId string) (*rest.Worker, error)
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `workerId` | `string`          |
+
+Returns:
+
+| Type           |
+| -------------- |
+| `*rest.Worker` |
+| `error`        |

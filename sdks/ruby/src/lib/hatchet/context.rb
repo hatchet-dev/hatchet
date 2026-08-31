@@ -218,9 +218,12 @@ module Hatchet
       task_run_errors.find { |e| e.respond_to?(:task_name) && e.task_name == key }
     end
 
-    # Access the worker context for worker-level operations
+    # Access the worker context for worker-level operations. The returned
+    # {WorkerContext} exposes +id+ (the worker id), +labels+ (the current
+    # worker labels), and +upsert_labels+ to add or update worker labels on
+    # the server at runtime.
     #
-    # @return [WorkerContext, nil]
+    # @return [WorkerContext, nil] The worker context, if one is attached
     def worker
       @worker_context
     end

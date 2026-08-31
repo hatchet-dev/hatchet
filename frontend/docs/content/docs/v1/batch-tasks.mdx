@@ -6,6 +6,7 @@ import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import UniversalTabs from "@/components/UniversalTabs";
+import { BatchTasks } from "@/components/flow-animations/BatchTasks";
 
 # Batch Tasks
 
@@ -22,6 +23,8 @@ the batched execution is hidden. It is called, and receives output, the same way
 as a normal task. Though each batch will be executed in one handler function,
 the call site only receives output corresponding to its input, not the output
 for the entire batch.
+
+<BatchTasks />
 
 ## Batch flushing behavior
 

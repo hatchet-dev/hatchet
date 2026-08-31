@@ -177,6 +177,11 @@ export enum ScheduledWorkflowsMethod {
   API = "API",
 }
 
+export enum WorkflowPauseScheduledCronRunQueueBehavior {
+  DROP = "DROP",
+  QUEUE = "QUEUE",
+}
+
 export enum RateLimitOrderByDirection {
   Asc = "asc",
   Desc = "desc",
@@ -1242,6 +1247,62 @@ export interface V1UpdateWebhookRequest {
   returnEventAsResponsePayload?: boolean;
 }
 
+export interface V1HTTPOperator {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the tenant associated with this operator.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The name of the operator. */
+  name: string;
+  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
+  triggerEndpoint: string;
+  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
+  healthcheckEndpoint: string;
+  /**
+   * The per-request timeout backstop, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds: number;
+}
+
+export interface V1HTTPOperatorList {
+  pagination?: PaginationResponse;
+  rows?: V1HTTPOperator[];
+}
+
+export interface V1CreateHTTPOperatorRequest {
+  /** The name of the operator. */
+  name: string;
+  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
+  triggerEndpoint: string;
+  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
+  healthcheckEndpoint: string;
+  /** The secret used to HMAC-sign delivered requests (sent in the X-Hatchet-Signature header). Write-only: it is never returned in responses. */
+  signingSecret: string;
+  /**
+   * The per-request timeout backstop, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds: number;
+}
+
+/** Fields to update on an HTTP operator. Omitted fields are left unchanged. */
+export interface V1UpdateHTTPOperatorRequest {
+  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
+  triggerEndpoint?: string;
+  /** An optional HTTPS endpoint polled to verify the operator endpoint is reachable. */
+  healthcheckEndpoint?: string;
+  /** The secret used to HMAC-sign delivered requests. Write-only: it is never returned in responses. Provide a new value to rotate it. */
+  signingSecret?: string;
+  /**
+   * Optional override for the per-request timeout backstop, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+}
+
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */
   expression: string;
@@ -1331,6 +1392,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether this instance is running in embedded mode
+   * @example false
+   */
+  embedded?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -1815,6 +1881,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
@@ -2059,9 +2129,28 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface PauseWorkflowRequestPause {
+  /** Discriminator indicating this request pauses the workflow. */
+  action: "pause";
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m"). */
+  pausedWorkflowQueueTTL: string;
+}
+
+export interface PauseWorkflowRequestUnpause {
+  /** Discriminator indicating this request unpauses the workflow. */
+  action: "unpause";
+}
+
+export type PauseWorkflowRequest =
+  | PauseWorkflowRequestPause
+  | PauseWorkflowRequestUnpause;
+
 export interface WorkflowUpdateRequest {
-  /** Whether the workflow is paused. */
-  isPaused?: boolean;
+  pause?: PauseWorkflowRequest;
 }
 
 export interface WorkflowConcurrency {

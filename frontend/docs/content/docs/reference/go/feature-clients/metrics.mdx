@@ -1,0 +1,87 @@
+---
+title: "Metrics"
+---
+
+# Metrics Client
+
+Accessed via `client.Metrics()` on the [Hatchet client](../client).
+
+## MetricsClient
+
+MetricsClient provides methods for retrieving metrics for workflows, tasks, and tenant queue
+
+Methods:
+
+| Name                  | Description                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `GetQueueMetrics`     | GetQueueMetrics retrieves tenant-wide queue metrics.              |
+| `GetTaskQueueMetrics` | GetTaskQueueMetrics retrieves tenant-wide step run queue metrics. |
+| `GetWorkflowMetrics`  | GetWorkflowMetrics retrieves metrics for a specific workflow.     |
+
+### Functions
+
+#### `GetQueueMetrics`
+
+GetQueueMetrics retrieves tenant-wide queue metrics.
+
+```go
+func (m *MetricsClient) GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantQueueMetrics, error)
+```
+
+Parameters:
+
+| Name   | Type                                |
+| ------ | ----------------------------------- |
+| `ctx`  | `context.Context`                   |
+| `opts` | `*rest.TenantGetQueueMetricsParams` |
+
+Returns:
+
+| Type                       |
+| -------------------------- |
+| `*rest.TenantQueueMetrics` |
+| `error`                    |
+
+#### `GetTaskQueueMetrics`
+
+GetTaskQueueMetrics retrieves tenant-wide step run queue metrics.
+
+```go
+func (m *MetricsClient) GetTaskQueueMetrics(ctx context.Context) (*rest.TenantStepRunQueueMetrics, error)
+```
+
+Parameters:
+
+| Name  | Type              |
+| ----- | ----------------- |
+| `ctx` | `context.Context` |
+
+Returns:
+
+| Type                              |
+| --------------------------------- |
+| `*rest.TenantStepRunQueueMetrics` |
+| `error`                           |
+
+#### `GetWorkflowMetrics`
+
+GetWorkflowMetrics retrieves metrics for a specific workflow.
+
+```go
+func (m *MetricsClient) GetWorkflowMetrics(ctx context.Context, workflowName string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
+```
+
+Parameters:
+
+| Name           | Type                             |
+| -------------- | -------------------------------- |
+| `ctx`          | `context.Context`                |
+| `workflowName` | `string`                         |
+| `opts`         | `*rest.WorkflowGetMetricsParams` |
+
+Returns:
+
+| Type                    |
+| ----------------------- |
+| `*rest.WorkflowMetrics` |
+| `error`                 |

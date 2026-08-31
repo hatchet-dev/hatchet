@@ -29,6 +29,7 @@ from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.clients.rest.models.workflow import Workflow as WorkflowModel
 from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -752,6 +753,72 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         **DANGEROUS: This will delete a workflow and all of its data**
         """
         await self._client.workflows.aio_delete(self.id)
+
+    def pause(
+        self,
+        queue_ttl: timedelta,
+        paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
+        paused_workflow_scheduled_run_queue_behavior: Literal[
+            "DROP", "QUEUE"
+        ] = "QUEUE",
+    ) -> WorkflowModel:
+        """
+        Pause the workflow.
+
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
+        :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
+        :return: The updated workflow.
+        """
+
+        return self._client.workflows.pause(
+            self.id,
+            queue_ttl,
+            paused_workflow_cron_run_queue_behavior,
+            paused_workflow_scheduled_run_queue_behavior,
+        )
+
+    async def aio_pause(
+        self,
+        queue_ttl: timedelta,
+        paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
+        paused_workflow_scheduled_run_queue_behavior: Literal[
+            "DROP", "QUEUE"
+        ] = "QUEUE",
+    ) -> WorkflowModel:
+        """
+        Pause the workflow.
+
+        :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
+        :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
+        :return: The updated workflow.
+        """
+
+        return await self._client.workflows.aio_pause(
+            self.id,
+            queue_ttl,
+            paused_workflow_cron_run_queue_behavior,
+            paused_workflow_scheduled_run_queue_behavior,
+        )
+
+    def unpause(self) -> WorkflowModel:
+        """
+        Unpause the workflow.
+
+        :return: The updated workflow.
+        """
+
+        return self._client.workflows.unpause(self.id)
+
+    async def aio_unpause(self) -> WorkflowModel:
+        """
+        Unpause the workflow.
+
+        :return: The updated workflow.
+        """
+
+        return await self._client.workflows.aio_unpause(self.id)
 
     @overload
     def mcp_tool(

@@ -248,6 +248,9 @@ type ConfigFileRuntime struct {
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 
+	// Whether this instance is running in embedded mode
+	Embedded bool `mapstructure:"embedded" json:"embedded,omitempty" default:"false"`
+
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
@@ -288,6 +291,21 @@ type ConfigFileRuntime struct {
 	// (SERVER_ALLOWED_ORIGINS). Example: "https://app.example.com https://*.hatchet.run".
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
+
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
+	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
+	// on top of the built-in reserved/private denylist. Populated from
+	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
+
+	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding
+	// (SERVER_OPERATOR_INFRA_BLOCKED_CIDRS). Example: "10.0.0.0/8 fd00::/8".
+	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
+	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
+
+	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
+	// orchestrates concurrently)
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
@@ -558,12 +576,20 @@ type PubSubNATSConfigFile struct {
 	// URL is comma-separated seed URL(s). Prefer bare hosts (e.g.
 	// nats://nats:4222); put auth in Username/Password so rediscovered
 	// cluster peers authenticate too. URL-embedded user:pass still works for
-	// single-server/dev. Use tls:// for TLS. No durable-MQ inheritance —
-	// NATS is pub/sub only.
+	// single-server/dev. No durable-MQ inheritance — NATS is pub/sub only.
 	URL string `mapstructure:"url" json:"url,omitempty"`
 
 	Username string `mapstructure:"username" json:"username,omitempty"`
 	Password string `mapstructure:"password" json:"password,omitempty"`
+
+	// TLSEnabled requires TLS with a TLS-first handshake (the server must
+	// enable handshake_first). Without TLSRootCAFile, verification uses the
+	// system roots.
+	TLSEnabled bool `mapstructure:"tlsEnabled" json:"tlsEnabled,omitempty"`
+
+	// TLSRootCAFile is a PEM CA bundle for server verification. Requires
+	// TLSEnabled.
+	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 
 	// SubjectPrefix is prepended (with a trailing ".") to topic names.
 	// Empty defaults to "hatchet.pubsub".
@@ -823,6 +849,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
+	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
+	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -929,6 +957,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.nats.username", "SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME")
 	_ = v.BindEnv("msgQueue.pubSub.nats.password", "SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD")
 	_ = v.BindEnv("msgQueue.pubSub.nats.subjectPrefix", "SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX")
+	_ = v.BindEnv("msgQueue.pubSub.nats.tlsEnabled", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED")
+	_ = v.BindEnv("msgQueue.pubSub.nats.tlsRootCAFile", "SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ROOT_CA_FILE")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")

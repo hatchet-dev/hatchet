@@ -353,7 +353,8 @@ INSERT INTO v1_durable_event_log_branch_point (
     durable_task_inserted_at,
     first_node_id_in_new_branch,
     parent_branch_id,
-    next_branch_id
+    next_branch_id,
+    replay_child_external_ids
 )
 VALUES (
     $1::UUID,
@@ -361,9 +362,10 @@ VALUES (
     $3::TIMESTAMPTZ,
     $4::BIGINT,
     $5::BIGINT,
-    $6::BIGINT
+    $6::BIGINT,
+    $7::UUID[]
 )
-RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, replay_child_external_ids
 `
 
 type CreateDurableEventLogBranchPointParams struct {
@@ -373,6 +375,7 @@ type CreateDurableEventLogBranchPointParams struct {
 	Firstnodeidinnewbranch int64              `json:"firstnodeidinnewbranch"`
 	Parentbranchid         int64              `json:"parentbranchid"`
 	Nextbranchid           int64              `json:"nextbranchid"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replayChildExternalIds"`
 }
 
 func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX, arg CreateDurableEventLogBranchPointParams) error {
@@ -383,6 +386,7 @@ func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX,
 		arg.Firstnodeidinnewbranch,
 		arg.Parentbranchid,
 		arg.Nextbranchid,
+		arg.ReplayChildExternalIds,
 	)
 	return err
 }
@@ -417,6 +421,85 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 		&i.LatestSatisfiedOrder,
 	)
 	return &i, err
+}
+
+const getAndLockLogFileWithBranchPoints = `-- name: GetAndLockLogFileWithBranchPoints :many
+WITH locked_file AS (
+    SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
+    FROM v1_durable_event_log_file
+    WHERE
+        durable_task_id = $1::BIGINT
+        AND durable_task_inserted_at = $2::TIMESTAMPTZ
+        AND tenant_id = $3::UUID
+    FOR UPDATE
+)
+
+SELECT
+    to_embed.tenant_id, to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.latest_invocation_count, to_embed.latest_inserted_at, to_embed.latest_node_id, to_embed.latest_branch_id, to_embed.latest_satisfied_order,
+    bp.tenant_id, bp.id, bp.inserted_at, bp.durable_task_id, bp.durable_task_inserted_at, bp.first_node_id_in_new_branch, bp.parent_branch_id, bp.next_branch_id, bp.replay_child_external_ids
+FROM locked_file lf
+JOIN v1_durable_event_log_file to_embed
+    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = ($1::BIGINT, $2::TIMESTAMPTZ, $3::UUID)
+LEFT JOIN v1_durable_event_log_branch_point bp
+    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = ($1::BIGINT, $2::TIMESTAMPTZ, $3::UUID)
+`
+
+type GetAndLockLogFileWithBranchPointsParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
+}
+
+type GetAndLockLogFileWithBranchPointsRow struct {
+	V1DurableEventLogFile  V1DurableEventLogFile `json:"v1_durable_event_log_file"`
+	TenantID               *uuid.UUID            `json:"tenant_id"`
+	ID                     pgtype.Int8           `json:"id"`
+	InsertedAt             pgtype.Timestamptz    `json:"inserted_at"`
+	DurableTaskID          pgtype.Int8           `json:"durable_task_id"`
+	DurableTaskInsertedAt  pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	FirstNodeIDInNewBranch pgtype.Int8           `json:"first_node_id_in_new_branch"`
+	ParentBranchID         pgtype.Int8           `json:"parent_branch_id"`
+	NextBranchID           pgtype.Int8           `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID           `json:"replay_child_external_ids"`
+}
+
+// note: intentionally using the params for the join so we can prune partitions
+func (q *Queries) GetAndLockLogFileWithBranchPoints(ctx context.Context, db DBTX, arg GetAndLockLogFileWithBranchPointsParams) ([]*GetAndLockLogFileWithBranchPointsRow, error) {
+	rows, err := db.Query(ctx, getAndLockLogFileWithBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetAndLockLogFileWithBranchPointsRow
+	for rows.Next() {
+		var i GetAndLockLogFileWithBranchPointsRow
+		if err := rows.Scan(
+			&i.V1DurableEventLogFile.TenantID,
+			&i.V1DurableEventLogFile.DurableTaskID,
+			&i.V1DurableEventLogFile.DurableTaskInsertedAt,
+			&i.V1DurableEventLogFile.LatestInvocationCount,
+			&i.V1DurableEventLogFile.LatestInsertedAt,
+			&i.V1DurableEventLogFile.LatestNodeID,
+			&i.V1DurableEventLogFile.LatestBranchID,
+			&i.V1DurableEventLogFile.LatestSatisfiedOrder,
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.FirstNodeIDInNewBranch,
+			&i.ParentBranchID,
+			&i.NextBranchID,
+			&i.ReplayChildExternalIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getDurableEventLogEntriesByChildTaskExternalIds = `-- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
@@ -670,51 +753,6 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 	return items, nil
 }
 
-const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
-SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
-FROM v1_durable_event_log_branch_point
-WHERE
-    durable_task_id = $1::BIGINT
-    AND durable_task_inserted_at = $2::TIMESTAMPTZ
-    AND tenant_id = $3::UUID
-ORDER BY id ASC
-`
-
-type ListDurableEventLogBranchPointsParams struct {
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Tenantid              uuid.UUID          `json:"tenantid"`
-}
-
-func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, arg ListDurableEventLogBranchPointsParams) ([]*V1DurableEventLogBranchPoint, error) {
-	rows, err := db.Query(ctx, listDurableEventLogBranchPoints, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1DurableEventLogBranchPoint
-	for rows.Next() {
-		var i V1DurableEventLogBranchPoint
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.DurableTaskID,
-			&i.DurableTaskInsertedAt,
-			&i.FirstNodeIDInNewBranch,
-			&i.ParentBranchID,
-			&i.NextBranchID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDurableEventLogEntriesBeforeNode = `-- name: ListDurableEventLogEntriesBeforeNode :many
 SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 FROM v1_durable_event_log_entry
@@ -879,7 +917,7 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS node_id,
         UNNEST($3::BIGINT[]) AS branch_id
 ), tasks_with_nodes AS (
-    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
@@ -1217,4 +1255,75 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		&i.LatestSatisfiedOrder,
 	)
 	return &i, err
+}
+
+const upsertDurableChildSignalCreatedEvents = `-- name: UpsertDurableChildSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST($4::TEXT[]) AS event_key,
+        UNNEST($5::UUID[]) AS child_external_id
+)
+
+INSERT INTO v1_task_event (
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    event_key,
+    child_external_id
+)
+SELECT
+    $1::UUID,
+    $2::BIGINT,
+    $3::TIMESTAMPTZ,
+    -1,
+    'SIGNAL_CREATED',
+    i.event_key,
+    i.child_external_id
+FROM input i
+ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
+DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
+RETURNING
+    v1_task_event.event_key,
+    v1_task_event.child_external_id
+`
+
+type UpsertDurableChildSignalCreatedEventsParams struct {
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Eventkeys             []string           `json:"eventkeys"`
+	Childexternalids      []uuid.UUID        `json:"childexternalids"`
+}
+
+type UpsertDurableChildSignalCreatedEventsRow struct {
+	EventKey        pgtype.Text `json:"event_key"`
+	ChildExternalID *uuid.UUID  `json:"child_external_id"`
+}
+
+func (q *Queries) UpsertDurableChildSignalCreatedEvents(ctx context.Context, db DBTX, arg UpsertDurableChildSignalCreatedEventsParams) ([]*UpsertDurableChildSignalCreatedEventsRow, error) {
+	rows, err := db.Query(ctx, upsertDurableChildSignalCreatedEvents,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Eventkeys,
+		arg.Childexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpsertDurableChildSignalCreatedEventsRow
+	for rows.Next() {
+		var i UpsertDurableChildSignalCreatedEventsRow
+		if err := rows.Scan(&i.EventKey, &i.ChildExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

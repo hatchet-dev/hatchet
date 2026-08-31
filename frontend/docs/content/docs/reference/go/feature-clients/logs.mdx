@@ -1,0 +1,36 @@
+---
+title: "Logs"
+---
+
+# Logs Client
+
+Accessed via `client.Logs()` on the [Hatchet client](../client).
+
+## LogsClient
+
+LogsClient provides methods for interacting with Hatchet's logs API. To write logs from inside a task, use the task context's Log method instead.
+
+### Functions
+
+#### `List`
+
+List retrieves the log lines for a given task run.
+
+```go
+func (l *LogsClient) List(ctx context.Context, taskRunId uuid.UUID, opts *rest.V1LogLineListParams) (*rest.V1LogLineList, error)
+```
+
+Parameters:
+
+| Name        | Type                        |
+| ----------- | --------------------------- |
+| `ctx`       | `context.Context`           |
+| `taskRunId` | `uuid.UUID`                 |
+| `opts`      | `*rest.V1LogLineListParams` |
+
+Returns:
+
+| Type                  |
+| --------------------- |
+| `*rest.V1LogLineList` |
+| `error`               |

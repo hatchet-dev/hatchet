@@ -1,0 +1,226 @@
+---
+title: "Runs"
+---
+
+# Runs Client
+
+Accessed via `client.Runs()` on the [Hatchet client](../client).
+
+## RunsClient
+
+RunsClient provides methods for interacting with workflow runs
+
+Methods:
+
+| Name                | Description                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `BranchDurableTask` | BranchDurableTask creates a branch from a durable task at the specified node.                                             |
+| `Cancel`            | Cancel requests cancellation of a specific task within a workflow run.                                                    |
+| `Get`               | Get retrieves a workflow run by its ID.                                                                                   |
+| `GetDetails`        | GetDetails retrieves detailed information about a workflow run via gRPC, including task-level output, errors, and status. |
+| `GetStatus`         | GetStatus retrieves the status of a workflow run by its ID.                                                               |
+| `List`              | List retrieves a collection of workflow runs based on the provided parameters.                                            |
+| `Replay`            | Replay requests a task to be replayed within a workflow run.                                                              |
+| `Restore`           | Restore re-enqueues an evicted task so it can resume execution.                                                           |
+| `SubscribeToStream` | SubscribeToStream subscribes to streaming events for a specific workflow run.                                             |
+
+### Functions
+
+#### `BranchDurableTask`
+
+BranchDurableTask creates a branch from a durable task at the specified node.
+
+```go
+func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId string, nodeId, branchId int64) (*rest.V1BranchDurableTaskResponse, error)
+```
+
+Parameters:
+
+| Name             | Type              |
+| ---------------- | ----------------- |
+| `ctx`            | `context.Context` |
+| `taskExternalId` | `string`          |
+| `nodeId`         | `int64`           |
+| `branchId`       | `int64`           |
+
+Returns:
+
+| Type                                |
+| ----------------------------------- |
+| `*rest.V1BranchDurableTaskResponse` |
+| `error`                             |
+
+#### `Cancel`
+
+Cancel requests cancellation of a specific task within a workflow run.
+
+```go
+func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1CancelledTasks, error)
+```
+
+Parameters:
+
+| Name   | Type                       |
+| ------ | -------------------------- |
+| `ctx`  | `context.Context`          |
+| `opts` | `rest.V1CancelTaskRequest` |
+
+Returns:
+
+| Type                     |
+| ------------------------ |
+| `*rest.V1CancelledTasks` |
+| `error`                  |
+
+#### `Get`
+
+Get retrieves a workflow run by its ID.
+
+```go
+func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunDetails, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `runId` | `string`          |
+
+Returns:
+
+| Type                         |
+| ---------------------------- |
+| `*rest.V1WorkflowRunDetails` |
+| `error`                      |
+
+#### `GetDetails`
+
+GetDetails retrieves detailed information about a workflow run via gRPC, including task-level output, errors, and status.
+
+```go
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `runId` | `uuid.UUID`       |
+
+Returns:
+
+| Type                 |
+| -------------------- |
+| `*client.RunDetails` |
+| `error`              |
+
+#### `GetStatus`
+
+GetStatus retrieves the status of a workflow run by its ID.
+
+```go
+func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskStatus, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `runId` | `string`          |
+
+Returns:
+
+| Type                 |
+| -------------------- |
+| `*rest.V1TaskStatus` |
+| `error`              |
+
+#### `List`
+
+List retrieves a collection of workflow runs based on the provided parameters.
+
+```go
+func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error)
+```
+
+Parameters:
+
+| Name   | Type                           |
+| ------ | ------------------------------ |
+| `ctx`  | `context.Context`              |
+| `opts` | `rest.V1WorkflowRunListParams` |
+
+Returns:
+
+| Type                      |
+| ------------------------- |
+| `*rest.V1TaskSummaryList` |
+| `error`                   |
+
+#### `Replay`
+
+Replay requests a task to be replayed within a workflow run.
+
+```go
+func (r *RunsClient) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1ReplayedTasks, error)
+```
+
+Parameters:
+
+| Name   | Type                       |
+| ------ | -------------------------- |
+| `ctx`  | `context.Context`          |
+| `opts` | `rest.V1ReplayTaskRequest` |
+
+Returns:
+
+| Type                    |
+| ----------------------- |
+| `*rest.V1ReplayedTasks` |
+| `error`                 |
+
+#### `Restore`
+
+Restore re-enqueues an evicted task so it can resume execution.
+
+```go
+func (r *RunsClient) Restore(ctx context.Context, taskExternalId string) (*rest.V1RestoreTaskResponse, error)
+```
+
+Parameters:
+
+| Name             | Type              |
+| ---------------- | ----------------- |
+| `ctx`            | `context.Context` |
+| `taskExternalId` | `string`          |
+
+Returns:
+
+| Type                          |
+| ----------------------------- |
+| `*rest.V1RestoreTaskResponse` |
+| `error`                       |
+
+#### `SubscribeToStream`
+
+SubscribeToStream subscribes to streaming events for a specific workflow run.
+
+```go
+func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string) <-chan string
+```
+
+Parameters:
+
+| Name            | Type              |
+| --------------- | ----------------- |
+| `ctx`           | `context.Context` |
+| `workflowRunId` | `string`          |
+
+Returns:
+
+| Type            |
+| --------------- |
+| `<-chan string` |

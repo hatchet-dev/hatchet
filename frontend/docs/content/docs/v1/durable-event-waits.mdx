@@ -6,13 +6,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
-import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
+import { HumanInLoop } from "@/components/flow-animations/HumanInLoop";
 
 # Durable Event Waits
 
 Tasks can pause until an external event arrives before continuing. This is the foundation for human-in-the-loop workflows, webhook-driven pipelines, and any process that depends on signals from outside the task.
 
-<HumanInLoopDiagram />
+<HumanInLoop />
 
 Events are delivered by pushing events into Hatchet either [using one of the SDKs](/v1/events#pushing-events-to-hatchet) or via an [incoming webhook](/v1/webhooks). The event key you push must match the key your task is waiting for.
 
@@ -91,10 +91,7 @@ As a simple example, if you're establishing an event wait with a CEL expression 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<Callout type="info">
-  Lookback window support for the Go SDK is coming soon. Join our
-  [Discord](https://hatchet.run/discord) to stay up to date.
-</Callout>
+<Snippet src={snippets.go.durable.event.main.wait_for_event_with_lookback} />
 
 </Tabs.Tab>
   <Tabs.Tab title="Ruby">
