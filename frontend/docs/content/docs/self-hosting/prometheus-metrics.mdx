@@ -75,24 +75,24 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ### Global Metrics
 
-| Metric Name                               | Type      | Description                                                                       |
-| ----------------------------------------- | --------- | --------------------------------------------------------------------------------- |
-| `hatchet_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                            |
-| `hatchet_created_tasks_total`             | Counter   | The total number of tasks created                                                 |
-| `hatchet_retried_tasks_total`             | Counter   | The total number of tasks retried                                                 |
-| `hatchet_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                          |
-| `hatchet_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
-| `hatchet_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                       |
-| `hatchet_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                               |
-| `hatchet_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                    |
-| `hatchet_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
-| `hatchet_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                  |
-| `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
-| `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
-| `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
-| `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
-| `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
-| `hatchet_pubsub_nats_scheduler_partition_drops_total` | Counter | Messages dropped client-side by the NATS scheduler-partition subscription |
+| Metric Name                                           | Type      | Description                                                                       |
+| ----------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`                     | Counter   | The total number of invocations of the queuer function                            |
+| `hatchet_created_tasks_total`                         | Counter   | The total number of tasks created                                                 |
+| `hatchet_retried_tasks_total`                         | Counter   | The total number of tasks retried                                                 |
+| `hatchet_succeeded_tasks_total`                       | Counter   | The total number of tasks that succeeded                                          |
+| `hatchet_failed_tasks_total`                          | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
+| `hatchet_skipped_tasks_total`                         | Counter   | The total number of tasks that were skipped                                       |
+| `hatchet_cancelled_tasks_total`                       | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_assigned_tasks`                              | Counter   | The total number of tasks assigned to a worker                                    |
+| `hatchet_scheduling_timed_out`                        | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
+| `hatchet_rate_limited`                                | Counter   | The total number of tasks that were rate limited                                  |
+| `hatchet_queued_to_assigned`                          | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
+| `hatchet_queued_to_assigned_time_seconds`             | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+| `hatchet_reassigned_tasks`                            | Counter   | The total number of tasks that were reassigned to a worker                        |
+| `hatchet_pubsub_publish_duration_seconds`             | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
+| `hatchet_pubsub_transit_seconds`                      | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
+| `hatchet_pubsub_nats_scheduler_partition_drops_total` | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription         |
 
 The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
 `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
