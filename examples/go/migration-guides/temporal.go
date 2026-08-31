@@ -247,6 +247,7 @@ func NewChargeOrder(client *hatchet.Client) *hatchet.StandaloneTask {
 	return chargeOrder
 }
 
+
 // NewValidateOrder declares the validate-order task.
 func NewValidateOrder(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask("validate-order",
