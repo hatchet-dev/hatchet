@@ -31,7 +31,6 @@ func IdempotentTask(client *hatchet.Client) *hatchet.StandaloneTask {
 	)
 }
 
-
 // > status-based-idempotency
 func IdempotentStatusBasedTask(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask(
@@ -48,4 +47,3 @@ func IdempotentStatusBasedTask(client *hatchet.Client) *hatchet.StandaloneTask {
 		}),
 	)
 }
-

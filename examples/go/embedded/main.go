@@ -14,7 +14,6 @@ import (
 	_ "github.com/hatchet-dev/hatchet-embedded"
 )
 
-
 type GreetInput struct {
 	Name string `json:"name"`
 }
