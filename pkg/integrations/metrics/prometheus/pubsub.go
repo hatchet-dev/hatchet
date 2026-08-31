@@ -8,9 +8,9 @@ import (
 type PubSubHatchetMetric string
 
 const (
-	PubSubPublishDurationSeconds PubSubHatchetMetric = "hatchet_pubsub_publish_duration_seconds"
-	PubSubTransitSeconds         PubSubHatchetMetric = "hatchet_pubsub_transit_seconds"
-	PubSubNATSClientDropsTotal   PubSubHatchetMetric = "hatchet_pubsub_nats_client_drops_total"
+	PubSubPublishDurationSeconds           PubSubHatchetMetric = "hatchet_pubsub_publish_duration_seconds"
+	PubSubTransitSeconds                   PubSubHatchetMetric = "hatchet_pubsub_transit_seconds"
+	PubSubNATSSchedulerPartitionDropsTotal PubSubHatchetMetric = "hatchet_pubsub_nats_scheduler_partition_drops_total"
 )
 
 var pubSubBuckets = []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15}
@@ -29,13 +29,12 @@ var (
 	}, []string{"kind", "topic_kind"})
 )
 
-// RegisterNATSClientDrops exposes dropped() as a counter labelled with the
-// topic kind; the returned func unregisters it. Panics on double registration.
-func RegisterNATSClientDrops(topicKind string, dropped func() float64) func() {
+// RegisterNATSSchedulerPartitionDrops exposes dropped() as a counter; the
+// returned func unregisters it. Panics on double registration.
+func RegisterNATSSchedulerPartitionDrops(dropped func() float64) func() {
 	c := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name:        string(PubSubNATSClientDropsTotal),
-		Help:        "Messages dropped client-side by the nats.go pub/sub subscription on pending-limit violations, from Subscription.Dropped().",
-		ConstLabels: prometheus.Labels{"topic_kind": topicKind},
+		Name: string(PubSubNATSSchedulerPartitionDropsTotal),
+		Help: "Messages dropped client-side by nats.go on pending-limit violations, from Subscription.Dropped(); covers the scheduler-partition subscription only.",
 	}, dropped)
 
 	prometheus.MustRegister(c)

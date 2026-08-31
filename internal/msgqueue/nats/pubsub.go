@@ -338,7 +338,7 @@ func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscrip
 		return func() {}
 	}
 
-	return prommetrics.RegisterNATSClientDrops(string(topic.Kind()), func() float64 {
+	return prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
 		dropped, err := sub.Dropped()
 		if err != nil {
 			return 0

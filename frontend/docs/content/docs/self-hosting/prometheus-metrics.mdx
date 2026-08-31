@@ -92,7 +92,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
 | `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
 | `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
-| `hatchet_pubsub_nats_client_drops_total`  | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription         |
+| `hatchet_pubsub_nats_scheduler_partition_drops_total` | Counter | Messages dropped client-side by the NATS scheduler-partition subscription |
 
 The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
 `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
@@ -109,12 +109,12 @@ Two caveats when comparing backends:
   between the publishing and subscribing pods. Messages published by engines
   that predate the `published_at` stamp are not observed at all.
 
-`hatchet_pubsub_nats_client_drops_total` exists only when NATS backend is
-enabled and covers the scheduler-partition subscription only. It is read from
-the NATS client's `Subscription.Dropped()` at scrape time. Drops happen when a
-subscription exceeds the nats.go default pending limits (500,000 messages /
-64 MiB per subscription). For tenant-stream subscriptions the sampled
-`nats pubsub async error` warning log is the only drop signal.
+`hatchet_pubsub_nats_scheduler_partition_drops_total` exists only when NATS
+backend is enabled and covers the scheduler-partition subscription only. It is
+read from the NATS client's `Subscription.Dropped()` at scrape time. Drops
+happen when a subscription exceeds the nats.go default pending limits (500,000
+messages / 64 MiB per subscription). For tenant-stream subscriptions the
+sampled `nats pubsub async error` warning log is the only drop signal.
 
 #### Example PromQL Queries
 
