@@ -97,13 +97,13 @@ func TestWorkflowDump_ConcurrencyExceptStrategies(t *testing.T) {
 	}{
 		{
 			name:     "cancel except newest",
-			strategy: types.CancelExceptNewest,
-			want:     contracts.ConcurrencyLimitStrategy_CANCEL_EXCEPT_NEWEST,
+			strategy: types.CancelQueuedExceptNewest,
+			want:     contracts.ConcurrencyLimitStrategy_CANCEL_QUEUED_EXCEPT_NEWEST,
 		},
 		{
 			name:     "cancel except oldest",
-			strategy: types.CancelExceptOldest,
-			want:     contracts.ConcurrencyLimitStrategy_CANCEL_EXCEPT_OLDEST,
+			strategy: types.CancelQueuedExceptOldest,
+			want:     contracts.ConcurrencyLimitStrategy_CANCEL_QUEUED_EXCEPT_OLDEST,
 		},
 	}
 

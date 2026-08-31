@@ -681,7 +681,7 @@ func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChil
 	return items, nil
 }
 
-const runChildCancelExceptNewest = `-- name: RunChildCancelExceptNewest :many
+const runChildCancelQueuedExceptNewest = `-- name: RunChildCancelQueuedExceptNewest :many
 WITH slots AS (
     SELECT
         task_id,
@@ -908,13 +908,13 @@ FROM
     updated_slots
 `
 
-type RunChildCancelExceptNewestParams struct {
+type RunChildCancelQueuedExceptNewestParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 	Strategyid int64     `json:"strategyid"`
 	Maxruns    int32     `json:"maxruns"`
 }
 
-type RunChildCancelExceptNewestRow struct {
+type RunChildCancelQueuedExceptNewestRow struct {
 	SortID                pgtype.Int8        `json:"sort_id"`
 	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
@@ -937,15 +937,15 @@ type RunChildCancelExceptNewestRow struct {
 	Operation             string             `json:"operation"`
 }
 
-func (q *Queries) RunChildCancelExceptNewest(ctx context.Context, db DBTX, arg RunChildCancelExceptNewestParams) ([]*RunChildCancelExceptNewestRow, error) {
-	rows, err := db.Query(ctx, runChildCancelExceptNewest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
+func (q *Queries) RunChildCancelQueuedExceptNewest(ctx context.Context, db DBTX, arg RunChildCancelQueuedExceptNewestParams) ([]*RunChildCancelQueuedExceptNewestRow, error) {
+	rows, err := db.Query(ctx, runChildCancelQueuedExceptNewest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*RunChildCancelExceptNewestRow
+	var items []*RunChildCancelQueuedExceptNewestRow
 	for rows.Next() {
-		var i RunChildCancelExceptNewestRow
+		var i RunChildCancelQueuedExceptNewestRow
 		if err := rows.Scan(
 			&i.SortID,
 			&i.TaskID,
@@ -978,16 +978,16 @@ func (q *Queries) RunChildCancelExceptNewest(ctx context.Context, db DBTX, arg R
 	return items, nil
 }
 
-// Used for CANCEL_EXCEPT_OLDEST scheduling when a strategy has a parent strategy. Same shape as
-// RunChildCancelExceptNewest, except the spared band is the oldest maxRuns of the queued backlog
+// Used for CANCEL_QUEUED_EXCEPT_OLDEST scheduling when a strategy has a parent strategy. Same shape as
+// RunChildCancelQueuedExceptNewest, except the spared band is the oldest maxRuns of the queued backlog
 // instead of the newest: since all_slots_ranked already ranks oldest-first, "oldest maxRuns still
 // queued" is just the next maxRuns ranks after the ones already running (rn <= 2*maxRuns covers both
-// bands), so no key_count/reverse ranking is needed the way RunChildCancelExceptNewest needs it. As
-// with RunChildCancelExceptNewest, this ranking deliberately does NOT join to
+// bands), so no key_count/reverse ranking is needed the way RunChildCancelQueuedExceptNewest needs it. As
+// with RunChildCancelQueuedExceptNewest, this ranking deliberately does NOT join to
 // tmp_workflow_concurrency_slot: a task whose run was never admitted must still be able to qualify
 // as one of the oldest maxRuns and be spared, or this would degrade to plain CANCEL_NEWEST for every
 // task waiting on parent admission.
-const runChildCancelExceptOldest = `-- name: RunChildCancelExceptOldest :many
+const runChildCancelQueuedExceptOldest = `-- name: RunChildCancelQueuedExceptOldest :many
 WITH slots AS (
     SELECT
         task_id,
@@ -1213,13 +1213,13 @@ FROM
     updated_slots
 `
 
-type RunChildCancelExceptOldestParams struct {
+type RunChildCancelQueuedExceptOldestParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 	Strategyid int64     `json:"strategyid"`
 	Maxruns    int32     `json:"maxruns"`
 }
 
-type RunChildCancelExceptOldestRow struct {
+type RunChildCancelQueuedExceptOldestRow struct {
 	SortID                pgtype.Int8        `json:"sort_id"`
 	TaskID                int64              `json:"task_id"`
 	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
@@ -1242,15 +1242,15 @@ type RunChildCancelExceptOldestRow struct {
 	Operation             string             `json:"operation"`
 }
 
-func (q *Queries) RunChildCancelExceptOldest(ctx context.Context, db DBTX, arg RunChildCancelExceptOldestParams) ([]*RunChildCancelExceptOldestRow, error) {
-	rows, err := db.Query(ctx, runChildCancelExceptOldest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
+func (q *Queries) RunChildCancelQueuedExceptOldest(ctx context.Context, db DBTX, arg RunChildCancelQueuedExceptOldestParams) ([]*RunChildCancelQueuedExceptOldestRow, error) {
+	rows, err := db.Query(ctx, runChildCancelQueuedExceptOldest, arg.Tenantid, arg.Strategyid, arg.Maxruns)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*RunChildCancelExceptOldestRow
+	var items []*RunChildCancelQueuedExceptOldestRow
 	for rows.Next() {
-		var i RunChildCancelExceptOldestRow
+		var i RunChildCancelQueuedExceptOldestRow
 		if err := rows.Scan(
 			&i.SortID,
 			&i.TaskID,

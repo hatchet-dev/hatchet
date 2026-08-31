@@ -506,8 +506,8 @@ func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) in
 	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
 		return cancelInProgressCompare
 	}
-	if kind == sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST {
-		return cancelExceptCompare
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST {
+		return cancelQueuedExceptCompare
 	}
 	return priorityCompare
 }
@@ -525,18 +525,18 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelInProgress
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
-	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST:
-		return decideCancelExceptNewest
-	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST:
-		return decideCancelExceptOldest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+		return decideCancelQueuedExceptNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		return decideCancelQueuedExceptOldest
 	default:
 		panic("unknown concurrency strategy")
 	}
 }
 
-// decideCancelExceptNewest fills free capacity from queued buffer, then cancels everything
+// decideCancelQueuedExceptNewest fills free capacity from queued buffer, then cancels everything
 // except for the maxRuns newest, which will stick around to be queued up the next time
-func decideCancelExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
+func decideCancelQueuedExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
 	toFill = sq.queued.pop(int(sq.slotsToRun()))
 	for _, s := range toFill {
 		sq.running.insert(s)
@@ -545,8 +545,8 @@ func decideCancelExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
 	return toFill, toCancel
 }
 
-// decideCancelExceptOldest is the same as CancelExceptNewest except that it keeps the oldest slot around
-func decideCancelExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
+// decideCancelQueuedExceptOldest is the same as CancelQueuedExceptNewest except that it keeps the oldest slot around
+func decideCancelQueuedExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
 	toFill = sq.queued.pop(int(sq.slotsToRun()))
 	for _, s := range toFill {
 		sq.running.insert(s)

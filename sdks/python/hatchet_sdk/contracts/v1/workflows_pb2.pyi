@@ -48,8 +48,8 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
-    CANCEL_EXCEPT_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
-    CANCEL_EXCEPT_OLDEST: _ClassVar[ConcurrencyLimitStrategy]
+    CANCEL_QUEUED_EXCEPT_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
+    CANCEL_QUEUED_EXCEPT_OLDEST: _ClassVar[ConcurrencyLimitStrategy]
 SOFT: StickyStrategy
 HARD: StickyStrategy
 SECOND: RateLimitDuration
@@ -72,8 +72,8 @@ DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 CANCEL_NEWEST: ConcurrencyLimitStrategy
-CANCEL_EXCEPT_NEWEST: ConcurrencyLimitStrategy
-CANCEL_EXCEPT_OLDEST: ConcurrencyLimitStrategy
+CANCEL_QUEUED_EXCEPT_NEWEST: ConcurrencyLimitStrategy
+CANCEL_QUEUED_EXCEPT_OLDEST: ConcurrencyLimitStrategy
 
 class CancelTasksRequest(_message.Message):
     __slots__ = ("external_ids", "filter")

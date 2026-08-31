@@ -65,11 +65,11 @@ RSpec.describe Hatchet::Task do
     expect(proto.batch).to be_nil
   end
 
-  it "registers a task with CANCEL_EXCEPT_NEWEST concurrency" do
+  it "registers a task with CANCEL_QUEUED_EXCEPT_NEWEST concurrency" do
     concurrency = Hatchet::ConcurrencyExpression.new(
       expression: "input.group",
       max_runs: 1,
-      limit_strategy: Hatchet::ConcurrencyLimitStrategy::CANCEL_EXCEPT_NEWEST,
+      limit_strategy: Hatchet::ConcurrencyLimitStrategy::CANCEL_QUEUED_EXCEPT_NEWEST,
     )
     task = described_class.new(
       name: "except_newest_task",
@@ -79,14 +79,14 @@ RSpec.describe Hatchet::Task do
     proto = task.to_proto("test-service", config: config)
 
     expect(proto.concurrency.length).to eq(1)
-    expect(proto.concurrency[0].limit_strategy).to eq(:CANCEL_EXCEPT_NEWEST)
+    expect(proto.concurrency[0].limit_strategy).to eq(:CANCEL_QUEUED_EXCEPT_NEWEST)
   end
 
-  it "registers a task with CANCEL_EXCEPT_OLDEST concurrency" do
+  it "registers a task with CANCEL_QUEUED_EXCEPT_OLDEST concurrency" do
     concurrency = Hatchet::ConcurrencyExpression.new(
       expression: "input.group",
       max_runs: 1,
-      limit_strategy: Hatchet::ConcurrencyLimitStrategy::CANCEL_EXCEPT_OLDEST,
+      limit_strategy: Hatchet::ConcurrencyLimitStrategy::CANCEL_QUEUED_EXCEPT_OLDEST,
     )
     task = described_class.new(
       name: "except_oldest_task",
@@ -96,6 +96,6 @@ RSpec.describe Hatchet::Task do
     proto = task.to_proto("test-service", config: config)
 
     expect(proto.concurrency.length).to eq(1)
-    expect(proto.concurrency[0].limit_strategy).to eq(:CANCEL_EXCEPT_OLDEST)
+    expect(proto.concurrency[0].limit_strategy).to eq(:CANCEL_QUEUED_EXCEPT_OLDEST)
   end
 end

@@ -996,8 +996,8 @@ const (
 	V1ConcurrencyStrategyGROUPROUNDROBIN    V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
 	V1ConcurrencyStrategyCANCELINPROGRESS   V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
 	V1ConcurrencyStrategyCANCELNEWEST       V1ConcurrencyStrategy = "CANCEL_NEWEST"
-	V1ConcurrencyStrategyCANCELEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_EXCEPT_NEWEST"
-	V1ConcurrencyStrategyCANCELEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_EXCEPT_OLDEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
 )
 
 func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {

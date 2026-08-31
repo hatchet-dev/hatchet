@@ -24,17 +24,17 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from examples.cancellation.worker import cancellation_workflow
-from examples.concurrency_cancel_except_newest.worker import (
-    concurrency_cancel_except_newest_workflow,
+from examples.concurrency_cancel_queued_except_newest.worker import (
+    concurrency_cancel_queued_except_newest_workflow,
 )
-from examples.concurrency_cancel_except_newest_with_parent_concurrency.worker import (
-    concurrency_cancel_except_newest_with_parent_concurrency_workflow,
+from examples.concurrency_cancel_queued_except_newest_with_parent_concurrency.worker import (
+    concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow,
 )
-from examples.concurrency_cancel_except_oldest.worker import (
-    concurrency_cancel_except_oldest_workflow,
+from examples.concurrency_cancel_queued_except_oldest.worker import (
+    concurrency_cancel_queued_except_oldest_workflow,
 )
-from examples.concurrency_cancel_except_oldest_with_parent_concurrency.worker import (
-    concurrency_cancel_except_oldest_with_parent_concurrency_workflow,
+from examples.concurrency_cancel_queued_except_oldest_with_parent_concurrency.worker import (
+    concurrency_cancel_queued_except_oldest_with_parent_concurrency_workflow,
 )
 from examples.concurrency_cancel_in_progress.worker import (
     concurrency_cancel_in_progress_workflow,
@@ -230,10 +230,10 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
-            concurrency_cancel_except_newest_workflow,
-            concurrency_cancel_except_oldest_workflow,
-            concurrency_cancel_except_newest_with_parent_concurrency_workflow,
-            concurrency_cancel_except_oldest_with_parent_concurrency_workflow,
+            concurrency_cancel_queued_except_newest_workflow,
+            concurrency_cancel_queued_except_oldest_workflow,
+            concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow,
+            concurrency_cancel_queued_except_oldest_with_parent_concurrency_workflow,
             concurrency_cancel_newest_task_level_workflow,
             concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,

@@ -207,8 +207,8 @@ export enum ConcurrencyLimitStrategy {
   QUEUE_NEWEST = 2,
   GROUP_ROUND_ROBIN = 3,
   CANCEL_NEWEST = 4,
-  CANCEL_EXCEPT_NEWEST = 5,
-  CANCEL_EXCEPT_OLDEST = 6,
+  CANCEL_QUEUED_EXCEPT_NEWEST = 5,
+  CANCEL_QUEUED_EXCEPT_OLDEST = 6,
   UNRECOGNIZED = -1,
 }
 
@@ -230,11 +230,11 @@ export function concurrencyLimitStrategyFromJSON(object: any): ConcurrencyLimitS
     case 'CANCEL_NEWEST':
       return ConcurrencyLimitStrategy.CANCEL_NEWEST;
     case 5:
-    case 'CANCEL_EXCEPT_NEWEST':
-      return ConcurrencyLimitStrategy.CANCEL_EXCEPT_NEWEST;
+    case 'CANCEL_QUEUED_EXCEPT_NEWEST':
+      return ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST;
     case 6:
-    case 'CANCEL_EXCEPT_OLDEST':
-      return ConcurrencyLimitStrategy.CANCEL_EXCEPT_OLDEST;
+    case 'CANCEL_QUEUED_EXCEPT_OLDEST':
+      return ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -254,10 +254,10 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
       return 'GROUP_ROUND_ROBIN';
     case ConcurrencyLimitStrategy.CANCEL_NEWEST:
       return 'CANCEL_NEWEST';
-    case ConcurrencyLimitStrategy.CANCEL_EXCEPT_NEWEST:
-      return 'CANCEL_EXCEPT_NEWEST';
-    case ConcurrencyLimitStrategy.CANCEL_EXCEPT_OLDEST:
-      return 'CANCEL_EXCEPT_OLDEST';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST:
+      return 'CANCEL_QUEUED_EXCEPT_NEWEST';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST:
+      return 'CANCEL_QUEUED_EXCEPT_OLDEST';
     case ConcurrencyLimitStrategy.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';

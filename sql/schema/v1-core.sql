@@ -208,7 +208,7 @@ CREATE TYPE v1_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FA
 
 -- We need a NONE strategy to allow for tasks which were previously using a concurrency strategy to
 -- enqueue if the strategy is removed.
-CREATE TYPE v1_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST', 'CANCEL_EXCEPT_NEWEST', 'CANCEL_EXCEPT_OLDEST');
+CREATE TYPE v1_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST', 'CANCEL_QUEUED_EXCEPT_NEWEST', 'CANCEL_QUEUED_EXCEPT_OLDEST');
 
 CREATE TABLE v1_workflow_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency

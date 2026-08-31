@@ -81,9 +81,9 @@ func priorityCompare(a, b slot) int {
 	return cmp.Compare(a.taskId, b.taskId)
 }
 
-// cancelExceptCompare is the ordering shared by CANCEL_EXCEPT_NEWEST and CANCEL_EXCEPT_OLDEST. It does not consider priority,
+// cancelQueuedExceptCompare is the ordering shared by CANCEL_QUEUED_EXCEPT_NEWEST and CANCEL_QUEUED_EXCEPT_OLDEST. It does not consider priority,
 // but only the inserted time, and if that matches, then the ordering of the task ids.
-func cancelExceptCompare(a, b slot) int {
+func cancelQueuedExceptCompare(a, b slot) int {
 	if a.taskInsertedAtNs != b.taskInsertedAtNs {
 		return cmp.Compare(a.taskInsertedAtNs, b.taskInsertedAtNs)
 	}

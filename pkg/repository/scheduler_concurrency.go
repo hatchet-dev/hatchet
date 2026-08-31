@@ -179,14 +179,14 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTNEWEST:
-		res, err = c.runCancelExceptNewest(ctx, tenantId, strategy)
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+		res, err = c.runCancelQueuedExceptNewest(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel except newest (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELEXCEPTOLDEST:
-		res, err = c.runCancelExceptOldest(ctx, tenantId, strategy)
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		res, err = c.runCancelQueuedExceptOldest(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
@@ -563,7 +563,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	}, nil
 }
 
-func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
+func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptNewest(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
@@ -627,7 +627,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		err = c.queries.RunParentCancelExceptNewest(ctx, tx, sqlcv1.RunParentCancelExceptNewestParams{
+		err = c.queries.RunParentCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunParentCancelQueuedExceptNewestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ParentStrategyID.Int64,
 			Maxruns:    strategy.MaxConcurrency,
@@ -637,7 +637,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
 			return nil, fmt.Errorf("error running parent cancel except newest (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		poppedResults, err := c.queries.RunChildCancelExceptNewest(ctx, tx, sqlcv1.RunChildCancelExceptNewestParams{
+		poppedResults, err := c.queries.RunChildCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunChildCancelQueuedExceptNewestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
@@ -718,7 +718,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
 			}
 		}
 	} else {
-		poppedResults, err := c.queries.RunCancelExceptNewest(ctx, tx, sqlcv1.RunCancelExceptNewestParams{
+		poppedResults, err := c.queries.RunCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunCancelQueuedExceptNewestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
@@ -816,7 +816,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptNewest(
 		FailedAdvisoryLock:        false,
 	}, nil
 }
-func (c *ConcurrencyRepositoryImpl) runCancelExceptOldest(
+func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptOldest(
 	ctx context.Context,
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
@@ -881,7 +881,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptOldest(
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		err = c.queries.RunParentCancelExceptOldest(ctx, tx, sqlcv1.RunParentCancelExceptOldestParams{
+		err = c.queries.RunParentCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunParentCancelQueuedExceptOldestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ParentStrategyID.Int64,
 			Maxruns:    strategy.MaxConcurrency,
@@ -891,7 +891,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptOldest(
 			return nil, fmt.Errorf("error running parent cancel except oldest (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		poppedResults, err := c.queries.RunChildCancelExceptOldest(ctx, tx, sqlcv1.RunChildCancelExceptOldestParams{
+		poppedResults, err := c.queries.RunChildCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunChildCancelQueuedExceptOldestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
@@ -972,7 +972,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelExceptOldest(
 			}
 		}
 	} else {
-		poppedResults, err := c.queries.RunCancelExceptOldest(ctx, tx, sqlcv1.RunCancelExceptOldestParams{
+		poppedResults, err := c.queries.RunCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunCancelQueuedExceptOldestParams{
 			Tenantid:   tenantId,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,

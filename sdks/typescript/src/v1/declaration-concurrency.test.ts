@@ -1,10 +1,10 @@
 import { WorkflowDeclaration } from './declaration';
 import { ConcurrencyLimitStrategy } from './task';
 
-// Simple smoke tests confirming a task can be registered with the CANCEL_EXCEPT_NEWEST/
-// CANCEL_EXCEPT_OLDEST concurrency strategies - not a scenario test of their runtime behavior.
+// Simple smoke tests confirming a task can be registered with the CANCEL_QUEUED_EXCEPT_NEWEST/
+// CANCEL_QUEUED_EXCEPT_OLDEST concurrency strategies - not a scenario test of their runtime behavior.
 describe('task concurrency registration', () => {
-  it('registers a task with CANCEL_EXCEPT_NEWEST', () => {
+  it('registers a task with CANCEL_QUEUED_EXCEPT_NEWEST', () => {
     const wf = new WorkflowDeclaration({ name: 'concurrency-except-newest-test' });
 
     const task = wf.task({
@@ -14,7 +14,7 @@ describe('task concurrency registration', () => {
         {
           expression: 'input.group',
           maxRuns: 1,
-          limitStrategy: ConcurrencyLimitStrategy.CANCEL_EXCEPT_NEWEST,
+          limitStrategy: ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST,
         },
       ],
     });
@@ -23,12 +23,12 @@ describe('task concurrency registration', () => {
       {
         expression: 'input.group',
         maxRuns: 1,
-        limitStrategy: ConcurrencyLimitStrategy.CANCEL_EXCEPT_NEWEST,
+        limitStrategy: ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST,
       },
     ]);
   });
 
-  it('registers a task with CANCEL_EXCEPT_OLDEST', () => {
+  it('registers a task with CANCEL_QUEUED_EXCEPT_OLDEST', () => {
     const wf = new WorkflowDeclaration({ name: 'concurrency-except-oldest-test' });
 
     const task = wf.task({
@@ -38,7 +38,7 @@ describe('task concurrency registration', () => {
         {
           expression: 'input.group',
           maxRuns: 1,
-          limitStrategy: ConcurrencyLimitStrategy.CANCEL_EXCEPT_OLDEST,
+          limitStrategy: ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST,
         },
       ],
     });
@@ -47,7 +47,7 @@ describe('task concurrency registration', () => {
       {
         expression: 'input.group',
         maxRuns: 1,
-        limitStrategy: ConcurrencyLimitStrategy.CANCEL_EXCEPT_OLDEST,
+        limitStrategy: ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST,
       },
     ]);
   });

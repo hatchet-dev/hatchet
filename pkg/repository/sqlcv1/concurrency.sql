@@ -625,7 +625,7 @@ WHERE
     wsc.workflow_version_id = sr.workflow_version_id AND
     wsc.workflow_run_id = sr.workflow_run_id;
 
--- name: RunParentCancelExceptNewest :exec
+-- name: RunParentCancelQueuedExceptNewest :exec
 WITH locked_workflow_concurrency_slots AS (
     SELECT *
     FROM v1_workflow_concurrency_slot
@@ -691,7 +691,7 @@ WHERE
     wsc.workflow_run_id = sr.workflow_run_id;
 
 
--- name: RunCancelExceptNewest :many
+-- name: RunCancelQueuedExceptNewest :many
 WITH slots AS (
     SELECT
         task_id,
@@ -875,10 +875,10 @@ SELECT
 FROM
     updated_slots;
 
--- name: RunParentCancelExceptOldest :exec
--- Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST/CANCEL_EXCEPT_NEWEST:
+-- name: RunParentCancelQueuedExceptOldest :exec
+-- Admission at the parent (workflow-run) level is identical to CANCEL_NEWEST/CANCEL_QUEUED_EXCEPT_NEWEST:
 -- fill the oldest maxRuns eligible runs, never evict an already-admitted run. "Except oldest" only
--- changes what happens to *tasks* that don't get admitted (RunChildCancelExceptOldest spares the
+-- changes what happens to *tasks* that don't get admitted (RunChildCancelQueuedExceptOldest spares the
 -- oldest maxRuns of those instead of cancelling them outright) - the admission policy itself doesn't
 -- change.
 WITH locked_workflow_concurrency_slots AS (
@@ -945,12 +945,12 @@ WHERE
     wsc.workflow_version_id = sr.workflow_version_id AND
     wsc.workflow_run_id = sr.workflow_run_id;
 
--- name: RunCancelExceptOldest :many
--- Like RunCancelExceptNewest, but spares the oldest maxRuns of the queued backlog instead of the
+-- name: RunCancelQueuedExceptOldest :many
+-- Like RunCancelQueuedExceptNewest, but spares the oldest maxRuns of the queued backlog instead of the
 -- newest. Since `slots.rn` is already ranked oldest-first, "the oldest maxRuns still queued" is just
 -- the next maxRuns ranks after the ones already running: rn <= 2*maxRuns covers both bands (running
 -- is rn <= maxRuns, queued survivors are maxRuns < rn <= 2*maxRuns), so no separate reverse-ordered
--- ranking is needed here the way RunCancelExceptNewest needs key_count.
+-- ranking is needed here the way RunCancelQueuedExceptNewest needs key_count.
 WITH slots AS (
     SELECT
         task_id,

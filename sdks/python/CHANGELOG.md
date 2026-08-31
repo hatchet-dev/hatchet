@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added support for `CANCEL_EXCEPT_NEWEST` and `CANCEL_EXCEPT_OLDEST` concurrency strategies.
+- Added support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
 
 ## [1.38.1] - 2026-08-25
 
