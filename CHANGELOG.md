@@ -1,3 +1,20 @@
+## [0.105.16] - 2026-08-31
+
+Hatchet v0.105.16 adds two new concurrency strategies and a batch of engine fixes around pausing, durable DAGs, and task eviction.
+
+### Highlights
+
+- New concurrency strategies `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST`: cancel queued runs in a concurrency group while keeping only the newest or oldest one ([#4793](https://github.com/hatchet-dev/hatchet/pull/4793)).
+
+### Fixed
+
+- Engine: concurrency strategies migration ordering ([#4847](https://github.com/hatchet-dev/hatchet/pull/4847)).
+- Engine: pausing a workflow now moves concurrency slots over to the paused queue items table ([#4828](https://github.com/hatchet-dev/hatchet/pull/4828)).
+- Engine: durable DAG on-failure tasks are no longer skipped ([#4802](https://github.com/hatchet-dev/hatchet/pull/4802)).
+- Engine: workflow event subscriptions bind before the OLAP wait, closing a missed-event race ([#4820](https://github.com/hatchet-dev/hatchet/pull/4820)).
+- Engine: worker heartbeats are recorded before rejecting on an inactive listen stream ([#4784](https://github.com/hatchet-dev/hatchet/pull/4784)).
+- Dashboard: orchestrator tasks now show the correct duration and cancellation reason ([#4811](https://github.com/hatchet-dev/hatchet/pull/4811)).
+
 ## [0.105.2] - 2026-08-25
 
 Hatchet v0.105.2 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
