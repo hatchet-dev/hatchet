@@ -67,6 +67,8 @@ runs:
 
     - name: Start sidecar
       shell: bash
+      env:
+        SERVER_SECURITY_CHECK_ENABLED: "false"
       run: |
         HANDSHAKE="$RUNNER_TEMP/hatchet-handshake.json"
 

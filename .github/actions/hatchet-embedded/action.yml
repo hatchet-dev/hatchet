@@ -55,6 +55,8 @@ runs:
 
     - name: Start Hatchet embedded
       shell: bash
+      env:
+        SERVER_SECURITY_CHECK_ENABLED: "false"
       run: |
         ENV_FILE="$RUNNER_TEMP/hatchet-embedded.env"
         FLAGS=(
