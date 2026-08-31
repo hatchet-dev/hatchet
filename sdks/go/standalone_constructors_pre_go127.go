@@ -1,8 +1,6 @@
 //go:build !go1.27
 
-// Reflection-based (fn any) standalone task constructors for Go 1.26 and earlier. On
-// Go 1.27+, standalone_constructors_go127.go provides the same method names with typed,
-// reflection-free signatures. The two files are mutually exclusive via the go1.27 build tag.
+// Reflection-based standalone task constructors for Go toolchains without generic methods (< 1.27).
 
 package hatchet
 
@@ -57,4 +55,10 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 		workflow: workflow,
 		task:     task,
 	}
+}
+
+// OnFailure sets a failure handler for the standalone task.
+// The handler will be called when the standalone task fails.
+func (st *StandaloneTask) OnFailure(fn any) {
+	st.workflow.OnFailure(fn)
 }

@@ -197,29 +197,33 @@ Returns:
 
 #### `NewStandaloneDurableTask`
 
-NewStandaloneDurableTask creates a standalone durable task that can be triggered independently. This is a specialized workflow containing only one durable task, making it easier to create simple single-task workflows with durable functionality.
-
-The function parameter must have the signature:
+NewStandaloneDurableTask creates a standalone durable task that can be triggered independently. Like NewStandaloneTask, the input and output types are type parameters checked at compile time and invoked without reflection.
 
 ```go
-func(ctx hatchet.DurableContext, input any) (any, error)
+func(ctx hatchet.DurableContext, input In) (Out, error)
 ```
 
-Function signatures are validated at runtime using reflection.
-
 Options can be any combination of WorkflowOption and TaskOption.
+
+**Go 1.26 and earlier**
 
 ```go
 func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
 ```
 
+**Go 1.27 and later**
+
+```go
+func (c *Client) NewStandaloneDurableTask[I, O any](name string, fn func(ctx DurableContext, input I) (O, error), options ...StandaloneTaskOption) *StandaloneTask
+```
+
 Parameters:
 
-| Name      | Type                      |
-| --------- | ------------------------- |
-| `name`    | `string`                  |
-| `fn`      | `any`                     |
-| `options` | `...StandaloneTaskOption` |
+| Name      | Type                                           |
+| --------- | ---------------------------------------------- |
+| `name`    | `string`                                       |
+| `fn`      | `func(ctx DurableContext, input I) (O, error)` |
+| `options` | `...StandaloneTaskOption`                      |
 
 Returns:
 
@@ -234,24 +238,32 @@ NewStandaloneTask creates a standalone task that can be triggered independently.
 The function parameter must have the signature:
 
 ```go
-func(ctx hatchet.Context, input any) (any, error)
+func(ctx hatchet.Context, input In) (Out, error)
 ```
 
-Function signatures are validated at runtime using reflection.
+The input and output types are type parameters, checked at compile time and invoked without reflection. They are inferred from the function, so existing call sites are unchanged.
 
 Options can be any combination of WorkflowOption and TaskOption.
+
+**Go 1.26 and earlier**
 
 ```go
 func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
 ```
 
+**Go 1.27 and later**
+
+```go
+func (c *Client) NewStandaloneTask[I, O any](name string, fn func(ctx Context, input I) (O, error), options ...StandaloneTaskOption) *StandaloneTask
+```
+
 Parameters:
 
-| Name      | Type                      |
-| --------- | ------------------------- |
-| `name`    | `string`                  |
-| `fn`      | `any`                     |
-| `options` | `...StandaloneTaskOption` |
+| Name      | Type                                    |
+| --------- | --------------------------------------- |
+| `name`    | `string`                                |
+| `fn`      | `func(ctx Context, input I) (O, error)` |
+| `options` | `...StandaloneTaskOption`               |
 
 Returns:
 

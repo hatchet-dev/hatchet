@@ -1,7 +1,6 @@
 //go:build go1.27
 
-// Generic, reflection-free standalone task constructors (Go 1.27+). The Go 1.26 and
-// earlier fallback with the same method names lives in standalone_constructors_pre_go127.go.
+// Generic, reflection-free standalone task constructors, using Go 1.27 generic methods.
 
 package hatchet
 
@@ -55,4 +54,11 @@ func (c *Client) NewStandaloneDurableTask[I, O any](name string, fn func(ctx Dur
 		workflow: workflow,
 		task:     task,
 	}
+}
+
+// OnFailure sets a typed failure handler for the standalone task. It runs when the task
+// fails and receives the same input the task was triggered with. The input and output
+// types are type parameters, inferred from the handler and invoked without reflection.
+func (st *StandaloneTask) OnFailure[I, O any](fn func(ctx Context, input I) (O, error)) {
+	st.workflow.OnFailure(fn)
 }

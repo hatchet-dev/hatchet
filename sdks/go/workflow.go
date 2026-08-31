@@ -477,9 +477,6 @@ func (t *Task) GetName() string {
 	return t.name
 }
 
-// The typed, generic NewTask (Go 1.27+) lives in task_constructors_go127.go; the
-// reflection-based fallback for Go 1.26 and earlier lives in task_constructors_pre_go127.go.
-
 // NewBatchTask transforms a function into a Hatchet batch task that runs as part of a
 // workflow. Batch tasks buffer concurrent runs until Hatchet flushes the batch (size
 // reached or flush interval), then invoke the handler once with all buffered inputs keyed
@@ -639,66 +636,9 @@ func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options 
 	return &Task{name: name}
 }
 
-// The typed, generic NewDurableTask (Go 1.27+) lives in task_constructors_go127.go; the
-// reflection-based fallback for Go 1.26 and earlier lives in task_constructors_pre_go127.go.
-
 // Dump implements the WorkflowBase interface for internal use.
 func (w *Workflow) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
 	return w.declaration.Dump()
-}
-
-// OnFailure sets a failure handler for the workflow.
-// The handler will be called when any task in the workflow fails.
-//
-// Unlike NewTask, OnFailure stays reflection-based: it is part of the WorkflowBase
-// interface (see WithWorkflows), and Go interface methods cannot carry type parameters.
-func (w *Workflow) OnFailure(fn any) {
-	fnValue := reflect.ValueOf(fn)
-	fnType := fnValue.Type()
-
-	if fnType.Kind() != reflect.Func {
-		panic("onFailure function must be a function")
-	}
-	if fnType.NumIn() != 2 {
-		panic("onFailure function must have exactly 2 parameters: (ctx Context, input T)")
-	}
-	if fnType.NumOut() != 2 {
-		panic("onFailure function must return exactly 2 values: (output T, error)")
-	}
-
-	contextType := reflect.TypeOf((*Context)(nil)).Elem()
-	if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
-		panic("first parameter must be Context")
-	}
-
-	errorType := reflect.TypeOf((*error)(nil)).Elem()
-	if !fnType.Out(1).Implements(errorType) {
-		panic("second return value must be error")
-	}
-
-	wrapper := func(ctx Context, input any) (any, error) {
-		convertedInput := convertInputToType(input, fnType.In(1))
-
-		args := []reflect.Value{
-			reflect.ValueOf(ctx),
-			convertedInput,
-		}
-
-		results := fnValue.Call(args)
-
-		output := results[0].Interface()
-		var err error
-		if !results[1].IsNil() {
-			err = results[1].Interface().(error)
-		}
-
-		return output, err
-	}
-
-	w.declaration.OnFailure(
-		create.WorkflowOnFailureTask[any, any]{},
-		wrapper,
-	)
 }
 
 // Workflow execution methods

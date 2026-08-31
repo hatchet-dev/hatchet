@@ -17,16 +17,16 @@ Workflow defines a Hatchet workflow, which can then declare tasks and be run, sc
 
 Methods:
 
-| Name             | Description                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `GetName`        | GetName returns the resolved workflow name (including namespace if applicable).                   |
-| `NewBatchTask`   | NewBatchTask transforms a function into a Hatchet batch task that runs as part of a workflow.     |
-| `NewDurableTask` | NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow. |
-| `NewTask`        | NewTask transforms a function into a Hatchet task that runs as part of a workflow.                |
-| `OnFailure`      | OnFailure sets a failure handler for the workflow.                                                |
-| `Run`            | Run executes the workflow with the provided input and waits for completion.                       |
-| `RunMany`        | RunMany executes multiple workflow instances with different inputs.                               |
-| `RunNoWait`      | RunNoWait executes the workflow with the provided input without waiting for completion.           |
+| Name             | Description                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `GetName`        | GetName returns the resolved workflow name (including namespace if applicable).                         |
+| `NewBatchTask`   | NewBatchTask transforms a function into a Hatchet batch task that runs as part of a workflow.           |
+| `NewDurableTask` | NewDurableTask transforms a typed function into a durable Hatchet task that runs as part of a workflow. |
+| `NewTask`        | NewTask transforms a typed function into a Hatchet task that runs as part of a workflow.                |
+| `OnFailure`      | OnFailure sets a typed failure handler for the workflow.                                                |
+| `Run`            | Run executes the workflow with the provided input and waits for completion.                             |
+| `RunMany`        | RunMany executes multiple workflow instances with different inputs.                                     |
+| `RunNoWait`      | RunNoWait executes the workflow with the provided input without waiting for completion.                 |
 
 ### Functions
 
@@ -85,27 +85,31 @@ Returns:
 
 #### `NewDurableTask`
 
-NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
-
-The function parameter must have the signature:
+NewDurableTask transforms a typed function into a durable Hatchet task that runs as part of a workflow. Like NewTask, the input and output types are type parameters checked at compile time and invoked without reflection.
 
 ```go
-func(ctx hatchet.DurableContext, input any) (any, error)
+func(ctx hatchet.DurableContext, input In) (Out, error)
 ```
 
-Function signatures are validated at runtime using reflection.
+**Go 1.26 and earlier**
 
 ```go
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task
 ```
 
+**Go 1.27 and later**
+
+```go
+func (w *Workflow) NewDurableTask[I, O any](name string, fn func(ctx DurableContext, input I) (O, error), options ...TaskOption) *Task
+```
+
 Parameters:
 
-| Name      | Type            |
-| --------- | --------------- |
-| `name`    | `string`        |
-| `fn`      | `any`           |
-| `options` | `...TaskOption` |
+| Name      | Type                                           |
+| --------- | ---------------------------------------------- |
+| `name`    | `string`                                       |
+| `fn`      | `func(ctx DurableContext, input I) (O, error)` |
+| `options` | `...TaskOption`                                |
 
 Returns:
 
@@ -115,27 +119,33 @@ Returns:
 
 #### `NewTask`
 
-NewTask transforms a function into a Hatchet task that runs as part of a workflow.
+NewTask transforms a typed function into a Hatchet task that runs as part of a workflow.
 
-The function parameter must have the signature:
+The input and output types are captured as type parameters, so the function signature is checked at compile time and invoked directly — no reflection. Type parameters are inferred from the function literal, so existing call sites need no changes.
 
 ```go
-func(ctx hatchet.Context, input any) (any, error)
+func(ctx hatchet.Context, input In) (Out, error)
 ```
 
-Function signatures are validated at runtime using reflection.
+**Go 1.26 and earlier**
 
 ```go
 func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task
 ```
 
+**Go 1.27 and later**
+
+```go
+func (w *Workflow) NewTask[I, O any](name string, fn func(ctx Context, input I) (O, error), options ...TaskOption) *Task
+```
+
 Parameters:
 
-| Name      | Type            |
-| --------- | --------------- |
-| `name`    | `string`        |
-| `fn`      | `any`           |
-| `options` | `...TaskOption` |
+| Name      | Type                                    |
+| --------- | --------------------------------------- |
+| `name`    | `string`                                |
+| `fn`      | `func(ctx Context, input I) (O, error)` |
+| `options` | `...TaskOption`                         |
 
 Returns:
 
@@ -145,17 +155,29 @@ Returns:
 
 #### `OnFailure`
 
-OnFailure sets a failure handler for the workflow. The handler will be called when any task in the workflow fails.
+OnFailure sets a typed failure handler for the workflow. It runs when any task in the workflow fails and receives the same input the workflow was triggered with. The input and output types are type parameters, inferred from the handler and invoked without reflection.
+
+```go
+func(ctx hatchet.Context, input In) (Out, error)
+```
+
+**Go 1.26 and earlier**
 
 ```go
 func (w *Workflow) OnFailure(fn any)
 ```
 
+**Go 1.27 and later**
+
+```go
+func (w *Workflow) OnFailure[I, O any](fn func(ctx Context, input I) (O, error))
+```
+
 Parameters:
 
-| Name | Type  |
-| ---- | ----- |
-| `fn` | `any` |
+| Name | Type                                    |
+| ---- | --------------------------------------- |
+| `fn` | `func(ctx Context, input I) (O, error)` |
 
 #### `Run`
 
@@ -234,7 +256,7 @@ Methods:
 | Name        | Description                                                                                    |
 | ----------- | ---------------------------------------------------------------------------------------------- |
 | `GetName`   | GetName returns the name of the standalone task.                                               |
-| `OnFailure` | OnFailure sets a failure handler for the standalone task.                                      |
+| `OnFailure` | OnFailure sets a typed failure handler for the standalone task.                                |
 | `Run`       | Run executes the standalone task with the provided input and waits for completion.             |
 | `RunMany`   | RunMany executes multiple standalone task instances with different inputs.                     |
 | `RunNoWait` | RunNoWait executes the standalone task with the provided input without waiting for completion. |
@@ -257,17 +279,25 @@ Returns:
 
 #### `OnFailure`
 
-OnFailure sets a failure handler for the standalone task. The handler will be called when the standalone task fails.
+OnFailure sets a typed failure handler for the standalone task. It runs when the task fails and receives the same input the task was triggered with. The input and output types are type parameters, inferred from the handler and invoked without reflection.
+
+**Go 1.26 and earlier**
 
 ```go
 func (st *StandaloneTask) OnFailure(fn any)
 ```
 
+**Go 1.27 and later**
+
+```go
+func (st *StandaloneTask) OnFailure[I, O any](fn func(ctx Context, input I) (O, error))
+```
+
 Parameters:
 
-| Name | Type  |
-| ---- | ----- |
-| `fn` | `any` |
+| Name | Type                                    |
+| ---- | --------------------------------------- |
+| `fn` | `func(ctx Context, input I) (O, error)` |
 
 #### `Run`
 

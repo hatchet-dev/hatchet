@@ -1,9 +1,6 @@
 //go:build go1.27
 
-// This file holds the generic, reflection-free task constructors that require Go 1.27
-// generic methods. When built with Go 1.26 or earlier, task_constructors_pre_go127.go is
-// compiled instead, providing the same method names with the older reflection-based
-// (fn any) signatures. See task_constructors_pre_go127.go for the fallback.
+// Generic, reflection-free task constructors, using Go 1.27 generic methods.
 
 package hatchet
 
@@ -139,4 +136,22 @@ func (w *Workflow) NewDurableTask[I, O any](name string, fn func(ctx DurableCont
 	}
 
 	return &Task{name: name}
+}
+
+// OnFailure sets a typed failure handler for the workflow. It runs when any task in the
+// workflow fails and receives the same input the workflow was triggered with. The input
+// and output types are type parameters, inferred from the handler and invoked without
+// reflection.
+//
+//	func(ctx hatchet.Context, input In) (Out, error)
+func (w *Workflow) OnFailure[I, O any](fn func(ctx Context, input I) (O, error)) {
+	wrapper := func(ctx Context, input any) (any, error) {
+		in, err := decodeTaskInput[I](input)
+		if err != nil {
+			return nil, err
+		}
+		return fn(ctx, in)
+	}
+
+	w.declaration.OnFailure(create.WorkflowOnFailureTask[any, any]{}, wrapper)
 }

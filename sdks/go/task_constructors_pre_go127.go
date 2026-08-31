@@ -1,9 +1,6 @@
 //go:build !go1.27
 
-// This file holds the reflection-based (fn any) task constructors used on Go 1.26 and
-// earlier, which do not support generic methods. On Go 1.27+, task_constructors_go127.go
-// is compiled instead, providing the same method names with typed, reflection-free
-// signatures. The two files are mutually exclusive via the go1.27 build tag.
+// Reflection-based task constructors for Go toolchains without generic methods (< 1.27).
 
 package hatchet
 
@@ -143,4 +140,65 @@ func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *T
 	copy(durableOptions, options)
 	durableOptions = append(durableOptions, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
+}
+
+// OnFailure sets a failure handler for the workflow.
+// The handler will be called when any task in the workflow fails.
+//
+// Function signatures are validated at runtime using reflection.
+func (w *Workflow) OnFailure(fn any) {
+	fnValue := reflect.ValueOf(fn)
+	fnType := fnValue.Type()
+
+	if fnType.Kind() != reflect.Func {
+		panic("onFailure function must be a function")
+	}
+	if fnType.NumIn() != 2 {
+		panic("onFailure function must have exactly 2 parameters: (ctx Context, input T)")
+	}
+	if fnType.NumOut() != 2 {
+		panic("onFailure function must return exactly 2 values: (output T, error)")
+	}
+
+	contextType := reflect.TypeOf((*Context)(nil)).Elem()
+	if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
+		panic("first parameter must be Context")
+	}
+
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !fnType.Out(1).Implements(errorType) {
+		panic("second return value must be error")
+	}
+
+	wrapper := func(ctx Context, input any) (any, error) {
+		convertedInput := convertInputToType(input, fnType.In(1))
+
+		var contextArg reflect.Value
+		durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
+		if fnType.In(0).Implements(durableContextType) || fnType.In(0) == durableContextType {
+			contextArg = reflect.ValueOf(worker.NewDurableHatchetContext(ctx))
+		} else {
+			contextArg = reflect.ValueOf(ctx)
+		}
+
+		args := []reflect.Value{
+			contextArg,
+			convertedInput,
+		}
+
+		results := fnValue.Call(args)
+
+		output := results[0].Interface()
+		var err error
+		if !results[1].IsNil() {
+			err = results[1].Interface().(error)
+		}
+
+		return output, err
+	}
+
+	w.declaration.OnFailure(
+		create.WorkflowOnFailureTask[any, any]{},
+		wrapper,
+	)
 }

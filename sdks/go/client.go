@@ -671,9 +671,6 @@ func splitStandaloneOptions(name string, options []StandaloneTaskOption) ([]Work
 	return promoteTaskTriggers(taskOptions, workflowOptions), taskOptions
 }
 
-// The typed, generic NewStandaloneTask (Go 1.27+) lives in standalone_constructors_go127.go;
-// the reflection-based fallback lives in standalone_constructors_pre_go127.go.
-
 // NewStandaloneBatchTask creates a standalone batch task that can be triggered independently.
 // This is a specialized workflow containing only one batch task, making it easier to create
 // simple single-task workflows without the workflow boilerplate.
@@ -725,10 +722,6 @@ func (c *Client) NewStandaloneBatchTask(name string, fn any, batch BatchConfig, 
 	}
 }
 
-// The typed, generic NewStandaloneDurableTask (Go 1.27+) lives in
-// standalone_constructors_go127.go; the reflection-based fallback lives in
-// standalone_constructors_pre_go127.go.
-
 // Run executes the standalone task with the provided input and waits for completion.
 func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error) {
 	workflowRunRef, err := st.workflow.Run(ctx, input, opts...)
@@ -761,14 +754,6 @@ func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]W
 	}
 
 	return workflowRefs, nil
-}
-
-// OnFailure sets a failure handler for the standalone task.
-// The handler will be called when the standalone task fails.
-//
-// Stays reflection-based to satisfy the WorkflowBase interface; see Workflow.OnFailure.
-func (st *StandaloneTask) OnFailure(fn any) {
-	st.workflow.OnFailure(fn)
 }
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.
