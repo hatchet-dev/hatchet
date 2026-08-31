@@ -19,10 +19,12 @@ import pytest
 
 from examples.durable_eviction.worker import (
     EVENT_KEY,
+    MEMO_EVENT_KEY,
     capacity_evictable_sleep,
     concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
+    evictable_memo_then_wait_for_event,
     evictable_sleep,
     evictable_wait_for_event,
     multiple_eviction,
@@ -97,9 +99,9 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     await asyncio.sleep(20)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert not _has_evicted_task(
-        details
-    ), f"Non-evictable task should never be evicted, got is_evicted=True"
+    assert not _has_evicted_task(details), (
+        f"Non-evictable task should never be evicted, got is_evicted=True"
+    )
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -135,9 +137,9 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert (
-        V1TaskStatus.RUNNING in statuses
-    ), f"Expected RUNNING after restore, got: {statuses}"
+    assert V1TaskStatus.RUNNING in statuses, (
+        f"Expected RUNNING after restore, got: {statuses}"
+    )
 
 
 @requires_durable_eviction
@@ -195,6 +197,27 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
 
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
+async def test_evictable_memo_then_wait_for_event_restore(hatchet: Hatchet) -> None:
+    ref = await evictable_memo_then_wait_for_event.aio_run(wait_for_result=False)
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+    details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
+    task_id = _get_task_id(details)
+
+    with hatchet.runs.client() as client:
+        TaskApi(client).v1_task_restore(task=task_id)
+
+    await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
+
+    hatchet.event.push(MEMO_EVENT_KEY, {})
+
+    result = await asyncio.wait_for(ref.aio_result(), timeout=60)
+    assert result["status"] == "completed"
+    assert result["memoized"] == "computed-once"
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
 async def test_evictable_child_spawn_is_evicted(hatchet: Hatchet) -> None:
     """A durable task waiting on a child workflow should be evicted after TTL."""
     ref = await evictable_child_spawn.aio_run(wait_for_result=False)
@@ -223,9 +246,9 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     )
     statuses = {t.status for t in details.task_runs.values()}
 
-    assert (
-        V1TaskStatus.RUNNING in statuses
-    ), f"Expected RUNNING after restore, got: {statuses}"
+    assert V1TaskStatus.RUNNING in statuses, (
+        f"Expected RUNNING after restore, got: {statuses}"
+    )
 
 
 @requires_durable_eviction
@@ -392,9 +415,9 @@ async def test_capacity_eviction_fires(
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
 
-    assert _has_evicted_task(
-        details
-    ), f"Expected capacity eviction (ttl=None), got no evicted tasks"
+    assert _has_evicted_task(details), (
+        f"Expected capacity eviction (ttl=None), got no evicted tasks"
+    )
 
 
 @requires_durable_eviction
