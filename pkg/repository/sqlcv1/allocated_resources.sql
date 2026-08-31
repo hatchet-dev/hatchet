@@ -5,6 +5,12 @@
 -- scheduled_run_count: pending scheduled refs only (not deleted, and no
 -- WorkflowRunTriggeredBy.scheduledId — fired runs are excluded).
 -- webhook_count: row count on v1_incoming_webhook.
+-- worker_count: currently connected non-operator workers (5s heartbeat,
+-- assigned dispatcher, active, not paused).
+-- slot_count: SUM(v1_worker_slot_config.max_units) for those workers.
+-- Active workers are collected once and reused for both counts so the
+-- tenant-filtered path can use Worker_tenantId_lastHeartbeatAt_idx
+-- instead of scanning historical v1_worker_slot_config rows.
 -- NULL tenantIds drops the tenant filter (hourly shard-wide collect).
 -- The result is still one row per tenant, not a summed shard total.
 WITH cron_counts AS (
@@ -65,13 +71,62 @@ webhook_counts AS (
         sqlc.narg('tenantIds')::uuid[] IS NULL
         OR tenant_id = ANY(sqlc.narg('tenantIds')::uuid[])
     GROUP BY tenant_id
+),
+active_workers AS (
+    SELECT
+        w."id",
+        w."tenantId" AS tenant_id
+    FROM "Worker" w
+    WHERE
+        w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND w."operatorId" IS NULL
+        AND (
+            sqlc.narg('tenantIds')::uuid[] IS NULL
+            OR w."tenantId" = ANY(sqlc.narg('tenantIds')::uuid[])
+        )
+),
+worker_counts AS (
+    SELECT
+        tenant_id,
+        count(*)::bigint AS worker_count
+    FROM active_workers
+    GROUP BY tenant_id
+),
+slot_counts AS (
+    SELECT
+        aw.tenant_id,
+        SUM(wc.max_units)::bigint AS slot_count
+    FROM active_workers aw
+    JOIN v1_worker_slot_config wc
+        ON wc.worker_id = aw.id
+        AND wc.tenant_id = aw.tenant_id
+    GROUP BY aw.tenant_id
+),
+tenants AS (
+    SELECT tenant_id FROM cron_counts
+    UNION
+    SELECT tenant_id FROM schedule_counts
+    UNION
+    SELECT tenant_id FROM webhook_counts
+    UNION
+    SELECT tenant_id FROM worker_counts
+    UNION
+    SELECT tenant_id FROM slot_counts
 )
 SELECT
-    COALESCE(c.tenant_id, s.tenant_id, wh.tenant_id) AS tenant_id,
+    t.tenant_id,
     COALESCE(c.cron_count, 0)::bigint AS cron_count,
     COALESCE(s.scheduled_run_count, 0)::bigint AS scheduled_run_count,
-    COALESCE(wh.webhook_count, 0)::bigint AS webhook_count
-FROM cron_counts c
-FULL OUTER JOIN schedule_counts s ON s.tenant_id = c.tenant_id
-FULL OUTER JOIN webhook_counts wh ON wh.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
+    COALESCE(wh.webhook_count, 0)::bigint AS webhook_count,
+    COALESCE(wk.worker_count, 0)::bigint AS worker_count,
+    COALESCE(sl.slot_count, 0)::bigint AS slot_count
+FROM tenants t
+LEFT JOIN cron_counts c ON c.tenant_id = t.tenant_id
+LEFT JOIN schedule_counts s ON s.tenant_id = t.tenant_id
+LEFT JOIN webhook_counts wh ON wh.tenant_id = t.tenant_id
+LEFT JOIN worker_counts wk ON wk.tenant_id = t.tenant_id
+LEFT JOIN slot_counts sl ON sl.tenant_id = t.tenant_id
 ORDER BY 1;
