@@ -151,6 +151,13 @@ PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 CompletionOrderKey = tuple[TaskExternalId, InvocationCount]
 
 
+def _swallow_future_result(
+    future: asyncio.Future[DurableTaskEventLogEntryResult],
+) -> None:
+    if not future.cancelled():
+        future.exception()
+
+
 @dataclass
 class OrderedCompletionQueue:
     pending: deque[tuple[PendingCallback, "DurableTaskEventLogEntryResult"]] = field(
@@ -715,6 +722,23 @@ class DurableEventListener:
             del self._pending_callbacks[head_key]
             if not future.done():
                 future.set_result(result)
+
+    ## we need this so that a memo wait + completion before a wait doesn't cause a hang / deadlock
+    def consume_callback_without_blocking(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        branch_id: int,
+        node_id: int,
+    ) -> None:
+        key = (durable_task_external_id, invocation_count, branch_id, node_id)
+        if key in self._pending_callbacks:
+            return
+
+        future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
+        future.add_done_callback(_swallow_future_result)
+        self._pending_callbacks[key] = future
+        self._drain_ordered_completions((durable_task_external_id, invocation_count))
 
     async def wait_for_callback(
         self,
