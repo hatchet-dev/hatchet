@@ -36,6 +36,7 @@ import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,
@@ -127,6 +128,7 @@ const workflows = [
   durableSleep,
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,

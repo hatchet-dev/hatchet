@@ -1106,9 +1106,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     lookbackWindow?: Duration,
     label?: string
   ): Promise<unknown> {
-    const now = await this.now();
     const considerEventsSince = lookbackWindow
-      ? new Date(now.getTime() - durationToMs(lookbackWindow)).toISOString()
+      ? new Date((await this.now()).getTime() - durationToMs(lookbackWindow)).toISOString()
       : undefined;
 
     const res = await this.waitFor(
@@ -1321,6 +1320,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         kind: 'memo',
         memoKey,
       })
+    );
+
+    this._durableListener.consumeCallbackWithoutBlocking(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      ack.branchId,
+      ack.nodeId
     );
 
     if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {

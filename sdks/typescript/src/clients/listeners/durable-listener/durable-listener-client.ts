@@ -723,6 +723,25 @@ export class DurableListenerClient {
     }
   }
 
+  // A memo's value arrives in its ack and its completion is never awaited,
+  // but the server still delivers that completion on replay, in recorded
+  // order. Register a waiter that nothing blocks on so the drain can hand the
+  // completion through instead of stalling the queue at it forever.
+  consumeCallbackWithoutBlocking(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    branchId: number,
+    nodeId: number
+  ): void {
+    const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
+    if (this._pendingCallbacks.has(key)) return;
+
+    const d = deferred<DurableTaskEventLogEntryResult>();
+    d.promise.catch(() => {});
+    this._pendingCallbacks.set(key, d);
+    this._drainOrderedCompletions(completionOrderKey(durableTaskExternalId, invocationCount));
+  }
+
   async waitForCallback(
     durableTaskExternalId: string,
     invocationCount: number,
