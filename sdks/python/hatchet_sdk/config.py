@@ -261,7 +261,9 @@ class ClientConfig(BaseSettings):
             return self
 
         if not self.token:
-            raise ValueError("Token must be set")
+            raise ValueError(
+                "Token must be set. Set the HATCHET_CLIENT_TOKEN environment variable, or for local development run Hatchet embedded with `Hatchet.from_embedded()` — no token or Docker required."
+            )
 
         if not self.token.startswith("ey"):
             raise ValueError(
