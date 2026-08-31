@@ -70,6 +70,7 @@ import {
   batchChildBatchSpawn,
 } from './batch_assign/workflow';
 import { streamingTask } from './streaming/workflow';
+import { dagStream, longStream } from './subscribe_to_stream/workflow';
 import { timeoutTask, refreshTimeoutTask } from './timeout/workflow';
 import { webhookWorkflow } from './webhooks/workflow';
 import {
@@ -140,6 +141,8 @@ const workflows = [
   helloWorld,
   helloWorldDurable,
   streamingTask,
+  dagStream,
+  longStream,
   timeoutTask,
   refreshTimeoutTask,
   webhookWorkflow,

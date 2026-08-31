@@ -6,6 +6,8 @@ import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
+import { HeadOfLineBlocking } from "@/components/flow-animations/HeadOfLineBlocking";
+import { FairQueueing } from "@/components/flow-animations/FairQueueing";
 
 # Concurrency Control in Hatchet Tasks
 
@@ -24,6 +26,8 @@ For instance, the expression `input.user_id + ':' + additional_metadata.foobar` 
 ## Why use concurrency control?
 
 You should primarily use concurrency control when you need to ensure fair access to resources across your application's users, projects, or organizations. By limiting the number of in-flight tasks for a particular user, you can prevent that user from monopolizing the system.
+
+<HeadOfLineBlocking />
 
 Concurrency control also lets you limit the number of runs for a workflow globally, if you use a static CEL expression, such as `'global'`. This and [rate limiting](/v1/rate-limits) are the recommended mechanisms for setting per-workflow throughput limits.
 
@@ -53,6 +57,8 @@ When a new task instance is triggered, the Group Round Robin strategy will:
 5. When a running task instance completes and a slot becomes available for a group, the next queued instance for that group (in round-robin order) is dequeued and starts executing.
 
 Group round robin ensures that task instances are processed fairly across different groups, preventing any one group from monopolizing the available resources. It also helps to reduce latency for instances within each group, as they are processed in a round-robin fashion rather than strictly in the order they were triggered. Group round robin is also useful as a global concurrency control for the maximum number of runs of a single task or workflow that you want executing at any given time, regardless of any grouping. You can set a constant concurrency key as the expression, such as `'*'`, to enable this global concurrency control behavior.
+
+<FairQueueing />
 
 To use this strategy, set the `GROUP_ROUND_ROBIN` limit strategy along with a `max_runs` limit and a key expression:
 

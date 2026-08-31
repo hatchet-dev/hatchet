@@ -1,0 +1,215 @@
+.wrap {
+  display: grid;
+  gap: calc(var(--rlh) * 0.5);
+  justify-items: center;
+  width: 100%;
+}
+
+.flowRoot {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+/* ── Static chrome (SVG line work) ────────────────────────────────────── */
+
+.chrome {
+  pointer-events: none;
+}
+
+.chromeEdge {
+  stroke: var(--fg-tertiary);
+  stroke-dasharray: 2 3;
+}
+
+/* ── Trigger port ─────────────────────────────────────────────────────── */
+
+.triggerPort {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  background: var(--fg);
+  transition: background 300ms ease;
+}
+
+[data-flow-state="fired"] .triggerPort {
+  background: var(--accent);
+  animation: dagf-fire 500ms ease-out both;
+}
+
+.triggerLabel {
+  position: absolute;
+  left: calc(var(--flow-u) * 28);
+  top: calc(var(--flow-u) * 62);
+  transform: translate(-50%, -100%);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Task nodes (stationary tokens stepping queued → running → done) ──── */
+
+.node {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: calc(var(--flow-u) * 40);
+  height: calc(var(--flow-u) * 22);
+  border: 1.5px solid color-mix(in srgb, var(--fg) 40%, transparent);
+  background: transparent;
+  transition:
+    border-color 300ms ease,
+    background 300ms ease;
+}
+
+.nodeLabel {
+  font-family: var(--font-mono);
+  font-size: max(calc(var(--flow-u) * 4.25), 8px);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+  transition: color 300ms ease;
+}
+
+[data-flow-state="running"] .node {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  animation: dagf-kick 400ms ease-out both;
+}
+
+[data-flow-state="done"] .node {
+  border-color: var(--accent-3);
+  background: color-mix(in srgb, var(--accent-3) 12%, transparent);
+  animation: dagf-settle 400ms ease-out both;
+}
+
+[data-flow-state="running"] .nodeLabel,
+[data-flow-state="done"] .nodeLabel,
+[data-flow-state="waiting"] .nodeLabel {
+  color: var(--fg);
+}
+
+/* ── Result node (dashed outline until every parent's output arrives) ─── */
+
+.result {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: calc(var(--flow-u) * 46);
+  height: calc(var(--flow-u) * 26);
+  border: 1.5px dashed color-mix(in srgb, var(--fg) 40%, transparent);
+  background: transparent;
+  transition:
+    border-color 300ms ease,
+    background 300ms ease;
+}
+
+/* Outputs are arriving, but not all of them: hold, breathing */
+[data-flow-state="waiting"] .result {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: dagf-breathe 1200ms ease-in-out infinite;
+}
+
+/* All parents done: the result materializes, settling from an overshoot */
+[data-flow-state="done"] .result {
+  border-style: solid;
+  border-color: var(--accent-3);
+  background: color-mix(in srgb, var(--accent-3) 12%, transparent);
+  animation: dagf-settle 400ms ease-out both;
+}
+
+/* ── Run pulses (fan-out runs and per-branch outputs) ─────────────────── */
+
+.pulse {
+  width: calc(var(--flow-u) * 4.5);
+  height: calc(var(--flow-u) * 4.5);
+  background: var(--fg);
+}
+
+/* An output that has docked beside the result settles in place */
+[data-flow-state="docked"] .pulse {
+  animation: dagf-settle 350ms ease-out both;
+}
+
+/* ── Annotations ──────────────────────────────────────────────────────── */
+
+.waitTag {
+  font-family: var(--font-mono);
+  font-size: max(calc(var(--flow-u) * 4.25), 8px);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+/* ── State animations ─────────────────────────────────────────────────── */
+
+@keyframes dagf-fire {
+  0% {
+    transform: scale(1.6);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes dagf-kick {
+  0% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes dagf-settle {
+  0% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes dagf-breathe {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+
+/* Static composition (reduced motion / pre-hydration): no keyframe motion */
+[data-flow-static] .node,
+[data-flow-static] .result,
+[data-flow-static] .pulse,
+[data-flow-static] .triggerPort {
+  animation: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node,
+  .result,
+  .pulse,
+  .triggerPort {
+    animation: none !important;
+    transition: none !important;
+  }
+  .nodeLabel {
+    transition: none;
+  }
+}
