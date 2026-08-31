@@ -9,10 +9,13 @@ import LatestImageTags from "@/components/LatestImageTags";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
 import { EmbeddedMode } from "@/components/flow-animations/EmbeddedMode";
+import Keywords from "@/components/Keywords";
 
 <LatestImageTags versionRepo="hatchet-embedded" />
 
 # Embedded Hatchet
+
+<Keywords keywords="embedded, local, local development, local testing, ci, in-process, no docker, without docker, embedded postgres, sidecar" />
 
 Hatchet can run in an [embedded mode](https://github.com/hatchet-dev/hatchet-embedded) from inside your workers. The goal is to make local testing as easy as possible and be able to test workers end to end in ephemeral CI environments. There is no need to provision tenants, users, or API tokens to get started.
 

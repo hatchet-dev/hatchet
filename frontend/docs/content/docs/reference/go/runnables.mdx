@@ -9,7 +9,7 @@ Runnables in the Hatchet Go SDK are things that can be run, namely tasks and wor
 - `Workflow`, which lets you declare tasks with `NewTask` and call the run methods
 - `StandaloneTask`, which is a single task returned by `client.NewStandaloneTask` (or its durable/batch variants) and supports the same run methods
 
-Both implement the `WorkflowBase` interface and can be registered on a worker with `hatchet.WithWorkflows`. See the [Client page](./client) for the constructors.
+Both implement the `WorkflowBase` interface and can be registered on a worker with `hatchet.WithWorkflows`. See the [Client page](/reference/go/client) for the constructors.
 
 ## Workflow
 
@@ -548,7 +548,7 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 
 ## Conditions
 
-Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):
+Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):
 
 | Name                 | Signature                                                                                  | Description                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |

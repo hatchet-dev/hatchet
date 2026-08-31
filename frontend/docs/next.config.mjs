@@ -20,8 +20,6 @@ const nextConfig = {
       // --- New site: section index redirects ---
       { source: '/', destination: '/v1', permanent: false, basePath: false },
       { source: '/get-started', destination: '/v1', permanent: false, basePath: false },
-      { source: '/reference', destination: '/reference/changelog', permanent: false, basePath: false },
-      { source: '/reference/', destination: '/reference/changelog', permanent: false, basePath: false },
       { source: '/reference/python', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/python/', destination: '/reference/python/client', permanent: false, basePath: false },
       { source: '/reference/typescript', destination: '/reference/typescript/client', permanent: false, basePath: false },
@@ -34,6 +32,10 @@ const nextConfig = {
       { source: '/reference/typescript/feature-clients/', destination: '/reference/typescript/feature-clients/crons', permanent: false, basePath: false },
       { source: '/reference/python/feature-clients', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
       { source: '/reference/python/feature-clients/', destination: '/reference/python/feature-clients/cron', permanent: false, basePath: false },
+      { source: '/reference/go/feature-clients', destination: '/reference/go/feature-clients/crons', permanent: false, basePath: false },
+      { source: '/reference/go/feature-clients/', destination: '/reference/go/feature-clients/crons', permanent: false, basePath: false },
+      { source: '/reference/ruby/feature-clients', destination: '/reference/ruby/feature-clients/cron', permanent: false, basePath: false },
+      { source: '/reference/ruby/feature-clients/', destination: '/reference/ruby/feature-clients/cron', permanent: false, basePath: false },
       // --- Deleted v1 pages that were consolidated/renamed ---
       { source: '/v1/conditions', destination: '/v1/directed-acyclic-graphs#branching-with-parent-conditions', permanent: true, basePath: false },
       { source: '/v1/on-failure', destination: '/v1/error-handling', permanent: true, basePath: false },
