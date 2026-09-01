@@ -264,6 +264,38 @@ runs = result  # already a list
 runs = await hatchet.runs.aio_list(since=..., until=...)
 ```
 
+#### Streaming event types renamed
+
+The types yielded when streaming run events (e.g. via `ref.stream()`) have been renamed from V0 "step run" terminology, and the redundant prefixes on the enum members are gone:
+
+```python
+# V1
+from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
+
+async for event in ref.stream():  # event: StepRunEvent
+    if event.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+        print(event.payload)
+
+# V2
+from hatchet_sdk import TaskRunEventType
+
+async for event in ref.stream():  # event: TaskRunEvent
+    if event.type == TaskRunEventType.STREAM:
+        print(event.payload)
+```
+
+The `WorkflowRunEventType` enum has been removed entirely — it was never actually yielded by the listener.
+
+#### Top-level exports cleaned up
+
+`hatchet_sdk` no longer re-exports the V0-era REST API models (`StepRun`, `PullRequest`, `Job`, `JobRun`, `WorkflowRun`, `Tenant`, `User`, the invite/token request models, and similar), the pagination wrapper types (`EventList`, `WorkerList`, `WorkflowList`, ...), the raw `CreateWorkflowVersionOpts` protobuf, or `WorkerStartOptions`. If you need a REST model directly, import it from `hatchet_sdk.clients.rest.models`.
+
+`Worker.register_workflow_from_opts`, which took a raw protobuf, has been removed — use `worker.register_workflow(...)` with a workflow object instead. The internal `hatchet.dispatcher` and `hatchet.listener` properties are also no longer public.
+
+`from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary` — the types returned by `events.list()` and `runs.list()` — are now exported from the top level.
+
+The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` modules (aliases for `hatchet_sdk.types.labels` and `hatchet_sdk.types.rate_limit`) have been removed. Import `DesiredWorkerLabel`, `WorkerLabel`, `RateLimit`, and `RateLimitDuration` from `hatchet_sdk` directly.
+
 #### `Event` class field and property changes
 
 The `event_timestamp` field and its deprecated camelCase aliases (`eventTimestamp`, `additionalMetadata`) have been removed from the `Event` class. Use the snake_case fields directly:
