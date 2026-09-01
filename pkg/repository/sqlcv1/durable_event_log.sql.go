@@ -258,6 +258,82 @@ func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const bulkUpsertDurableChildSignalCreatedEvents = `-- name: BulkUpsertDurableChildSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($4::TEXT[]) AS event_key,
+        UNNEST($5::UUID[]) AS child_external_id
+)
+
+INSERT INTO v1_task_event (
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    event_key,
+    child_external_id
+)
+SELECT
+    i.tenant_id,
+    i.task_id,
+    i.task_inserted_at,
+    -1,
+    'SIGNAL_CREATED',
+    i.event_key,
+    i.child_external_id
+FROM input i
+ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
+DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
+RETURNING
+    v1_task_event.task_id,
+    v1_task_event.event_key,
+    v1_task_event.child_external_id
+`
+
+type BulkUpsertDurableChildSignalCreatedEventsParams struct {
+	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Eventkeys              []string             `json:"eventkeys"`
+	Childexternalids       []uuid.UUID          `json:"childexternalids"`
+}
+
+type BulkUpsertDurableChildSignalCreatedEventsRow struct {
+	TaskID          int64       `json:"task_id"`
+	EventKey        pgtype.Text `json:"event_key"`
+	ChildExternalID *uuid.UUID  `json:"child_external_id"`
+}
+
+func (q *Queries) BulkUpsertDurableChildSignalCreatedEvents(ctx context.Context, db DBTX, arg BulkUpsertDurableChildSignalCreatedEventsParams) ([]*BulkUpsertDurableChildSignalCreatedEventsRow, error) {
+	rows, err := db.Query(ctx, bulkUpsertDurableChildSignalCreatedEvents,
+		arg.Tenantids,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Eventkeys,
+		arg.Childexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*BulkUpsertDurableChildSignalCreatedEventsRow
+	for rows.Next() {
+		var i BulkUpsertDurableChildSignalCreatedEventsRow
+		if err := rows.Scan(&i.TaskID, &i.EventKey, &i.ChildExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
@@ -1263,75 +1339,4 @@ type UpdateLogFileLatestNodeIdsParams struct {
 func (q *Queries) UpdateLogFileLatestNodeIds(ctx context.Context, db DBTX, arg UpdateLogFileLatestNodeIdsParams) error {
 	_, err := db.Exec(ctx, updateLogFileLatestNodeIds, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Nodeids)
 	return err
-}
-
-const upsertDurableChildSignalCreatedEvents = `-- name: UpsertDurableChildSignalCreatedEvents :many
-WITH input AS (
-    SELECT
-        UNNEST($4::TEXT[]) AS event_key,
-        UNNEST($5::UUID[]) AS child_external_id
-)
-
-INSERT INTO v1_task_event (
-    tenant_id,
-    task_id,
-    task_inserted_at,
-    retry_count,
-    event_type,
-    event_key,
-    child_external_id
-)
-SELECT
-    $1::UUID,
-    $2::BIGINT,
-    $3::TIMESTAMPTZ,
-    -1,
-    'SIGNAL_CREATED',
-    i.event_key,
-    i.child_external_id
-FROM input i
-ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
-DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
-RETURNING
-    v1_task_event.event_key,
-    v1_task_event.child_external_id
-`
-
-type UpsertDurableChildSignalCreatedEventsParams struct {
-	Tenantid              uuid.UUID          `json:"tenantid"`
-	Durabletaskid         int64              `json:"durabletaskid"`
-	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
-	Eventkeys             []string           `json:"eventkeys"`
-	Childexternalids      []uuid.UUID        `json:"childexternalids"`
-}
-
-type UpsertDurableChildSignalCreatedEventsRow struct {
-	EventKey        pgtype.Text `json:"event_key"`
-	ChildExternalID *uuid.UUID  `json:"child_external_id"`
-}
-
-func (q *Queries) UpsertDurableChildSignalCreatedEvents(ctx context.Context, db DBTX, arg UpsertDurableChildSignalCreatedEventsParams) ([]*UpsertDurableChildSignalCreatedEventsRow, error) {
-	rows, err := db.Query(ctx, upsertDurableChildSignalCreatedEvents,
-		arg.Tenantid,
-		arg.Durabletaskid,
-		arg.Durabletaskinsertedat,
-		arg.Eventkeys,
-		arg.Childexternalids,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*UpsertDurableChildSignalCreatedEventsRow
-	for rows.Next() {
-		var i UpsertDurableChildSignalCreatedEventsRow
-		if err := rows.Scan(&i.EventKey, &i.ChildExternalID); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
