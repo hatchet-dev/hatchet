@@ -1445,27 +1445,10 @@ WHERE
 
 -- name: CheckTenantStrategyActive :one
 -- A tenant strategy is active if it still has concurrency slots, or if a step of some
--- workflow's latest (non-deleted) version references it.
-WITH refs AS (
-    SELECT
-        sc.workflow_id,
-        sc.workflow_version_id
-    FROM
-        v1_step_concurrency sc
-    WHERE
-        sc.tenant_id = @tenantId::uuid AND
-        sc.tenant_strategy_id = @strategyId::bigint
-), latest_versions AS (
-    SELECT DISTINCT ON (wv."workflowId")
-        wv."workflowId",
-        wv."id"
-    FROM
-        "WorkflowVersion" wv
-    WHERE
-        wv."workflowId" IN (SELECT workflow_id FROM refs)
-        AND wv."deletedAt" IS NULL
-    ORDER BY wv."workflowId", wv."order" DESC
-)
+-- workflow's latest (non-deleted) version references it. The latest-version lookup is a
+-- LATERAL top-1 per referenced workflow so it descends idx_workflow_version_workflow_id_order
+-- with LIMIT 1; a DISTINCT ON over an IN-subquery reads every version of every referenced
+-- workflow instead, degrading with total "WorkflowVersion" size.
 SELECT (
     EXISTS (
         SELECT 1 FROM v1_concurrency_slot cs
@@ -1473,8 +1456,26 @@ SELECT (
     )
     OR EXISTS (
         SELECT 1
-        FROM refs r
-        JOIN latest_versions lv ON lv."workflowId" = r.workflow_id AND lv."id" = r.workflow_version_id
+        FROM (
+            SELECT DISTINCT sc.workflow_id
+            FROM v1_step_concurrency sc
+            WHERE sc.tenant_id = @tenantId::uuid AND sc.tenant_strategy_id = @strategyId::bigint
+        ) w
+        JOIN LATERAL (
+            SELECT wv."id"
+            FROM "WorkflowVersion" wv
+            WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+            ORDER BY wv."order" DESC
+            LIMIT 1
+        ) latest ON TRUE
+        JOIN LATERAL (
+            SELECT 1
+            FROM v1_step_concurrency sc2
+            WHERE sc2.workflow_id = w.workflow_id
+              AND sc2.workflow_version_id = latest."id"
+              AND sc2.tenant_strategy_id = @strategyId::bigint
+            LIMIT 1
+        ) hit ON TRUE
     )
 )::bool AS "isActive";
 
@@ -1493,27 +1494,32 @@ WHERE
 -- versions whose runs still hold concurrency slots. The workflow being re-registered is
 -- excluded from the latest-version set (its new chains replace the old ones), but its
 -- superseded versions with live slots still constrain it, so a reorder waits for old runs
--- to drain. Creation order (ascending row id) encodes the declared chain order.
-WITH latest_versions AS (
-    SELECT DISTINCT ON (wv."workflowId")
-        wv."workflowId",
-        wv."id"
-    FROM "WorkflowVersion" wv
+-- to drain. Creation order (ascending row id) encodes the declared chain order. The
+-- latest-version lookup is a LATERAL top-1 per referenced workflow for the same reason as
+-- CheckTenantStrategyActive.
+WITH ref_workflows AS (
+    SELECT DISTINCT sc.workflow_id
+    FROM v1_step_concurrency sc
     WHERE
-        wv."deletedAt" IS NULL
-        AND wv."workflowId" != @excludeWorkflowId::uuid
-        AND wv."workflowId" IN (
-            SELECT DISTINCT sc.workflow_id
-            FROM v1_step_concurrency sc
-            WHERE sc.tenant_id = @tenantId::uuid AND sc.tenant_strategy_id IS NOT NULL
-        )
-    ORDER BY wv."workflowId", wv."order" DESC
+        sc.tenant_id = @tenantId::uuid
+        AND sc.tenant_strategy_id IS NOT NULL
+        AND sc.workflow_id != @excludeWorkflowId::uuid
+), latest_versions AS (
+    SELECT latest."id"
+    FROM ref_workflows w
+    JOIN LATERAL (
+        SELECT wv."id"
+        FROM "WorkflowVersion" wv
+        WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+        ORDER BY wv."order" DESC
+        LIMIT 1
+    ) latest ON TRUE
 ), live_versions AS (
     SELECT lv."id" FROM latest_versions lv
     UNION
     SELECT DISTINCT cs.workflow_version_id AS "id"
     FROM v1_concurrency_slot cs
-    JOIN v1_tenant_concurrency tc ON tc.id = cs.strategy_id
+    JOIN v1_tenant_concurrency tc ON tc.id = cs.strategy_id AND tc.tenant_id = @tenantId::uuid
     WHERE cs.tenant_id = @tenantId::uuid
 )
 SELECT
