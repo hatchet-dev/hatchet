@@ -1,6 +1,6 @@
 import pytest
 from hatchet_sdk import Hatchet
-from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk import DesiredWorkerLabel
 from subprocess import Popen
 from typing import Any, Generator
 from examples.runtime_affinity.worker import runtime_affinity_workflow, AffinityResult

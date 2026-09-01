@@ -749,7 +749,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.WORKFLOW_NAME: config.workflow_name,
             OTelAttribute.ACTION_PAYLOAD: config.input,
             OTelAttribute.CHILD_KEY: config.options.child_key,
-            OTelAttribute.NAMESPACE: config.options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 config.options.additional_metadata, default=str
             ),
@@ -851,7 +850,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
@@ -907,7 +905,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
             OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
@@ -980,7 +977,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
             OTelAttribute.ACTION_PAYLOAD: input,
             OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
@@ -1145,7 +1141,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                         OTelAttribute.WORKFLOW_NAME: config.workflow_name,
                         OTelAttribute.ACTION_PAYLOAD: config.input,
                         OTelAttribute.CHILD_KEY: config.options.child_key,
-                        OTelAttribute.NAMESPACE: config.options.namespace,
                         OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                             config.options.additional_metadata, default=str
                         ),
