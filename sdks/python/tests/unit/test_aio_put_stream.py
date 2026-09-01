@@ -118,7 +118,9 @@ class _RecordingEventClient:
         self.both_calls_started = asyncio.Event()
         self.release_sends = asyncio.Event()
 
-    async def _aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    async def _aio_stream(
+        self, data: str | bytes, step_run_id: str, index: int
+    ) -> None:
         self.calls.append((data, step_run_id, index))
         if len(self.calls) == 2:
             self.both_calls_started.set()
