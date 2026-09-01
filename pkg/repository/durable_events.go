@@ -169,6 +169,9 @@ type durableEventsRepository struct {
 	ingestBuffer *durableEventIngestBuffer
 }
 
+// DurableEventBufferOpts configures how IngestDurableTaskEvent requests are buffered into
+// batched database transactions: each request waits up to FlushInterval to accumulate a batch
+// of at most MaxBatchSize requests, and at most MaxConcurrentFlushes batches run at once.
 type DurableEventBufferOpts struct {
 	FlushInterval        time.Duration
 	MaxBatchSize         int
@@ -185,7 +188,7 @@ func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBuffe
 	return r
 }
 
-type TaskId int64
+type durableTaskId int64
 
 type appendDurableEventLogResult struct {
 	logEntries                  []*EventLogEntryWithPayloads
@@ -199,7 +202,7 @@ type durableEventIngestResponse struct {
 }
 
 type durableEventIngestRequest struct {
-	taskId     TaskId
+	taskId     durableTaskId
 	opts       IngestDurableTaskEventOpts
 	responseCh chan durableEventIngestResponse
 }
@@ -211,11 +214,11 @@ type durableEventIngestBuffer struct {
 	flushInterval  time.Duration
 	maxBatchSize   int
 	flushSemaphore chan struct{}
-	ingest         func(ctx context.Context, batch map[TaskId]IngestDurableTaskEventOpts) (map[TaskId]*appendDurableEventLogResult, map[TaskId]error, error)
+	ingest         func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
 }
 
 func newDurableEventIngestBuffer(
-	ingest func(ctx context.Context, batch map[TaskId]IngestDurableTaskEventOpts) (map[TaskId]*appendDurableEventLogResult, map[TaskId]error, error),
+	ingest func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error),
 	flushInterval time.Duration,
 	maxBatchSize int,
 	maxConcurrentFlushes int,
@@ -228,7 +231,7 @@ func newDurableEventIngestBuffer(
 	}
 }
 
-func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId TaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
+func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
 	request := &durableEventIngestRequest{
 		taskId:     taskId,
 		opts:       opts,
@@ -277,11 +280,15 @@ func (b *durableEventIngestBuffer) flushAfterInterval() {
 }
 
 func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest) {
-	batch := make(map[TaskId]IngestDurableTaskEventOpts, len(requests))
-	requestByTaskId := make(map[TaskId]*durableEventIngestRequest, len(requests))
+	batch := make(map[durableTaskId]IngestDurableTaskEventOpts, len(requests))
+	requestByTaskId := make(map[durableTaskId]*durableEventIngestRequest, len(requests))
 
-	// two requests for the same task must not share a batch: each ingest needs to observe the
-	// log file state left behind by the previous one, so later duplicates go to a follow-up flush
+	// concurrent requests for the same task (parallel durable operations in user code, or a stale
+	// invocation racing a replay) used to be serialized by the log file row lock, with each
+	// transaction reading the latest_node_id the previous one committed. A batch takes that lock
+	// once and reads the log file once, so same-task duplicates would plan colliding node ids from
+	// the same snapshot — instead they wait for a follow-up flush, which starts after this batch's
+	// ingest completes and therefore sees its committed state
 	var deferredRequests []*durableEventIngestRequest
 
 	for _, request := range requests {
@@ -917,13 +924,13 @@ func resolveBranchForNode(nodeId, currentBranchId int64, nextBranchIdToBranchPoi
 }
 
 type taskNodeBranchKey struct {
-	taskId   TaskId
+	taskId   durableTaskId
 	nodeId   int64
 	branchId int64
 }
 
 type taskLogEntryState struct {
-	taskId             TaskId
+	taskId             durableTaskId
 	opts               GetOrCreateLogEntryOpts
 	skipOpts           []GetOrCreateLogEntryOpt
 	nonSkipOpts        []GetOrCreateLogEntryOpt
@@ -933,15 +940,11 @@ type taskLogEntryState struct {
 	skipEntryByChildId map[uuid.UUID]*sqlcv1.BulkGetDurableEventLogEntriesRow
 }
 
-// getOrCreateEventLogEntriesForTasks processes one GetOrCreateLogEntryOpts per task inside the
-// shared transaction. A task whose entries fail validation before anything is written for it gets
-// a per-task error and is excluded from the rest of the batch; errors after that point (failed
-// queries, skip-entry validation) abort the whole transaction and are returned as the batch error.
 func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
 	batch []GetOrCreateLogEntryOpts,
-) (map[TaskId][]*EventLogEntryWithPayloads, []StorePayloadOpts, map[TaskId]error, error) {
+) (map[durableTaskId][]*EventLogEntryWithPayloads, []StorePayloadOpts, map[durableTaskId]error, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-or-create-durable-event-log-entries")
 	defer span.End()
 
@@ -955,11 +958,11 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		telemetry.AttributeKV{Key: "entry_count", Value: entryCount},
 	)
 
-	taskErrors := make(map[TaskId]error)
-	resultsByTaskId := make(map[TaskId][]*EventLogEntryWithPayloads, len(batch))
+	taskErrors := make(map[durableTaskId]error)
+	resultsByTaskId := make(map[durableTaskId][]*EventLogEntryWithPayloads, len(batch))
 
 	states := make([]*taskLogEntryState, 0, len(batch))
-	stateByTaskId := make(map[TaskId]*taskLogEntryState, len(batch))
+	stateByTaskId := make(map[durableTaskId]*taskLogEntryState, len(batch))
 
 	for _, opts := range batch {
 		if len(opts.Entries) == 0 {
@@ -967,7 +970,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		}
 
 		state := &taskLogEntryState{
-			taskId:             TaskId(opts.DurableTaskId),
+			taskId:             durableTaskId(opts.DurableTaskId),
 			opts:               opts,
 			existedEntries:     make(map[NodeIdBranchIdTuple]*sqlcv1.BulkGetDurableEventLogEntriesRow),
 			newEntryByKey:      make(map[NodeIdBranchIdTuple]GetOrCreateLogEntryOpt),
@@ -1007,7 +1010,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		}
 
 		for _, e := range existing {
-			existingByKey[taskNodeBranchKey{TaskId(e.DurableTaskID), e.NodeID, e.BranchID}] = e
+			existingByKey[taskNodeBranchKey{durableTaskId(e.DurableTaskID), e.NodeID, e.BranchID}] = e
 		}
 	}
 
@@ -1096,7 +1099,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		}
 
 		for _, createdRow := range createdRows {
-			state, ok := stateByTaskId[TaskId(createdRow.DurableTaskID)]
+			state, ok := stateByTaskId[durableTaskId(createdRow.DurableTaskID)]
 			if !ok {
 				continue
 			}
@@ -1425,7 +1428,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	tenantId := opts.TenantId
 	task := opts.Task
 
-	appendResult, err := r.ingestBuffer.submit(ctx, TaskId(task.ID), opts)
+	appendResult, err := r.ingestBuffer.submit(ctx, durableTaskId(task.ID), opts)
 
 	if err != nil {
 		r.enrichNonDeterminismErrorDetail(ctx, opts, err)
@@ -1654,13 +1657,13 @@ func (r *durableEventsRepository) resolveChildExternalIds(ctx context.Context, t
 	return nil
 }
 
-func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context, batch map[TaskId]IngestDurableTaskEventOpts) (map[TaskId]*appendDurableEventLogResult, map[TaskId]error, error) {
+func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error) {
 	ctx, span := telemetry.NewSpan(ctx, "append-durable-event-log-batch")
 	defer span.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "batch_size", Value: len(batch)})
 
-	taskIds := make([]TaskId, 0, len(batch))
+	taskIds := make([]durableTaskId, 0, len(batch))
 	for taskId := range batch {
 		taskIds = append(taskIds, taskId)
 	}
@@ -1698,12 +1701,12 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		return nil, nil, fmt.Errorf("failed to lock log files: %w", err)
 	}
 
-	logFileByTaskId := make(map[TaskId]*sqlcv1.V1DurableEventLogFile, len(batch))
-	branchPointsByTaskId := make(map[TaskId]map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(batch))
+	logFileByTaskId := make(map[durableTaskId]*sqlcv1.V1DurableEventLogFile, len(batch))
+	branchPointsByTaskId := make(map[durableTaskId]map[int64]*sqlcv1.V1DurableEventLogBranchPoint, len(batch))
 
 	for _, row := range lockRows {
 		logFile := row.V1DurableEventLogFile
-		taskId := TaskId(logFile.DurableTaskID)
+		taskId := durableTaskId(logFile.DurableTaskID)
 
 		if _, ok := logFileByTaskId[taskId]; !ok {
 			logFileCopy := logFile
@@ -1728,8 +1731,8 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 	}
 
-	taskErrors := make(map[TaskId]error)
-	planByTaskId := make(map[TaskId]*durableEventLogAppendPlan, len(batch))
+	taskErrors := make(map[durableTaskId]error)
+	planByTaskId := make(map[durableTaskId]*durableEventLogAppendPlan, len(batch))
 	orderedGetOrCreateOpts := make([]GetOrCreateLogEntryOpts, 0, len(batch))
 
 	for _, taskId := range taskIds {
@@ -1844,12 +1847,12 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 			nodeId := le.Entry.NodeID
 			branchId := le.Entry.BranchID
 			runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
-			durableTaskId := task.ID
+			signalTaskId := task.ID
 
 			replayMatchOptsByTenantId[plan.opts.TenantId] = append(replayMatchOptsByTenantId[plan.opts.TenantId], CreateMatchOpts{
 				Kind:                         sqlcv1.V1MatchKindSIGNAL,
 				Conditions:                   conditions,
-				SignalTaskId:                 &durableTaskId,
+				SignalTaskId:                 &signalTaskId,
 				SignalTaskInsertedAt:         task.InsertedAt,
 				SignalExternalId:             &childExternalId,
 				SignalTaskExternalId:         &task.ExternalID,
@@ -1899,7 +1902,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		return nil, nil, err
 	}
 
-	results := make(map[TaskId]*appendDurableEventLogResult, len(planByTaskId))
+	results := make(map[durableTaskId]*appendDurableEventLogResult, len(planByTaskId))
 
 	for taskId, plan := range planByTaskId {
 		results[taskId] = &appendDurableEventLogResult{
