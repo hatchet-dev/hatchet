@@ -226,7 +226,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if isinstance(self._config.concurrency, list):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
-        elif isinstance(self._config.concurrency, ConcurrencyExpression):
+        elif isinstance(self._config.concurrency, (ConcurrencyExpression, SharedConcurrency)):
             _concurrency_arr = []
             _concurrency = self._config.concurrency.to_proto()
         elif isinstance(self._config.concurrency, int):
@@ -273,9 +273,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 if self._config.idempotency
                 else None
             ),
-            shared_concurrency_defs=[
-                shared.to_proto() for shared in self.shared_concurrency_defs
-            ],
+
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -362,18 +360,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     @property
     def input_validator_type(self) -> type[TWorkflowInput]:
         return cast(type[TWorkflowInput], self._config.input_validator._type)
-
-    @property
-    def shared_concurrency_defs(self) -> list[SharedConcurrency]:
-        """The distinct tenant-scoped shared concurrency strategies referenced by this
-        workflow's tasks, deduplicated by name."""
-        defs_by_name: dict[str, SharedConcurrency] = {}
-
-        for task in self.tasks:
-            for shared in task.shared_concurrency_defs:
-                defs_by_name[shared.name] = shared
-
-        return list(defs_by_name.values())
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:

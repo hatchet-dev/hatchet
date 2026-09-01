@@ -5,6 +5,7 @@ package v1_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -40,29 +41,25 @@ func (s *sharedConcurrencyTestSetup) strategyDescriptor() *sqlcv1.V1StepConcurre
 	return repo.TenantConcurrencyDescriptor(s.strategy)
 }
 
-func createWorkflowWithSharedRef(
+func createWorkflowWithConcurrency(
 	t *testing.T,
 	ctx context.Context,
 	conf *database.Layer,
 	tenantId uuid.UUID,
 	name string,
-	defs []repo.CreateSharedConcurrencyOpts,
-	sharedNames []string,
-	inline []repo.CreateConcurrencyOpts,
+	entries []repo.CreateConcurrencyOpts,
 ) *workflowWithStep {
 	t.Helper()
 
 	desc := "test workflow"
 	wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
-		Name:              name,
-		Description:       &desc,
-		SharedConcurrency: defs,
+		Name:        name,
+		Description: &desc,
 		Tasks: []repo.CreateStepOpts{
 			{
-				ReadableId:        "my-task",
-				Action:            "test:run",
-				Concurrency:       inline,
-				SharedConcurrency: sharedNames,
+				ReadableId:  "my-task",
+				Action:      "test:run",
+				Concurrency: entries,
 			},
 		},
 	})
@@ -100,16 +97,16 @@ func setupSharedConcurrencyTest(
 	})
 	require.NoError(t, err)
 
-	// the definition rides on a workflow put (the only registration path); the registrar
-	// workflow's step does not reference the strategy, so no refs or slots exist yet
-	def := repo.CreateSharedConcurrencyOpts{
+	// the definition is a named Concurrency entry carrying an expression, riding on a
+	// workflow put (the only registration path)
+	def := repo.CreateConcurrencyOpts{
 		Name:          "shared-limit",
 		Expression:    "input.my_id",
 		MaxRuns:       &maxRuns,
 		LimitStrategy: &strategyType,
 	}
 
-	createWorkflowWithSharedRef(t, ctx, conf, tenantId, fmt.Sprintf("%s-registrar", name), []repo.CreateSharedConcurrencyOpts{def}, nil, nil)
+	createWorkflowWithConcurrency(t, ctx, conf, tenantId, fmt.Sprintf("%s-registrar", name), []repo.CreateConcurrencyOpts{def})
 
 	queries := sqlcv1.New()
 	strats, err := queries.GetTenantConcurrencyStrategiesByNames(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategiesByNamesParams{
@@ -130,8 +127,9 @@ func setupSharedConcurrencyTest(
 	}
 
 	for i := 0; i < numWorkflows; i++ {
-		s.workflows = append(s.workflows, createWorkflowWithSharedRef(
-			t, ctx, conf, tenantId, fmt.Sprintf("%s-wf-%d", name, i), nil, []string{"shared-limit"}, nil,
+		s.workflows = append(s.workflows, createWorkflowWithConcurrency(
+			t, ctx, conf, tenantId, fmt.Sprintf("%s-wf-%d", name, i),
+			[]repo.CreateConcurrencyOpts{{Name: "shared-limit"}},
 		))
 	}
 
@@ -252,40 +250,47 @@ func TestConcurrency_SharedStrategy_MixedWithInline(t *testing.T) {
 
 		maxRuns := int32(2)
 		strategyType := "GROUP_ROUND_ROBIN"
-		wf := createWorkflowWithSharedRef(t, ctx, conf, s.tenantId, "shared-mixed-wf", nil, []string{"shared-limit"}, []repo.CreateConcurrencyOpts{
-			{
-				MaxRuns:       &maxRuns,
-				LimitStrategy: &strategyType,
-				Expression:    "input.other_id",
-			},
-		})
+		inline := repo.CreateConcurrencyOpts{
+			MaxRuns:       &maxRuns,
+			LimitStrategy: &strategyType,
+			Expression:    "input.other_id",
+		}
+		ref := repo.CreateConcurrencyOpts{Name: "shared-limit"}
+
+		// declared order is the chain order: inline first here, tenant entry first below
+		wfInlineFirst := createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-mixed-wf", []repo.CreateConcurrencyOpts{inline, ref})
+		wfRefFirst := createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-mixed-wf-flipped", []repo.CreateConcurrencyOpts{ref, inline})
 
 		queries := sqlcv1.New()
 
-		rows, err := queries.ListConcurrencyStrategiesByStepId(ctx, conf.Pool, sqlcv1.ListConcurrencyStrategiesByStepIdParams{
-			Tenantid: s.tenantId,
-			Stepids:  []uuid.UUID{wf.stepId},
-		})
-		require.NoError(t, err)
-		require.Len(t, rows, 2, "step should hold both the inline strategy and the tenant reference")
+		assertOrder := func(stepId uuid.UUID, tenantFirst bool) {
+			rows, err := queries.ListConcurrencyStrategiesByStepId(ctx, conf.Pool, sqlcv1.ListConcurrencyStrategiesByStepIdParams{
+				Tenantid: s.tenantId,
+				Stepids:  []uuid.UUID{stepId},
+			})
+			require.NoError(t, err)
+			require.Len(t, rows, 2, "step should hold both the inline strategy and the tenant reference")
 
-		resolvedIds := map[int64]bool{}
-		for _, row := range rows {
-			id := row.ID
-			if row.TenantStrategyID.Valid {
-				id = row.TenantStrategyID.Int64
+			// creation order (ascending row id) encodes the declared order
+			sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
+
+			first, second := rows[0], rows[1]
+			if tenantFirst {
+				first, second = rows[1], rows[0]
 			}
-			resolvedIds[id] = true
-			require.Equal(t, wf.stepId, row.StepID)
-		}
-		require.True(t, resolvedIds[s.strategy.ID], "tenant strategy should resolve for the step")
-		require.Len(t, resolvedIds, 2, "inline and tenant strategies must have distinct ids")
 
-		// the inline strategy is listed as a step strategy, the tenant strategy separately
+			require.False(t, first.TenantStrategyID.Valid, "inline entry position mismatch")
+			require.True(t, second.TenantStrategyID.Valid, "tenant entry position mismatch")
+			require.Equal(t, s.strategy.ID, second.TenantStrategyID.Int64)
+		}
+
+		assertOrder(wfInlineFirst.stepId, false)
+		assertOrder(wfRefFirst.stepId, true)
+
+		// the two inline strategies are listed as step strategies, the tenant strategy separately
 		stepStrategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
 		require.NoError(t, err)
-		require.Len(t, stepStrategies, 1)
-		require.False(t, stepStrategies[0].TenantStrategyID.Valid)
+		require.Len(t, stepStrategies, 2)
 
 		tenantStrategies, err := queries.ListActiveTenantConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
 		require.NoError(t, err)
@@ -308,14 +313,14 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		// re-declaring the name on another workflow put updates the strategy in place
 		newMax := int32(5)
 		newStrategy := "CANCEL_IN_PROGRESS"
-		createWorkflowWithSharedRef(t, ctx, conf, s.tenantId, "shared-upsert-redeclare", []repo.CreateSharedConcurrencyOpts{
+		createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-upsert-redeclare", []repo.CreateConcurrencyOpts{
 			{
 				Name:          "shared-limit",
 				Expression:    "input.other_id",
 				MaxRuns:       &newMax,
 				LimitStrategy: &newStrategy,
 			},
-		}, nil, nil)
+		})
 
 		queries := sqlcv1.New()
 
@@ -424,8 +429,11 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, strat.IsActive, "a strategy referenced by a latest workflow version must stay active")
 
-		// registered but never referenced (registrar-only) and no slots: retires
+		// once every referencing workflow's latest version drops the entry (and no slots
+		// remain), the strategy retires
 		s2 := setupSharedConcurrencyTest(t, ctx, conf, "shared-inactive-test", "GROUP_ROUND_ROBIN", 1, 0)
+
+		createWorkflowWithConcurrency(t, ctx, conf, s2.tenantId, "shared-inactive-test-registrar", nil)
 
 		err = s2.repo.UpdateConcurrencyStrategyIsActive(ctx, s2.tenantId, s2.strategyDescriptor())
 		require.NoError(t, err)
@@ -435,7 +443,95 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 			ID:       s2.strategy.ID,
 		})
 		require.NoError(t, err)
-		require.False(t, strat2.IsActive, "an unreferenced strategy with no slots must retire")
+		require.False(t, strat2.IsActive, "a strategy referenced only by superseded versions with no slots must retire")
+
+		return nil
+	})
+}
+
+// TestConcurrency_SharedStrategy_WorkflowLevel verifies workflow-level tenant-scoped
+// concurrency: with the DAG operator entitlement it lands on the orchestrator task, and
+// without it (the old parent/child path) it is rejected loudly.
+func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		queries := sqlcv1.New()
+
+		newTenant := func(name string, dagOperator bool) uuid.UUID {
+			tenantId := uuid.New()
+			_, err := conf.V1.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+				ID:   &tenantId,
+				Name: name,
+				Slug: fmt.Sprintf("%s-%s", name, tenantId.String()),
+			})
+			require.NoError(t, err)
+
+			err = conf.V1.TenantEntitlement().SetEntitlements(ctx, tenantId, repo.TenantEntitlements{DAGOperator: dagOperator})
+			require.NoError(t, err)
+
+			return tenantId
+		}
+
+		desc := "test workflow"
+		maxRuns := int32(1)
+		strategyType := "GROUP_ROUND_ROBIN"
+		multiTask := []repo.CreateStepOpts{
+			{ReadableId: "task-a", Action: "test:run"},
+			{ReadableId: "task-b", Action: "test:run", Parents: []string{"task-a"}},
+		}
+		workflowConcurrency := []repo.CreateConcurrencyOpts{
+			{
+				Name:          "wf-shared-limit",
+				Expression:    "input.my_id",
+				MaxRuns:       &maxRuns,
+				LimitStrategy: &strategyType,
+			},
+		}
+
+		// new path: the entry becomes concurrency on the DAG orchestrator task
+		dagTenant := newTenant("shared-wf-dag-test", true)
+
+		wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, dagTenant, &repo.CreateWorkflowVersionOpts{
+			Name:        "shared-wf-dag",
+			Description: &desc,
+			Concurrency: workflowConcurrency,
+			Tasks:       multiTask,
+		})
+		require.NoError(t, err)
+
+		steps, err := conf.V1.Workflows().ListStepsByWorkflowVersionId(ctx, dagTenant, wfVersion.WorkflowVersion.ID)
+		require.NoError(t, err)
+
+		var orchestratorStepId uuid.UUID
+		for _, step := range steps {
+			if step.IsDagOrchestrator {
+				orchestratorStepId = step.ID
+			}
+		}
+		require.NotEqual(t, uuid.Nil, orchestratorStepId, "the workflow should have an orchestrator step")
+
+		rows, err := queries.ListConcurrencyStrategiesByStepId(ctx, conf.Pool, sqlcv1.ListConcurrencyStrategiesByStepIdParams{
+			Tenantid: dagTenant,
+			Stepids:  []uuid.UUID{orchestratorStepId},
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 1, "the tenant-scoped entry should land on the orchestrator step")
+		require.True(t, rows[0].TenantStrategyID.Valid)
+
+		// old path: rejected loudly
+		oldTenant := newTenant("shared-wf-old-test", false)
+
+		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, oldTenant, &repo.CreateWorkflowVersionOpts{
+			Name:        "shared-wf-old",
+			Description: &desc,
+			Concurrency: workflowConcurrency,
+			Tasks:       multiTask,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not supported at the workflow level")
 
 		return nil
 	})
@@ -463,9 +559,9 @@ func TestConcurrency_SharedStrategy_UnknownNameErrors(t *testing.T) {
 			Description: &desc,
 			Tasks: []repo.CreateStepOpts{
 				{
-					ReadableId:        "my-task",
-					Action:            "test:run",
-					SharedConcurrency: []string{"never-registered"},
+					ReadableId:  "my-task",
+					Action:      "test:run",
+					Concurrency: []repo.CreateConcurrencyOpts{{Name: "never-registered"}},
 				},
 			},
 		})
@@ -500,19 +596,18 @@ func TestConcurrency_SharedStrategy_RegisteredViaPutWorkflow(t *testing.T) {
 			wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
 				Name:        name,
 				Description: &desc,
-				SharedConcurrency: []repo.CreateSharedConcurrencyOpts{
-					{
-						Name:          "putwf-shared-limit",
-						Expression:    "input.my_id",
-						MaxRuns:       &defMaxRuns,
-						LimitStrategy: &strategyType,
-					},
-				},
 				Tasks: []repo.CreateStepOpts{
 					{
-						ReadableId:        "my-task",
-						Action:            "test:run",
-						SharedConcurrency: []string{"putwf-shared-limit"},
+						ReadableId: "my-task",
+						Action:     "test:run",
+						Concurrency: []repo.CreateConcurrencyOpts{
+							{
+								Name:          "putwf-shared-limit",
+								Expression:    "input.my_id",
+								MaxRuns:       &defMaxRuns,
+								LimitStrategy: &strategyType,
+							},
+						},
 					},
 				},
 			})

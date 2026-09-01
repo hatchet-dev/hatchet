@@ -21,7 +21,6 @@ import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/pro
 import {
   Concurrency,
   SharedConcurrency,
-  isSharedConcurrency,
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
@@ -260,7 +259,6 @@ export class InternalWorker {
           rateLimits: [],
           workerLabels: {},
           concurrency: [],
-          sharedConcurrency: [],
           isDurable: false,
           slotRequests: { default: 1 },
         };
@@ -285,7 +283,6 @@ export class InternalWorker {
             onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           concurrency: [],
-          sharedConcurrency: [],
           backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
@@ -390,29 +387,14 @@ export class InternalWorker {
         }
       }
 
-      // shared concurrency strategies referenced by tasks are upserted server-side as part
-      // of this workflow registration
-      const sharedDefs = new Map<string, SharedConcurrency>();
-      [...workflow._tasks, ...workflow._durableTasks].forEach((task) => {
-        taskConcurrencyArr(task, workflow)
-          .filter(isSharedConcurrency)
-          .forEach((c) => sharedDefs.set(c.name, c));
-      });
-
       const registeredWorkflow = this.client.admin.putWorkflow({
-        sharedConcurrencyDefs: [...sharedDefs.values()].map((shared) => ({
-          name: shared.name,
-          expression: shared.expression,
-          maxRuns: shared.maxRuns,
-          limitStrategy: shared.limitStrategy,
-        })),
         name: workflow.name,
         description: workflow.description || '',
         version: workflow.version || '',
         eventTriggers,
         cronTriggers,
         sticky: stickyStrategy,
-        concurrencyArr,
+        concurrencyArr: mapConcurrencyPb(concurrencyArr),
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
         inputJsonSchema,
@@ -438,17 +420,12 @@ export class InternalWorker {
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           batch: mapBatchConfigPb(batchOf(task)),
           concurrency: (() => {
-            const inline = taskConcurrencyArr(task, workflow).filter(
-              (c): c is Concurrency => !isSharedConcurrency(c)
-            );
-            assertValidConcurrencyArr(inline);
-            return inline;
+            const taskConcurrency = taskConcurrencyArr(task, workflow);
+            assertValidConcurrencyArr(taskConcurrency);
+            return mapConcurrencyPb(taskConcurrency);
           })(),
-          sharedConcurrency: taskConcurrencyArr(task, workflow)
-            .filter(isSharedConcurrency)
-            .map((c) => c.name),
         })),
-        concurrency: concurrencySolo,
+        concurrency: concurrencySolo ? mapConcurrencyPb([concurrencySolo])[0] : undefined,
         defaultFilters:
           workflow.defaultFilters?.map((f) => ({
             scope: f.scope,
@@ -1397,6 +1374,17 @@ function batchOf(
   task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
 ): CreateWorkflowTaskOpts<any, any>['batch'] {
   return 'batch' in task ? task.batch : undefined;
+}
+
+// mapConcurrencyPb maps SDK concurrency entries onto the proto shape; entries keep their
+// declared order, which is the chain order.
+export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
+  return entries.map((c) => ({
+    expression: c.expression ?? '',
+    maxRuns: c.maxRuns,
+    limitStrategy: c.limitStrategy,
+    name: c.name,
+  }));
 }
 
 export function taskConcurrencyArr(

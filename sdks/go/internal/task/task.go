@@ -56,11 +56,6 @@ type TaskShared struct {
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
-	// SharedConcurrency lists tenant-scoped shared concurrency strategies this task
-	// consumes; entries carrying an Expression are upserted as part of workflow
-	// registration, name-only entries reference strategies registered elsewhere
-	SharedConcurrency []types.SharedConcurrencyOpts
-
 	// SlotCost is the number of default worker slots a non-durable task consumes. Defaults to one.
 	// Durable tasks ignore it.
 	SlotCost *int32
@@ -147,13 +142,8 @@ type OnFailureTaskDeclaration[I any] struct {
 
 func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	taskOpts := &contracts.CreateTaskOpts{
-		RateLimits:        make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
-		Concurrency:       make([]*contracts.Concurrency, len(t.Concurrency)),
-		SharedConcurrency: make([]string, len(t.SharedConcurrency)),
-	}
-
-	for j, shared := range t.SharedConcurrency {
-		taskOpts.SharedConcurrency[j] = shared.Name
+		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
+		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
 	}
 
 	for j, rateLimit := range t.RateLimits {
@@ -199,6 +189,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		concurrencyOpts := &contracts.Concurrency{
 			Expression: concurrency.Expression,
 			MaxRuns:    concurrency.MaxRuns,
+		}
+
+		if concurrency.Name != "" {
+			name := concurrency.Name
+			concurrencyOpts.Name = &name
 		}
 
 		if concurrency.LimitStrategy != nil {

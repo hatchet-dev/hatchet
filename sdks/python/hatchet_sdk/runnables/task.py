@@ -482,13 +482,6 @@ class Task(Generic[TWorkflowInput, R]):
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
-    @property
-    def shared_concurrency_defs(self) -> list[SharedConcurrency]:
-        if isinstance(self.concurrency, int):
-            return []
-
-        return [c for c in self.concurrency if isinstance(c, SharedConcurrency)]
-
     def to_proto(self, service_name: str) -> CreateTaskOpts:
         if isinstance(self.concurrency, int):
             concurrency: list[ConcurrencyExpression | SharedConcurrency] = [
@@ -496,11 +489,6 @@ class Task(Generic[TWorkflowInput, R]):
             ]
         else:
             concurrency = self.concurrency
-
-        inline_concurrency = [
-            c for c in concurrency if isinstance(c, ConcurrencyExpression)
-        ]
-        shared_concurrency = [c for c in concurrency if isinstance(c, SharedConcurrency)]
 
         labels = {
             d.key: d.to_proto() for d in self.desired_worker_labels if d.key is not None
@@ -517,8 +505,7 @@ class Task(Generic[TWorkflowInput, R]):
             worker_labels=labels,
             backoff_factor=self.backoff_factor,
             backoff_max_seconds=self.backoff_max_seconds,
-            concurrency=[t.to_proto() for t in inline_concurrency],
-            shared_concurrency=[c.name for c in shared_concurrency],
+            concurrency=[t.to_proto() for t in concurrency],
             conditions=self._conditions_to_proto(),
             schedule_timeout=timedelta_to_expr(self.schedule_timeout),
             is_durable=self._is_durable,

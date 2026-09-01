@@ -13,14 +13,14 @@ export { ConcurrencyLimitStrategy, WorkerLabelComparator };
  */
 export type Concurrency = {
   /**
-   * required the CEL expression to use for concurrency
+   * required (unless name is set): the CEL expression to use for concurrency
    *
    * @example
    * ```
    * "input.key" // use the value of the key in the input
    * ```
    */
-  expression: string;
+  expression?: string;
 
   /**
    * (optional) the maximum number of concurrent workflow runs
@@ -35,49 +35,23 @@ export type Concurrency = {
    * default: CANCEL_IN_PROGRESS
    */
   limitStrategy?: ConcurrencyLimitStrategy;
+
+  /**
+   * (optional) marks the entry as a tenant-scoped strategy with this name (unique per
+   * tenant), shared across workflows. With an expression the entry defines (or updates in
+   * place) the strategy as part of registration; with an empty expression it references a
+   * strategy defined elsewhere. The position in the concurrency list is the chain order.
+   */
+  name?: string;
 };
 
 /**
- * A tenant-scoped shared concurrency strategy. Unlike `Concurrency`, a shared strategy is
- * registered independently of any workflow (by name) and referenced by tasks across
- * different workflows, so all of them consume the same concurrency limit.
- *
- * Re-registering an existing name updates the strategy in place.
+ * A tenant-scoped concurrency strategy: a `Concurrency` entry with a required name. Every
+ * task referencing the same name consumes the same concurrency limit, across workflows.
  */
-export type SharedConcurrency = {
-  /**
-   * required: the unique (per tenant) name of the shared strategy
-   */
+export type SharedConcurrency = Concurrency & {
   name: string;
-
-  /**
-   * required: the CEL expression to use for concurrency
-   *
-   * @example
-   * ```
-   * "input.key" // use the value of the key in the input
-   * ```
-   */
-  expression: string;
-
-  /**
-   * (optional) the maximum number of concurrent runs
-   *
-   * default: 1
-   */
-  maxRuns?: number;
-
-  /**
-   * (optional) the strategy to use when the concurrency limit is reached
-   *
-   * default: CANCEL_IN_PROGRESS
-   */
-  limitStrategy?: ConcurrencyLimitStrategy;
 };
-
-export function isSharedConcurrency(c: Concurrency | SharedConcurrency): c is SharedConcurrency {
-  return 'name' in c && typeof (c as SharedConcurrency).name === 'string';
-}
 
 /**
  * @deprecated use Concurrency instead

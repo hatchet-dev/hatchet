@@ -3190,13 +3190,6 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	fetchedByStepId := make(map[uuid.UUID][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
-		// Rows referencing a tenant strategy resolve to the tenant strategy's id, so task
-		// slots carry the shared id; the definition columns are already in sync via the
-		// v1_tenant_concurrency update trigger.
-		if strat.TenantStrategyID.Valid {
-			strat.ID = strat.TenantStrategyID.Int64
-		}
-
 		fetchedByStepId[strat.StepID] = append(fetchedByStepId[strat.StepID], strat)
 	}
 
@@ -3206,7 +3199,17 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		if stepStrats == nil {
 			stepStrats = []*sqlcv1.V1StepConcurrency{}
 		} else {
+			// Sort by row id first: creation order encodes the user-declared chain order.
 			sortStrategies(stepStrats)
+
+			// Then resolve rows referencing a tenant strategy to the tenant strategy's id,
+			// so task slots carry the shared id. This must happen after sorting, since the
+			// tenant strategy's own id says nothing about this step's chain order.
+			for _, strat := range stepStrats {
+				if strat.TenantStrategyID.Valid {
+					strat.ID = strat.TenantStrategyID.Int64
+				}
+			}
 		}
 
 		r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)

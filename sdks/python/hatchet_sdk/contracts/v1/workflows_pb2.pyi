@@ -75,18 +75,6 @@ CANCEL_NEWEST: ConcurrencyLimitStrategy
 CANCEL_QUEUED_EXCEPT_NEWEST: ConcurrencyLimitStrategy
 CANCEL_QUEUED_EXCEPT_OLDEST: ConcurrencyLimitStrategy
 
-class SharedConcurrencyDef(_message.Message):
-    __slots__ = ("name", "expression", "max_runs", "limit_strategy")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    EXPRESSION_FIELD_NUMBER: _ClassVar[int]
-    MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
-    LIMIT_STRATEGY_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    expression: str
-    max_runs: int
-    limit_strategy: ConcurrencyLimitStrategy
-    def __init__(self, name: _Optional[str] = ..., expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
-
 class CancelTasksRequest(_message.Message):
     __slots__ = ("external_ids", "filter")
     EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
@@ -177,7 +165,7 @@ class BranchDurableTaskResponse(_message.Message):
     def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema", "idempotency", "shared_concurrency_defs")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema", "idempotency")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -193,7 +181,6 @@ class CreateWorkflowVersionRequest(_message.Message):
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
     INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
     IDEMPOTENCY_FIELD_NUMBER: _ClassVar[int]
-    SHARED_CONCURRENCY_DEFS_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -209,8 +196,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
     input_json_schema: bytes
     idempotency: IdempotencyConfig
-    shared_concurrency_defs: _containers.RepeatedCompositeFieldContainer[SharedConcurrencyDef]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ..., idempotency: _Optional[_Union[IdempotencyConfig, _Mapping]] = ..., shared_concurrency_defs: _Optional[_Iterable[_Union[SharedConcurrencyDef, _Mapping]]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ..., idempotency: _Optional[_Union[IdempotencyConfig, _Mapping]] = ...) -> None: ...
 
 class IdempotencyConfig(_message.Message):
     __slots__ = ("expression", "ttl_ms", "method")
@@ -249,14 +235,16 @@ class DefaultFilter(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., scope: _Optional[str] = ..., payload: _Optional[bytes] = ...) -> None: ...
 
 class Concurrency(_message.Message):
-    __slots__ = ("expression", "max_runs", "limit_strategy")
+    __slots__ = ("expression", "max_runs", "limit_strategy", "name")
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
     LIMIT_STRATEGY_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
     expression: str
     max_runs: int
     limit_strategy: ConcurrencyLimitStrategy
-    def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
+    name: str
+    def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ..., name: _Optional[str] = ...) -> None: ...
 
 class TaskBatchConfig(_message.Message):
     __slots__ = ("batch_max_size", "batch_max_interval_ms", "batch_group_key", "batch_group_max_runs", "broadcast_output")
@@ -273,7 +261,7 @@ class TaskBatchConfig(_message.Message):
     def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval_ms: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ..., broadcast_output: _Optional[bool] = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests", "batch", "shared_concurrency")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests", "batch")
     class WorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -304,7 +292,6 @@ class CreateTaskOpts(_message.Message):
     IS_DURABLE_FIELD_NUMBER: _ClassVar[int]
     SLOT_REQUESTS_FIELD_NUMBER: _ClassVar[int]
     BATCH_FIELD_NUMBER: _ClassVar[int]
-    SHARED_CONCURRENCY_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
@@ -321,8 +308,7 @@ class CreateTaskOpts(_message.Message):
     is_durable: bool
     slot_requests: _containers.ScalarMap[str, int]
     batch: TaskBatchConfig
-    shared_concurrency: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: _Optional[bool] = ..., slot_requests: _Optional[_Mapping[str, int]] = ..., batch: _Optional[_Union[TaskBatchConfig, _Mapping]] = ..., shared_concurrency: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: _Optional[bool] = ..., slot_requests: _Optional[_Mapping[str, int]] = ..., batch: _Optional[_Union[TaskBatchConfig, _Mapping]] = ...) -> None: ...
 
 class CreateTaskRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")

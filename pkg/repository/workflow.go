@@ -59,10 +59,6 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) the workflow concurrency groups
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
 
-	// (optional) tenant-scoped shared concurrency strategies to upsert before creating the
-	// workflow version, so its steps can reference them by name
-	SharedConcurrency []CreateSharedConcurrencyOpts `json:"sharedConcurrency,omitempty" validate:"omitempty,dive"`
-
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
@@ -88,22 +84,18 @@ type CreateConcurrencyOpts struct {
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
 
-	// (required) a concurrency expression for evaluating the concurrency key
-	Expression string `validate:"celworkflowrunstr"`
+	// (required unless Name is set) a concurrency expression for evaluating the concurrency key
+	Expression string `json:"expression" validate:"omitempty,celworkflowrunstr"`
+
+	// (optional) marks the entry as a tenant-scoped strategy with this name (unique per
+	// tenant), shared across workflows. With an Expression the entry defines or updates
+	// the strategy in place; without one it references a strategy defined elsewhere.
+	Name string `json:"name,omitempty" validate:"omitempty,hatchetName"`
 }
 
-type CreateSharedConcurrencyOpts struct {
-	// (required) the strategy name, unique per tenant
-	Name string `validate:"required,hatchetName"`
-
-	// (optional) the maximum number of concurrent runs, default 1
-	MaxRuns *int32 `json:"maxRuns,omitempty" validate:"omitempty,min=1"`
-
-	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
-
-	// (required) a concurrency expression for evaluating the concurrency key
-	Expression string `validate:"celworkflowrunstr"`
+// IsTenantScoped reports whether the entry declares or references a tenant-scoped strategy.
+func (c *CreateConcurrencyOpts) IsTenantScoped() bool {
+	return c.Name != ""
 }
 
 type CreateStepOpts struct {
@@ -151,10 +143,6 @@ type CreateStepOpts struct {
 
 	// (optional) the step concurrency options
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
-
-	// (optional) names of tenant-scoped shared concurrency strategies this step consumes;
-	// each name must refer to an already-registered shared strategy
-	SharedConcurrency []string `json:"sharedConcurrency,omitempty" validate:"omitempty,dive,hatchetName"`
 
 	// (optional) batch execution configuration
 	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
@@ -340,11 +328,7 @@ func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenant
 	return r.listStepMatchConditions(ctx, r.pool, tenantId, stepIds)
 }
 
-func (r *workflowRepository) upsertSharedConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateSharedConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
-	if err := r.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
+func (r *workflowRepository) upsertTenantConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
 	var maxRuns int32 = 1
 
 	if opts.MaxRuns != nil {
@@ -364,6 +348,103 @@ func (r *workflowRepository) upsertSharedConcurrencyStrategy(ctx context.Context
 		Expression:     opts.Expression,
 		Maxconcurrency: maxRuns,
 	})
+}
+
+// collectTenantConcurrencyDefs returns the tenant-scoped concurrency definitions (name +
+// expression set) declared anywhere on the workflow, deduplicated by name (last
+// declaration wins).
+func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConcurrencyOpts {
+	byName := make(map[string]*CreateConcurrencyOpts)
+	names := make([]string, 0)
+
+	collect := func(entries []CreateConcurrencyOpts) {
+		for i := range entries {
+			entry := &entries[i]
+
+			if !entry.IsTenantScoped() || entry.Expression == "" {
+				continue
+			}
+
+			if _, seen := byName[entry.Name]; !seen {
+				names = append(names, entry.Name)
+			}
+
+			byName[entry.Name] = entry
+		}
+	}
+
+	collect(opts.Concurrency)
+
+	for i := range opts.Tasks {
+		collect(opts.Tasks[i].Concurrency)
+	}
+
+	if opts.OnFailure != nil {
+		collect(opts.OnFailure.Concurrency)
+	}
+
+	defs := make([]*CreateConcurrencyOpts, 0, len(names))
+
+	for _, name := range names {
+		defs = append(defs, byName[name])
+	}
+
+	return defs
+}
+
+// getTenantStrategiesForEntries resolves the tenant-scoped entries of one step's
+// concurrency list to their strategy rows, erroring loudly on names that were never
+// defined (a definition may ride on this registration or any earlier one) and on
+// duplicate references, which would collide in the task's slot chain.
+func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, stepReadableId string, entries []CreateConcurrencyOpts) (map[string]*sqlcv1.V1TenantConcurrency, error) {
+	names := make([]string, 0)
+	seen := make(map[string]bool)
+
+	for _, entry := range entries {
+		if !entry.IsTenantScoped() {
+			continue
+		}
+
+		if seen[entry.Name] {
+			return nil, fmt.Errorf("tenant-scoped concurrency strategy %s is referenced more than once by step %s", entry.Name, stepReadableId)
+		}
+
+		seen[entry.Name] = true
+		names = append(names, entry.Name)
+	}
+
+	if len(names) == 0 {
+		return nil, nil
+	}
+
+	strategies, err := r.queries.GetTenantConcurrencyStrategiesByNames(ctx, dbtx, sqlcv1.GetTenantConcurrencyStrategiesByNamesParams{
+		Tenantid: tenantId,
+		Names:    names,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
+
+	for _, strategy := range strategies {
+		strategiesByName[strategy.Name] = strategy
+	}
+
+	missingNames := make([]string, 0)
+
+	for _, name := range names {
+		if _, ok := strategiesByName[name]; !ok {
+			missingNames = append(missingNames, name)
+		}
+	}
+
+	if len(missingNames) > 0 {
+		return nil, fmt.Errorf("unknown tenant-scoped concurrency strategies: %s (step %s); declare them with an expression on some workflow first", strings.Join(missingNames, ", "), stepReadableId)
+	}
+
+	return strategiesByName, nil
 }
 
 type JobRunHasCycleError struct {
@@ -400,11 +481,14 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 
 	defer rollback()
 
-	// Upsert shared concurrency strategies first, in the same transaction, so the steps
-	// created below can reference them by name.
-	for i := range opts.SharedConcurrency {
-		if _, err := r.upsertSharedConcurrencyStrategy(ctx, tx, tenantId, &opts.SharedConcurrency[i]); err != nil {
-			return nil, fmt.Errorf("could not upsert shared concurrency strategy %s: %w", opts.SharedConcurrency[i].Name, err)
+	// Upsert tenant-scoped concurrency definitions (entries carrying both a name and an
+	// expression) first, in the same transaction, so the entries created below can
+	// reference them. This runs before the checksum early-return on purpose: definitions
+	// are tenant-level state, so re-registering an unchanged workflow with a changed
+	// definition must still update the strategy in place.
+	for _, entry := range collectTenantConcurrencyDefs(opts) {
+		if _, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry); err != nil {
+			return nil, fmt.Errorf("could not upsert tenant concurrency strategy %s: %w", entry.Name, err)
 		}
 	}
 
@@ -552,7 +636,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		// big number of retries to make it very unlikely we exhaust them
 		numRetries := 10_000
 
-		opts.Tasks = append(opts.Tasks, CreateStepOpts{
+		orchestrator := CreateStepOpts{
 			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
 			IsDurable:         true,
@@ -560,7 +644,31 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Timeout:           retentionPeriod,
 			ScheduleTimeout:   retentionPeriod,
 			Retries:           &numRetries,
-		})
+		}
+
+		// Tenant-scoped workflow-level entries become concurrency on the orchestrator
+		// task (in array order); workflow-scoped entries keep the parent fan-out below,
+		// which always gates first.
+		remaining := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency))
+
+		for _, entry := range opts.Concurrency {
+			if entry.IsTenantScoped() {
+				orchestrator.Concurrency = append(orchestrator.Concurrency, entry)
+			} else {
+				remaining = append(remaining, entry)
+			}
+		}
+
+		opts.Concurrency = remaining
+		opts.Tasks = append(opts.Tasks, orchestrator)
+	}
+
+	// On the old DAG path there is no single task to attach tenant-scoped workflow-level
+	// concurrency to, and the parent/child machinery does not support it.
+	for _, entry := range opts.Concurrency {
+		if entry.IsTenantScoped() {
+			return nil, fmt.Errorf("tenant-scoped concurrency (name %s) is not supported at the workflow level unless the workflow is a single task or uses the DAG operator", entry.Name)
+		}
 	}
 
 	cs, modifiedOpts, err := checksumV1(opts)
@@ -1227,6 +1335,15 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		if len(stepOpts.Concurrency) > 0 {
+			// Entries are created in array order; chain order at task-insert time follows
+			// creation order (ascending strategy row id), so a tenant-scoped entry may
+			// come before or after a workflow-scoped one.
+			tenantStrategies, err := r.getTenantStrategiesForEntries(ctx, tx, tenantId, stepOpts.ReadableId, stepOpts.Concurrency)
+
+			if err != nil {
+				return nil, err
+			}
+
 			for _, concurrency := range stepOpts.Concurrency {
 				var maxRuns int32 = 1
 
@@ -1240,77 +1357,35 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					strategy = sqlcv1.ConcurrencyLimitStrategy(*concurrency.LimitStrategy)
 				}
 
+				params := sqlcv1.CreateStepConcurrencyParams{
+					Workflowid:        workflowId,
+					Workflowversionid: workflowVersionId,
+					Stepid:            stepId,
+					Tenantid:          tenantId,
+					Expression:        concurrency.Expression,
+					Maxconcurrency:    maxRuns,
+					Strategy:          sqlcv1.V1ConcurrencyStrategy(strategy),
+				}
+
+				if concurrency.IsTenantScoped() {
+					// The referencing row carries a copy of the tenant strategy's current
+					// definition (kept in sync by the v1_tenant_concurrency update trigger).
+					tenantStrategy := tenantStrategies[concurrency.Name]
+					params.Expression = tenantStrategy.Expression
+					params.Maxconcurrency = tenantStrategy.MaxConcurrency
+					params.Strategy = tenantStrategy.Strategy
+					params.TenantStrategyId = pgtype.Int8{Int64: tenantStrategy.ID, Valid: true}
+				}
+
 				_, err := r.queries.CreateStepConcurrency(
 					ctx,
 					tx,
-					sqlcv1.CreateStepConcurrencyParams{
-						Workflowid:        workflowId,
-						Workflowversionid: workflowVersionId,
-						Stepid:            stepId,
-						Tenantid:          tenantId,
-						Expression:        concurrency.Expression,
-						Maxconcurrency:    maxRuns,
-						Strategy:          sqlcv1.V1ConcurrencyStrategy(strategy),
-					},
+					params,
 				)
 
 				if err != nil {
 					return nil, err
 				}
-			}
-		}
-
-		if len(stepOpts.SharedConcurrency) > 0 {
-			strategies, err := r.queries.GetTenantConcurrencyStrategiesByNames(ctx, tx, sqlcv1.GetTenantConcurrencyStrategiesByNamesParams{
-				Tenantid: tenantId,
-				Names:    stepOpts.SharedConcurrency,
-			})
-
-			if err != nil {
-				return nil, err
-			}
-
-			strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
-
-			for _, strategy := range strategies {
-				strategiesByName[strategy.Name] = strategy
-			}
-
-			missingNames := make([]string, 0)
-
-			for _, name := range stepOpts.SharedConcurrency {
-				tenantStrategy, ok := strategiesByName[name]
-
-				if !ok {
-					missingNames = append(missingNames, name)
-					continue
-				}
-
-				// The referencing row carries a point-in-time copy of the definition (the
-				// columns are NOT NULL), but the definition always resolves through
-				// v1_tenant_concurrency when the step's strategies are read.
-				_, err := r.queries.CreateStepConcurrency(
-					ctx,
-					tx,
-					sqlcv1.CreateStepConcurrencyParams{
-						Workflowid:        workflowId,
-						Workflowversionid: workflowVersionId,
-						Stepid:            stepId,
-						Tenantid:          tenantId,
-						Expression:        tenantStrategy.Expression,
-						Maxconcurrency:    tenantStrategy.MaxConcurrency,
-						Strategy:          tenantStrategy.Strategy,
-						TenantStrategyId:  pgtype.Int8{Int64: tenantStrategy.ID, Valid: true},
-					},
-				)
-
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if len(missingNames) > 0 {
-				return nil, fmt.Errorf("unknown shared concurrency strategies: %s (step %s); register them with PutSharedConcurrencyStrategy first", strings.Join(missingNames, ", "), stepOpts.ReadableId)
 			}
 		}
 
@@ -1721,12 +1796,24 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 		}
 	}
 
-	// Tenant-scoped shared concurrency definitions are tenant-level state, not workflow
-	// shape: changing one must update the strategy in place, not mint a new workflow
-	// version, so hash a copy with the definitions stripped. The names steps reference
-	// remain part of the hash via CreateStepOpts.SharedConcurrency.
+	// Tenant-scoped concurrency definitions are tenant-level state, not workflow shape:
+	// changing one must update the strategy in place, not mint a new workflow version. So
+	// tenant-scoped entries hash by name and position only, with the definition fields
+	// stripped from a copy.
 	hashOpts := *opts
-	hashOpts.SharedConcurrency = nil
+	hashOpts.Concurrency = stripTenantConcurrencyDefs(opts.Concurrency)
+	hashOpts.Tasks = make([]CreateStepOpts, len(opts.Tasks))
+
+	for i, task := range opts.Tasks {
+		hashOpts.Tasks[i] = task
+		hashOpts.Tasks[i].Concurrency = stripTenantConcurrencyDefs(task.Concurrency)
+	}
+
+	if opts.OnFailure != nil {
+		onFailure := *opts.OnFailure
+		onFailure.Concurrency = stripTenantConcurrencyDefs(opts.OnFailure.Concurrency)
+		hashOpts.OnFailure = &onFailure
+	}
 
 	// compute a checksum for the workflow
 	declaredValues, err := datautils.ToJSONMap(&hashOpts)
@@ -1742,6 +1829,28 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 	}
 
 	return workflowChecksum.String(), opts, nil
+}
+
+// stripTenantConcurrencyDefs blanks the definition fields of tenant-scoped entries so the
+// workflow version checksum covers only the referenced name and its position in the chain.
+func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurrencyOpts {
+	if len(entries) == 0 {
+		return entries
+	}
+
+	stripped := make([]CreateConcurrencyOpts, len(entries))
+
+	for i, entry := range entries {
+		stripped[i] = entry
+
+		if entry.IsTenantScoped() {
+			stripped[i].Expression = ""
+			stripped[i].MaxRuns = nil
+			stripped[i].LimitStrategy = nil
+		}
+	}
+
+	return stripped
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {

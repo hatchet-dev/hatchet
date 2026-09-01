@@ -44,14 +44,13 @@ func sharedConcTaskFn(d time.Duration) func(ctx hatchet.Context, input SharedCon
 	}
 }
 
-// sharedConcLimit is the shared strategy definition. It is carried in the workflow put
-// requests below and upserted server-side as part of workflow registration; tasks in the
-// other workflows reference it by name only, exercising both declaration styles.
-func sharedConcLimit() types.SharedConcurrencyOpts {
+// sharedConcLimit is the tenant-scoped strategy definition: a named Concurrency entry
+// carrying an expression, upserted server-side as part of workflow registration.
+func sharedConcLimit() *types.Concurrency {
 	maxRuns := int32(1)
 	strategy := types.GroupRoundRobin
 
-	return types.SharedConcurrencyOpts{
+	return &types.Concurrency{
 		Name:          sharedConcurrencyStrategyName,
 		Expression:    "input.group",
 		MaxRuns:       &maxRuns,
@@ -63,24 +62,28 @@ func registerSharedConcurrencyWorkflows(client *hatchet.Client) {
 	// workflow A carries the full definition, so registering it upserts the strategy
 	testSharedConcA = client.NewWorkflow("shared-conc-a")
 	testSharedConcA.NewTask("shared-conc-a-task", sharedConcTaskFn(1500*time.Millisecond),
-		hatchet.WithSharedConcurrency(sharedConcLimit()),
+		hatchet.WithConcurrency(sharedConcLimit()),
 	)
 
 	// workflow B references the strategy by name only
 	testSharedConcB = client.NewWorkflow("shared-conc-b")
 	testSharedConcB.NewTask("shared-conc-b-task", sharedConcTaskFn(1500*time.Millisecond),
-		hatchet.WithSharedConcurrency(types.SharedConcurrencyOpts{Name: sharedConcurrencyStrategyName}),
+		hatchet.WithConcurrency(&types.Concurrency{Name: sharedConcurrencyStrategyName}),
 	)
 
+	// the mixed task chains a workflow-scoped entry before the tenant-scoped one; the
+	// declared order is the chain order
 	inlineMax := int32(1)
 	inlineStrategy := types.GroupRoundRobin
 	testSharedConcMixed = client.NewWorkflow("shared-conc-mixed")
 	testSharedConcMixed.NewTask("shared-conc-mixed-task", sharedConcTaskFn(1500*time.Millisecond),
-		hatchet.WithConcurrency(&types.Concurrency{
-			Expression:    "input.inline",
-			MaxRuns:       &inlineMax,
-			LimitStrategy: &inlineStrategy,
-		}),
-		hatchet.WithSharedConcurrency(sharedConcLimit()),
+		hatchet.WithConcurrency(
+			&types.Concurrency{
+				Expression:    "input.inline",
+				MaxRuns:       &inlineMax,
+				LimitStrategy: &inlineStrategy,
+			},
+			sharedConcLimit(),
+		),
 	)
 }

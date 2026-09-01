@@ -1039,7 +1039,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	}
 
 	for _, c := range req.ConcurrencyArr {
-		if c.Expression == "" {
+		if c.Expression == "" && c.Name == nil {
 			return nil, status.Error(
 				codes.InvalidArgument,
 				"CEL expression is required for concurrency",
@@ -1053,10 +1053,17 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			limitStrategy = &s
 		}
 
+		var name string
+
+		if c.Name != nil {
+			name = *c.Name
+		}
+
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
 			LimitStrategy: limitStrategy,
 			Expression:    c.Expression,
 			MaxRuns:       c.MaxRuns,
+			Name:          name,
 		})
 	}
 
@@ -1104,28 +1111,6 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 	}
 
-	sharedConcurrency := make([]v1.CreateSharedConcurrencyOpts, 0, len(req.SharedConcurrencyDefs))
-
-	for _, def := range req.SharedConcurrencyDefs {
-		if def == nil {
-			continue
-		}
-
-		var limitStrategy *string
-
-		if def.LimitStrategy != nil && def.LimitStrategy.String() != "" {
-			s := def.LimitStrategy.String()
-			limitStrategy = &s
-		}
-
-		sharedConcurrency = append(sharedConcurrency, v1.CreateSharedConcurrencyOpts{
-			Name:          def.Name,
-			Expression:    def.Expression,
-			MaxRuns:       def.MaxRuns,
-			LimitStrategy: limitStrategy,
-		})
-	}
-
 	return &v1.CreateWorkflowVersionOpts{
 		Name:            req.Name,
 		Concurrency:     concurrency,
@@ -1140,8 +1125,6 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		DefaultFilters:  defaultFilters,
 		InputJsonSchema: req.InputJsonSchema,
 		Idempotency:     idempotency,
-
-		SharedConcurrency: sharedConcurrency,
 	}, nil
 }
 
@@ -1385,7 +1368,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					continue
 				}
 
-				if concurrency.Expression == "" {
+				if concurrency.Expression == "" && concurrency.Name == nil {
 					return nil, status.Error(
 						codes.InvalidArgument,
 						fmt.Sprintf("CEL expression is required for concurrency (step %s)", stepCp.ReadableId),
@@ -1399,15 +1382,20 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					limitStrategy = &s
 				}
 
+				var name string
+
+				if concurrency.Name != nil {
+					name = *concurrency.Name
+				}
+
 				steps[j].Concurrency = append(steps[j].Concurrency, v1.CreateConcurrencyOpts{
 					Expression:    concurrency.Expression,
 					MaxRuns:       concurrency.MaxRuns,
 					LimitStrategy: limitStrategy,
+					Name:          name,
 				})
 			}
 		}
-
-		steps[j].SharedConcurrency = stepCp.SharedConcurrency
 
 		if stepCp.Batch != nil {
 

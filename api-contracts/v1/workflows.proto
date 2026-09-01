@@ -18,16 +18,6 @@ service AdminService {
     rpc BranchDurableTask(BranchDurableTaskRequest) returns (BranchDurableTaskResponse);
 }
 
-// SharedConcurrencyDef defines (or updates in place) a tenant-scoped concurrency strategy
-// which is not tied to any workflow. Tasks across different workflows reference it by name
-// to share a single concurrency limit. Definitions are upserted as part of workflow
-// registration via CreateWorkflowVersionRequest.shared_concurrency_defs.
-message SharedConcurrencyDef {
-    string name = 1; // (required) the strategy name, unique per tenant
-    string expression = 2; // (required) the CEL expression used to compute the concurrency key
-    optional int32 max_runs = 3; // (optional) the maximum number of concurrent runs, default 1
-    optional ConcurrencyLimitStrategy limit_strategy = 4; // (optional) the strategy when the limit is reached, default CANCEL_IN_PROGRESS
-}
 
 message CancelTasksRequest {
     repeated string external_ids = 1; // a list of external UUIDs
@@ -124,7 +114,6 @@ message CreateWorkflowVersionRequest {
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
 
     optional IdempotencyConfig idempotency = 15; // (optional) idempotency configuration for the workflow
-    repeated SharedConcurrencyDef shared_concurrency_defs = 16; // (optional) tenant-scoped shared concurrency strategies to upsert before creating the workflow version
 }
 
 enum IdempotencyMethod {
@@ -164,10 +153,18 @@ enum ConcurrencyLimitStrategy {
     CANCEL_QUEUED_EXCEPT_OLDEST = 6;
 }
 
+// Concurrency declares one entry in a concurrency chain. Entries are processed in array
+// order, so a tenant-scoped entry may come before or after a workflow-scoped one.
+//
+// When name is unset, the entry is scoped to this workflow. When name is set, the entry is
+// a tenant-scoped strategy shared across workflows: with an expression it defines (or
+// updates in place) the strategy as part of this registration, and with no expression it
+// references a strategy defined elsewhere.
 message Concurrency {
-    string expression = 1; // (required) the expression to use for concurrency
+    string expression = 1; // (required unless name is set) the expression to use for concurrency
     optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
     optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string name = 4; // (optional) marks the entry as a tenant-scoped strategy with this name, unique per tenant
 }
 
 
@@ -197,7 +194,6 @@ message CreateTaskOpts {
     bool is_durable = 14; // (optional) whether the task is durable
     map<string, int32> slot_requests = 15; // (optional) slot requests (slot_type -> units)
     optional TaskBatchConfig batch = 16; // (optional) batch execution configuration
-    repeated string shared_concurrency = 17; // (optional) names of tenant-scoped shared concurrency strategies this task consumes
 }
 
 message CreateTaskRateLimit {

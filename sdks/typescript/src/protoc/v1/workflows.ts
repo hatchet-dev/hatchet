@@ -264,23 +264,6 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
   }
 }
 
-/**
- * SharedConcurrencyDef defines (or updates in place) a tenant-scoped concurrency strategy
- * which is not tied to any workflow. Tasks across different workflows reference it by name
- * to share a single concurrency limit. Definitions are upserted as part of workflow
- * registration via CreateWorkflowVersionRequest.shared_concurrency_defs.
- */
-export interface SharedConcurrencyDef {
-  /** (required) the strategy name, unique per tenant */
-  name: string;
-  /** (required) the CEL expression used to compute the concurrency key */
-  expression: string;
-  /** (optional) the maximum number of concurrent runs, default 1 */
-  maxRuns?: number | undefined;
-  /** (optional) the strategy when the limit is reached, default CANCEL_IN_PROGRESS */
-  limitStrategy?: ConcurrencyLimitStrategy | undefined;
-}
-
 export interface CancelTasksRequest {
   /** a list of external UUIDs */
   externalIds: string[];
@@ -376,8 +359,6 @@ export interface CreateWorkflowVersionRequest {
   inputJsonSchema?: Uint8Array | undefined;
   /** (optional) idempotency configuration for the workflow */
   idempotency?: IdempotencyConfig | undefined;
-  /** (optional) tenant-scoped shared concurrency strategies to upsert before creating the workflow version */
-  sharedConcurrencyDefs: SharedConcurrencyDef[];
 }
 
 export interface IdempotencyConfig {
@@ -412,13 +393,24 @@ export interface DefaultFilter {
   payload?: Uint8Array | undefined;
 }
 
+/**
+ * Concurrency declares one entry in a concurrency chain. Entries are processed in array
+ * order, so a tenant-scoped entry may come before or after a workflow-scoped one.
+ *
+ * When name is unset, the entry is scoped to this workflow. When name is set, the entry is
+ * a tenant-scoped strategy shared across workflows: with an expression it defines (or
+ * updates in place) the strategy as part of this registration, and with no expression it
+ * references a strategy defined elsewhere.
+ */
 export interface Concurrency {
-  /** (required) the expression to use for concurrency */
+  /** (required unless name is set) the expression to use for concurrency */
   expression: string;
   /** (optional) the maximum number of concurrent workflow runs, default 1 */
   maxRuns?: number | undefined;
   /** (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS */
   limitStrategy?: ConcurrencyLimitStrategy | undefined;
+  /** (optional) marks the entry as a tenant-scoped strategy with this name, unique per tenant */
+  name?: string | undefined;
 }
 
 export interface TaskBatchConfig {
@@ -468,8 +460,6 @@ export interface CreateTaskOpts {
   slotRequests: { [key: string]: number };
   /** (optional) batch execution configuration */
   batch?: TaskBatchConfig | undefined;
-  /** (optional) names of tenant-scoped shared concurrency strategies this task consumes */
-  sharedConcurrency: string[];
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -542,122 +532,6 @@ export interface GetRunDetailsResponse_TaskRunsEntry {
   key: string;
   value: TaskRunDetail | undefined;
 }
-
-function createBaseSharedConcurrencyDef(): SharedConcurrencyDef {
-  return { name: '', expression: '', maxRuns: undefined, limitStrategy: undefined };
-}
-
-export const SharedConcurrencyDef: MessageFns<SharedConcurrencyDef> = {
-  encode(message: SharedConcurrencyDef, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.name !== '') {
-      writer.uint32(10).string(message.name);
-    }
-    if (message.expression !== '') {
-      writer.uint32(18).string(message.expression);
-    }
-    if (message.maxRuns !== undefined) {
-      writer.uint32(24).int32(message.maxRuns);
-    }
-    if (message.limitStrategy !== undefined) {
-      writer.uint32(32).int32(message.limitStrategy);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): SharedConcurrencyDef {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseSharedConcurrencyDef();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.name = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.expression = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.maxRuns = reader.int32();
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.limitStrategy = reader.int32() as any;
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): SharedConcurrencyDef {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : '',
-      expression: isSet(object.expression) ? globalThis.String(object.expression) : '',
-      maxRuns: isSet(object.maxRuns)
-        ? globalThis.Number(object.maxRuns)
-        : isSet(object.max_runs)
-          ? globalThis.Number(object.max_runs)
-          : undefined,
-      limitStrategy: isSet(object.limitStrategy)
-        ? concurrencyLimitStrategyFromJSON(object.limitStrategy)
-        : isSet(object.limit_strategy)
-          ? concurrencyLimitStrategyFromJSON(object.limit_strategy)
-          : undefined,
-    };
-  },
-
-  toJSON(message: SharedConcurrencyDef): unknown {
-    const obj: any = {};
-    if (message.name !== '') {
-      obj.name = message.name;
-    }
-    if (message.expression !== '') {
-      obj.expression = message.expression;
-    }
-    if (message.maxRuns !== undefined) {
-      obj.maxRuns = Math.round(message.maxRuns);
-    }
-    if (message.limitStrategy !== undefined) {
-      obj.limitStrategy = concurrencyLimitStrategyToJSON(message.limitStrategy);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<SharedConcurrencyDef>): SharedConcurrencyDef {
-    return SharedConcurrencyDef.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<SharedConcurrencyDef>): SharedConcurrencyDef {
-    const message = createBaseSharedConcurrencyDef();
-    message.name = object.name ?? '';
-    message.expression = object.expression ?? '';
-    message.maxRuns = object.maxRuns ?? undefined;
-    message.limitStrategy = object.limitStrategy ?? undefined;
-    return message;
-  },
-};
 
 function createBaseCancelTasksRequest(): CancelTasksRequest {
   return { externalIds: [], filter: undefined };
@@ -1671,7 +1545,6 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     defaultFilters: [],
     inputJsonSchema: undefined,
     idempotency: undefined,
-    sharedConcurrencyDefs: [],
   };
 }
 
@@ -1724,9 +1597,6 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     if (message.idempotency !== undefined) {
       IdempotencyConfig.encode(message.idempotency, writer.uint32(122).fork()).join();
-    }
-    for (const v of message.sharedConcurrencyDefs) {
-      SharedConcurrencyDef.encode(v!, writer.uint32(130).fork()).join();
     }
     return writer;
   },
@@ -1858,14 +1728,6 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.idempotency = IdempotencyConfig.decode(reader, reader.uint32());
           continue;
         }
-        case 16: {
-          if (tag !== 130) {
-            break;
-          }
-
-          message.sharedConcurrencyDefs.push(SharedConcurrencyDef.decode(reader, reader.uint32()));
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1928,11 +1790,6 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
       idempotency: isSet(object.idempotency)
         ? IdempotencyConfig.fromJSON(object.idempotency)
         : undefined,
-      sharedConcurrencyDefs: globalThis.Array.isArray(object?.sharedConcurrencyDefs)
-        ? object.sharedConcurrencyDefs.map((e: any) => SharedConcurrencyDef.fromJSON(e))
-        : globalThis.Array.isArray(object?.shared_concurrency_defs)
-          ? object.shared_concurrency_defs.map((e: any) => SharedConcurrencyDef.fromJSON(e))
-          : [],
     };
   },
 
@@ -1983,11 +1840,6 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.idempotency !== undefined) {
       obj.idempotency = IdempotencyConfig.toJSON(message.idempotency);
     }
-    if (message.sharedConcurrencyDefs?.length) {
-      obj.sharedConcurrencyDefs = message.sharedConcurrencyDefs.map((e) =>
-        SharedConcurrencyDef.toJSON(e)
-      );
-    }
     return obj;
   },
 
@@ -2020,8 +1872,6 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
       object.idempotency !== undefined && object.idempotency !== null
         ? IdempotencyConfig.fromPartial(object.idempotency)
         : undefined;
-    message.sharedConcurrencyDefs =
-      object.sharedConcurrencyDefs?.map((e) => SharedConcurrencyDef.fromPartial(e)) || [];
     return message;
   },
 };
@@ -2399,7 +2249,7 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
 };
 
 function createBaseConcurrency(): Concurrency {
-  return { expression: '', maxRuns: undefined, limitStrategy: undefined };
+  return { expression: '', maxRuns: undefined, limitStrategy: undefined, name: undefined };
 }
 
 export const Concurrency: MessageFns<Concurrency> = {
@@ -2412,6 +2262,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     }
     if (message.limitStrategy !== undefined) {
       writer.uint32(24).int32(message.limitStrategy);
+    }
+    if (message.name !== undefined) {
+      writer.uint32(34).string(message.name);
     }
     return writer;
   },
@@ -2447,6 +2300,14 @@ export const Concurrency: MessageFns<Concurrency> = {
           message.limitStrategy = reader.int32() as any;
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2469,6 +2330,7 @@ export const Concurrency: MessageFns<Concurrency> = {
         : isSet(object.limit_strategy)
           ? concurrencyLimitStrategyFromJSON(object.limit_strategy)
           : undefined,
+      name: isSet(object.name) ? globalThis.String(object.name) : undefined,
     };
   },
 
@@ -2483,6 +2345,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     if (message.limitStrategy !== undefined) {
       obj.limitStrategy = concurrencyLimitStrategyToJSON(message.limitStrategy);
     }
+    if (message.name !== undefined) {
+      obj.name = message.name;
+    }
     return obj;
   },
 
@@ -2494,6 +2359,7 @@ export const Concurrency: MessageFns<Concurrency> = {
     message.expression = object.expression ?? '';
     message.maxRuns = object.maxRuns ?? undefined;
     message.limitStrategy = object.limitStrategy ?? undefined;
+    message.name = object.name ?? undefined;
     return message;
   },
 };
@@ -2666,7 +2532,6 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     isDurable: false,
     slotRequests: {},
     batch: undefined,
-    sharedConcurrency: [],
   };
 }
 
@@ -2727,9 +2592,6 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     });
     if (message.batch !== undefined) {
       TaskBatchConfig.encode(message.batch, writer.uint32(130).fork()).join();
-    }
-    for (const v of message.sharedConcurrency) {
-      writer.uint32(138).string(v!);
     }
     return writer;
   },
@@ -2875,14 +2737,6 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           message.batch = TaskBatchConfig.decode(reader, reader.uint32());
           continue;
         }
-        case 17: {
-          if (tag !== 138) {
-            break;
-          }
-
-          message.sharedConcurrency.push(reader.string());
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2970,11 +2824,6 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
             )
           : {},
       batch: isSet(object.batch) ? TaskBatchConfig.fromJSON(object.batch) : undefined,
-      sharedConcurrency: globalThis.Array.isArray(object?.sharedConcurrency)
-        ? object.sharedConcurrency.map((e: any) => globalThis.String(e))
-        : globalThis.Array.isArray(object?.shared_concurrency)
-          ? object.shared_concurrency.map((e: any) => globalThis.String(e))
-          : [],
     };
   },
 
@@ -3043,9 +2892,6 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.batch !== undefined) {
       obj.batch = TaskBatchConfig.toJSON(message.batch);
     }
-    if (message.sharedConcurrency?.length) {
-      obj.sharedConcurrency = message.sharedConcurrency;
-    }
     return obj;
   },
 
@@ -3096,7 +2942,6 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       object.batch !== undefined && object.batch !== null
         ? TaskBatchConfig.fromPartial(object.batch)
         : undefined;
-    message.sharedConcurrency = object.sharedConcurrency?.map((e) => e) || [];
     return message;
   },
 };

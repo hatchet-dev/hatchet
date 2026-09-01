@@ -342,7 +342,6 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	t.concurrencyStrategies = newArr
 }
 
-
 func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
