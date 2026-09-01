@@ -678,9 +678,9 @@ const TEST_CASES: SearchTestCase[] = [
     expectAnyOf: ["v1/concurrency"],
   },
   {
-    name: "dedup → concurrency",
+    name: "dedup → concurrency or idempotency",
     query: "dedup",
-    expectAnyOf: ["v1/concurrency"],
+    expectAnyOf: ["v1/concurrency", "v1/idempotency"],
   },
   {
     name: "throttle → rate limits",
@@ -879,6 +879,17 @@ const TEST_CASES: SearchTestCase[] = [
     name: "how to limit concurrency",
     query: "how to limit concurrency",
     expectAnyOf: ["v1/concurrency", "v1/rate-limits"],
+    topN: 10,
+  },
+  {
+    name: "cel expression",
+    query: "cel expression",
+    expectAnyOf: ["v1/cel-expressions"],
+  },
+  {
+    name: "filter expression syntax",
+    query: "filter expression syntax",
+    expectAnyOf: ["v1/cel-expressions", "v1/events"],
     topN: 10,
   },
 ];
