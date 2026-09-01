@@ -9,7 +9,7 @@ from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
-    StepRunEventType,
+    TaskRunEventType,
 )
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -744,7 +744,7 @@ class RunsClient(BaseRestClient):
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
         async for chunk in ref._stream():
-            if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+            if chunk.type == TaskRunEventType.STREAM:
                 yield chunk.payload
 
     def reset_durable_task(
