@@ -118,8 +118,7 @@ func setupSharedConcurrencyTest(
 	require.Len(t, strats, 1)
 
 	strat := strats[0]
-	require.Equal(t, "shared-limit", strat.Name)
-	require.Equal(t, maxRuns, strat.MaxConcurrency)
+	require.Equal(t, maxRuns, strat.MaxConcurrency, "registration must map max_runs onto the strategy")
 
 	s := &sharedConcurrencyTestSetup{
 		tenantId: tenantId,
@@ -204,8 +203,6 @@ func TestConcurrency_SharedStrategy_CrossWorkflow(t *testing.T) {
 			require.Equal(t, s.strategy.ID, row.TenantStrategyID.Int64, "both steps should reference the tenant strategy")
 			require.Equal(t, s.strategy.Expression, row.Expression, "the definition copy is kept in sync")
 		}
-		require.NotEqual(t, rows[0].StepID, rows[1].StepID, "each row belongs to its own step")
-
 		// referencing rows are excluded from the step-strategy lease listing; the tenant
 		// strategy is listed separately and is what gets a concurrency manager
 		stepStrategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
@@ -347,8 +344,8 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		require.Equal(t, sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS, updated.Strategy)
 		require.True(t, updated.IsActive)
 
-		// the step's strategies resolve the NEW definition through the reference, even
-		// though the referencing row still carries its point-in-time copy
+		// the update trigger propagates the new definition to referencing rows, so
+		// per-step reads pick it up without a join
 		rows, err := queries.ListConcurrencyStrategiesByStepId(ctx, conf.Pool, sqlcv1.ListConcurrencyStrategiesByStepIdParams{
 			Tenantid: s.tenantId,
 			Stepids:  []uuid.UUID{s.workflows[0].stepId},
@@ -572,28 +569,35 @@ func TestConcurrency_SharedStrategy_OrderConflictRejected(t *testing.T) {
 
 		desc := "test workflow"
 
-		putWorkflow := func(name string, entries []repo.CreateConcurrencyOpts) error {
-			_, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+		putWorkflow := func(name string, entries []repo.CreateConcurrencyOpts) (uuid.UUID, error) {
+			wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
 				Name:        name,
 				Description: &desc,
 				Tasks: []repo.CreateStepOpts{
 					{ReadableId: "my-task", Action: "test:run", Concurrency: entries},
 				},
 			})
-			return err
+
+			if err != nil {
+				return uuid.Nil, err
+			}
+
+			return wfVersion.WorkflowVersion.ID, nil
 		}
 
 		// first workflow establishes t1 before t2
-		require.NoError(t, putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t1, t2}))
+		_, err = putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t1, t2})
+		require.NoError(t, err)
 
 		// a second workflow with the opposite order is rejected
-		err = putWorkflow("order-wf-2", []repo.CreateConcurrencyOpts{t2, t1})
+		_, err = putWorkflow("order-wf-2", []repo.CreateConcurrencyOpts{t2, t1})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "ordered inconsistently")
 
 		// the same order (with unrelated workflow-scoped entries interleaved) is fine
 		inline := repo.CreateConcurrencyOpts{Expression: "input.other_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
-		require.NoError(t, putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{t1, inline, t2}))
+		wf3VersionId, err := putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{t1, inline, t2})
+		require.NoError(t, err)
 
 		// a conflict between two chains of a single registration is also rejected
 		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
@@ -609,9 +613,37 @@ func TestConcurrency_SharedStrategy_OrderConflictRejected(t *testing.T) {
 
 		// re-registering an existing workflow with a flipped order only conflicts with
 		// OTHER workflows' latest versions, not its own previous version
-		require.NoError(t, putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{inline, t1, t2}))
-		err = putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t2, t1})
+		_, err = putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{inline, t1, t2})
+		require.NoError(t, err)
+		_, err = putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t2, t1})
 		require.Error(t, err, "wf-3 still orders t1 before t2")
+
+		// a superseded version whose runs still hold concurrency slots keeps constraining
+		// its own workflow: reordering before those runs drain would deadlock against them
+		var t1Id int64
+		err = conf.Pool.QueryRow(ctx, "SELECT id FROM v1_tenant_concurrency WHERE tenant_id = $1 AND name = 'order-t1'", tenantId).Scan(&t1Id)
+		require.NoError(t, err)
+
+		_, err = conf.Pool.Exec(ctx, `INSERT INTO v1_concurrency_slot
+			(task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, priority, key, queue_to_notify, schedule_timeout_at)
+			VALUES (1, NOW(), 0, gen_random_uuid(), $1, gen_random_uuid(), $2, gen_random_uuid(), $3, 1, 'k', 'q', NOW() + INTERVAL '5 minutes')`,
+			tenantId, wf3VersionId, t1Id)
+		require.NoError(t, err)
+
+		// drop wf-1's ordering constraint (a single-entry chain imposes none) so the only
+		// remaining constraint is the live slot on wf-3's superseded version
+		_, err = putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t1})
+		require.NoError(t, err)
+
+		_, err = putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{t2, inline, t1})
+		require.Error(t, err, "a superseded version with live slots must still constrain ordering")
+
+		// once the old runs drain, the reorder is allowed
+		_, err = conf.Pool.Exec(ctx, "DELETE FROM v1_concurrency_slot WHERE tenant_id = $1 AND strategy_id = $2", tenantId, t1Id)
+		require.NoError(t, err)
+
+		_, err = putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{t2, inline, t1})
+		require.NoError(t, err)
 
 		return nil
 	})

@@ -227,8 +227,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
         elif isinstance(self._config.concurrency, SharedConcurrency):
-            # tenant-scoped entries ride on concurrency_arr: the deprecated scalar field's
-            # server path predates the name and tenant_scoped fields
+            # concurrency_arr is the canonical field; the scalar field is deprecated
             _concurrency_arr = [self._config.concurrency.to_proto()]
             _concurrency = None
         elif isinstance(self._config.concurrency, ConcurrencyExpression):

@@ -12,8 +12,7 @@ CREATE TABLE v1_tenant_concurrency (
     -- dependency; see the warning on v1_step_concurrency.id before changing either side.
     id bigint NOT NULL DEFAULT nextval(pg_get_serial_sequence('v1_step_concurrency', 'id')),
     tenant_id UUID NOT NULL,
-    -- The strategy name, unique per tenant; steps reference the strategy by name at
-    -- registration time.
+    -- Unique per tenant: registration upserts by (tenant_id, name).
     name TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.

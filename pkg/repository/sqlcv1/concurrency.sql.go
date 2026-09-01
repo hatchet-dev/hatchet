@@ -741,17 +741,25 @@ WITH latest_versions AS (
             WHERE sc.tenant_id = $1::uuid AND sc.tenant_strategy_id IS NOT NULL
         )
     ORDER BY wv."workflowId", wv."order" DESC
+), live_versions AS (
+    SELECT lv."id" FROM latest_versions lv
+    UNION
+    SELECT DISTINCT cs.workflow_version_id AS "id"
+    FROM v1_concurrency_slot cs
+    JOIN v1_tenant_concurrency tc ON tc.id = cs.strategy_id
+    WHERE cs.tenant_id = $1::uuid
 )
 SELECT
     sc.workflow_id,
     sc.step_id,
+    sc.workflow_version_id,
     array_agg(sc.tenant_strategy_id ORDER BY sc.id)::bigint[] AS strategy_ids
 FROM v1_step_concurrency sc
-JOIN latest_versions lv ON lv."id" = sc.workflow_version_id
+JOIN live_versions lv ON lv."id" = sc.workflow_version_id
 WHERE
     sc.tenant_id = $1::uuid
     AND sc.tenant_strategy_id IS NOT NULL
-GROUP BY sc.workflow_id, sc.step_id
+GROUP BY sc.workflow_id, sc.step_id, sc.workflow_version_id
 HAVING COUNT(*) > 1
 `
 
@@ -761,14 +769,18 @@ type ListTenantConcurrencyOrderingsParams struct {
 }
 
 type ListTenantConcurrencyOrderingsRow struct {
-	WorkflowID  uuid.UUID `json:"workflow_id"`
-	StepID      uuid.UUID `json:"step_id"`
-	StrategyIds []int64   `json:"strategy_ids"`
+	WorkflowID        uuid.UUID `json:"workflow_id"`
+	StepID            uuid.UUID `json:"step_id"`
+	WorkflowVersionID uuid.UUID `json:"workflow_version_id"`
+	StrategyIds       []int64   `json:"strategy_ids"`
 }
 
-// Per-step ordered chains of tenant-scoped strategies, for steps belonging to each
-// workflow's latest (non-deleted) version, excluding one workflow (the one being
-// re-registered). Creation order (ascending row id) encodes the declared chain order.
+// Per-step ordered chains of tenant-scoped strategies which can still admit new or queued
+// runs: chains of every workflow's latest (non-deleted) version, plus chains of superseded
+// versions whose runs still hold concurrency slots. The workflow being re-registered is
+// excluded from the latest-version set (its new chains replace the old ones), but its
+// superseded versions with live slots still constrain it, so a reorder waits for old runs
+// to drain. Creation order (ascending row id) encodes the declared chain order.
 func (q *Queries) ListTenantConcurrencyOrderings(ctx context.Context, db DBTX, arg ListTenantConcurrencyOrderingsParams) ([]*ListTenantConcurrencyOrderingsRow, error) {
 	rows, err := db.Query(ctx, listTenantConcurrencyOrderings, arg.Tenantid, arg.Excludeworkflowid)
 	if err != nil {
@@ -778,7 +790,12 @@ func (q *Queries) ListTenantConcurrencyOrderings(ctx context.Context, db DBTX, a
 	var items []*ListTenantConcurrencyOrderingsRow
 	for rows.Next() {
 		var i ListTenantConcurrencyOrderingsRow
-		if err := rows.Scan(&i.WorkflowID, &i.StepID, &i.StrategyIds); err != nil {
+		if err := rows.Scan(
+			&i.WorkflowID,
+			&i.StepID,
+			&i.WorkflowVersionID,
+			&i.StrategyIds,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

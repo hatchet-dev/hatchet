@@ -20,9 +20,9 @@ class WorkflowInput(BaseModel):
 
 
 # > Shared Concurrency Strategy
-# A shared strategy is registered per tenant (by name) and referenced by tasks across
-# DIFFERENT workflows, so all of them consume the same concurrency limit. The worker
-# upserts the strategy before registering the workflows that reference it.
+# A tenant-scoped strategy is shared across workflows: every task declaring the same name
+# consumes the same concurrency limit. The definition rides on workflow registration and
+# re-registering the name updates it in place.
 shared_limit = SharedConcurrency(
     name="example-shared-limit",
     expression="input.group",

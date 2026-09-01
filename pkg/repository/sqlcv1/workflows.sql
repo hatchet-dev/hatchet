@@ -605,9 +605,9 @@ WHERE workflow_id = @workflowId::uuid
   AND id = @workflowConcurrencyId::bigint;
 
 -- name: CreateStepConcurrency :one
--- When tenant_strategy_id is set, this row references a tenant-scoped strategy: the
--- strategy/expression/max_concurrency values are point-in-time copies and the definition
--- always resolves through v1_tenant_concurrency.
+-- When tenant_strategy_id is set, the definition columns are copies of the referenced
+-- v1_tenant_concurrency row, kept in sync by its update trigger so per-step reads need
+-- no join.
 INSERT INTO v1_step_concurrency (
     workflow_id,
     workflow_version_id,

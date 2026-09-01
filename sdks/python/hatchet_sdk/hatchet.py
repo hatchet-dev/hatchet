@@ -648,7 +648,7 @@ class Hatchet:
 
             if isinstance(concurrency, list):
                 _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyExpression):
+            elif isinstance(concurrency, (ConcurrencyExpression, SharedConcurrency)):
                 _concurrency = [concurrency]
             elif isinstance(concurrency, int):
                 _concurrency = [ConcurrencyExpression.from_int(concurrency)]
@@ -1154,7 +1154,7 @@ class Hatchet:
 
             if isinstance(concurrency, list):
                 _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyExpression):
+            elif isinstance(concurrency, (ConcurrencyExpression, SharedConcurrency)):
                 _concurrency = [concurrency]
             elif isinstance(concurrency, int):
                 _concurrency = [ConcurrencyExpression.from_int(concurrency)]

@@ -393,6 +393,11 @@ func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConc
 		collect(opts.OnFailure.Concurrency)
 	}
 
+	// upserts happen in this order inside the registration transaction, so it must be
+	// deterministic across registrations: two concurrent puts locking the same strategy
+	// rows in different orders would deadlock in the database
+	sort.Strings(names)
+
 	defs := make([]*CreateConcurrencyOpts, 0, len(names))
 
 	for _, name := range names {
