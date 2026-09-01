@@ -641,7 +641,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param expression: The cron expression that defines the schedule for the cron job.
         :param input: The input data for the workflow.
         :param additional_metadata: Additional metadata for the cron job.
-        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+        :param priority: The priority of the cron job.
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
@@ -669,7 +669,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param expression: The cron expression that defines the schedule for the cron job.
         :param input: The input data for the workflow.
         :param additional_metadata: Additional metadata for the cron job.
-        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+        :param priority: The priority of the cron job.
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """

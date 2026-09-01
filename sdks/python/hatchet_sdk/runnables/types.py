@@ -53,7 +53,7 @@ TWorkflowInput_contra = TypeVar(
 class TaskDefaults(BaseModel):
     schedule_timeout: timedelta | None = None
     execution_timeout: timedelta | None = None
-    priority: Priority | None = Field(gt=0, lt=4, default=None)
+    priority: Priority | None = None
     retries: int | None = None
     backoff_factor: float | None = None
     backoff_max_seconds: int | None = None
