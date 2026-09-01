@@ -29,12 +29,12 @@ Each context exposes a different set of variables, listed below. Referencing a v
 
 Concurrency key expressions, dynamic rate limit expressions, and batch key expressions are all evaluated when a run is triggered, with the same variables available:
 
-| Variable              | Meaning                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------- |
-| `input`               | The input object of the run being triggered                                                 |
-| `additional_metadata` | The [additional metadata](/v1/additional-metadata) set on the run                           |
-| `workflow_run_id`     | The id of the run being triggered, as a string                                              |
-| `parents`             | The outputs of completed parent tasks, keyed by parent readable id (task-level expressions) |
+| Variable              | Meaning                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `input`               | The input object of the run being triggered                                                    |
+| `additional_metadata` | The [additional metadata](/v1/additional-metadata) set on the run                              |
+| `workflow_run_id`     | The id of the run being triggered, as a string                                                 |
+| `parents`             | The outputs of completed parent tasks, keyed by parent readable id (rate limit and batch keys) |
 
 Concurrency keys, batch keys, and rate limit keys must evaluate to a string. Dynamic rate limit `units` and `limit` expressions must evaluate to an integer.
 
@@ -42,7 +42,7 @@ Concurrency keys, batch keys, and rate limit keys must evaluate to a string. Dyn
 'customer:' + input.customer_id
 ```
 
-Task-level expressions in a DAG can derive keys from a parent task's output, for example `'tenant:' + string(parents["lookup"]["tenant_id"])`. A workflow-level concurrency expression cannot reference `parents` and is rejected at registration if it does.
+Task-level rate limit and batch key expressions in a DAG can derive keys from a parent task's output, for example `'tenant:' + string(parents["lookup"]["tenant_id"])`. Concurrency key expressions cannot reference `parents` and are rejected at registration if they do.
 
 ## Idempotency key expressions
 
