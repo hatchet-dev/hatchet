@@ -1526,12 +1526,3 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid AND
     id = ANY(@ids::bigint[]);
-
--- name: ListStepIdsReferencingTenantStrategies :many
-SELECT DISTINCT
-    step_id
-FROM
-    v1_step_concurrency
-WHERE
-    tenant_id = @tenantId::uuid AND
-    tenant_strategy_id = ANY(@ids::bigint[]);

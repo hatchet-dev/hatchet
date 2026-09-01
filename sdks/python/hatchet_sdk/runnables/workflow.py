@@ -1,7 +1,7 @@
 import asyncio
 import json
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
@@ -223,7 +223,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
-        if isinstance(self._config.concurrency, list):
+        if isinstance(self._config.concurrency, (list, tuple)):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
         elif isinstance(self._config.concurrency, SharedConcurrency):
@@ -278,7 +278,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 if self._config.idempotency
                 else None
             ),
-
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -1428,7 +1427,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
+        concurrency: (
+            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
+        ) = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1717,7 +1718,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
+        concurrency: (
+            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
+        ) = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1830,7 +1833,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
+        concurrency: (
+            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
+        ) = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1901,7 +1906,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression | SharedConcurrency] | None = None,
+        concurrency: (
+            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
+        ) = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],

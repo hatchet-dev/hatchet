@@ -29,7 +29,7 @@ class AdminServiceStub:
     """AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
     """
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
         """Constructor.
 
         Args:

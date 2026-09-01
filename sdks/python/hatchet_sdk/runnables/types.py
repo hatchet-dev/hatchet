@@ -1,6 +1,6 @@
 import inspect
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import timedelta
 from enum import Enum
 from typing import (
@@ -113,7 +113,7 @@ class WorkflowConfig(BaseModel):
         int
         | ConcurrencyExpression
         | SharedConcurrency
-        | list[ConcurrencyExpression | SharedConcurrency]
+        | Sequence[ConcurrencyExpression | SharedConcurrency]
         | None
     ) = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]

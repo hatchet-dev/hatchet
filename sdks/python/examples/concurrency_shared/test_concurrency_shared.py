@@ -34,9 +34,9 @@ def assert_serialized(windows: list[dict[str, int]]) -> None:
     ordered = sorted(windows, key=lambda w: w["start_ms"])
 
     for prev, cur in zip(ordered, ordered[1:]):
-        assert cur["start_ms"] >= prev["end_ms"] - TOLERANCE_MS, (
-            f"runs overlapped: {prev} vs {cur}"
-        )
+        assert (
+            cur["start_ms"] >= prev["end_ms"] - TOLERANCE_MS
+        ), f"runs overlapped: {prev} vs {cur}"
 
 
 def assert_some_overlap(windows: list[dict[str, int]]) -> None:
@@ -121,7 +121,8 @@ async def test_shared_concurrency_mixed_inline_limit_binds(hatchet: Hatchet) -> 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_shared_concurrency_no_limit_overlaps(hatchet: Hatchet) -> None:
     """Control: with no colliding keys, runs overlap freely, proving the serialization in
-    the other tests comes from the concurrency strategies rather than worker capacity."""
+    the other tests comes from the concurrency strategies rather than worker capacity.
+    """
     windows = await gather_run_windows(
         [
             (
@@ -165,6 +166,9 @@ async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None
     await ref_new.aio_result()
 
     # wait for the OLAP repo to catch up, then assert statuses
+    old_run = await hatchet.runs.aio_get(ref_old.workflow_run_id)
+    new_run = await hatchet.runs.aio_get(ref_new.workflow_run_id)
+
     for _ in range(20):
         await asyncio.sleep(1)
 

@@ -450,7 +450,7 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 	}
 
 	if len(missingNames) > 0 {
-		return nil, fmt.Errorf("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
+		return nil, newTenantConcurrencyError("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
 	}
 
 	return strategiesByName, nil
@@ -687,16 +687,10 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	// entries created below can reference them. This runs before the checksum early-return
 	// on purpose: definitions are tenant-level state, so re-registering an unchanged
 	// workflow with a changed definition must still update the strategy in place.
-	upsertedStrategyIds := make([]int64, 0)
-
 	for _, entry := range collectTenantConcurrencyDefs(opts) {
-		strategy, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry)
-
-		if err != nil {
+		if _, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry); err != nil {
 			return nil, fmt.Errorf("could not upsert tenant concurrency strategy %s: %w", entry.Name, err)
 		}
-
-		upsertedStrategyIds = append(upsertedStrategyIds, strategy.ID)
 	}
 
 	var workflowId uuid.UUID
@@ -795,38 +789,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
-	r.invalidateConcurrencyStrategyCache(ctx, tenantId, upsertedStrategyIds)
-
 	return workflowVersion[0], nil
-}
-
-// invalidateConcurrencyStrategyCache drops this process's cached per-step strategy lists
-// for every step referencing the given tenant strategies, so tasks created here pick up an
-// updated definition immediately instead of after the cache TTL. Other engine replicas
-// keep their own caches, so cross-replica staleness is still bounded by the cache TTL.
-func (r *workflowRepository) invalidateConcurrencyStrategyCache(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
-	if len(strategyIds) == 0 {
-		return
-	}
-
-	stepIds, err := r.queries.ListStepIdsReferencingTenantStrategies(ctx, r.pool, sqlcv1.ListStepIdsReferencingTenantStrategiesParams{
-		Tenantid: tenantId,
-		Ids:      strategyIds,
-	})
-
-	if err != nil {
-		r.l.Warn().Err(err).Msg("could not invalidate concurrency strategy cache after registration")
-		return
-	}
-
-	for _, stepId := range stepIds {
-		r.concurrencyStrategyCache.Remove(concurrencyStrategyCacheKey(tenantId, stepId))
-	}
-}
-
-// concurrencyStrategyCacheKey is shared with the per-step strategy lookup in task.go.
-func concurrencyStrategyCacheKey(tenantId, stepId uuid.UUID) string {
-	return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
 }
 
 // mergeWorkflowConcurrencyOntoSingleTask moves workflow-level concurrency onto the

@@ -65,7 +65,9 @@ class SharedConcurrency(BaseModel):
     name: str
     expression: str
     max_runs: int = Field(gt=0, default=1)
-    limit_strategy: ConcurrencyLimitStrategy = ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
+    limit_strategy: ConcurrencyLimitStrategy = (
+        ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
+    )
 
     def to_proto(self) -> Concurrency:
         return Concurrency(

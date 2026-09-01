@@ -3135,7 +3135,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	}
 
 	cacheKey := func(stepId uuid.UUID) string {
-		return concurrencyStrategyCacheKey(tenantId, stepId)
+		return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
 	}
 
 	sortStrategies := func(strats []*sqlcv1.V1StepConcurrency) {
@@ -3196,6 +3196,8 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	// Populate cache for all missing step IDs, including negative-caching empty results.
 	for _, stepId := range missingStepIdStrs {
 		stepStrats := fetchedByStepId[stepId]
+		hasTenantRef := false
+
 		if stepStrats == nil {
 			stepStrats = []*sqlcv1.V1StepConcurrency{}
 		} else {
@@ -3208,11 +3210,20 @@ func (r *sharedRepository) getConcurrencyExpressions(
 			for _, strat := range stepStrats {
 				if strat.TenantStrategyID.Valid {
 					strat.ID = strat.TenantStrategyID.Int64
+					hasTenantRef = true
 				}
 			}
 		}
 
-		r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
+		// Steps referencing tenant-scoped strategies are never cached: their definitions
+		// are mutable (re-registration updates them in place, on any engine), and a cached
+		// copy would apply a stale expression. The referencing rows are kept in sync in
+		// the database by the v1_tenant_concurrency update trigger, so reading through is
+		// always current, and the lookup is a cheap indexed read per insert batch.
+		if !hasTenantRef {
+			r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
+		}
+
 		stepIdToStrats[stepId] = stepStrats
 	}
 
