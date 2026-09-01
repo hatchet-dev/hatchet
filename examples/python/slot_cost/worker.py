@@ -15,6 +15,8 @@ def weenie(input: None, ctx: Context) -> None:
     print("light work")
 
 
+
+
 def main() -> None:
     worker = hatchet.worker("slot-cost-worker", workflows=[omega, weenie])
     worker.start()

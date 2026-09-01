@@ -151,6 +151,8 @@ async def durable_task(input: None, ctx: DurableContext) -> dict[str, str | int]
     }
 
 
+
+
 # > Add durable tasks that wait for or groups
 
 
@@ -182,6 +184,8 @@ async def wait_for_or_group_1(
         "runtime": time.time() - start,
         "resolved": resolved,
     }
+
+
 
 
 @durable_workflow.durable_task()
