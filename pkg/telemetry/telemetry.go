@@ -189,6 +189,11 @@ func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return ctx, span
 }
 
+func NewSpanWithLinks(ctx context.Context, name string, links []trace.Link) (context.Context, trace.Span) {
+	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name), trace.WithLinks(links...))
+	return ctx, span
+}
+
 func NewRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
 	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))

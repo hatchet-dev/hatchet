@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -197,11 +198,15 @@ type appendDurableEventLogResult struct {
 }
 
 type durableEventIngestResponse struct {
-	result *appendDurableEventLogResult
-	err    error
+	result           *appendDurableEventLogResult
+	err              error
+	flushSpanContext trace.SpanContext
 }
 
 type durableEventIngestRequest struct {
+	// ctx is the submitting caller's context, held only so the flush span can link back to the
+	// request's trace — the flush itself intentionally does not run under it
+	ctx        context.Context
 	taskId     durableTaskId
 	opts       IngestDurableTaskEventOpts
 	responseCh chan durableEventIngestResponse
@@ -232,7 +237,11 @@ func newDurableEventIngestBuffer(
 }
 
 func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "wait-for-durable-event-ingest-flush")
+	defer span.End()
+
 	request := &durableEventIngestRequest{
+		ctx:        ctx,
 		taskId:     taskId,
 		opts:       opts,
 		responseCh: make(chan durableEventIngestResponse, 1),
@@ -240,6 +249,8 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 
 	b.mu.Lock()
 	b.pending = append(b.pending, request)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "pending_requests", Value: len(b.pending)})
 
 	var requestsToFlush []*durableEventIngestRequest
 
@@ -254,11 +265,18 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 	b.mu.Unlock()
 
 	if requestsToFlush != nil {
-		go b.flush(requestsToFlush) // #nosec G118 -- one flush serves many request contexts, so it intentionally runs detached from any single one
+		go b.flush(requestsToFlush, "max_batch_size") // #nosec G118 -- one flush serves many request contexts, so it intentionally runs detached from any single one
 	}
 
 	select {
 	case response := <-request.responseCh:
+		if response.flushSpanContext.IsValid() {
+			telemetry.WithAttributes(span,
+				telemetry.AttributeKV{Key: "flush_trace_id", Value: response.flushSpanContext.TraceID().String()},
+				telemetry.AttributeKV{Key: "flush_span_id", Value: response.flushSpanContext.SpanID().String()},
+			)
+		}
+
 		return response.result, response.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -275,11 +293,11 @@ func (b *durableEventIngestBuffer) flushAfterInterval() {
 	b.mu.Unlock()
 
 	if len(requestsToFlush) > 0 {
-		b.flush(requestsToFlush)
+		b.flush(requestsToFlush, "interval")
 	}
 }
 
-func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest) {
+func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, trigger string) {
 	batch := make(map[durableTaskId]IngestDurableTaskEventOpts, len(requests))
 	requestByTaskId := make(map[durableTaskId]*durableEventIngestRequest, len(requests))
 
@@ -301,8 +319,29 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest) 
 		requestByTaskId[request.taskId] = request
 	}
 
+	links := make([]trace.Link, 0, len(requestByTaskId))
+	for _, request := range requestByTaskId {
+		if requestSpanContext := trace.SpanContextFromContext(request.ctx); requestSpanContext.IsValid() {
+			links = append(links, trace.Link{SpanContext: requestSpanContext})
+		}
+	}
+
+	// the flush serves many request contexts at once, so it runs as its own root trace, linked to
+	// each waiting request's span (and each request's wait span records this trace's id)
+	ctx, span := telemetry.NewSpanWithLinks(context.Background(), "durable-event-ingest-flush", links)
+	defer span.End()
+
+	semaphoreWaitStart := time.Now()
 	b.flushSemaphore <- struct{}{}
-	results, taskErrors, err := b.ingest(context.Background(), batch)
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch_size", Value: len(batch)},
+		telemetry.AttributeKV{Key: "deferred_count", Value: len(deferredRequests)},
+		telemetry.AttributeKV{Key: "semaphore_wait_ms", Value: time.Since(semaphoreWaitStart).Milliseconds()},
+		telemetry.AttributeKV{Key: "trigger", Value: trigger},
+	)
+
+	results, taskErrors, err := b.ingest(ctx, batch)
 	<-b.flushSemaphore
 
 	// a batch-wide error can't be attributed to a single task, so retry each request as its own
@@ -310,32 +349,34 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest) 
 	// sibling that happened to share the flush window
 	if err != nil && len(batch) > 1 {
 		for _, request := range requestByTaskId {
-			go b.flush([]*durableEventIngestRequest{request})
+			go b.flush([]*durableEventIngestRequest{request}, "error_split_retry")
 		}
 
 		if len(deferredRequests) > 0 {
-			go b.flush(deferredRequests)
+			go b.flush(deferredRequests, "deferred")
 		}
 
 		return
 	}
 
+	flushSpanContext := span.SpanContext()
+
 	for taskId, request := range requestByTaskId {
 		if err != nil {
-			request.responseCh <- durableEventIngestResponse{err: err}
+			request.responseCh <- durableEventIngestResponse{err: err, flushSpanContext: flushSpanContext}
 			continue
 		}
 
 		if taskErr, ok := taskErrors[taskId]; ok {
-			request.responseCh <- durableEventIngestResponse{err: taskErr}
+			request.responseCh <- durableEventIngestResponse{err: taskErr, flushSpanContext: flushSpanContext}
 			continue
 		}
 
-		request.responseCh <- durableEventIngestResponse{result: results[taskId]}
+		request.responseCh <- durableEventIngestResponse{result: results[taskId], flushSpanContext: flushSpanContext}
 	}
 
 	if len(deferredRequests) > 0 {
-		go b.flush(deferredRequests)
+		go b.flush(deferredRequests, "deferred")
 	}
 }
 
@@ -1695,7 +1736,12 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 	}
 
-	lockRows, err := r.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, lockParams)
+	lockCtx, lockSpan := telemetry.NewSpan(ctx, "lock-durable-event-log-files")
+	telemetry.WithAttributes(lockSpan, telemetry.AttributeKV{Key: "n_tasks", Value: len(batch)})
+
+	lockRows, err := r.queries.GetAndLockLogFilesWithBranchPoints(lockCtx, tx, lockParams)
+
+	lockSpan.End()
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to lock log files: %w", err)
@@ -1898,9 +1944,14 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 	}
 
-	if err := commit(ctx); err != nil {
+	commitCtx, commitSpan := telemetry.NewSpan(ctx, "commit-durable-event-ingest-batch")
+
+	if err := commit(commitCtx); err != nil {
+		commitSpan.End()
 		return nil, nil, err
 	}
+
+	commitSpan.End()
 
 	results := make(map[durableTaskId]*appendDurableEventLogResult, len(planByTaskId))
 
@@ -2439,6 +2490,14 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	if initialWaitForResult.IsSatisfied {
 		return initialWaitForResult, nil
 	}
+
+	ctx, span := telemetry.NewSpan(ctx, "durable-wait-for-event-lookback")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: tenantId},
+		telemetry.AttributeKV{Key: "task_external_id", Value: task.ExternalID},
+	)
 
 	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
 
