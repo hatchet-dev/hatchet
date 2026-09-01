@@ -145,7 +145,7 @@ async def test_otel_spans_on_event_triggered_run(
 ) -> None:
     HatchetInstrumentor().instrument()
 
-    event = await hatchet.event.aio_push(
+    event = await hatchet.events.aio_push(
         "otel:test-event",
         {"message": "event-triggered"},
         additional_metadata={"test_run_id": test_run_id},

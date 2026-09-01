@@ -6,7 +6,6 @@ import signal
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from multiprocessing import Queue
@@ -18,7 +17,6 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice, semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.engine_version import MinEngineVersion
@@ -54,11 +52,6 @@ class WorkerStatus(Enum):
     STARTING = 2
     HEALTHY = 3
     UNHEALTHY = 4
-
-
-@dataclass
-class WorkerStartOptions:
-    loop: asyncio.AbstractEventLoop | None = field(default=None)
 
 
 LifespanGenerator = AsyncGenerator[Any, Any]
@@ -153,13 +146,6 @@ class Worker:
     @property
     def name(self) -> str:
         return self._name
-
-    def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
-        try:
-            self._admin_client.put_workflow(opts)
-        except Exception:
-            logger.exception(f"failed to register workflow: {opts.name}")
-            sys.exit(1)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         if not workflow.tasks:

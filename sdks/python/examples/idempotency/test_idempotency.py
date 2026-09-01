@@ -359,12 +359,12 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     hatchet: Hatchet,
 ) -> None:
     test_run_id = str(uuid4())
-    e1 = await hatchet.event.aio_push(
+    e1 = await hatchet.events.aio_push(
         event_key=EVENT_KEY,
         payload={"id": test_run_id},
         additional_metadata={"test_run_id": test_run_id},
     )
-    e2 = await hatchet.event.aio_push(
+    e2 = await hatchet.events.aio_push(
         event_key=EVENT_KEY,
         payload={"id": test_run_id},
         additional_metadata={"test_run_id": test_run_id},
@@ -389,7 +389,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
 
     await asyncio.sleep(1)
 
-    details = await hatchet.event.aio_list(
+    details = await hatchet.events.aio_list(
         event_ids=[e1.event_id, e2.event_id],
     )
 

@@ -25,7 +25,7 @@ async def test_support_agent_reply_before_timeout(hatchet: Hatchet) -> None:
 
     # The workflow uses consider_events_since lookback, so the reply event
     # is captured even if pushed before the or-group wait becomes active.
-    await hatchet.event.aio_push(
+    await hatchet.events.aio_push(
         REPLY_EVENT_KEY,
         {"message": "Actually, I just needed to clear my cookies. Fixed!"},
         scope=ticket.ticket_id,

@@ -53,7 +53,7 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(SLEEP_TIME + 3)
 
-    event = await hatchet.event.aio_push(
+    event = await hatchet.events.aio_push(
         EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
     )
 
@@ -135,7 +135,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(SLEEP_TIME + 3)
-    hatchet.event.push(EVENT_KEY, {"test": "test"})
+    hatchet.events.push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
     first_elapsed = time.time() - start
@@ -352,7 +352,7 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
 async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
     user_id = 1234
 
-    hatchet.event.push(
+    hatchet.events.push(
         "user:create",
         {"order": "first", "user_id": user_id},
         scope=f"user_id:{user_id}",
@@ -372,7 +372,7 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(EVENT_KEY, {"order": "first"}, scope=scope)
+    hatchet.events.push(EVENT_KEY, {"order": "first"}, scope=scope)
     await asyncio.sleep(1)
 
     result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
@@ -384,7 +384,7 @@ async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(
+    hatchet.events.push(
         "key2",
         {"order": "second"},
         scope=scope,
@@ -397,7 +397,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(3)
 
-    hatchet.event.push("key1", {"order": "first"}, scope=scope)
+    hatchet.events.push("key1", {"order": "first"}, scope=scope)
 
     result = await ref.aio_result()
 
@@ -416,7 +416,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     shuffle(iters)
 
     for i in iters:
-        event = hatchet.event.push(
+        event = hatchet.events.push(
             "user:create",
             {"order": str(i), "user_id": user_id},
             scope=f"user_id:{user_id}",

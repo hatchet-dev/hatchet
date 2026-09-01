@@ -75,7 +75,7 @@ async def wait_for_event(
 ) -> V1Event | None:
     @tenacity.retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     async def get_events() -> V1Event | None:
-        events = await hatchet.event.aio_list(since=test_start)
+        events = await hatchet.events.aio_list(since=test_start)
         if not events:
             raise Exception()
         filtered_event = next(

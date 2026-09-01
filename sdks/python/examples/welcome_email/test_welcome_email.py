@@ -21,7 +21,7 @@ async def test_welcome_email_onboarding_before_timeout(hatchet: Hatchet) -> None
 
     ref = await welcome_email.aio_run(signup, wait_for_result=False)
 
-    await hatchet.event.aio_push(
+    await hatchet.events.aio_push(
         ONBOARDING_EVENT_KEY,
         {"status": "done"},
         scope=signup.user_id,

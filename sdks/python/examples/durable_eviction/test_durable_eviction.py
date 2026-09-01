@@ -187,7 +187,7 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
 
-    hatchet.event.push(EVENT_KEY, {})
+    hatchet.events.push(EVENT_KEY, {})
 
     result = await ref.aio_result()
     assert result["status"] == "completed"

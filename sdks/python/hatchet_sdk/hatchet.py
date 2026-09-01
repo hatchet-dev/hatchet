@@ -91,7 +91,7 @@ class Hatchet:
         )
         self._runs_client = RunsClient(
             config=self._config,
-            workflow_run_event_listener=self.listener,
+            workflow_run_event_listener=self._listener_client,
             workflow_run_listener=self._workflow_listener_client,
             admin_client=self._admin_client,
         )
@@ -229,19 +229,11 @@ class Hatchet:
         return self._workflows_client
 
     @property
-    def dispatcher(self) -> DispatcherClient:
-        return self._dispatcher_client
-
-    @property
-    def event(self) -> EventClient:
+    def events(self) -> EventClient:
         """
-        The event client, which you can use to push events to Hatchet.
+        The events client, which you can use to push events to Hatchet.
         """
         return self._event_client
-
-    @property
-    def listener(self) -> RunEventListenerClient:
-        return self._listener_client
 
     @property
     def stubs(self) -> StubsClient:
@@ -271,7 +263,7 @@ class Hatchet:
         :return: The engine version string, or ``None`` if the engine is too old
             to support GetVersion.
         """
-        return await self.dispatcher.get_version()
+        return await self._dispatcher_client.get_version()
 
     def worker(
         self,

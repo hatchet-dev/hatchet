@@ -151,7 +151,7 @@ async def wait_a_day(input: None, ctx: DurableContext) -> None:
 
 # > Hatchet event push
 async def grant_approval(correlation_id: str) -> None:
-    await hatchet.event.aio_push(
+    await hatchet.events.aio_push(
         "approval:granted",
         {"correlation_id": correlation_id},
     )
