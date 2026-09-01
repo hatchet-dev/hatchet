@@ -1,33 +1,26 @@
--- name: GetAndLockLogFile :one
-SELECT *
-FROM v1_durable_event_log_file
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
-FOR UPDATE
-;
-
--- name: GetAndLockLogFileWithBranchPoints :many
-WITH locked_file AS (
-    SELECT *
-    FROM v1_durable_event_log_file
-    WHERE
-        durable_task_id = @durableTaskId::BIGINT
-        AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-        AND tenant_id = @tenantId::UUID
+-- name: GetAndLockLogFilesWithBranchPoints :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+), locked_files AS (
+    SELECT lf.*
+    FROM v1_durable_event_log_file lf
+    JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
+    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
     FOR UPDATE
 )
 
 SELECT
     sqlc.embed(to_embed),
     bp.*
-FROM locked_file lf
--- note: intentionally using the params for the join so we can prune partitions
+FROM locked_files lf
 JOIN v1_durable_event_log_file to_embed
-    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
-    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
 ;
 
 -- name: IncrementLogFileInvocationCounts :many
@@ -56,6 +49,8 @@ SELECT
     0,
     1
 FROM inputs
+-- note: consistent lock ordering with batched ingestion, which locks multiple log files per transaction
+ORDER BY durable_task_id, durable_task_inserted_at
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = v1_durable_event_log_file.latest_invocation_count + 1,
@@ -75,6 +70,23 @@ SET
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
+
+-- name: UpdateLogFileLatestNodeIds :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+)
+
+UPDATE v1_durable_event_log_file lf
+SET
+    -- important: need `GREATEST` here to avoid moving the `latest_node_id` backwards in the case of child spawning with
+    -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
+    latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
+FROM inputs i
+WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+;
 
 -- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
@@ -225,15 +237,16 @@ RETURNING *
 -- name: BulkGetDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id
 )
 SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
-JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-WHERE e.durable_task_id = @durableTaskId::BIGINT
-  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
+JOIN inputs i
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at);
 
 -- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
 SELECT e.*, lf.latest_invocation_count AS invocation_count

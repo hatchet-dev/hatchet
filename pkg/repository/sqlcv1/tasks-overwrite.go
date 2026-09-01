@@ -451,6 +451,7 @@ WITH input AS (
         unnest($9::text[]) AS triggering_event_key,
 		unnest($10::text[]) AS batch_key
 )
+
 UPDATE
     v1_task
 SET

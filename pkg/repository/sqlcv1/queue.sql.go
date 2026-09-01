@@ -2301,13 +2301,15 @@ WITH input AS (
     SELECT
         id,
         inserted_at,
+        retry_count,
         worker_id
     FROM
         (
             SELECT
                 UNNEST($1::bigint[]) AS id,
                 UNNEST($2::timestamptz[]) AS inserted_at,
-                UNNEST($3::uuid[]) AS worker_id
+                UNNEST($3::integer[]) AS retry_count,
+                UNNEST($4::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
 ), updated_tasks AS (
@@ -2324,9 +2326,9 @@ WITH input AS (
     FROM
         v1_task t
     JOIN
-        input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
+        input i ON (t.id, t.inserted_at, t.retry_count) = (i.id, i.inserted_at, i.retry_count)
     WHERE
-        t.inserted_at >= $4::timestamptz
+        t.inserted_at >= $5::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
@@ -2343,7 +2345,7 @@ WITH input AS (
         t.inserted_at,
         t.retry_count,
         t.worker_id,
-        $5::uuid,
+        $6::uuid,
         t.batch_key,
         t.timeout_at
     FROM
@@ -2397,6 +2399,7 @@ WHERE v1_task_runtime.evicted_at IS NOT NULL
 SELECT
     asr.task_id,
     asr.task_inserted_at,
+    asr.retry_count,
     asr.worker_id,
     ut.is_durable
 FROM
@@ -2408,6 +2411,7 @@ JOIN
 type UpdateTasksToAssignedParams struct {
 	Taskids           []int64              `json:"taskids"`
 	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
 	Workerids         []uuid.UUID          `json:"workerids"`
 	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
 	Tenantid          uuid.UUID            `json:"tenantid"`
@@ -2416,6 +2420,7 @@ type UpdateTasksToAssignedParams struct {
 type UpdateTasksToAssignedRow struct {
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
 	WorkerID       *uuid.UUID         `json:"worker_id"`
 	IsDurable      pgtype.Bool        `json:"is_durable"`
 }
@@ -2424,6 +2429,7 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 	rows, err := db.Query(ctx, updateTasksToAssigned,
 		arg.Taskids,
 		arg.Taskinsertedats,
+		arg.Taskretrycounts,
 		arg.Workerids,
 		arg.Mintaskinsertedat,
 		arg.Tenantid,
@@ -2438,6 +2444,7 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 		if err := rows.Scan(
 			&i.TaskID,
 			&i.TaskInsertedAt,
+			&i.RetryCount,
 			&i.WorkerID,
 			&i.IsDurable,
 		); err != nil {
