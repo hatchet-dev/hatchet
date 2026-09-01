@@ -142,6 +142,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(CELExprErr)
 	case "celmaxrunsint":
 		return errObj.SafeExternalError(CELIntExprErr)
+	case "celidempotencykeystr":
+		return errObj.SafeExternalError(CELExprErr)
 	default:
 		return errObj.SafeExternalError("")
 	}

@@ -19,6 +19,7 @@ import (
 type CELParser struct {
 	workflowStrEnv     *cel.Env
 	stepRunEnv         *cel.Env
+	idempotencyKeyEnv  *cel.Env
 	eventEnv           *cel.Env
 	incomingWebhookEnv *cel.Env
 }
@@ -72,6 +73,19 @@ func NewCELParser() *CELParser {
 		ext.Strings(),
 	)
 
+	// idempotency keys are evaluated before a run exists, so workflow_run_id is
+	// deliberately not declared here: referencing it fails at compile time with a
+	// clear error instead of failing when the key is evaluated
+	idempotencyKeyEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			checksumDecl,
+		),
+		checksum,
+		ext.Strings(),
+	)
+
 	eventEnv, _ := cel.NewEnv(
 		cel.Declarations(
 			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
@@ -81,6 +95,7 @@ func NewCELParser() *CELParser {
 			decls.NewVar("event_key", decls.String),
 			checksumDecl,
 		),
+		checksum,
 		ext.Strings(),
 	)
 
@@ -90,11 +105,13 @@ func NewCELParser() *CELParser {
 			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
 			checksumDecl,
 		),
+		checksum,
 	)
 
 	return &CELParser{
 		workflowStrEnv:     workflowStrEnv,
 		stepRunEnv:         stepRunEnv,
+		idempotencyKeyEnv:  idempotencyKeyEnv,
 		eventEnv:           eventEnv,
 		incomingWebhookEnv: incomingWebhookEnv,
 	}
@@ -116,7 +133,7 @@ func WithHeaders(headers map[string]string) InputOpts {
 	}
 }
 
-func WithParents(parents any) InputOpts {
+func WithParents(parents map[string]map[string]interface{}) InputOpts {
 	return func(w Input) {
 		w["parents"] = parents
 	}
@@ -215,6 +232,38 @@ func (p *CELParser) ParseAndEvalWorkflowString(workflowExp string, in Input) (st
 	}
 }
 
+func (p *CELParser) ParseIdempotencyKey(idempotencyKeyExpr string) (cel.Program, error) {
+	ast, issues := p.idempotencyKeyEnv.Compile(idempotencyKeyExpr)
+
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
+	}
+
+	return p.idempotencyKeyEnv.Program(ast)
+}
+
+func (p *CELParser) ParseAndEvalIdempotencyKey(idempotencyKeyExpr string, in Input) (string, error) {
+	prg, err := p.ParseIdempotencyKey(idempotencyKeyExpr)
+	if err != nil {
+		return "", err
+	}
+
+	var inMap map[string]interface{} = in
+
+	out, _, err := prg.Eval(inMap)
+	if err != nil {
+		return "", err
+	}
+
+	// Switch on the type of the output.
+	switch out.Type() {
+	case types.StringType:
+		return out.Value().(string), nil
+	default:
+		return "", fmt.Errorf("output must evaluate to a string: got %s", out.Type().TypeName())
+	}
+}
+
 type StepRunOutType string
 
 const (
@@ -239,7 +288,7 @@ func (p *CELParser) ParseStepRun(stepRunExpr string) (cel.Program, error) {
 }
 
 func (p *CELParser) ParseAndEvalStepRun(stepRunExpr string, in Input) (*StepRunOut, error) {
-	prg, err := p.ParseWorkflowString(stepRunExpr)
+	prg, err := p.ParseStepRun(stepRunExpr)
 	if err != nil {
 		return nil, err
 	}
