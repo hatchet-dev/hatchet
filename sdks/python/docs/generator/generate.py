@@ -235,7 +235,7 @@ def render_index_page(documents: list[Document], meta: dict[str, typing.Any]) ->
     return "\n".join(
         [
             "---",
-            'title: "Python SDK"',
+            'title: "Overview"',
             "---",
             "",
             "# Python SDK",

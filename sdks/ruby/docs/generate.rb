@@ -607,7 +607,7 @@ def generate_index_page(pages)
   write_page(
     "index.mdx",
     [
-      frontmatter("Ruby SDK"),
+      frontmatter("Overview"),
       "# Ruby SDK",
       "This is the generated API reference for the Hatchet Ruby SDK. For concepts and guides, see the [user guide](/v1).",
       "## Core pages",

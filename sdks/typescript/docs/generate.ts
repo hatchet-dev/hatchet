@@ -169,7 +169,7 @@ function renderIndexPage(documents: Document[]): string {
 
   return [
     '---',
-    'title: "TypeScript SDK"',
+    'title: "Overview"',
     '---',
     '',
     '# TypeScript SDK',

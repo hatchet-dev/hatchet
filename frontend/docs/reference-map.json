@@ -39,8 +39,8 @@
     "cel": {
       "title": "CEL",
       "description": "Evaluate and debug CEL expressions used in event filters and concurrency keys",
-      "guide": "/v1/events",
-      "guideTitle": "Events",
+      "guide": null,
+      "guideTitle": null,
       "slugs": {
         "python": "cel",
         "typescript": "cel",

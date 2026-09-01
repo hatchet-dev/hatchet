@@ -1313,7 +1313,7 @@ func renderIndexPage(m *refMap, repoRoot string, files map[string]string, access
 	}
 
 	var b strings.Builder
-	b.WriteString(frontmatter("Go SDK"))
+	b.WriteString(frontmatter("Overview"))
 	b.WriteString("# Go SDK\n\n")
 	b.WriteString("This is the generated API reference for the Hatchet Go SDK. For concepts and guides, see the [user guide](/v1).\n\n")
 
