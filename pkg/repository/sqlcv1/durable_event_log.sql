@@ -8,7 +8,7 @@ WITH inputs AS (
     SELECT lf.*
     FROM v1_durable_event_log_file lf
     JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
-    WHERE lf.inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
     ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
     FOR UPDATE
 )

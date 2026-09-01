@@ -402,7 +402,7 @@ WITH inputs AS (
     SELECT lf.tenant_id, lf.durable_task_id, lf.durable_task_inserted_at, lf.latest_invocation_count, lf.latest_inserted_at, lf.latest_node_id, lf.latest_branch_id, lf.latest_satisfied_order
     FROM v1_durable_event_log_file lf
     JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
-    WHERE lf.inserted_at >= $4::TIMESTAMPTZ
+    WHERE lf.durable_task_inserted_at >= $4::TIMESTAMPTZ
     ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
     FOR UPDATE
 )
