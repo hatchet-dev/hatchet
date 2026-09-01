@@ -196,6 +196,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 			concurrencyOpts.Name = &name
 		}
 
+		if concurrency.TenantScoped {
+			tenantScoped := true
+			concurrencyOpts.TenantScoped = &tenantScoped
+		}
+
 		if concurrency.LimitStrategy != nil {
 			strategy := *concurrency.LimitStrategy
 			strategyInt := contracts.ConcurrencyLimitStrategy_value[string(strategy)]

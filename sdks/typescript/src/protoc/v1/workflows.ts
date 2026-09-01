@@ -397,20 +397,22 @@ export interface DefaultFilter {
  * Concurrency declares one entry in a concurrency chain. Entries are processed in array
  * order, so a tenant-scoped entry may come before or after a workflow-scoped one.
  *
- * When name is unset, the entry is scoped to this workflow. When name is set, the entry is
- * a tenant-scoped strategy shared across workflows: with an expression it defines (or
- * updates in place) the strategy as part of this registration, and with no expression it
- * references a strategy defined elsewhere.
+ * A tenant-scoped entry (tenant_scoped = true) defines (or updates in place) a strategy
+ * shared across workflows, keyed by name: every task declaring the same name consumes the
+ * same concurrency limit. Registrations whose chains order the same tenant-scoped
+ * strategies inconsistently are rejected, since inconsistent orders can deadlock.
  */
 export interface Concurrency {
-  /** (required unless name is set) the expression to use for concurrency */
+  /** (required) the expression to use for concurrency */
   expression: string;
   /** (optional) the maximum number of concurrent workflow runs, default 1 */
   maxRuns?: number | undefined;
   /** (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS */
   limitStrategy?: ConcurrencyLimitStrategy | undefined;
-  /** (optional) marks the entry as a tenant-scoped strategy with this name, unique per tenant */
+  /** (required when tenant_scoped) the strategy name; unique per tenant for tenant-scoped strategies */
   name?: string | undefined;
+  /** (optional) when true, the entry is a tenant-scoped strategy shared across workflows, default false */
+  tenantScoped?: boolean | undefined;
 }
 
 export interface TaskBatchConfig {
@@ -2249,7 +2251,13 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
 };
 
 function createBaseConcurrency(): Concurrency {
-  return { expression: '', maxRuns: undefined, limitStrategy: undefined, name: undefined };
+  return {
+    expression: '',
+    maxRuns: undefined,
+    limitStrategy: undefined,
+    name: undefined,
+    tenantScoped: undefined,
+  };
 }
 
 export const Concurrency: MessageFns<Concurrency> = {
@@ -2265,6 +2273,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     }
     if (message.name !== undefined) {
       writer.uint32(34).string(message.name);
+    }
+    if (message.tenantScoped !== undefined) {
+      writer.uint32(40).bool(message.tenantScoped);
     }
     return writer;
   },
@@ -2308,6 +2319,14 @@ export const Concurrency: MessageFns<Concurrency> = {
           message.name = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.tenantScoped = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2331,6 +2350,11 @@ export const Concurrency: MessageFns<Concurrency> = {
           ? concurrencyLimitStrategyFromJSON(object.limit_strategy)
           : undefined,
       name: isSet(object.name) ? globalThis.String(object.name) : undefined,
+      tenantScoped: isSet(object.tenantScoped)
+        ? globalThis.Boolean(object.tenantScoped)
+        : isSet(object.tenant_scoped)
+          ? globalThis.Boolean(object.tenant_scoped)
+          : undefined,
     };
   },
 
@@ -2348,6 +2372,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     if (message.name !== undefined) {
       obj.name = message.name;
     }
+    if (message.tenantScoped !== undefined) {
+      obj.tenantScoped = message.tenantScoped;
+    }
     return obj;
   },
 
@@ -2360,6 +2387,7 @@ export const Concurrency: MessageFns<Concurrency> = {
     message.maxRuns = object.maxRuns ?? undefined;
     message.limitStrategy = object.limitStrategy ?? undefined;
     message.name = object.name ?? undefined;
+    message.tenantScoped = object.tenantScoped ?? undefined;
     return message;
   },
 };

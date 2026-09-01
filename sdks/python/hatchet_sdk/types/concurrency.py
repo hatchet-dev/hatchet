@@ -48,14 +48,12 @@ class ConcurrencyExpression(BaseModel):
 
 class SharedConcurrency(BaseModel):
     """
-    A tenant-scoped concurrency strategy, shared across workflows: every task referencing
-    the same name consumes the same concurrency limit. Declare it anywhere a
-    `ConcurrencyExpression` is accepted; the position in the concurrency list is the chain
-    order, so it may come before or after workflow-scoped entries.
-
-    With an `expression`, the entry defines (or updates in place) the strategy as part of
-    workflow registration. With an empty `expression`, it references a strategy defined
-    elsewhere.
+    A tenant-scoped concurrency strategy, shared across workflows: every task declaring the
+    same name consumes the same concurrency limit, and re-declaring a name updates the
+    strategy in place. Declare it anywhere a `ConcurrencyExpression` is accepted; the
+    position in the concurrency list is the chain order, so it may come before or after
+    workflow-scoped entries. Chains sharing tenant-scoped strategies must order them
+    consistently, or registration is rejected.
 
     Args:
         name (str): Unique (per tenant) name of the strategy.
@@ -65,13 +63,14 @@ class SharedConcurrency(BaseModel):
     """
 
     name: str
-    expression: str = ""
+    expression: str
     max_runs: int = Field(gt=0, default=1)
     limit_strategy: ConcurrencyLimitStrategy = ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
 
     def to_proto(self) -> Concurrency:
         return Concurrency(
             name=self.name,
+            tenant_scoped=True,
             expression=self.expression,
             max_runs=self.max_runs,
             limit_strategy=self.limit_strategy,

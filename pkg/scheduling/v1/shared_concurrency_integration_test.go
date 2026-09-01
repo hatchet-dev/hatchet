@@ -97,10 +97,11 @@ func setupSharedConcurrencyTest(
 	})
 	require.NoError(t, err)
 
-	// the definition is a named Concurrency entry carrying an expression, riding on a
-	// workflow put (the only registration path)
+	// the definition is a tenant-scoped Concurrency entry riding on a workflow put (the
+	// only registration path); every declaring task carries the full definition
 	def := repo.CreateConcurrencyOpts{
 		Name:          "shared-limit",
+		TenantScoped:  true,
 		Expression:    "input.my_id",
 		MaxRuns:       &maxRuns,
 		LimitStrategy: &strategyType,
@@ -129,7 +130,7 @@ func setupSharedConcurrencyTest(
 	for i := 0; i < numWorkflows; i++ {
 		s.workflows = append(s.workflows, createWorkflowWithConcurrency(
 			t, ctx, conf, tenantId, fmt.Sprintf("%s-wf-%d", name, i),
-			[]repo.CreateConcurrencyOpts{{Name: "shared-limit"}},
+			[]repo.CreateConcurrencyOpts{def},
 		))
 	}
 
@@ -249,13 +250,20 @@ func TestConcurrency_SharedStrategy_MixedWithInline(t *testing.T) {
 		s := setupSharedConcurrencyTest(t, ctx, conf, "shared-mixed-test", "GROUP_ROUND_ROBIN", 1, 0)
 
 		maxRuns := int32(2)
+		shMax := int32(1)
 		strategyType := "GROUP_ROUND_ROBIN"
 		inline := repo.CreateConcurrencyOpts{
 			MaxRuns:       &maxRuns,
 			LimitStrategy: &strategyType,
 			Expression:    "input.other_id",
 		}
-		ref := repo.CreateConcurrencyOpts{Name: "shared-limit"}
+		ref := repo.CreateConcurrencyOpts{
+			Name:          "shared-limit",
+			TenantScoped:  true,
+			Expression:    "input.my_id",
+			MaxRuns:       &shMax,
+			LimitStrategy: &strategyType,
+		}
 
 		// declared order is the chain order: inline first here, tenant entry first below
 		wfInlineFirst := createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-mixed-wf", []repo.CreateConcurrencyOpts{inline, ref})
@@ -316,6 +324,7 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-upsert-redeclare", []repo.CreateConcurrencyOpts{
 			{
 				Name:          "shared-limit",
+				TenantScoped:  true,
 				Expression:    "input.other_id",
 				MaxRuns:       &newMax,
 				LimitStrategy: &newStrategy,
@@ -485,6 +494,7 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 		workflowConcurrency := []repo.CreateConcurrencyOpts{
 			{
 				Name:          "wf-shared-limit",
+				TenantScoped:  true,
 				Expression:    "input.my_id",
 				MaxRuns:       &maxRuns,
 				LimitStrategy: &strategyType,
@@ -537,9 +547,11 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 	})
 }
 
-// TestConcurrency_SharedStrategy_UnknownNameErrors verifies workflow registration fails
-// loudly when a step references a tenant strategy that was never registered.
-func TestConcurrency_SharedStrategy_UnknownNameErrors(t *testing.T) {
+// TestConcurrency_SharedStrategy_OrderConflictRejected verifies deadlock prevention:
+// registrations whose chains order the same tenant-scoped strategies inconsistently are
+// rejected, both across workflows and within a single registration; re-registering the
+// same workflow with a new order is allowed once nothing else constrains it.
+func TestConcurrency_SharedStrategy_OrderConflictRejected(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -548,25 +560,58 @@ func TestConcurrency_SharedStrategy_UnknownNameErrors(t *testing.T) {
 		tenantId := uuid.New()
 		_, err := conf.V1.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
 			ID:   &tenantId,
-			Name: "shared-unknown-test",
-			Slug: fmt.Sprintf("shared-unknown-test-%s", tenantId.String()),
+			Name: "shared-order-test",
+			Slug: fmt.Sprintf("shared-order-test-%s", tenantId.String()),
 		})
 		require.NoError(t, err)
 
+		maxRuns := int32(1)
+		strategyType := "GROUP_ROUND_ROBIN"
+		t1 := repo.CreateConcurrencyOpts{Name: "order-t1", TenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
+		t2 := repo.CreateConcurrencyOpts{Name: "order-t2", TenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
+
 		desc := "test workflow"
+
+		putWorkflow := func(name string, entries []repo.CreateConcurrencyOpts) error {
+			_, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+				Name:        name,
+				Description: &desc,
+				Tasks: []repo.CreateStepOpts{
+					{ReadableId: "my-task", Action: "test:run", Concurrency: entries},
+				},
+			})
+			return err
+		}
+
+		// first workflow establishes t1 before t2
+		require.NoError(t, putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t1, t2}))
+
+		// a second workflow with the opposite order is rejected
+		err = putWorkflow("order-wf-2", []repo.CreateConcurrencyOpts{t2, t1})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ordered inconsistently")
+
+		// the same order (with unrelated workflow-scoped entries interleaved) is fine
+		inline := repo.CreateConcurrencyOpts{Expression: "input.other_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
+		require.NoError(t, putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{t1, inline, t2}))
+
+		// a conflict between two chains of a single registration is also rejected
 		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
-			Name:        "shared-unknown-wf",
+			Name:        "order-wf-4",
 			Description: &desc,
 			Tasks: []repo.CreateStepOpts{
-				{
-					ReadableId:  "my-task",
-					Action:      "test:run",
-					Concurrency: []repo.CreateConcurrencyOpts{{Name: "never-registered"}},
-				},
+				{ReadableId: "task-a", Action: "test:run", Concurrency: []repo.CreateConcurrencyOpts{t1, t2}},
+				{ReadableId: "task-b", Action: "test:run", Concurrency: []repo.CreateConcurrencyOpts{t2, t1}},
 			},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "never-registered")
+		require.Contains(t, err.Error(), "ordered inconsistently")
+
+		// re-registering an existing workflow with a flipped order only conflicts with
+		// OTHER workflows' latest versions, not its own previous version
+		require.NoError(t, putWorkflow("order-wf-3", []repo.CreateConcurrencyOpts{inline, t1, t2}))
+		err = putWorkflow("order-wf-1", []repo.CreateConcurrencyOpts{t2, t1})
+		require.Error(t, err, "wf-3 still orders t1 before t2")
 
 		return nil
 	})
@@ -603,6 +648,7 @@ func TestConcurrency_SharedStrategy_RegisteredViaPutWorkflow(t *testing.T) {
 						Concurrency: []repo.CreateConcurrencyOpts{
 							{
 								Name:          "putwf-shared-limit",
+								TenantScoped:  true,
 								Expression:    "input.my_id",
 								MaxRuns:       &defMaxRuns,
 								LimitStrategy: &strategyType,

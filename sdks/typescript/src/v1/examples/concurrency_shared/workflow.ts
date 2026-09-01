@@ -28,6 +28,7 @@ export type WorkflowOutput = {
 // upserts the strategy before registering the workflows that reference it.
 export const sharedLimit: SharedConcurrency = {
   name: 'ts-example-shared-limit',
+  tenantScoped: true,
   expression: 'input.group',
   maxRuns: 1,
   limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,

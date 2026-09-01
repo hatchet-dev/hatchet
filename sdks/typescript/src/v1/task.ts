@@ -13,14 +13,14 @@ export { ConcurrencyLimitStrategy, WorkerLabelComparator };
  */
 export type Concurrency = {
   /**
-   * required (unless name is set): the CEL expression to use for concurrency
+   * required: the CEL expression to use for concurrency
    *
    * @example
    * ```
    * "input.key" // use the value of the key in the input
    * ```
    */
-  expression?: string;
+  expression: string;
 
   /**
    * (optional) the maximum number of concurrent workflow runs
@@ -37,20 +37,28 @@ export type Concurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 
   /**
-   * (optional) marks the entry as a tenant-scoped strategy with this name (unique per
-   * tenant), shared across workflows. With an expression the entry defines (or updates in
-   * place) the strategy as part of registration; with an empty expression it references a
-   * strategy defined elsewhere. The position in the concurrency list is the chain order.
+   * (required when tenantScoped) the strategy name; unique per tenant for tenant-scoped
+   * strategies
    */
   name?: string;
+
+  /**
+   * (optional) when true, the entry defines (or updates in place) a tenant-scoped strategy
+   * shared across workflows, keyed by name: every task declaring the same name consumes
+   * the same concurrency limit. The position in the concurrency list is the chain order,
+   * and chains sharing tenant-scoped strategies must order them consistently.
+   */
+  tenantScoped?: boolean;
 };
 
 /**
- * A tenant-scoped concurrency strategy: a `Concurrency` entry with a required name. Every
- * task referencing the same name consumes the same concurrency limit, across workflows.
+ * A tenant-scoped concurrency strategy: a `Concurrency` entry with a required name and
+ * tenantScoped set. Every task declaring the same name consumes the same concurrency
+ * limit, across workflows.
  */
 export type SharedConcurrency = Concurrency & {
   name: string;
+  tenantScoped: true;
 };
 
 /**

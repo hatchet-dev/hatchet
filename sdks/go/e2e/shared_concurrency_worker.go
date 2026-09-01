@@ -44,14 +44,15 @@ func sharedConcTaskFn(d time.Duration) func(ctx hatchet.Context, input SharedCon
 	}
 }
 
-// sharedConcLimit is the tenant-scoped strategy definition: a named Concurrency entry
-// carrying an expression, upserted server-side as part of workflow registration.
+// sharedConcLimit is the tenant-scoped strategy definition: every declaring task carries
+// the full definition, and registration upserts it in place.
 func sharedConcLimit() *types.Concurrency {
 	maxRuns := int32(1)
 	strategy := types.GroupRoundRobin
 
 	return &types.Concurrency{
 		Name:          sharedConcurrencyStrategyName,
+		TenantScoped:  true,
 		Expression:    "input.group",
 		MaxRuns:       &maxRuns,
 		LimitStrategy: &strategy,
@@ -59,16 +60,15 @@ func sharedConcLimit() *types.Concurrency {
 }
 
 func registerSharedConcurrencyWorkflows(client *hatchet.Client) {
-	// workflow A carries the full definition, so registering it upserts the strategy
 	testSharedConcA = client.NewWorkflow("shared-conc-a")
 	testSharedConcA.NewTask("shared-conc-a-task", sharedConcTaskFn(1500*time.Millisecond),
 		hatchet.WithConcurrency(sharedConcLimit()),
 	)
 
-	// workflow B references the strategy by name only
+	// workflow B declares the same definition; the upsert is idempotent
 	testSharedConcB = client.NewWorkflow("shared-conc-b")
 	testSharedConcB.NewTask("shared-conc-b-task", sharedConcTaskFn(1500*time.Millisecond),
-		hatchet.WithConcurrency(&types.Concurrency{Name: sharedConcurrencyStrategyName}),
+		hatchet.WithConcurrency(sharedConcLimit()),
 	)
 
 	// the mixed task chains a workflow-scoped entry before the tenant-scoped one; the

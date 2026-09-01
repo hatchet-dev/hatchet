@@ -1486,3 +1486,43 @@ SET
 WHERE
     tenant_id = @tenantId::uuid AND
     id = @strategyId::bigint;
+
+-- name: ListTenantConcurrencyOrderings :many
+-- Per-step ordered chains of tenant-scoped strategies, for steps belonging to each
+-- workflow's latest (non-deleted) version, excluding one workflow (the one being
+-- re-registered). Creation order (ascending row id) encodes the declared chain order.
+WITH latest_versions AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId",
+        wv."id"
+    FROM "WorkflowVersion" wv
+    WHERE
+        wv."deletedAt" IS NULL
+        AND wv."workflowId" != @excludeWorkflowId::uuid
+        AND wv."workflowId" IN (
+            SELECT DISTINCT sc.workflow_id
+            FROM v1_step_concurrency sc
+            WHERE sc.tenant_id = @tenantId::uuid AND sc.tenant_strategy_id IS NOT NULL
+        )
+    ORDER BY wv."workflowId", wv."order" DESC
+)
+SELECT
+    sc.workflow_id,
+    sc.step_id,
+    array_agg(sc.tenant_strategy_id ORDER BY sc.id)::bigint[] AS strategy_ids
+FROM v1_step_concurrency sc
+JOIN latest_versions lv ON lv."id" = sc.workflow_version_id
+WHERE
+    sc.tenant_id = @tenantId::uuid
+    AND sc.tenant_strategy_id IS NOT NULL
+GROUP BY sc.workflow_id, sc.step_id
+HAVING COUNT(*) > 1;
+
+-- name: GetTenantConcurrencyStrategiesByIds :many
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    id = ANY(@ids::bigint[]);

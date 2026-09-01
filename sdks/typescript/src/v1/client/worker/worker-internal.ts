@@ -1380,10 +1380,11 @@ function batchOf(
 // declared order, which is the chain order.
 export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
   return entries.map((c) => ({
-    expression: c.expression ?? '',
+    expression: c.expression,
     maxRuns: c.maxRuns,
     limitStrategy: c.limitStrategy,
     name: c.name,
+    tenantScoped: c.tenantScoped,
   }));
 }
 

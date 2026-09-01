@@ -156,15 +156,16 @@ enum ConcurrencyLimitStrategy {
 // Concurrency declares one entry in a concurrency chain. Entries are processed in array
 // order, so a tenant-scoped entry may come before or after a workflow-scoped one.
 //
-// When name is unset, the entry is scoped to this workflow. When name is set, the entry is
-// a tenant-scoped strategy shared across workflows: with an expression it defines (or
-// updates in place) the strategy as part of this registration, and with no expression it
-// references a strategy defined elsewhere.
+// A tenant-scoped entry (tenant_scoped = true) defines (or updates in place) a strategy
+// shared across workflows, keyed by name: every task declaring the same name consumes the
+// same concurrency limit. Registrations whose chains order the same tenant-scoped
+// strategies inconsistently are rejected, since inconsistent orders can deadlock.
 message Concurrency {
-    string expression = 1; // (required unless name is set) the expression to use for concurrency
+    string expression = 1; // (required) the expression to use for concurrency
     optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
     optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-    optional string name = 4; // (optional) marks the entry as a tenant-scoped strategy with this name, unique per tenant
+    optional string name = 4; // (required when tenant_scoped) the strategy name; unique per tenant for tenant-scoped strategies
+    optional bool tenant_scoped = 5; // (optional) when true, the entry is a tenant-scoped strategy shared across workflows, default false
 }
 
 

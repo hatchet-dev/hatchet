@@ -84,18 +84,21 @@ type CreateConcurrencyOpts struct {
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
 
-	// (required unless Name is set) a concurrency expression for evaluating the concurrency key
-	Expression string `json:"expression" validate:"omitempty,celworkflowrunstr"`
+	// (required) a concurrency expression for evaluating the concurrency key
+	Expression string `json:"expression" validate:"celworkflowrunstr"`
 
-	// (optional) marks the entry as a tenant-scoped strategy with this name (unique per
-	// tenant), shared across workflows. With an Expression the entry defines or updates
-	// the strategy in place; without one it references a strategy defined elsewhere.
+	// (required when TenantScoped) the strategy name; unique per tenant for tenant-scoped
+	// strategies
 	Name string `json:"name,omitempty" validate:"omitempty,hatchetName"`
+
+	// (optional) when true, the entry defines (or updates in place) a tenant-scoped
+	// strategy shared across workflows, keyed by Name
+	TenantScoped bool `json:"tenantScoped,omitempty"`
 }
 
-// IsTenantScoped reports whether the entry declares or references a tenant-scoped strategy.
+// IsTenantScoped reports whether the entry declares a tenant-scoped strategy.
 func (c *CreateConcurrencyOpts) IsTenantScoped() bool {
-	return c.Name != ""
+	return c.TenantScoped
 }
 
 type CreateStepOpts struct {
@@ -329,6 +332,10 @@ func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenant
 }
 
 func (r *workflowRepository) upsertTenantConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
+	if opts.Name == "" {
+		return nil, fmt.Errorf("tenant-scoped concurrency entries require a name")
+	}
+
 	var maxRuns int32 = 1
 
 	if opts.MaxRuns != nil {
@@ -361,7 +368,7 @@ func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConc
 		for i := range entries {
 			entry := &entries[i]
 
-			if !entry.IsTenantScoped() || entry.Expression == "" {
+			if !entry.IsTenantScoped() {
 				continue
 			}
 
@@ -393,9 +400,8 @@ func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConc
 }
 
 // getTenantStrategiesForEntries resolves the tenant-scoped entries of one step's
-// concurrency list to their strategy rows, erroring loudly on names that were never
-// defined (a definition may ride on this registration or any earlier one) and on
-// duplicate references, which would collide in the task's slot chain.
+// concurrency list to their strategy rows (upserted earlier in this transaction),
+// erroring on duplicate references, which would collide in the task's slot chain.
 func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, stepReadableId string, entries []CreateConcurrencyOpts) (map[string]*sqlcv1.V1TenantConcurrency, error) {
 	names := make([]string, 0)
 	seen := make(map[string]bool)
@@ -441,10 +447,188 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 	}
 
 	if len(missingNames) > 0 {
-		return nil, fmt.Errorf("unknown tenant-scoped concurrency strategies: %s (step %s); declare them with an expression on some workflow first", strings.Join(missingNames, ", "), stepReadableId)
+		return nil, fmt.Errorf("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
 	}
 
 	return strategiesByName, nil
+}
+
+// checkTenantConcurrencyOrdering rejects registrations whose chains order tenant-scoped
+// strategies inconsistently, either within this registration or against other workflows'
+// latest versions. Tasks hold earlier slots in their chain while queued on later ones, so
+// a cycle in the combined ordering can deadlock until scheduling timeouts fire. Chains do
+// not have to be identical; they only must not order the same strategies differently
+// (checked as a cycle in the combined precedence graph, which also catches cycles spread
+// across more than two chains).
+func (r *workflowRepository) checkTenantConcurrencyOrdering(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts) error {
+	type chain struct {
+		label string
+		names []string
+	}
+
+	chains := make([]chain, 0)
+	allNames := make(map[string]bool)
+
+	collect := func(label string, entries []CreateConcurrencyOpts) {
+		names := make([]string, 0)
+
+		for _, entry := range entries {
+			if entry.IsTenantScoped() {
+				names = append(names, entry.Name)
+				allNames[entry.Name] = true
+			}
+		}
+
+		if len(names) >= 2 {
+			chains = append(chains, chain{label: label, names: names})
+		}
+	}
+
+	for i := range opts.Tasks {
+		collect(fmt.Sprintf("task %s", opts.Tasks[i].ReadableId), opts.Tasks[i].Concurrency)
+	}
+
+	if opts.OnFailure != nil {
+		collect(fmt.Sprintf("task %s", opts.OnFailure.ReadableId), opts.OnFailure.Concurrency)
+	}
+
+	// a single tenant-scoped entry per chain imposes no ordering, and existing chains are
+	// mutually consistent by induction, so there is nothing to check
+	if len(chains) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(allNames))
+
+	for name := range allNames {
+		names = append(names, name)
+	}
+
+	strategies, err := r.queries.GetTenantConcurrencyStrategiesByNames(ctx, tx, sqlcv1.GetTenantConcurrencyStrategiesByNamesParams{
+		Tenantid: tenantId,
+		Names:    names,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	idsByName := make(map[string]int64, len(strategies))
+	namesById := make(map[int64]string, len(strategies))
+
+	for _, strategy := range strategies {
+		idsByName[strategy.Name] = strategy.ID
+		namesById[strategy.ID] = strategy.Name
+	}
+
+	// edges[a][b] holds the label of a chain ordering a before b
+	edges := make(map[int64]map[int64]string)
+
+	addChain := func(label string, ids []int64) {
+		for i := 0; i < len(ids); i++ {
+			for j := i + 1; j < len(ids); j++ {
+				if edges[ids[i]] == nil {
+					edges[ids[i]] = make(map[int64]string)
+				}
+
+				if _, ok := edges[ids[i]][ids[j]]; !ok {
+					edges[ids[i]][ids[j]] = label
+				}
+			}
+		}
+	}
+
+	for _, c := range chains {
+		ids := make([]int64, len(c.names))
+
+		for i, name := range c.names {
+			ids[i] = idsByName[name]
+		}
+
+		addChain(fmt.Sprintf("%s of workflow %s", c.label, opts.Name), ids)
+	}
+
+	existing, err := r.queries.ListTenantConcurrencyOrderings(ctx, tx, sqlcv1.ListTenantConcurrencyOrderingsParams{
+		Tenantid:          tenantId,
+		Excludeworkflowid: workflowId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	existingIds := make([]int64, 0)
+
+	for _, row := range existing {
+		addChain(fmt.Sprintf("a step of workflow %s", row.WorkflowID), row.StrategyIds)
+
+		for _, id := range row.StrategyIds {
+			if _, ok := namesById[id]; !ok {
+				existingIds = append(existingIds, id)
+			}
+		}
+	}
+
+	if len(existingIds) > 0 {
+		existingStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, tx, sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
+			Tenantid: tenantId,
+			Ids:      existingIds,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		for _, strategy := range existingStrategies {
+			namesById[strategy.ID] = strategy.Name
+		}
+	}
+
+	// DFS cycle detection over the combined precedence graph
+	const (
+		unvisited = 0
+		inStack   = 1
+		done      = 2
+	)
+
+	state := make(map[int64]int)
+
+	var cycleFrom, cycleTo int64
+
+	var visit func(id int64) bool
+	visit = func(id int64) bool {
+		state[id] = inStack
+
+		for next := range edges[id] {
+			switch state[next] {
+			case inStack:
+				cycleFrom, cycleTo = id, next
+				return true
+			case unvisited:
+				if visit(next) {
+					return true
+				}
+			}
+		}
+
+		state[id] = done
+
+		return false
+	}
+
+	for id := range edges {
+		if state[id] == unvisited && visit(id) {
+			label := edges[cycleFrom][cycleTo]
+
+			return fmt.Errorf(
+				"tenant-scoped concurrency strategies %s and %s are ordered inconsistently across concurrency chains (%s orders %s before %s, which conflicts with the ordering elsewhere); chains sharing tenant-scoped strategies must order them consistently to avoid deadlocks",
+				namesById[cycleFrom], namesById[cycleTo],
+				label, namesById[cycleFrom], namesById[cycleTo],
+			)
+		}
+	}
+
+	return nil
 }
 
 type JobRunHasCycleError struct {
@@ -669,6 +853,10 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		if entry.IsTenantScoped() {
 			return nil, fmt.Errorf("tenant-scoped concurrency (name %s) is not supported at the workflow level unless the workflow is a single task or uses the DAG operator", entry.Name)
 		}
+	}
+
+	if err := r.checkTenantConcurrencyOrdering(ctx, tx, tenantId, workflowId, opts); err != nil {
+		return nil, err
 	}
 
 	cs, modifiedOpts, err := checksumV1(opts)

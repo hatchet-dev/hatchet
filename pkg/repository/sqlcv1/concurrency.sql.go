@@ -273,6 +273,50 @@ func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg G
 	return &i, err
 }
 
+const getTenantConcurrencyStrategiesByIds = `-- name: GetTenantConcurrencyStrategiesByIds :many
+SELECT
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    id = ANY($2::bigint[])
+`
+
+type GetTenantConcurrencyStrategiesByIdsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Ids      []int64   `json:"ids"`
+}
+
+func (q *Queries) GetTenantConcurrencyStrategiesByIds(ctx context.Context, db DBTX, arg GetTenantConcurrencyStrategiesByIdsParams) ([]*V1TenantConcurrency, error) {
+	rows, err := db.Query(ctx, getTenantConcurrencyStrategiesByIds, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TenantConcurrency
+	for rows.Next() {
+		var i V1TenantConcurrency
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.IsActive,
+			&i.LastActiveAt,
+			&i.Strategy,
+			&i.Expression,
+			&i.MaxConcurrency,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTenantConcurrencyStrategiesByNames = `-- name: GetTenantConcurrencyStrategiesByNames :many
 SELECT
     id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
@@ -672,6 +716,69 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.TenantStrategyID,
 			&i.StepReadableID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantConcurrencyOrderings = `-- name: ListTenantConcurrencyOrderings :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId",
+        wv."id"
+    FROM "WorkflowVersion" wv
+    WHERE
+        wv."deletedAt" IS NULL
+        AND wv."workflowId" != $2::uuid
+        AND wv."workflowId" IN (
+            SELECT DISTINCT sc.workflow_id
+            FROM v1_step_concurrency sc
+            WHERE sc.tenant_id = $1::uuid AND sc.tenant_strategy_id IS NOT NULL
+        )
+    ORDER BY wv."workflowId", wv."order" DESC
+)
+SELECT
+    sc.workflow_id,
+    sc.step_id,
+    array_agg(sc.tenant_strategy_id ORDER BY sc.id)::bigint[] AS strategy_ids
+FROM v1_step_concurrency sc
+JOIN latest_versions lv ON lv."id" = sc.workflow_version_id
+WHERE
+    sc.tenant_id = $1::uuid
+    AND sc.tenant_strategy_id IS NOT NULL
+GROUP BY sc.workflow_id, sc.step_id
+HAVING COUNT(*) > 1
+`
+
+type ListTenantConcurrencyOrderingsParams struct {
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Excludeworkflowid uuid.UUID `json:"excludeworkflowid"`
+}
+
+type ListTenantConcurrencyOrderingsRow struct {
+	WorkflowID  uuid.UUID `json:"workflow_id"`
+	StepID      uuid.UUID `json:"step_id"`
+	StrategyIds []int64   `json:"strategy_ids"`
+}
+
+// Per-step ordered chains of tenant-scoped strategies, for steps belonging to each
+// workflow's latest (non-deleted) version, excluding one workflow (the one being
+// re-registered). Creation order (ascending row id) encodes the declared chain order.
+func (q *Queries) ListTenantConcurrencyOrderings(ctx context.Context, db DBTX, arg ListTenantConcurrencyOrderingsParams) ([]*ListTenantConcurrencyOrderingsRow, error) {
+	rows, err := db.Query(ctx, listTenantConcurrencyOrderings, arg.Tenantid, arg.Excludeworkflowid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTenantConcurrencyOrderingsRow
+	for rows.Next() {
+		var i ListTenantConcurrencyOrderingsRow
+		if err := rows.Scan(&i.WorkflowID, &i.StepID, &i.StrategyIds); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

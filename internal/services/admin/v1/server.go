@@ -1039,10 +1039,19 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	}
 
 	for _, c := range req.ConcurrencyArr {
-		if c.Expression == "" && c.Name == nil {
+		if c.Expression == "" {
 			return nil, status.Error(
 				codes.InvalidArgument,
 				"CEL expression is required for concurrency",
+			)
+		}
+
+		tenantScoped := c.TenantScoped != nil && *c.TenantScoped
+
+		if tenantScoped && (c.Name == nil || *c.Name == "") {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"a name is required for tenant-scoped concurrency",
 			)
 		}
 
@@ -1064,6 +1073,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			Expression:    c.Expression,
 			MaxRuns:       c.MaxRuns,
 			Name:          name,
+			TenantScoped:  tenantScoped,
 		})
 	}
 
@@ -1368,10 +1378,19 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					continue
 				}
 
-				if concurrency.Expression == "" && concurrency.Name == nil {
+				if concurrency.Expression == "" {
 					return nil, status.Error(
 						codes.InvalidArgument,
 						fmt.Sprintf("CEL expression is required for concurrency (step %s)", stepCp.ReadableId),
+					)
+				}
+
+				tenantScoped := concurrency.TenantScoped != nil && *concurrency.TenantScoped
+
+				if tenantScoped && (concurrency.Name == nil || *concurrency.Name == "") {
+					return nil, status.Error(
+						codes.InvalidArgument,
+						fmt.Sprintf("a name is required for tenant-scoped concurrency (step %s)", stepCp.ReadableId),
 					)
 				}
 
@@ -1393,6 +1412,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					MaxRuns:       concurrency.MaxRuns,
 					LimitStrategy: limitStrategy,
 					Name:          name,
+					TenantScoped:  tenantScoped,
 				})
 			}
 		}
