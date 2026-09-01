@@ -43,9 +43,8 @@ func (t *TenantService) TenantOidcGroupMappingCreate(ctx echo.Context, request g
 	t.config.Analytics.Enqueue(ctx.Request().Context(), analytics.OIDCGroupMapping, analytics.Create, mapping.ID.String(), map[string]interface{}{
 		"role": role,
 	})
-	mappingID := mapping.ID
 	return gen.TenantOidcGroupMappingCreate200JSONResponse{
-		Id: &mappingID, Group: mapping.Group, Role: gen.TenantMemberRole(mapping.Role),
+		Id: mapping.ID, Group: mapping.Group, Role: gen.OIDCGroupMappingRole(mapping.Role),
 	}, nil
 }
 

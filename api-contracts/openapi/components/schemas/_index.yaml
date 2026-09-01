@@ -38,6 +38,8 @@ TenantEnvironment:
   $ref: "./tenant.yaml#/TenantEnvironment"
 TenantMemberRole:
   $ref: "./tenant.yaml#/TenantMemberRole"
+OIDCGroupMappingRole:
+  $ref: "./tenant.yaml#/OIDCGroupMappingRole"
 TenantResource:
   $ref: "./tenant.yaml#/TenantResource"
 TenantResourceLimit:

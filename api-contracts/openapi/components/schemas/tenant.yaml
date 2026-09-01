@@ -239,11 +239,15 @@ OIDCGroupMapping:
     id:
       type: string
       format: uuid
+      description: The persistent mapping identifier.
     group:
       type: string
+      description: The exact OIDC group name returned by the identity provider.
     role:
-      $ref: "#/TenantMemberRole"
+      $ref: "#/OIDCGroupMappingRole"
+      description: The tenant role granted to members of the OIDC group.
   required:
+    - id
     - group
     - role
   type: object
@@ -254,16 +258,26 @@ CreateOIDCGroupMappingRequest:
       type: string
       minLength: 1
       maxLength: 255
+      description: The exact OIDC group name returned by the identity provider.
       x-oapi-codegen-extra-tags:
         validate: "required,max=255"
     role:
-      $ref: "#/TenantMemberRole"
+      $ref: "#/OIDCGroupMappingRole"
+      description: The tenant role granted to members of the OIDC group.
       x-oapi-codegen-extra-tags:
         validate: "required,oneof=ADMIN MEMBER VIEWER"
   required:
     - group
     - role
   type: object
+
+OIDCGroupMappingRole:
+  enum:
+    - "ADMIN"
+    - "MEMBER"
+    - "VIEWER"
+  type: string
+  x-go-type: TenantMemberRole
 
 TenantMemberRole:
   enum:

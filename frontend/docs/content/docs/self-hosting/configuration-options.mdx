@@ -137,6 +137,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_ALLOW_SIGNUP`                          | Allow new tenant signups                                                                      | `true`                  |
 | `SERVER_ALLOW_INVITES`                         | Allow new invites                                                                             | `true`                  |
 | `SERVER_ALLOW_CREATE_TENANT`                   | Allow tenant creation                                                                         | `true`                  |
+| `SERVER_CREATE_TENANT_REQUIRES_GLOBAL_ADMIN`   | Restrict tenant creation to users with a global OIDC `OWNER` or `ADMIN` mapping               | `false`                 |
 | `SERVER_ALLOW_CHANGE_PASSWORD`                 | Allow password changes                                                                        | `true`                  |
 | `SERVER_HEALTHCHECK`                           | Enable healthcheck endpoint                                                                   | `true`                  |
 | `SERVER_HEALTHCHECK_PORT`                      | Healthcheck port                                                                              | `8733`                  |
@@ -278,30 +279,43 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Authentication Configuration
 
-| Variable                               | Description                                                 | Default Value                    |
-| -------------------------------------- | ----------------------------------------------------------- | -------------------------------- |
-| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS` | Restricted email domains                                    |                                  |
-| `SERVER_AUTH_BASIC_AUTH_ENABLED`       | Whether basic auth is enabled                               | `true`                           |
-| `SERVER_AUTH_SET_EMAIL_VERIFIED`       | Whether the user's email is set to verified automatically   | `false`                          |
-| `SERVER_AUTH_COOKIE_NAME`              | Name of the cookie                                          | `hatchet`                        |
-| `SERVER_AUTH_COOKIE_DOMAIN`            | Domain for the cookie                                       |                                  |
-| `SERVER_AUTH_COOKIE_SECRETS`           | Cookie secrets                                              |                                  |
-| `SERVER_AUTH_COOKIE_INSECURE`          | Whether the cookie is insecure                              | `false`                          |
-| `SERVER_AUTH_GOOGLE_ENABLED`           | Whether Google auth is enabled                              | `false`                          |
-| `SERVER_AUTH_GOOGLE_CLIENT_ID` ⚠️      | Google auth client ID (required if Google auth enabled)     |                                  |
-| `SERVER_AUTH_GOOGLE_CLIENT_SECRET` ⚠️  | Google auth client secret (required if Google auth enabled) |                                  |
-| `SERVER_AUTH_GOOGLE_SCOPES`            | Google auth scopes                                          | `["openid", "profile", "email"]` |
-| `SERVER_AUTH_GITHUB_ENABLED`           | Whether GitHub auth is enabled                              | `false`                          |
-| `SERVER_AUTH_GITHUB_CLIENT_ID` ⚠️      | GitHub auth client ID (required if GitHub auth enabled)     |                                  |
-| `SERVER_AUTH_GITHUB_CLIENT_SECRET` ⚠️  | GitHub auth client secret (required if GitHub auth enabled) |                                  |
-| `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                          | `["read:user", "user:email"]`    |
-| `SERVER_AUTH_OIDC_ENABLED`             | Whether generic OIDC auth is enabled                        | `false`                          |
-| `SERVER_AUTH_OIDC_CLIENT_ID` ⚠️        | OIDC client ID (required if OIDC auth enabled)              |                                  |
-| `SERVER_AUTH_OIDC_CLIENT_SECRET` ⚠️    | OIDC client secret (required if OIDC auth enabled)          |                                  |
-| `SERVER_AUTH_OIDC_ISSUER_URL` ⚠️       | OIDC issuer URL used for discovery (required if OIDC auth enabled) |                            |
-| `SERVER_AUTH_OIDC_SCOPES`              | OIDC auth scopes                                            | `["openid", "profile", "email"]` |
+| Variable                               | Description                                                        | Default Value                              |
+| -------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS` | Restricted email domains                                           |                                            |
+| `SERVER_AUTH_BASIC_AUTH_ENABLED`       | Whether basic auth is enabled                                      | `true`                                     |
+| `SERVER_AUTH_SET_EMAIL_VERIFIED`       | Whether the user's email is set to verified automatically          | `false`                                    |
+| `SERVER_AUTH_COOKIE_NAME`              | Name of the cookie                                                 | `hatchet`                                  |
+| `SERVER_AUTH_COOKIE_DOMAIN`            | Domain for the cookie                                              |                                            |
+| `SERVER_AUTH_COOKIE_SECRETS`           | Cookie secrets                                                     |                                            |
+| `SERVER_AUTH_COOKIE_INSECURE`          | Whether the cookie is insecure                                     | `false`                                    |
+| `SERVER_AUTH_GOOGLE_ENABLED`           | Whether Google auth is enabled                                     | `false`                                    |
+| `SERVER_AUTH_GOOGLE_CLIENT_ID` ⚠️      | Google auth client ID (required if Google auth enabled)            |                                            |
+| `SERVER_AUTH_GOOGLE_CLIENT_SECRET` ⚠️  | Google auth client secret (required if Google auth enabled)        |                                            |
+| `SERVER_AUTH_GOOGLE_SCOPES`            | Google auth scopes                                                 | `["openid", "profile", "email"]`           |
+| `SERVER_AUTH_GITHUB_ENABLED`           | Whether GitHub auth is enabled                                     | `false`                                    |
+| `SERVER_AUTH_GITHUB_CLIENT_ID` ⚠️      | GitHub auth client ID (required if GitHub auth enabled)            |                                            |
+| `SERVER_AUTH_GITHUB_CLIENT_SECRET` ⚠️  | GitHub auth client secret (required if GitHub auth enabled)        |                                            |
+| `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                                 | `["read:user", "user:email"]`              |
+| `SERVER_AUTH_OIDC_ENABLED`             | Whether generic OIDC auth is enabled                               | `false`                                    |
+| `SERVER_AUTH_OIDC_CLIENT_ID` ⚠️        | OIDC client ID (required if OIDC auth enabled)                     |                                            |
+| `SERVER_AUTH_OIDC_CLIENT_SECRET` ⚠️    | OIDC client secret (required if OIDC auth enabled)                 |                                            |
+| `SERVER_AUTH_OIDC_ISSUER_URL` ⚠️       | OIDC issuer URL used for discovery (required if OIDC auth enabled) |                                            |
+| `SERVER_AUTH_OIDC_SCOPES`              | OIDC auth scopes                                                   | `["openid", "profile", "email", "groups"]` |
+| `SERVER_AUTH_OIDC_GROUP_MAPPINGS`      | JSON object mapping OIDC groups to global tenant roles             |                                            |
 
 The OIDC provider works with any OIDC-compliant identity provider (Keycloak, Authentik, Dex, Okta, Azure AD, etc.). The issuer URL is the base URL from which the provider's `/.well-known/openid-configuration` is discovered — e.g. `https://auth.example.com/realms/my-realm` for Keycloak. The redirect URI to register with the provider is `${SERVER_URL}/api/v1/users/oidc/callback`.
+
+OIDC group mappings grant access across every non-internal tenant. Configure them as a JSON object whose keys match the provider's group names exactly and whose values are `OWNER`, `ADMIN`, or `VIEWER`:
+
+```bash
+SERVER_AUTH_OIDC_GROUP_MAPPINGS='{"platform-admins":"ADMIN","auditors":"VIEWER"}'
+```
+
+Hatchet always requests the `groups` scope. When group mappings exist, the provider must include a `groups` claim in the ID token or UserInfo response. Memberships are reconciled on each sign-in.
+
+Tenant admins can manage tenant-specific mappings under **Tenant Settings > Members** using the `ADMIN`, `MEMBER`, or `VIEWER` roles. These mappings also apply on the user's next sign-in. A group managed by `SERVER_AUTH_OIDC_GROUP_MAPPINGS` cannot be overridden for an individual tenant.
+
+Set `SERVER_CREATE_TENANT_REQUIRES_GLOBAL_ADMIN=true` to allow tenant creation only for users whose global mapping is `OWNER` or `ADMIN`. `SERVER_ALLOW_CREATE_TENANT=false` disables tenant creation for everyone regardless of group membership.
 
 ## Task Queue Configuration
 

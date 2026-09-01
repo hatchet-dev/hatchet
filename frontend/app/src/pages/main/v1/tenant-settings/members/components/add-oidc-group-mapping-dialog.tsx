@@ -36,9 +36,7 @@ export function AddOIDCGroupMappingDialog({
   const { handleApiError } = useApiError({});
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState('');
-  const [role, setRole] = useState<TenantMemberRole>(
-    TenantMemberRole.MEMBER,
-  );
+  const [role, setRole] = useState<TenantMemberRole>(TenantMemberRole.MEMBER);
   const createMapping = useMutation({
     ...tenantOIDCGroupMappingCreateMutation(tenantId),
     onSuccess: async () => {
@@ -85,8 +83,8 @@ export function AddOIDCGroupMappingDialog({
           <DialogHeader>
             <DialogTitle>Add OIDC group</DialogTitle>
             <DialogDescription>
-              Grant an identity provider group access to this tenant on the
-              next sign-in.
+              Grant an identity provider group access to this tenant on the next
+              sign-in.
             </DialogDescription>
           </DialogHeader>
           <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -106,9 +104,7 @@ export function AddOIDCGroupMappingDialog({
               <Label htmlFor="oidc-role">Tenant role</Label>
               <Select
                 value={role}
-                onValueChange={(value) =>
-                  setRole(value as TenantMemberRole)
-                }
+                onValueChange={(value) => setRole(value as TenantMemberRole)}
                 disabled={createMapping.isPending}
               >
                 <SelectTrigger id="oidc-role">

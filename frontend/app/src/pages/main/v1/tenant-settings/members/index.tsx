@@ -79,70 +79,70 @@ export default function Members() {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {oidcEnabled && (
           <section className="mb-8 space-y-2">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-semibold">OIDC groups</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Groups that grant access to this tenant on the next sign-in.
-                  </p>
-                </div>
-                {canManageTenantMembers && !isControlPlaneEnabled && (
-                  <AddOIDCGroupMappingDialog
-                    tenantId={tenantId}
-                    onCreated={() => membersQuery.refetch()}
-                  />
-                )}
-              </div>
-              <Separator />
-              {oidcGroupMappings.length > 0 ? (
-                <SimpleTable
-                  data={oidcGroupMappings}
-                  columns={[
-                    {
-                      columnLabel: 'Group',
-                      cellRenderer: (mapping) => (
-                        <span className="font-medium">{mapping.group}</span>
-                      ),
-                    },
-                    {
-                      columnLabel: 'Tenant role',
-                      cellRenderer: (mapping) => (
-                        <RoleBadge role={mapping.role} />
-                      ),
-                    },
-                    {
-                      columnLabel: 'Actions',
-                      cellRenderer: (mapping) =>
-                        mapping.id && canManageTenantMembers ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            title="Delete OIDC group mapping"
-                            aria-label={`Delete ${mapping.group} mapping`}
-                            disabled={deleteOIDCMapping.isPending}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Delete the OIDC mapping for ${mapping.group}?`,
-                                )
-                              ) {
-                                deleteOIDCMapping.mutate(mapping.id!);
-                              }
-                            }}
-                          >
-                            <TrashIcon className="size-4" />
-                          </Button>
-                        ) : null,
-                    },
-                  ]}
-                  rowKey={(mapping) => `${mapping.group}:${mapping.role}`}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No OIDC group mappings are configured for this tenant.
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold">OIDC groups</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Groups that grant access to this tenant on the next sign-in.
                 </p>
+              </div>
+              {canManageTenantMembers && !isControlPlaneEnabled && (
+                <AddOIDCGroupMappingDialog
+                  tenantId={tenantId}
+                  onCreated={() => membersQuery.refetch()}
+                />
               )}
+            </div>
+            <Separator />
+            {oidcGroupMappings.length > 0 ? (
+              <SimpleTable
+                data={oidcGroupMappings}
+                columns={[
+                  {
+                    columnLabel: 'Group',
+                    cellRenderer: (mapping) => (
+                      <span className="font-medium">{mapping.group}</span>
+                    ),
+                  },
+                  {
+                    columnLabel: 'Tenant role',
+                    cellRenderer: (mapping) => (
+                      <RoleBadge role={mapping.role} />
+                    ),
+                  },
+                  {
+                    columnLabel: 'Actions',
+                    cellRenderer: (mapping) =>
+                      mapping.id && canManageTenantMembers ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Delete OIDC group mapping"
+                          aria-label={`Delete ${mapping.group} mapping`}
+                          disabled={deleteOIDCMapping.isPending}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete the OIDC mapping for ${mapping.group}?`,
+                              )
+                            ) {
+                              deleteOIDCMapping.mutate(mapping.id!);
+                            }
+                          }}
+                        >
+                          <TrashIcon className="size-4" />
+                        </Button>
+                      ) : null,
+                  },
+                ]}
+                rowKey={(mapping) => `${mapping.group}:${mapping.role}`}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No OIDC group mappings are configured for this tenant.
+              </p>
+            )}
           </section>
         )}
 

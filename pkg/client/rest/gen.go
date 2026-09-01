@@ -599,8 +599,9 @@ type CreateEventRequest struct {
 
 // CreateOIDCGroupMappingRequest defines model for CreateOIDCGroupMappingRequest.
 type CreateOIDCGroupMappingRequest struct {
-	Group string           `json:"group" validate:"required,max=255"`
-	Role  TenantMemberRole `json:"role"`
+	// Group The exact OIDC group name returned by the identity provider.
+	Group string               `json:"group" validate:"required,max=255"`
+	Role  OIDCGroupMappingRole `json:"role"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
@@ -811,10 +812,16 @@ type ListSlackWebhooks struct {
 
 // OIDCGroupMapping defines model for OIDCGroupMapping.
 type OIDCGroupMapping struct {
-	Group string              `json:"group"`
-	Id    *openapi_types.UUID `json:"id,omitempty"`
-	Role  TenantMemberRole    `json:"role"`
+	// Group The exact OIDC group name returned by the identity provider.
+	Group string `json:"group"`
+
+	// Id The persistent mapping identifier.
+	Id   openapi_types.UUID   `json:"id"`
+	Role OIDCGroupMappingRole `json:"role"`
 }
+
+// OIDCGroupMappingRole defines model for OIDCGroupMappingRole.
+type OIDCGroupMappingRole = TenantMemberRole
 
 // OtelSpan defines model for OtelSpan.
 type OtelSpan struct {

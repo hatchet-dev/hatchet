@@ -32,9 +32,8 @@ func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMem
 	}
 	oidcMappings := make([]gen.OIDCGroupMapping, 0, len(databaseMappings))
 	for _, mapping := range databaseMappings {
-		mappingID := mapping.ID
 		oidcMappings = append(oidcMappings, gen.OIDCGroupMapping{
-			Id: &mappingID, Group: mapping.Group, Role: gen.TenantMemberRole(mapping.Role),
+			Id: mapping.ID, Group: mapping.Group, Role: gen.OIDCGroupMappingRole(mapping.Role),
 		})
 	}
 	sort.Slice(oidcMappings, func(i, j int) bool {

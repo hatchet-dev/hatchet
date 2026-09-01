@@ -212,6 +212,12 @@ export enum WorkflowRunStatus {
   BACKOFF = "BACKOFF",
 }
 
+export enum OIDCGroupMappingRole {
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
+}
+
 export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -1620,11 +1626,13 @@ export interface RejectInviteRequest {
 
 export interface CreateOIDCGroupMappingRequest {
   /**
+   * The exact OIDC group name returned by the identity provider.
    * @minLength 1
    * @maxLength 255
    */
   group: string;
-  role: TenantMemberRole;
+  /** The tenant role granted to members of the OIDC group. */
+  role: OIDCGroupMappingRole;
 }
 
 export interface CreateTenantRequest {
@@ -1662,10 +1670,15 @@ export interface UpdateTenantRequest {
 }
 
 export interface OIDCGroupMapping {
-  /** @format uuid */
-  id?: string;
+  /**
+   * The persistent mapping identifier.
+   * @format uuid
+   */
+  id: string;
+  /** The exact OIDC group name returned by the identity provider. */
   group: string;
-  role: TenantMemberRole;
+  /** The tenant role granted to members of the OIDC group. */
+  role: OIDCGroupMappingRole;
 }
 
 export interface TenantAlertingSettings {
