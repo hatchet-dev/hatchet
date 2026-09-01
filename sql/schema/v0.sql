@@ -681,8 +681,23 @@ CREATE TABLE "TenantMember" (
     "userId" UUID NOT NULL,
     "role" "TenantMemberRole" NOT NULL,
     "canViewPayloads" BOOLEAN NOT NULL DEFAULT true,
+    "oidcIssuer" TEXT,
 
     CONSTRAINT "TenantMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantOIDCGroupMapping" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "group" TEXT NOT NULL,
+    "role" "TenantMemberRole" NOT NULL,
+
+    CONSTRAINT "TenantOIDCGroupMapping_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "TenantOIDCGroupMapping_group_check" CHECK (length("group") BETWEEN 1 AND 255),
+    CONSTRAINT "TenantOIDCGroupMapping_role_check" CHECK ("role" <> 'OWNER')
 );
 
 -- CreateTable
@@ -1400,6 +1415,10 @@ CREATE UNIQUE INDEX "TenantMember_id_key" ON "TenantMember" ("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember" ("tenantId" ASC, "userId" ASC);
+CREATE INDEX "TenantMember_userId_oidcIssuer_idx" ON "TenantMember" ("userId" ASC, "oidcIssuer" ASC) WHERE "oidcIssuer" IS NOT NULL;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantOIDCGroupMapping_tenantId_group_key" ON "TenantOIDCGroupMapping" ("tenantId" ASC, "group" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit" ("id" ASC);
@@ -1704,6 +1723,9 @@ ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_tenantId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantOIDCGroupMapping" ADD CONSTRAINT "TenantOIDCGroupMapping_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantResourceLimit" ADD CONSTRAINT "TenantResourceLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON DELETE CASCADE ON UPDATE CASCADE;

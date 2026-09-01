@@ -12,7 +12,9 @@ import { useParams } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 export default function RunsPage() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({
+    from: appRoutes.tenantRunsRoute.id,
+  });
   const actions = useOnboardingActions({
     href: docsPages.v1.quickstart.href,
     description: 'Learn about running tasks',

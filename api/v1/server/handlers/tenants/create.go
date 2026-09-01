@@ -2,10 +2,13 @@ package tenants
 
 import (
 	"errors"
+	"strings"
 
+	"github.com/gorilla/sessions"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -21,6 +24,14 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return gen.TenantCreate400JSONResponse(
 			apierrors.NewAPIErrors("tenant signups are disabled"),
 		), nil
+	}
+
+	session, _ := ctx.Get("session").(*sessions.Session)
+	isGlobalAdmin := session != nil && session.Values[authn.OIDCGlobalAdminSessionKey] == true
+	if !tenantCreationAllowed(true, t.config.Runtime.CreateTenantRequiresGlobalAdmin, isGlobalAdmin) {
+		return gen.TenantCreate403JSONResponse{
+			Description: "tenant creation requires global administrator access",
+		}, nil
 	}
 
 	// validate the request
@@ -47,6 +58,20 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	createOpts := &v1.CreateTenantOpts{
 		Slug: request.Body.Slug,
 		Name: request.Body.Name,
+	}
+	if request.Body.OidcGroupMapping != nil {
+		if t.config.Auth.OIDCProvider == nil {
+			return gen.TenantCreate400JSONResponse(apierrors.NewAPIErrors("OIDC authentication is not enabled")), nil
+		}
+		group := strings.TrimSpace(request.Body.OidcGroupMapping.Group)
+		role := string(request.Body.OidcGroupMapping.Role)
+		if group == "" || !isOIDCGroupMappingRole(role) {
+			return gen.TenantCreate400JSONResponse(apierrors.NewAPIErrors("OIDC group and role must be valid")), nil
+		}
+		if hasGlobalConfigMapping(group, t.config.Auth.OIDCGroupMappings) {
+			return gen.TenantCreate400JSONResponse(apierrors.NewAPIErrors("OIDC group is managed by server configuration")), nil
+		}
+		createOpts.OIDCGroupMapping = &v1.UpsertTenantOIDCGroupMappingOpts{Group: group, Role: role}
 	}
 
 	if request.Body.Environment != nil {
@@ -102,12 +127,22 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		analytics.Tenant, analytics.Create,
 		tenantId.String(),
 		map[string]interface{}{
-			"name": tenant.Name,
-			"slug": tenant.Slug,
+			"name":                   tenant.Name,
+			"slug":                   tenant.Slug,
+			"has_oidc_group_mapping": createOpts.OIDCGroupMapping != nil,
 		},
 	)
+	if createOpts.OIDCGroupMapping != nil {
+		t.config.Analytics.Enqueue(ctx.Request().Context(), analytics.OIDCGroupMapping, analytics.Create, tenantId.String(), map[string]interface{}{
+			"role": createOpts.OIDCGroupMapping.Role,
+		})
+	}
 
 	return gen.TenantCreate200JSONResponse(
 		*transformers.ToTenant(tenant, t.config.Runtime.ServerURL),
 	), nil
+}
+
+func tenantCreationAllowed(enabled, requiresGlobalAdmin, isGlobalAdmin bool) bool {
+	return enabled && (!requiresGlobalAdmin || isGlobalAdmin)
 }

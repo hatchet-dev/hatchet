@@ -9,11 +9,12 @@ import (
 type Resource string
 
 const (
-	User     Resource = "user"
-	Invite   Resource = "user-invite"
-	Tenant   Resource = "tenant"
-	Token    Resource = "api-token"
-	Workflow Resource = "workflow"
+	User             Resource = "user"
+	Invite           Resource = "user-invite"
+	Tenant           Resource = "tenant"
+	OIDCGroupMapping Resource = "oidc-group-mapping"
+	Token            Resource = "api-token"
+	Workflow         Resource = "workflow"
 
 	Event       Resource = "event"
 	WorkflowRun Resource = "workflow-run"

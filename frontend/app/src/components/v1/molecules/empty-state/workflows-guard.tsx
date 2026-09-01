@@ -15,7 +15,7 @@ type OnboardingDocs = {
 };
 
 export function useOnboardingActions(docs: OnboardingDocs) {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const { enabled: pylonEnabled, show: showPylon } = usePylon();
 
   return useMemo<EmptyStateAction[]>(
@@ -74,7 +74,7 @@ export function WorkflowsGuard({
   docs,
   children,
 }: WorkflowsGuardProps) {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const actions = useOnboardingActions(docs);
 
   const workflowCountQuery = useQuery(

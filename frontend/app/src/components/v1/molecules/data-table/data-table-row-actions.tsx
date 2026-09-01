@@ -43,7 +43,7 @@ export function TableRowActions<T>({ row, actions }: TableRowActionsProps<T>) {
         {actions?.map((action) => (
           <TooltipProvider key={action.label}>
             <Tooltip>
-              <TooltipTrigger className="w-full">
+              <TooltipTrigger className="w-full text-left">
                 <DropdownMenuItem
                   onClick={() => action.onClick(row)}
                   disabled={!!action.disabled}

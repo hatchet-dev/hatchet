@@ -9,8 +9,10 @@ import useControlPlane from '@/hooks/use-control-plane';
 import api, { Tenant } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { CreateOIDCGroupMappingRequest } from '@/lib/api/generated/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -44,11 +46,13 @@ const useSaveTenant = ({
       organizationId,
       region,
       tags,
+      oidcGroupMapping,
     }: {
       tenantName: string;
       organizationId?: string;
       region?: string;
       tags?: string[];
+      oidcGroupMapping?: CreateOIDCGroupMappingRequest;
     }) => {
       const slug = generateTenantSlug(tenantName);
       if (isControlPlaneEnabled) {
@@ -71,6 +75,7 @@ const useSaveTenant = ({
         const { data: tenant } = await api.tenantCreate({
           name: tenantName,
           slug,
+          ...(oidcGroupMapping ? { oidcGroupMapping } : {}),
         });
         return { type: 'regular' as const, tenant };
       }
@@ -101,6 +106,8 @@ export function NewTenantSaverForm({
 }: NewTenantSaverFormProps) {
   const { organizations, isLoaded: isUserUniverseLoaded } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
+  const { meta } = useApiMeta();
+  const oidcEnabled = meta?.auth?.schemes?.includes('oidc') ?? false;
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(
     defaultOrganizationId,
   );
@@ -131,6 +138,7 @@ export function NewTenantSaverForm({
         defaultTenantName={defaultTenantName}
         isSaving={saveTenantMutation.isPending}
         isControlPlaneEnabled={false}
+        showOIDCGroupMapping={oidcEnabled}
         onSubmit={saveTenantMutation.mutate}
       />
     );

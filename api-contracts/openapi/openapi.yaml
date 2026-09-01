@@ -151,6 +151,10 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/tenants"
   /api/v1/tenants/{tenant}:
     $ref: "./paths/tenant/tenant.yaml#/updateTenants"
+  /api/v1/tenants/{tenant}/oidc-group-mappings:
+    $ref: "./paths/tenant/tenant.yaml#/tenantOIDCGroupMappings"
+  /api/v1/tenants/{tenant}/oidc-group-mappings/{mapping}:
+    $ref: "./paths/tenant/tenant.yaml#/tenantOIDCGroupMapping"
   /api/v1/tenants/{tenant}/alerting/settings:
     $ref: "./paths/tenant/tenant.yaml#/tenantAlertingSettings"
   /api/v1/tenants/{tenant}/invites:

@@ -59,7 +59,7 @@ import invariant from 'tiny-invariant';
 export default function Integrations() {
   const { isControlPlaneEnabled } = useControlPlane();
   const integrations = useApiMetaIntegrations();
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.id });
 
   const listManagedWorkersQuery = useQuery({
     ...queries.cloud.listManagedWorkers(tenant),

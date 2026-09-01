@@ -31,7 +31,7 @@ function SectionHeader({
 }
 
 export function PrometheusMetricsSettings() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
   const { organizationId } = useTenantDetails();
   const orgApi = useOrganizationApi();

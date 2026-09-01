@@ -5,7 +5,7 @@ import { useParams } from '@tanstack/react-router';
 
 export default function ResourceLimits() {
   const { tenant } = useParams({
-    from: appRoutes.tenantSettingsResourceLimitsRoute.to,
+    from: appRoutes.tenantSettingsResourceLimitsRoute.id,
   });
 
   return (

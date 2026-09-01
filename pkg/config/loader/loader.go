@@ -4,6 +4,7 @@ package loader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -731,6 +732,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return nil, nil, fmt.Errorf("oidc issuer url is required")
 		}
 
+		if cf.Auth.OIDC.GroupMappings != "" {
+			mappings, err := parseOIDCGroupMappings(cf.Auth.OIDC.GroupMappings)
+			if err != nil {
+				return nil, nil, err
+			}
+			auth.OIDCGroupMappings = mappings
+		}
+
 		// Ensure "openid" scope is always present, since we rely on the ID token.
 		hasOpenID := false
 		for _, s := range cf.Auth.OIDC.Scopes {
@@ -742,6 +751,17 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		if !hasOpenID {
 			cf.Auth.OIDC.Scopes = append([]string{"openid"}, cf.Auth.OIDC.Scopes...)
+		}
+
+		hasGroups := false
+		for _, scope := range cf.Auth.OIDC.Scopes {
+			if scope == "groups" {
+				hasGroups = true
+				break
+			}
+		}
+		if !hasGroups {
+			cf.Auth.OIDC.Scopes = append(cf.Auth.OIDC.Scopes, "groups")
 		}
 
 		discoveryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1011,6 +1031,26 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
 		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
+}
+
+func parseOIDCGroupMappings(raw string) (map[string]string, error) {
+	var result map[string]string
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return nil, fmt.Errorf("invalid oidc group mappings: %w", err)
+	}
+
+	for group, role := range result {
+		if strings.TrimSpace(group) == "" {
+			return nil, fmt.Errorf("oidc group mappings must use non-empty groups")
+		}
+		switch role {
+		case "OWNER", "ADMIN", "VIEWER":
+		default:
+			return nil, fmt.Errorf("invalid global role %q for oidc group %q", role, group)
+		}
+	}
+
+	return result, nil
 }
 
 // createPubSubV1 constructs the best-effort pub/sub with strictly disjoint

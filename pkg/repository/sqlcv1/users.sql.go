@@ -262,6 +262,64 @@ func (q *Queries) GetUserByID(ctx context.Context, db DBTX, id uuid.UUID) (*User
 	return &i, err
 }
 
+const getUserOAuth = `-- name: GetUserOAuth :one
+SELECT id, "createdAt", "updatedAt", "userId", provider, "providerUserId", "expiresAt", "accessToken", "refreshToken"
+FROM "UserOAuth"
+WHERE "userId" = $1::uuid
+    AND "provider" = $2::text
+`
+
+type GetUserOAuthParams struct {
+	Userid   uuid.UUID `json:"userid"`
+	Provider string    `json:"provider"`
+}
+
+func (q *Queries) GetUserOAuth(ctx context.Context, db DBTX, arg GetUserOAuthParams) (*UserOAuth, error) {
+	row := db.QueryRow(ctx, getUserOAuth, arg.Userid, arg.Provider)
+	var i UserOAuth
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserId,
+		&i.Provider,
+		&i.ProviderUserId,
+		&i.ExpiresAt,
+		&i.AccessToken,
+		&i.RefreshToken,
+	)
+	return &i, err
+}
+
+const getUserOAuthByProviderUserID = `-- name: GetUserOAuthByProviderUserID :one
+SELECT id, "createdAt", "updatedAt", "userId", provider, "providerUserId", "expiresAt", "accessToken", "refreshToken"
+FROM "UserOAuth"
+WHERE "provider" = $1::text
+    AND "providerUserId" = $2::text
+`
+
+type GetUserOAuthByProviderUserIDParams struct {
+	Provider       string `json:"provider"`
+	Provideruserid string `json:"provideruserid"`
+}
+
+func (q *Queries) GetUserOAuthByProviderUserID(ctx context.Context, db DBTX, arg GetUserOAuthByProviderUserIDParams) (*UserOAuth, error) {
+	row := db.QueryRow(ctx, getUserOAuthByProviderUserID, arg.Provider, arg.Provideruserid)
+	var i UserOAuth
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserId,
+		&i.Provider,
+		&i.ProviderUserId,
+		&i.ExpiresAt,
+		&i.AccessToken,
+		&i.RefreshToken,
+	)
+	return &i, err
+}
+
 const getUserPassword = `-- name: GetUserPassword :one
 SELECT
     hash, "userId"
@@ -303,7 +361,7 @@ func (q *Queries) GetUserSession(ctx context.Context, db DBTX, id uuid.UUID) (*U
 
 const listTenantMemberships = `-- name: ListTenantMemberships :many
 SELECT
-    "TenantMember".id, "TenantMember"."createdAt", "TenantMember"."updatedAt", "TenantMember"."tenantId", "TenantMember"."userId", "TenantMember".role, "TenantMember"."canViewPayloads"
+    "TenantMember".id, "TenantMember"."createdAt", "TenantMember"."updatedAt", "TenantMember"."tenantId", "TenantMember"."userId", "TenantMember".role, "TenantMember"."canViewPayloads", "TenantMember"."oidcIssuer"
 FROM
     "TenantMember"
 JOIN
@@ -330,6 +388,7 @@ func (q *Queries) ListTenantMemberships(ctx context.Context, db DBTX, userid uui
 			&i.UserId,
 			&i.Role,
 			&i.CanViewPayloads,
+			&i.OidcIssuer,
 		); err != nil {
 			return nil, err
 		}

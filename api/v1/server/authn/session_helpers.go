@@ -18,13 +18,15 @@ type SessionHelpers struct {
 	ss *cookie.UserSessionStore
 }
 
+const OIDCGlobalAdminSessionKey = "oidc_global_admin"
+
 func NewSessionHelpers(ss *cookie.UserSessionStore) *SessionHelpers {
 	return &SessionHelpers{
 		ss: ss,
 	}
 }
 
-func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) error {
+func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User, oidcGlobalAdmin ...bool) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
@@ -33,6 +35,10 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 
 	session.Values["authenticated"] = true
 	session.Values["user_id"] = user.ID.String()
+	delete(session.Values, OIDCGlobalAdminSessionKey)
+	if len(oidcGlobalAdmin) > 0 {
+		session.Values[OIDCGlobalAdminSessionKey] = oidcGlobalAdmin[0]
+	}
 
 	return session.Save(c.Request(), c.Response())
 }

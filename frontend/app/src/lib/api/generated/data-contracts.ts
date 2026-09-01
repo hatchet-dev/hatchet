@@ -1618,6 +1618,15 @@ export interface RejectInviteRequest {
   invite: string;
 }
 
+export interface CreateOIDCGroupMappingRequest {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  group: string;
+  role: TenantMemberRole;
+}
+
 export interface CreateTenantRequest {
   /** The name of the tenant. */
   name: string;
@@ -1629,6 +1638,8 @@ export interface CreateTenantRequest {
   environment?: TenantEnvironment;
   /** Additional onboarding data to store with the tenant. */
   onboardingData?: Record<string, any>;
+  /** An optional OIDC group that receives access to the new tenant. */
+  oidcGroupMapping?: CreateOIDCGroupMappingRequest;
 }
 
 export interface UpdateTenantRequest {
@@ -1648,6 +1659,13 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
+}
+
+export interface OIDCGroupMapping {
+  /** @format uuid */
+  id?: string;
+  group: string;
+  role: TenantMemberRole;
 }
 
 export interface TenantAlertingSettings {
@@ -1859,6 +1877,8 @@ export interface RateLimitList {
 export interface TenantMemberList {
   pagination?: PaginationResponse;
   rows?: TenantMember[];
+  /** OIDC groups that grant access to this tenant. */
+  oidcGroupMappings?: OIDCGroupMapping[];
 }
 
 export interface UpdateTenantMemberRequest {

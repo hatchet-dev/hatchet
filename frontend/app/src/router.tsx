@@ -90,13 +90,13 @@ const onboardingVerifyRoute = createRoute({
 });
 
 const redeemOffersRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'redeem',
   component: lazyRouteComponent(() => import('./pages/redeem'), 'default'),
 });
 
 const organizationsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'organizations/$organization',
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
 });
@@ -318,7 +318,7 @@ const organizationLegacyAuditLogRoute = createRoute({
 });
 
 const tenantsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'tenants',
   component: lazyRouteComponent(() => import('./pages/main/v1'), 'default'),
 });
@@ -330,7 +330,7 @@ const tenantsIndexRoute = createRoute({
 });
 
 const organizationsNewRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'organizations/new',
   component: lazyRouteComponent(
     () => import('./pages/organizations/new'),
@@ -338,9 +338,10 @@ const organizationsNewRoute = createRoute({
   ),
 });
 
-const authenticatedRoute = createRoute({
+// The pathless layout lets authenticated child URLs match beneath it.
+const authenticatedLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  id: 'authenticated',
   loader: async () => {
     const mod = await import('./pages/authenticated');
     return mod.loader({ request: new Request(window.location.href) });
@@ -352,21 +353,22 @@ const authenticatedRoute = createRoute({
   notFoundComponent: () => <NotFound />,
 });
 
+const authenticatedIndexRoute = createRoute({
+  getParentRoute: () => authenticatedLayoutRoute,
+  path: '/',
+});
+
 const onboardingCreateTenantRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'onboarding/create-tenant',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-tenant'),
     'default',
   ),
-  loader: async () => {
-    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
-    return queryClient.fetchQuery(userUniverseQuery(isControlPlaneEnabled));
-  },
 });
 
 const onboardingCreateOrganizationRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'onboarding/create-organization',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/create-organization'),
@@ -375,7 +377,7 @@ const onboardingCreateOrganizationRoute = createRoute({
 });
 
 const onboardingNoTenantsRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'onboarding/no-tenants',
   component: lazyRouteComponent(
     () => import('./pages/onboarding/no-tenants'),
@@ -384,7 +386,7 @@ const onboardingNoTenantsRoute = createRoute({
 });
 
 const onboardingInvitesRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'onboarding/invites',
   loader: async () => {
     const mod = await import('./pages/onboarding/invites');
@@ -425,7 +427,7 @@ async function getOrganizationIdForTenantInRouter(tenantId: string) {
 }
 
 const tenantRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
+  getParentRoute: () => authenticatedLayoutRoute,
   path: 'tenants/$tenant',
   loader: async ({ params }) => {
     const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
@@ -1094,7 +1096,8 @@ const tenantRoutes = [
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   onboardingVerifyRoute,
-  authenticatedRoute.addChildren([
+  authenticatedLayoutRoute.addChildren([
+    authenticatedIndexRoute,
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
     onboardingNoTenantsRoute,
@@ -1182,7 +1185,7 @@ export const appRoutes = {
   organizationsNewRoute,
   tenantsRoute,
   tenantsIndexRoute,
-  authenticatedRoute,
+  authenticatedRoute: authenticatedIndexRoute,
   onboardingCreateTenantRoute,
   onboardingCreateOrganizationRoute,
   onboardingNoTenantsRoute,

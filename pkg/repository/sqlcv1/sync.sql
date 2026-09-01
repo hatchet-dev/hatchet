@@ -153,7 +153,8 @@ INSERT INTO "TenantMember" (
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = @updatedAt::timestamp,
     "role" = @role::"TenantMemberRole",
-    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads")
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads"),
+    "oidcIssuer" = NULL
 RETURNING *;
 
 -- name: SyncUpdateTenantMember :one
@@ -161,7 +162,8 @@ UPDATE "TenantMember"
 SET
     "updatedAt" = @updatedAt::timestamp,
     "role" = @role::"TenantMemberRole",
-    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads"),
+    "oidcIssuer" = NULL
 WHERE "id" = @id::uuid
 RETURNING *;
 

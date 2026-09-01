@@ -18,7 +18,7 @@ export function isTerminalState(status: V1TaskStatus | undefined) {
 }
 
 export const useWorkflowDetails = () => {
-  const params = useParams({ from: appRoutes.tenantRunRoute.to });
+  const params = useParams({ from: appRoutes.tenantRunRoute.id });
 
   const { data, isLoading, isError, error } = useQuery({
     retry: defaultQueryRetry,

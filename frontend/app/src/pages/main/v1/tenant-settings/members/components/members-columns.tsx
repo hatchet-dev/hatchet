@@ -63,7 +63,9 @@ export function MemberActions({
     !(isControlPlaneEnabled && isOwnerRole);
 
   const canChangePassword =
-    member.user.email === user?.email && meta?.allowChangePassword;
+    member.user.email === user?.email &&
+    user?.hasPassword &&
+    meta?.allowChangePassword;
 
   const canEditRole = isManuallyAdded && member.user.email !== user?.email;
 

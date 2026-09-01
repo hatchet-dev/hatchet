@@ -103,6 +103,9 @@ CreateTenantRequest:
       type: object
       description: Additional onboarding data to store with the tenant.
       additionalProperties: true
+    oidcGroupMapping:
+      $ref: "#/CreateOIDCGroupMappingRequest"
+      description: An optional OIDC group that receives access to the new tenant.
   required:
     - name
     - slug
@@ -225,6 +228,42 @@ TenantMemberList:
         $ref: "#/TenantMember"
       type: array
       x-go-name: Rows
+    oidcGroupMappings:
+      type: array
+      items:
+        $ref: "#/OIDCGroupMapping"
+      description: OIDC groups that grant access to this tenant.
+
+OIDCGroupMapping:
+  properties:
+    id:
+      type: string
+      format: uuid
+    group:
+      type: string
+    role:
+      $ref: "#/TenantMemberRole"
+  required:
+    - group
+    - role
+  type: object
+
+CreateOIDCGroupMappingRequest:
+  properties:
+    group:
+      type: string
+      minLength: 1
+      maxLength: 255
+      x-oapi-codegen-extra-tags:
+        validate: "required,max=255"
+    role:
+      $ref: "#/TenantMemberRole"
+      x-oapi-codegen-extra-tags:
+        validate: "required,oneof=ADMIN MEMBER VIEWER"
+  required:
+    - group
+    - role
+  type: object
 
 TenantMemberRole:
   enum:

@@ -156,7 +156,7 @@ export const Observability = (props: ObservabilityProps) => {
     props;
 
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useParams({ from: appRoutes.tenantRoute.id });
   const { isControlPlaneEnabled } = useControlPlane();
   const { meta } = useApiMeta();
 

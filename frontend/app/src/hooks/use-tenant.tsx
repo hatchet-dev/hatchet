@@ -21,7 +21,7 @@ type Plan = 'free' | 'starter' | 'growth';
 /**
  * Hook to get current tenant ID from route params
  *
- * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.to })`
+ * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.id })`
  * on tenant-routed pages, or `useAppContext()` when the active tenant may be
  * derived from other route state such as organizations.
  */

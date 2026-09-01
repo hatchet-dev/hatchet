@@ -50,7 +50,7 @@ export default function Workers() {
 }
 
 function WorkersTable() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const { refetchInterval } = useRefetchInterval();
 
   const paramKey = 'workers-table';

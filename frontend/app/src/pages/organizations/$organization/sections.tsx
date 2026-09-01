@@ -11,7 +11,7 @@ function OrganizationSectionPage({
   section: OrganizationSettingsSection;
 }) {
   const { organization } = useParams({
-    from: appRoutes.organizationsRoute.to,
+    from: appRoutes.organizationsRoute.id,
   });
 
   return <CloudOrganizationSettings orgId={organization} section={section} />;

@@ -597,6 +597,12 @@ type CreateEventRequest struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
+// CreateOIDCGroupMappingRequest defines model for CreateOIDCGroupMappingRequest.
+type CreateOIDCGroupMappingRequest struct {
+	Group string           `json:"group" validate:"required,max=255"`
+	Role  TenantMemberRole `json:"role"`
+}
+
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
 type CreateSNSIntegrationRequest struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
@@ -625,7 +631,8 @@ type CreateTenantRequest struct {
 	Environment   *TenantEnvironment `json:"environment,omitempty"`
 
 	// Name The name of the tenant.
-	Name string `json:"name" validate:"required"`
+	Name             string                         `json:"name" validate:"required"`
+	OidcGroupMapping *CreateOIDCGroupMappingRequest `json:"oidcGroupMapping,omitempty"`
 
 	// OnboardingData Additional onboarding data to store with the tenant.
 	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
@@ -800,6 +807,13 @@ type ListSNSIntegrations struct {
 type ListSlackWebhooks struct {
 	Pagination PaginationResponse `json:"pagination"`
 	Rows       []SlackWebhook     `json:"rows"`
+}
+
+// OIDCGroupMapping defines model for OIDCGroupMapping.
+type OIDCGroupMapping struct {
+	Group string              `json:"group"`
+	Id    *openapi_types.UUID `json:"id,omitempty"`
+	Role  TenantMemberRole    `json:"role"`
 }
 
 // OtelSpan defines model for OtelSpan.
@@ -1330,8 +1344,10 @@ type TenantMember struct {
 
 // TenantMemberList defines model for TenantMemberList.
 type TenantMemberList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]TenantMember     `json:"rows,omitempty"`
+	// OidcGroupMappings OIDC groups that grant access to this tenant.
+	OidcGroupMappings *[]OIDCGroupMapping `json:"oidcGroupMappings,omitempty"`
+	Pagination        *PaginationResponse `json:"pagination,omitempty"`
+	Rows              *[]TenantMember     `json:"rows,omitempty"`
 }
 
 // TenantMemberRole defines model for TenantMemberRole.
@@ -3472,6 +3488,9 @@ type TenantInviteUpdateJSONRequestBody = UpdateTenantInviteRequest
 // TenantMemberUpdateJSONRequestBody defines body for TenantMemberUpdate for application/json ContentType.
 type TenantMemberUpdateJSONRequestBody = UpdateTenantMemberRequest
 
+// TenantOidcGroupMappingCreateJSONRequestBody defines body for TenantOidcGroupMappingCreate for application/json ContentType.
+type TenantOidcGroupMappingCreateJSONRequestBody = CreateOIDCGroupMappingRequest
+
 // SnsCreateJSONRequestBody defines body for SnsCreate for application/json ContentType.
 type SnsCreateJSONRequestBody = CreateSNSIntegrationRequest
 
@@ -4041,6 +4060,14 @@ type ClientInterface interface {
 
 	TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantOidcGroupMappingCreateWithBody request with any body
+	TenantOidcGroupMappingCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantOidcGroupMappingCreate(ctx context.Context, tenant openapi_types.UUID, body TenantOidcGroupMappingCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantOidcGroupMappingDelete request
+	TenantOidcGroupMappingDelete(ctx context.Context, tenant openapi_types.UUID, mapping openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TenantGetPrometheusMetrics request
 	TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4227,6 +4254,12 @@ type ClientInterface interface {
 
 	// TenantMembershipsList request
 	TenantMembershipsList(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UserUpdateOidcOauthCallback request
+	UserUpdateOidcOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UserUpdateOidcOauthStart request
+	UserUpdateOidcOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UserUpdatePasswordWithBody request with any body
 	UserUpdatePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5529,6 +5562,42 @@ func (c *Client) TenantMemberUpdate(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
+func (c *Client) TenantOidcGroupMappingCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantOidcGroupMappingCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantOidcGroupMappingCreate(ctx context.Context, tenant openapi_types.UUID, body TenantOidcGroupMappingCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantOidcGroupMappingCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantOidcGroupMappingDelete(ctx context.Context, tenant openapi_types.UUID, mapping openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantOidcGroupMappingDeleteRequest(c.Server, tenant, mapping)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantGetPrometheusMetricsRequest(c.Server, tenant)
 	if err != nil {
@@ -6323,6 +6392,30 @@ func (c *Client) UserUpdateLogout(ctx context.Context, reqEditors ...RequestEdit
 
 func (c *Client) TenantMembershipsList(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMembershipsListRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdateOidcOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateOidcOauthCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdateOidcOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateOidcOauthStartRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11418,6 +11511,94 @@ func NewTenantMemberUpdateRequestWithBody(server string, tenant openapi_types.UU
 	return req, nil
 }
 
+// NewTenantOidcGroupMappingCreateRequest calls the generic TenantOidcGroupMappingCreate builder with application/json body
+func NewTenantOidcGroupMappingCreateRequest(server string, tenant openapi_types.UUID, body TenantOidcGroupMappingCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantOidcGroupMappingCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewTenantOidcGroupMappingCreateRequestWithBody generates requests for TenantOidcGroupMappingCreate with any type of body
+func NewTenantOidcGroupMappingCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/oidc-group-mappings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantOidcGroupMappingDeleteRequest generates requests for TenantOidcGroupMappingDelete
+func NewTenantOidcGroupMappingDeleteRequest(server string, tenant openapi_types.UUID, mapping openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "mapping", runtime.ParamLocationPath, mapping)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/oidc-group-mappings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewTenantGetPrometheusMetricsRequest generates requests for TenantGetPrometheusMetrics
 func NewTenantGetPrometheusMetricsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -14416,6 +14597,60 @@ func NewTenantMembershipsListRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUserUpdateOidcOauthCallbackRequest generates requests for UserUpdateOidcOauthCallback
+func NewUserUpdateOidcOauthCallbackRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/oidc/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUserUpdateOidcOauthStartRequest generates requests for UserUpdateOidcOauthStart
+func NewUserUpdateOidcOauthStartRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/oidc/start")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUserUpdatePasswordRequest calls the generic UserUpdatePassword builder with application/json body
 func NewUserUpdatePasswordRequest(server string, body UserUpdatePasswordJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -15343,6 +15578,14 @@ type ClientWithResponsesInterface interface {
 
 	TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
 
+	// TenantOidcGroupMappingCreateWithBodyWithResponse request with any body
+	TenantOidcGroupMappingCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingCreateResponse, error)
+
+	TenantOidcGroupMappingCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantOidcGroupMappingCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingCreateResponse, error)
+
+	// TenantOidcGroupMappingDeleteWithResponse request
+	TenantOidcGroupMappingDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, mapping openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingDeleteResponse, error)
+
 	// TenantGetPrometheusMetricsWithResponse request
 	TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error)
 
@@ -15529,6 +15772,12 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMembershipsListWithResponse request
 	TenantMembershipsListWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TenantMembershipsListResponse, error)
+
+	// UserUpdateOidcOauthCallbackWithResponse request
+	UserUpdateOidcOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateOidcOauthCallbackResponse, error)
+
+	// UserUpdateOidcOauthStartWithResponse request
+	UserUpdateOidcOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateOidcOauthStartResponse, error)
 
 	// UserUpdatePasswordWithBodyWithResponse request with any body
 	UserUpdatePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error)
@@ -17561,6 +17810,53 @@ func (r TenantMemberUpdateResponse) StatusCode() int {
 	return 0
 }
 
+type TenantOidcGroupMappingCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OIDCGroupMapping
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantOidcGroupMappingCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantOidcGroupMappingCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantOidcGroupMappingDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON403      *APIError
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantOidcGroupMappingDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantOidcGroupMappingDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type TenantGetPrometheusMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -18842,6 +19138,48 @@ func (r TenantMembershipsListResponse) StatusCode() int {
 	return 0
 }
 
+type UserUpdateOidcOauthCallbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateOidcOauthCallbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateOidcOauthCallbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UserUpdateOidcOauthStartResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateOidcOauthStartResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateOidcOauthStartResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UserUpdatePasswordResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -20098,6 +20436,32 @@ func (c *ClientWithResponses) TenantMemberUpdateWithResponse(ctx context.Context
 	return ParseTenantMemberUpdateResponse(rsp)
 }
 
+// TenantOidcGroupMappingCreateWithBodyWithResponse request with arbitrary body returning *TenantOidcGroupMappingCreateResponse
+func (c *ClientWithResponses) TenantOidcGroupMappingCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingCreateResponse, error) {
+	rsp, err := c.TenantOidcGroupMappingCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantOidcGroupMappingCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantOidcGroupMappingCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantOidcGroupMappingCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingCreateResponse, error) {
+	rsp, err := c.TenantOidcGroupMappingCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantOidcGroupMappingCreateResponse(rsp)
+}
+
+// TenantOidcGroupMappingDeleteWithResponse request returning *TenantOidcGroupMappingDeleteResponse
+func (c *ClientWithResponses) TenantOidcGroupMappingDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, mapping openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantOidcGroupMappingDeleteResponse, error) {
+	rsp, err := c.TenantOidcGroupMappingDelete(ctx, tenant, mapping, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantOidcGroupMappingDeleteResponse(rsp)
+}
+
 // TenantGetPrometheusMetricsWithResponse request returning *TenantGetPrometheusMetricsResponse
 func (c *ClientWithResponses) TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error) {
 	rsp, err := c.TenantGetPrometheusMetrics(ctx, tenant, reqEditors...)
@@ -20685,6 +21049,24 @@ func (c *ClientWithResponses) TenantMembershipsListWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseTenantMembershipsListResponse(rsp)
+}
+
+// UserUpdateOidcOauthCallbackWithResponse request returning *UserUpdateOidcOauthCallbackResponse
+func (c *ClientWithResponses) UserUpdateOidcOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateOidcOauthCallbackResponse, error) {
+	rsp, err := c.UserUpdateOidcOauthCallback(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateOidcOauthCallbackResponse(rsp)
+}
+
+// UserUpdateOidcOauthStartWithResponse request returning *UserUpdateOidcOauthStartResponse
+func (c *ClientWithResponses) UserUpdateOidcOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateOidcOauthStartResponse, error) {
+	rsp, err := c.UserUpdateOidcOauthStart(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateOidcOauthStartResponse(rsp)
 }
 
 // UserUpdatePasswordWithBodyWithResponse request with arbitrary body returning *UserUpdatePasswordResponse
@@ -24319,6 +24701,79 @@ func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateRes
 	return response, nil
 }
 
+// ParseTenantOidcGroupMappingCreateResponse parses an HTTP response from a TenantOidcGroupMappingCreateWithResponse call
+func ParseTenantOidcGroupMappingCreateResponse(rsp *http.Response) (*TenantOidcGroupMappingCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantOidcGroupMappingCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OIDCGroupMapping
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantOidcGroupMappingDeleteResponse parses an HTTP response from a TenantOidcGroupMappingDeleteWithResponse call
+func ParseTenantOidcGroupMappingDeleteResponse(rsp *http.Response) (*TenantOidcGroupMappingDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantOidcGroupMappingDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseTenantGetPrometheusMetricsResponse parses an HTTP response from a TenantGetPrometheusMetricsWithResponse call
 func ParseTenantGetPrometheusMetricsResponse(rsp *http.Response) (*TenantGetPrometheusMetricsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -26470,6 +26925,38 @@ func ParseTenantMembershipsListResponse(rsp *http.Response) (*TenantMembershipsL
 		}
 		response.JSON403 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateOidcOauthCallbackResponse parses an HTTP response from a UserUpdateOidcOauthCallbackWithResponse call
+func ParseUserUpdateOidcOauthCallbackResponse(rsp *http.Response) (*UserUpdateOidcOauthCallbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateOidcOauthCallbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateOidcOauthStartResponse parses an HTTP response from a UserUpdateOidcOauthStartWithResponse call
+func ParseUserUpdateOidcOauthStartResponse(rsp *http.Response) (*UserUpdateOidcOauthStartResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateOidcOauthStartResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

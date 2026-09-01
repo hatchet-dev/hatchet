@@ -86,6 +86,8 @@ TenantList:
   $ref: "./tenant.yaml#/TenantList"
 CreateTenantRequest:
   $ref: "./tenant.yaml#/CreateTenantRequest"
+CreateOIDCGroupMappingRequest:
+  $ref: "./tenant.yaml#/CreateOIDCGroupMappingRequest"
 UpdateTenantRequest:
   $ref: "./tenant.yaml#/UpdateTenantRequest"
 Event:

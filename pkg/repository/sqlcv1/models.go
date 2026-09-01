@@ -3109,6 +3109,16 @@ type TenantMember struct {
 	UserId          uuid.UUID        `json:"userId"`
 	Role            TenantMemberRole `json:"role"`
 	CanViewPayloads bool             `json:"canViewPayloads"`
+	OidcIssuer      pgtype.Text      `json:"oidcIssuer"`
+}
+
+type TenantOIDCGroupMapping struct {
+	ID        uuid.UUID        `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	TenantId  uuid.UUID        `json:"tenantId"`
+	Group     string           `json:"group"`
+	Role      TenantMemberRole `json:"role"`
 }
 
 type TenantResourceLimit struct {

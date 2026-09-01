@@ -21,6 +21,7 @@ import {
   CreateAPITokenResponse,
   CreateCronWorkflowTriggerRequest,
   CreateEventRequest,
+  CreateOIDCGroupMappingRequest,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
@@ -43,6 +44,7 @@ import {
   ListAPITokensResponse,
   ListSNSIntegrations,
   ListSlackWebhooks,
+  OIDCGroupMapping,
   OtelSpanList,
   RateLimitList,
   RateLimitOrderByDirection,
@@ -1607,6 +1609,36 @@ export class Api<
       xResources: [],
     }), { resources: new Set<string>([]) });
   /**
+   * @description Starts the OIDC OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateOidcOauthStart
+   * @summary Start OIDC OAuth flow
+   * @request GET:/api/v1/users/oidc/start
+   */
+  userUpdateOidcOauthStart = Object.assign((params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/oidc/start`,
+      method: "GET",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
+   * @description Completes the OIDC OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateOidcOauthCallback
+   * @summary Complete OIDC OAuth flow
+   * @request GET:/api/v1/users/oidc/callback
+   */
+  userUpdateOidcOauthCallback = Object.assign((params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/oidc/callback`,
+      method: "GET",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
    * @description Starts the OAuth flow
    *
    * @tags User
@@ -2069,6 +2101,51 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Creates or updates an OIDC group mapping for a tenant
+   *
+   * @tags Tenant
+   * @name TenantOidcGroupMappingCreate
+   * @summary Save tenant OIDC group mapping
+   * @request POST:/api/v1/tenants/{tenant}/oidc-group-mappings
+   * @secure
+   */
+  tenantOidcGroupMappingCreate = Object.assign((
+    tenant: string,
+    data: CreateOIDCGroupMappingRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OIDCGroupMapping, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/oidc-group-mappings`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Deletes a database-managed OIDC group mapping from a tenant
+   *
+   * @tags Tenant
+   * @name TenantOidcGroupMappingDelete
+   * @summary Delete tenant OIDC group mapping
+   * @request DELETE:/api/v1/tenants/{tenant}/oidc-group-mappings/{mapping}
+   * @secure
+   */
+  tenantOidcGroupMappingDelete = Object.assign((
+    tenant: string,
+    mapping: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError | APIErrors>({
+      path: `/api/v1/tenants/${tenant}/oidc-group-mappings/${mapping}`,
+      method: "DELETE",
+      secure: true,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });

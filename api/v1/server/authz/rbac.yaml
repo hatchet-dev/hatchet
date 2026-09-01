@@ -13,6 +13,8 @@ roles:
       - TenantInviteList
       - TenantInviteCreate
       - TenantMemberList
+      - TenantOidcGroupMappingCreate
+      - TenantOidcGroupMappingDelete
       - TenantInviteUpdate
       - TenantInviteDelete
   MEMBER:

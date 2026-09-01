@@ -56,6 +56,8 @@ type UserRepository interface {
 
 	// GetUserByEmail returns the user with the given email
 	GetUserByEmail(ctx context.Context, email string) (*sqlcv1.User, error)
+	GetUserOAuth(ctx context.Context, userID uuid.UUID, provider string) (*sqlcv1.UserOAuth, error)
+	GetUserOAuthByProviderUserID(ctx context.Context, provider, providerUserID string) (*sqlcv1.UserOAuth, error)
 
 	// GetUserPassword returns the user password with the given id
 	GetUserPassword(ctx context.Context, id uuid.UUID) (*sqlcv1.UserPassword, error)
@@ -127,6 +129,16 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sql
 	emailLower := strings.ToLower(email)
 
 	return r.queries.GetUserByEmail(ctx, r.pool, emailLower)
+}
+
+func (r *userRepository) GetUserOAuth(ctx context.Context, userID uuid.UUID, provider string) (*sqlcv1.UserOAuth, error) {
+	return r.queries.GetUserOAuth(ctx, r.pool, sqlcv1.GetUserOAuthParams{Userid: userID, Provider: provider})
+}
+
+func (r *userRepository) GetUserOAuthByProviderUserID(ctx context.Context, provider, providerUserID string) (*sqlcv1.UserOAuth, error) {
+	return r.queries.GetUserOAuthByProviderUserID(ctx, r.pool, sqlcv1.GetUserOAuthByProviderUserIDParams{
+		Provider: provider, Provideruserid: providerUserID,
+	})
 }
 
 func (r *userRepository) GetUserPassword(ctx context.Context, id uuid.UUID) (*sqlcv1.UserPassword, error) {

@@ -5,18 +5,17 @@ import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useRedirectOrNavigate } from '@/lib/redirect';
 import { AuthLayout } from '@/pages/auth/components/auth-layout';
+import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 
 export default function CreateTenant() {
   const redirectOrNavigate = useRedirectOrNavigate();
   const navigate = useNavigate();
   const { userUpdateLogoutMutation } = useUserApi();
-  const { organizations } = useLoaderData({
-    from: '/onboarding/create-tenant',
-  });
+  const { organizations } = useUserUniverse();
 
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),

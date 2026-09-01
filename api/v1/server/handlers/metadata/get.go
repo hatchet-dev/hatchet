@@ -3,6 +3,7 @@ package metadata
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 )
@@ -42,6 +43,11 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 	prometheusServerEnabled := u.config.Prometheus.PrometheusServerURL != ""
 
 	authDisabled := authmode.IsDisabled
+	allowCreateTenant := u.config.Runtime.AllowCreateTenant
+	if allowCreateTenant && u.config.Runtime.CreateTenantRequiresGlobalAdmin {
+		session, err := u.config.SessionStore.Get(ctx.Request(), u.config.SessionStore.GetName())
+		allowCreateTenant = err == nil && session.Values[authn.OIDCGlobalAdminSessionKey] == true
+	}
 
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
@@ -51,7 +57,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		Posthog:                 posthogConfig,
 		AllowSignup:             &u.config.Runtime.AllowSignup,
 		AllowInvites:            &u.config.Runtime.AllowInvites,
-		AllowCreateTenant:       &u.config.Runtime.AllowCreateTenant,
+		AllowCreateTenant:       &allowCreateTenant,
 		AllowChangePassword:     &u.config.Runtime.AllowChangePassword,
 		ObservabilityEnabled:    &observabilityEnabled,
 		PrometheusServerEnabled: &prometheusServerEnabled,

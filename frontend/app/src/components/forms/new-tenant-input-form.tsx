@@ -11,6 +11,10 @@ import {
 } from '@/components/v1/ui/select';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  CreateOIDCGroupMappingRequest,
+  TenantMemberRole,
+} from '@/lib/api/generated/data-contracts';
 import { shardDeploymentKey } from '@/lib/shard-deployment-key';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { KeyboardEvent, useCallback, useMemo, useState } from 'react';
@@ -20,6 +24,7 @@ type NewTenantInputFormProps = {
   defaultTenantName?: string;
   isSaving?: boolean;
   allTenantTags?: string[];
+  showOIDCGroupMapping?: boolean;
 } & (
   | {
       isControlPlaneEnabled: true;
@@ -40,7 +45,10 @@ type NewTenantInputFormProps = {
   | {
       isControlPlaneEnabled: false;
       organizations?: null;
-      onSubmit: (values: { tenantName: string }) => void;
+      onSubmit: (values: {
+        tenantName: string;
+        oidcGroupMapping?: CreateOIDCGroupMappingRequest;
+      }) => void;
       organizationId?: undefined;
       onOrganizationIdChange?: undefined;
       showRegionSelect?: false;
@@ -103,6 +111,7 @@ export function NewTenantInputForm({
   availableShards = [],
   isShardsLoading = false,
   showTagsInput = false,
+  showOIDCGroupMapping = false,
   allTenantTags = [],
 }: NewTenantInputFormProps) {
   const [tenantName, setTenantName] = useState(defaultTenantName);
@@ -111,6 +120,10 @@ export function NewTenantInputForm({
   >();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInputValue, setTagInputValue] = useState('');
+  const [oidcGroup, setOIDCGroup] = useState('');
+  const [oidcRole, setOIDCRole] = useState<TenantMemberRole>(
+    TenantMemberRole.MEMBER,
+  );
 
   const shardKeys = useMemo(
     () => availableShards.map(shardDeploymentKey),
@@ -156,7 +169,13 @@ export function NewTenantInputForm({
         ...(showTagsInput && tags.length > 0 ? { tags } : {}),
       });
     } else {
-      onSubmit({ tenantName });
+      const group = oidcGroup.trim();
+      onSubmit({
+        tenantName,
+        ...(showOIDCGroupMapping && group
+          ? { oidcGroupMapping: { group, role: oidcRole } }
+          : {}),
+      });
     }
   };
 
@@ -211,6 +230,41 @@ export function NewTenantInputForm({
           required
         />
       </div>
+
+      {!isControlPlaneEnabled && showOIDCGroupMapping && (
+        <div className="grid gap-3">
+          <div>
+            <Label htmlFor="tenant-oidc-group">OIDC group (optional)</Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Automatically grant this group access to the tenant.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+            <Input
+              id="tenant-oidc-group"
+              placeholder="engineering"
+              value={oidcGroup}
+              onChange={(event) => setOIDCGroup(event.target.value)}
+              maxLength={255}
+              disabled={isSaving}
+            />
+            <Select
+              value={oidcRole}
+              onValueChange={(role) => setOIDCRole(role as TenantMemberRole)}
+              disabled={isSaving}
+            >
+              <SelectTrigger aria-label="OIDC tenant role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TenantMemberRole.ADMIN}>Admin</SelectItem>
+                <SelectItem value={TenantMemberRole.MEMBER}>Member</SelectItem>
+                <SelectItem value={TenantMemberRole.VIEWER}>Viewer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {showTagsInput && (
         <div className="grid gap-2">

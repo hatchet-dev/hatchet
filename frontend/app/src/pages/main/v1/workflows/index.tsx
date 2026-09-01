@@ -34,7 +34,7 @@ export default function WorkflowsPage() {
 }
 
 function WorkflowTable() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:workflows', {});

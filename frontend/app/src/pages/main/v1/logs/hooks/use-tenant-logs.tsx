@@ -55,7 +55,7 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
 }
 
 export function useTenantLogs() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const { refetchInterval } = useRefetchInterval();
   const { isSelfHosted } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();

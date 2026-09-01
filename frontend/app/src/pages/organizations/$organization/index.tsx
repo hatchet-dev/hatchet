@@ -4,7 +4,7 @@ import { useParams } from '@tanstack/react-router';
 
 export default function OrganizationPage() {
   const { organization } = useParams({
-    from: appRoutes.organizationsRoute.to,
+    from: appRoutes.organizationsRoute.id,
   });
 
   return <CloudOrganizationSettings orgId={organization} section="general" />;

@@ -47,6 +47,18 @@ FROM
 WHERE
     "email" = @email::text;
 
+-- name: GetUserOAuth :one
+SELECT *
+FROM "UserOAuth"
+WHERE "userId" = @userId::uuid
+    AND "provider" = @provider::text;
+
+-- name: GetUserOAuthByProviderUserID :one
+SELECT *
+FROM "UserOAuth"
+WHERE "provider" = @provider::text
+    AND "providerUserId" = @providerUserId::text;
+
 -- name: GetUserByID :one
 SELECT
     *

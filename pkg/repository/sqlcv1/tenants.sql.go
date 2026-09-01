@@ -220,8 +220,9 @@ INSERT INTO "TenantMember" (
     COALESCE($4::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
     "role" = $3::"TenantMemberRole",
-    "canViewPayloads" = COALESCE($4::boolean, "TenantMember"."canViewPayloads")
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+    "canViewPayloads" = COALESCE($4::boolean, "TenantMember"."canViewPayloads"),
+    "oidcIssuer" = NULL
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 `
 
 type CreateTenantMemberParams struct {
@@ -247,6 +248,7 @@ func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTen
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }
@@ -288,6 +290,24 @@ func (q *Queries) DeleteControllerPartition(ctx context.Context, db DBTX, id str
 		&i.Name,
 	)
 	return &i, err
+}
+
+const deleteOIDCTenantMember = `-- name: DeleteOIDCTenantMember :exec
+DELETE FROM "TenantMember"
+WHERE "tenantId" = $1::uuid
+    AND "userId" = $2::uuid
+    AND "oidcIssuer" = $3::text
+`
+
+type DeleteOIDCTenantMemberParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Userid     uuid.UUID `json:"userid"`
+	Oidcissuer string    `json:"oidcissuer"`
+}
+
+func (q *Queries) DeleteOIDCTenantMember(ctx context.Context, db DBTX, arg DeleteOIDCTenantMemberParams) error {
+	_, err := db.Exec(ctx, deleteOIDCTenantMember, arg.Tenantid, arg.Userid, arg.Oidcissuer)
+	return err
 }
 
 const deleteSchedulerPartition = `-- name: DeleteSchedulerPartition :one
@@ -368,6 +388,25 @@ WHERE "id" = $1::uuid
 func (q *Queries) DeleteTenantMember(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteTenantMember, id)
 	return err
+}
+
+const deleteTenantOIDCGroupMapping = `-- name: DeleteTenantOIDCGroupMapping :execrows
+DELETE FROM "TenantOIDCGroupMapping"
+WHERE "tenantId" = $1::uuid
+    AND "id" = $2::uuid
+`
+
+type DeleteTenantOIDCGroupMappingParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+}
+
+func (q *Queries) DeleteTenantOIDCGroupMapping(ctx context.Context, db DBTX, arg DeleteTenantOIDCGroupMappingParams) (int64, error) {
+	result, err := db.Exec(ctx, deleteTenantOIDCGroupMapping, arg.Tenantid, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteTenantWorkerPartition = `-- name: DeleteTenantWorkerPartition :one
@@ -651,7 +690,7 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*T
 
 const getTenantMemberByEmail = `-- name: GetTenantMemberByEmail :one
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads"
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads", tm."oidcIssuer"
 FROM
     "TenantMember" tm
 JOIN
@@ -677,13 +716,14 @@ func (q *Queries) GetTenantMemberByEmail(ctx context.Context, db DBTX, arg GetTe
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }
 
 const getTenantMemberByID = `-- name: GetTenantMemberByID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 FROM
     "TenantMember"
 WHERE
@@ -701,13 +741,14 @@ func (q *Queries) GetTenantMemberByID(ctx context.Context, db DBTX, id uuid.UUID
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }
 
 const getTenantMemberByUserID = `-- name: GetTenantMemberByUserID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 FROM
     "TenantMember"
 WHERE
@@ -731,6 +772,7 @@ func (q *Queries) GetTenantMemberByUserID(ctx context.Context, db DBTX, arg GetT
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }
@@ -908,6 +950,90 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const hasOIDCGroupMappings = `-- name: HasOIDCGroupMappings :one
+SELECT EXISTS(SELECT 1 FROM "TenantOIDCGroupMapping")
+`
+
+func (q *Queries) HasOIDCGroupMappings(ctx context.Context, db DBTX) (bool, error) {
+	row := db.QueryRow(ctx, hasOIDCGroupMappings)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const listOIDCGroupMappings = `-- name: ListOIDCGroupMappings :many
+SELECT id, "createdAt", "updatedAt", "tenantId", "group", role
+FROM "TenantOIDCGroupMapping"
+`
+
+func (q *Queries) ListOIDCGroupMappings(ctx context.Context, db DBTX) ([]*TenantOIDCGroupMapping, error) {
+	rows, err := db.Query(ctx, listOIDCGroupMappings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantOIDCGroupMapping
+	for rows.Next() {
+		var i TenantOIDCGroupMapping
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TenantId,
+			&i.Group,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOIDCTenantMembers = `-- name: ListOIDCTenantMembers :many
+SELECT id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
+FROM "TenantMember"
+WHERE "userId" = $1::uuid
+    AND "oidcIssuer" = $2::text
+`
+
+type ListOIDCTenantMembersParams struct {
+	Userid     uuid.UUID `json:"userid"`
+	Oidcissuer string    `json:"oidcissuer"`
+}
+
+func (q *Queries) ListOIDCTenantMembers(ctx context.Context, db DBTX, arg ListOIDCTenantMembersParams) ([]*TenantMember, error) {
+	rows, err := db.Query(ctx, listOIDCTenantMembers, arg.Userid, arg.Oidcissuer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantMember
+	for rows.Next() {
+		var i TenantMember
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TenantId,
+			&i.UserId,
+			&i.Role,
+			&i.CanViewPayloads,
+			&i.OidcIssuer,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTenantAlertGroups = `-- name: ListTenantAlertGroups :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails
@@ -946,7 +1072,7 @@ func (q *Queries) ListTenantAlertGroups(ctx context.Context, db DBTX, tenantid u
 
 const listTenantMembers = `-- name: ListTenantMembers :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 FROM
     "TenantMember"
 WHERE
@@ -970,6 +1096,41 @@ func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid uuid.
 			&i.UserId,
 			&i.Role,
 			&i.CanViewPayloads,
+			&i.OidcIssuer,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantOIDCGroupMappings = `-- name: ListTenantOIDCGroupMappings :many
+SELECT id, "createdAt", "updatedAt", "tenantId", "group", role
+FROM "TenantOIDCGroupMapping"
+WHERE "tenantId" = $1::uuid
+ORDER BY "group"
+`
+
+func (q *Queries) ListTenantOIDCGroupMappings(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantOIDCGroupMapping, error) {
+	rows, err := db.Query(ctx, listTenantOIDCGroupMappings, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantOIDCGroupMapping
+	for rows.Next() {
+		var i TenantOIDCGroupMapping
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TenantId,
+			&i.Group,
+			&i.Role,
 		); err != nil {
 			return nil, err
 		}
@@ -1157,7 +1318,7 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 
 const populateTenantMembers = `-- name: PopulateTenantMembers :many
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads",
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads", tm."oidcIssuer",
     u."email",
     u."name",
     t."id" as "tenantId",
@@ -1187,6 +1348,7 @@ type PopulateTenantMembersRow struct {
 	UserId            uuid.UUID                `json:"userId"`
 	Role              TenantMemberRole         `json:"role"`
 	CanViewPayloads   bool                     `json:"canViewPayloads"`
+	OidcIssuer        pgtype.Text              `json:"oidcIssuer"`
 	Email             string                   `json:"email"`
 	Name              pgtype.Text              `json:"name"`
 	TenantId_2        uuid.UUID                `json:"tenantId_2"`
@@ -1217,6 +1379,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid
 			&i.UserId,
 			&i.Role,
 			&i.CanViewPayloads,
+			&i.OidcIssuer,
 			&i.Email,
 			&i.Name,
 			&i.TenantId_2,
@@ -1623,9 +1786,10 @@ const updateTenantMember = `-- name: UpdateTenantMember :one
 UPDATE "TenantMember"
 SET
     "role" = COALESCE($1::"TenantMemberRole", "role"),
-    "canViewPayloads" = COALESCE($2::boolean, "canViewPayloads")
+    "canViewPayloads" = COALESCE($2::boolean, "canViewPayloads"),
+    "oidcIssuer" = NULL
 WHERE "id" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 `
 
 type UpdateTenantMemberParams struct {
@@ -1645,8 +1809,44 @@ func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTen
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
+}
+
+const upsertOIDCTenantMember = `-- name: UpsertOIDCTenantMember :exec
+INSERT INTO "TenantMember" (
+    "id",
+    "tenantId",
+    "userId",
+    "role",
+    "oidcIssuer"
+) VALUES (
+    gen_random_uuid(),
+    $1::uuid,
+    $2::uuid,
+    $3::"TenantMemberRole",
+    $4::text
+) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
+    "role" = EXCLUDED."role"
+WHERE "TenantMember"."oidcIssuer" = EXCLUDED."oidcIssuer"
+`
+
+type UpsertOIDCTenantMemberParams struct {
+	Tenantid   uuid.UUID        `json:"tenantid"`
+	Userid     uuid.UUID        `json:"userid"`
+	Role       TenantMemberRole `json:"role"`
+	Oidcissuer string           `json:"oidcissuer"`
+}
+
+func (q *Queries) UpsertOIDCTenantMember(ctx context.Context, db DBTX, arg UpsertOIDCTenantMemberParams) error {
+	_, err := db.Exec(ctx, upsertOIDCTenantMember,
+		arg.Tenantid,
+		arg.Userid,
+		arg.Role,
+		arg.Oidcissuer,
+	)
+	return err
 }
 
 const upsertTenantAlertingSettings = `-- name: UpsertTenantAlertingSettings :one
@@ -1701,6 +1901,41 @@ func (q *Queries) UpsertTenantAlertingSettings(ctx context.Context, db DBTX, arg
 		&i.EnableExpiringTokenAlerts,
 		&i.EnableWorkflowRunFailureAlerts,
 		&i.EnableTenantResourceLimitAlerts,
+	)
+	return &i, err
+}
+
+const upsertTenantOIDCGroupMapping = `-- name: UpsertTenantOIDCGroupMapping :one
+INSERT INTO "TenantOIDCGroupMapping" (
+    "tenantId",
+    "group",
+    "role"
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::"TenantMemberRole"
+) ON CONFLICT ("tenantId", "group") DO UPDATE SET
+    "role" = EXCLUDED."role",
+    "updatedAt" = CURRENT_TIMESTAMP
+RETURNING id, "createdAt", "updatedAt", "tenantId", "group", role
+`
+
+type UpsertTenantOIDCGroupMappingParams struct {
+	Tenantid  uuid.UUID        `json:"tenantid"`
+	Groupname string           `json:"groupname"`
+	Role      TenantMemberRole `json:"role"`
+}
+
+func (q *Queries) UpsertTenantOIDCGroupMapping(ctx context.Context, db DBTX, arg UpsertTenantOIDCGroupMappingParams) (*TenantOIDCGroupMapping, error) {
+	row := db.QueryRow(ctx, upsertTenantOIDCGroupMapping, arg.Tenantid, arg.Groupname, arg.Role)
+	var i TenantOIDCGroupMapping
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TenantId,
+		&i.Group,
+		&i.Role,
 	)
 	return &i, err
 }

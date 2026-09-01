@@ -32,6 +32,87 @@ tenants:
     summary: Create tenant
     tags:
       - Tenant
+
+tenantOIDCGroupMappings:
+  post:
+    x-resources: ["tenant"]
+    description: Creates or updates an OIDC group mapping for a tenant
+    operationId: tenant-oidc-group-mapping:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateOIDCGroupMappingRequest"
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/tenant.yaml#/OIDCGroupMapping"
+        description: Successfully saved the OIDC group mapping
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Save tenant OIDC group mapping
+    tags:
+      - Tenant
+
+tenantOIDCGroupMapping:
+  delete:
+    x-resources: ["tenant"]
+    description: Deletes a database-managed OIDC group mapping from a tenant
+    operationId: tenant-oidc-group-mapping:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The OIDC group mapping id
+        in: path
+        name: mapping
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      "204":
+        description: Successfully deleted the OIDC group mapping
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Mapping not found
+    summary: Delete tenant OIDC group mapping
+    tags:
+      - Tenant
 updateTenants:
   patch:
     x-resources: ["tenant"]

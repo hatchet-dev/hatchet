@@ -12,9 +12,11 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const testOIDCClientID = "hatchet-test"
@@ -90,14 +92,15 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 // idTokenClaims are the claims the mock signs into an ID token. Zero values for
 // iss/aud/exp/iat are filled with sensible defaults in token().
 type idTokenClaims struct {
-	Issuer        string `json:"iss"`
-	Subject       string `json:"sub"`
-	Audience      string `json:"aud"`
-	Expiry        int64  `json:"exp"`
-	IssuedAt      int64  `json:"iat"`
-	Email         string `json:"email,omitempty"`
-	EmailVerified bool   `json:"email_verified"`
-	Name          string `json:"name,omitempty"`
+	Issuer        string    `json:"iss"`
+	Subject       string    `json:"sub"`
+	Audience      string    `json:"aud"`
+	Expiry        int64     `json:"exp"`
+	IssuedAt      int64     `json:"iat"`
+	Email         string    `json:"email,omitempty"`
+	EmailVerified bool      `json:"email_verified"`
+	Name          string    `json:"name,omitempty"`
+	Groups        *[]string `json:"groups,omitempty"`
 }
 
 // token mints an *oauth2.Token whose "id_token" extra is a signed JWT carrying
@@ -149,8 +152,10 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("valid token returns verified claims", func(t *testing.T) {
+		groups := []string{"engineering", "platform-admins"}
 		tok := m.token(t, idTokenClaims{
 			Subject: "kc-sub-123", Email: "alice@example.com", EmailVerified: true, Name: "Alice",
+			Groups: &groups,
 		})
 
 		claims, err := getOIDCClaimsFromToken(ctx, cfg, tok)
@@ -160,6 +165,33 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 		if claims.Email != "alice@example.com" || claims.Sub != "kc-sub-123" ||
 			!claims.EmailVerified || claims.Name != "Alice" {
 			t.Fatalf("unexpected claims: %+v", claims)
+		}
+		if claims.Groups == nil || len(*claims.Groups) != 2 || (*claims.Groups)[0] != "engineering" || (*claims.Groups)[1] != "platform-admins" {
+			t.Fatalf("unexpected groups: %v", claims.Groups)
+		}
+	})
+
+	t.Run("missing groups are rejected when mappings are configured", func(t *testing.T) {
+		cfg.Auth.OIDCGroupMappings = map[string]string{"platform-admins": "ADMIN"}
+		tok := m.token(t, idTokenClaims{
+			Subject: "x", Email: "a@b.c", EmailVerified: true,
+		})
+		if _, err := getOIDCClaimsFromToken(ctx, cfg, tok); err == nil {
+			t.Fatal("expected missing groups claim to be rejected")
+		}
+	})
+
+	t.Run("explicit empty groups are authoritative", func(t *testing.T) {
+		emptyGroups := []string{}
+		tok := m.token(t, idTokenClaims{
+			Subject: "x", Email: "a@b.c", EmailVerified: true, Groups: &emptyGroups,
+		})
+		claims, err := getOIDCClaimsFromToken(ctx, cfg, tok)
+		if err != nil {
+			t.Fatalf("explicit empty groups should be accepted: %v", err)
+		}
+		if claims.Groups == nil || len(*claims.Groups) != 0 {
+			t.Fatalf("unexpected groups: %v", claims.Groups)
 		}
 	})
 
@@ -178,4 +210,55 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 			t.Fatal("expected error for missing id_token, got nil")
 		}
 	})
+}
+
+func TestDesiredOIDCTenantMembershipsUsesHighestRole(t *testing.T) {
+	tenantID := uuid.New()
+	mappings := map[string][]oidcTenantGroupMapping{
+		"engineering": {{TenantID: tenantID, Role: "MEMBER"}},
+		"admins":      {{TenantID: tenantID, Role: "ADMIN"}},
+	}
+
+	desired := desiredOIDCTenantMemberships([]string{"engineering", "admins"}, nil, mappings, nil)
+	if desired[tenantID] != sqlcv1.TenantMemberRoleADMIN {
+		t.Fatalf("role = %q, want ADMIN", desired[tenantID])
+	}
+}
+
+func TestDesiredOIDCTenantMembershipsExpandsGlobalRole(t *testing.T) {
+	tenantIDs := []uuid.UUID{uuid.New(), uuid.New()}
+
+	desired := desiredOIDCTenantMemberships([]string{"platform-admins"}, map[string]string{"platform-admins": "ADMIN"}, nil, tenantIDs)
+	for _, tenantID := range tenantIDs {
+		if desired[tenantID] != sqlcv1.TenantMemberRoleADMIN {
+			t.Fatalf("role for %s = %q, want ADMIN", tenantID, desired[tenantID])
+		}
+	}
+}
+
+func TestDesiredOIDCTenantMembershipsGlobalOwnerWins(t *testing.T) {
+	tenantID := uuid.New()
+	mappings := map[string][]oidcTenantGroupMapping{
+		"admins": {{TenantID: tenantID, Role: "ADMIN"}},
+	}
+
+	desired := desiredOIDCTenantMemberships([]string{"owners", "admins"}, map[string]string{"owners": "OWNER"}, mappings, []uuid.UUID{tenantID})
+	if desired[tenantID] != sqlcv1.TenantMemberRoleOWNER {
+		t.Fatalf("role = %q, want OWNER", desired[tenantID])
+	}
+}
+
+func TestIsOIDCGlobalAdmin(t *testing.T) {
+	groups := []string{"auditors", "platform-admins"}
+	claims := &oidcClaims{Groups: &groups}
+	mappings := map[string]string{"auditors": "VIEWER", "platform-admins": "ADMIN"}
+	if !isOIDCGlobalAdmin(claims, mappings) {
+		t.Fatal("expected global ADMIN mapping to qualify")
+	}
+
+	viewerGroups := []string{"auditors"}
+	claims.Groups = &viewerGroups
+	if isOIDCGlobalAdmin(claims, mappings) {
+		t.Fatal("expected global VIEWER mapping not to qualify")
+	}
 }

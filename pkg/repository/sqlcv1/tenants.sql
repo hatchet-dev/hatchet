@@ -556,6 +556,38 @@ WHERE
     "tenantId" = @tenantId::uuid
     AND "id" = @id::uuid;
 
+-- name: UpsertTenantOIDCGroupMapping :one
+INSERT INTO "TenantOIDCGroupMapping" (
+    "tenantId",
+    "group",
+    "role"
+) VALUES (
+    @tenantId::uuid,
+    @groupName::text,
+    @role::"TenantMemberRole"
+) ON CONFLICT ("tenantId", "group") DO UPDATE SET
+    "role" = EXCLUDED."role",
+    "updatedAt" = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: ListTenantOIDCGroupMappings :many
+SELECT *
+FROM "TenantOIDCGroupMapping"
+WHERE "tenantId" = @tenantId::uuid
+ORDER BY "group";
+
+-- name: ListOIDCGroupMappings :many
+SELECT *
+FROM "TenantOIDCGroupMapping";
+
+-- name: HasOIDCGroupMappings :one
+SELECT EXISTS(SELECT 1 FROM "TenantOIDCGroupMapping");
+
+-- name: DeleteTenantOIDCGroupMapping :execrows
+DELETE FROM "TenantOIDCGroupMapping"
+WHERE "tenantId" = @tenantId::uuid
+    AND "id" = @id::uuid;
+
 -- name: CreateTenantMember :one
 INSERT INTO "TenantMember" (
     "id",
@@ -571,7 +603,8 @@ INSERT INTO "TenantMember" (
     COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
     "role" = @role::"TenantMemberRole",
-    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads")
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads"),
+    "oidcIssuer" = NULL
 RETURNING *;
 
 -- name: GetTenantMemberByID :one
@@ -637,13 +670,43 @@ WHERE
 UPDATE "TenantMember"
 SET
     "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role"),
-    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads"),
+    "oidcIssuer" = NULL
 WHERE "id" = @id::uuid
 RETURNING *;
 
 -- name: DeleteTenantMember :exec
 DELETE FROM "TenantMember"
 WHERE "id" = @id::uuid;
+
+-- name: UpsertOIDCTenantMember :exec
+INSERT INTO "TenantMember" (
+    "id",
+    "tenantId",
+    "userId",
+    "role",
+    "oidcIssuer"
+) VALUES (
+    gen_random_uuid(),
+    @tenantId::uuid,
+    @userId::uuid,
+    @role::"TenantMemberRole",
+    @oidcIssuer::text
+) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
+    "role" = EXCLUDED."role"
+WHERE "TenantMember"."oidcIssuer" = EXCLUDED."oidcIssuer";
+
+-- name: ListOIDCTenantMembers :many
+SELECT *
+FROM "TenantMember"
+WHERE "userId" = @userId::uuid
+    AND "oidcIssuer" = @oidcIssuer::text;
+
+-- name: DeleteOIDCTenantMember :exec
+DELETE FROM "TenantMember"
+WHERE "tenantId" = @tenantId::uuid
+    AND "userId" = @userId::uuid
+    AND "oidcIssuer" = @oidcIssuer::text;
 
 -- name: DeleteTenant :one
 UPDATE "Tenant"

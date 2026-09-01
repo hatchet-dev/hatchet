@@ -246,6 +246,9 @@ type ConfigFileRuntime struct {
 	// Allow new tenants to be created
 	AllowCreateTenant bool `mapstructure:"allowCreateTenant" json:"allowCreateTenant,omitempty" default:"true"`
 
+	// Require an OIDC global OWNER or ADMIN mapping to create tenants
+	CreateTenantRequiresGlobalAdmin bool `mapstructure:"createTenantRequiresGlobalAdmin" json:"createTenantRequiresGlobalAdmin,omitempty" default:"false"`
+
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 
@@ -528,10 +531,11 @@ type ConfigFileAuthGithub struct {
 type ConfigFileAuthOIDC struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 
-	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
-	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
-	IssuerURL    string   `mapstructure:"issuerURL" json:"issuerURL,omitempty"`
-	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
+	ClientID      string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret  string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	IssuerURL     string   `mapstructure:"issuerURL" json:"issuerURL,omitempty"`
+	Scopes        []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
+	GroupMappings string   `mapstructure:"groupMappings" json:"groupMappings,omitempty"`
 	// ScopesString is used to bind the SERVER_AUTH_OIDC_SCOPES env var, since
 	// direct env-to-[]string binding is unreliable without a decode hook.
 	ScopesString string `mapstructure:"scopesString" json:"scopesString,omitempty"`
@@ -695,7 +699,8 @@ type AuthConfig struct {
 
 	// OIDCProvider is the cached OIDC provider, created at startup via discovery.
 	// Reuse this instead of calling oidc.NewProvider on every request.
-	OIDCProvider *oidc.Provider
+	OIDCProvider      *oidc.Provider
+	OIDCGroupMappings map[string]string
 
 	JWTManager token.JWTManager
 
@@ -859,6 +864,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
+	_ = v.BindEnv("runtime.createTenantRequiresGlobalAdmin", "SERVER_CREATE_TENANT_REQUIRES_GLOBAL_ADMIN")
 	_ = v.BindEnv("runtime.maxPendingInvites", "SERVER_MAX_PENDING_INVITES")
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
@@ -955,6 +961,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.oidc.issuerURL", "SERVER_AUTH_OIDC_ISSUER_URL")
 	_ = v.BindEnv("auth.oidc.scopes", "SERVER_AUTH_OIDC_SCOPES")
 	_ = v.BindEnv("auth.oidc.scopesString", "SERVER_AUTH_OIDC_SCOPES")
+	_ = v.BindEnv("auth.oidc.groupMappings", "SERVER_AUTH_OIDC_GROUP_MAPPINGS")
 
 	// task queue options
 	// legacy options

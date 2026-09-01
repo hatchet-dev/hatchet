@@ -2,7 +2,9 @@
 
 set -eux
 
-caddy start
+if command -v caddy >/dev/null 2>&1; then
+    caddy start
+fi
 
 set -a
 . .env

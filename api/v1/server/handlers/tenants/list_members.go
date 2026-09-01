@@ -1,6 +1,8 @@
 package tenants
 
 import (
+	"sort"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -24,7 +26,22 @@ func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMem
 		rows[i] = *transformers.ToTenantMember(members[i])
 	}
 
+	databaseMappings, err := t.config.V1.Tenant().ListTenantOIDCGroupMappings(ctx.Request().Context(), tenantId)
+	if err != nil {
+		return nil, err
+	}
+	oidcMappings := make([]gen.OIDCGroupMapping, 0, len(databaseMappings))
+	for _, mapping := range databaseMappings {
+		mappingID := mapping.ID
+		oidcMappings = append(oidcMappings, gen.OIDCGroupMapping{
+			Id: &mappingID, Group: mapping.Group, Role: gen.TenantMemberRole(mapping.Role),
+		})
+	}
+	sort.Slice(oidcMappings, func(i, j int) bool {
+		return oidcMappings[i].Group < oidcMappings[j].Group
+	})
+
 	return gen.TenantMemberList200JSONResponse{
-		Rows: &rows,
+		Rows: &rows, OidcGroupMappings: &oidcMappings,
 	}, nil
 }

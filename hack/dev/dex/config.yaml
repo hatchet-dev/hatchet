@@ -1,0 +1,34 @@
+issuer: http://127.0.0.1:5556
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: hatchet-local
+    name: Hatchet Local
+    secret: hatchet-local-secret
+    redirectURIs:
+      - http://localhost:5173/api/v1/users/oidc/callback
+      - http://localhost:8080/api/v1/users/oidc/callback
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: admin@example.com
+    hash: "$2a$10$cUJVuFR5DflT8i/mX/obLeOmwbvOzh.diNNtO421vUBO88.n0kLm6"
+    username: admin@example.com
+    userID: "admin-1"
+    groups:
+      - platform-admins
+  - email: user@example.com
+    hash: "$2a$10$cUJVuFR5DflT8i/mX/obLeOmwbvOzh.diNNtO421vUBO88.n0kLm6"
+    username: user@example.com
+    userID: "user-1"
+    groups:
+      - default-tenant-members

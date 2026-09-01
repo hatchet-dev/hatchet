@@ -128,7 +128,7 @@ export default function OrganizationBillingPage() {
 
 function OrganizationBillingContent() {
   const { organization } = useParams({
-    from: appRoutes.organizationsRoute.to,
+    from: appRoutes.organizationsRoute.id,
   });
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();

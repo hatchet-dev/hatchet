@@ -68,7 +68,7 @@ const eventFilterSchema = z
   .default({});
 
 export const useEvents = ({ key }: UseEventsProps) => {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.id });
   const { refetchInterval } = useRefetchInterval();
   const [searchParams, setSearchParams] = useSearchParams();
 

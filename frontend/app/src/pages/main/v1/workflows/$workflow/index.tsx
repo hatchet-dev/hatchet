@@ -43,7 +43,7 @@ export default function ExpandedWorkflow() {
   const { refetchInterval } = useRefetchInterval();
   const queryClient = useQueryClient();
 
-  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.id });
 
   const workflowQueryKey = queries.workflows.get(params.workflow).queryKey;
 
@@ -318,7 +318,7 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const params = useParams({ from: appRoutes.tenantWorkflowRoute.id });
 
   return (
     <RunsProvider

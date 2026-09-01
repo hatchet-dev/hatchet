@@ -7,6 +7,9 @@ type TenantInviteAcceptRequest = Parameters<typeof api.tenantInviteAccept>[0];
 type TenantMemberUpdateRequest = Parameters<typeof api.tenantMemberUpdate>[2];
 type TenantInviteCreateRequest = Parameters<typeof api.tenantInviteCreate>[1];
 type TenantInviteUpdateRequest = Parameters<typeof api.tenantInviteUpdate>[2];
+type TenantOIDCGroupMappingCreateRequest = Parameters<
+  typeof api.tenantOidcGroupMappingCreate
+>[1];
 
 export function useTenantApi() {
   const { isControlPlaneEnabled } = useControlPlane();
@@ -125,6 +128,18 @@ export function useTenantApi() {
               ? controlPlaneApi.tenantInviteDelete(tenant, tenantInvite)
               : api.tenantInviteDelete(tenant, tenantInvite))
           ).data,
+      }),
+
+      tenantOIDCGroupMappingCreateMutation: (tenant: string) => ({
+        mutationKey: ['tenant-oidc-group-mapping:create', tenant] as const,
+        mutationFn: async (data: TenantOIDCGroupMappingCreateRequest) =>
+          (await api.tenantOidcGroupMappingCreate(tenant, data)).data,
+      }),
+
+      tenantOIDCGroupMappingDeleteMutation: (tenant: string) => ({
+        mutationKey: ['tenant-oidc-group-mapping:delete', tenant] as const,
+        mutationFn: async (mapping: string) =>
+          (await api.tenantOidcGroupMappingDelete(tenant, mapping)).data,
       }),
     }),
     [isControlPlaneEnabled],

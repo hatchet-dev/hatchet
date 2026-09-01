@@ -167,9 +167,10 @@ UPDATE "TenantMember"
 SET
     "updatedAt" = $1::timestamp,
     "role" = $2::"TenantMemberRole",
-    "canViewPayloads" = COALESCE($3::boolean, "canViewPayloads")
+    "canViewPayloads" = COALESCE($3::boolean, "canViewPayloads"),
+    "oidcIssuer" = NULL
 WHERE "id" = $4::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 `
 
 type SyncUpdateTenantMemberParams struct {
@@ -195,6 +196,7 @@ func (q *Queries) SyncUpdateTenantMember(ctx context.Context, db DBTX, arg SyncU
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }
@@ -427,8 +429,9 @@ INSERT INTO "TenantMember" (
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = $3::timestamp,
     "role" = $6::"TenantMemberRole",
-    "canViewPayloads" = COALESCE($7::boolean, "TenantMember"."canViewPayloads")
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
+    "canViewPayloads" = COALESCE($7::boolean, "TenantMember"."canViewPayloads"),
+    "oidcIssuer" = NULL
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads", "oidcIssuer"
 `
 
 type SyncUpsertTenantMemberParams struct {
@@ -460,6 +463,7 @@ func (q *Queries) SyncUpsertTenantMember(ctx context.Context, db DBTX, arg SyncU
 		&i.UserId,
 		&i.Role,
 		&i.CanViewPayloads,
+		&i.OidcIssuer,
 	)
 	return &i, err
 }

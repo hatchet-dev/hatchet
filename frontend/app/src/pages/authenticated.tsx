@@ -47,7 +47,6 @@ import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-  useLoaderData,
   useLocation,
   useMatchRoute,
   useNavigate,
@@ -101,15 +100,11 @@ function AuthenticatedInner() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
-  const loaderData = useLoaderData({ from: '/' });
-
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
   const matchRoute = useMatchRoute();
-  const isAuthPage =
-    Boolean(matchRoute({ to: appRoutes.authLoginRoute.to })) ||
-    Boolean(matchRoute({ to: appRoutes.authRegisterRoute.to }));
+  const isAuthPage = pathname.startsWith('/auth/');
   const isTenantPage = Boolean(
     matchRoute({ to: appRoutes.tenantRoute.to, fuzzy: true }),
   );
@@ -117,27 +112,12 @@ function AuthenticatedInner() {
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
   const isTenantsPage = Boolean(matchRoute({ to: appRoutes.tenantsRoute.to }));
-  const isOnboardingVerifyEmailPage = Boolean(
-    matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
-  );
-  const isOnboardingInvitesPage = Boolean(
-    matchRoute({ to: appRoutes.onboardingInvitesRoute.to }),
-  );
-  const isOnboardingCreateTenantPage = Boolean(
-    matchRoute({ to: appRoutes.onboardingCreateTenantRoute.to }),
-  );
-  const isOnboardingCreateOrganizationPage = Boolean(
-    matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
-  );
-  const isOnboardingNoTenantsPage = Boolean(
-    matchRoute({ to: appRoutes.onboardingNoTenantsRoute.to }),
-  );
-  const isOnboardingPage =
-    isOnboardingVerifyEmailPage ||
-    isOnboardingInvitesPage ||
-    isOnboardingCreateTenantPage ||
-    isOnboardingCreateOrganizationPage ||
-    isOnboardingNoTenantsPage;
+  const isOnboardingVerifyEmailPage = pathname === '/onboarding/verify-email';
+  const isOnboardingInvitesPage = pathname === '/onboarding/invites';
+  const isOnboardingCreateTenantPage = pathname === '/onboarding/create-tenant';
+  const isOnboardingCreateOrganizationPage =
+    pathname === '/onboarding/create-organization';
+  const isOnboardingPage = pathname.startsWith('/onboarding/');
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
@@ -309,7 +289,7 @@ function AuthenticatedInner() {
       // clear it so we don't keep trying to use a stale tenant.
       if (lastTenantId && !lastTenantInMemberships) {
         setLastTenant(undefined);
-        if (loaderData.isControlPlaneEnabled) {
+        if (isControlPlaneEnabled) {
           localStorage.removeItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
         }
       }
@@ -318,7 +298,7 @@ function AuthenticatedInner() {
         lastTenantInMemberships ?? tenantMemberships[0].tenant;
 
       if (targetTenant) {
-        if (loaderData.isControlPlaneEnabled) {
+        if (isControlPlaneEnabled) {
           localStorage.setItem(
             CONTROL_PLANE_TENANT_STORAGE_KEY,
             JSON.stringify(targetTenant),
@@ -374,7 +354,7 @@ function AuthenticatedInner() {
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
-    loaderData.isControlPlaneEnabled,
+    isControlPlaneEnabled,
   ]);
 
   useEffect(
