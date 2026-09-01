@@ -106,6 +106,7 @@ func NewCELParser() *CELParser {
 			checksumDecl,
 		),
 		checksum,
+		ext.Strings(),
 	)
 
 	return &CELParser{

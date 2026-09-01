@@ -303,6 +303,19 @@ func TestCELParserIncomingWebhookExpression(t *testing.T) {
 			expectError: false,
 		},
 		{
+			expression: `headers["x-github-event"].replace("_", "-") + ":" + string(input.id)`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{
+					"id": "42",
+				}),
+				cel.WithHeaders(map[string]string{
+					"x-github-event": "pull_request",
+				}),
+			),
+			expected:    "pull-request:42",
+			expectError: false,
+		},
+		{
 			expression:  `checksum(input.missing_key)`, // Should throw an error due to missing key
 			input:       cel.NewInput(),
 			expected:    "",
