@@ -64,6 +64,24 @@ workflow.schedule(run_at, input, additional_metadata={"key": "value"})
 
 The internal `parent_id`, `parent_step_run_id`, `child_index`, and `key` fields on `TriggerWorkflowOptions` / `ScheduleTriggerWorkflowOptions` have also been removed — these were never intended for external use.
 
+The `namespace` field on these options has also been removed. The namespace always comes from the `ClientConfig` now.
+
+The `desired_worker_label` field on `TriggerWorkflowOptions` has been renamed to `desired_worker_labels` and only accepts a `list[DesiredWorkerLabel]` (previously it also accepted a `dict[str, DesiredWorkerLabel]`).
+
+#### `hatchet.event` renamed to `hatchet.events`
+
+The event client is now accessed as `hatchet.events`, consistent with the other (plural) feature clients:
+
+```python
+# V1
+hatchet.event.push("my-event", payload)
+
+# V2
+hatchet.events.push("my-event", payload)
+```
+
+The internal `log` and `stream` methods on the events client are no longer public. Use `ctx.log` and the streaming methods on `Context` instead.
+
 #### Context property renames
 
 Several properties on `Context` have been renamed or removed.
@@ -136,6 +154,8 @@ def my_task(input: MyInput, ctx: Context) -> None: ...
 ```
 
 `Priority.LOW`, `Priority.MEDIUM`, and `Priority.HIGH` correspond to the integer values `1`, `2`, and `3` from V1.
+
+This applies everywhere a priority is accepted: `default_priority` on `workflow()` and `task()` decorators, the `priority` argument to `run()`, `schedule()`, `create_cron()`, and the replay methods, and the `priority` fields on trigger options and `BulkPushEventWithMetadata`.
 
 #### Worker labels must use typed objects
 
