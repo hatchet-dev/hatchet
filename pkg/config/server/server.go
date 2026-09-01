@@ -342,7 +342,7 @@ type ConfigFileRuntime struct {
 
 	// DurableEventBufferMaxSize caps how many durable task events a single flush
 	// batches together, so a burst of traffic still flushes promptly.
-	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"20"`
+	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"100"`
 
 	// DurableEventBufferMaxConcurrentFlushes bounds how many durable event ingestion
 	// transactions run concurrently.

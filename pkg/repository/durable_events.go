@@ -175,33 +175,12 @@ type DurableEventBufferOpts struct {
 	MaxConcurrentFlushes int
 }
 
-const (
-	defaultDurableEventIngestFlushInterval        = 10 * time.Millisecond
-	defaultDurableEventIngestMaxBatchSize         = 20
-	defaultDurableEventIngestMaxConcurrentFlushes = 16
-)
-
 func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) *durableEventsRepository {
 	r := &durableEventsRepository{
 		sharedRepository: shared,
 	}
 
-	flushInterval := opts.FlushInterval
-	if flushInterval <= 0 {
-		flushInterval = defaultDurableEventIngestFlushInterval
-	}
-
-	maxBatchSize := opts.MaxBatchSize
-	if maxBatchSize <= 0 {
-		maxBatchSize = defaultDurableEventIngestMaxBatchSize
-	}
-
-	maxConcurrentFlushes := opts.MaxConcurrentFlushes
-	if maxConcurrentFlushes <= 0 {
-		maxConcurrentFlushes = defaultDurableEventIngestMaxConcurrentFlushes
-	}
-
-	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, flushInterval, maxBatchSize, maxConcurrentFlushes)
+	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
 
 	return r
 }
