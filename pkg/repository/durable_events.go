@@ -1626,73 +1626,84 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}, nil
 }
 
-func (r *durableEventsRepository) resolveChildExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, opts []*WorkflowNameTriggerOpts) error {
+type resolveChildExternalIdsTask struct {
+	tenantId    uuid.UUID
+	task        *sqlcv1.FlattenExternalIdsRow
+	triggerOpts []*WorkflowNameTriggerOpts
+}
+
+type taskIdSpawnKey struct {
+	taskId   int64
+	spawnKey string
+}
+
+func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Context, tx sqlcv1.DBTX, tasks []resolveChildExternalIdsTask) error {
 	ctx, span := telemetry.NewSpan(ctx, "resolve-child-external-ids")
 	defer span.End()
 
-	candidateIdByKey := make(map[string]uuid.UUID, len(opts))
-	eventKeys := make([]string, 0, len(opts))
-	childExternalIds := make([]uuid.UUID, 0, len(opts))
+	candidateIdByKey := make(map[taskIdSpawnKey]uuid.UUID)
+	optsByKey := make(map[taskIdSpawnKey][]*WorkflowNameTriggerOpts)
+	params := sqlcv1.BulkUpsertDurableChildSignalCreatedEventsParams{}
 
-	for _, opt := range opts {
-		spawnKey := opt.childSpawnKey()
+	for _, t := range tasks {
+		for _, opt := range t.triggerOpts {
+			spawnKey := opt.childSpawnKey()
 
-		if spawnKey == "" {
-			opt.ExternalId = uuid.New()
-			continue
+			if spawnKey == "" {
+				opt.ExternalId = uuid.New()
+				continue
+			}
+
+			key := taskIdSpawnKey{taskId: t.task.ID, spawnKey: spawnKey}
+
+			if _, seen := candidateIdByKey[key]; !seen {
+				childExternalId := uuid.New()
+				candidateIdByKey[key] = childExternalId
+
+				params.Tenantids = append(params.Tenantids, t.tenantId)
+				params.Durabletaskids = append(params.Durabletaskids, t.task.ID)
+				params.Durabletaskinsertedats = append(params.Durabletaskinsertedats, t.task.InsertedAt)
+				params.Eventkeys = append(params.Eventkeys, spawnKey)
+				params.Childexternalids = append(params.Childexternalids, childExternalId)
+			}
+
+			optsByKey[key] = append(optsByKey[key], opt)
 		}
-
-		if _, seen := candidateIdByKey[spawnKey]; seen {
-			continue
-		}
-
-		childExternalId := uuid.New()
-		candidateIdByKey[spawnKey] = childExternalId
-
-		eventKeys = append(eventKeys, spawnKey)
-		childExternalIds = append(childExternalIds, childExternalId)
 	}
 
-	if len(eventKeys) == 0 {
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "n_tasks", Value: len(tasks)},
+		telemetry.AttributeKV{Key: "n_keys", Value: len(params.Eventkeys)},
+	)
+
+	if len(params.Eventkeys) == 0 {
 		return nil
 	}
 
-	rows, err := r.queries.UpsertDurableChildSignalCreatedEvents(ctx, tx, sqlcv1.UpsertDurableChildSignalCreatedEventsParams{
-		Tenantid:              tenantId,
-		Durabletaskid:         task.ID,
-		Durabletaskinsertedat: task.InsertedAt,
-		Eventkeys:             eventKeys,
-		Childexternalids:      childExternalIds,
-	})
+	rows, err := r.queries.BulkUpsertDurableChildSignalCreatedEvents(ctx, tx, params)
 
 	if err != nil {
 		return fmt.Errorf("failed to upsert child signal created events: %w", err)
 	}
 
-	resolvedIdByKey := make(map[string]uuid.UUID, len(rows))
+	resolvedIdByKey := make(map[taskIdSpawnKey]uuid.UUID, len(rows))
 
 	for _, row := range rows {
-		resolvedIdByKey[row.EventKey.String] = *row.ChildExternalID
+		resolvedIdByKey[taskIdSpawnKey{taskId: row.TaskID, spawnKey: row.EventKey.String}] = *row.ChildExternalID
 	}
 
-	claimed := make(map[string]bool, len(rows))
-
-	for _, opt := range opts {
-		spawnKey := opt.childSpawnKey()
-
-		if spawnKey == "" {
-			continue
-		}
-
-		resolvedId, ok := resolvedIdByKey[spawnKey]
+	for key, opts := range optsByKey {
+		resolvedId, ok := resolvedIdByKey[key]
 
 		if !ok {
-			return fmt.Errorf("no child external id resolved for spawn key %s", spawnKey)
+			return fmt.Errorf("no child external id resolved for task %d spawn key %s", key.taskId, key.spawnKey)
 		}
 
-		opt.ExternalId = resolvedId
-		opt.ShouldSkip = resolvedId != candidateIdByKey[spawnKey] || claimed[spawnKey]
-		claimed[spawnKey] = true
+		for i, opt := range opts {
+			opt.ExternalId = resolvedId
+			// only the first opt for a spawn key may trigger a new child; the rest reuse it
+			opt.ShouldSkip = i > 0 || resolvedId != candidateIdByKey[key]
+		}
 	}
 
 	return nil
@@ -1780,6 +1791,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	taskErrors := make(map[durableTaskId]error)
 	planByTaskId := make(map[durableTaskId]*durableEventLogAppendPlan, len(batch))
 	orderedGetOrCreateOpts := make([]GetOrCreateLogEntryOpts, 0, len(batch))
+	eligibleTaskIds := make([]durableTaskId, 0, len(batch))
 
 	for _, taskId := range taskIds {
 		opts := batch[taskId]
@@ -1799,6 +1811,33 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 			}
 			continue
 		}
+
+		eligibleTaskIds = append(eligibleTaskIds, taskId)
+	}
+
+	resolveTasks := make([]resolveChildExternalIdsTask, 0, len(eligibleTaskIds))
+
+	for _, taskId := range eligibleTaskIds {
+		opts := batch[taskId]
+
+		if opts.Kind == sqlcv1.V1DurableEventLogKindRUN {
+			resolveTasks = append(resolveTasks, resolveChildExternalIdsTask{
+				tenantId:    opts.TenantId,
+				task:        opts.Task,
+				triggerOpts: opts.TriggerRuns.TriggerOpts,
+			})
+		}
+	}
+
+	if len(resolveTasks) > 0 {
+		if resolveErr := r.resolveChildExternalIdsForBatch(ctx, tx, resolveTasks); resolveErr != nil {
+			return nil, nil, fmt.Errorf("failed to resolve child external ids: %w", resolveErr)
+		}
+	}
+
+	for _, taskId := range eligibleTaskIds {
+		opts := batch[taskId]
+		logFile := logFileByTaskId[taskId]
 
 		plan, taskErr, fatalErr := r.planDurableEventLogAppend(ctx, tx, opts, logFile, branchPointsByTaskId[taskId])
 
@@ -1995,10 +2034,8 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
-		if resolveErr := r.resolveChildExternalIds(ctx, tx, tenantId, task, opts.TriggerRuns.TriggerOpts); resolveErr != nil {
-			return nil, nil, fmt.Errorf("failed to resolve child external ids: %w", resolveErr)
-		}
-
+		// child external ids were already resolved for the whole batch in
+		// resolveChildExternalIdsForBatch before the plan loop
 		resolvedChildrenToReplay, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
 		if dedupeErr != nil {
 			return nil, nil, dedupeErr
