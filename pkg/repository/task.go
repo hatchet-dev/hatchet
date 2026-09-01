@@ -3777,6 +3777,31 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
 	}
 
+	deferredTaskIds := make([]int64, 0)
+	deferredTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	deferredTaskRetryCounts := make([]int32, 0)
+
+	for _, tasks := range dagIdsToChildTasks {
+		for _, task := range tasks {
+			deferredTaskIds = append(deferredTaskIds, task.ID)
+			deferredTaskInsertedAts = append(deferredTaskInsertedAts, task.InsertedAt)
+			deferredTaskRetryCounts = append(deferredTaskRetryCounts, task.RetryCount)
+		}
+	}
+
+	if len(deferredTaskIds) > 0 {
+		err = r.queries.DeleteTerminalTaskEvents(ctx, tx, sqlcv1.DeleteTerminalTaskEventsParams{
+			Tenantid:        tenantId,
+			Taskids:         deferredTaskIds,
+			Taskinsertedats: deferredTaskInsertedAts,
+			Taskretrycounts: deferredTaskRetryCounts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete terminal task events: %w", err)
+		}
+	}
+
 	upsertedTasks := make([]*V1TaskWithPayload, 0)
 
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.

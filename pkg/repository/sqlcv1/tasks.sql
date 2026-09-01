@@ -966,6 +966,22 @@ WHERE
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
 ;
 
+-- name: DeleteTerminalTaskEvents :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+DELETE FROM
+    v1_task_event e
+USING
+    input i
+WHERE
+    e.tenant_id = @tenantId::uuid
+    AND (e.task_id, e.task_inserted_at, e.retry_count) = (i.task_id, i.task_inserted_at, i.task_retry_count)
+    AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[]);
+
 -- name: ListAllTasksInDags :many
 SELECT
     t.id,

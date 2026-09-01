@@ -311,6 +311,40 @@ func (q *Queries) DeleteTaskBatchRun(ctx context.Context, db DBTX, arg DeleteTas
 	return err
 }
 
+const deleteTerminalTaskEvents = `-- name: DeleteTerminalTaskEvents :exec
+WITH input AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS task_retry_count
+)
+DELETE FROM
+    v1_task_event e
+USING
+    input i
+WHERE
+    e.tenant_id = $1::uuid
+    AND (e.task_id, e.task_inserted_at, e.retry_count) = (i.task_id, i.task_inserted_at, i.task_retry_count)
+    AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+`
+
+type DeleteTerminalTaskEventsParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+func (q *Queries) DeleteTerminalTaskEvents(ctx context.Context, db DBTX, arg DeleteTerminalTaskEventsParams) error {
+	_, err := db.Exec(ctx, deleteTerminalTaskEvents,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
+	return err
+}
+
 const ensureTablePartitionsExist = `-- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
     SELECT (NOW() + INTERVAL '1 day')::date AS date
