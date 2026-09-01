@@ -15,9 +15,6 @@ from __future__ import annotations
 from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
     WorkflowRunsMetricsCounts,
 )
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
-    WorkflowRunsMetricsCounts,
-)
 import pprint
 import re  # noqa: F401
 import json
