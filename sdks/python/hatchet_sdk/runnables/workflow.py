@@ -35,8 +35,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
-from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.runnables.contextvars import (
     ctx_durable_context,
 )
@@ -58,7 +56,9 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,

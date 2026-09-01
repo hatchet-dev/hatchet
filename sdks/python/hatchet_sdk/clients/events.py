@@ -356,7 +356,9 @@ class EventClient(BaseRestClient):
             ),
         )
 
-    async def _aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    async def _aio_stream(
+        self, data: str | bytes, step_run_id: str, index: int
+    ) -> None:
         request = self._create_put_stream_event_request(data, step_run_id, index)
 
         await self._retrying_aio_put_stream_event(

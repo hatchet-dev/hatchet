@@ -91,7 +91,7 @@ async def test_aio_stream_retries_generated_aio_callable(
     put_stream_event = _GeneratedAioUnaryCall(failures_before_success=2)
     client = _event_client(_FakeAioEventsServiceStub(put_stream_event))
 
-    await client.aio_stream(data, step_run_id="step-run-id", index=7)
+    await client._aio_stream(data, step_run_id="step-run-id", index=7)
 
     assert put_stream_event.calls == 3
     assert [request.task_run_external_id for request in put_stream_event.requests] == [
@@ -118,7 +118,7 @@ class _RecordingEventClient:
         self.both_calls_started = asyncio.Event()
         self.release_sends = asyncio.Event()
 
-    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    async def _aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         self.calls.append((data, step_run_id, index))
         if len(self.calls) == 2:
             self.both_calls_started.set()
