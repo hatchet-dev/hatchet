@@ -148,6 +148,8 @@ enum ConcurrencyLimitStrategy {
     QUEUE_NEWEST = 2; // deprecated
     GROUP_ROUND_ROBIN = 3;
     CANCEL_NEWEST = 4;
+    CANCEL_QUEUED_EXCEPT_NEWEST = 5;
+    CANCEL_QUEUED_EXCEPT_OLDEST = 6;
 }
 
 message Concurrency {

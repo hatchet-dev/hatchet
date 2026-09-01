@@ -1575,6 +1575,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}); err != nil {
 			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
 		}
+
+		if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move concurrency slots for paused workflows: %w", err)
+		}
 	}
 
 	for _, dag := range dags {

@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -78,10 +79,10 @@ type IdempotencyConfig struct {
 
 type CreateConcurrencyOpts struct {
 	// (optional) the maximum number of concurrent workflow runs, default 1
-	MaxRuns *int32
+	MaxRuns *int32 `json:"maxRuns,omitempty" validate:"omitempty,min=1"`
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST"`
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
 
 	// (required) a concurrency expression for evaluating the concurrency key
 	Expression string `validate:"celworkflowrunstr"`
@@ -269,7 +270,9 @@ type WorkflowRepository interface {
 
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
-	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
+	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
+
+	ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
 }
 
 type workflowRepository struct {
@@ -1482,20 +1485,88 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
 	defer span.End()
 
-	return r.queries.MovePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.MovePausedWorkflowQueueItemsParams{
+	if len(workflowIds) == 0 {
+		return nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	}); err != nil {
+		return err
+	}
+
+	if err := r.queries.MovePausedWorkflowRateLimitedQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowRateLimitedQueueItemsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	}); err != nil {
+		return err
+	}
+
+	return commit(ctx)
 }
 
-func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {
 	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
 	defer span.End()
 
-	return r.queries.RequeuePausedWorkflowQueueItems(ctx, r.pool, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+	if len(workflowIds) == 0 {
+		return nil, nil, nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rollback()
+
+	queueNames, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
 	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	concurrencyStrategyIds, err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
+		Workflowids: workflowIds,
+		Tenantid:    tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+}
+
+func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-unpaused-workflows-with-paused-queue-items")
+	defer span.End()
+
+	return r.queries.ListUnpausedWorkflowsWithPausedQueueItems(ctx, r.pool, tenantId)
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
