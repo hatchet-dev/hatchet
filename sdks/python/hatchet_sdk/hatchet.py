@@ -323,7 +323,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -347,7 +347,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -370,7 +370,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -451,7 +451,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -459,9 +459,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -487,7 +485,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -495,9 +493,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -522,7 +518,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -530,9 +526,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -582,7 +576,7 @@ class Hatchet:
 
         :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+        :param desired_worker_labels: A list of desired worker labels that determine to which worker the task should be assigned.
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
@@ -669,11 +663,11 @@ class Hatchet:
         input_validator: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: Priority = Priority.LOW,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -701,11 +695,11 @@ class Hatchet:
         input_validator: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: Priority = Priority.LOW,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -733,11 +727,11 @@ class Hatchet:
         input_validator: type[TWorkflowInput],
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: Priority = Priority.LOW,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -765,11 +759,11 @@ class Hatchet:
         input_validator: type[TWorkflowInput],
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: Priority = Priority.LOW,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -799,11 +793,11 @@ class Hatchet:
         input_validator: type[TWorkflowInput] | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
+        default_priority: Priority = Priority.LOW,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -927,7 +921,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -935,9 +929,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -963,7 +955,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -971,9 +963,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -1002,7 +992,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: int | Priority = Priority.LOW,
+        default_priority: Priority = Priority.LOW,
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
@@ -1010,9 +1000,7 @@ class Hatchet:
         execution_timeout: timedelta = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
@@ -1066,7 +1054,7 @@ class Hatchet:
 
         :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+        :param desired_worker_labels: A list of desired worker labels that determine to which worker the task should be assigned.
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 

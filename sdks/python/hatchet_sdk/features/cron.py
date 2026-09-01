@@ -93,7 +93,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.
@@ -132,7 +132,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.

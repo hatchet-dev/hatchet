@@ -571,7 +571,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -601,7 +601,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.

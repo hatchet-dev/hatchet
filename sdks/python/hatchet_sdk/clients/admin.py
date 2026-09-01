@@ -171,10 +171,8 @@ class AdminClient:
         child_key: str | None = None
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
-        priority: int | Priority | None = None
-        desired_worker_label: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None
+        priority: Priority | None = None
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -206,13 +204,10 @@ class AdminClient:
         _options.parent_step_run_id = step_run_id
 
         desired_worker_labels = None
-        if _options.desired_worker_label:
-            if isinstance(_options.desired_worker_label, list):
-                labels_dict = {
-                    d.key: d for d in _options.desired_worker_label if d.key is not None
-                }
-            else:
-                labels_dict = _options.desired_worker_label
+        if _options.desired_worker_labels:
+            labels_dict = {
+                d.key: d for d in _options.desired_worker_labels if d.key is not None
+            }
             desired_worker_labels = {
                 key: trigger_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
@@ -351,9 +346,8 @@ class AdminClient:
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
             options = options or ScheduleTriggerWorkflowOptions()
-            namespace = options.namespace or self.namespace
 
-            name = self.config.apply_namespace(name, namespace)
+            name = self.config.apply_namespace(name, self.namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -400,13 +394,11 @@ class AdminClient:
             additional_metadata={**additional_metadata, **options.additional_metadata},
             desired_worker_id=desired_worker_id,
             priority=options.priority,
-            namespace=options.namespace,
             sticky=options.sticky,
-            desired_worker_label=options.desired_worker_label,
+            desired_worker_labels=options.desired_worker_labels,
         )
 
-        namespace = options.namespace or self.namespace
-        workflow_name = self.config.apply_namespace(workflow_name, namespace)
+        workflow_name = self.config.apply_namespace(workflow_name, self.namespace)
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 

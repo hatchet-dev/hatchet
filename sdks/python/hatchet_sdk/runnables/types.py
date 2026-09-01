@@ -53,7 +53,7 @@ TWorkflowInput_contra = TypeVar(
 class TaskDefaults(BaseModel):
     schedule_timeout: timedelta | None = None
     execution_timeout: timedelta | None = None
-    priority: int | Priority | None = Field(gt=0, lt=4, default=None)
+    priority: Priority | None = Field(gt=0, lt=4, default=None)
     retries: int | None = None
     backoff_factor: float | None = None
     backoff_max_seconds: int | None = None
@@ -105,7 +105,7 @@ class WorkflowConfig(BaseModel):
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse] | None = None
-    default_priority: int | Priority | None = None
+    default_priority: Priority | None = None
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()

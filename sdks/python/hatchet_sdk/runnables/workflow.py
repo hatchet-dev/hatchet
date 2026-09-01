@@ -270,7 +270,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -283,14 +283,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             priority=priority,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
-            desired_worker_label=desired_worker_labels,
+            desired_worker_labels=desired_worker_labels,
         )
 
     def _create_schedule_options_with_combined_metadata(
         self,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
     ) -> ScheduleTriggerWorkflowOptions:
         return ScheduleTriggerWorkflowOptions(
             child_key=child_key,
@@ -572,7 +572,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
     ) -> WorkflowVersion:
         """
         Schedule a workflow to run at a specific time.
@@ -604,7 +604,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
     ) -> WorkflowVersion:
         """
         Schedule a workflow to run at a specific time.
@@ -632,7 +632,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a cron job for the workflow.
@@ -660,7 +660,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a cron job for the workflow.
@@ -882,7 +882,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -896,7 +896,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: Literal[False],
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -908,7 +908,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -955,7 +955,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -969,7 +969,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: Literal[False],
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -981,7 +981,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1215,9 +1215,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
@@ -1244,7 +1242,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
+        :param desired_worker_labels: A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
@@ -1283,14 +1281,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            labels: list[DesiredWorkerLabel] = (
-                desired_worker_labels
-                if isinstance(desired_worker_labels, list)
-                else [
-                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
-                    for k, d in (desired_worker_labels or {}).items()
-                ]
-            )
+            labels = desired_worker_labels or []
 
             task = Task(
                 _fn=func,
@@ -1333,9 +1324,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
@@ -1362,9 +1351,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
@@ -1390,9 +1377,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         execution_timeout: timedelta = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
@@ -1448,14 +1433,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 | CoroutineLike[R],
             ],
         ) -> Task[TWorkflowInput, R]:
-            labels: list[DesiredWorkerLabel] = (
-                desired_worker_labels
-                if isinstance(desired_worker_labels, list)
-                else [
-                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
-                    for k, d in (desired_worker_labels or {}).items()
-                ]
-            )
+            labels = desired_worker_labels or []
             task = Task(
                 _fn=cast(
                     "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
@@ -1499,9 +1477,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None,
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
@@ -1536,7 +1512,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
+        :param desired_worker_labels: A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
@@ -1569,14 +1545,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            labels: list[DesiredWorkerLabel] = (
-                desired_worker_labels
-                if isinstance(desired_worker_labels, list)
-                else [
-                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
-                    for k, d in (desired_worker_labels or {}).items()
-                ]
-            )
+            labels = desired_worker_labels or []
 
             task = Task(
                 _fn=func,
@@ -1869,7 +1838,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1883,7 +1852,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: Literal[False],
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1895,7 +1864,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1949,7 +1918,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: Literal[True] = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1963,7 +1932,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: Literal[False],
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1975,7 +1944,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: Priority | None = None,
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,

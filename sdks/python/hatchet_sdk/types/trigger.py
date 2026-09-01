@@ -7,17 +7,14 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 class ScheduleTriggerWorkflowOptions(BaseModel):
     child_key: str | None = None
-    namespace: str | None = None
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
+    priority: Priority | None = None
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     sticky: bool = False
-    desired_worker_label: (
-        dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-    ) = None
+    desired_worker_labels: list[DesiredWorkerLabel] | None = None
 
 
 class WorkflowRunTriggerConfig(BaseModel):
@@ -30,5 +27,5 @@ class BulkPushEventWithMetadata(BaseModel):
     key: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | Priority | None = None
+    priority: Priority | None = None
     scope: str | None = None
