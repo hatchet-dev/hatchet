@@ -20,6 +20,7 @@ When implementing against Hatchet, fetch the relevant page below; each URL serve
 **Setup & local dev**
 
 - Quickstart: https://docs.hatchet.run/v1/quickstart.md
+- Running Hatchet locally (all options): https://docs.hatchet.run/v1/running-locally.md
 - Embedded mode (local engine, no token or Docker): https://docs.hatchet.run/v1/embedded.md
 - CLI overview: https://docs.hatchet.run/reference/cli.md
 - CLI profiles & tokens: https://docs.hatchet.run/reference/cli/profiles.md
