@@ -57,7 +57,7 @@ func (u *UserService) UserUpdateOidcOauthCallback(ctx echo.Context, _ gen.UserUp
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
-	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user, isOIDCGlobalAdmin(claims, u.config.Auth.OIDCGroupMappings))
+	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, user)
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
@@ -116,14 +116,15 @@ func (u *UserService) upsertOIDCUserFromClaims(ctx context.Context, config *serv
 		return nil, fmt.Errorf("failed to encrypt refresh token: %s", err.Error())
 	}
 
+	providerUserID := authn.OIDCProviderUserID(claims.Issuer, claims.Sub)
 	oauthOpts := &v1.OAuthOpts{
 		Provider:       "oidc",
-		ProviderUserId: claims.Sub,
+		ProviderUserId: providerUserID,
 		AccessToken:    accessTokenEncrypted,
 		RefreshToken:   refreshTokenEncrypted,
 		ExpiresAt:      &expiresAt,
 	}
-	subjectBinding, subjectErr := u.config.V1.User().GetUserOAuthByProviderUserID(ctx, "oidc", claims.Sub)
+	subjectBinding, subjectErr := u.config.V1.User().GetUserOAuthByProviderUserID(ctx, "oidc", providerUserID)
 	if subjectErr != nil && !errors.Is(subjectErr, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to get OIDC subject binding: %s", subjectErr.Error())
 	}
@@ -136,7 +137,7 @@ func (u *UserService) upsertOIDCUserFromClaims(ctx context.Context, config *serv
 			return nil, fmt.Errorf("OIDC subject is already linked to another account")
 		}
 		existingOAuth, oauthErr := u.config.V1.User().GetUserOAuth(ctx, user.ID, "oidc")
-		if oauthErr == nil && existingOAuth.ProviderUserId != claims.Sub {
+		if oauthErr == nil && existingOAuth.ProviderUserId != providerUserID {
 			return nil, fmt.Errorf("OIDC subject does not match the existing account binding")
 		}
 		if oauthErr != nil && !errors.Is(oauthErr, pgx.ErrNoRows) {
@@ -185,18 +186,6 @@ func (u *UserService) upsertOIDCUserFromClaims(ctx context.Context, config *serv
 	}
 
 	return user, nil
-}
-
-func isOIDCGlobalAdmin(claims *oidcClaims, mappings map[string]string) bool {
-	if claims.Groups == nil {
-		return false
-	}
-	for _, group := range *claims.Groups {
-		if role := mappings[group]; role == "OWNER" || role == "ADMIN" {
-			return true
-		}
-	}
-	return false
 }
 
 func acquireOIDCSubjectLock(ctx context.Context, config *server.ServerConfig, issuer, subject string) (func(), error) {

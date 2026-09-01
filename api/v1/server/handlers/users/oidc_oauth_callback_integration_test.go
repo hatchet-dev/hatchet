@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -109,6 +110,65 @@ func TestUpsertOIDCUserFromToken(t *testing.T) {
 		}))
 		if err == nil {
 			t.Fatal("expected the same OIDC subject on a second account to be rejected")
+		}
+
+		otherIssuerConfig, otherIssuer := newOIDCTestConfig(t, dbConf)
+		otherIssuerService := NewUserService(otherIssuerConfig)
+		otherIssuerUser, err := otherIssuerService.upsertOIDCUserFromToken(ctx, otherIssuerConfig, otherIssuer.token(t, idTokenClaims{
+			Subject: subject, Email: uniqueEmail(t, "oidc-other-issuer"), EmailVerified: true, Groups: &emptyGroups,
+		}))
+		if err != nil {
+			t.Fatalf("same subject from a different issuer should be independent: %v", err)
+		}
+		if otherIssuerUser.ID == user.ID {
+			t.Fatal("different issuers with the same subject linked to one account")
+		}
+
+		return nil
+	})
+}
+
+func TestOIDCGlobalAdminRevocation(t *testing.T) {
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	testutils.RunTestWithDatabase(t, func(dbConf *database.Layer) error {
+		cfg, issuer := newOIDCTestConfig(t, dbConf)
+		cfg.Auth.OIDCGroupMappings = map[string]string{"platform-admins": "ADMIN"}
+		service := NewUserService(cfg)
+		ctx := context.Background()
+		subject := uuid.NewString()
+		adminGroups := []string{"platform-admins"}
+
+		user, err := service.upsertOIDCUserFromToken(ctx, cfg, issuer.token(t, idTokenClaims{
+			Subject: subject, Email: uniqueEmail(t, "oidc-admin"), EmailVerified: true, Groups: &adminGroups,
+		}))
+		if err != nil {
+			t.Fatalf("create OIDC administrator: %v", err)
+		}
+
+		issuer.setUserInfo(subject, adminGroups)
+		allowed, err := authn.IsCurrentOIDCGlobalAdmin(ctx, cfg, user.ID)
+		if err != nil || !allowed {
+			t.Fatalf("current administrator denied: allowed=%v err=%v", allowed, err)
+		}
+
+		issuer.setUserInfo(subject, []string{"engineering"})
+		allowed, err = authn.IsCurrentOIDCGlobalAdmin(ctx, cfg, user.ID)
+		if err != nil {
+			t.Fatalf("check revoked administrator: %v", err)
+		}
+		if allowed {
+			t.Fatal("expected group removal to revoke global administrator access without a new login")
+		}
+
+		issuer.setUserInfo(subject, adminGroups)
+		cfg.Auth.OIDCGroupMappings = nil
+		allowed, err = authn.IsCurrentOIDCGlobalAdmin(ctx, cfg, user.ID)
+		if err != nil {
+			t.Fatalf("check removed administrator mapping: %v", err)
+		}
+		if allowed {
+			t.Fatal("expected mapping removal to revoke global administrator access without a new login")
 		}
 
 		return nil

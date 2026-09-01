@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gorilla/sessions"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
@@ -26,8 +25,14 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		), nil
 	}
 
-	session, _ := ctx.Get("session").(*sessions.Session)
-	isGlobalAdmin := session != nil && session.Values[authn.OIDCGlobalAdminSessionKey] == true
+	isGlobalAdmin := false
+	if t.config.Runtime.CreateTenantRequiresGlobalAdmin {
+		var err error
+		isGlobalAdmin, err = authn.IsCurrentOIDCGlobalAdmin(ctx.Request().Context(), t.config, user.ID)
+		if err != nil {
+			t.config.Logger.Warn().Err(err).Msg("could not verify current OIDC global administrator access")
+		}
+	}
 	if !tenantCreationAllowed(true, t.config.Runtime.CreateTenantRequiresGlobalAdmin, isGlobalAdmin) {
 		return gen.TenantCreate403JSONResponse{
 			Description: "tenant creation requires global administrator access",

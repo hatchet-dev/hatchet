@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,6 +32,9 @@ type mockOIDC struct {
 	signer   jose.Signer
 	provider *oidc.Provider
 	oauthCfg *oauth2.Config
+	mu       sync.RWMutex
+	subject  string
+	groups   []string
 }
 
 func newMockOIDC(t *testing.T) *mockOIDC {
@@ -54,6 +58,7 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 		Key: priv.Public(), KeyID: keyID, Algorithm: "RS256", Use: "sig",
 	}}}
 
+	m := &mockOIDC{}
 	mux := http.NewServeMux()
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -75,18 +80,30 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(jwks)
 	})
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, _ *http.Request) {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"sub": m.subject, "groups": m.groups})
+	})
 
 	provider, err := oidc.NewProvider(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("oidc discovery: %v", err)
 	}
 
-	return &mockOIDC{
-		server:   srv,
-		signer:   signer,
-		provider: provider,
-		oauthCfg: &oauth2.Config{ClientID: testOIDCClientID},
-	}
+	m.server = srv
+	m.signer = signer
+	m.provider = provider
+	m.oauthCfg = &oauth2.Config{ClientID: testOIDCClientID}
+	return m
+}
+
+func (m *mockOIDC) setUserInfo(subject string, groups []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subject = subject
+	m.groups = groups
 }
 
 // idTokenClaims are the claims the mock signs into an ID token. Zero values for
@@ -245,20 +262,5 @@ func TestDesiredOIDCTenantMembershipsGlobalOwnerWins(t *testing.T) {
 	desired := desiredOIDCTenantMemberships([]string{"owners", "admins"}, map[string]string{"owners": "OWNER"}, mappings, []uuid.UUID{tenantID})
 	if desired[tenantID] != sqlcv1.TenantMemberRoleOWNER {
 		t.Fatalf("role = %q, want OWNER", desired[tenantID])
-	}
-}
-
-func TestIsOIDCGlobalAdmin(t *testing.T) {
-	groups := []string{"auditors", "platform-admins"}
-	claims := &oidcClaims{Groups: &groups}
-	mappings := map[string]string{"auditors": "VIEWER", "platform-admins": "ADMIN"}
-	if !isOIDCGlobalAdmin(claims, mappings) {
-		t.Fatal("expected global ADMIN mapping to qualify")
-	}
-
-	viewerGroups := []string{"auditors"}
-	claims.Groups = &viewerGroups
-	if isOIDCGlobalAdmin(claims, mappings) {
-		t.Fatal("expected global VIEWER mapping not to qualify")
 	}
 }
