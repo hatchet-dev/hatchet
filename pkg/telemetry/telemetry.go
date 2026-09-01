@@ -65,14 +65,7 @@ func InitTracer(opts *TracerOpts) (func() error, error) {
 		attribute.String("service.name", opts.ServiceName),
 		attribute.String("library.language", "go"),
 	}
-
-	// Add Kubernetes pod information if available
-	if podName := os.Getenv("K8S_POD_NAME"); podName != "" {
-		resourceAttrs = append(resourceAttrs, attribute.String("k8s.pod.name", podName))
-	}
-	if podNamespace := os.Getenv("K8S_POD_NAMESPACE"); podNamespace != "" {
-		resourceAttrs = append(resourceAttrs, attribute.String("k8s.namespace.name", podNamespace))
-	}
+	resourceAttrs = append(resourceAttrs, k8sResourceAttributes()...)
 
 	resources, err := resource.New(
 		context.Background(),
@@ -148,14 +141,7 @@ func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
 		attribute.String("service.name", opts.ServiceName),
 		attribute.String("library.language", "go"),
 	}
-
-	// Add Kubernetes pod information if available
-	if podName := os.Getenv("K8S_POD_NAME"); podName != "" {
-		resourceAttrs = append(resourceAttrs, attribute.String("k8s.pod.name", podName))
-	}
-	if podNamespace := os.Getenv("K8S_POD_NAMESPACE"); podNamespace != "" {
-		resourceAttrs = append(resourceAttrs, attribute.String("k8s.namespace.name", podNamespace))
-	}
+	resourceAttrs = append(resourceAttrs, k8sResourceAttributes()...)
 
 	resources, err := resource.New(
 		context.Background(),
@@ -271,6 +257,34 @@ func WithAttributes(span trace.Span, attrs ...AttributeKV) {
 
 func prefixSpanKey(name string) string {
 	return fmt.Sprintf("hatchet.run/%s", name)
+}
+
+func k8sResourceAttributes() []attribute.KeyValue {
+	var attrs []attribute.KeyValue
+
+	if podName := os.Getenv("K8S_POD_NAME"); podName != "" {
+		attrs = append(attrs, attribute.String("k8s.pod.name", podName))
+	}
+
+	if podNamespace := os.Getenv("K8S_POD_NAMESPACE"); podNamespace != "" {
+		attrs = append(attrs, attribute.String("k8s.namespace.name", podNamespace))
+	}
+
+	if region := firstNonEmpty(os.Getenv("K8S_CLOUD_REGION"), os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION")); region != "" {
+		attrs = append(attrs, attribute.String("cloud.region", region))
+	}
+
+	return attrs
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+
+	return ""
 }
 
 // CollectUniqueTenantIDs extracts unique tenant IDs from a slice of items.
