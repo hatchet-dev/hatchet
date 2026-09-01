@@ -726,6 +726,41 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 	return items, nil
 }
 
+const listStepIdsReferencingTenantStrategies = `-- name: ListStepIdsReferencingTenantStrategies :many
+SELECT DISTINCT
+    step_id
+FROM
+    v1_step_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    tenant_strategy_id = ANY($2::bigint[])
+`
+
+type ListStepIdsReferencingTenantStrategiesParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Ids      []int64   `json:"ids"`
+}
+
+func (q *Queries) ListStepIdsReferencingTenantStrategies(ctx context.Context, db DBTX, arg ListStepIdsReferencingTenantStrategiesParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listStepIdsReferencingTenantStrategies, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var step_id uuid.UUID
+		if err := rows.Scan(&step_id); err != nil {
+			return nil, err
+		}
+		items = append(items, step_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTenantConcurrencyOrderings = `-- name: ListTenantConcurrencyOrderings :many
 WITH latest_versions AS (
     SELECT DISTINCT ON (wv."workflowId")

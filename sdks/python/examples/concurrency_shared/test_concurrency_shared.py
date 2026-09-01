@@ -6,11 +6,12 @@ import pytest
 
 from examples.concurrency_shared.worker import (
     WorkflowInput,
+    concurrency_shared_chain_workflow,
     concurrency_shared_mixed_workflow,
     concurrency_shared_workflow_a,
     concurrency_shared_workflow_b,
 )
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, V1TaskStatus
 from hatchet_sdk.runnables.workflow import Workflow
 
 TOLERANCE_MS = 100
@@ -137,3 +138,44 @@ async def test_shared_concurrency_no_limit_overlaps(hatchet: Hatchet) -> None:
     )
 
     assert_some_overlap(windows)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None:
+    """A chain mixing two tenant-scoped GROUP_ROUND_ROBIN strategies around a
+    workflow-scoped CANCEL_IN_PROGRESS strategy applies each entry's own semantics: two
+    runs with distinct tenant keys but a colliding CANCEL_IN_PROGRESS key must resolve by
+    the newer run cancelling the older in-flight one."""
+    inline = f"chain-inline-{uuid4()}"
+
+    ref_old = await concurrency_shared_chain_workflow.aio_run(
+        WorkflowInput(group=f"a-{uuid4()}", inline=inline, chain_c=f"c-{uuid4()}"),
+        wait_for_result=False,
+    )
+
+    # let the first run acquire its full chain and start executing
+    await asyncio.sleep(3)
+
+    ref_new = await concurrency_shared_chain_workflow.aio_run(
+        WorkflowInput(group=f"a-{uuid4()}", inline=inline, chain_c=f"c-{uuid4()}"),
+        wait_for_result=False,
+    )
+
+    # the newer run completes; the older one is cancelled mid-run by CANCEL_IN_PROGRESS
+    await ref_new.aio_result()
+
+    # wait for the OLAP repo to catch up, then assert statuses
+    for _ in range(20):
+        await asyncio.sleep(1)
+
+        old_run = await hatchet.runs.aio_get(ref_old.workflow_run_id)
+        new_run = await hatchet.runs.aio_get(ref_new.workflow_run_id)
+
+        if (
+            old_run.run.status == V1TaskStatus.CANCELLED
+            and new_run.run.status == V1TaskStatus.COMPLETED
+        ):
+            break
+
+    assert old_run.run.status == V1TaskStatus.CANCELLED, old_run.run.status
+    assert new_run.run.status == V1TaskStatus.COMPLETED, new_run.run.status

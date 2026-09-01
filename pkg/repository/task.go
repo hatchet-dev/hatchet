@@ -3135,7 +3135,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	}
 
 	cacheKey := func(stepId uuid.UUID) string {
-		return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
+		return concurrencyStrategyCacheKey(tenantId, stepId)
 	}
 
 	sortStrategies := func(strats []*sqlcv1.V1StepConcurrency) {

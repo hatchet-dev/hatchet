@@ -85,7 +85,10 @@ type CreateConcurrencyOpts struct {
 	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST CANCEL_QUEUED_EXCEPT_NEWEST CANCEL_QUEUED_EXCEPT_OLDEST"`
 
 	// (required) a concurrency expression for evaluating the concurrency key
-	Expression string `json:"expression" validate:"celworkflowrunstr"`
+	//
+	// note: intentionally no json tag; the workflow version checksum serializes this
+	// struct, so renaming the serialized key would re-version every existing workflow
+	Expression string `validate:"celworkflowrunstr"`
 
 	// (required when TenantScoped) the strategy name; unique per tenant for tenant-scoped
 	// strategies
@@ -333,7 +336,7 @@ func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenant
 
 func (r *workflowRepository) upsertTenantConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
 	if opts.Name == "" {
-		return nil, fmt.Errorf("tenant-scoped concurrency entries require a name")
+		return nil, newTenantConcurrencyError("tenant-scoped concurrency entries require a name")
 	}
 
 	var maxRuns int32 = 1
@@ -412,7 +415,7 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		}
 
 		if seen[entry.Name] {
-			return nil, fmt.Errorf("tenant-scoped concurrency strategy %s is referenced more than once by step %s", entry.Name, stepReadableId)
+			return nil, newTenantConcurrencyError("tenant-scoped concurrency strategy %s is referenced more than once by step %s", entry.Name, stepReadableId)
 		}
 
 		seen[entry.Name] = true
@@ -620,7 +623,7 @@ func (r *workflowRepository) checkTenantConcurrencyOrdering(ctx context.Context,
 		if state[id] == unvisited && visit(id) {
 			label := edges[cycleFrom][cycleTo]
 
-			return fmt.Errorf(
+			return newTenantConcurrencyError(
 				"tenant-scoped concurrency strategies %s and %s are ordered inconsistently across concurrency chains (%s orders %s before %s, which conflicts with the ordering elsewhere); chains sharing tenant-scoped strategies must order them consistently to avoid deadlocks",
 				namesById[cycleFrom], namesById[cycleTo],
 				label, namesById[cycleFrom], namesById[cycleTo],
@@ -629,6 +632,21 @@ func (r *workflowRepository) checkTenantConcurrencyOrdering(ctx context.Context,
 	}
 
 	return nil
+}
+
+// TenantConcurrencyError is a user-facing registration error involving tenant-scoped
+// concurrency. Its message contains only caller-supplied identifiers (strategy names,
+// step readable ids, workflow names/ids belonging to the caller's tenant).
+type TenantConcurrencyError struct {
+	msg string
+}
+
+func (e *TenantConcurrencyError) Error() string {
+	return e.msg
+}
+
+func newTenantConcurrencyError(format string, args ...interface{}) *TenantConcurrencyError {
+	return &TenantConcurrencyError{msg: fmt.Sprintf(format, args...)}
 }
 
 type JobRunHasCycleError struct {
@@ -665,15 +683,20 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 
 	defer rollback()
 
-	// Upsert tenant-scoped concurrency definitions (entries carrying both a name and an
-	// expression) first, in the same transaction, so the entries created below can
-	// reference them. This runs before the checksum early-return on purpose: definitions
-	// are tenant-level state, so re-registering an unchanged workflow with a changed
-	// definition must still update the strategy in place.
+	// Upsert tenant-scoped concurrency definitions first, in the same transaction, so the
+	// entries created below can reference them. This runs before the checksum early-return
+	// on purpose: definitions are tenant-level state, so re-registering an unchanged
+	// workflow with a changed definition must still update the strategy in place.
+	upsertedStrategyIds := make([]int64, 0)
+
 	for _, entry := range collectTenantConcurrencyDefs(opts) {
-		if _, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry); err != nil {
+		strategy, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry)
+
+		if err != nil {
 			return nil, fmt.Errorf("could not upsert tenant concurrency strategy %s: %w", entry.Name, err)
 		}
+
+		upsertedStrategyIds = append(upsertedStrategyIds, strategy.ID)
 	}
 
 	var workflowId uuid.UUID
@@ -772,7 +795,38 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
+	r.invalidateConcurrencyStrategyCache(ctx, tenantId, upsertedStrategyIds)
+
 	return workflowVersion[0], nil
+}
+
+// invalidateConcurrencyStrategyCache drops this process's cached per-step strategy lists
+// for every step referencing the given tenant strategies, so tasks created here pick up an
+// updated definition immediately instead of after the cache TTL. Other engine replicas
+// keep their own caches, so cross-replica staleness is still bounded by the cache TTL.
+func (r *workflowRepository) invalidateConcurrencyStrategyCache(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
+	if len(strategyIds) == 0 {
+		return
+	}
+
+	stepIds, err := r.queries.ListStepIdsReferencingTenantStrategies(ctx, r.pool, sqlcv1.ListStepIdsReferencingTenantStrategiesParams{
+		Tenantid: tenantId,
+		Ids:      strategyIds,
+	})
+
+	if err != nil {
+		r.l.Warn().Err(err).Msg("could not invalidate concurrency strategy cache after registration")
+		return
+	}
+
+	for _, stepId := range stepIds {
+		r.concurrencyStrategyCache.Remove(concurrencyStrategyCacheKey(tenantId, stepId))
+	}
+}
+
+// concurrencyStrategyCacheKey is shared with the per-step strategy lookup in task.go.
+func concurrencyStrategyCacheKey(tenantId, stepId uuid.UUID) string {
+	return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
 }
 
 // mergeWorkflowConcurrencyOntoSingleTask moves workflow-level concurrency onto the
@@ -851,7 +905,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	// concurrency to, and the parent/child machinery does not support it.
 	for _, entry := range opts.Concurrency {
 		if entry.IsTenantScoped() {
-			return nil, fmt.Errorf("tenant-scoped concurrency (name %s) is not supported at the workflow level unless the workflow is a single task or uses the DAG operator", entry.Name)
+			return nil, newTenantConcurrencyError("tenant-scoped concurrency (name %s) is not supported at the workflow level unless the workflow is a single task or uses the DAG operator", entry.Name)
 		}
 	}
 

@@ -30,6 +30,10 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.cache.Get(key)
 }
 
+func (c *Cache) Remove(key string) {
+	c.cache.Remove(key)
+}
+
 func (c *Cache) Stop() {
 	c.cache.Stop()
 }

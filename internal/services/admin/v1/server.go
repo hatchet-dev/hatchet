@@ -871,6 +871,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	)
 
 	if err != nil {
+		// tenant-concurrency registration errors are user-actionable and contain only
+		// caller-supplied identifiers
+		var tenantConcurrencyErr *v1.TenantConcurrencyError
+
+		if errors.As(err, &tenantConcurrencyErr) {
+			return nil, status.Error(codes.InvalidArgument, tenantConcurrencyErr.Error())
+		}
+
 		return nil, err
 	}
 
@@ -1024,6 +1032,15 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			)
 		}
 
+		tenantScoped := req.Concurrency.TenantScoped != nil && *req.Concurrency.TenantScoped
+
+		if tenantScoped && (req.Concurrency.Name == nil || *req.Concurrency.Name == "") {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"a name is required for tenant-scoped concurrency",
+			)
+		}
+
 		var limitStrategy *string
 
 		if req.Concurrency.LimitStrategy != nil && req.Concurrency.LimitStrategy.String() != "" {
@@ -1031,10 +1048,18 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			limitStrategy = &s
 		}
 
+		var name string
+
+		if req.Concurrency.Name != nil {
+			name = *req.Concurrency.Name
+		}
+
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
 			LimitStrategy: limitStrategy,
 			Expression:    req.Concurrency.Expression,
 			MaxRuns:       req.Concurrency.MaxRuns,
+			Name:          name,
+			TenantScoped:  tenantScoped,
 		})
 	}
 

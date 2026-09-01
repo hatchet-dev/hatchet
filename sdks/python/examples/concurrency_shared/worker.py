@@ -16,6 +16,7 @@ hatchet = Hatchet()
 class WorkflowInput(BaseModel):
     group: str = "default"
     inline: str = "default"
+    chain_c: str = "default"
 
 
 # > Shared Concurrency Strategy
@@ -83,6 +84,48 @@ def task_mixed(input: WorkflowInput, ctx: Context) -> dict[str, int]:
 
 # !!
 
+# > Multi-Strategy Chain
+# A chain can mix multiple tenant-scoped and workflow-scoped entries, each with its own
+# limit strategy; entries are processed in the declared order.
+chain_limit_a = SharedConcurrency(
+    name="example-chain-limit-a",
+    expression="input.group",
+    max_runs=1,
+    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+)
+
+chain_limit_c = SharedConcurrency(
+    name="example-chain-limit-c",
+    expression="input.chain_c",
+    max_runs=1,
+    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+)
+
+concurrency_shared_chain_workflow = hatchet.workflow(
+    name="ConcurrencySharedChain",
+    input_validator=WorkflowInput,
+)
+
+
+@concurrency_shared_chain_workflow.task(
+    concurrency=[
+        chain_limit_a,
+        ConcurrencyExpression(
+            expression="input.inline",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        ),
+        chain_limit_c,
+    ],
+)
+def task_chain(input: WorkflowInput, ctx: Context) -> dict[str, int]:
+    start = int(time.time() * 1000)
+    time.sleep(10)
+    return {"start_ms": start, "end_ms": int(time.time() * 1000)}
+
+
+# !!
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -91,6 +134,7 @@ def main() -> None:
             concurrency_shared_workflow_a,
             concurrency_shared_workflow_b,
             concurrency_shared_mixed_workflow,
+            concurrency_shared_chain_workflow,
         ],
     )
     worker.start()
