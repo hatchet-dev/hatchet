@@ -44,6 +44,8 @@ hatchet.events.push("my-event", payload, options=PushEventOptions(additional_met
 hatchet.events.push("my-event", payload, additional_metadata={"key": "value"})
 ```
 
+`BulkPushEventOptions` has also been removed — use `BulkPushEventWithMetadata` directly, which now requires a `key` (it previously defaulted to `""`).
+
 **Running and scheduling workflows:**
 
 ```python
@@ -60,6 +62,8 @@ workflow.run(input, additional_metadata={"key": "value"}, priority=1)
 workflow.schedule(run_at, input, additional_metadata={"key": "value"})
 ```
 
+The internal `parent_id`, `parent_step_run_id`, `child_index`, and `key` fields on `TriggerWorkflowOptions` / `ScheduleTriggerWorkflowOptions` have also been removed — these were never intended for external use.
+
 #### Context property renames
 
 Several properties on `Context` have been renamed or removed.
@@ -75,7 +79,9 @@ Several properties on `Context` have been renamed or removed.
 | `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)`                 |
 | `ctx.worker`                     | Use specific properties: `ctx.worker_id`, etc. |
 
-Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`) have also been removed. These were never intended for external use.
+Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`, `ctx.log_sender`, `ctx.durable_event_listener`) have also been removed. These were never intended for external use.
+
+The `WorkerContext` class backing `ctx.worker` has also been removed and is no longer exported from `hatchet_sdk`.
 
 #### Hatchet client changes
 
@@ -171,6 +177,39 @@ def my_durable_task(input: MyInput, ctx: DurableContext) -> dict[str, str]:
 @workflow.durable_task()
 async def my_durable_task(input: MyInput, ctx: DurableContext) -> dict[str, str]:
     ...
+```
+
+#### Tasks with no input validator now receive `None`
+
+`EmptyModel` has been removed. Tasks and workflows declared without an input type previously received an `EmptyModel()` instance as their input; they now receive `None`:
+
+```python
+# V1
+from hatchet_sdk import EmptyModel
+
+@hatchet.task()
+def my_task(input: EmptyModel, ctx: Context) -> None: ...
+
+# V2
+@hatchet.task()
+def my_task(input: None, ctx: Context) -> None: ...
+```
+
+#### Durable wait results are now typed
+
+`ctx.aio_wait_for` previously returned a raw `dict[str, Any]`. It now returns a `list[SleepResult | EventWaitResult[Any] | OrGroupResult]`, one entry per condition passed in. `ctx.aio_sleep_for` returns a `SleepResult`, and `ctx.aio_wait_for_event` returns an `EventWaitResult`, whose `.payload` holds the event data (validated against `payload_validator` if one was provided):
+
+```python
+# V1
+result = await ctx.aio_wait_for("my-signal", UserEventCondition(event_key="my-event"))
+payload = result["my-event"]
+
+# V2
+from hatchet_sdk import EventWaitResult
+
+results = await ctx.aio_wait_for("my-signal", UserEventCondition(event_key="my-event"))
+event_result = next(r for r in results if isinstance(r, EventWaitResult))
+payload = event_result.payload
 ```
 
 #### Internal `Worker` properties removed
