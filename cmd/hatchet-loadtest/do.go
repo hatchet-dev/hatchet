@@ -108,6 +108,12 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 		return []string{applyNamespace(eventkeys.WorkflowDurableName, namespace)}
 	case eventkeys.EventKeyDag:
 		return []string{applyNamespace(eventkeys.WorkflowDagName, namespace)}
+	case eventkeys.EventKeyDagShapes:
+		names := make([]string, 0, len(eventkeys.DagShapeWorkflowNames))
+		for _, n := range eventkeys.DagShapeWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
 	default:
 		return nil
 	}
@@ -115,12 +121,16 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 
 const dagWorkflowSteps = 2
 
+const dagShapesExecutedSteps = 10 + 5 + 7 + 7
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
 		return int64(fanout) * int64(dagSteps)
 	case eventkeys.EventKeyDag:
 		return dagWorkflowSteps
+	case eventkeys.EventKeyDagShapes:
+		return dagShapesExecutedSteps
 	default:
 		return 1
 	}

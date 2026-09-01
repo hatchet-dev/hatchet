@@ -12,6 +12,11 @@ const (
 	EventKeyBatch   EventKey = "load-test:batch-event"
 	EventKeyDurable EventKey = "load-test:durable-event"
 	EventKeyDag     EventKey = "load-test:dag-event"
+	// EventKeyDagShapes triggers the DagShapeWorkflowNames set - a handful of
+	// multi-step DAGs whose topologies (dense fan-in, conditional skip fan-out,
+	// on-failure handler, deep retry chain) are modelled on real production
+	// workloads, for exercising the DAG operator.
+	EventKeyDagShapes EventKey = "load-test:dag-shapes-event"
 )
 
 const workflowNamePrefix = "load-test-"
@@ -23,13 +28,29 @@ const (
 	WorkflowDurableName      = workflowNamePrefix + "durable"
 	WorkflowDurableChildName = workflowNamePrefix + "durable-child"
 	WorkflowDagName          = workflowNamePrefix + "dag"
+
+	// The EventKeyDagShapes workflows. Each is a standalone DAG with a distinct
+	// topology; all four are triggered by a single EventKeyDagShapes event.
+	WorkflowDagShapeDenseFaninName  = workflowNamePrefix + "dag-shape-dense-fanin"
+	WorkflowDagShapeConditionalName = workflowNamePrefix + "dag-shape-conditional"
+	WorkflowDagShapeOnFailureName   = workflowNamePrefix + "dag-shape-onfailure"
+	WorkflowDagShapeDeepRetryName   = workflowNamePrefix + "dag-shape-deep-retry"
 )
+
+// DagShapeWorkflowNames is the ordered set of workflows triggered by
+// EventKeyDagShapes.
+var DagShapeWorkflowNames = []string{
+	WorkflowDagShapeDenseFaninName,
+	WorkflowDagShapeConditionalName,
+	WorkflowDagShapeOnFailureName,
+	WorkflowDagShapeDeepRetryName,
+}
 
 func WorkflowStandardName(i int) string {
 	return fmt.Sprintf("%s%d", workflowNamePrefix, i)
 }
 
-var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag}
+var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag, EventKeyDagShapes}
 
 func IsKnown(key EventKey) bool {
 	return slices.Contains(All, key)
@@ -45,6 +66,8 @@ func (k EventKey) Name() string {
 		return "durable"
 	case EventKeyDag:
 		return "dag"
+	case EventKeyDagShapes:
+		return "dag-shapes"
 	default:
 		return string(k)
 	}
