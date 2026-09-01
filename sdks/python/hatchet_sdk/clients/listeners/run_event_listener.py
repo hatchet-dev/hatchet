@@ -22,45 +22,29 @@ DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
 
 
-class StepRunEventType(str, Enum):
-    STEP_RUN_EVENT_TYPE_STARTED = "STEP_RUN_EVENT_TYPE_STARTED"
-    STEP_RUN_EVENT_TYPE_COMPLETED = "STEP_RUN_EVENT_TYPE_COMPLETED"
-    STEP_RUN_EVENT_TYPE_FAILED = "STEP_RUN_EVENT_TYPE_FAILED"
-    STEP_RUN_EVENT_TYPE_CANCELLED = "STEP_RUN_EVENT_TYPE_CANCELLED"
-    STEP_RUN_EVENT_TYPE_TIMED_OUT = "STEP_RUN_EVENT_TYPE_TIMED_OUT"
-    STEP_RUN_EVENT_TYPE_STREAM = "STEP_RUN_EVENT_TYPE_STREAM"
+class TaskRunEventType(str, Enum):
+    STARTED = "STARTED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    TIMED_OUT = "TIMED_OUT"
+    STREAM = "STREAM"
 
 
-class WorkflowRunEventType(str, Enum):
-    WORKFLOW_RUN_EVENT_TYPE_STARTED = "WORKFLOW_RUN_EVENT_TYPE_STARTED"
-    WORKFLOW_RUN_EVENT_TYPE_COMPLETED = "WORKFLOW_RUN_EVENT_TYPE_COMPLETED"
-    WORKFLOW_RUN_EVENT_TYPE_FAILED = "WORKFLOW_RUN_EVENT_TYPE_FAILED"
-    WORKFLOW_RUN_EVENT_TYPE_CANCELLED = "WORKFLOW_RUN_EVENT_TYPE_CANCELLED"
-    WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT = "WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT"
-
-
-step_run_event_type_mapping = {
-    ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT,
-    ResourceEventType.RESOURCE_EVENT_TYPE_STREAM: StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM,
-}
-
-workflow_run_event_type_mapping = {
-    ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_STARTED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
-    ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT,
+task_run_event_type_mapping = {
+    ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: TaskRunEventType.STARTED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: TaskRunEventType.COMPLETED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: TaskRunEventType.FAILED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: TaskRunEventType.CANCELLED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: TaskRunEventType.TIMED_OUT,
+    ResourceEventType.RESOURCE_EVENT_TYPE_STREAM: TaskRunEventType.STREAM,
 }
 
 T = TypeVar("T")
 
 
-class StepRunEvent(BaseModel):
-    type: StepRunEventType
+class TaskRunEvent(BaseModel):
+    type: TaskRunEventType
     payload: str
 
 
@@ -81,13 +65,13 @@ class RunEventListener:
         ## an event loop to instantiate the client.
         self.client: DispatcherStub | None = None
 
-    def __aiter__(self) -> AsyncGenerator[StepRunEvent, None]:
+    def __aiter__(self) -> AsyncGenerator[TaskRunEvent, None]:
         return self._generator()
 
-    async def __anext__(self) -> StepRunEvent:
+    async def __anext__(self) -> TaskRunEvent:
         return await self._generator().__anext__()
 
-    async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
+    async def _generator(self) -> AsyncGenerator[TaskRunEvent, None]:
         while True:
             if self.stop_signal:
                 listener = None
@@ -97,32 +81,17 @@ class RunEventListener:
 
             try:
                 async for workflow_event in listener:
-                    event_type = None
-                    if workflow_event.resource_type == RESOURCE_TYPE_STEP_RUN:
-                        if workflow_event.event_type in step_run_event_type_mapping:
-                            event_type = step_run_event_type_mapping[
-                                workflow_event.event_type
-                            ]
-                        else:
+                    if workflow_event.resource_type in (
+                        RESOURCE_TYPE_STEP_RUN,
+                        RESOURCE_TYPE_WORKFLOW_RUN,
+                    ):
+                        if workflow_event.event_type not in task_run_event_type_mapping:
                             raise Exception(
                                 f"Unknown event type: {workflow_event.event_type}"
                             )
 
-                        yield StepRunEvent(
-                            type=event_type, payload=workflow_event.event_payload
-                        )
-                    elif workflow_event.resource_type == RESOURCE_TYPE_WORKFLOW_RUN:
-                        if workflow_event.event_type in step_run_event_type_mapping:
-                            workflow_run_event_type = step_run_event_type_mapping[
-                                workflow_event.event_type
-                            ]
-                        else:
-                            raise Exception(
-                                f"Unknown event type: {workflow_event.event_type}"
-                            )
-
-                        yield StepRunEvent(
-                            type=workflow_run_event_type,
+                        yield TaskRunEvent(
+                            type=task_run_event_type_mapping[workflow_event.event_type],
                             payload=workflow_event.event_payload,
                         )
 
