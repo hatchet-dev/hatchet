@@ -1,0 +1,40 @@
+---
+title: "Python SDK"
+---
+
+# Python SDK
+
+This is the generated API reference for the Hatchet Python SDK. For concepts and guides, see the [user guide](/v1).
+
+## Core pages
+
+- [Client](/reference/python/client): The main Hatchet client, its configuration, and the feature client accessors
+- [Context](/reference/python/context): The context object passed to tasks at runtime
+- [Runnables](/reference/python/runnables): Tasks and workflows, the objects you register on workers and run
+
+## Feature clients
+
+Feature clients are available as properties on the [client](/reference/python/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.
+
+| Client                                                        | Description                                                                   | Guide                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [CEL](/reference/python/feature-clients/cel)                  | Evaluate and debug CEL expressions used in event filters and concurrency keys | [Events](/v1/events)                                     |
+| [Crons](/reference/python/feature-clients/cron)               | Create and manage cron triggers that run workflows on a schedule              | [Cron Runs](/v1/cron-runs)                               |
+| [Filters](/reference/python/feature-clients/filters)          | Manage event filters that scope which events trigger runs                     | [Events](/v1/events)                                     |
+| [Logs](/reference/python/feature-clients/logs)                | Read logs written by task runs                                                | [Logging](/v1/logging)                                   |
+| [Metrics](/reference/python/feature-clients/metrics)          | Read queue depths, task status counts, and tenant Prometheus metrics          | [Prometheus Metrics](/v1/prometheus-metrics)             |
+| [Rate Limits](/reference/python/feature-clients/rate_limits)  | Create and inspect rate limits that control task throughput                   | [Rate Limits](/v1/rate-limits)                           |
+| [Runs](/reference/python/feature-clients/runs)                | Get, replay, cancel, and inspect workflow runs and their results              | [Running Tasks](/v1/running-your-task)                   |
+| [Scheduled Runs](/reference/python/feature-clients/scheduled) | Schedule workflow runs for a specific future time                             | [Scheduled Runs](/v1/scheduled-runs)                     |
+| [Stubs](/reference/python/feature-clients/stubs)              | Create typed stubs for tasks and workflows registered in another service      | [Inter-Service Triggering](/v1/inter-service-triggering) |
+| [Webhooks](/reference/python/feature-clients/webhooks)        | Manage incoming webhooks that trigger runs from external services             | [Webhooks](/v1/webhooks)                                 |
+| [Workers](/reference/python/feature-clients/workers)          | List workers and manage their state                                           | [Workers](/v1/workers)                                   |
+| [Workflows](/reference/python/feature-clients/workflows)      | List and manage registered workflow definitions                               | [Tasks](/v1/tasks)                                       |
+
+## Python specifics
+
+- [asyncio](/reference/python/asyncio): Working with asyncio in the Python SDK
+- [pydantic](/reference/python/pydantic): Validating task inputs and outputs with Pydantic models
+- [lifespans](/reference/python/lifespans): Sharing state like connections and clients across tasks on a worker
+- [dependency-injection](/reference/python/dependency-injection): Injecting dependencies into tasks
+- [dataclasses](/reference/python/dataclasses): Using dataclasses as task input and output types

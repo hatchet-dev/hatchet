@@ -68,7 +68,8 @@ func run() error {
 
 	accessors := featureAccessors(root.pkg)
 
-	if err := cleanOutDir(outDir); err != nil {
+	refMap, err := loadRefMap(repoRoot)
+	if err != nil {
 		return err
 	}
 
@@ -83,6 +84,12 @@ func run() error {
 	}
 	files[filepath.Join("feature-clients", "meta.json")] = renderFeatureMeta(accessors)
 
+	indexPage, err := renderIndexPage(refMap, repoRoot, files, accessors)
+	if err != nil {
+		return err
+	}
+	files["index.mdx"] = indexPage
+
 	topPages := []string{"feature-clients"}
 	for name := range files {
 		if !strings.Contains(name, string(filepath.Separator)) && strings.HasSuffix(name, ".mdx") {
@@ -96,6 +103,13 @@ func run() error {
 	files["meta.json"] = topMeta
 
 	if err := verifyMetaCoverage(files); err != nil {
+		return err
+	}
+
+	// Everything rendered and validated; only now touch the output directory so a
+	// validation failure (for example a stale reference-map.json entry) leaves the
+	// existing docs intact.
+	if err := cleanOutDir(outDir); err != nil {
 		return err
 	}
 
@@ -1220,6 +1234,128 @@ func renderFeaturePage(features *pkgDocs, a accessor) string {
 	}
 
 	return b.String()
+}
+
+// ---------- overview (index) page ----------
+
+// The shared mapping pairing feature-client concepts with descriptions, per-language
+// page slugs, and user-guide links. Hand-maintained at frontend/docs/reference-map.json
+// and consumed by all four SDK doc generators.
+type refMapCorePage struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type refMapFeature struct {
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Guide       *string           `json:"guide"`
+	GuideTitle  *string           `json:"guideTitle"`
+	Slugs       map[string]string `json:"slugs"`
+}
+
+type refMap struct {
+	CorePages      map[string]refMapCorePage `json:"corePages"`
+	FeatureClients map[string]refMapFeature  `json:"featureClients"`
+}
+
+func loadRefMap(repoRoot string) (*refMap, error) {
+	path := filepath.Join(repoRoot, "frontend", "docs", "reference-map.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read reference map: %w", err)
+	}
+	var m refMap
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return &m, nil
+}
+
+// renderIndexPage emits the Go SDK overview page: a link map over the core pages and a
+// feature-clients table cross-linked to the user guide. It hard-fails when an emitted
+// feature-client page has no reference-map.json entry, when an entry's go slug matches
+// no emitted page (stale entry), or when a guide link points at a missing content file.
+func renderIndexPage(m *refMap, repoRoot string, files map[string]string, accessors []accessor) (string, error) {
+	const lang = "go"
+
+	slugToConcept := map[string]string{}
+	for concept, f := range m.FeatureClients {
+		if slug, ok := f.Slugs[lang]; ok {
+			if other, dup := slugToConcept[slug]; dup {
+				return "", fmt.Errorf("reference-map.json: %s slug %q claimed by both %q and %q", lang, slug, other, concept)
+			}
+			slugToConcept[slug] = concept
+		}
+	}
+
+	emitted := map[string]bool{}
+	for _, a := range accessors {
+		emitted[a.page] = true
+		if _, ok := slugToConcept[a.page]; !ok {
+			return "", fmt.Errorf("reference-map.json has no featureClients entry with slugs.%s = %q; add one for the %s client", lang, a.page, a.title)
+		}
+	}
+	for slug, concept := range slugToConcept {
+		if !emitted[slug] {
+			return "", fmt.Errorf("reference-map.json entry %q lists stale %s slug %q: no such feature-client page is emitted", concept, lang, slug)
+		}
+	}
+
+	contentDir := filepath.Join(repoRoot, "frontend", "docs", "content", "docs")
+	guideExists := func(guide string) bool {
+		rel := strings.TrimPrefix(guide, "/")
+		if _, err := os.Stat(filepath.Join(contentDir, rel+".mdx")); err == nil {
+			return true
+		}
+		_, err := os.Stat(filepath.Join(contentDir, rel, "index.mdx"))
+		return err == nil
+	}
+
+	var b strings.Builder
+	b.WriteString(frontmatter("Go SDK"))
+	b.WriteString("# Go SDK\n\n")
+	b.WriteString("This is the generated API reference for the Hatchet Go SDK. For concepts and guides, see the [user guide](/v1).\n\n")
+
+	b.WriteString("## Core pages\n\n")
+	var topPages []string
+	for name := range files {
+		if !strings.Contains(name, string(filepath.Separator)) && strings.HasSuffix(name, ".mdx") {
+			topPages = append(topPages, strings.TrimSuffix(name, ".mdx"))
+		}
+	}
+	sort.Strings(topPages)
+	for _, page := range topPages {
+		core, ok := m.CorePages[page]
+		if !ok {
+			return "", fmt.Errorf("reference-map.json has no corePages entry for emitted page %q", page)
+		}
+		fmt.Fprintf(&b, "- [%s](/reference/%s/%s): %s\n", core.Title, lang, page, core.Description)
+	}
+	b.WriteString("\n")
+
+	b.WriteString("## Feature clients\n\n")
+	b.WriteString("Feature clients are accessed via methods on the [client](/reference/go/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.\n\n")
+	var rows [][]string
+	for _, a := range accessors {
+		f := m.FeatureClients[slugToConcept[a.page]]
+		guide := ""
+		if f.Guide != nil {
+			if !guideExists(*f.Guide) {
+				return "", fmt.Errorf("reference-map.json: guide %q for %q does not exist under frontend/docs/content/docs", *f.Guide, f.Title)
+			}
+			title := *f.Guide
+			if f.GuideTitle != nil {
+				title = *f.GuideTitle
+			}
+			guide = fmt.Sprintf("[%s](%s)", title, *f.Guide)
+		}
+		name := fmt.Sprintf("[%s](/reference/%s/feature-clients/%s)", f.Title, lang, a.page)
+		rows = append(rows, []string{name, escapeCell(f.Description), guide})
+	}
+	b.WriteString(table([]string{"Client", "Description", "Guide"}, rows))
+
+	return b.String(), nil
 }
 
 func renderFeatureMeta(accessors []accessor) string {

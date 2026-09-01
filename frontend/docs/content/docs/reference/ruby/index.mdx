@@ -1,0 +1,32 @@
+---
+title: "Ruby SDK"
+---
+
+# Ruby SDK
+
+This is the generated API reference for the Hatchet Ruby SDK. For concepts and guides, see the [user guide](/v1).
+
+## Core pages
+
+- [Client](/reference/ruby/client): The main Hatchet client, its configuration, and the feature client accessors
+- [Context](/reference/ruby/context): The context object passed to tasks at runtime
+- [Runnables](/reference/ruby/runnables): Tasks and workflows, the objects you register on workers and run
+
+## Feature clients
+
+Feature clients are available as methods on the [client](/reference/ruby/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.
+
+| Client                                                      | Description                                                                   | Guide                                        |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| [CEL](/reference/ruby/feature-clients/cel)                  | Evaluate and debug CEL expressions used in event filters and concurrency keys | [Events](/v1/events)                         |
+| [Crons](/reference/ruby/feature-clients/cron)               | Create and manage cron triggers that run workflows on a schedule              | [Cron Runs](/v1/cron-runs)                   |
+| [Events](/reference/ruby/feature-clients/events)            | Push events and inspect event history                                         | [Events](/v1/events)                         |
+| [Filters](/reference/ruby/feature-clients/filters)          | Manage event filters that scope which events trigger runs                     | [Events](/v1/events)                         |
+| [Logs](/reference/ruby/feature-clients/logs)                | Read logs written by task runs                                                | [Logging](/v1/logging)                       |
+| [Metrics](/reference/ruby/feature-clients/metrics)          | Read queue depths, task status counts, and tenant Prometheus metrics          | [Prometheus Metrics](/v1/prometheus-metrics) |
+| [Rate Limits](/reference/ruby/feature-clients/rate_limits)  | Create and inspect rate limits that control task throughput                   | [Rate Limits](/v1/rate-limits)               |
+| [Runs](/reference/ruby/feature-clients/runs)                | Get, replay, cancel, and inspect workflow runs and their results              | [Running Tasks](/v1/running-your-task)       |
+| [Scheduled Runs](/reference/ruby/feature-clients/scheduled) | Schedule workflow runs for a specific future time                             | [Scheduled Runs](/v1/scheduled-runs)         |
+| [Tenant](/reference/ruby/feature-clients/tenant)            | Read details about the current tenant                                         |                                              |
+| [Workers](/reference/ruby/feature-clients/workers)          | List workers and manage their state                                           | [Workers](/v1/workers)                       |
+| [Workflows](/reference/ruby/feature-clients/workflows)      | List and manage registered workflow definitions                               | [Tasks](/v1/tasks)                           |

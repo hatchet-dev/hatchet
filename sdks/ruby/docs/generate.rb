@@ -534,6 +534,91 @@ def generate_runnables_page
   )
 end
 
+# ---------------------------------------------------------------------------
+# Overview (index) page
+# ---------------------------------------------------------------------------
+# Shared mapping pairing feature-client concepts with descriptions, per-language
+# page slugs, and user-guide links. Hand-maintained; consumed by all four SDK
+# doc generators.
+REFERENCE_MAP_PATH = File.join(REPO_ROOT, "frontend", "docs", "reference-map.json")
+CONTENT_DOCS_DIR = File.join(REPO_ROOT, "frontend", "docs", "content", "docs")
+MAP_LANG = "ruby"
+
+def guide_page_exists?(guide)
+  rel = guide.delete_prefix("/")
+  File.exist?(File.join(CONTENT_DOCS_DIR, "#{rel}.mdx")) ||
+    File.exist?(File.join(CONTENT_DOCS_DIR, rel, "index.mdx"))
+end
+
+# Emits the Ruby SDK overview page (index.mdx): a link map over the core pages
+# and a feature-clients table cross-linked to the user guide. Hard-fails when an
+# emitted feature-client page has no reference-map.json entry, when an entry's
+# ruby slug matches no emitted page (stale entry), or when a guide link points
+# at a missing content file.
+def generate_index_page(pages)
+  map = JSON.parse(File.read(REFERENCE_MAP_PATH))
+
+  slug_to_concept = {}
+  map.fetch("featureClients").each do |concept, feature|
+    slug = feature.fetch("slugs")[MAP_LANG]
+    next unless slug
+    if slug_to_concept.key?(slug)
+      abort "ERROR: reference-map.json: #{MAP_LANG} slug #{slug.inspect} claimed by both #{slug_to_concept[slug].inspect} and #{concept.inspect}"
+    end
+
+    slug_to_concept[slug] = concept
+  end
+
+  emitted = pages.map(&:first)
+  emitted.each do |slug|
+    next if slug_to_concept.key?(slug)
+
+    abort "ERROR: reference-map.json has no featureClients entry with slugs.#{MAP_LANG} = #{slug.inspect}; add one for the #{slug} client"
+  end
+  slug_to_concept.each do |slug, concept|
+    next if emitted.include?(slug)
+
+    abort "ERROR: reference-map.json entry #{concept.inspect} lists stale #{MAP_LANG} slug #{slug.inspect}: no such feature-client page is emitted"
+  end
+
+  core_lines = Dir[File.join(OUT_DIR, "*.mdx")].sort
+                                               .map { |f| File.basename(f, ".mdx") }
+                                               .reject { |b| b == "index" }
+                                               .map do |page|
+    core = map.fetch("corePages")[page]
+    abort "ERROR: reference-map.json has no corePages entry for emitted page #{page.inspect}" unless core
+
+    "- [#{core.fetch('title')}](/reference/#{MAP_LANG}/#{page}): #{core.fetch('description')}"
+  end
+
+  rows = pages.map do |slug, _klass|
+    feature = map.fetch("featureClients").fetch(slug_to_concept.fetch(slug))
+    guide = ""
+    if (guide_path = feature["guide"])
+      unless guide_page_exists?(guide_path)
+        abort "ERROR: reference-map.json: guide #{guide_path.inspect} for #{feature['title'].inspect} does not exist under frontend/docs/content/docs"
+      end
+
+      guide = "[#{feature['guideTitle'] || guide_path}](#{guide_path})"
+    end
+    ["[#{feature.fetch('title')}](/reference/#{MAP_LANG}/feature-clients/#{slug})", feature.fetch("description"), guide]
+  end
+
+  write_page(
+    "index.mdx",
+    [
+      frontmatter("Ruby SDK"),
+      "# Ruby SDK",
+      "This is the generated API reference for the Hatchet Ruby SDK. For concepts and guides, see the [user guide](/v1).",
+      "## Core pages",
+      core_lines.join("\n"),
+      "## Feature clients",
+      "Feature clients are available as methods on the [client](/reference/ruby/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.",
+      Md.table(["Client", "Description", "Guide"], rows),
+    ],
+  )
+end
+
 # Merge ruby/meta.json rather than overwriting it: keep existing entry order
 # and any "---Separator---" strings, drop entries whose page no longer exists,
 # and append newly emitted top-level pages (sorted) that aren't listed yet.
@@ -596,6 +681,7 @@ generate_client_page(pages)
 generate_context_page
 generate_runnables_page
 generate_feature_client_pages(pages)
+generate_index_page(pages)
 merge_ruby_meta
 assert_all_pages_reachable
 

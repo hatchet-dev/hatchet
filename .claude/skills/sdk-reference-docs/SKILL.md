@@ -40,12 +40,13 @@ CI: `.github/workflows/gen-sdk-docs.yml` runs on pushes to main touching `sdks/*
 - Generators own: every `.mdx` in their section + `feature-clients/meta.json`.
 - Section `meta.json` (e.g. `python/meta.json`) is **merged**, not overwritten: existing order and separator strings (e.g. `---Python Specifics---`) are preserved; new pages auto-append; dead entries are removed.
 - Hand-authored pages exist only in Python (asyncio, pydantic, lifespans, dependency-injection, dataclasses) — generators never touch them.
-- `reference/meta.json` (top-level) is hand-maintained. Nothing generates it.
+- `reference/meta.json` (top-level) is hand-maintained. Nothing generates it. So is `reference/index.mdx`.
 - Generators hard-fail if an emitted page is unreachable from a meta.json.
+- Each generator also emits `<lang>/index.mdx` (the section overview) from the shared hand-maintained mapping `frontend/docs/reference-map.json`, which pairs each canonical feature-client concept with per-language page slugs and its user-guide page. Generators hard-fail on an emitted feature-client page with no mapping entry, a mapping slug matching no emitted page, or a guide path that does not exist. Adding a feature client to any SDK therefore requires adding (or extending) its `reference-map.json` entry.
 
 ## Gotchas (learned the hard way)
 
-1. **fumadocs dropdown**: a `root: true` folder only appears in the section dropdown if it has an index page or a direct page child. The Reference folder deliberately has neither — its tab is added manually in `app/(docs)/layout.tsx` via `getLayoutTabs()` + a hand-built tab bound with `$folder` (for active-state detection), pointing at `/reference/changelog`. `/reference` also redirects there in `next.config.mjs`.
+1. **fumadocs dropdown**: a `root: true` folder only appears in the section dropdown if it has an index page or a direct page child. The Reference folder now has a hand-maintained `index.mdx`, and `app/(docs)/layout.tsx` still adds a fallback tab bound with `$folder` (for active-state detection), deduped by URL, pointing at `/reference`. The per-language sections also have generated index pages, so `/reference/<lang>` serves an overview rather than redirecting to the client page.
 2. **Never put `{/* */}` JSX comments in this repo's MDX** — the prettier pass rewrites `*` to `_` inside them, producing invalid MDX that 500s the whole docs site.
 3. **Determinism is a requirement**: every generator must produce byte-identical output across runs (sorted iteration everywhere), or CI churns endless PRs. Verify with a double run + checksum diff. Output must not depend on optional tooling: the Go generator hard-fails if frontend/docs prettier is missing (a silent skip once shipped unformatted pages via CI while local runs looked clean).
 4. **golangci-lint**: repo uses v2 config; `os.WriteFile` in generators must use `0o600`.
