@@ -20,6 +20,7 @@ import {
 import { TenantMemberRoleType } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -107,6 +108,7 @@ export function CreateUserGroupModal({
   });
 
   const isPending = createMutation.isPending;
+  const payloadsLocked = payloadsLockedForRole(role);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,15 +161,11 @@ export function CreateUserGroupModal({
           <div className="flex items-start gap-2">
             <Checkbox
               id="group-canViewPayloads"
-              checked={canViewPayloads}
+              checked={payloadsLocked || canViewPayloads}
               onCheckedChange={(checked) =>
                 setCanViewPayloads(checked === true)
               }
-              disabled={
-                isPending ||
-                role === TenantMemberRoleType.OWNER ||
-                role === TenantMemberRoleType.ADMIN
-              }
+              disabled={isPending || payloadsLocked}
             />
             <div className="grid gap-1">
               <Label htmlFor="group-canViewPayloads">Can view payloads</Label>
@@ -257,7 +255,12 @@ export function CreateUserGroupModal({
             </Button>
             <Button
               onClick={() =>
-                createMutation.mutate({ name, role, tags, canViewPayloads })
+                createMutation.mutate({
+                  name,
+                  role,
+                  tags,
+                  canViewPayloads: payloadsLocked ? true : canViewPayloads,
+                })
               }
               disabled={isPending || !name.trim()}
             >

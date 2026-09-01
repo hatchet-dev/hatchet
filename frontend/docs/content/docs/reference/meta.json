@@ -1,10 +1,12 @@
 {
   "pages": [
+    "index",
     "changelog",
     "python",
     "typescript",
-    "cli",
-    "[Go SDK](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go)"
+    "go",
+    "ruby",
+    "cli"
   ],
   "title": "Reference",
   "root": true,

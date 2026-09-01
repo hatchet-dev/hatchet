@@ -1,3 +1,39 @@
+## [0.105.16] - 2026-08-31
+
+Hatchet v0.105.16 adds two new concurrency strategies and a batch of engine fixes around pausing, durable DAGs, and task eviction.
+
+### Highlights
+
+- New concurrency strategies `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST`: cancel queued runs in a concurrency group while keeping only the newest or oldest one ([#4793](https://github.com/hatchet-dev/hatchet/pull/4793)).
+
+### Fixed
+
+- Engine: concurrency strategies migration ordering ([#4847](https://github.com/hatchet-dev/hatchet/pull/4847)).
+- Engine: pausing a workflow now moves concurrency slots over to the paused queue items table ([#4828](https://github.com/hatchet-dev/hatchet/pull/4828)).
+- Engine: durable DAG on-failure tasks are no longer skipped ([#4802](https://github.com/hatchet-dev/hatchet/pull/4802)).
+- Engine: workflow event subscriptions bind before the OLAP wait, closing a missed-event race ([#4820](https://github.com/hatchet-dev/hatchet/pull/4820)).
+- Engine: worker heartbeats are recorded before rejecting on an inactive listen stream ([#4784](https://github.com/hatchet-dev/hatchet/pull/4784)).
+- Dashboard: orchestrator tasks now show the correct duration and cancellation reason ([#4811](https://github.com/hatchet-dev/hatchet/pull/4811)).
+
+## [0.105.2] - 2026-08-25
+
+Hatchet v0.105.2 launches workflow pause and per-member payload visibility. It also ships an early beta of embedded mode for the TypeScript and Python SDKs, and a batch of engine and SDK fixes.
+
+### Highlights
+
+- Workflows can now be paused: in-flight runs keep running, new runs stay queued until unpause (up to the queue TTL), and cron or scheduled triggers can either queue or drop their runs while paused. Useful for halting a workflow with a high error rate, or queueing jobs during the day and unpausing to run them overnight. See [Pausing Workflows](https://docs.hatchet.run/v1/pausing-workflows?utm_source=changelog&utm_campaign=v0.105.2).
+- Payload visibility can now be restricted per tenant member. Combined with the read-only `VIEWER` role, members can view runs, workflows, workers, events, logs, and metrics without seeing payload contents or modifying anything.
+- Early beta: Hatchet Embedded now supports the TypeScript and Python SDKs, running a full Hatchet engine directly next to your workers for local development, end-to-end testing, and CI. See [Embedded Mode](https://docs.hatchet.run/v1/embedded?utm_source=changelog&utm_campaign=v0.105.2).
+- Go SDK: stream listeners stay alive across exit races, and previously missing durable wait and webhook arguments were added.
+- `hatchet-lite` now hands `SIGTERM` through to the engine, so containers shut down gracefully instead of waiting to be killed.
+
+### Fixed
+
+- Engine: evicted tasks can now time out instead of hanging ([#4772](https://github.com/hatchet-dev/hatchet/pull/4772)).
+- Engine: durable user events are isolated by scope ([#4721](https://github.com/hatchet-dev/hatchet/pull/4721)).
+- Engine: retry backoff no longer overflows on high retry counts ([#4719](https://github.com/hatchet-dev/hatchet/pull/4719)).
+- Engine: lookups of missing rows return `NotFound` instead of `Internal` ([#4744](https://github.com/hatchet-dev/hatchet/pull/4744), [#4757](https://github.com/hatchet-dev/hatchet/pull/4757)).
+
 ## [0.101.27] - 2026-08-17
 
 Hatchet v0.101.27 launches idempotency keys and batch tasks. It is otherwise a performance and operations release, adding a read-only `VIEWER` role, allowing the dashboard to be served from a subpath, alongside substantial durable task performance work, and new queue depth metrics.
@@ -25,7 +61,7 @@ Hatchet v0.98.9 is a feature release. It adds idempotency keys for tasks and wor
 - Engine rows in the run trace view now carry a badge with their workflow, task, or event name, and the retry number on retried tasks, so repeated spans such as `hatchet.engine.workflow_run` are distinguishable at a glance.
 - CLI commands that take `--profile` now use the configured default or only profile without prompting, and `hatchet server start` sets its new profile as the default when none is configured. In sessions without a terminal, such as CI, a selection that would still need a prompt fails with an error that explains how to proceed.
 - Tasks and workflows can declare an idempotency key, so duplicate triggers no longer produce duplicate runs. Keys are held for a TTL or until the claiming run reaches a terminal status, in all four SDKs. Note, that idempotency is currently in beta and may be subject to change. See [Idempotency Key Expression](https://docs.hatchet.run/v1/idempotency#the-idempotency-key-expression) for more information.
-- The Go SDK can run a full engine in-process given only a Postgres connection string, via `hatchet.WithEmbeddedPostgres(databaseURL)`.
+- The Go SDK can run a full engine in-process, pointed at your Postgres database, via `hatchet.WithEmbedded(hatchet.WithEmbeddedDatabaseURL(databaseURL))`.
 - Concurrency strategies are now evaluated against the in-memory index by default rather than querying Postgres on every scheduling pass, where `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED` now defaults to `true`.
 - Best-effort pub/sub is now configured independently of the durable queue and can run on Postgres while durable messages stay on RabbitMQ. Existing deployments need no new configuration, see [Task Queue Configuration](https://docs.hatchet.run/self-hosting/configuration-options#task-queue-configuration) for full list of options.
 - Rate limits can be managed from the CLI with `hatchet rate-limits`, and interactively from the TUI.

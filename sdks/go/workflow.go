@@ -276,6 +276,15 @@ func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption {
 	}
 }
 
+// validateConcurrency panics if any concurrency option has a non-positive MaxRuns.
+func validateConcurrency(ownerKind, ownerName string, concurrency []*types.Concurrency) {
+	for _, c := range concurrency {
+		if c != nil && c.MaxRuns != nil && *c.MaxRuns <= 0 {
+			panic(ownerKind + " '" + ownerName + "' concurrency MaxRuns must be positive when provided")
+		}
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -283,6 +292,12 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 	for _, opt := range options {
 		opt(config)
 	}
+
+	concurrencyPtrs := make([]*types.Concurrency, len(config.concurrency))
+	for i := range config.concurrency {
+		concurrencyPtrs[i] = &config.concurrency[i]
+	}
+	validateConcurrency("workflow", name, concurrencyPtrs)
 
 	if len(config.onCron) > 0 && config.cronInput == nil {
 		emptyJSON := "{}"
@@ -472,7 +487,7 @@ type Task struct {
 	name string
 }
 
-// Name returns the name of the task.
+// GetName returns the name of the task.
 func (t *Task) GetName() string {
 	return t.name
 }
@@ -498,6 +513,8 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	for _, opt := range options {
 		opt(config)
 	}
+
+	validateConcurrency("task", name, config.concurrency)
 
 	fnValue := reflect.ValueOf(fn)
 	fnType := fnValue.Type()
@@ -641,6 +658,8 @@ func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options 
 	for _, opt := range options {
 		opt(config)
 	}
+
+	validateConcurrency("batch task", name, config.concurrency)
 
 	if config.isDurable {
 		panic("batch task '" + name + "' cannot be durable")

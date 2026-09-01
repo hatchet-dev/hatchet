@@ -145,6 +145,70 @@ class TenacityConfig(BaseSettings):
     before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
+DEFAULT_READY_TIMEOUT_SECONDS = 300.0
+
+
+class EmbeddedHatchetConfig(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_EMBEDDED_",
+    )
+
+    version: str | None = Field(
+        default=None,
+        description=(
+            "hatchet-embedded release tag to download (defaults to latest). Tags "
+            "correspond to the Hatchet engine version baked into the sidecar, so "
+            "pinning this pins the engine."
+        ),
+    )
+
+    binary_path: str | None = Field(
+        default=None,
+        description="path to an existing sidecar binary, skips the download",
+    )
+
+    checksum: str | None = Field(
+        default=None,
+        description=(
+            "expected sha256 hex digest of the sidecar binary. When set, it "
+            "replaces the release's checksums.txt as the trust anchor, so a "
+            "compromised release channel cannot substitute the binary. Pin it "
+            "together with `version`."
+        ),
+    )
+
+    database_url: str | None = Field(
+        default=None,
+        description="use an existing Postgres instead of the bundled one",
+    )
+
+    postgres_data_dir: str | None = Field(
+        default=None,
+        description="store the bundled Postgres runtime and data under this directory",
+    )
+
+    grpc_port: int | None = None
+    api_port: int | None = None
+
+    start_api: bool = Field(
+        default=True,
+        description="set to False to start only the engine + gRPC, no REST API",
+    )
+
+    run_migrations: bool = Field(
+        default=True,
+        description="set to False to skip running migrations on startup",
+    )
+
+    rabbitmq_url: str | None = Field(
+        default=None,
+        description="use RabbitMQ instead of the Postgres message queue",
+    )
+
+    log_level: str | None = None
+    ready_timeout_seconds: float = DEFAULT_READY_TIMEOUT_SECONDS
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
 
 
@@ -185,11 +249,21 @@ class ClientConfig(BaseSettings):
     log_queue_size: int = 1000
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
+    embedded: EmbeddedHatchetConfig | None = None
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
+        # the embedded engine issues its own token once it starts, so a config
+        # with `embedded` set but no token yet is a valid, pre-flight state;
+        # `resolve_embedded_connection` fills the token in, and this validator
+        # runs for real on the resulting config
+        if self.embedded is not None and not self.token:
+            return self
+
         if not self.token:
-            raise ValueError("Token must be set")
+            raise ValueError(
+                "API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable. For local development, you can run Hatchet embedded via `Hatchet.from_embedded()`. More docs here: https://docs.hatchet.run/v1/embedded"
+            )
 
         if not self.token.startswith("ey"):
             raise ValueError(
@@ -203,6 +277,9 @@ class ClientConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_addresses(self) -> "ClientConfig":
+        if self.embedded is not None and not self.token:
+            return self
+
         ## If nothing is set, read from the token
         ## If either is set, override what's in the JWT
         server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(

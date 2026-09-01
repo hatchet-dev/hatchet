@@ -110,3 +110,6 @@ CLAUDE.md
 
 .cache
 .rspec_status
+
+sdks/go/generator
+.pymon

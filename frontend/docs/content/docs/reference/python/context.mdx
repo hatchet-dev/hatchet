@@ -4,20 +4,23 @@ title: "Context"
 
 # Context
 
-The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all tasks and durable tasks.
+The Hatchet Context class provides helper methods and useful data to tasks at runtime.
+
+- For **tasks** and **durable tasks**, it is passed as the second argument (`fn(input, ctx)`).
+- For **batch tasks**, it is paired with each input as a tuple (`fn(tasks)` where `tasks: list[tuple[input, Context]]`).
 
 There are two types of context classes you'll encounter:
 
-- `Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
-- `DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`.
+- `Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more
+- `DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `aio_wait_for` and `aio_sleep_for`
 
 ## Context
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](../../home/conditional-workflows#skip_if).                                                  |
+| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).                              |
 | `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                |
 | `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
 | `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
@@ -25,7 +28,7 @@ There are two types of context classes you'll encounter:
 | `log`                  | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                    |
 | `release_slot`         | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
 | `put_stream`           | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
-| `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](../../home/timeouts#refreshing-timeouts).                             |
+| `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](/v1/timeouts#refreshing-timeouts).                                    |
 | `fetch_task_run_error` | **DEPRECATED**: Use `get_task_run_error` instead.                                                                                                                        |
 
 ### Attributes
@@ -52,7 +55,7 @@ Returns:
 
 #### `lifespan`
 
-The worker lifespan, if it exists. You can read about lifespans in [the docs](../../home/lifespans).
+The worker lifespan, if it exists. You can read about lifespans in [the docs](/reference/python/lifespans).
 
 **Note: You'll need to cast the return type of this property to the type returned by your lifespan generator.**
 
@@ -150,7 +153,7 @@ Returns:
 
 #### `was_skipped`
 
-Check if a given task was skipped. You can read about skipping in [the docs](../../home/conditional-workflows#skip_if).
+Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).
 
 Parameters:
 
@@ -261,7 +264,7 @@ Returns:
 
 #### `refresh_timeout`
 
-Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](../../home/timeouts#refreshing-timeouts).
+Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](/v1/timeouts#refreshing-timeouts).
 
 Parameters:
 
@@ -297,7 +300,7 @@ Returns:
 
 Bases: `Context`
 
-### Methods
+Methods:
 
 | Name            | Description                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -312,10 +315,11 @@ Durably wait for either a sleep or an event.
 
 Parameters:
 
-| Name          | Type                                              | Description                                                                                  | Default    |
-| ------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
-| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
-| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
+| Name          | Type                                              | Description                                                                                                                                                 | Default    |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API.                                                                | _required_ |
+| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                                                                                  | `()`       |
+| `label`       | `str \| None`                                     | An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
 
 Returns:
 
@@ -335,3 +339,16 @@ Raises:
 Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
 For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+Parameters:
+
+| Name       | Type          | Description                                                                                                                                                  | Default    |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `duration` | `Duration`    | The duration to sleep for. Should be a timedelta object.                                                                                                     | _required_ |
+| `label`    | `str \| None` | An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
+
+Returns:
+
+| Type          | Description                                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SleepResult` | A SleepResult object containing the actual duration slept, which may be different from the requested duration in cases of durable eviction and resumption. |

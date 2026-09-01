@@ -179,6 +179,18 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+		res, err = c.runCancelQueuedExceptNewest(ctx, tenantId, strategy)
+
+		if err != nil {
+			return nil, fmt.Errorf("cancel except newest (strategy ID: %d): %w", strategy.ID, err)
+		}
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		res, err = c.runCancelQueuedExceptOldest(ctx, tenantId, strategy)
+
+		if err != nil {
+			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
+		}
 	}
 
 	return res, nil
@@ -383,17 +395,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
@@ -558,6 +563,514 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 	}, nil
 }
 
+func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptNewest(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategy *sqlcv1.V1StepConcurrency,
+) (res *RunConcurrencyResult, err error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	defer rollback()
+
+	// Use TryAdvisoryLock instead of blocking lock to reduce contention
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to try advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if !acquired {
+		// Log lock contention issue
+		c.l.Warn().Ctx(ctx).Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+		// Lock not available, return empty result to avoid blocking
+		return &RunConcurrencyResult{
+			Queued:                    []TaskWithQueue{},
+			Cancelled:                 []TaskWithCancelledReason{},
+			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
+		}, nil
+	}
+
+	var queued []TaskWithQueue
+	var cancelled []TaskWithCancelledReason
+	var nextConcurrencyStrategies []int64
+
+	if strategy.ParentStrategyID.Valid {
+		// Also use TryAdvisoryLock for parent strategy
+		parentAcquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to try parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		if !parentAcquired {
+			// Log the event when the parent advisory lock is not acquired
+			c.l.Warn().Ctx(ctx).Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
+			// Parent lock not available, return empty result
+			return &RunConcurrencyResult{
+				Queued:                    []TaskWithQueue{},
+				Cancelled:                 []TaskWithCancelledReason{},
+				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
+			}, nil
+		}
+
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		err = c.queries.RunParentCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunParentCancelQueuedExceptNewestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running parent cancel except newest (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		poppedResults, err := c.queries.RunChildCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunChildCancelQueuedExceptNewestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ID,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running child cancel except newest (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		// for any cancelled tasks, call cancelTasks
+		cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			if r.Operation == "CANCELLED" {
+				cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
+					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
+					RetryCount: r.TaskRetryCount,
+				})
+			}
+		}
+
+		taskIds := make([]int64, len(cancelledTasks))
+		retryCounts := make([]int32, len(cancelledTasks))
+
+		for i, task := range cancelledTasks {
+			taskIds[i] = task.Id
+			retryCounts[i] = task.RetryCount
+		}
+
+		// remove tasks from queue
+		err = c.queries.DeleteTasksFromQueue(ctx, tx, sqlcv1.DeleteTasksFromQueueParams{
+			Taskids:     taskIds,
+			Retrycounts: retryCounts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		queued = make([]TaskWithQueue, 0, len(poppedResults))
+		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			idRetryCount := &TaskIdInsertedAtRetryCount{
+				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
+				RetryCount: r.TaskRetryCount,
+			}
+
+			switch {
+			case r.Operation == "CANCELLED":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "CONCURRENCY_LIMIT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case r.Operation == "SCHEDULING_TIMED_OUT":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+			default:
+				queued = append(queued, TaskWithQueue{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         r.TaskID,
+						InsertedAt: r.TaskInsertedAt,
+						RetryCount: r.TaskRetryCount,
+					},
+					Queue: r.QueueToNotify,
+				})
+			}
+		}
+	} else {
+		poppedResults, err := c.queries.RunCancelQueuedExceptNewest(ctx, tx, sqlcv1.RunCancelQueuedExceptNewestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ID,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running cancel newest (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		// for any cancelled tasks, call cancelTasks
+		cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			if r.Operation == "CANCELLED" {
+				cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
+					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
+					RetryCount: r.TaskRetryCount,
+				})
+			}
+		}
+
+		taskIds := make([]int64, len(cancelledTasks))
+		retryCounts := make([]int32, len(cancelledTasks))
+
+		for i, task := range cancelledTasks {
+			taskIds[i] = task.Id
+			retryCounts[i] = task.RetryCount
+		}
+
+		// remove tasks from queue
+		err = c.queries.DeleteTasksFromQueue(ctx, tx, sqlcv1.DeleteTasksFromQueueParams{
+			Taskids:     taskIds,
+			Retrycounts: retryCounts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		queued = make([]TaskWithQueue, 0, len(poppedResults))
+		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			idRetryCount := &TaskIdInsertedAtRetryCount{
+				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
+				RetryCount: r.TaskRetryCount,
+			}
+
+			switch {
+			case r.Operation == "CANCELLED":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "CONCURRENCY_LIMIT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case r.Operation == "SCHEDULING_TIMED_OUT":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+			default:
+				queued = append(queued, TaskWithQueue{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         r.TaskID,
+						InsertedAt: r.TaskInsertedAt,
+						RetryCount: r.TaskRetryCount,
+					},
+					Queue: r.QueueToNotify,
+				})
+			}
+		}
+	}
+
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	return &RunConcurrencyResult{
+		Queued:                    queued,
+		Cancelled:                 cancelled,
+		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
+	}, nil
+}
+func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptOldest(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategy *sqlcv1.V1StepConcurrency,
+) (res *RunConcurrencyResult, err error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	defer rollback()
+
+	// Use TryAdvisoryLock instead of blocking lock to reduce contention
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to try advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if !acquired {
+		// Log lock contention issue
+		c.l.Warn().Ctx(ctx).Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+		// Lock not available, return empty result to avoid blocking
+		return &RunConcurrencyResult{
+			Queued:                    []TaskWithQueue{},
+			Cancelled:                 []TaskWithCancelledReason{},
+			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
+		}, nil
+	}
+
+	var queued []TaskWithQueue
+	var cancelled []TaskWithCancelledReason
+	var nextConcurrencyStrategies []int64
+
+	if strategy.ParentStrategyID.Valid {
+		// Also use TryAdvisoryLock for parent strategy
+		parentAcquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to try parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		if !parentAcquired {
+			// Log the event when the parent advisory lock is not acquired
+			c.l.Warn().Ctx(ctx).Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
+			// Parent lock not available, return empty result
+			return &RunConcurrencyResult{
+				Queued:                    []TaskWithQueue{},
+				Cancelled:                 []TaskWithCancelledReason{},
+				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
+			}, nil
+		}
+
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		err = c.queries.RunParentCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunParentCancelQueuedExceptOldestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running parent cancel except oldest (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		poppedResults, err := c.queries.RunChildCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunChildCancelQueuedExceptOldestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ID,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running child cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		// for any cancelled tasks, call cancelTasks
+		cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			if r.Operation == "CANCELLED" {
+				cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
+					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
+					RetryCount: r.TaskRetryCount,
+				})
+			}
+		}
+
+		taskIds := make([]int64, len(cancelledTasks))
+		retryCounts := make([]int32, len(cancelledTasks))
+
+		for i, task := range cancelledTasks {
+			taskIds[i] = task.Id
+			retryCounts[i] = task.RetryCount
+		}
+
+		// remove tasks from queue
+		err = c.queries.DeleteTasksFromQueue(ctx, tx, sqlcv1.DeleteTasksFromQueueParams{
+			Taskids:     taskIds,
+			Retrycounts: retryCounts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		queued = make([]TaskWithQueue, 0, len(poppedResults))
+		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			idRetryCount := &TaskIdInsertedAtRetryCount{
+				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
+				RetryCount: r.TaskRetryCount,
+			}
+
+			switch {
+			case r.Operation == "CANCELLED":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "CONCURRENCY_LIMIT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case r.Operation == "SCHEDULING_TIMED_OUT":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+			default:
+				queued = append(queued, TaskWithQueue{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         r.TaskID,
+						InsertedAt: r.TaskInsertedAt,
+						RetryCount: r.TaskRetryCount,
+					},
+					Queue: r.QueueToNotify,
+				})
+			}
+		}
+	} else {
+		poppedResults, err := c.queries.RunCancelQueuedExceptOldest(ctx, tx, sqlcv1.RunCancelQueuedExceptOldestParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ID,
+			Maxruns:    strategy.MaxConcurrency,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error running cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		// for any cancelled tasks, call cancelTasks
+		cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			if r.Operation == "CANCELLED" {
+				cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
+					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
+					RetryCount: r.TaskRetryCount,
+				})
+			}
+		}
+
+		taskIds := make([]int64, len(cancelledTasks))
+		retryCounts := make([]int32, len(cancelledTasks))
+
+		for i, task := range cancelledTasks {
+			taskIds[i] = task.Id
+			retryCounts[i] = task.RetryCount
+		}
+
+		// remove tasks from queue
+		err = c.queries.DeleteTasksFromQueue(ctx, tx, sqlcv1.DeleteTasksFromQueueParams{
+			Taskids:     taskIds,
+			Retrycounts: retryCounts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
+		}
+
+		queued = make([]TaskWithQueue, 0, len(poppedResults))
+		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+		for _, r := range poppedResults {
+			idRetryCount := &TaskIdInsertedAtRetryCount{
+				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
+				RetryCount: r.TaskRetryCount,
+			}
+
+			switch {
+			case r.Operation == "CANCELLED":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "CONCURRENCY_LIMIT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case r.Operation == "SCHEDULING_TIMED_OUT":
+				cancelled = append(cancelled, TaskWithCancelledReason{
+					TaskIdInsertedAtRetryCount: idRetryCount,
+					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					TaskExternalId:             r.ExternalID,
+					WorkflowRunId:              r.WorkflowRunID,
+				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+			default:
+				queued = append(queued, TaskWithQueue{
+					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+						Id:         r.TaskID,
+						InsertedAt: r.TaskInsertedAt,
+						RetryCount: r.TaskRetryCount,
+					},
+					Queue: r.QueueToNotify,
+				})
+			}
+		}
+	}
+
+	err = c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	return &RunConcurrencyResult{
+		Queued:                    queued,
+		Cancelled:                 cancelled,
+		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
+	}, nil
+}
+
 func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -614,18 +1127,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			}, nil
 		}
 
-		_, err = tx.Exec(
-			ctx,
-			`
--- name: CreateParentTempTable :exec
-CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
-SELECT *
-FROM v1_workflow_concurrency_slot
-WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
-			tenantId,
-			strategy.ParentStrategyID.Int64,
-		)
-
+		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ParentStrategyID.Int64,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}

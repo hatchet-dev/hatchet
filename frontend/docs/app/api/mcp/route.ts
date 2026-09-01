@@ -324,7 +324,7 @@ function handleToolsCall(
   }
 
   if (toolName === "get_docs") {
-    return handleGetDocs();
+    return handleGetDocs(id);
   }
 
   if (toolName === "get_full_docs") {
@@ -446,7 +446,7 @@ function handleSearchDocs(
   };
 }
 
-function handleGetDocs(): JsonRpcResponse {
+function handleGetDocs(id: string | number | null): JsonRpcResponse {
   const docsPath = path.join(process.cwd(), "public", "llms.txt");
   let content = "";
   try {
@@ -454,7 +454,7 @@ function handleGetDocs(): JsonRpcResponse {
   } catch {
     return {
       jsonrpc: "2.0",
-      id: null,
+      id,
       error: {
         code: -32603,
         message: "Failed to read documentation index file",
@@ -464,7 +464,7 @@ function handleGetDocs(): JsonRpcResponse {
 
   return {
     jsonrpc: "2.0",
-    id: null,
+    id,
     result: {
       content: [{ type: "text", text: content }],
     },
@@ -494,24 +494,6 @@ function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
       content: [{ type: "text", text: content }],
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Agent instruction tools
-// ---------------------------------------------------------------------------
-const PAGES_DIR = path.join(process.cwd(), "pages", "agent-instructions");
-
-function readAgentPage(slug: string): string | null {
-  // Try generated markdown first, fall back to MDX source
-  const llmsPath = path.join(LLMS_DIR, "agent-instructions", `${slug}.md`);
-  if (fs.existsSync(llmsPath)) {
-    return fs.readFileSync(llmsPath, "utf-8");
-  }
-  const mdxPath = path.join(PAGES_DIR, `${slug}.mdx`);
-  if (fs.existsSync(mdxPath)) {
-    return fs.readFileSync(mdxPath, "utf-8");
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------
