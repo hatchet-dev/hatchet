@@ -135,4 +135,19 @@ Each SDK exposes a CEL feature client with a `debug` method that evaluates an ex
 - [Go](/reference/go/feature-clients/cel)
 - [Ruby](/reference/ruby/feature-clients/cel)
 
-For key expressions, evaluation failures surface on the run itself: a run whose concurrency, rate limit, or batch key expression fails is created in a failed state with the evaluation error as the failure reason.
+## Finding evaluation failures
+
+Where an evaluation failure lands depends on the context:
+
+| Context                                 | What happens to the run              | Where the error is visible                   |
+| --------------------------------------- | ------------------------------------ | -------------------------------------------- |
+| Concurrency, rate limit, and batch keys | The run is created in a failed state | The run's error message                      |
+| Idempotency keys                        | No run is created                    | Engine internals only (not queryable today)  |
+| Event filters                           | The filter does not match, no run    | Engine internals only (not queryable today)  |
+| Webhook event key and scope expressions | The request is rejected              | The HTTP 400 response returned to the sender |
+
+Key expression failures are the easiest to find because they produce a visible failed run. The evaluation error, including the expression text, becomes the run's error message. You can see it in the run detail page of the dashboard, in the run details returned by the REST API, or from the CLI with `hatchet runs get <run-id> -o json` (the error also appears in the run's failure event, shown by `hatchet runs events <run-id>`).
+
+Webhook expression failures are reported to the caller: Hatchet rejects the request with a 400 status and a description of the problem, such as `Event key expression must evaluate to a string`. Check the delivery logs of the system sending the webhook.
+
+Idempotency key and event filter failures are the hardest to spot. The engine records them internally and writes them to its logs, but no dashboard page, API endpoint, or CLI command exposes them yet. From the outside, the only symptom is that an expected run never appears. If a trigger silently produces no run and you suspect the expression, reproduce the failure with the CEL debug method above using the same event payload or run input.
