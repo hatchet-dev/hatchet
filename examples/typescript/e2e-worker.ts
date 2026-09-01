@@ -11,6 +11,8 @@ import { cancellationWorkflow } from './cancellation/cancellation-workflow';
 import { taskConditionWorkflow } from './conditions/complex-workflow';
 import { concurrencyCancelInProgressWorkflow } from './concurrency_cancel_in_progress/workflow';
 import { concurrencyCancelNewestWorkflow } from './concurrency_cancel_newest/workflow';
+import { concurrencyCancelQueuedExceptNewestWorkflow } from './concurrency_cancel_queued_except_newest/workflow';
+import { concurrencyCancelQueuedExceptOldestWorkflow } from './concurrency_cancel_queued_except_oldest/workflow';
 import { concurrencyMultipleKeysWorkflow } from './concurrency_multiple_keys/workflow';
 import { concurrencyWorkflowLevelWorkflow } from './concurrency_workflow_level/workflow';
 import { dag } from './dag/workflow';
@@ -68,6 +70,7 @@ import {
   batchChildBatchSpawn,
 } from './batch_assign/workflow';
 import { streamingTask } from './streaming/workflow';
+import { dagStream, longStream } from './subscribe_to_stream/workflow';
 import { timeoutTask, refreshTimeoutTask } from './timeout/workflow';
 import { webhookWorkflow } from './webhooks/workflow';
 import {
@@ -95,6 +98,8 @@ const workflows = [
   taskConditionWorkflow,
   concurrencyCancelInProgressWorkflow,
   concurrencyCancelNewestWorkflow,
+  concurrencyCancelQueuedExceptNewestWorkflow,
+  concurrencyCancelQueuedExceptOldestWorkflow,
   concurrencyMultipleKeysWorkflow,
   concurrencyWorkflowLevelWorkflow,
   dag,
@@ -136,6 +141,8 @@ const workflows = [
   helloWorld,
   helloWorldDurable,
   streamingTask,
+  dagStream,
+  longStream,
   timeoutTask,
   refreshTimeoutTask,
   webhookWorkflow,

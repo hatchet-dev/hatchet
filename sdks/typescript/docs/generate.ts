@@ -123,19 +123,18 @@ function assertAllPagesReachable(documents: Document[]) {
   }
 }
 
-function fixLinks(content: string, document: Document): string {
-  const inFeatureClients = document.directory === '/feature-clients';
-
+function fixLinks(content: string): string {
   // typedoc flattens feature client modules to client.features.<name>.mdx; point links
-  // at the feature-clients/ directory (or the sibling file when already inside it).
-  let result = content.replace(/\(client\.features\.([^)\s#]+\.mdx)/g, (_m, leaf) =>
-    inFeatureClients ? `(${leaf}` : `(feature-clients/${leaf}`
+  // at the feature-clients/ directory. Links are absolute so pages resolve correctly
+  // when served from redirect or trailing-slash URLs.
+  let result = content.replace(
+    /\(client\.features\.([^)\s#]+\.mdx)/g,
+    (_m, leaf) => `(/reference/typescript/feature-clients/${leaf}`
   );
 
   // Rewrite links to renamed top-level files (e.g. Runnables.mdx -> runnables.mdx).
   for (const [from, to] of Object.entries(FILENAME_REMAP)) {
-    const target = inFeatureClients ? `../${to}` : to;
-    result = result.split(`(${from}`).join(`(${target}`);
+    result = result.split(`(${from}`).join(`(/reference/typescript/${to}`);
   }
 
   // Browsers resolve .mdx hrefs literally and 404 — link to the extensionless route.
@@ -153,7 +152,7 @@ function withFrontmatter(content: string, document: Document): string {
 
 function copyDoc(document: Document) {
   const raw = fs.readFileSync(document.sourcePath, 'utf-8');
-  const content = withFrontmatter(fixLinks(raw, document), document);
+  const content = withFrontmatter(fixLinks(raw), document);
   fs.mkdirSync(path.dirname(document.mdxOutputPath), { recursive: true });
   fs.writeFileSync(document.mdxOutputPath, content, 'utf-8');
   console.log('Wrote', document.mdxOutputPath);

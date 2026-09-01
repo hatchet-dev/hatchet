@@ -6,13 +6,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
-import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
+import { HumanInLoop } from "@/components/flow-animations/HumanInLoop";
 
 # Durable Event Waits
 
 Tasks can pause until an external event arrives before continuing. This is the foundation for human-in-the-loop workflows, webhook-driven pipelines, and any process that depends on signals from outside the task.
 
-<HumanInLoopDiagram />
+<HumanInLoop />
 
 Events are delivered by pushing events into Hatchet either [using one of the SDKs](/v1/events#pushing-events-to-hatchet) or via an [incoming webhook](/v1/webhooks). The event key you push must match the key your task is waiting for.
 
