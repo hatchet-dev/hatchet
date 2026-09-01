@@ -42,7 +42,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 	t.Cleanup(func() { _ = cleanup() })
 
 	return userEventScopeTestRepositories{
-		durable: &durableEventsRepository{sharedRepository: shared},
+		durable: newDurableEventsRepository(shared, DurableEventBufferOpts{}),
 		matches: &MatchRepositoryImpl{sharedRepository: shared},
 		shared:  shared,
 	}
