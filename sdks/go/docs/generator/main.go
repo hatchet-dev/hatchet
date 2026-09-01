@@ -75,6 +75,7 @@ func run() error {
 	files := map[string]string{
 		"client.mdx":    renderClientPage(root, accessors),
 		"context.mdx":   renderContextPage(worker),
+		"embedded.mdx":  renderEmbeddedPage(root),
 		"runnables.mdx": renderRunnablesPage(root),
 	}
 	for _, a := range accessors {
@@ -832,6 +833,24 @@ func findType(p *pkgDocs, name string) *doc.Type {
 	return nil
 }
 
+// findFunc returns the package-level function with the given name, searching both
+// the package's free functions and the constructors go/doc attached to types.
+func findFunc(p *pkgDocs, name string) *doc.Func {
+	for _, fn := range p.pkg.Funcs {
+		if fn.Name == name {
+			return fn
+		}
+	}
+	for _, t := range p.pkg.Types {
+		for _, fn := range t.Funcs {
+			if fn.Name == name {
+				return fn
+			}
+		}
+	}
+	return nil
+}
+
 // funcsReturning returns package-level functions whose only result type is named typeName.
 func funcsReturning(p *pkgDocs, typeName string) []*doc.Func {
 	t := findType(p, typeName)
@@ -900,11 +919,11 @@ func renderClientPage(p *pkgDocs, accessors []accessor) string {
 		b.WriteString(table([]string{"Name", "Description"}, methodRows(p, methods)) + "\n")
 
 		b.WriteString("### Feature clients\n\n")
-		b.WriteString("The client exposes lazily-initialized [feature clients](./feature-clients/" + accessors[0].page + ") as methods:\n\n")
+		b.WriteString("The client exposes lazily-initialized [feature clients](/reference/go/feature-clients/" + accessors[0].page + ") as methods:\n\n")
 		for _, a := range accessors {
 			fmt.Fprintf(&b, "#### `%s()`\n\n", a.method)
 			desc := synopsis(p, a.doc)
-			fmt.Fprintf(&b, "%s See the [%s client](./feature-clients/%s).\n\n", desc, a.title, a.page)
+			fmt.Fprintf(&b, "%s See the [%s client](/reference/go/feature-clients/%s).\n\n", desc, a.title, a.page)
 		}
 
 		b.WriteString("### Functions\n\n")
@@ -987,12 +1006,43 @@ func renderContextPage(worker *pkgDocs) string {
 	return b.String()
 }
 
+const embeddedIntro = `Embedded mode runs a full Hatchet engine and Postgres instance in-process for local development, with no account, API token, or Docker. It requires a blank import of [github.com/hatchet-dev/hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See [Embedded Mode](/v1/embedded) for a guide.
+`
+
+func renderEmbeddedPage(p *pkgDocs) string {
+	var b strings.Builder
+	b.WriteString(frontmatter("Embedded"))
+	b.WriteString(generatedNotice())
+	b.WriteString("# Embedded\n\n")
+	b.WriteString(embeddedIntro + "\n")
+
+	if fn := findFunc(p, "WithEmbedded"); fn != nil {
+		writeFuncSection(&b, p, fn, 2)
+	}
+
+	if opts := funcsReturning(p, "EmbeddedOption"); len(opts) > 0 {
+		b.WriteString("## Embedded options\n\nOptions for `WithEmbedded`:\n\n")
+		b.WriteString(optionTable(p, opts) + "\n")
+	}
+
+	for _, name := range []string{"EmbeddedConfig", "EmbeddedBackend"} {
+		if t := findType(p, name); t != nil && !skipDoc(t.Doc) {
+			writeTypeSection(&b, p, t, 2, "", true)
+		}
+	}
+	if fn := findFunc(p, "RegisterEmbeddedBackend"); fn != nil {
+		writeFuncSection(&b, p, fn, 2)
+	}
+
+	return b.String()
+}
+
 const runnablesIntro = `Runnables in the Hatchet Go SDK are things that can be run, namely tasks and workflows. The two main types you'll encounter are:
 
 - ` + "`Workflow`" + `, which lets you declare tasks with ` + "`NewTask`" + ` and call the run methods
 - ` + "`StandaloneTask`" + `, which is a single task returned by ` + "`client.NewStandaloneTask`" + ` (or its durable/batch variants) and supports the same run methods
 
-Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](./client) for the constructors.
+Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](/reference/go/client) for the constructors.
 `
 
 func renderRunnablesPage(p *pkgDocs) string {
@@ -1026,10 +1076,13 @@ func renderRunnablesPage(p *pkgDocs) string {
 		// Aliases and interfaces that are pure plumbing for the types above.
 		"WorkflowBase":         true,
 		"StandaloneTaskOption": true,
-		"EmbeddedBackend":      true,
 		// Documented on the Context page.
 		"Context":        true,
 		"DurableContext": true,
+		// Documented on the Embedded page.
+		"EmbeddedOption":  true,
+		"EmbeddedConfig":  true,
+		"EmbeddedBackend": true,
 	}
 	for _, g := range optionGroups {
 		rendered[g.typeName] = true
@@ -1064,7 +1117,7 @@ func renderRunnablesPage(p *pkgDocs) string {
 	}
 	if len(condFns) > 0 {
 		b.WriteString("## Conditions\n\n")
-		b.WriteString("Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):\n\n")
+		b.WriteString("Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):\n\n")
 		b.WriteString(optionTable(p, condFns) + "\n")
 	}
 
@@ -1093,9 +1146,14 @@ func renderRunnablesPage(p *pkgDocs) string {
 	for _, fn := range condFns {
 		condNames[fn.Name] = true
 	}
+	embeddedFns := map[string]bool{
+		// Documented on the Embedded page.
+		"WithEmbedded":            true,
+		"RegisterEmbeddedBackend": true,
+	}
 	var restFns []*doc.Func
 	for _, fn := range p.pkg.Funcs {
-		if skipDoc(fn.Doc) || condNames[fn.Name] {
+		if skipDoc(fn.Doc) || condNames[fn.Name] || embeddedFns[fn.Name] {
 			continue
 		}
 		restFns = append(restFns, fn)
@@ -1115,7 +1173,7 @@ func renderFeaturePage(features *pkgDocs, a accessor) string {
 	b.WriteString(frontmatter(a.title))
 	b.WriteString(generatedNotice())
 	fmt.Fprintf(&b, "# %s Client\n\n", a.title)
-	fmt.Fprintf(&b, "Accessed via `client.%s()` on the [Hatchet client](../client).\n\n", a.method)
+	fmt.Fprintf(&b, "Accessed via `client.%s()` on the [Hatchet client](/reference/go/client).\n\n", a.method)
 
 	// The features package keeps one file per feature client; render the client type
 	// first, then every other exported declaration from the same file.

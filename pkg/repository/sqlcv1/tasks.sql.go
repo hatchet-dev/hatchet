@@ -364,9 +364,9 @@ WITH locked_runtime AS (
     FROM
         v1_task_runtime
     WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
+        tenant_id = $3::uuid
+        AND task_id = $1::bigint
+        AND task_inserted_at = $2::timestamptz
         AND retry_count = $4::int
         AND evicted_at IS NULL
         AND (timeout_at IS NULL OR timeout_at > NOW())
@@ -374,9 +374,9 @@ WITH locked_runtime AS (
 ), deleted_slots AS (
     DELETE FROM v1_task_runtime_slot
     WHERE
-        tenant_id = $1::uuid
-        AND task_id = $2::bigint
-        AND task_inserted_at = $3::timestamptz
+        tenant_id = $3::uuid
+        AND task_id = $1::bigint
+        AND task_inserted_at = $2::timestamptz
         AND retry_count = $4::int
 ), updated_runtime AS (
     UPDATE v1_task_runtime
@@ -388,29 +388,41 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted"
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = $1::bigint
+          AND durable_task_inserted_at = $2::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events
 `
 
 type EvictTaskParams struct {
-	Tenantid       uuid.UUID          `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	Tenantid       uuid.UUID          `json:"tenantid"`
 	Retrycount     int32              `json:"retrycount"`
+}
+
+type EvictTaskRow struct {
+	Evicted                     int32 `json:"evicted"`
+	HasUnsatisfiedDurableEvents bool  `json:"has_unsatisfied_durable_events"`
 }
 
 // Marks a task as evicted in v1_task_runtime and releases worker slots.
 // Skips rows whose execution timeout has already passed so the timeout
 // mechanism handles them instead of producing a spurious EVICTED status.
-func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (int32, error) {
+func (q *Queries) EvictTask(ctx context.Context, db DBTX, arg EvictTaskParams) (*EvictTaskRow, error) {
 	row := db.QueryRow(ctx, evictTask,
-		arg.Tenantid,
 		arg.Taskid,
 		arg.Taskinsertedat,
+		arg.Tenantid,
 		arg.Retrycount,
 	)
-	var evicted int32
-	err := row.Scan(&evicted)
-	return evicted, err
+	var i EvictTaskRow
+	err := row.Scan(&i.Evicted, &i.HasUnsatisfiedDurableEvents)
+	return &i, err
 }
 
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
@@ -1663,7 +1675,15 @@ SELECT
     display_name,
     workflow_version_id,
     step_id,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -1677,19 +1697,20 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID                 int64              `json:"id"`
-	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID         uuid.UUID          `json:"external_id"`
-	RetryCount         int32              `json:"retry_count"`
-	WorkflowID         uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-	StepReadableID     string             `json:"step_readable_id"`
-	ActionID           string             `json:"action_id"`
-	DisplayName        string             `json:"display_name"`
-	WorkflowVersionID  uuid.UUID          `json:"workflow_version_id"`
-	StepID             uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator  bool               `json:"is_dag_orchestrator"`
+	ID                            int64              `json:"id"`
+	InsertedAt                    pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID                    uuid.UUID          `json:"external_id"`
+	RetryCount                    int32              `json:"retry_count"`
+	WorkflowID                    uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID                 uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata            []byte             `json:"additional_metadata"`
+	StepReadableID                string             `json:"step_readable_id"`
+	ActionID                      string             `json:"action_id"`
+	DisplayName                   string             `json:"display_name"`
+	WorkflowVersionID             uuid.UUID          `json:"workflow_version_id"`
+	StepID                        uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator             bool               `json:"is_dag_orchestrator"`
+	WasTriggeredByDagOrchestrator bool               `json:"was_triggered_by_dag_orchestrator"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1715,6 +1736,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsDagOrchestrator,
+			&i.WasTriggeredByDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
@@ -2889,6 +2911,14 @@ LEFT JOIN
     v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
 LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+LEFT JOIN
+    v1_queue_item qi ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+LEFT JOIN
+    v1_batched_queue_item bqi ON bqi.task_id = t.id AND bqi.task_inserted_at = t.inserted_at AND bqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_rate_limited_queue_items rlqi ON rlqi.task_id = t.id AND rlqi.task_inserted_at = t.inserted_at AND rlqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_paused_workflow_queue_item pwqi ON pwqi.task_id = t.id AND pwqi.task_inserted_at = t.inserted_at AND pwqi.retry_count = t.retry_count
 WHERE
     t.tenant_id = $1::uuid
     AND NOT EXISTS (
@@ -2900,7 +2930,15 @@ WHERE
             AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
             AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
     )
-    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+    AND (
+        tr.task_id IS NOT NULL
+        OR cs.task_id IS NOT NULL
+        OR rqi.task_id IS NOT NULL
+        OR qi.task_id IS NOT NULL
+        OR bqi.task_id IS NOT NULL
+        OR rlqi.task_id IS NOT NULL
+        OR pwqi.task_id IS NOT NULL
+    )
 `
 
 type PreflightCheckTasksForReplayParams struct {
@@ -2916,7 +2954,7 @@ type PreflightCheckTasksForReplayRow struct {
 }
 
 // Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
-// concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
+// concurrency slots, retry queue items, or pending queue items. Returns the tasks which cannot be replayed.
 func (q *Queries) PreflightCheckTasksForReplay(ctx context.Context, db DBTX, arg PreflightCheckTasksForReplayParams) ([]*PreflightCheckTasksForReplayRow, error) {
 	rows, err := db.Query(ctx, preflightCheckTasksForReplay,
 		arg.Tenantid,

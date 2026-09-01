@@ -1,14 +1,16 @@
 import atexit
+import contextlib
 import hashlib
 import os
 import platform
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
@@ -29,17 +31,62 @@ class Handshake(BaseModel):
 class EmbeddedSidecar:
     handshake: Handshake
     process: subprocess.Popen[bytes]
+    _stop_lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     def stop(self) -> None:
-        if self.process.poll() is not None:
-            return
+        with self._stop_lock:
+            with contextlib.suppress(ValueError):
+                _active_sidecars.remove(self)
 
-        self.process.terminate()
-        try:
-            self.process.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            self.process.kill()
-            self.process.wait()
+            atexit.unregister(self.process.terminate)
+
+            # a stale handshake would point the next `from_embedded()` in this
+            # process at the terminated engine instead of starting a new one
+            raw_handshake = os.environ.get(_HANDSHAKE_ENV)
+            if raw_handshake is not None:
+                try:
+                    stale = (
+                        Handshake.model_validate_json(raw_handshake).token
+                        == self.handshake.token
+                    )
+                except ValidationError:
+                    stale = True
+
+                if stale:
+                    os.environ.pop(_HANDSHAKE_ENV, None)
+
+            if self.process.poll() is not None:
+                return
+
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+
+    def __enter__(self) -> "EmbeddedSidecar":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.stop()
+
+
+_active_sidecars: list[EmbeddedSidecar] = []
+
+
+def stop_embedded_sidecar() -> None:
+    """
+    Gracefully stop every sidecar started in this process by
+    `Hatchet.from_embedded()` (or `start_embedded_sidecar`) and block until
+    they have fully exited, including their bundled Postgres. Call this before
+    your process exits so the engine's shutdown output does not print after
+    your program has returned.
+    """
+    for sidecar in _active_sidecars.copy():
+        sidecar.stop()
 
 
 def _sidecar_asset_name() -> str:
@@ -213,7 +260,9 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
 
-    return EmbeddedSidecar(handshake=handshake, process=process)
+    sidecar = EmbeddedSidecar(handshake=handshake, process=process)
+    _active_sidecars.append(sidecar)
+    return sidecar
 
 
 def _wait_for_handshake(

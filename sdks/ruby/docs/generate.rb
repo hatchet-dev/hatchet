@@ -457,7 +457,7 @@ def generate_client_page(pages)
     prose = Md.clean(m.docstring)
     prose = Md.clean(ret&.text) if prose.empty?
     feature = pages.find { |_, k| Array(ret&.types).include?(k.path) }
-    prose += " See the [#{feature_title(feature[1])} client](./feature-clients/#{feature[0]})." if feature
+    prose += " See the [#{feature_title(feature[1])} client](/reference/ruby/feature-clients/#{feature[0]})." if feature
     "#### `#{m.name}`\n\n#{prose}"
   end
 

@@ -7,6 +7,8 @@ module Hatchet
     CANCEL_NEWEST = :cancel_newest
     GROUP_ROUND_ROBIN = :group_round_robin
     QUEUE = :queue
+    CANCEL_QUEUED_EXCEPT_NEWEST = :cancel_queued_except_newest
+    CANCEL_QUEUED_EXCEPT_OLDEST = :cancel_queued_except_oldest
   end
 
   # Defines a concurrency expression for workflow or task-level concurrency control
@@ -30,7 +32,7 @@ module Hatchet
     # @return [Integer] Maximum concurrent runs for this key
     attr_reader :max_runs
 
-    # @return [Symbol] Strategy when limit is exceeded (:cancel_in_progress, :cancel_newest, :group_round_robin, :queue)
+    # @return [Symbol] Strategy when limit is exceeded (:cancel_in_progress, :cancel_newest, :group_round_robin, :queue, :cancel_queued_except_newest, :cancel_queued_except_oldest)
     attr_reader :limit_strategy
 
     # @param expression [String] CEL expression evaluated against input
@@ -59,6 +61,8 @@ module Hatchet
       group_round_robin: :GROUP_ROUND_ROBIN,
       queue: :QUEUE_NEWEST,
       drop_newest: :DROP_NEWEST,
+      cancel_queued_except_newest: :CANCEL_QUEUED_EXCEPT_NEWEST,
+      cancel_queued_except_oldest: :CANCEL_QUEUED_EXCEPT_OLDEST,
     }.freeze
 
     # Convert to a V1::Concurrency protobuf message

@@ -9,7 +9,7 @@ Runnables in the Hatchet Go SDK are things that can be run, namely tasks and wor
 - `Workflow`, which lets you declare tasks with `NewTask` and call the run methods
 - `StandaloneTask`, which is a single task returned by `client.NewStandaloneTask` (or its durable/batch variants) and supports the same run methods
 
-Both implement the `WorkflowBase` interface and can be registered on a worker with `hatchet.WithWorkflows`. See the [Client page](./client) for the constructors.
+Both implement the `WorkflowBase` interface and can be registered on a worker with `hatchet.WithWorkflows`. See the [Client page](/reference/go/client) for the constructors.
 
 ## Workflow
 
@@ -548,7 +548,7 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 
 ## Conditions
 
-Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](./context)):
+Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):
 
 | Name                 | Signature                                                                                  | Description                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
@@ -651,140 +651,6 @@ Fields:
 | `ErrorWindow` | `time.Duration` | ErrorWindow is how long after start the notice is an error log. After this window, calls have a 20% chance of returning an error. If zero (default), the error/raise phase is never reached and the notice stays at error-level logging indefinitely. |
 
 ### DesiredWorkerLabel
-
-### EmbeddedConfig
-
-Fields:
-
-| Name            | Type      | Description |
-| --------------- | --------- | ----------- |
-| `GRPCPort`      | `*int`    |             |
-| `APIPort`       | `*int`    |             |
-| `StartAPI`      | `*bool`   |             |
-| `RunMigrations` | `*bool`   |             |
-| `RabbitMQURL`   | `*string` |             |
-| `LogLevel`      | `*string` |             |
-| `DatabaseURL`   | `string`  |             |
-
-### EmbeddedOption
-
-#### Functions
-
-##### `WithEmbeddedAPIPort`
-
-```go
-func WithEmbeddedAPIPort(port int) EmbeddedOption
-```
-
-Parameters:
-
-| Name   | Type  |
-| ------ | ----- |
-| `port` | `int` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedDatabaseURL`
-
-WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead of the bundled one.
-
-```go
-func WithEmbeddedDatabaseURL(url string) EmbeddedOption
-```
-
-Parameters:
-
-| Name  | Type     |
-| ----- | -------- |
-| `url` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedGRPCPort`
-
-```go
-func WithEmbeddedGRPCPort(port int) EmbeddedOption
-```
-
-Parameters:
-
-| Name   | Type  |
-| ------ | ----- |
-| `port` | `int` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedLogLevel`
-
-```go
-func WithEmbeddedLogLevel(level string) EmbeddedOption
-```
-
-Parameters:
-
-| Name    | Type     |
-| ------- | -------- |
-| `level` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithEmbeddedRabbitMQ`
-
-```go
-func WithEmbeddedRabbitMQ(url string) EmbeddedOption
-```
-
-Parameters:
-
-| Name  | Type     |
-| ----- | -------- |
-| `url` | `string` |
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithoutEmbeddedAPI`
-
-```go
-func WithoutEmbeddedAPI() EmbeddedOption
-```
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
-
-##### `WithoutEmbeddedMigrations`
-
-```go
-func WithoutEmbeddedMigrations() EmbeddedOption
-```
-
-Returns:
-
-| Type             |
-| ---------------- |
-| `EmbeddedOption` |
 
 ### EventUnmarshaller
 
@@ -1044,18 +910,6 @@ Returns:
 | `int` |
 | `int` |
 
-### `RegisterEmbeddedBackend`
-
-```go
-func RegisterEmbeddedBackend(b EmbeddedBackend)
-```
-
-Parameters:
-
-| Name | Type              |
-| ---- | ----------------- |
-| `b`  | `EmbeddedBackend` |
-
 ### `SemverLessThan`
 
 SemverLessThan returns true if version a is strictly less than version b.
@@ -1117,26 +971,6 @@ Returns:
 | Type                              |
 | --------------------------------- |
 | `condition.UserEventConditionOpt` |
-
-### `WithEmbedded`
-
-WithEmbedded runs Hatchet in-process. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
-
-```go
-func WithEmbedded(opts ...EmbeddedOption) client.ClientOpt
-```
-
-Parameters:
-
-| Name   | Type                |
-| ------ | ------------------- |
-| `opts` | `...EmbeddedOption` |
-
-Returns:
-
-| Type               |
-| ------------------ |
-| `client.ClientOpt` |
 
 ### `WithEventScope`
 

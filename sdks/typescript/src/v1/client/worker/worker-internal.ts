@@ -19,6 +19,7 @@ import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
 import {
+  Concurrency,
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
@@ -351,6 +352,9 @@ export class InternalWorker {
       const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
       const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
 
+      assertValidConcurrencyArr(concurrencyArr);
+      assertValidConcurrencyArr(concurrencySolo ? [concurrencySolo] : undefined);
+
       // Convert Zod schema to JSON Schema if provided
       let inputJsonSchema: Uint8Array | undefined;
       if (workflow.inputValidator) {
@@ -414,15 +418,19 @@ export class InternalWorker {
           isDurable: durableTaskSet.has(task),
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           batch: mapBatchConfigPb(batchOf(task)),
-          concurrency: task.concurrency
-            ? Array.isArray(task.concurrency)
-              ? task.concurrency
-              : [task.concurrency]
-            : workflow.taskDefaults?.concurrency
-              ? Array.isArray(workflow.taskDefaults.concurrency)
-                ? workflow.taskDefaults.concurrency
-                : [workflow.taskDefaults.concurrency]
-              : [],
+          concurrency: (() => {
+            const taskConcurrency = task.concurrency
+              ? Array.isArray(task.concurrency)
+                ? task.concurrency
+                : [task.concurrency]
+              : workflow.taskDefaults?.concurrency
+                ? Array.isArray(workflow.taskDefaults.concurrency)
+                  ? workflow.taskDefaults.concurrency
+                  : [workflow.taskDefaults.concurrency]
+                : [];
+            assertValidConcurrencyArr(taskConcurrency);
+            return taskConcurrency;
+          })(),
         })),
         concurrency: concurrencySolo,
         defaultFilters:
@@ -1373,6 +1381,16 @@ function batchOf(
   task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
 ): CreateWorkflowTaskOpts<any, any>['batch'] {
   return 'batch' in task ? task.batch : undefined;
+}
+
+export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {
+  concurrency?.forEach((c) => {
+    if (c.maxRuns !== undefined && (!Number.isInteger(c.maxRuns) || c.maxRuns <= 0)) {
+      throw new Error(
+        `concurrency.maxRuns must be a positive integer when provided, got: ${c.maxRuns}`
+      );
+    }
+  });
 }
 
 export function mapBatchConfigPb(

@@ -992,10 +992,12 @@ func (ns NullV1CelEvaluationFailureSource) Value() (driver.Value, error) {
 type V1ConcurrencyStrategy string
 
 const (
-	V1ConcurrencyStrategyNONE             V1ConcurrencyStrategy = "NONE"
-	V1ConcurrencyStrategyGROUPROUNDROBIN  V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
-	V1ConcurrencyStrategyCANCELINPROGRESS V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
-	V1ConcurrencyStrategyCANCELNEWEST     V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyNONE                     V1ConcurrencyStrategy = "NONE"
+	V1ConcurrencyStrategyGROUPROUNDROBIN          V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyStrategyCANCELINPROGRESS         V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyStrategyCANCELNEWEST             V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
 )
 
 func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
@@ -3332,6 +3334,7 @@ type V1DagsOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
 }
 
 type V1DurableEventLogBranchPoint struct {

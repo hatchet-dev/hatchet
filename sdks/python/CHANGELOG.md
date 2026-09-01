@@ -5,6 +5,24 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.39.0] - 2026-08-26
+
+### Added
+
+- Added support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
+
+## [1.38.2] - 2026-08-31
+
+### Changed
+
+- The missing-token configuration error now explains how to run Hatchet embedded for local development, via `Hatchet.from_embedded()`, with a link to the embedded mode docs.
+
+## [1.38.1] - 2026-08-25
+
+### Added
+
+- Adds `Hatchet.stop_embedded()` and `Hatchet.aio_stop_embedded()` to gracefully stop the embedded engine sidecar and wait until it has fully exited, including its bundled Postgres.
+
 ## [1.38.0] - 2026-08-24
 
 ### Added

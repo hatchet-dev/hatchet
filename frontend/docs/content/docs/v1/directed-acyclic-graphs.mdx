@@ -6,14 +6,14 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
-import WorkflowDiagram from "@/components/WorkflowDiagram";
-import PipelineDiagram from "@/components/PipelineDiagram";
+import { DagFanout } from "@/components/flow-animations/DagFanout";
+import { DagPipeline } from "@/components/flow-animations/DagPipeline";
 
 # DAGs as Durable Workflows
 
 A directed acyclic graph (DAG) is a workflow where every task, along with the dependencies between them, is declared upfront, before the workflow runs. At runtime, Hatchet schedules the tasks in the right order, runs tasks that don't depend on each other in parallel, and passes the outputs of parent tasks to their children automatically.
 
-<WorkflowDiagram />
+<DagFanout />
 
 DAGs in Hatchet are a form of [durable execution](/v1/durable-execution) by definition. Every time a task in a DAG completes, Hatchet persists its status and result so that the DAG can be retried without re-executing succeeded parts. This gives DAGs similar exactly-once-style guarantees you'd get from a [durable task](/v1/durable-tasks), without having to write any explicit durable execution code yourself.
 
@@ -74,6 +74,8 @@ Once you have a workflow, you can add tasks to it. Each task is a function that 
 ### Adding task dependencies
 
 Once you have more than one task on a workflow, you can start to declare dependencies between them. A task can declare one or more **parent** tasks, meaning that those parent tasks must complete successfully before the child task is allowed to run. Tasks that don't depend on each other will be run in parallel. When a task runs, the outputs of its parents are available on its context object, so data flows naturally from one part of the DAG to the next.
+
+<DagPipeline />
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
 <Tabs.Tab title="Python">
