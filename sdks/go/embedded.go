@@ -68,9 +68,9 @@ func RegisterEmbeddedBackend(b EmbeddedBackend) {
 //
 // Requires a blank import of the hatchet-embedded package
 // (github.com/hatchet-dev/hatchet-embedded), which registers the engine
-// backend. See the [Embedded Hatchet guide] for usage.
+// backend. See the [embedded mode guide] for usage.
 //
-// [Embedded Hatchet guide]: https://docs.hatchet.run/v1/embedded
+// [embedded mode guide]: https://docs.hatchet.run/v1/embedded
 func WithEmbedded(opts ...EmbeddedOption) v0Client.ClientOpt { //nolint:staticcheck // SA1019
 	cfg := EmbeddedConfig{}
 	for _, o := range opts {

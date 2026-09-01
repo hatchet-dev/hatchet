@@ -548,7 +548,7 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 
 ## Embedded options
 
-Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Hatchet](/v1/embedded).
+Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Mode](/v1/embedded).
 
 | Name                        | Signature                             | Description                                                                                      |
 | --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -1024,7 +1024,7 @@ Returns:
 
 WithEmbedded runs a full Hatchet engine in-process for local development, with no API token or Docker required. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
 
-Requires a blank import of the hatchet-embedded package (github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See the [Embedded Hatchet guide](https://docs.hatchet.run/v1/embedded) for usage.
+Requires a blank import of the hatchet-embedded package (github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See the [embedded mode guide](https://docs.hatchet.run/v1/embedded) for usage.
 
 ```go
 func WithEmbedded(opts ...EmbeddedOption) client.ClientOpt

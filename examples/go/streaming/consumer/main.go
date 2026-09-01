@@ -34,3 +34,4 @@ func main() {
 
 	fmt.Println("\nStreaming completed!")
 }
+

@@ -1,0 +1,31 @@
+---
+title: "Running Hatchet Locally"
+---
+
+# Running Hatchet Locally
+
+There are several ways to run Hatchet on your own machine. Pick the one that matches what you are doing:
+
+| Option                                                                | Best for                                | Requires                       |
+| --------------------------------------------------------------------- | --------------------------------------- | ------------------------------ |
+| [Embedded mode](/v1/embedded)                                          | Local development and CI                | Nothing (no account or Docker) |
+| [CLI: `hatchet server start`](/reference/cli/running-hatchet-locally)  | A full local stack with the dashboard   | Docker                         |
+| [Hatchet Lite](/self-hosting/hatchet-lite)                             | A single self-managed container         | Docker                         |
+| [Docker Compose](/self-hosting/docker-compose)                         | A local stack with separate services    | Docker                         |
+| [Kubernetes](/self-hosting/kubernetes-quickstart)                      | Production-like self-hosted deployments | A cluster                      |
+
+## Embedded mode
+
+[Embedded mode](/v1/embedded) runs a full Hatchet engine from inside your worker process, backed by a bundled Postgres. It needs no account, API token, or Docker, which makes it the fastest path for local development and end-to-end tests in CI.
+
+## CLI
+
+[`hatchet server start`](/reference/cli/running-hatchet-locally) runs a full local instance, including the dashboard, using Docker. Add `--disable-auth` for a no-auth mode aimed at local development: everything runs as a seeded admin user against the default tenant, so there is no signup step.
+
+## Hatchet Lite
+
+[Hatchet Lite](/self-hosting/hatchet-lite) bundles the whole control plane into one container. Use it directly when you want to manage the container yourself; the CLI command above wraps it.
+
+## Docker Compose and Kubernetes
+
+[Docker Compose](/self-hosting/docker-compose) runs the stack as separate services for a production-like local environment. [Kubernetes](/self-hosting/kubernetes-quickstart) is the path for real self-hosted deployments; see the [self-hosting docs](/self-hosting) for the full picture.

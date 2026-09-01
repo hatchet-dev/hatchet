@@ -1019,7 +1019,7 @@ func renderRunnablesPage(p *pkgDocs) string {
 		{"WorkflowOption", "Workflow options", "Options for `Client.NewWorkflow` (and standalone task constructors):"},
 		{"TaskOption", "Task options", "Options for `Workflow.NewTask` and the other task constructors:"},
 		{"RunOptFunc", "Run options", "Options for the `Run`, `RunNoWait`, and `RunMany` methods:"},
-		{"EmbeddedOption", "Embedded options", "Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Hatchet](/v1/embedded)."},
+		{"EmbeddedOption", "Embedded options", "Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Mode](/v1/embedded)."},
 	}
 
 	rendered := map[string]bool{}
