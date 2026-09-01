@@ -87,7 +87,7 @@ class Hatchet:
         self._metrics_client = MetricsClient(self._config)
         self._rate_limits_client = RateLimitsClient(self._config)
         self._admin_client = AdminClient(
-            self._config, self._workflow_listener_client, self.listener
+            self._config, self._workflow_listener_client, self._listener_client
         )
         self._runs_client = RunsClient(
             config=self._config,
