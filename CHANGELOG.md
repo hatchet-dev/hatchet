@@ -4,7 +4,7 @@ Hatchet v0.105.17 adds group-based access control for self-hosted OIDC deploymen
 
 ### Highlights
 
-- Self-hosted OIDC can map identity provider groups to global roles across all tenants or to tenant-specific `ADMIN`, `MEMBER`, and `VIEWER` roles managed from Tenant Settings. Tenant creation can also be restricted to globally mapped owners and administrators.
+- Self-hosted OIDC can map identity provider groups to global roles across all tenants or to issuer-scoped tenant-specific `ADMIN`, `MEMBER`, and `VIEWER` roles managed from Tenant Settings. Memberships follow current provider groups, and tenant creation can be restricted to globally mapped owners and administrators.
 
 ## [0.105.16] - 2026-08-31
 

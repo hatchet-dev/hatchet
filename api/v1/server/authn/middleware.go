@@ -200,6 +200,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
+	if err := ReconcileCurrentOIDCMemberships(c.Request().Context(), a.config, user.ID); err != nil {
+		a.l.Warn().Ctx(ctx).Err(err).Msg("could not reconcile current OIDC memberships")
+		return forbidden
+	}
 
 	c.Set("user", user)
 	c.Set("session", session)

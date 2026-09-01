@@ -692,6 +692,7 @@ CREATE TABLE "TenantOIDCGroupMapping" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "tenantId" UUID NOT NULL,
+    "issuer" TEXT NOT NULL,
     "group" TEXT NOT NULL,
     "role" "TenantMemberRole" NOT NULL,
 
@@ -1418,7 +1419,7 @@ CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember" ("tenan
 CREATE INDEX "TenantMember_userId_oidcIssuer_idx" ON "TenantMember" ("userId" ASC, "oidcIssuer" ASC) WHERE "oidcIssuer" IS NOT NULL;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TenantOIDCGroupMapping_tenantId_group_key" ON "TenantOIDCGroupMapping" ("tenantId" ASC, "group" ASC);
+CREATE UNIQUE INDEX "TenantOIDCGroupMapping_tenantId_issuer_group_key" ON "TenantOIDCGroupMapping" ("tenantId" ASC, "issuer" ASC, "group" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit" ("id" ASC);

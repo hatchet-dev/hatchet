@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -31,10 +32,15 @@ func (t *TenantService) TenantOidcGroupMappingCreate(ctx echo.Context, request g
 	if hasGlobalConfigMapping(group, t.config.Auth.OIDCGroupMappings) {
 		return gen.TenantOidcGroupMappingCreate400JSONResponse(apierrors.NewAPIErrors("OIDC group is managed by server configuration")), nil
 	}
+	issuer, err := authn.OIDCIssuer(t.config)
+	if err != nil {
+		return nil, err
+	}
 
 	mapping, err := t.config.V1.Tenant().UpsertTenantOIDCGroupMapping(ctx.Request().Context(), tenant.ID, &v1.UpsertTenantOIDCGroupMappingOpts{
-		Group: group,
-		Role:  role,
+		Issuer: issuer,
+		Group:  group,
+		Role:   role,
 	})
 	if err != nil {
 		return nil, err

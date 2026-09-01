@@ -951,23 +951,27 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 }
 
 const hasOIDCGroupMappings = `-- name: HasOIDCGroupMappings :one
-SELECT EXISTS(SELECT 1 FROM "TenantOIDCGroupMapping")
+SELECT EXISTS(
+    SELECT 1 FROM "TenantOIDCGroupMapping"
+    WHERE "issuer" = $1::text
+)
 `
 
-func (q *Queries) HasOIDCGroupMappings(ctx context.Context, db DBTX) (bool, error) {
-	row := db.QueryRow(ctx, hasOIDCGroupMappings)
+func (q *Queries) HasOIDCGroupMappings(ctx context.Context, db DBTX, issuer string) (bool, error) {
+	row := db.QueryRow(ctx, hasOIDCGroupMappings, issuer)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
 const listOIDCGroupMappings = `-- name: ListOIDCGroupMappings :many
-SELECT id, "createdAt", "updatedAt", "tenantId", "group", role
+SELECT id, "createdAt", "updatedAt", "tenantId", issuer, "group", role
 FROM "TenantOIDCGroupMapping"
+WHERE "issuer" = $1::text
 `
 
-func (q *Queries) ListOIDCGroupMappings(ctx context.Context, db DBTX) ([]*TenantOIDCGroupMapping, error) {
-	rows, err := db.Query(ctx, listOIDCGroupMappings)
+func (q *Queries) ListOIDCGroupMappings(ctx context.Context, db DBTX, issuer string) ([]*TenantOIDCGroupMapping, error) {
+	rows, err := db.Query(ctx, listOIDCGroupMappings, issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -980,6 +984,7 @@ func (q *Queries) ListOIDCGroupMappings(ctx context.Context, db DBTX) ([]*Tenant
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TenantId,
+			&i.Issuer,
 			&i.Group,
 			&i.Role,
 		); err != nil {
@@ -1109,14 +1114,20 @@ func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid uuid.
 }
 
 const listTenantOIDCGroupMappings = `-- name: ListTenantOIDCGroupMappings :many
-SELECT id, "createdAt", "updatedAt", "tenantId", "group", role
+SELECT id, "createdAt", "updatedAt", "tenantId", issuer, "group", role
 FROM "TenantOIDCGroupMapping"
 WHERE "tenantId" = $1::uuid
+    AND "issuer" = $2::text
 ORDER BY "group"
 `
 
-func (q *Queries) ListTenantOIDCGroupMappings(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*TenantOIDCGroupMapping, error) {
-	rows, err := db.Query(ctx, listTenantOIDCGroupMappings, tenantid)
+type ListTenantOIDCGroupMappingsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Issuer   string    `json:"issuer"`
+}
+
+func (q *Queries) ListTenantOIDCGroupMappings(ctx context.Context, db DBTX, arg ListTenantOIDCGroupMappingsParams) ([]*TenantOIDCGroupMapping, error) {
+	rows, err := db.Query(ctx, listTenantOIDCGroupMappings, arg.Tenantid, arg.Issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,6 +1140,7 @@ func (q *Queries) ListTenantOIDCGroupMappings(ctx context.Context, db DBTX, tena
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TenantId,
+			&i.Issuer,
 			&i.Group,
 			&i.Role,
 		); err != nil {
@@ -1908,32 +1920,41 @@ func (q *Queries) UpsertTenantAlertingSettings(ctx context.Context, db DBTX, arg
 const upsertTenantOIDCGroupMapping = `-- name: UpsertTenantOIDCGroupMapping :one
 INSERT INTO "TenantOIDCGroupMapping" (
     "tenantId",
+    "issuer",
     "group",
     "role"
 ) VALUES (
     $1::uuid,
     $2::text,
-    $3::"TenantMemberRole"
-) ON CONFLICT ("tenantId", "group") DO UPDATE SET
+    $3::text,
+    $4::"TenantMemberRole"
+) ON CONFLICT ("tenantId", "issuer", "group") DO UPDATE SET
     "role" = EXCLUDED."role",
     "updatedAt" = CURRENT_TIMESTAMP
-RETURNING id, "createdAt", "updatedAt", "tenantId", "group", role
+RETURNING id, "createdAt", "updatedAt", "tenantId", issuer, "group", role
 `
 
 type UpsertTenantOIDCGroupMappingParams struct {
 	Tenantid  uuid.UUID        `json:"tenantid"`
+	Issuer    string           `json:"issuer"`
 	Groupname string           `json:"groupname"`
 	Role      TenantMemberRole `json:"role"`
 }
 
 func (q *Queries) UpsertTenantOIDCGroupMapping(ctx context.Context, db DBTX, arg UpsertTenantOIDCGroupMappingParams) (*TenantOIDCGroupMapping, error) {
-	row := db.QueryRow(ctx, upsertTenantOIDCGroupMapping, arg.Tenantid, arg.Groupname, arg.Role)
+	row := db.QueryRow(ctx, upsertTenantOIDCGroupMapping,
+		arg.Tenantid,
+		arg.Issuer,
+		arg.Groupname,
+		arg.Role,
+	)
 	var i TenantOIDCGroupMapping
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.TenantId,
+		&i.Issuer,
 		&i.Group,
 		&i.Role,
 	)

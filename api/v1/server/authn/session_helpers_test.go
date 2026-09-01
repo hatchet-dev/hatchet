@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/random"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // TestValidateOAuthState_EmptyStateBypass reproduces the login-CSRF bypass:
@@ -149,6 +151,67 @@ func TestValidateOAuthState_LegitimateFlow(t *testing.T) {
 
 		assert.True(t, isValid, "correct state must validate successfully")
 		assert.NoError(t, err)
+
+		return nil
+	})
+}
+
+func TestSaveAuthenticatedRotatesSession(t *testing.T) {
+	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
+		const cookieName = "hatchet-test-rotation"
+		hashKey, err := random.Generate(16)
+		require.NoError(t, err)
+		blockKey, err := random.Generate(16)
+		require.NoError(t, err)
+		ss, err := cookie.NewUserSessionStore(
+			cookie.WithCookieSecrets(hashKey, blockKey),
+			cookie.WithCookieDomain("localhost"),
+			cookie.WithCookieName(cookieName),
+			cookie.WithCookieAllowInsecure(true),
+			cookie.WithSessionRepository(conf.V1.UserSession()),
+		)
+		require.NoError(t, err)
+		helpers := authn.NewSessionHelpers(ss)
+		e := echo.New()
+		user, err := conf.V1.User().CreateUser(t.Context(), &v1.CreateUserOpts{
+			Email: fmt.Sprintf("session-rotation-%s@example.com", uuid.NewString()),
+		})
+		require.NoError(t, err)
+
+		startReq := httptest.NewRequest(http.MethodGet, "/", nil)
+		startRec := httptest.NewRecorder()
+		_, err = helpers.SaveOAuthState(e.NewContext(startReq, startRec), "oidc")
+		require.NoError(t, err)
+		oldCookie := startRec.Result().Cookies()[0]
+
+		loginReq := httptest.NewRequest(http.MethodGet, "/", nil)
+		loginReq.AddCookie(oldCookie)
+		loginRec := httptest.NewRecorder()
+		err = helpers.SaveAuthenticated(e.NewContext(loginReq, loginRec), user)
+		require.NoError(t, err)
+
+		var newCookie *http.Cookie
+		for _, candidate := range loginRec.Result().Cookies() {
+			if candidate.Name == cookieName && candidate.Value != "" {
+				newCookie = candidate
+			}
+		}
+		require.NotNil(t, newCookie)
+		assert.NotEqual(t, oldCookie.Value, newCookie.Value)
+
+		oldReq := httptest.NewRequest(http.MethodGet, "/", nil)
+		oldReq.AddCookie(oldCookie)
+		oldSession, err := ss.Get(oldReq, cookieName)
+		require.NoError(t, err)
+		assert.NotEqual(t, true, oldSession.Values["authenticated"])
+
+		newReq := httptest.NewRequest(http.MethodGet, "/", nil)
+		newReq.AddCookie(newCookie)
+		newSession, err := ss.Get(newReq, cookieName)
+		require.NoError(t, err)
+		assert.Equal(t, true, newSession.Values["authenticated"])
 
 		return nil
 	})

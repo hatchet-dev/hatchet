@@ -43,8 +43,9 @@ type CreateTenantOpts struct {
 }
 
 type UpsertTenantOIDCGroupMappingOpts struct {
-	Group string `validate:"required,max=255"`
-	Role  string `validate:"required,oneof=ADMIN MEMBER VIEWER"`
+	Issuer string `validate:"required,url"`
+	Group  string `validate:"required,max=255"`
+	Role   string `validate:"required,oneof=ADMIN MEMBER VIEWER"`
 }
 
 type UpdateTenantOpts struct {
@@ -128,7 +129,7 @@ type TenantRepository interface {
 
 	// ListTenantMembers returns the list of tenant members for the given tenant
 	ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
-	ListTenantOIDCGroupMappings(ctx context.Context, tenantID uuid.UUID) ([]*sqlcv1.TenantOIDCGroupMapping, error)
+	ListTenantOIDCGroupMappings(ctx context.Context, tenantID uuid.UUID, issuer string) ([]*sqlcv1.TenantOIDCGroupMapping, error)
 	UpsertTenantOIDCGroupMapping(ctx context.Context, tenantID uuid.UUID, opts *UpsertTenantOIDCGroupMappingOpts) (*sqlcv1.TenantOIDCGroupMapping, error)
 	DeleteTenantOIDCGroupMapping(ctx context.Context, tenantID, mappingID uuid.UUID) (bool, error)
 
@@ -341,6 +342,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	if opts.OIDCGroupMapping != nil {
 		_, err = r.queries.UpsertTenantOIDCGroupMapping(ctx, tx, sqlcv1.UpsertTenantOIDCGroupMappingParams{
 			Tenantid:  tenantId,
+			Issuer:    opts.OIDCGroupMapping.Issuer,
 			Groupname: opts.OIDCGroupMapping.Group,
 			Role:      sqlcv1.TenantMemberRole(opts.OIDCGroupMapping.Role),
 		})
@@ -360,8 +362,8 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	return createTenant, nil
 }
 
-func (r *tenantRepository) ListTenantOIDCGroupMappings(ctx context.Context, tenantID uuid.UUID) ([]*sqlcv1.TenantOIDCGroupMapping, error) {
-	return r.queries.ListTenantOIDCGroupMappings(ctx, r.pool, tenantID)
+func (r *tenantRepository) ListTenantOIDCGroupMappings(ctx context.Context, tenantID uuid.UUID, issuer string) ([]*sqlcv1.TenantOIDCGroupMapping, error) {
+	return r.queries.ListTenantOIDCGroupMappings(ctx, r.pool, sqlcv1.ListTenantOIDCGroupMappingsParams{Tenantid: tenantID, Issuer: issuer})
 }
 
 func (r *tenantRepository) UpsertTenantOIDCGroupMapping(ctx context.Context, tenantID uuid.UUID, opts *UpsertTenantOIDCGroupMappingOpts) (*sqlcv1.TenantOIDCGroupMapping, error) {
@@ -370,6 +372,7 @@ func (r *tenantRepository) UpsertTenantOIDCGroupMapping(ctx context.Context, ten
 	}
 	return r.queries.UpsertTenantOIDCGroupMapping(ctx, r.pool, sqlcv1.UpsertTenantOIDCGroupMappingParams{
 		Tenantid:  tenantID,
+		Issuer:    opts.Issuer,
 		Groupname: opts.Group,
 		Role:      sqlcv1.TenantMemberRole(opts.Role),
 	})

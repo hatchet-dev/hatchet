@@ -13,11 +13,9 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const testOIDCClientID = "hatchet-test"
@@ -35,6 +33,8 @@ type mockOIDC struct {
 	mu        sync.RWMutex
 	subject   string
 	groups    []string
+	email     string
+	verified  bool
 	refreshes int
 }
 
@@ -85,7 +85,9 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 		m.mu.RLock()
 		defer m.mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"sub": m.subject, "groups": m.groups})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"sub": m.subject, "groups": m.groups, "email": m.email, "email_verified": m.verified,
+		})
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
 		m.mu.Lock()
@@ -114,6 +116,16 @@ func (m *mockOIDC) setUserInfo(subject string, groups []string) {
 	defer m.mu.Unlock()
 	m.subject = subject
 	m.groups = groups
+	m.email = ""
+	m.verified = false
+}
+
+func (m *mockOIDC) setUserInfoEmail(subject, email string, verified bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subject = subject
+	m.email = email
+	m.verified = verified
 }
 
 // idTokenClaims are the claims the mock signs into an ID token. Zero values for
@@ -121,7 +133,6 @@ func (m *mockOIDC) setUserInfo(subject string, groups []string) {
 type idTokenClaims struct {
 	Issuer        string    `json:"iss"`
 	Subject       string    `json:"sub"`
-	CustomSubject string    `json:"user_id,omitempty"`
 	Audience      string    `json:"aud"`
 	Expiry        int64     `json:"exp"`
 	IssuedAt      int64     `json:"iat"`
@@ -147,6 +158,9 @@ func (m *mockOIDC) token(t *testing.T, c idTokenClaims) *oauth2.Token {
 	}
 	if c.IssuedAt == 0 {
 		c.IssuedAt = time.Now().Unix()
+	}
+	if c.Name == "" {
+		c.Name = "Test User"
 	}
 
 	payload, err := json.Marshal(c)
@@ -199,23 +213,29 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 		}
 	})
 
-	t.Run("configured subject claim identifies the user", func(t *testing.T) {
-		cfg.Auth.ConfigFile.OIDC.SubjectClaim = "user_id"
-		groups := []string{}
-		claims, err := getOIDCClaimsFromToken(ctx, cfg, m.token(t, idTokenClaims{
-			Subject: "provider-subject", CustomSubject: "stable-user-id", Email: "alice@example.com", EmailVerified: true, Name: "Alice", Groups: &groups,
+	t.Run("userinfo requires matching subject", func(t *testing.T) {
+		m.setUserInfoEmail("", "alice@example.com", true)
+		_, err := getOIDCClaimsFromToken(ctx, cfg, m.token(t, idTokenClaims{
+			Subject: "subject", Email: "alice@example.com", EmailVerified: false,
 		}))
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if err == nil {
+			t.Fatal("expected UserInfo without sub to be rejected")
 		}
-		if claims.Sub != "stable-user-id" {
-			t.Fatalf("subject = %q, want stable-user-id", claims.Sub)
+	})
+
+	t.Run("userinfo verification cannot apply to another email", func(t *testing.T) {
+		m.setUserInfoEmail("subject", "other@example.com", true)
+		_, err := getOIDCClaimsFromToken(ctx, cfg, m.token(t, idTokenClaims{
+			Subject: "subject", Email: "victim@example.com", EmailVerified: false,
+		}))
+		if err == nil {
+			t.Fatal("expected conflicting UserInfo email to be rejected")
 		}
-		cfg.Auth.ConfigFile.OIDC.SubjectClaim = "sub"
 	})
 
 	t.Run("missing groups are rejected when mappings are configured", func(t *testing.T) {
 		cfg.Auth.OIDCGroupMappings = map[string]string{"platform-admins": "ADMIN"}
+		m.setUserInfo("x", nil)
 		tok := m.token(t, idTokenClaims{
 			Subject: "x", Email: "a@b.c", EmailVerified: true,
 		})
@@ -226,6 +246,7 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 
 	t.Run("explicit empty groups are authoritative", func(t *testing.T) {
 		emptyGroups := []string{}
+		m.setUserInfo("x", emptyGroups)
 		tok := m.token(t, idTokenClaims{
 			Subject: "x", Email: "a@b.c", EmailVerified: true, Groups: &emptyGroups,
 		})
@@ -253,40 +274,4 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 			t.Fatal("expected error for missing id_token, got nil")
 		}
 	})
-}
-
-func TestDesiredOIDCTenantMembershipsUsesHighestRole(t *testing.T) {
-	tenantID := uuid.New()
-	mappings := map[string][]oidcTenantGroupMapping{
-		"engineering": {{TenantID: tenantID, Role: "MEMBER"}},
-		"admins":      {{TenantID: tenantID, Role: "ADMIN"}},
-	}
-
-	desired := desiredOIDCTenantMemberships([]string{"engineering", "admins"}, nil, mappings, nil)
-	if desired[tenantID] != sqlcv1.TenantMemberRoleADMIN {
-		t.Fatalf("role = %q, want ADMIN", desired[tenantID])
-	}
-}
-
-func TestDesiredOIDCTenantMembershipsExpandsGlobalRole(t *testing.T) {
-	tenantIDs := []uuid.UUID{uuid.New(), uuid.New()}
-
-	desired := desiredOIDCTenantMemberships([]string{"platform-admins"}, map[string]string{"platform-admins": "ADMIN"}, nil, tenantIDs)
-	for _, tenantID := range tenantIDs {
-		if desired[tenantID] != sqlcv1.TenantMemberRoleADMIN {
-			t.Fatalf("role for %s = %q, want ADMIN", tenantID, desired[tenantID])
-		}
-	}
-}
-
-func TestDesiredOIDCTenantMembershipsGlobalOwnerWins(t *testing.T) {
-	tenantID := uuid.New()
-	mappings := map[string][]oidcTenantGroupMapping{
-		"admins": {{TenantID: tenantID, Role: "ADMIN"}},
-	}
-
-	desired := desiredOIDCTenantMemberships([]string{"owners", "admins"}, map[string]string{"owners": "OWNER"}, mappings, []uuid.UUID{tenantID})
-	if desired[tenantID] != sqlcv1.TenantMemberRoleOWNER {
-		t.Fatalf("role = %q, want OWNER", desired[tenantID])
-	}
 }

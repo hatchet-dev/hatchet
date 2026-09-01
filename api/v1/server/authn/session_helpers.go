@@ -30,7 +30,14 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 	if err != nil {
 		return err
 	}
+	options := *session.Options
+	session.Options.MaxAge = -1
+	if err := session.Save(c.Request(), c.Response()); err != nil {
+		return err
+	}
 
+	session = sessions.NewSession(s.ss, s.ss.GetName())
+	session.Options = &options
 	session.Values["authenticated"] = true
 	session.Values["user_id"] = user.ID.String()
 

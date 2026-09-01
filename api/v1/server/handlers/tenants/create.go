@@ -76,7 +76,11 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		if hasGlobalConfigMapping(group, t.config.Auth.OIDCGroupMappings) {
 			return gen.TenantCreate400JSONResponse(apierrors.NewAPIErrors("OIDC group is managed by server configuration")), nil
 		}
-		createOpts.OIDCGroupMapping = &v1.UpsertTenantOIDCGroupMappingOpts{Group: group, Role: role}
+		issuer, err := authn.OIDCIssuer(t.config)
+		if err != nil {
+			return nil, err
+		}
+		createOpts.OIDCGroupMapping = &v1.UpsertTenantOIDCGroupMappingOpts{Issuer: issuer, Group: group, Role: role}
 	}
 
 	if request.Body.Environment != nil {

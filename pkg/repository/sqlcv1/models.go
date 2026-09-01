@@ -3119,6 +3119,7 @@ type TenantOIDCGroupMapping struct {
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 	TenantId  uuid.UUID        `json:"tenantId"`
+	Issuer    string           `json:"issuer"`
 	Group     string           `json:"group"`
 	Role      TenantMemberRole `json:"role"`
 }

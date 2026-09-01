@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -26,9 +27,16 @@ func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMem
 		rows[i] = *transformers.ToTenantMember(members[i])
 	}
 
-	databaseMappings, err := t.config.V1.Tenant().ListTenantOIDCGroupMappings(ctx.Request().Context(), tenantId)
-	if err != nil {
-		return nil, err
+	databaseMappings := []*sqlcv1.TenantOIDCGroupMapping(nil)
+	if t.config.Auth.OIDCProvider != nil {
+		issuer, err := authn.OIDCIssuer(t.config)
+		if err != nil {
+			return nil, err
+		}
+		databaseMappings, err = t.config.V1.Tenant().ListTenantOIDCGroupMappings(ctx.Request().Context(), tenantId, issuer)
+		if err != nil {
+			return nil, err
+		}
 	}
 	oidcMappings := make([]gen.OIDCGroupMapping, 0, len(databaseMappings))
 	for _, mapping := range databaseMappings {

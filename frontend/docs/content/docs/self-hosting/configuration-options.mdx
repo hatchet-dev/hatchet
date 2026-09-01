@@ -300,13 +300,12 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_AUTH_OIDC_CLIENT_ID` ⚠️        | OIDC client ID (required if OIDC auth enabled)                     |                                            |
 | `SERVER_AUTH_OIDC_CLIENT_SECRET` ⚠️    | OIDC client secret (required if OIDC auth enabled)                 |                                            |
 | `SERVER_AUTH_OIDC_ISSUER_URL` ⚠️       | OIDC issuer URL used for discovery (required if OIDC auth enabled) |                                            |
-| `SERVER_AUTH_OIDC_SUBJECT_CLAIM`       | Claim used as the stable OIDC user identifier                      | `sub`                                      |
 | `SERVER_AUTH_OIDC_SCOPES`              | OIDC auth scopes                                                   | `["openid", "profile", "email", "groups"]` |
 | `SERVER_AUTH_OIDC_GROUP_MAPPINGS`      | JSON object mapping OIDC groups to global tenant roles             |                                            |
 
 The OIDC provider works with any OIDC-compliant identity provider (Keycloak, Authentik, Dex, Okta, Azure AD, etc.). The issuer URL is the base URL from which the provider's `/.well-known/openid-configuration` is discovered — e.g. `https://auth.example.com/realms/my-realm` for Keycloak. The redirect URI to register with the provider is `${SERVER_URL}/api/v1/users/oidc/callback`.
 
-By default, Hatchet uses the standard `sub` claim as the stable user identifier. Set `SERVER_AUTH_OIDC_SUBJECT_CLAIM` when the provider uses another stable string claim; providers using global administrator mappings must return that claim from both the ID token and UserInfo endpoint.
+Hatchet uses the standard `sub` claim as the stable user identifier. Providers using group mappings must return the same `sub` from both the ID token and UserInfo endpoint.
 
 OIDC group mappings grant access across every non-internal tenant. Configure them as a JSON object whose keys match the provider's group names exactly and whose values are `OWNER`, `ADMIN`, or `VIEWER`:
 
@@ -314,9 +313,9 @@ OIDC group mappings grant access across every non-internal tenant. Configure the
 SERVER_AUTH_OIDC_GROUP_MAPPINGS='{"platform-admins":"ADMIN","auditors":"VIEWER"}'
 ```
 
-Hatchet always requests the `groups` scope. When group mappings exist, the provider must include a `groups` claim in the ID token or UserInfo response. Memberships are reconciled on each sign-in.
+Hatchet always requests the `groups` scope. When group mappings exist, the provider must include a `groups` claim in the ID token and UserInfo response. Memberships are reconciled from current UserInfo claims on authenticated dashboard requests.
 
-Tenant admins can manage tenant-specific mappings under **Tenant Settings > Members** using the `ADMIN`, `MEMBER`, or `VIEWER` roles. These mappings also apply on the user's next sign-in. A group managed by `SERVER_AUTH_OIDC_GROUP_MAPPINGS` cannot be overridden for an individual tenant.
+Tenant admins can manage tenant-specific mappings under **Tenant Settings > Members** using the `ADMIN`, `MEMBER`, or `VIEWER` roles. Mappings apply only to the currently configured issuer. A group managed by `SERVER_AUTH_OIDC_GROUP_MAPPINGS` cannot be overridden for an individual tenant.
 
 Set `SERVER_CREATE_TENANT_REQUIRES_GLOBAL_ADMIN=true` to allow tenant creation only for users whose global mapping is `OWNER` or `ADMIN`. `SERVER_ALLOW_CREATE_TENANT=false` disables tenant creation for everyone regardless of group membership.
 

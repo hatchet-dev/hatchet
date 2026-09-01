@@ -402,7 +402,7 @@ func TestDatabaseOIDCGroupMembershipReconciliation(t *testing.T) {
 		}
 		defer dbConf.Pool.Exec(ctx, `DELETE FROM "Tenant" WHERE "id" = $1`, tenantID) //nolint:errcheck
 		if _, err := queries.UpsertTenantOIDCGroupMapping(ctx, dbConf.Pool, sqlcv1.UpsertTenantOIDCGroupMappingParams{
-			Tenantid: tenantID, Groupname: "database-members", Role: sqlcv1.TenantMemberRoleMEMBER,
+			Tenantid: tenantID, Issuer: issuer.server.URL, Groupname: "database-members", Role: sqlcv1.TenantMemberRoleMEMBER,
 		}); err != nil {
 			return err
 		}
@@ -441,6 +441,69 @@ func TestDatabaseOIDCGroupMembershipReconciliation(t *testing.T) {
 	})
 }
 
+func TestCurrentOIDCMembershipReconciliation(t *testing.T) {
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	testutils.RunTestWithDatabase(t, func(dbConf *database.Layer) error {
+		cfg, issuer := newOIDCTestConfig(t, dbConf)
+		cfg.Auth.OIDCGroupMappings = map[string]string{"platform-admins": "ADMIN"}
+		service := NewUserService(cfg)
+		ctx := context.Background()
+		queries := sqlcv1.New()
+		subject := uuid.NewString()
+		adminGroups := []string{"platform-admins"}
+
+		user, err := service.upsertOIDCUserFromToken(ctx, cfg, issuer.token(t, idTokenClaims{
+			Subject: subject, Email: uniqueEmail(t, "oidc-current-groups"), EmailVerified: true, Groups: &adminGroups,
+		}))
+		if err != nil {
+			return err
+		}
+
+		newTenantID := uuid.New()
+		if _, err := dbConf.Pool.Exec(ctx, `INSERT INTO "Tenant" ("id", "name", "slug") VALUES ($1, $2, $3)`, newTenantID, "New tenant", newTenantID.String()); err != nil {
+			return err
+		}
+		defer dbConf.Pool.Exec(ctx, `DELETE FROM "Tenant" WHERE "id" = $1`, newTenantID) //nolint:errcheck
+
+		issuer.setUserInfo(subject, adminGroups)
+		if err := authn.ReconcileCurrentOIDCMemberships(ctx, cfg, user.ID); err != nil {
+			t.Fatalf("reconcile new tenant: %v", err)
+		}
+		if _, err := queries.GetTenantMemberByUserID(ctx, dbConf.Pool, sqlcv1.GetTenantMemberByUserIDParams{
+			Tenantid: newTenantID, Userid: user.ID,
+		}); err != nil {
+			t.Fatalf("global user missing new tenant membership: %v", err)
+		}
+
+		issuer.setUserInfo(subject, []string{})
+		if err := authn.ReconcileCurrentOIDCMemberships(ctx, cfg, user.ID); err != nil {
+			t.Fatalf("reconcile group revocation: %v", err)
+		}
+		if _, err := queries.GetTenantMemberByUserID(ctx, dbConf.Pool, sqlcv1.GetTenantMemberByUserIDParams{
+			Tenantid: newTenantID, Userid: user.ID,
+		}); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("revoked membership remains: %v", err)
+		}
+
+		issuer.setUserInfo(subject, adminGroups)
+		if err := authn.ReconcileCurrentOIDCMemberships(ctx, cfg, user.ID); err != nil {
+			t.Fatalf("restore membership before mapping removal: %v", err)
+		}
+		cfg.Auth.OIDCGroupMappings = nil
+		if err := authn.ReconcileCurrentOIDCMemberships(ctx, cfg, user.ID); err != nil {
+			t.Fatalf("reconcile final mapping removal: %v", err)
+		}
+		if _, err := queries.GetTenantMemberByUserID(ctx, dbConf.Pool, sqlcv1.GetTenantMemberByUserIDParams{
+			Tenantid: newTenantID, Userid: user.ID,
+		}); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("membership remains after final mapping removal: %v", err)
+		}
+
+		return nil
+	})
+}
+
 // New accounts may remain unverified; only linking to an existing account requires verified ownership.
 func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
@@ -452,8 +515,10 @@ func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 
 		gatedEmail := uniqueEmail(t, "entra-gated")
 		emptyGroups := []string{}
+		gatedSubject := uuid.NewString()
+		m.setUserInfoEmail(gatedSubject, gatedEmail, false)
 		gatedTok := m.token(t, idTokenClaims{
-			Subject: uuid.NewString(), Email: gatedEmail, EmailVerified: false, Name: "Bob Example", Groups: &emptyGroups,
+			Subject: gatedSubject, Email: gatedEmail, EmailVerified: false, Name: "Bob Example", Groups: &emptyGroups,
 		})
 		gated, err := us.upsertOIDCUserFromToken(ctx, cfg, gatedTok)
 		if err != nil {
@@ -465,8 +530,10 @@ func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 
 		cfg.Auth.ConfigFile.SetEmailVerified = true
 		autoEmail := uniqueEmail(t, "entra-auto")
+		autoSubject := uuid.NewString()
+		m.setUserInfoEmail(autoSubject, autoEmail, false)
 		autoTok := m.token(t, idTokenClaims{
-			Subject: uuid.NewString(), Email: autoEmail, EmailVerified: false, Name: "Carol Example", Groups: &emptyGroups,
+			Subject: autoSubject, Email: autoEmail, EmailVerified: false, Name: "Carol Example", Groups: &emptyGroups,
 		})
 		auto, err := us.upsertOIDCUserFromToken(ctx, cfg, autoTok)
 		if err != nil {

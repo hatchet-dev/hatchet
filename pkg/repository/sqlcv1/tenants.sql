@@ -559,13 +559,15 @@ WHERE
 -- name: UpsertTenantOIDCGroupMapping :one
 INSERT INTO "TenantOIDCGroupMapping" (
     "tenantId",
+    "issuer",
     "group",
     "role"
 ) VALUES (
     @tenantId::uuid,
+    @issuer::text,
     @groupName::text,
     @role::"TenantMemberRole"
-) ON CONFLICT ("tenantId", "group") DO UPDATE SET
+) ON CONFLICT ("tenantId", "issuer", "group") DO UPDATE SET
     "role" = EXCLUDED."role",
     "updatedAt" = CURRENT_TIMESTAMP
 RETURNING *;
@@ -574,14 +576,19 @@ RETURNING *;
 SELECT *
 FROM "TenantOIDCGroupMapping"
 WHERE "tenantId" = @tenantId::uuid
+    AND "issuer" = @issuer::text
 ORDER BY "group";
 
 -- name: ListOIDCGroupMappings :many
 SELECT *
-FROM "TenantOIDCGroupMapping";
+FROM "TenantOIDCGroupMapping"
+WHERE "issuer" = @issuer::text;
 
 -- name: HasOIDCGroupMappings :one
-SELECT EXISTS(SELECT 1 FROM "TenantOIDCGroupMapping");
+SELECT EXISTS(
+    SELECT 1 FROM "TenantOIDCGroupMapping"
+    WHERE "issuer" = @issuer::text
+);
 
 -- name: DeleteTenantOIDCGroupMapping :execrows
 DELETE FROM "TenantOIDCGroupMapping"
