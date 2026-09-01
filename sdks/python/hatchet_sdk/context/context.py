@@ -451,7 +451,7 @@ class Context:
         try:
             ix = self._increment_stream_index()
 
-            self._event_client.stream(
+            self._event_client._stream(
                 data=data,
                 step_run_id=self._step_run_id,
                 index=ix,
@@ -469,7 +469,7 @@ class Context:
         try:
             ix = self._increment_stream_index()
 
-            await self._event_client.aio_stream(
+            await self._event_client._aio_stream(
                 data=data,
                 step_run_id=self._step_run_id,
                 index=ix,

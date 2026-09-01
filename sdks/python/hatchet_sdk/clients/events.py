@@ -291,7 +291,7 @@ class EventClient(BaseRestClient):
 
         return [Event.from_proto(event) for event in response.events]
 
-    def log(
+    def _log(
         self,
         message: str,
         step_run_id: str,
@@ -331,7 +331,7 @@ class EventClient(BaseRestClient):
             event_index=index,
         )
 
-    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    def _stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         client = self._get_or_create_client()
         put_stream_event = tenacity_retry(
             client.PutStreamEvent, self.client_config.tenacity
@@ -356,7 +356,7 @@ class EventClient(BaseRestClient):
             ),
         )
 
-    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    async def _aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         request = self._create_put_stream_event_request(data, step_run_id, index)
 
         await self._retrying_aio_put_stream_event(

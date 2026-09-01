@@ -136,7 +136,7 @@ class AsyncLogSender:
             if record == STOP_LOOP:
                 break
             try:
-                self._event_client.log(
+                self._event_client._log(
                     message=record.message,
                     step_run_id=record.step_run_id,
                     level=record.level,
