@@ -114,6 +114,12 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 			names = append(names, applyNamespace(n, namespace))
 		}
 		return names
+	case eventkeys.EventKeyDagNested:
+		names := make([]string, 0, len(eventkeys.DagNestedWorkflowNames))
+		for _, n := range eventkeys.DagNestedWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
 	default:
 		return nil
 	}
@@ -123,6 +129,11 @@ const dagWorkflowSteps = 2
 
 const dagShapesExecutedSteps = 10 + 5 + 7 + 7
 
+// dagNestedExecutedSteps: parent (3 nodes) + default 5 child DAGs x 4 nodes.
+// The child count is set on the worker (HATCHET_LOADTEST_DAG_NESTED_CHILDREN);
+// this only tunes a soft sample-count check.
+const dagNestedExecutedSteps = 3 + 5*4
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
@@ -131,6 +142,8 @@ func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 		return dagWorkflowSteps
 	case eventkeys.EventKeyDagShapes:
 		return dagShapesExecutedSteps
+	case eventkeys.EventKeyDagNested:
+		return dagNestedExecutedSteps
 	default:
 		return 1
 	}

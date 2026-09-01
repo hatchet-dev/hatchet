@@ -105,6 +105,12 @@ func run() error {
 	dagShapeFailureRate := envFloat("HATCHET_LOADTEST_DAG_SHAPE_FAILURE_RATE", 0)
 	dagShapeWorkflows := buildDagShapeWorkflows(client, dagShapeEventKey, dagShapeFailureRate)
 
+	// nested-DAG scenario: a parent DAG whose fan-out task spawns
+	// HATCHET_LOADTEST_DAG_NESTED_CHILDREN child DAG runs and waits for them.
+	dagNestedEventKey := envOr("HATCHET_LOADTEST_DAG_NESTED_EVENT_KEY", eventkeys.EventKeyDagNested.String())
+	dagNestedChildren := envInt("HATCHET_LOADTEST_DAG_NESTED_CHILDREN", 5)
+	dagNestedWorkflows := buildDagNestedWorkflows(client, dagNestedEventKey, dagShapeFailureRate, dagNestedChildren)
+
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
 		log.Printf("executing %d took %s", input.ID, took)
@@ -174,6 +180,9 @@ func run() error {
 	for _, w := range dagShapeWorkflows {
 		workflows = append(workflows, w)
 	}
+	for _, w := range dagNestedWorkflows {
+		workflows = append(workflows, w)
+	}
 
 	worker, err := client.NewWorker(
 		workerName,
@@ -215,7 +224,11 @@ type dagShapeNode struct {
 }
 
 func buildDagShapeWorkflow(client *hatchet.Client, wfName, eventKey string, onFailure bool, failureRate float64, nodes []dagShapeNode) *hatchet.Workflow {
-	wf := client.NewWorkflow(wfName, hatchet.WithWorkflowEvents(eventKey))
+	var wfOpts []hatchet.WorkflowOption
+	if eventKey != "" {
+		wfOpts = append(wfOpts, hatchet.WithWorkflowEvents(eventKey))
+	}
+	wf := client.NewWorkflow(wfName, wfOpts...)
 
 	tasks := make(map[string]*hatchet.Task, len(nodes))
 
@@ -321,6 +334,66 @@ func buildDagShapeWorkflows(client *hatchet.Client, eventKey string, failureRate
 	})
 
 	return []*hatchet.Workflow{denseFanin, conditional, onFailure, deepRetry}
+}
+
+// buildDagNestedWorkflows returns the nested-DAG pair: a parent DAG whose
+// fan-out task spawns `children` runs of a child DAG and blocks on all of
+// them, then a finalize step. Mirrors a production "iterate a set, run one
+// sub-workflow per item, then continue" pattern; with the DAG operator on,
+// each child is itself an operator-orchestrated DAG.
+func buildDagNestedWorkflows(client *hatchet.Client, eventKey string, failureRate float64, children int) []*hatchet.Workflow {
+	if children < 1 {
+		children = 1
+	}
+
+	// Child DAG: a 4-node diamond. Not event-triggered - only spawned by the
+	// parent's fan-out task.
+	child := buildDagShapeWorkflow(client, eventkeys.WorkflowDagShapeNestedChildName, "", false, failureRate, []dagShapeNode{
+		{name: "c0"},
+		{name: "c1", parents: []string{"c0"}},
+		{name: "c2", parents: []string{"c0"}, failable: true},
+		{name: "c3", parents: []string{"c1", "c2"}},
+	})
+
+	parent := client.NewWorkflow(eventkeys.WorkflowDagShapeNestedParentName, hatchet.WithWorkflowEvents(eventKey))
+
+	prepare := parent.NewTask(eventkeys.WorkflowDagShapeNestedParentName+"-prepare",
+		func(ctx hatchet.Context, input LoadTestInput) (dagShapeOutput, error) {
+			return dagShapeOutput{Message: "prepared at: " + time.Now().Format(time.RFC3339Nano)}, nil
+		},
+	)
+
+	fanout := parent.NewTask(eventkeys.WorkflowDagShapeNestedParentName+"-fanout",
+		func(ctx hatchet.Context, input LoadTestInput) (dagShapeOutput, error) {
+			inputs := make([]hatchet.RunManyOpt, children)
+			for i := range inputs {
+				inputs[i] = hatchet.RunManyOpt{
+					Input: input,
+					Opts:  []hatchet.RunOptFunc{hatchet.WithRunKey(fmt.Sprintf("nc-%d-%d", input.ID, i))},
+				}
+			}
+			refs, err := child.RunMany(ctx, inputs)
+			if err != nil {
+				return dagShapeOutput{}, fmt.Errorf("spawn %d child DAGs: %w", children, err)
+			}
+			for _, r := range refs {
+				if _, err := r.Result(); err != nil {
+					return dagShapeOutput{}, fmt.Errorf("child DAG %s failed: %w", r.RunId, err)
+				}
+			}
+			return dagShapeOutput{Message: fmt.Sprintf("%d child DAGs completed", children)}, nil
+		},
+		hatchet.WithParents(prepare),
+	)
+
+	_ = parent.NewTask(eventkeys.WorkflowDagShapeNestedParentName+"-finalize",
+		func(ctx hatchet.Context, input LoadTestInput) (dagShapeOutput, error) {
+			return dagShapeOutput{Message: "finalized at: " + time.Now().Format(time.RFC3339Nano)}, nil
+		},
+		hatchet.WithParents(fanout),
+	)
+
+	return []*hatchet.Workflow{child, parent}
 }
 
 func main() {
