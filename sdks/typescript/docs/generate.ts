@@ -11,6 +11,7 @@ const CORE_ENTRYPOINTS = [
   './src/v1/client/client.ts',
   './src/v1/client/worker/context.ts',
   './src/v1/declaration.ts',
+  './src/v1/embedded.ts',
 ];
 
 const FEATURES_DIR = './src/v1/client/features';

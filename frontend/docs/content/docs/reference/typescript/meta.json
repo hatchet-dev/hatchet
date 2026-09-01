@@ -1,4 +1,4 @@
 {
-  "pages": ["client", "context", "feature-clients", "runnables"],
+  "pages": ["client", "context", "embedded", "feature-clients", "runnables"],
   "title": "TypeScript SDK"
 }

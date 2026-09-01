@@ -382,9 +382,12 @@ OFFSET @eventLogOffset::BIGINT
 LIMIT @eventLogLimit::BIGINT
 ;
 
--- name: UpsertDurableChildSignalCreatedEvents :many
+-- name: BulkUpsertDurableChildSignalCreatedEvents :many
 WITH input AS (
     SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(@eventKeys::TEXT[]) AS event_key,
         UNNEST(@childExternalIds::UUID[]) AS child_external_id
 )
@@ -399,9 +402,9 @@ INSERT INTO v1_task_event (
     child_external_id
 )
 SELECT
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
+    i.tenant_id,
+    i.task_id,
+    i.task_inserted_at,
     -1,
     'SIGNAL_CREATED',
     i.event_key,
@@ -410,6 +413,7 @@ FROM input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
 DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
 RETURNING
+    v1_task_event.task_id,
     v1_task_event.event_key,
     v1_task_event.child_external_id
 ;
