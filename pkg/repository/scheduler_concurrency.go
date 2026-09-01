@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -114,11 +116,8 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
-	// Tenant-scoped strategies (zero-uuid workflow columns in their descriptor) are not
-	// tied to a workflow version, so they never retire via the workflow-version check;
-	// they deactivate via the stale sweep instead.
-	if strategy.WorkflowID == uuid.Nil {
-		return nil
+	if strategy.TenantStrategyID.Valid {
+		return c.updateTenantConcurrencyStrategyIsActive(ctx, tenantId, strategy)
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
@@ -160,6 +159,67 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	}
 
 	return commit(ctx)
+}
+
+// updateTenantConcurrencyStrategyIsActive retires a tenant-scoped strategy when no
+// workflow's latest version references it and it holds no concurrency slots. Reactivation
+// happens via the slot-insert trigger and via re-registration upserts.
+func (c *ConcurrencyRepositoryImpl) updateTenantConcurrencyStrategyIsActive(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategy *sqlcv1.V1StepConcurrency,
+) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+
+	if err != nil {
+		return err
+	}
+
+	isActive, err := c.queries.CheckTenantStrategyActive(ctx, tx, sqlcv1.CheckTenantStrategyActiveParams{
+		Tenantid:   tenantId,
+		Strategyid: strategy.ID,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !isActive {
+		err = c.queries.SetTenantConcurrencyStrategyInactive(ctx, tx, sqlcv1.SetTenantConcurrencyStrategyInactiveParams{
+			Tenantid:   tenantId,
+			Strategyid: strategy.ID,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return commit(ctx)
+}
+
+// TenantConcurrencyDescriptor represents a tenant-scoped strategy as the descriptor type
+// the scheduler shares with step-scoped strategies. TenantStrategyID is set to the
+// strategy's own id to mark tenant scope; the workflow columns are zero values.
+func TenantConcurrencyDescriptor(tc *sqlcv1.V1TenantConcurrency) *sqlcv1.V1StepConcurrency {
+	return &sqlcv1.V1StepConcurrency{
+		ID:               tc.ID,
+		TenantID:         tc.TenantID,
+		TenantStrategyID: pgtype.Int8{Int64: tc.ID, Valid: true},
+		IsActive:         tc.IsActive,
+		LastActiveAt:     tc.LastActiveAt,
+		Strategy:         tc.Strategy,
+		Expression:       tc.Expression,
+		MaxConcurrency:   tc.MaxConcurrency,
+	}
 }
 
 func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(

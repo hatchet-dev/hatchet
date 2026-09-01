@@ -154,7 +154,7 @@ func TestConcurrency_CancelQueuedExcept_WithParentConcurrencyKeepsOnlyMaxRuns(t 
 				var child *sqlcv1.V1StepConcurrency
 				for _, st := range strategies {
 					if st.ParentStrategyID.Valid && st.Strategy == sqlcv1.V1ConcurrencyStrategy(tc.strategy) {
-						child = st.ToV1StepConcurrency()
+						child = st
 						break
 					}
 				}

@@ -78,7 +78,7 @@ func setupStepConcurrencyStrategy(
 	require.NoError(t, err)
 	require.Len(t, strategies, 1)
 
-	strat := strategies[0].ToV1StepConcurrency()
+	strat := strategies[0]
 	require.Equal(t, sqlcv1.V1ConcurrencyStrategy(strategyType), strat.Strategy)
 	require.Equal(t, maxRuns, strat.MaxConcurrency)
 	require.False(t, strat.ParentStrategyID.Valid, "step-level concurrency should have no parent")
@@ -394,8 +394,8 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 			return strategies[i].ID < strategies[j].ID
 		})
 
-		strat1 := strategies[0].ToV1StepConcurrency() // CANCEL_NEWEST
-		strat2 := strategies[1].ToV1StepConcurrency() // GROUP_ROUND_ROBIN
+		strat1 := strategies[0] // CANCEL_NEWEST
+		strat2 := strategies[1] // GROUP_ROUND_ROBIN
 
 		require.Equal(t, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST, strat1.Strategy)
 		require.Equal(t, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN, strat2.Strategy)

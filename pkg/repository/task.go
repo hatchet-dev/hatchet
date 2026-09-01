@@ -3190,9 +3190,14 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	fetchedByStepId := make(map[uuid.UUID][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
-		// Rows referencing a tenant strategy come back with the tenant strategy's id and
-		// definition already resolved, so tasks carry the shared strategy id on their slots.
-		fetchedByStepId[strat.StepID] = append(fetchedByStepId[strat.StepID], strat.ToV1StepConcurrency())
+		// Rows referencing a tenant strategy resolve to the tenant strategy's id, so task
+		// slots carry the shared id; the definition columns are already in sync via the
+		// v1_tenant_concurrency update trigger.
+		if strat.TenantStrategyID.Valid {
+			strat.ID = strat.TenantStrategyID.Int64
+		}
+
+		fetchedByStepId[strat.StepID] = append(fetchedByStepId[strat.StepID], strat)
 	}
 
 	// Populate cache for all missing step IDs, including negative-caching empty results.

@@ -24,6 +24,48 @@ CREATE TABLE v1_tenant_concurrency (
     CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
     CONSTRAINT v1_tenant_concurrency_tenant_name_ux UNIQUE (tenant_id, name)
 );
+
+CREATE INDEX v1_step_concurrency_tenant_strategy_id_idx
+    ON v1_step_concurrency (tenant_strategy_id)
+    WHERE tenant_strategy_id IS NOT NULL;
+
+-- These are low-volume tables, so a real FK is fine here (unlike the high-volume v1
+-- tables, which avoid them).
+ALTER TABLE v1_step_concurrency
+    ADD CONSTRAINT v1_step_concurrency_tenant_strategy_id_fkey
+    FOREIGN KEY (tenant_strategy_id) REFERENCES v1_tenant_concurrency (id);
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+-- Keeps the definition copies on referencing v1_step_concurrency rows in sync when a
+-- tenant strategy is updated in place, so per-step reads never see a stale definition.
+CREATE OR REPLACE FUNCTION v1_tenant_concurrency_update_function()
+RETURNS trigger AS $$
+BEGIN
+    UPDATE v1_step_concurrency sc
+    SET
+        strategy = nt.strategy,
+        expression = nt.expression,
+        max_concurrency = nt.max_concurrency
+    FROM new_table nt
+    JOIN old_table ot ON ot.id = nt.id
+    WHERE
+        sc.tenant_strategy_id = nt.id
+        AND (
+            nt.strategy IS DISTINCT FROM ot.strategy
+            OR nt.expression IS DISTINCT FROM ot.expression
+            OR nt.max_concurrency IS DISTINCT FROM ot.max_concurrency
+        );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_tenant_concurrency_update_trigger
+AFTER UPDATE ON v1_tenant_concurrency
+REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tenant_concurrency_update_function();
 -- +goose StatementEnd
 
 -- +goose StatementBegin
@@ -224,6 +266,11 @@ $$ LANGUAGE plpgsql;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS v1_tenant_concurrency_update_trigger ON v1_tenant_concurrency;
+DROP FUNCTION IF EXISTS v1_tenant_concurrency_update_function;
+
+ALTER TABLE v1_step_concurrency DROP CONSTRAINT IF EXISTS v1_step_concurrency_tenant_strategy_id_fkey;
+
 DROP TABLE IF EXISTS v1_tenant_concurrency;
 
 ALTER TABLE v1_step_concurrency DROP COLUMN tenant_strategy_id;

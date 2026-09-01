@@ -233,16 +233,23 @@ func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantI
 	ctx, span := telemetry.NewSpan(ctx, "list-concurrency-strategies")
 	defer span.End()
 
-	rows, err := d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
+	stepStrategies, err := d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	strategies := make([]*sqlcv1.V1StepConcurrency, len(rows))
+	tenantStrategies, err := d.queries.ListActiveTenantConcurrencyStrategies(ctx, d.pool, tenantId)
 
-	for i, row := range rows {
-		strategies[i] = row.ToV1StepConcurrency()
+	if err != nil {
+		return nil, err
+	}
+
+	strategies := make([]*sqlcv1.V1StepConcurrency, 0, len(stepStrategies)+len(tenantStrategies))
+	strategies = append(strategies, stepStrategies...)
+
+	for _, tenantStrategy := range tenantStrategies {
+		strategies = append(strategies, TenantConcurrencyDescriptor(tenantStrategy))
 	}
 
 	return strategies, nil
@@ -252,7 +259,22 @@ func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId u
 	ctx, span := telemetry.NewSpan(ctx, "get-concurrency-strategy")
 	defer span.End()
 
-	row, err := d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
+	strategy, err := d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
+		ID:       id,
+		Tenantid: tenantId,
+	})
+
+	if err == nil {
+		return strategy, nil
+	}
+
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	// strategy ids are unique across both tables, so an id missing from
+	// v1_step_concurrency can only be a tenant strategy
+	tenantStrategy, err := d.queries.GetTenantConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
 		ID:       id,
 		Tenantid: tenantId,
 	})
@@ -261,5 +283,5 @@ func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	return row.ToV1StepConcurrency(), nil
+	return TenantConcurrencyDescriptor(tenantStrategy), nil
 }

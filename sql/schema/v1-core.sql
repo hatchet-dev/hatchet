@@ -255,12 +255,17 @@ CREATE TABLE v1_step_concurrency (
     tenant_id UUID NOT NULL,
     max_concurrency INTEGER NOT NULL,
     -- When set, this row references a tenant-scoped strategy in v1_tenant_concurrency: the
-    -- step consumes that strategy's limit (shared across workflows) and this row's own
-    -- strategy/expression/max_concurrency columns are point-in-time copies which must not
-    -- be read; the definition always resolves through the referenced row.
+    -- step consumes that strategy's limit (shared across workflows). This row's own
+    -- strategy/expression/max_concurrency columns are copies of the referenced definition,
+    -- kept in sync by the v1_tenant_concurrency update trigger, so reads can use this
+    -- table directly.
     tenant_strategy_id BIGINT,
     CONSTRAINT v1_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
 );
+
+CREATE INDEX v1_step_concurrency_tenant_strategy_id_idx
+    ON v1_step_concurrency (tenant_strategy_id)
+    WHERE tenant_strategy_id IS NOT NULL;
 
 -- Tenant-scoped concurrency strategies, registered independently of any workflow and
 -- referenced by steps via v1_step_concurrency.tenant_strategy_id so tasks across different
@@ -284,6 +289,42 @@ CREATE TABLE v1_tenant_concurrency (
     CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
     CONSTRAINT v1_tenant_concurrency_tenant_name_ux UNIQUE (tenant_id, name)
 );
+
+-- These are low-volume tables, so a real FK is fine here (unlike the high-volume v1
+-- tables, which avoid them).
+ALTER TABLE v1_step_concurrency
+    ADD CONSTRAINT v1_step_concurrency_tenant_strategy_id_fkey
+    FOREIGN KEY (tenant_strategy_id) REFERENCES v1_tenant_concurrency (id);
+
+-- Keeps the definition copies on referencing v1_step_concurrency rows in sync when a
+-- tenant strategy is updated in place, so per-step reads never see a stale definition.
+CREATE OR REPLACE FUNCTION v1_tenant_concurrency_update_function()
+RETURNS trigger AS $$
+BEGIN
+    UPDATE v1_step_concurrency sc
+    SET
+        strategy = nt.strategy,
+        expression = nt.expression,
+        max_concurrency = nt.max_concurrency
+    FROM new_table nt
+    JOIN old_table ot ON ot.id = nt.id
+    WHERE
+        sc.tenant_strategy_id = nt.id
+        AND (
+            nt.strategy IS DISTINCT FROM ot.strategy
+            OR nt.expression IS DISTINCT FROM ot.expression
+            OR nt.max_concurrency IS DISTINCT FROM ot.max_concurrency
+        );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_tenant_concurrency_update_trigger
+AFTER UPDATE ON v1_tenant_concurrency
+REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tenant_concurrency_update_function();
 
 CREATE OR REPLACE FUNCTION create_v1_step_concurrency()
 RETURNS trigger AS $$

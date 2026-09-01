@@ -35,18 +35,9 @@ type workflowWithStep struct {
 }
 
 // strategyDescriptor builds the in-memory strategy descriptor for a tenant-scoped
-// strategy: the scheduler represents both kinds of strategies as V1StepConcurrency, with
-// zero-uuid workflow columns marking tenant scope.
+// strategy, as the scheduler's lease listing would.
 func (s *sharedConcurrencyTestSetup) strategyDescriptor() *sqlcv1.V1StepConcurrency {
-	return &sqlcv1.V1StepConcurrency{
-		ID:             s.strategy.ID,
-		TenantID:       s.tenantId,
-		IsActive:       s.strategy.IsActive,
-		LastActiveAt:   s.strategy.LastActiveAt,
-		Strategy:       s.strategy.Strategy,
-		Expression:     s.strategy.Expression,
-		MaxConcurrency: s.strategy.MaxConcurrency,
-	}
+	return repo.TenantConcurrencyDescriptor(s.strategy)
 }
 
 func createWorkflowWithSharedRef(
@@ -210,17 +201,22 @@ func TestConcurrency_SharedStrategy_CrossWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rows, 2)
 		for _, row := range rows {
-			require.Equal(t, s.strategy.ID, row.ID, "both steps should resolve to the tenant strategy id")
-			require.Equal(t, s.strategy.Expression, row.Expression)
+			require.True(t, row.TenantStrategyID.Valid)
+			require.Equal(t, s.strategy.ID, row.TenantStrategyID.Int64, "both steps should reference the tenant strategy")
+			require.Equal(t, s.strategy.Expression, row.Expression, "the definition copy is kept in sync")
 		}
 		require.NotEqual(t, rows[0].StepID, rows[1].StepID, "each row belongs to its own step")
 
-		// the lease listing returns the tenant strategy (not the referencing rows)
-		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
+		// referencing rows are excluded from the step-strategy lease listing; the tenant
+		// strategy is listed separately and is what gets a concurrency manager
+		stepStrategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
 		require.NoError(t, err)
-		require.Len(t, strategies, 1)
-		require.Equal(t, s.strategy.ID, strategies[0].ID)
-		require.Equal(t, uuid.Nil, strategies[0].WorkflowID, "tenant strategies carry zero-uuid workflow columns")
+		require.Empty(t, stepStrategies)
+
+		tenantStrategies, err := queries.ListActiveTenantConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
+		require.NoError(t, err)
+		require.Len(t, tenantStrategies, 1)
+		require.Equal(t, s.strategy.ID, tenantStrategies[0].ID)
 
 		// drive the in-memory index: build against the empty table first, then insert tasks
 		// from BOTH workflows and confirm only maxRuns=1 is queued to run in total.
@@ -271,20 +267,29 @@ func TestConcurrency_SharedStrategy_MixedWithInline(t *testing.T) {
 			Stepids:  []uuid.UUID{wf.stepId},
 		})
 		require.NoError(t, err)
-		require.Len(t, rows, 2, "step should resolve both the inline and the tenant strategy")
+		require.Len(t, rows, 2, "step should hold both the inline strategy and the tenant reference")
 
-		ids := map[int64]bool{}
+		resolvedIds := map[int64]bool{}
 		for _, row := range rows {
-			ids[row.ID] = true
+			id := row.ID
+			if row.TenantStrategyID.Valid {
+				id = row.TenantStrategyID.Int64
+			}
+			resolvedIds[id] = true
 			require.Equal(t, wf.stepId, row.StepID)
 		}
-		require.True(t, ids[s.strategy.ID], "tenant strategy should resolve for the step")
-		require.Len(t, ids, 2, "inline and tenant strategies must have distinct ids")
+		require.True(t, resolvedIds[s.strategy.ID], "tenant strategy should resolve for the step")
+		require.Len(t, resolvedIds, 2, "inline and tenant strategies must have distinct ids")
 
-		// both strategies are schedulable for the tenant
-		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
+		// the inline strategy is listed as a step strategy, the tenant strategy separately
+		stepStrategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
 		require.NoError(t, err)
-		require.Len(t, strategies, 2)
+		require.Len(t, stepStrategies, 1)
+		require.False(t, stepStrategies[0].TenantStrategyID.Valid)
+
+		tenantStrategies, err := queries.ListActiveTenantConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
+		require.NoError(t, err)
+		require.Len(t, tenantStrategies, 1)
 
 		return nil
 	})
@@ -336,7 +341,7 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
-		require.Equal(t, int32(5), rows[0].MaxConcurrency)
+		require.Equal(t, int32(5), rows[0].MaxConcurrency, "the sync trigger must propagate the new definition to referencing rows")
 		require.Equal(t, "input.other_id", rows[0].Expression)
 
 		return nil
@@ -387,9 +392,50 @@ func TestConcurrency_SharedStrategy_StaleSweep(t *testing.T) {
 		err = s.repo.DeactivateStaleStepConcurrency(ctx, s.tenantId)
 		require.NoError(t, err)
 
-		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
+		tenantStrategies, err := queries.ListActiveTenantConcurrencyStrategies(ctx, conf.Pool, s.tenantId)
 		require.NoError(t, err)
-		require.Empty(t, strategies, "stale tenant strategy should be deactivated")
+		require.Empty(t, tenantStrategies, "stale tenant strategy should be deactivated")
+
+		return nil
+	})
+}
+
+// TestConcurrency_SharedStrategy_ActiveCheck verifies the workflow-version-based active
+// check for tenant strategies: one stays active while a latest workflow version references
+// it, and retires once nothing does (and no slots remain).
+func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		queries := sqlcv1.New()
+
+		// referenced by a latest workflow version: stays active
+		s := setupSharedConcurrencyTest(t, ctx, conf, "shared-active-test", "GROUP_ROUND_ROBIN", 1, 1)
+
+		err := s.repo.UpdateConcurrencyStrategyIsActive(ctx, s.tenantId, s.strategyDescriptor())
+		require.NoError(t, err)
+
+		strat, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
+			Tenantid: s.tenantId,
+			ID:       s.strategy.ID,
+		})
+		require.NoError(t, err)
+		require.True(t, strat.IsActive, "a strategy referenced by a latest workflow version must stay active")
+
+		// registered but never referenced (registrar-only) and no slots: retires
+		s2 := setupSharedConcurrencyTest(t, ctx, conf, "shared-inactive-test", "GROUP_ROUND_ROBIN", 1, 0)
+
+		err = s2.repo.UpdateConcurrencyStrategyIsActive(ctx, s2.tenantId, s2.strategyDescriptor())
+		require.NoError(t, err)
+
+		strat2, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
+			Tenantid: s2.tenantId,
+			ID:       s2.strategy.ID,
+		})
+		require.NoError(t, err)
+		require.False(t, strat2.IsActive, "an unreferenced strategy with no slots must retire")
 
 		return nil
 	})
@@ -495,13 +541,14 @@ func TestConcurrency_SharedStrategy_RegisteredViaPutWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		require.Equal(t, int32(1), rows[0].MaxConcurrency)
+		require.True(t, rows[0].TenantStrategyID.Valid)
 
 		var name string
-		err = conf.Pool.QueryRow(ctx, "SELECT name FROM v1_tenant_concurrency WHERE id = $1", rows[0].ID).Scan(&name)
+		err = conf.Pool.QueryRow(ctx, "SELECT name FROM v1_tenant_concurrency WHERE id = $1", rows[0].TenantStrategyID.Int64).Scan(&name)
 		require.NoError(t, err)
-		require.Equal(t, "putwf-shared-limit", name, "the resolved strategy id must belong to the tenant strategy")
+		require.Equal(t, "putwf-shared-limit", name, "the reference must point at the tenant strategy")
 
-		strategyId := rows[0].ID
+		strategyId := rows[0].TenantStrategyID.Int64
 
 		// a second workflow re-declaring the strategy with a different limit updates it in
 		// place (same id), and its own step resolves the same strategy
@@ -513,7 +560,8 @@ func TestConcurrency_SharedStrategy_RegisteredViaPutWorkflow(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
-		require.Equal(t, strategyId, rows[0].ID, "re-declaring the name must update the same strategy row")
+		require.True(t, rows[0].TenantStrategyID.Valid)
+		require.Equal(t, strategyId, rows[0].TenantStrategyID.Int64, "re-declaring the name must update the same strategy row")
 		require.Equal(t, int32(3), rows[0].MaxConcurrency)
 
 		// the shared definition is tenant-level state, not workflow shape: re-putting an
