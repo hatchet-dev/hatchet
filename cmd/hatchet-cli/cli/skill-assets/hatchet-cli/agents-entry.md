@@ -69,9 +69,10 @@ When implementing against Hatchet, fetch the relevant page below; each URL serve
 
 **Reference**
 
-- Python client API: https://docs.hatchet.run/reference/python/client.md
-- TypeScript client API: https://docs.hatchet.run/reference/typescript/client.md
-- Go client API: https://docs.hatchet.run/reference/go/client.md
+- Python SDK reference: https://docs.hatchet.run/reference/python.md
+- TypeScript SDK reference: https://docs.hatchet.run/reference/typescript.md
+- Go SDK reference: https://docs.hatchet.run/reference/go.md
+- Ruby SDK reference: https://docs.hatchet.run/reference/ruby.md
 - Architecture & guarantees: https://docs.hatchet.run/v1/architecture-and-guarantees.md
 - Troubleshooting: https://docs.hatchet.run/v1/troubleshooting.md
 <!-- hatchet-skills:end -->
