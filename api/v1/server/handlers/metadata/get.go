@@ -45,14 +45,13 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 	authDisabled := authmode.IsDisabled
 	allowCreateTenant := u.config.Runtime.AllowCreateTenant
 	if allowCreateTenant && u.config.Runtime.CreateTenantRequiresGlobalAdmin {
+		allowCreateTenant = false
 		userID, err := authn.NewSessionHelpers(u.config.SessionStore).GetKeyUuid(ctx, "user_id")
 		if err == nil {
 			allowCreateTenant, err = authn.IsCurrentOIDCGlobalAdmin(ctx.Request().Context(), u.config, *userID)
 			if err != nil {
 				u.config.Logger.Warn().Err(err).Msg("could not verify current OIDC global administrator access")
 			}
-		} else {
-			allowCreateTenant = false
 		}
 	}
 

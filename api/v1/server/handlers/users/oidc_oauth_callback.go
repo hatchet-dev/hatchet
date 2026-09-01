@@ -235,6 +235,11 @@ func getOIDCClaimsFromToken(ctx context.Context, config *server.ServerConfig, to
 	if err := idToken.Claims(claims); err != nil {
 		return nil, fmt.Errorf("failed to parse ID token claims: %s", err.Error())
 	}
+	tokenSubject := claims.Sub
+	claims.Sub, err = authn.OIDCSubjectFromClaims(idToken.Claims, config.Auth.ConfigFile.OIDC.SubjectClaim)
+	if err != nil {
+		return nil, err
+	}
 	claims.Issuer = idToken.Issuer
 	requireGroups, err := oidcGroupMappingsEnabled(ctx, config)
 	if err != nil {
@@ -250,8 +255,8 @@ func getOIDCClaimsFromToken(ctx context.Context, config *server.ServerConfig, to
 			uiClaims := &oidcClaims{}
 			if err := userInfo.Claims(uiClaims); err == nil {
 				// Per OIDC spec, the UserInfo sub must match the ID token sub.
-				if uiClaims.Sub != "" && claims.Sub != "" && uiClaims.Sub != claims.Sub {
-					return nil, fmt.Errorf("OIDC UserInfo sub claim (%s) does not match ID token sub claim (%s)", uiClaims.Sub, claims.Sub)
+				if uiClaims.Sub != "" && tokenSubject != "" && uiClaims.Sub != tokenSubject {
+					return nil, fmt.Errorf("OIDC UserInfo sub claim (%s) does not match ID token sub claim (%s)", uiClaims.Sub, tokenSubject)
 				}
 				if claims.Email == "" {
 					claims.Email = uiClaims.Email
@@ -261,9 +266,6 @@ func getOIDCClaimsFromToken(ctx context.Context, config *server.ServerConfig, to
 				}
 				if !claims.EmailVerified && uiClaims.EmailVerified {
 					claims.EmailVerified = true
-				}
-				if claims.Sub == "" {
-					claims.Sub = uiClaims.Sub
 				}
 				if claims.Groups == nil {
 					claims.Groups = uiClaims.Groups

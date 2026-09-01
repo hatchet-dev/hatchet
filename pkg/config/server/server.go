@@ -534,6 +534,7 @@ type ConfigFileAuthOIDC struct {
 	ClientID      string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret  string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	IssuerURL     string   `mapstructure:"issuerURL" json:"issuerURL,omitempty"`
+	SubjectClaim  string   `mapstructure:"subjectClaim" json:"subjectClaim,omitempty" default:"sub"`
 	Scopes        []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 	GroupMappings string   `mapstructure:"groupMappings" json:"groupMappings,omitempty"`
 	// ScopesString is used to bind the SERVER_AUTH_OIDC_SCOPES env var, since
@@ -959,6 +960,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.oidc.clientID", "SERVER_AUTH_OIDC_CLIENT_ID")
 	_ = v.BindEnv("auth.oidc.clientSecret", "SERVER_AUTH_OIDC_CLIENT_SECRET")
 	_ = v.BindEnv("auth.oidc.issuerURL", "SERVER_AUTH_OIDC_ISSUER_URL")
+	_ = v.BindEnv("auth.oidc.subjectClaim", "SERVER_AUTH_OIDC_SUBJECT_CLAIM")
 	_ = v.BindEnv("auth.oidc.scopes", "SERVER_AUTH_OIDC_SCOPES")
 	_ = v.BindEnv("auth.oidc.scopesString", "SERVER_AUTH_OIDC_SCOPES")
 	_ = v.BindEnv("auth.oidc.groupMappings", "SERVER_AUTH_OIDC_GROUP_MAPPINGS")

@@ -28,13 +28,14 @@ const testOIDCClientID = "hatchet-test"
 // the test deterministic and container-free, matching the project's preference
 // for in-process integration tests.
 type mockOIDC struct {
-	server   *httptest.Server
-	signer   jose.Signer
-	provider *oidc.Provider
-	oauthCfg *oauth2.Config
-	mu       sync.RWMutex
-	subject  string
-	groups   []string
+	server    *httptest.Server
+	signer    jose.Signer
+	provider  *oidc.Provider
+	oauthCfg  *oauth2.Config
+	mu        sync.RWMutex
+	subject   string
+	groups    []string
+	refreshes int
 }
 
 func newMockOIDC(t *testing.T) *mockOIDC {
@@ -86,6 +87,15 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"sub": m.subject, "groups": m.groups})
 	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		m.mu.Lock()
+		m.refreshes++
+		m.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "refreshed-access-token", "refresh_token": "rotated-refresh-token", "token_type": "Bearer", "expires_in": 3600,
+		})
+	})
 
 	provider, err := oidc.NewProvider(context.Background(), srv.URL)
 	if err != nil {
@@ -95,7 +105,7 @@ func newMockOIDC(t *testing.T) *mockOIDC {
 	m.server = srv
 	m.signer = signer
 	m.provider = provider
-	m.oauthCfg = &oauth2.Config{ClientID: testOIDCClientID}
+	m.oauthCfg = &oauth2.Config{ClientID: testOIDCClientID, Endpoint: provider.Endpoint()}
 	return m
 }
 
@@ -111,6 +121,7 @@ func (m *mockOIDC) setUserInfo(subject string, groups []string) {
 type idTokenClaims struct {
 	Issuer        string    `json:"iss"`
 	Subject       string    `json:"sub"`
+	CustomSubject string    `json:"user_id,omitempty"`
 	Audience      string    `json:"aud"`
 	Expiry        int64     `json:"exp"`
 	IssuedAt      int64     `json:"iat"`
@@ -151,7 +162,7 @@ func (m *mockOIDC) token(t *testing.T, c idTokenClaims) *oauth2.Token {
 		t.Fatalf("serialize id token: %v", err)
 	}
 
-	return (&oauth2.Token{AccessToken: "test-access-token", TokenType: "Bearer"}).
+	return (&oauth2.Token{AccessToken: "test-access-token", RefreshToken: "test-refresh-token", TokenType: "Bearer", Expiry: time.Unix(c.Expiry, 0)}).
 		WithExtra(map[string]any{"id_token": raw})
 }
 
@@ -186,6 +197,21 @@ func TestGetOIDCClaimsFromToken(t *testing.T) {
 		if claims.Groups == nil || len(*claims.Groups) != 2 || (*claims.Groups)[0] != "engineering" || (*claims.Groups)[1] != "platform-admins" {
 			t.Fatalf("unexpected groups: %v", claims.Groups)
 		}
+	})
+
+	t.Run("configured subject claim identifies the user", func(t *testing.T) {
+		cfg.Auth.ConfigFile.OIDC.SubjectClaim = "user_id"
+		groups := []string{}
+		claims, err := getOIDCClaimsFromToken(ctx, cfg, m.token(t, idTokenClaims{
+			Subject: "provider-subject", CustomSubject: "stable-user-id", Email: "alice@example.com", EmailVerified: true, Name: "Alice", Groups: &groups,
+		}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if claims.Sub != "stable-user-id" {
+			t.Fatalf("subject = %q, want stable-user-id", claims.Sub)
+		}
+		cfg.Auth.ConfigFile.OIDC.SubjectClaim = "sub"
 	})
 
 	t.Run("missing groups are rejected when mappings are configured", func(t *testing.T) {

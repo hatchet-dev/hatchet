@@ -97,7 +97,6 @@ func TestUpsertOIDCUserFromToken(t *testing.T) {
 		if user2.ID != user.ID {
 			t.Fatalf("second login created a new user (%s) instead of updating (%s)", user2.ID, user.ID)
 		}
-
 		_, err = us.upsertOIDCUserFromToken(ctx, cfg, m.token(t, idTokenClaims{
 			Subject: uuid.NewString(), Email: email, EmailVerified: true, Name: "Alice Renamed", Groups: &emptyGroups,
 		}))
@@ -169,6 +168,50 @@ func TestOIDCGlobalAdminRevocation(t *testing.T) {
 		}
 		if allowed {
 			t.Fatal("expected mapping removal to revoke global administrator access without a new login")
+		}
+
+		return nil
+	})
+}
+
+func TestOIDCGlobalAdminRefreshesExpiredToken(t *testing.T) {
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	testutils.RunTestWithDatabase(t, func(dbConf *database.Layer) error {
+		cfg, issuer := newOIDCTestConfig(t, dbConf)
+		cfg.Auth.OIDCGroupMappings = map[string]string{"platform-admins": "ADMIN"}
+		service := NewUserService(cfg)
+		ctx := context.Background()
+		subject := uuid.NewString()
+		adminGroups := []string{"platform-admins"}
+
+		user, err := service.upsertOIDCUserFromToken(ctx, cfg, issuer.token(t, idTokenClaims{
+			Subject: subject, Email: uniqueEmail(t, "oidc-refresh"), EmailVerified: true, Groups: &adminGroups,
+		}))
+		if err != nil {
+			t.Fatalf("create OIDC administrator: %v", err)
+		}
+		if _, err := dbConf.Pool.Exec(ctx, `UPDATE "UserOAuth" SET "expiresAt" = NOW() - INTERVAL '1 hour' WHERE "userId" = $1 AND provider = 'oidc'`, user.ID); err != nil {
+			t.Fatalf("expire OIDC token: %v", err)
+		}
+
+		issuer.setUserInfo(subject, adminGroups)
+		allowed, err := authn.IsCurrentOIDCGlobalAdmin(ctx, cfg, user.ID)
+		if err != nil || !allowed {
+			t.Fatalf("administrator with refresh token denied: allowed=%v err=%v", allowed, err)
+		}
+
+		binding, err := cfg.V1.User().GetUserOAuth(ctx, user.ID, "oidc")
+		if err != nil {
+			t.Fatalf("get refreshed OIDC binding: %v", err)
+		}
+		accessToken, err := cfg.Encryption.Decrypt(binding.AccessToken, "oidc_access_token")
+		if err != nil || string(accessToken) != "refreshed-access-token" {
+			t.Fatalf("stored access token = %q, err=%v", accessToken, err)
+		}
+		refreshToken, err := cfg.Encryption.Decrypt(binding.RefreshToken, "oidc_refresh_token")
+		if err != nil || string(refreshToken) != "rotated-refresh-token" {
+			t.Fatalf("stored refresh token = %q, err=%v", refreshToken, err)
 		}
 
 		return nil
