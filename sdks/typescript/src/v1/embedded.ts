@@ -1,3 +1,22 @@
+/**
+ * Embedded mode runs a full local Hatchet engine as a sidecar process managed by your
+ * application. It needs no API token, no Docker, and no external services (by default
+ * the sidecar starts a bundled Postgres), which makes it a good fit for local
+ * development and CI.
+ *
+ * ```typescript
+ * import { HatchetEmbeddedClient } from '@hatchet-dev/typescript-sdk/v1/embedded';
+ *
+ * const hatchet = await HatchetEmbeddedClient.init();
+ * // ... register workers and run tasks as usual ...
+ * await hatchet.stopEmbedded();
+ * ```
+ *
+ * See the [embedded mode guide](https://docs.hatchet.run/v1/embedded) for setup and
+ * configuration details.
+ *
+ * @module Embedded
+ */
 import { spawn, ChildProcess } from 'child_process';
 import type { AxiosRequestConfig } from 'axios';
 import type { ClientConfig, HatchetClientOptions } from '@hatchet/clients/hatchet-client';
@@ -15,6 +34,10 @@ import { pipeline } from 'stream/promises';
 const REPO_URL = 'https://github.com/hatchet-dev/hatchet-embedded';
 const DEFAULT_READY_TIMEOUT_MS = 300_000;
 
+/**
+ * Options for the embedded engine sidecar. All fields are optional; by default the
+ * latest hatchet-embedded release is downloaded and started with a bundled Postgres.
+ */
 export interface EmbeddedOptions {
   /**
    * hatchet-embedded release tag to download (defaults to HATCHET_CLIENT_EMBEDDED_VERSION or
@@ -34,7 +57,9 @@ export interface EmbeddedOptions {
   databaseUrl?: string;
   /** store the bundled Postgres runtime and data under this directory */
   postgresDataDir?: string;
+  /** bind the engine's gRPC server to this port */
   grpcPort?: number;
+  /** bind the REST API server to this port */
   apiPort?: number;
   /** set to false to start only the engine + gRPC, no REST API */
   startApi?: boolean;
@@ -42,15 +67,26 @@ export interface EmbeddedOptions {
   runMigrations?: boolean;
   /** use RabbitMQ instead of the Postgres message queue */
   rabbitmqUrl?: string;
+  /** log level for the engine's output */
   logLevel?: string;
+  /** how long to wait for the engine to become ready, in milliseconds (default 300000) */
   readyTimeoutMs?: number;
 }
 
+/**
+ * A running embedded engine sidecar and its connection details, as returned by
+ * `startEmbeddedSidecar`.
+ */
 export interface EmbeddedSidecar {
+  /** API token for the sidecar's default tenant */
   token: string;
+  /** ID of the sidecar's default tenant */
   tenantId: string;
+  /** host:port of the engine's gRPC server */
   grpcAddress: string;
+  /** base URL of the REST API (empty when `startApi` is false) */
   apiUrl: string;
+  /** gracefully stops the sidecar and resolves once it has fully exited */
   stop: () => Promise<void>;
 }
 
@@ -216,12 +252,7 @@ async function waitForHandshake(
   throw new Error(`hatchet embedded sidecar did not become ready within ${timeoutMs}ms`);
 }
 
-/**
- * Downloads (and caches) the hatchet-embedded sidecar binary, spawns it, and
- * waits until the embedded engine is ready. The sidecar shuts down when this
- * process exits. Use `HatchetEmbedded()` unless you need the raw
- * connection details.
- */
+// sidecars started in this process that have not been stopped yet
 const activeSidecars = new Set<EmbeddedSidecar>();
 
 /**
@@ -237,6 +268,11 @@ export async function stopEmbeddedSidecar(): Promise<void> {
   }
 }
 
+/**
+ * Downloads (and caches) the hatchet-embedded sidecar binary, spawns it, and waits
+ * until the embedded engine is ready. The sidecar shuts down when this process exits.
+ * Use {@link HatchetEmbeddedClient.init} unless you need the raw connection details.
+ */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
   const suppliedPath = opts.binaryPath ?? process.env.HATCHET_CLIENT_EMBEDDED_BINARY_PATH;
 
@@ -340,11 +376,19 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
   return sidecar;
 }
 
+/**
+ * Entry point for embedded mode. `init()` starts a full local Hatchet engine and
+ * returns a regular Hatchet client connected to it. No API token or Docker is needed.
+ * See the [embedded mode guide](https://docs.hatchet.run/v1/embedded).
+ */
 export class HatchetEmbeddedClient {
   /**
    * Runs a full Hatchet engine locally via the hatchet-embedded sidecar (downloaded
-   * on first use) and returns a client wired to it. By default the sidecar starts a
-   * bundled Postgres; pass `databaseUrl` to point it at your own instead.
+   * on first use) and returns a client wired to it. No API token or Docker is needed,
+   * which makes this a good fit for local development and CI. By default the sidecar
+   * starts a bundled Postgres; pass `databaseUrl` to point it at your own instead.
+   *
+   * See the [embedded mode guide](https://docs.hatchet.run/v1/embedded).
    * @param embeddedOpts - Options for the embedded engine (version, ports, database, ...).
    * @param config - Optional configuration overrides for the client.
    * @param options - Optional client options.
@@ -382,6 +426,10 @@ export class HatchetEmbeddedClient {
   }
 }
 
+/**
+ * A `HatchetClient` connected to an embedded engine, extended with `stopEmbedded`.
+ * Returned by {@link HatchetEmbeddedClient.init}.
+ */
 export type EmbeddedClient<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends Record<string, any> = {},
