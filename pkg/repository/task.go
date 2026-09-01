@@ -1923,11 +1923,13 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 
 	defer rollback()
 
-	_, err = r.queries.GetAndLockLogFile(ctx, tx, sqlcv1.GetAndLockLogFileParams{
-		Durabletaskid:         task.Id,
-		Durabletaskinsertedat: task.InsertedAt,
-		Tenantid:              tenantId,
+	_, err = r.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
+		Durabletaskids:           []int64{task.Id},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:                []uuid.UUID{tenantId},
+		Mindurabletaskinsertedat: task.InsertedAt,
 	})
+
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
