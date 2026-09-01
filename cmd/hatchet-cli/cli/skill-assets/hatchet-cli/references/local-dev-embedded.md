@@ -1,0 +1,75 @@
+# Run Hatchet Locally in Embedded Mode
+
+These are instructions for an AI agent to run Hatchet for local development using embedded mode. Embedded mode boots a full Hatchet engine from inside the worker process, backed by a bundled Postgres. It needs no API token, no account, no Docker, and no separate server. Full guide: https://docs.hatchet.run/v1/embedded
+
+Use embedded mode by default for local development and CI. Use a profile and API token instead when the user is targeting Hatchet Cloud or a self-hosted instance (see `setup-cli.md`).
+
+## Step 1: Create an Embedded Client
+
+Use the embedded entry point for the project's SDK. Create every client in the process this way; do not mix in standard constructors.
+
+**Python**:
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet.from_embedded()
+```
+
+Keep worker startup and task triggering under an `if __name__ == "__main__":` guard. Worker subprocesses re-import the main module, so unguarded module-level startup code runs again in every subprocess.
+
+**TypeScript** (embedded is a separate entry point, so it stays out of production bundles):
+
+```typescript
+import { HatchetEmbeddedClient } from "@hatchet-dev/typescript-sdk/v1/embedded";
+
+const hatchet = await HatchetEmbeddedClient.init();
+```
+
+**Go** (requires the hatchet-embedded module and a blank import):
+
+```bash
+go get github.com/hatchet-dev/hatchet-embedded
+```
+
+```go
+import (
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+	_ "github.com/hatchet-dev/hatchet-embedded"
+)
+
+client, err := hatchet.NewClient(hatchet.WithEmbedded())
+```
+
+Without the blank import, `NewClient` fails with an error asking for it.
+
+## Step 2: Run the Dev Loop
+
+1. Define tasks and start a worker on the embedded client, exactly as with a normal client.
+2. Trigger a task from the same process after the worker has started (for example `task.run(...)` in Python, `await task.run(...)` in TypeScript, `task.Run(ctx, input)` in Go) and check the result.
+3. Stop the engine before the process exits: `hatchet.stop_embedded()` (Python), `await hatchet.stopEmbedded()` (TypeScript), `client.Close(ctx)` (Go).
+
+Run the worker and the trigger in one process. A second process using the embedded entry point boots a second engine instead of connecting to the first.
+
+Runnable examples for all three SDKs: https://github.com/hatchet-dev/hatchet-embedded/tree/main/examples
+
+## Expect a Slow First Run
+
+On first use the SDK downloads the embedded engine (a sidecar binary in Python and TypeScript) and a bundled Postgres distribution. The download is tens of megabytes and can take several minutes with little or no output. Do not kill the process; the ready timeout is 5 minutes. Later runs start in seconds from the cache.
+
+## Avoid These Traps
+
+- **A leftover `HATCHET_CLIENT_TOKEN` points clients elsewhere.** If the environment or a `.env` file (the Python SDK loads `.env` automatically) contains `HATCHET_CLIENT_TOKEN`, any client created with a standard constructor silently connects to whatever deployment that token belongs to, not the embedded engine. Unset it for embedded runs and use the embedded entry point for every client.
+- **Go: the engine overwrites `DATABASE_URL`.** The in-process engine sets `DATABASE_URL` in the process environment to its bundled Postgres. If the application reads `DATABASE_URL` for its own database, read it before calling `hatchet.NewClient`.
+- **Pin the engine version if reproducibility matters.** Python and TypeScript download the latest hatchet-embedded release by default; pin it with the `version` option or `HATCHET_CLIENT_EMBEDDED_VERSION`. Go runs the engine in-process, so the module version in `go.mod` is the pin.
+
+## Optional: Dashboard
+
+Embedded instances do not ship a frontend. While the embedded process is running, serve the dashboard against it with:
+
+```bash
+hatchet embedded-ui
+```
+
+With no flags it targets the default embedded API port and opens a browser.
