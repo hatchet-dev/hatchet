@@ -75,6 +75,7 @@ func run() error {
 	files := map[string]string{
 		"client.mdx":    renderClientPage(root, accessors),
 		"context.mdx":   renderContextPage(worker),
+		"embedded.mdx":  renderEmbeddedPage(root),
 		"runnables.mdx": renderRunnablesPage(root),
 	}
 	for _, a := range accessors {
@@ -832,6 +833,24 @@ func findType(p *pkgDocs, name string) *doc.Type {
 	return nil
 }
 
+// findFunc returns the package-level function with the given name, searching both
+// the package's free functions and the constructors go/doc attached to types.
+func findFunc(p *pkgDocs, name string) *doc.Func {
+	for _, fn := range p.pkg.Funcs {
+		if fn.Name == name {
+			return fn
+		}
+	}
+	for _, t := range p.pkg.Types {
+		for _, fn := range t.Funcs {
+			if fn.Name == name {
+				return fn
+			}
+		}
+	}
+	return nil
+}
+
 // funcsReturning returns package-level functions whose only result type is named typeName.
 func funcsReturning(p *pkgDocs, typeName string) []*doc.Func {
 	t := findType(p, typeName)
@@ -987,6 +1006,37 @@ func renderContextPage(worker *pkgDocs) string {
 	return b.String()
 }
 
+const embeddedIntro = `Embedded mode runs a full Hatchet engine and Postgres instance in-process for local development, with no account, API token, or Docker. It requires a blank import of [github.com/hatchet-dev/hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See [Embedded Mode](/v1/embedded) for a guide.
+`
+
+func renderEmbeddedPage(p *pkgDocs) string {
+	var b strings.Builder
+	b.WriteString(frontmatter("Embedded"))
+	b.WriteString(generatedNotice())
+	b.WriteString("# Embedded\n\n")
+	b.WriteString(embeddedIntro + "\n")
+
+	if fn := findFunc(p, "WithEmbedded"); fn != nil {
+		writeFuncSection(&b, p, fn, 2)
+	}
+
+	if opts := funcsReturning(p, "EmbeddedOption"); len(opts) > 0 {
+		b.WriteString("## Embedded options\n\nOptions for `WithEmbedded`:\n\n")
+		b.WriteString(optionTable(p, opts) + "\n")
+	}
+
+	for _, name := range []string{"EmbeddedConfig", "EmbeddedBackend"} {
+		if t := findType(p, name); t != nil && !skipDoc(t.Doc) {
+			writeTypeSection(&b, p, t, 2, "", true)
+		}
+	}
+	if fn := findFunc(p, "RegisterEmbeddedBackend"); fn != nil {
+		writeFuncSection(&b, p, fn, 2)
+	}
+
+	return b.String()
+}
+
 const runnablesIntro = `Runnables in the Hatchet Go SDK are things that can be run, namely tasks and workflows. The two main types you'll encounter are:
 
 - ` + "`Workflow`" + `, which lets you declare tasks with ` + "`NewTask`" + ` and call the run methods
@@ -1019,7 +1069,6 @@ func renderRunnablesPage(p *pkgDocs) string {
 		{"WorkflowOption", "Workflow options", "Options for `Client.NewWorkflow` (and standalone task constructors):"},
 		{"TaskOption", "Task options", "Options for `Workflow.NewTask` and the other task constructors:"},
 		{"RunOptFunc", "Run options", "Options for the `Run`, `RunNoWait`, and `RunMany` methods:"},
-		{"EmbeddedOption", "Embedded options", "Options for `WithEmbedded`, which runs a full Hatchet engine in-process for local development. See [Embedded Mode](/v1/embedded)."},
 	}
 
 	rendered := map[string]bool{}
@@ -1030,6 +1079,10 @@ func renderRunnablesPage(p *pkgDocs) string {
 		// Documented on the Context page.
 		"Context":        true,
 		"DurableContext": true,
+		// Documented on the Embedded page.
+		"EmbeddedOption":  true,
+		"EmbeddedConfig":  true,
+		"EmbeddedBackend": true,
 	}
 	for _, g := range optionGroups {
 		rendered[g.typeName] = true
@@ -1093,9 +1146,14 @@ func renderRunnablesPage(p *pkgDocs) string {
 	for _, fn := range condFns {
 		condNames[fn.Name] = true
 	}
+	embeddedFns := map[string]bool{
+		// Documented on the Embedded page.
+		"WithEmbedded":            true,
+		"RegisterEmbeddedBackend": true,
+	}
 	var restFns []*doc.Func
 	for _, fn := range p.pkg.Funcs {
-		if skipDoc(fn.Doc) || condNames[fn.Name] {
+		if skipDoc(fn.Doc) || condNames[fn.Name] || embeddedFns[fn.Name] {
 			continue
 		}
 		restFns = append(restFns, fn)
