@@ -2034,8 +2034,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
-		// child external ids were already resolved for the whole batch in
-		// resolveChildExternalIdsForBatch before the plan loop
 		resolvedChildrenToReplay, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
 		if dedupeErr != nil {
 			return nil, nil, dedupeErr
