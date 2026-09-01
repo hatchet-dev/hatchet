@@ -31,16 +31,5 @@ This is the Python SDK reference, documenting methods available for interacting 
 ::: config.EmbeddedHatchetConfig
     options:
       inherited_members: false
-      members:
-        - version
-        - binary_path
-        - checksum
-        - database_url
-        - postgres_data_dir
-        - grpc_port
-        - api_port
-        - start_api
-        - run_migrations
-        - rabbitmq_url
-        - log_level
-        - ready_timeout_seconds
+      members: false
+      show_docstring_attributes: true

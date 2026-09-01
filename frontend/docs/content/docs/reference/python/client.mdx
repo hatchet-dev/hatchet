@@ -253,52 +253,19 @@ Set it on `ClientConfig.embedded`. Every field can also be set via an environmen
 variable prefixed with `HATCHET_CLIENT_EMBEDDED_`, e.g. `HATCHET_CLIENT_EMBEDDED_DATABASE_URL`.
 You can read more about the embedded engine in [the docs](/v1/embedded).
 
-### Attributes
+Attributes:
 
-#### `version = None` `class-attribute` `instance-attribute`
-
-The hatchet-embedded release tag to download. Defaults to the latest release. Tags correspond to the Hatchet engine version baked into the sidecar, so pinning this pins the engine.
-
-#### `binary_path = None` `class-attribute` `instance-attribute`
-
-Path to an existing sidecar binary. When set, the download is skipped.
-
-#### `checksum = None` `class-attribute` `instance-attribute`
-
-The expected sha256 hex digest of the sidecar binary. When set, it replaces the release's checksums.txt as the trust anchor, so a compromised release channel cannot substitute the binary. Pin it together with `version`.
-
-#### `database_url = None` `class-attribute` `instance-attribute`
-
-Connection string for an existing Postgres to use instead of the bundled one.
-
-#### `postgres_data_dir = None` `class-attribute` `instance-attribute`
-
-Directory to store the bundled Postgres runtime and data under. Defaults to a per-project directory derived from the working directory.
-
-#### `grpc_port = None` `class-attribute` `instance-attribute`
-
-Override the port the embedded engine's gRPC server listens on.
-
-#### `api_port = None` `class-attribute` `instance-attribute`
-
-Override the port the embedded REST API listens on.
-
-#### `start_api = True` `class-attribute` `instance-attribute`
-
-Set to `False` to start only the engine and gRPC server, without the REST API.
-
-#### `run_migrations = True` `class-attribute` `instance-attribute`
-
-Set to `False` to skip running database migrations on startup.
-
-#### `rabbitmq_url = None` `class-attribute` `instance-attribute`
-
-Connection string for a RabbitMQ instance to use as the message queue instead of Postgres.
-
-#### `log_level = None` `class-attribute` `instance-attribute`
-
-Log level for the embedded engine.
-
-#### `ready_timeout_seconds = DEFAULT_READY_TIMEOUT_SECONDS` `class-attribute` `instance-attribute`
-
-How long to wait, in seconds, for the embedded engine to become ready before raising an error. Defaults to 300 seconds.
+| Name                    | Type          | Description                                                                                                                                                                                                                 |
+| ----------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`               | `str \| None` | The hatchet-embedded release tag to download. Defaults to the latest release. Tags correspond to the Hatchet engine version baked into the sidecar, so pinning this pins the engine.                                        |
+| `binary_path`           | `str \| None` | Path to an existing sidecar binary. When set, the download is skipped.                                                                                                                                                      |
+| `checksum`              | `str \| None` | The expected sha256 hex digest of the sidecar binary. When set, it replaces the release's checksums.txt as the trust anchor, so a compromised release channel cannot substitute the binary. Pin it together with `version`. |
+| `database_url`          | `str \| None` | Connection string for an existing Postgres to use instead of the bundled one.                                                                                                                                               |
+| `postgres_data_dir`     | `str \| None` | Directory to store the bundled Postgres runtime and data under. Defaults to a per-project directory derived from the working directory.                                                                                     |
+| `grpc_port`             | `int \| None` | Override the port the embedded engine's gRPC server listens on.                                                                                                                                                             |
+| `api_port`              | `int \| None` | Override the port the embedded REST API listens on.                                                                                                                                                                         |
+| `start_api`             | `bool`        | Set to `False` to start only the engine and gRPC server, without the REST API.                                                                                                                                              |
+| `run_migrations`        | `bool`        | Set to `False` to skip running database migrations on startup.                                                                                                                                                              |
+| `rabbitmq_url`          | `str \| None` | Connection string for a RabbitMQ instance to use as the message queue instead of Postgres.                                                                                                                                  |
+| `log_level`             | `str \| None` | Log level for the embedded engine.                                                                                                                                                                                          |
+| `ready_timeout_seconds` | `float`       | How long to wait, in seconds, for the embedded engine to become ready before raising an error. Defaults to 300 seconds.                                                                                                     |
