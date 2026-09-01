@@ -32,4 +32,3 @@ This is the Python SDK reference, documenting methods available for interacting 
     options:
       inherited_members: false
       members: false
-      show_docstring_attributes: true

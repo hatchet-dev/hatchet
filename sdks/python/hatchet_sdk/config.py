@@ -3,7 +3,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 from logging import Logger, getLogger
-from typing import overload
+from typing import ClassVar, overload
 
 import tenacity
 from pydantic import Field, field_validator, model_validator
@@ -154,51 +154,86 @@ class EmbeddedHatchetConfig(BaseSettings):
     Set it on `ClientConfig.embedded`. Every field can also be set via an environment
     variable prefixed with `HATCHET_CLIENT_EMBEDDED_`, e.g. `HATCHET_CLIENT_EMBEDDED_DATABASE_URL`.
     You can read more about the embedded engine in [the docs](https://docs.hatchet.run/v1/embedded).
-
-    :ivar version: The hatchet-embedded release tag to download. Defaults to the
-        latest release. Tags correspond to the Hatchet engine version baked into
-        the sidecar, so pinning this pins the engine.
-    :ivar binary_path: Path to an existing sidecar binary. When set, the download
-        is skipped.
-    :ivar checksum: The expected sha256 hex digest of the sidecar binary. When
-        set, it replaces the release's checksums.txt as the trust anchor, so a
-        compromised release channel cannot substitute the binary. Pin it together
-        with `version`.
-    :ivar database_url: Connection string for an existing Postgres to use instead
-        of the bundled one.
-    :ivar postgres_data_dir: Directory to store the bundled Postgres runtime and
-        data under. Defaults to a per-project directory derived from the working
-        directory.
-    :ivar grpc_port: Override the port the embedded engine's gRPC server listens
-        on.
-    :ivar api_port: Override the port the embedded REST API listens on.
-    :ivar start_api: Set to `False` to start only the engine and gRPC server,
-        without the REST API.
-    :ivar run_migrations: Set to `False` to skip running database migrations on
-        startup.
-    :ivar rabbitmq_url: Connection string for a RabbitMQ instance to use as the
-        message queue instead of Postgres.
-    :ivar log_level: Log level for the embedded engine.
-    :ivar ready_timeout_seconds: How long to wait, in seconds, for the embedded
-        engine to become ready before raising an error. Defaults to 300 seconds.
     """
 
-    model_config = create_settings_config(
+    model_config: ClassVar[SettingsConfigDict] = create_settings_config(
         env_prefix="HATCHET_CLIENT_EMBEDDED_",
     )
 
-    version: str | None = None
-    binary_path: str | None = None
-    checksum: str | None = None
-    database_url: str | None = None
-    postgres_data_dir: str | None = None
-    grpc_port: int | None = None
-    api_port: int | None = None
-    start_api: bool = True
-    run_migrations: bool = True
-    rabbitmq_url: str | None = None
-    log_level: str | None = None
-    ready_timeout_seconds: float = DEFAULT_READY_TIMEOUT_SECONDS
+    version: str | None = Field(
+        default=None,
+        description=(
+            "The hatchet-embedded release tag to download. Defaults to the latest "
+            "release. Tags correspond to the Hatchet engine version baked into "
+            "the sidecar, so pinning this pins the engine."
+        ),
+    )
+
+    binary_path: str | None = Field(
+        default=None,
+        description="Path to an existing sidecar binary. When set, the download is skipped.",
+    )
+
+    checksum: str | None = Field(
+        default=None,
+        description=(
+            "The expected sha256 hex digest of the sidecar binary. When set, it "
+            "replaces the release's checksums.txt as the trust anchor, so a "
+            "compromised release channel cannot substitute the binary. Pin it "
+            "together with `version`."
+        ),
+    )
+
+    database_url: str | None = Field(
+        default=None,
+        description="Connection string for an existing Postgres to use instead of the bundled one.",
+    )
+
+    postgres_data_dir: str | None = Field(
+        default=None,
+        description=(
+            "Directory to store the bundled Postgres runtime and data under. "
+            "Defaults to a per-project directory derived from the working directory."
+        ),
+    )
+
+    grpc_port: int | None = Field(
+        default=None,
+        description="Override the port the embedded engine's gRPC server listens on.",
+    )
+
+    api_port: int | None = Field(
+        default=None,
+        description="Override the port the embedded REST API listens on.",
+    )
+
+    start_api: bool = Field(
+        default=True,
+        description="Set to `False` to start only the engine and gRPC server, without the REST API.",
+    )
+
+    run_migrations: bool = Field(
+        default=True,
+        description="Set to `False` to skip running database migrations on startup.",
+    )
+
+    rabbitmq_url: str | None = Field(
+        default=None,
+        description="Connection string for a RabbitMQ instance to use as the message queue instead of Postgres.",
+    )
+
+    log_level: str | None = Field(
+        default=None,
+        description="Log level for the embedded engine.",
+    )
+
+    ready_timeout_seconds: float = Field(
+        default=DEFAULT_READY_TIMEOUT_SECONDS,
+        description=(
+            "How long to wait, in seconds, for the embedded engine to become "
+            "ready before raising an error. Defaults to 300 seconds."
+        ),
+    )
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
