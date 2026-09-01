@@ -338,7 +338,7 @@ type ConfigFileRuntime struct {
 
 	// DurableEventBufferFlushInterval is how long a durable task event waits in the
 	// ingestion buffer to accumulate a batch before the batch is flushed to the database.
-	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"10ms"`
+	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"5ms"`
 
 	// DurableEventBufferMaxSize caps how many durable task events a single flush
 	// batches together, so a burst of traffic still flushes promptly.
