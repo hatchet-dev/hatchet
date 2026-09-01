@@ -135,17 +135,11 @@ tasks:
     dotenv: [.env]
     cmds:
       - go run ./cmd/hatchet-admin seed
-  seed-local-oidc:
-    dotenv: [.env]
-    cmds:
-      - ADMIN_EMAIL=seed-owner@example.com ADMIN_PASSWORD=Admin123!! DEFAULT_TENANT_ID=11111111-1111-4111-8111-111111111111 DEFAULT_TENANT_NAME="OIDC Primary" DEFAULT_TENANT_SLUG=oidc-primary go run ./cmd/hatchet-admin seed
-      - ADMIN_EMAIL=seed-owner@example.com ADMIN_PASSWORD=Admin123!! DEFAULT_TENANT_ID=808d0855-80ab-4e1f-a156-f1c4546cbf52 DEFAULT_TENANT_NAME="Secondary" DEFAULT_TENANT_SLUG=secondary go run ./cmd/hatchet-admin seed
   seed-cypress:
     dotenv: [.env]
     cmds:
       - go run ./cmd/hatchet-admin seed-cypress
   start-dev:
-    aliases: [start-local-instance]
     deps:
       - task: goose-migrate
       - task: start-db
@@ -158,28 +152,6 @@ tasks:
   start-api:
     cmds:
       - bash ./hack/dev/start-api.sh
-  start-api-oidc:
-    cmds:
-      - |
-        set -a
-        . .env
-        set +a
-
-        export SERVER_AUTH_COOKIE_DOMAIN=localhost
-        export SERVER_URL=http://localhost:5173
-        export SERVER_AUTH_OIDC_ENABLED=true
-        export SERVER_AUTH_OIDC_CLIENT_ID=hatchet-local
-        export SERVER_AUTH_OIDC_CLIENT_SECRET=hatchet-local-secret
-        export SERVER_AUTH_OIDC_ISSUER_URL=http://127.0.0.1:5556
-        export SERVER_AUTH_OIDC_SCOPES="openid profile email groups"
-        export SERVER_AUTH_OIDC_GROUP_MAPPINGS='{"platform-admins":"ADMIN"}'
-        export SERVER_CREATE_TENANT_REQUIRES_GLOBAL_ADMIN=true
-        export SERVER_LOGGER_LEVEL=error
-        export DATABASE_LOGGER_LEVEL=error
-
-        npx --yes nodemon --signal SIGINT --config nodemon.api.json --exec go run \
-          -ldflags="-X main.Version=$(git rev-parse --short HEAD)" \
-          ./cmd/hatchet-api
   start-api-ci:
     cmds:
       - bash ./hack/ci/start-api.sh
@@ -241,7 +213,6 @@ tasks:
       - task: start-db
       - task: generate-api-server
       - task: goose-migrate
-      - task: seed-local-oidc
       - |
         if [ ! -x frontend/app/node_modules/.bin/vite ]; then
           if command -v pnpm >/dev/null 2>&1; then
@@ -251,14 +222,6 @@ tasks:
           else
             echo "Skipping frontend dependency install: pnpm/corepack not found"
           fi
-        fi
-  start-frontend-if-available:
-    cmds:
-      - |
-        if [ -x frontend/app/node_modules/.bin/vite ]; then
-          bash ./hack/dev/start-frontend.sh
-        else
-          echo "Skipping frontend start: vite not installed (install frontend deps, then run ./bin/task start-frontend)"
         fi
   start-local-with-dex:
     cmds:
