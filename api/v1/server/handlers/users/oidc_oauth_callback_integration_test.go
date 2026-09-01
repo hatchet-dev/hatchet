@@ -4,6 +4,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -21,9 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// newOIDCTestConfig builds a ServerConfig wired to the in-process mock issuer +
-// the real database layer. SetEmailVerified defaults to false (the production
-// default), so unverified emails are created but left unverified.
 func newOIDCTestConfig(t *testing.T, dbConf *database.Layer) (*server.ServerConfig, *mockOIDC) {
 	t.Helper()
 
@@ -61,14 +59,8 @@ func uniqueEmail(t *testing.T, prefix string) string {
 	return strings.ToLower(prefix + "-" + suffix + "@example.com")
 }
 
-// TestUpsertOIDCUserFromToken exercises the full OIDC upsert against a real
-// database: verify the ID token, then create (and on a second login, update) the
-// Hatchet user + OAuth link. This is the path where OAuthOpts.Provider="oidc"
-// must pass repository validation — a regression here is exactly the bug that
-// shipped in the original PR (provider "oidc" rejected by the oneof validator).
 func TestUpsertOIDCUserFromToken(t *testing.T) {
-	// InitDataLayer requires a message-queue URL to be present (it is not
-	// connected to in this DB-only test). Mirrors the other integration tests.
+	// Database initialization validates the queue URL without connecting to it.
 	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 
 	testutils.RunTestWithDatabase(t, func(dbConf *database.Layer) error {
@@ -80,7 +72,6 @@ func TestUpsertOIDCUserFromToken(t *testing.T) {
 		subject := uuid.NewString()
 		emptyGroups := []string{}
 
-		// First login: user does not exist yet -> CreateUser with provider="oidc".
 		tok := m.token(t, idTokenClaims{
 			Subject: subject, Email: email, EmailVerified: true, Name: "Alice Example", Groups: &emptyGroups,
 		})
@@ -95,8 +86,6 @@ func TestUpsertOIDCUserFromToken(t *testing.T) {
 			t.Fatal("created user should be email-verified")
 		}
 
-		// Second login for the same email: should update the existing user, not
-		// create a duplicate.
 		tok2 := m.token(t, idTokenClaims{
 			Subject: subject, Email: email, EmailVerified: true, Name: "Alice Renamed", Groups: &emptyGroups,
 		})
@@ -120,6 +109,66 @@ func TestUpsertOIDCUserFromToken(t *testing.T) {
 		}))
 		if err == nil {
 			t.Fatal("expected the same OIDC subject on a second account to be rejected")
+		}
+
+		return nil
+	})
+}
+
+func TestOIDCExistingAccountLinking(t *testing.T) {
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	testutils.RunTestWithDatabase(t, func(dbConf *database.Layer) error {
+		cfg, issuer := newOIDCTestConfig(t, dbConf)
+		service := NewUserService(cfg)
+		ctx := context.Background()
+		queries := sqlcv1.New()
+		emptyGroups := []string{}
+
+		unverifiedEmail := uniqueEmail(t, "oidc-unverified-link")
+		unverifiedUser, err := queries.CreateUser(ctx, dbConf.Pool, sqlcv1.CreateUserParams{
+			ID: uuid.New(), Email: unverifiedEmail, EmailVerified: pgtype.Bool{Bool: true, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		_, err = service.upsertOIDCUserFromToken(ctx, cfg, issuer.token(t, idTokenClaims{
+			Subject: uuid.NewString(), Email: unverifiedEmail, EmailVerified: false, Groups: &emptyGroups,
+		}))
+		if err == nil {
+			t.Fatal("expected an unverified email not to link an existing account")
+		}
+		if _, err := cfg.V1.User().GetUserOAuth(ctx, unverifiedUser.ID, "oidc"); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("unexpected OIDC link after rejected login: %v", err)
+		}
+
+		verifiedEmail := uniqueEmail(t, "oidc-cross-provider")
+		verifiedUser, err := queries.CreateUser(ctx, dbConf.Pool, sqlcv1.CreateUserParams{
+			ID: uuid.New(), Email: verifiedEmail, EmailVerified: pgtype.Bool{Bool: true, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		_, err = queries.CreateUserOAuth(ctx, dbConf.Pool, sqlcv1.CreateUserOAuthParams{
+			Userid: verifiedUser.ID, Provider: "google", Provideruserid: uuid.NewString(), Accesstoken: []byte("access"),
+		})
+		if err != nil {
+			return err
+		}
+		linked, err := service.upsertOIDCUserFromToken(ctx, cfg, issuer.token(t, idTokenClaims{
+			Subject: uuid.NewString(), Email: verifiedEmail, EmailVerified: true, Groups: &emptyGroups,
+		}))
+		if err != nil {
+			t.Fatalf("link OIDC alongside existing provider: %v", err)
+		}
+		if linked.ID != verifiedUser.ID {
+			t.Fatalf("linked user = %s, want %s", linked.ID, verifiedUser.ID)
+		}
+		if _, err := cfg.V1.User().GetUserOAuth(ctx, verifiedUser.ID, "google"); err != nil {
+			t.Fatalf("existing provider link was lost: %v", err)
+		}
+		if _, err := cfg.V1.User().GetUserOAuth(ctx, verifiedUser.ID, "oidc"); err != nil {
+			t.Fatalf("OIDC provider link was not created: %v", err)
 		}
 
 		return nil
@@ -289,10 +338,7 @@ func TestDatabaseOIDCGroupMembershipReconciliation(t *testing.T) {
 	})
 }
 
-// TestUpsertOIDCUserFromToken_UnverifiedEmail covers a provider that does not
-// assert a verified email (e.g. Microsoft Entra ID). The login is never rejected
-// (matching Google/GitHub); SetEmailVerified controls whether the stored user is
-// verified or left for the application's verify-email gate.
+// New accounts may remain unverified; only linking to an existing account requires verified ownership.
 func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 
@@ -301,8 +347,6 @@ func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 		us := NewUserService(cfg)
 		ctx := context.Background()
 
-		// SetEmailVerified=false (default): the user is created but left
-		// unverified (the verify-email gate then applies) — not rejected.
 		gatedEmail := uniqueEmail(t, "entra-gated")
 		emptyGroups := []string{}
 		gatedTok := m.token(t, idTokenClaims{
@@ -316,7 +360,6 @@ func TestUpsertOIDCUserFromToken_UnverifiedEmail(t *testing.T) {
 			t.Fatal("with SetEmailVerified=false an unverified email should stay unverified")
 		}
 
-		// SetEmailVerified=true: the same flow auto-verifies the user.
 		cfg.Auth.ConfigFile.SetEmailVerified = true
 		autoEmail := uniqueEmail(t, "entra-auto")
 		autoTok := m.token(t, idTokenClaims{

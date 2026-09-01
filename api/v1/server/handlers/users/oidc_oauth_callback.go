@@ -97,11 +97,6 @@ func (u *UserService) upsertOIDCUserFromClaims(ctx context.Context, config *serv
 	}
 	defer releaseSubjectLock()
 
-	// Consistent with the Google/GitHub handlers, an unverified email is not
-	// rejected here — the user is created and the application's verify-email gate
-	// handles it. SetEmailVerified (SERVER_AUTH_SET_EMAIL_VERIFIED) auto-verifies,
-	// the same instance-wide setting other providers honor. This also covers
-	// providers that don't emit email_verified at all (e.g. Microsoft Entra ID).
 	emailVerified := claims.EmailVerified || config.Auth.ConfigFile.SetEmailVerified
 
 	expiresAt := tok.Expiry
@@ -146,6 +141,9 @@ func (u *UserService) upsertOIDCUserFromClaims(ctx context.Context, config *serv
 		}
 		if oauthErr != nil && !errors.Is(oauthErr, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("failed to get OIDC account binding: %s", oauthErr.Error())
+		}
+		if errors.Is(oauthErr, pgx.ErrNoRows) && !emailVerified {
+			return nil, fmt.Errorf("cannot link OIDC identity to an existing account without a verified email")
 		}
 		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
 			EmailVerified: v1.BoolPtr(emailVerified),

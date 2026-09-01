@@ -1457,8 +1457,6 @@ CREATE UNIQUE INDEX "User_id_key" ON "User" ("id" ASC);
 CREATE UNIQUE INDEX "UserOAuth_id_key" ON "UserOAuth" ("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UserOAuth_userId_key" ON "UserOAuth" ("userId" ASC);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOAuth_userId_provider_key" ON "UserOAuth" ("userId" ASC, "provider" ASC);
 

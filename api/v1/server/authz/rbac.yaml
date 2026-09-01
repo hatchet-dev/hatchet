@@ -142,7 +142,6 @@ roles:
       - UserUpdateGoogleOauthStart
       - UserUpdateOidcOauthStart
       - UserUpdateOidcOauthCallback
-      - SlackWebhookDelete
       - V1CelDebug
       - V1WorkflowRunGetTimings
       - InfoGetVersion
