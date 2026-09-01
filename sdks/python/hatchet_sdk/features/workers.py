@@ -1,6 +1,9 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.clients.rest.models.worker import Worker
@@ -13,7 +16,9 @@ class WorkersClient(BaseRestClient):
     The workers client is a client for managing workers programmatically within Hatchet.
     """
 
-    def _wa(self, client: ApiClient) -> WorkerApi:
+    def _wa(self, client: ApiClient) -> "WorkerApi":
+        from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
+
         return WorkerApi(client)
 
     def get(self, worker_id: str) -> Worker:

@@ -2,13 +2,15 @@ import asyncio
 import datetime
 import json
 from datetime import timezone
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
 
-from hatchet_sdk.clients.rest.api.event_api import EventApi
-from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.event_api import EventApi
+    from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -112,10 +114,14 @@ class EventClient(BaseRestClient):
             self._bulk_push_event, self.client_config.tenacity
         )
 
-    def _wra(self, client: ApiClient) -> WorkflowRunsApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunsApi":
+        from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
         return WorkflowRunsApi(client)
 
-    def _ea(self, client: ApiClient) -> EventApi:
+    def _ea(self, client: ApiClient) -> "EventApi":
+        from hatchet_sdk.clients.rest.api.event_api import EventApi
+
         return EventApi(client)
 
     def _get_or_create_aio_client(self) -> EventsServiceStub:

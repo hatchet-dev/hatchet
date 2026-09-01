@@ -1,6 +1,9 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.rate_limit import RateLimit
 from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import (
@@ -25,7 +28,9 @@ class RateLimitsClient(BaseRestClient):
     The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
     """
 
-    def _rla(self, client: ApiClient) -> RateLimitsApi:
+    def _rla(self, client: ApiClient) -> "RateLimitsApi":
+        from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+
         return RateLimitsApi(client)
 
     def put(

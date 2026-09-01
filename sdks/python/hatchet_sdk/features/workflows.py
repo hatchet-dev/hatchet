@@ -1,9 +1,11 @@
 import asyncio
 from datetime import timedelta
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
 from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
@@ -34,10 +36,14 @@ class WorkflowsClient(BaseRestClient):
     Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     async def aio_get(self, workflow_id: str) -> Workflow:

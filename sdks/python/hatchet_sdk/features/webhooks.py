@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
 )
@@ -32,6 +31,7 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
     from hatchet_sdk.clients.rest.api_client import ApiClient
     from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
     from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
@@ -76,6 +76,8 @@ class WebhooksClient(BaseRestClient):
     """
 
     def _wa(self, client: ApiClient) -> WebhookApi:
+        from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
+
         return WebhookApi(client)
 
     async def aio_list(

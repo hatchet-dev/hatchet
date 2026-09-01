@@ -1,7 +1,10 @@
 import asyncio
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.log_api import LogApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.log_api import LogApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -13,7 +16,9 @@ class LogsClient(BaseRestClient):
     The logs client is a client for interacting with Hatchet's logs API.
     """
 
-    def _la(self, client: ApiClient) -> LogApi:
+    def _la(self, client: ApiClient) -> "LogApi":
+        from hatchet_sdk.clients.rest.api.log_api import LogApi
+
         return LogApi(client)
 
     async def aio_list(

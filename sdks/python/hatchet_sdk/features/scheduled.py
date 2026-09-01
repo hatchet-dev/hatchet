@@ -1,8 +1,11 @@
 import asyncio
 import datetime
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
     ScheduleWorkflowRunRequest,
@@ -49,10 +52,14 @@ class ScheduledClient(BaseRestClient):
     The scheduled client is a client for managing scheduled workflows within Hatchet.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     def create(

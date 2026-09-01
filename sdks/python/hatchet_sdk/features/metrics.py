@@ -1,11 +1,13 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from hatchet_sdk.clients.rest.api.task_api import TaskApi
-from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.task_api import TaskApi
+    from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.task_stat import TaskStat
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -25,10 +27,14 @@ class MetricsClient(BaseRestClient):
     The metrics client is a client for reading metrics out of Hatchet's metrics API.
     """
 
-    def _taskapi(self, client: ApiClient) -> TaskApi:
+    def _taskapi(self, client: ApiClient) -> "TaskApi":
+        from hatchet_sdk.clients.rest.api.task_api import TaskApi
+
         return TaskApi(client)
 
-    def _ta(self, client: ApiClient) -> TenantApi:
+    def _ta(self, client: ApiClient) -> "TenantApi":
+        from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+
         return TenantApi(client)
 
     def get_queue_metrics(

@@ -11,8 +11,6 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
     TaskRunEventType,
 )
-from hatchet_sdk.clients.rest.api.task_api import TaskApi
-from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )
@@ -39,6 +37,8 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.listeners.workflow_listener import (
         PooledWorkflowRunListener,
     )
+    from hatchet_sdk.clients.rest.api.task_api import TaskApi
+    from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
     from hatchet_sdk.clients.rest.api_client import ApiClient
     from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
         V1BranchDurableTaskResponse,
@@ -131,9 +131,13 @@ class RunsClient(BaseRestClient):
         self._admin_client = admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
+        from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
         return WorkflowRunsApi(client)
 
     def _ta(self, client: ApiClient) -> TaskApi:
+        from hatchet_sdk.clients.rest.api.task_api import TaskApi
+
         return TaskApi(client)
 
     def get_task_run(self, task_run_id: str) -> V1TaskSummary:

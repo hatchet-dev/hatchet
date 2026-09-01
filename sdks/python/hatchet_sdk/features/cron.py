@@ -1,9 +1,12 @@
 import asyncio
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
     CreateCronWorkflowTriggerRequest,
@@ -80,10 +83,14 @@ class CronClient(BaseRestClient):
     The cron client is a client for managing cron workflows within Hatchet.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     def create(

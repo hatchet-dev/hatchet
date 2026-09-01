@@ -1,6 +1,9 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
@@ -19,7 +22,9 @@ class FiltersClient(BaseRestClient):
     The filters client is a client for interacting with Hatchet's filters API.
     """
 
-    def _fa(self, client: ApiClient) -> FilterApi:
+    def _fa(self, client: ApiClient) -> "FilterApi":
+        from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+
         return FilterApi(client)
 
     async def aio_list(
