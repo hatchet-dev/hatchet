@@ -1683,6 +1683,7 @@ FROM
 WHERE
     step_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
+ORDER BY step_id, id
 `
 
 type ListStepMatchConditionsParams struct {
@@ -1877,6 +1878,7 @@ FROM
     steps s
 LEFT JOIN
     step_orders so ON so."stepId" = s."id"
+ORDER BY s."createdAt", s."id"
 `
 
 type ListStepsByWorkflowVersionIdsParams struct {

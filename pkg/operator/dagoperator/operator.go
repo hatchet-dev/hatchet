@@ -402,6 +402,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		tasks,
 		onFailureTask,
 		externalId,
+		d.WorkerId(),
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		requestCh,
@@ -416,15 +417,29 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}
 
 	if dagErr != nil {
+		if isDagEvictedErr(dagErr) {
+			span.SetAttributes(attribute.Bool("dagoperator.evicted", true))
+
+			d.Logger().Debug().
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Msg("dag run evicted while waiting on durable events; slots released until restore")
+
+			return nil
+		}
 		if isDagCancelledErr(dagErr) {
 			return d.cancelDAG(span, action, dagErr.Error())
 		}
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
 		}
-		// A child task failing is a terminal DAG outcome that replay reproduces deterministically,
-		// so it must not be retried; anything else (operational errors) remains retriable.
-		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), isDagChildFailedErr(dagErr))
+		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), or a
+		// nondeterministic ingestion are all terminal DAG outcomes that replay reproduces
+		// deterministically, so they must not be retried; anything else (operational errors)
+		// remains retriable.
+		var nonDeterminismErr *repository.NonDeterminismError
+		shouldNotRetry := isDagChildFailedErr(dagErr) || isDagEngineErr(dagErr) || errors.As(dagErr, &nonDeterminismErr)
+
+		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}
 
 	output := make(map[string]json.RawMessage, len(tasks))
