@@ -15,6 +15,7 @@ import Keywords from "@/components/Keywords";
 | Feature                                                | The expression produces                                       | Guide                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Concurrency keys                                       | A string grouping key                                         | [Concurrency](/v1/concurrency)                                          |
+| Dynamic max runs                                       | A positive integer limit per concurrency group                | [Concurrency](/v1/concurrency)                                          |
 | Dynamic rate limits                                    | A string key; units and limit may also be integer expressions | [Rate Limits](/v1/rate-limits#dynamic-rate-limits)                      |
 | Idempotency keys                                       | A string key                                                  | [Idempotency](/v1/idempotency)                                          |
 | Batch keys                                             | A string partitioning key                                     | [Batch Tasks](/v1/batch-tasks#batch-keys)                               |
@@ -23,11 +24,11 @@ import Keywords from "@/components/Keywords";
 | User event conditions and durable event waits          | A boolean (accept the event or not)                           | [Durable Event Waits](/v1/durable-event-waits#matching-cel-expressions) |
 | Incoming webhook event key and scope                   | A string                                                      | [Webhooks](/v1/webhooks#event-key-expression)                           |
 
-Each context exposes a different set of variables, listed below. Referencing a variable that doesn't exist in the context causes the expression to fail. A failing concurrency, rate limit, or batch key expression creates the run in a failed state with the evaluation error as the failure reason. A failing idempotency key expression skips the run entirely, and a failing filter expression means the filter does not match, so the run is not triggered.
+Each context exposes a different set of variables, listed below. Referencing a variable that doesn't exist in the context causes the expression to fail. A failing concurrency, max runs, rate limit, or batch key expression creates the run in a failed state with the evaluation error as the failure reason. A failing idempotency key expression skips the run entirely, and a failing filter expression means the filter does not match, so the run is not triggered.
 
 ## Key expressions: concurrency, rate limits, and batch keys
 
-Concurrency key expressions, dynamic rate limit expressions, and batch key expressions are all evaluated when a run is triggered, with the same variables available:
+Concurrency key expressions, dynamic max runs expressions, dynamic rate limit expressions, and batch key expressions are all evaluated when a run is triggered, with the same variables available:
 
 | Variable              | Meaning                                                                                        |
 | --------------------- | ---------------------------------------------------------------------------------------------- |
@@ -36,13 +37,13 @@ Concurrency key expressions, dynamic rate limit expressions, and batch key expre
 | `workflow_run_id`     | The id of the run being triggered, as a string                                                 |
 | `parents`             | The outputs of completed parent tasks, keyed by parent readable id (rate limit and batch keys) |
 
-Concurrency keys, batch keys, and rate limit keys must evaluate to a string. Dynamic rate limit `units` and `limit` expressions must evaluate to an integer.
+Concurrency keys, batch keys, and rate limit keys must evaluate to a string. Dynamic rate limit `units` and `limit` expressions must evaluate to an integer, and a dynamic max runs expression must evaluate to a positive integer, which sets the concurrency limit for that run's group.
 
 ```text
 'customer:' + input.customer_id
 ```
 
-Task-level rate limit and batch key expressions in a DAG can derive keys from a parent task's output, for example `'tenant:' + string(parents["lookup"]["tenant_id"])`. Concurrency key expressions cannot reference `parents` and are rejected at registration if they do.
+Task-level rate limit and batch key expressions in a DAG can derive keys from a parent task's output, for example `'tenant:' + string(parents["lookup"]["tenant_id"])`. Concurrency key and dynamic max runs expressions cannot reference `parents` and are rejected at registration if they do.
 
 ## Idempotency key expressions
 
