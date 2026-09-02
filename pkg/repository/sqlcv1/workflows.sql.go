@@ -302,7 +302,8 @@ INSERT INTO v1_step_concurrency (
     strategy,
     expression,
     tenant_id,
-    max_concurrency
+    max_concurrency,
+    tenant_strategy_id
 )
 VALUES (
     $1::uuid,
@@ -311,8 +312,9 @@ VALUES (
     $4::v1_concurrency_strategy,
     $5::text,
     $6::uuid,
-    $7::integer
-) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
+    $7::integer,
+    $8::bigint
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
 `
 
 type CreateStepConcurrencyParams struct {
@@ -323,8 +325,12 @@ type CreateStepConcurrencyParams struct {
 	Expression        string                `json:"expression"`
 	Tenantid          uuid.UUID             `json:"tenantid"`
 	Maxconcurrency    int32                 `json:"maxconcurrency"`
+	TenantStrategyId  pgtype.Int8           `json:"tenantStrategyId"`
 }
 
+// When tenant_strategy_id is set, the definition columns are copies of the referenced
+// v1_tenant_concurrency row, kept in sync by its update trigger so per-step reads need
+// no join.
 func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg CreateStepConcurrencyParams) (*V1StepConcurrency, error) {
 	row := db.QueryRow(ctx, createStepConcurrency,
 		arg.Workflowid,
@@ -334,6 +340,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		arg.Expression,
 		arg.Tenantid,
 		arg.Maxconcurrency,
+		arg.TenantStrategyId,
 	)
 	var i V1StepConcurrency
 	err := row.Scan(
@@ -348,6 +355,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		&i.Expression,
 		&i.TenantID,
 		&i.MaxConcurrency,
+		&i.TenantStrategyID,
 	)
 	return &i, err
 }
@@ -719,7 +727,7 @@ WITH inserted_wcs AS (
             )
           )
     ) s, inserted_wcs wcs
-    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
 )
 SELECT
     wcs.id,
@@ -1675,6 +1683,7 @@ FROM
 WHERE
     step_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
+ORDER BY step_id, id
 `
 
 type ListStepMatchConditionsParams struct {
@@ -1869,6 +1878,7 @@ FROM
     steps s
 LEFT JOIN
     step_orders so ON so."stepId" = s."id"
+ORDER BY s."createdAt", s."id"
 `
 
 type ListStepsByWorkflowVersionIdsParams struct {
