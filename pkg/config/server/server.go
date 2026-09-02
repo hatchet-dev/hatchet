@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -329,6 +330,10 @@ type ConfigFileRuntime struct {
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+
+	// O11yUsageFlushInterval is how often the engine flushes per-tenant ingested
+	// log/span bytes to the optional O11yUsageFlush callback.
+	O11yUsageFlushInterval time.Duration `mapstructure:"o11yUsageFlushInterval" json:"o11yUsageFlushInterval,omitempty" default:"30s"`
 
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
@@ -728,6 +733,10 @@ type ServerConfig struct {
 
 	Analytics analytics.Analytics
 
+	// O11yUsageFlush, when set, receives periodic tenant → log/otel byte maps
+	// from the engine. Nil means the aggregator is not started (OSS / self-host).
+	O11yUsageFlush o11yusage.FlushFunc
+
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
@@ -891,6 +900,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// log ingestion
 	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
+	_ = v.BindEnv("runtime.o11yUsageFlushInterval", "SERVER_O11Y_USAGE_FLUSH_INTERVAL")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

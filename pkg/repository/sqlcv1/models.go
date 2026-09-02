@@ -3774,6 +3774,7 @@ type V1StepConcurrency struct {
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
 }
 
 type V1StepMatchCondition struct {
@@ -3965,6 +3966,17 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+}
+
+type V1TenantConcurrency struct {
+	ID             int64                 `json:"id"`
+	TenantID       uuid.UUID             `json:"tenant_id"`
+	Name           string                `json:"name"`
+	IsActive       bool                  `json:"is_active"`
+	LastActiveAt   pgtype.Timestamptz    `json:"last_active_at"`
+	Strategy       V1ConcurrencyStrategy `json:"strategy"`
+	Expression     string                `json:"expression"`
+	MaxConcurrency int32                 `json:"max_concurrency"`
 }
 
 type V1WorkerSlotConfig struct {

@@ -63,11 +63,15 @@ func stubTriggerStep(t *testing.T, async map[string]bool) triggerStepFn {
 }
 
 type fakeDispatcher struct {
-	acks chan *v1contracts.DurableEventLogEntryRef
+	acks           chan *v1contracts.DurableEventLogEntryRef
+	workerStatuses chan *v1contracts.DurableTaskWorkerStatusRequest
 }
 
 func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) *fakeDispatcher {
-	fd := &fakeDispatcher{acks: make(chan *v1contracts.DurableEventLogEntryRef, 16)}
+	fd := &fakeDispatcher{
+		acks:           make(chan *v1contracts.DurableEventLogEntryRef, 16),
+		workerStatuses: make(chan *v1contracts.DurableTaskWorkerStatusRequest, 16),
+	}
 
 	go func() {
 		var nextId int64 = 1000
@@ -79,6 +83,14 @@ func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseC
 			case req, ok := <-requestCh:
 				if !ok {
 					return
+				}
+
+				if workerStatus := req.GetWorkerStatus(); workerStatus != nil {
+					select {
+					case fd.workerStatuses <- workerStatus:
+					default:
+					}
+					continue
 				}
 
 				waitFor := req.GetWaitFor()
@@ -137,6 +149,7 @@ type dagHarness struct {
 	errCh      chan error
 	responseCh chan *v1contracts.DurableTaskResponse
 	fd         *fakeDispatcher
+	externalId uuid.UUID
 	cleanup    func()
 }
 
@@ -162,14 +175,17 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
+	externalId := uuid.New()
+
 	go func() {
-		errCh <- dagDurableTask(ctx, tasks, onFailureTask, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
 	}()
 
 	return &dagHarness{
 		errCh:      errCh,
 		responseCh: responseCh,
 		fd:         fd,
+		externalId: externalId,
 		cleanup: func() {
 			close(stop)
 			cancel()
@@ -496,7 +512,7 @@ func TestDag_SleepWaitCondition(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	var ref *v1contracts.DurableEventLogEntryRef
@@ -1121,7 +1137,7 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
@@ -1172,4 +1188,170 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
+}
+
+func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {
+	t.Helper()
+
+	previous := blockedStatusReportInterval
+	blockedStatusReportInterval = interval
+	t.Cleanup(func() {
+		blockedStatusReportInterval = previous
+	})
+}
+
+func (h *dagHarness) waitWorkerStatus(t *testing.T) *v1contracts.DurableTaskWorkerStatusRequest {
+	t.Helper()
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		return status
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for a worker status report")
+		return nil
+	}
+}
+
+func sendServerEvict(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, externalId string, reason string) {
+	t.Helper()
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: externalId,
+				InvocationCount:       1,
+				Reason:                reason,
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+}
+
+func TestDag_ReportsBlockedStatusWhileAwaitingChild(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	status := h.waitWorkerStatus(t)
+	require.Len(t, status.WaitingEntries, 1)
+	entry := status.WaitingEntries[0]
+	require.Equal(t, h.externalId.String(), entry.DurableTaskExternalId)
+	require.Equal(t, int32(1), entry.InvocationCount)
+	require.Equal(t, first.ref.NodeId, entry.NodeId)
+	require.Equal(t, first.ref.BranchId, entry.BranchId)
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+}
+
+func TestDag_ServerEvictEndsRunWithEvictedError(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	h.waitWorkerStatus(t)
+
+	sendServerEvict(t, h.responseCh, h.externalId.String(), "operator run is blocked waiting on durable events")
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagEvictedErr(err))
+	require.False(t, a.isCompleted)
+	require.False(t, b.isTriggered)
+}
+
+func TestDag_ServerEvictForDifferentTaskIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	sendServerEvict(t, h.responseCh, uuid.NewString(), "not for this run")
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_ServerEvictForOlderInvocationIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	select {
+	case h.responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: h.externalId.String(),
+				InvocationCount:       0,
+				Reason:                "delayed notice for a previous invocation",
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_NoBlockedStatusReportBeforeInterval(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		t.Fatalf("dag reported blocked status before the interval elapsed: %v", status)
+	default:
+	}
 }
