@@ -292,20 +292,11 @@ const (
 	skillsMarkerEnd   = "<!-- hatchet-skills:end -->"
 )
 
-// replaceManagedSection replaces the marker-delimited hatchet-skills section in
-// existing with the marker-delimited section from entry. It returns false when
-// either input is missing the markers.
+// replaceManagedSection replaces the first marker-delimited hatchet-skills
+// section in existing with the marker-delimited section from entry, and drops
+// any additional sections that older installers appended as duplicates. It
+// returns false when either input is missing the markers.
 func replaceManagedSection(existing, entry string) (string, bool) {
-	start := strings.Index(existing, skillsMarkerStart)
-	if start == -1 {
-		return "", false
-	}
-	end := strings.Index(existing[start:], skillsMarkerEnd)
-	if end == -1 {
-		return "", false
-	}
-	end = start + end + len(skillsMarkerEnd)
-
 	entryStart := strings.Index(entry, skillsMarkerStart)
 	if entryStart == -1 {
 		return "", false
@@ -316,7 +307,41 @@ func replaceManagedSection(existing, entry string) (string, bool) {
 	}
 	section := entry[entryStart : entryStart+entryEnd+len(skillsMarkerEnd)]
 
-	return existing[:start] + section + existing[end:], true
+	var b strings.Builder
+	rest := existing
+	replaced := false
+
+	for {
+		start := strings.Index(rest, skillsMarkerStart)
+		if start == -1 {
+			break
+		}
+		end := strings.Index(rest[start:], skillsMarkerEnd)
+		if end == -1 {
+			break
+		}
+		end = start + end + len(skillsMarkerEnd)
+
+		if replaced {
+			// a duplicate section: drop it along with the blank lines that
+			// separated it from the preceding content
+			b.WriteString(strings.TrimRight(rest[:start], "\n") + "\n")
+		} else {
+			b.WriteString(rest[:start])
+			b.WriteString(section)
+			replaced = true
+		}
+
+		rest = rest[end:]
+	}
+
+	if !replaced {
+		return "", false
+	}
+
+	b.WriteString(rest)
+
+	return b.String(), true
 }
 
 // stripFrontmatter removes YAML frontmatter (content between leading --- delimiters)
