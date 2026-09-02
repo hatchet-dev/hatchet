@@ -10,7 +10,9 @@ Use embedded mode by default for local development and CI. Use a profile and API
 
 ## Step 1: Create an Embedded Client
 
-Use the embedded entry point for the project's SDK. Create every client in the process this way; do not mix in standard constructors.
+Write a separate one-off script or test file for the embedded dev loop. Do not modify the application's production entrypoint or replace its client construction; production code keeps using the standard constructor and a token. Import the application's task definitions into the new file where possible.
+
+In that file, use the embedded entry point for the project's SDK. Create every client in the process this way; do not mix in standard constructors.
 
 **Python**:
 
