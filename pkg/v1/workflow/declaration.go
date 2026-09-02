@@ -841,6 +841,16 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 			MaxRuns:    concurrency.MaxRuns,
 		}
 
+		if concurrency.Name != "" {
+			name := concurrency.Name
+			c.Name = &name
+		}
+
+		if concurrency.TenantScoped {
+			tenantScoped := true
+			c.TenantScoped = &tenantScoped
+		}
+
 		if concurrency.LimitStrategy != nil {
 			strategy := *concurrency.LimitStrategy
 			strategyInt := contracts.ConcurrencyLimitStrategy_value[string(strategy)]

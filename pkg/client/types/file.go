@@ -20,10 +20,17 @@ func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
 	return &v
 }
 
+// Concurrency declares one entry in a concurrency chain; entries are processed in the
+// order they are declared. When TenantScoped is set, the entry defines (or updates in
+// place) a strategy shared across workflows, keyed by Name: every task declaring the same
+// name consumes the same concurrency limit. Chains sharing tenant-scoped strategies must
+// order them consistently, or registration is rejected.
 type Concurrency struct {
 	Expression    string                            `yaml:"expression,omitempty"`
 	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+	Name          string                            `yaml:"name,omitempty"`
+	TenantScoped  bool                              `yaml:"tenantScoped,omitempty"`
 }
 
 // Deprecated: Workflow is part of the legacy v0 workflow definition system.

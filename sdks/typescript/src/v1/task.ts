@@ -13,7 +13,7 @@ export { ConcurrencyLimitStrategy, WorkerLabelComparator };
  */
 export type Concurrency = {
   /**
-   * required the CEL expression to use for concurrency
+   * required: the CEL expression to use for concurrency
    *
    * @example
    * ```
@@ -35,6 +35,30 @@ export type Concurrency = {
    * default: CANCEL_IN_PROGRESS
    */
   limitStrategy?: ConcurrencyLimitStrategy;
+
+  /**
+   * (required when tenantScoped) the strategy name; unique per tenant for tenant-scoped
+   * strategies
+   */
+  name?: string;
+
+  /**
+   * (optional) when true, the entry defines (or updates in place) a tenant-scoped strategy
+   * shared across workflows, keyed by name: every task declaring the same name consumes
+   * the same concurrency limit. The position in the concurrency list is the chain order,
+   * and chains sharing tenant-scoped strategies must order them consistently.
+   */
+  tenantScoped?: boolean;
+};
+
+/**
+ * A tenant-scoped concurrency strategy: a `Concurrency` entry with a required name and
+ * tenantScoped set. Every task declaring the same name consumes the same concurrency
+ * limit, across workflows.
+ */
+export type SharedConcurrency = Concurrency & {
+  name: string;
+  tenantScoped: true;
 };
 
 /**
