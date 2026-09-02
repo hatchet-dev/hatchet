@@ -597,7 +597,8 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		}
 
 	case *v1contracts.DurableTaskResponse_ServerEvict:
-		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() {
+		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() ||
+			m.ServerEvict.GetInvocationCount() != d.invocationCount {
 			return
 		}
 
