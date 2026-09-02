@@ -31,6 +31,11 @@ type Concurrency struct {
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
 	Name          string                            `yaml:"name,omitempty"`
 	TenantScoped  bool                              `yaml:"tenantScoped,omitempty"`
+
+	// MaxRunsExpression is a CEL expression over task input computing the max runs for
+	// that task's concurrency group; a group's effective limit is the value from its most
+	// recently created task. Overrides MaxRuns per group.
+	MaxRunsExpression *string `yaml:"maxRunsExpression,omitempty"`
 }
 
 // Deprecated: Workflow is part of the legacy v0 workflow definition system.

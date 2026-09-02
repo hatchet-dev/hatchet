@@ -733,6 +733,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, error) {
 	registerAllWorkflows(client)
 	registerSharedConcurrencyWorkflows(client)
+	registerDynamicMaxRunsWorkflows(client)
 
 	worker, err := client.NewWorker("e2e-durable-worker",
 		hatchet.WithWorkflows(
@@ -779,6 +780,7 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testSharedConcA,
 			testSharedConcB,
 			testSharedConcMixed,
+			testDynamicMaxRuns,
 		),
 		hatchet.WithDurableSlots(10),
 	)

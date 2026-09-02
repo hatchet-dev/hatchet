@@ -22,6 +22,10 @@ class ConcurrencyExpression(BaseModel):
         expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
         max_runs (int): Maximum number of concurrent workflow runs.
         limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
+        max_runs_expression (str | None): CEL expression over task input computing the max
+            runs for that task's concurrency group (i.e. "input.tier == 'premium' ? 10 : 1").
+            A group's effective limit is the value from its most recently created task.
+            Overrides max_runs per group.
     Example:
         ConcurrencyExpression("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
     """
@@ -29,12 +33,14 @@ class ConcurrencyExpression(BaseModel):
     expression: str
     max_runs: int = Field(gt=0)
     limit_strategy: ConcurrencyLimitStrategy
+    max_runs_expression: str | None = None
 
     def to_proto(self) -> Concurrency:
         return Concurrency(
             expression=self.expression,
             max_runs=self.max_runs,
             limit_strategy=self.limit_strategy,
+            max_runs_expression=self.max_runs_expression,
         )
 
     @staticmethod
@@ -60,6 +66,9 @@ class SharedConcurrency(BaseModel):
         expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
         max_runs (int): Maximum number of concurrent runs, defaults to 1.
         limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
+        max_runs_expression (str | None): CEL expression over task input computing the max
+            runs for that task's concurrency group. A group's effective limit is the value
+            from its most recently created task. Overrides max_runs per group.
     """
 
     name: str
@@ -68,6 +77,7 @@ class SharedConcurrency(BaseModel):
     limit_strategy: ConcurrencyLimitStrategy = (
         ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
     )
+    max_runs_expression: str | None = None
 
     def to_proto(self) -> Concurrency:
         return Concurrency(
@@ -76,4 +86,5 @@ class SharedConcurrency(BaseModel):
             expression=self.expression,
             max_runs=self.max_runs,
             limit_strategy=self.limit_strategy,
+            max_runs_expression=self.max_runs_expression,
         )

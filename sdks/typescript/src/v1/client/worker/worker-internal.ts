@@ -1385,6 +1385,7 @@ export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
     limitStrategy: c.limitStrategy,
     name: c.name,
     tenantScoped: c.tenantScoped,
+    maxRunsExpression: c.maxRunsExpression,
   }));
 }
 

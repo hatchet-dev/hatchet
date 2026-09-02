@@ -49,6 +49,18 @@ export type Concurrency = {
    * and chains sharing tenant-scoped strategies must order them consistently.
    */
   tenantScoped?: boolean;
+
+  /**
+   * (optional) CEL expression over task input computing the max runs for that task's
+   * concurrency group; a group's effective limit is the value from its most recently
+   * created task. Overrides maxRuns per group.
+   *
+   * @example
+   * ```
+   * "input.tier == 'premium' ? 10 : 1"
+   * ```
+   */
+  maxRunsExpression?: string;
 };
 
 /**
