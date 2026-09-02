@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-09-01T07:06:52Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-09-02T07:08:03Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 85% (2173/2549) · main: 78% (118/152)
+**Gating-CI pass rate** — PR: 84% (2288/2718) · main: 79% (120/152)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+  x-axis [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [88, 78, 84, 82, 73, 93, 88, 93, 88, 92, 87, 100, 71, 85]
-  line "main" [73, 44, 78, 78, 100, 100, 81, 100, 88, 100, 62, 62, 62, 90]
+  line "CI" [80, 84, 82, 73, 93, 88, 93, 88, 92, 87, 100, 71, 86, 78]
+  line "main" [44, 78, 78, 100, 100, 81, 100, 88, 100, 62, 62, 62, 90, 91]
 ```
 
-_X-axis = day of month (Aug 18 → Aug 31). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Aug 19 → Sep 01). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `generate` | test | 8 | 0 | 39 | 20% | flaky | PR | **infra/CI** — test/generate git diff on examples, proto, and SDK reference docs |
-| 2 | `lint` | ruby | 5 | 0 | 26 | 19% | flaky | PR | **infra/CI** — Ruby generated protobuf/REST bindings out of date (run generate.sh) |
-| 3 | `unit` | test | 4 | 1 | 39 | 10% | flaky | PR | **flaky test** — TestMsgIdBufferMemoryLeak non-deterministic memory assertion |
-| 4 | `test-templates` | cli-e2e-tests | 3 | 0 | 5 | 60% | flaky | main + PR | **flaky test** — CLI template E2E TestQuickstartTemplates worker stream/timeouts |
-| 5 | `lint` | frontend / docs | 3 | 0 | 21 | 14% | flaky | PR | **infra/CI** — frontend/docs prettier:check drift on MDX/TSX content |
-| 6 | `rampup` | test | 3 | 0 | 39 | 8% | flaky | main + PR | **flaky test** — TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase timing jitter (179ms > 170ms threshold) |
-| 7 | `test` | ruby | 2 | 1 | 26 | 8% | flaky | PR | **flaky test** — Ruby CancelWorkflow e2e poll/cancel timing race |
-| 8 | `build` | frontend / docs | 2 | 0 | 21 | 10% | flaky | PR | **product bug** — Docs link check 404 on /reference/client (broken internal link) |
-| 9 | `test` | python | 2 | 0 | 31 | 6% | flaky | PR | **product bug** — Python durable replay KeyError 'runtime' in test_durable_sleep_cancel_replay |
-| 10 | `lite-amd` | build | 1 | 0 | 26 | 4% | flaky | PR | **infra/CI** — Docker build go mod download fails with proxy.golang.org INTERNAL_ERROR |
+| 1 | `lint` | ruby | 8 | 0 | 34 | 24% | flaky | PR | **infra/CI** — Ruby generated protobuf/REST bindings out of date (tapioca validation noise in sample) |
+| 2 | `generate` | test | 8 | 0 | 54 | 15% | flaky | PR | **infra/CI** — test/generate Check for diff fails on frontend/docs prettier drift (unchanged lines are noise) |
+| 3 | `lint` | python | 5 | 0 | 50 | 10% | flaky | PR | **infra/CI** — python lint mypy errors in hatchet_sdk/runnables/task.py (Black install lines are noise) |
+| 4 | `build` | frontend / docs | 4 | 0 | 41 | 10% | flaky | PR | **infra/CI** — frontend/docs build fails on invalid MDX frontmatter (link-check OK lines are noise) |
+| 5 | `unit` | test | 4 | 0 | 54 | 7% | flaky | PR | **flaky test** — TestMsgIdBufferMemoryLeak goroutine leak assertion is intermittent under CI load |
+| 6 | `test-templates` | cli-e2e-tests | 3 | 0 | 9 | 33% | flaky | PR | **flaky test** — CLI TestQuickstartTemplates E2E: worker heartbeat/stream timing causes signal:killed failures |
+| 7 | `test` | ruby | 3 | 0 | 34 | 9% | flaky | PR | **flaky test** — Ruby idempotency e2e: runs_client get/status polling timing on event-triggered runs |
+| 8 | `lint` | frontend / docs | 2 | 0 | 41 | 5% | flaky | PR | **infra/CI** — frontend/docs lint prettier --list-different fails on unformatted MDX |
+| 9 | `integration` | test | 2 | 0 | 54 | 4% | flaky | PR | **flaky test** — TestMsgIdBufferMemoryLeak goroutine leak assertion is intermittent under CI load |
+| 10 | `authdisabled` | build | 1 | 0 | 37 | 3% | flaky | PR | **infra/CI** — Docker build go module proxy INTERNAL_ERROR during go mod download (apk install lines are noise) |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `generate` | 8 | 39 | 20% | flaky | PR | **infra/CI** — test/generate git diff on examples, proto, and SDK reference docs |
-| 2 | `(unparsed)` | `lint` | 5 | 26 | 19% | flaky | PR | **infra/CI** — Ruby generated protobuf/REST bindings out of date (run generate.sh) |
-| 3 | `(unparsed)` | `lint` | 5 | 31 | 16% | flaky | PR | **infra/CI** — Python Black would reformat concurrency_shared and SDK runnables |
-| 4 | `examples/durable/test_durable.py::test_durable_sleep_cancel_replay` | `test` | 4 | 31 | 13% | flaky | PR | **product bug** — Python durable replay KeyError 'runtime' in test_durable_sleep_cancel_replay |
-| 5 | `TestQuickstartTemplates` | `test-templates` | 3 | 5 | 60% | flaky | main + PR | **flaky test** — CLI template E2E TestQuickstartTemplates worker stream/timeouts |
-| 6 | `TestQuickstartTemplates/simple_go_go` | `test-templates` | 3 | 5 | 60% | flaky | main + PR | **flaky test** — CLI template E2E simple_go_go worker lifecycle/timing failures |
-| 7 | `(unparsed)` | `lint` | 3 | 21 | 14% | flaky | PR | **infra/CI** — frontend/docs prettier:check drift on MDX/TSX content |
-| 8 | `TestMsgIdBufferMemoryLeak` | `unit` | 3 | 39 | 8% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak non-deterministic memory assertion |
-| 9 | `(SSG)      prerendered as static HTML (uses generateStaticParams)` | `build` | 2 | 21 | 10% | flaky | PR | **product bug** — Docs link check 404 on /reference/client (broken internal link) |
-| 10 | `./cancellation/test_cancellation_spec.rb:7` | `test` | 2 | 26 | 8% | flaky | PR | **flaky test** — Ruby CancelWorkflow e2e poll/cancel timing race |
+| 1 | `(unparsed)` | `lint` | 8 | 34 | 24% | flaky | PR | **infra/CI** — Ruby generated protobuf/REST bindings out of date (tapioca validation noise in sample) |
+| 2 | `(unparsed)` | `generate` | 8 | 54 | 15% | flaky | PR | **infra/CI** — test/generate Check for diff fails on frontend/docs prettier drift (unchanged lines are noise) |
+| 3 | `examples/conditions/test_conditions.py::test_cancel_if_user_event` | `test` | 5 | 50 | 10% | flaky | PR | **product bug** — Python EventClient.aio_push() signature mismatch breaks cancel_if_user_event test |
+| 4 | `(unparsed)` | `lint` | 5 | 50 | 10% | flaky | PR | **infra/CI** — python lint mypy errors in hatchet_sdk/runnables/task.py (Black install lines are noise) |
+| 5 | `(unparsed)` | `build` | 4 | 41 | 10% | flaky | PR | **infra/CI** — frontend/docs build fails on invalid MDX frontmatter (link-check OK lines are noise) |
+| 6 | `examples/bug_tests/payload_bug_on_replay/test_payload_replay_bug.py::test_payload_replay_bug` | `test` | 4 | 50 | 8% | flaky | PR | **product bug** — Python durable payload replay NameError on free variable 'run' in replay path |
+| 7 | `examples/events/test_event.py::test_key_wildcards` | `test` | 4 | 50 | 8% | flaky | PR | **product bug** — Python EventClient.aio_push() signature mismatch breaks event wildcard tests |
+| 8 | `examples/events/test_event.py::test_multiple_runs_for_multiple_scope_matches` | `test` | 4 | 50 | 8% | flaky | PR | **product bug** — Python EventClient.aio_push() signature mismatch (7 args vs 3-6) breaks event tests |
+| 9 | `examples/conditions/test_conditions.py::test_waits` | `test` | 4 | 50 | 8% | flaky | PR | **product bug** — Python EventClient.aio_push() signature mismatch breaks conditions tests |
+| 10 | `examples/durable/test_durable.py::test_durable_workflow` | `test` | 4 | 50 | 8% | flaky | PR | **product bug** — Python EventClient.aio_push() signature mismatch breaks durable workflow tests |
 
 ## Recent CI-health wins (`ci-health`)
 
