@@ -393,7 +393,10 @@ func fenceIndentedCode(md string) string {
 
 func synopsis(p *pkgDocs, text string) string {
 	s := p.pkg.Synopsis(text)
-	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	// MDX parses a bare "<" in prose as the start of a JSX tag; escape it the way
+	// go/doc's Markdown printer does for full doc bodies.
+	return strings.ReplaceAll(s, "<", "\\<")
 }
 
 // ---------- signature helpers ----------
