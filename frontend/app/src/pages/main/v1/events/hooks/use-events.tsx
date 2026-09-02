@@ -300,6 +300,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     isRefetching,
     resetFilters,
     // time range
+    since,
     timeWindow,
     isCustomTimeRange,
     timeRangeConfig,
