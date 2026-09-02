@@ -1354,7 +1354,8 @@ SELECT
     tenant_id,
     strategy_id,
     is_filled,
-    schedule_timeout_at
+    schedule_timeout_at,
+    max_runs
 FROM v1_concurrency_slot
 WHERE tenant_id = @tenantId::UUID
 AND strategy_id = @strategyId::BIGINT
@@ -1380,21 +1381,26 @@ WITH input AS (
         unnest(@names::text[]) AS name,
         unnest(cast(@strategies::text[] as v1_concurrency_strategy[])) AS strategy,
         unnest(@expressions::text[]) AS expression,
-        unnest(@maxConcurrencies::int[]) AS max_concurrency
+        unnest(@maxConcurrencies::int[]) AS max_concurrency,
+        -- empty string means "no expression" (NULLIF below); keeps the parameter a
+        -- plain text[] while still writing NULL for static entries
+        unnest(@maxRunsExpressions::text[]) AS max_runs_expression
 )
 INSERT INTO v1_tenant_concurrency (
     tenant_id,
     name,
     strategy,
     expression,
-    max_concurrency
+    max_concurrency,
+    max_runs_expression
 )
 SELECT
     @tenantId::uuid,
     i.name,
     i.strategy,
     i.expression,
-    i.max_concurrency
+    i.max_concurrency,
+    NULLIF(i.max_runs_expression, '')
 FROM input i
 ORDER BY i.name
 ON CONFLICT (tenant_id, name)
@@ -1402,6 +1408,7 @@ DO UPDATE SET
     strategy = EXCLUDED.strategy,
     expression = EXCLUDED.expression,
     max_concurrency = EXCLUDED.max_concurrency,
+    max_runs_expression = EXCLUDED.max_runs_expression,
     is_active = TRUE,
     last_active_at = NOW();
 

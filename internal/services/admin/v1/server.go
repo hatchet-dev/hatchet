@@ -1055,11 +1055,12 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy: limitStrategy,
-			Expression:    req.Concurrency.Expression,
-			MaxRuns:       req.Concurrency.MaxRuns,
-			Name:          name,
-			TenantScoped:  tenantScoped,
+			LimitStrategy:     limitStrategy,
+			Expression:        req.Concurrency.Expression,
+			MaxRuns:           req.Concurrency.MaxRuns,
+			Name:              name,
+			TenantScoped:      tenantScoped,
+			MaxRunsExpression: req.Concurrency.MaxRunsExpression,
 		})
 	}
 
@@ -1094,11 +1095,12 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy: limitStrategy,
-			Expression:    c.Expression,
-			MaxRuns:       c.MaxRuns,
-			Name:          name,
-			TenantScoped:  tenantScoped,
+			LimitStrategy:     limitStrategy,
+			Expression:        c.Expression,
+			MaxRuns:           c.MaxRuns,
+			Name:              name,
+			TenantScoped:      tenantScoped,
+			MaxRunsExpression: c.MaxRunsExpression,
 		})
 	}
 
@@ -1433,11 +1435,12 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				}
 
 				steps[j].Concurrency = append(steps[j].Concurrency, v1.CreateConcurrencyOpts{
-					Expression:    concurrency.Expression,
-					MaxRuns:       concurrency.MaxRuns,
-					LimitStrategy: limitStrategy,
-					Name:          name,
-					TenantScoped:  tenantScoped,
+					Expression:        concurrency.Expression,
+					MaxRuns:           concurrency.MaxRuns,
+					LimitStrategy:     limitStrategy,
+					Name:              name,
+					TenantScoped:      tenantScoped,
+					MaxRunsExpression: concurrency.MaxRunsExpression,
 				})
 			}
 		}

@@ -70,9 +70,10 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var concurrencyStrategy *concurrency.ConcurrencyStrategy
-	// Tenant-scoped strategies (TenantStrategyID set on the descriptor) are only supported
-	// by the in-memory index, so they always take that path regardless of the config flag.
-	if (conf.concurrencyInMemoryIndexEnabled || strategy.TenantStrategyID.Valid) && !strategy.ParentStrategyID.Valid {
+	// Tenant-scoped strategies (TenantStrategyID set on the descriptor) and dynamic
+	// max-runs strategies (MaxRunsExpression set) are only supported by the in-memory
+	// index, so they always take that path regardless of the config flag.
+	if (conf.concurrencyInMemoryIndexEnabled || strategy.TenantStrategyID.Valid || strategy.MaxRunsExpression.Valid) && !strategy.ParentStrategyID.Valid {
 		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
 	} else {
 		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
@@ -142,7 +143,8 @@ func (c *ConcurrencyManager) strategyDiffers(next *sqlcv1.V1StepConcurrency) boo
 	return cur.Expression != next.Expression ||
 		cur.Strategy != next.Strategy ||
 		cur.MaxConcurrency != next.MaxConcurrency ||
-		cur.ParentStrategyID != next.ParentStrategyID
+		cur.ParentStrategyID != next.ParentStrategyID ||
+		cur.MaxRunsExpression != next.MaxRunsExpression
 }
 
 // UpdateStrategy applies a changed definition to the running manager in place, avoiding

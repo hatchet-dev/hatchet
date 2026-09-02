@@ -254,14 +254,15 @@ func (c *ConcurrencyRepositoryImpl) deactivateTenantConcurrency(
 // strategy's own id to mark tenant scope; the workflow columns are zero values.
 func TenantConcurrencyDescriptor(tc *sqlcv1.V1TenantConcurrency) *sqlcv1.V1StepConcurrency {
 	return &sqlcv1.V1StepConcurrency{
-		ID:               tc.ID,
-		TenantID:         tc.TenantID,
-		TenantStrategyID: pgtype.Int8{Int64: tc.ID, Valid: true},
-		IsActive:         tc.IsActive,
-		LastActiveAt:     tc.LastActiveAt,
-		Strategy:         tc.Strategy,
-		Expression:       tc.Expression,
-		MaxConcurrency:   tc.MaxConcurrency,
+		ID:                tc.ID,
+		TenantID:          tc.TenantID,
+		TenantStrategyID:  pgtype.Int8{Int64: tc.ID, Valid: true},
+		IsActive:          tc.IsActive,
+		LastActiveAt:      tc.LastActiveAt,
+		Strategy:          tc.Strategy,
+		Expression:        tc.Expression,
+		MaxConcurrency:    tc.MaxConcurrency,
+		MaxRunsExpression: tc.MaxRunsExpression,
 	}
 }
 
@@ -303,11 +304,10 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		}
 	}
 
-	// No strategy branch ran. This should no longer be reachable (every enum value has a
-	// branch above), so log it as an error, but still return an empty result rather than
-	// nil: the scheduler dereferences the embedded result and would panic on nil.
+	// Strategies with no runnable branch (e.g. NONE, which exists so tasks of a removed
+	// strategy can still enqueue) must return an empty result rather than nil: the
+	// scheduler dereferences the embedded result and would panic on nil.
 	if res == nil {
-		c.l.Error().Ctx(ctx).Msgf("no result for concurrency strategy %s (strategy ID: %d); returning empty result", strategy.Strategy, strategy.ID)
 		res = &RunConcurrencyResult{}
 	}
 

@@ -303,7 +303,8 @@ INSERT INTO v1_step_concurrency (
     expression,
     tenant_id,
     max_concurrency,
-    tenant_strategy_id
+    tenant_strategy_id,
+    max_runs_expression
 )
 VALUES (
     $1::uuid,
@@ -313,8 +314,9 @@ VALUES (
     $5::text,
     $6::uuid,
     $7::integer,
-    $8::bigint
-) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
+    $8::bigint,
+    $9::text
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id, max_runs_expression
 `
 
 type CreateStepConcurrencyParams struct {
@@ -326,6 +328,7 @@ type CreateStepConcurrencyParams struct {
 	Tenantid          uuid.UUID             `json:"tenantid"`
 	Maxconcurrency    int32                 `json:"maxconcurrency"`
 	TenantStrategyId  pgtype.Int8           `json:"tenantStrategyId"`
+	MaxRunsExpression pgtype.Text           `json:"maxRunsExpression"`
 }
 
 // When tenant_strategy_id is set, the definition columns are copies of the referenced
@@ -341,6 +344,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		arg.Tenantid,
 		arg.Maxconcurrency,
 		arg.TenantStrategyId,
+		arg.MaxRunsExpression,
 	)
 	var i V1StepConcurrency
 	err := row.Scan(
@@ -356,6 +360,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		&i.TenantID,
 		&i.MaxConcurrency,
 		&i.TenantStrategyID,
+		&i.MaxRunsExpression,
 	)
 	return &i, err
 }
@@ -727,7 +732,7 @@ WITH inserted_wcs AS (
             )
           )
     ) s, inserted_wcs wcs
-    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id, max_runs_expression
 )
 SELECT
     wcs.id,

@@ -413,6 +413,8 @@ export interface Concurrency {
   name?: string | undefined;
   /** (optional) when true, the entry is a tenant-scoped strategy shared across workflows, default false */
   isTenantScoped?: boolean | undefined;
+  /** (optional) CEL expression over task input returning the max runs for that task's concurrency group; the group's effective limit is the value from its most recently created task. Overrides max_runs per group; a non-integer or non-positive result fails the task */
+  maxRunsExpression?: string | undefined;
 }
 
 export interface TaskBatchConfig {
@@ -2257,6 +2259,7 @@ function createBaseConcurrency(): Concurrency {
     limitStrategy: undefined,
     name: undefined,
     isTenantScoped: undefined,
+    maxRunsExpression: undefined,
   };
 }
 
@@ -2276,6 +2279,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     }
     if (message.isTenantScoped !== undefined) {
       writer.uint32(40).bool(message.isTenantScoped);
+    }
+    if (message.maxRunsExpression !== undefined) {
+      writer.uint32(50).string(message.maxRunsExpression);
     }
     return writer;
   },
@@ -2327,6 +2333,14 @@ export const Concurrency: MessageFns<Concurrency> = {
           message.isTenantScoped = reader.bool();
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.maxRunsExpression = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2355,6 +2369,11 @@ export const Concurrency: MessageFns<Concurrency> = {
         : isSet(object.is_tenant_scoped)
           ? globalThis.Boolean(object.is_tenant_scoped)
           : undefined,
+      maxRunsExpression: isSet(object.maxRunsExpression)
+        ? globalThis.String(object.maxRunsExpression)
+        : isSet(object.max_runs_expression)
+          ? globalThis.String(object.max_runs_expression)
+          : undefined,
     };
   },
 
@@ -2375,6 +2394,9 @@ export const Concurrency: MessageFns<Concurrency> = {
     if (message.isTenantScoped !== undefined) {
       obj.isTenantScoped = message.isTenantScoped;
     }
+    if (message.maxRunsExpression !== undefined) {
+      obj.maxRunsExpression = message.maxRunsExpression;
+    }
     return obj;
   },
 
@@ -2388,6 +2410,7 @@ export const Concurrency: MessageFns<Concurrency> = {
     message.limitStrategy = object.limitStrategy ?? undefined;
     message.name = object.name ?? undefined;
     message.isTenantScoped = object.isTenantScoped ?? undefined;
+    message.maxRunsExpression = object.maxRunsExpression ?? undefined;
     return message;
   },
 };

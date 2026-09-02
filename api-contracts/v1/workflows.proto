@@ -165,6 +165,7 @@ message Concurrency {
     optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
     optional string name = 4; // (required when is_tenant_scoped) the strategy name; unique per tenant for tenant-scoped strategies
     optional bool is_tenant_scoped = 5; // (optional) when true, the entry is a tenant-scoped strategy shared across workflows, default false
+    optional string max_runs_expression = 6; // (optional) CEL expression over task input returning the max runs for that task's concurrency group; the group's effective limit is the value from its most recently created task. Overrides max_runs per group; a non-integer or non-positive result fails the task
 }
 
 

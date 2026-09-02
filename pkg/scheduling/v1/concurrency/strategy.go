@@ -421,6 +421,10 @@ type walMessage struct {
 
 	// only populated by UPDATE messages
 	IsFilled bool `json:"isFilled"`
+
+	// only populated by INSERT messages, and only for strategies with a
+	// max_runs_expression: the slot's insert-time evaluation of the per-group limit
+	MaxRuns *int32 `json:"maxRuns"`
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
@@ -456,6 +460,12 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				}
 
 				sq := c.getOrCreateSubQueue(row.Key)
+
+				// the timestamp guard makes page order irrelevant: each group converges to
+				// the value evaluated for its most recently created live slot
+				if row.MaxRuns.Valid {
+					sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
+				}
 
 				s := slot{
 					priority:            row.Priority,
@@ -657,6 +667,13 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 	for _, msg := range msgs {
 		switch msg.Operation {
 		case "INSERT":
+			// Applied even when the slot itself ends up superseded below: the value is
+			// still the evaluation of the group's newest task. UPDATE/DELETE messages
+			// never carry a value, so retries and completions cannot move the limit.
+			if msg.MaxRuns != nil {
+				sq.observeMaxRuns(*msg.MaxRuns, msg.TaskInsertedAt.UnixNano())
+			}
+
 			if currentRunningSlot, exists := sq.running.get(msg.TaskId); exists {
 				// compare the current running slot's retry count with the message's retry count; the greater wins
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
@@ -886,7 +903,14 @@ func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
 	c.strategy = next
 
 	for _, sq := range c.subQueues {
-		sq.maxRuns = next.MaxConcurrency
+		// only groups still on the static default move to the new static limit; a
+		// dynamically observed value (maxRunsFrom set) stays until a newer task's
+		// evaluation replaces it. The begin-scope snapshot moves too so a rollback of an
+		// in-flight batch restores the new static value rather than the old one.
+		if sq.maxRunsFrom == 0 {
+			sq.maxRuns = next.MaxConcurrency
+			sq.maxRunsAtBegin = next.MaxConcurrency
+		}
 	}
 
 	c.initialQueued = false

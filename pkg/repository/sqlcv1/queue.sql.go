@@ -2014,6 +2014,8 @@ INSERT INTO v1_concurrency_slot (
     priority,
     key,
     next_keys,
+    max_runs,
+    next_max_runs,
     queue_to_notify,
     schedule_timeout_at
 )
@@ -2042,6 +2044,11 @@ SELECT
     CASE
         WHEN array_length(t.concurrency_keys, 1) > 1 THEN t.concurrency_keys[2:array_length(t.concurrency_keys, 1)]
         ELSE '{}'::text[]
+    END,
+    t.concurrency_max_runs[1],
+    CASE
+        WHEN array_length(t.concurrency_max_runs, 1) > 1 THEN t.concurrency_max_runs[2:array_length(t.concurrency_max_runs, 1)]
+        ELSE '{}'::integer[]
     END,
     t.queue,
     CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)

@@ -2205,6 +2205,27 @@ func (r *sharedRepository) evalBatchGroupKey(
 
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
+// evalMaxRunsExpression evaluates a strategy's max_runs_expression against one task's
+// input. The returned value rides on the task's concurrency slot; a NULL (invalid)
+// value means the strategy's static max_concurrency applies.
+func (r *sharedRepository) evalMaxRunsExpression(strat *sqlcv1.V1StepConcurrency, in cel.Input) (pgtype.Int4, error) {
+	res, err := r.celParser.ParseAndEvalStepRun(strat.MaxRunsExpression.String, in)
+
+	if err != nil {
+		return pgtype.Int4{}, fmt.Errorf("failed to parse max runs expression (%s): %w", strat.MaxRunsExpression.String, err)
+	}
+
+	if res.Int == nil {
+		return pgtype.Int4{}, fmt.Errorf("failed to parse max runs expression (%s): expected integer output", strat.MaxRunsExpression.String)
+	}
+
+	if *res.Int < 1 {
+		return pgtype.Int4{}, fmt.Errorf("failed to evaluate max runs expression (%s): result must be a positive integer, got %d", strat.MaxRunsExpression.String, *res.Int)
+	}
+
+	return pgtype.Int4{Int32: int32(*res.Int), Valid: true}, nil //nolint:gosec
+}
+
 func (r *sharedRepository) insertTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -2250,6 +2271,7 @@ func (r *sharedRepository) insertTasks(
 	parentStrategyIds := make([][]pgtype.Int8, len(tasks))
 	strategyIds := make([][]int64, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
+	concurrencyMaxRuns := make([][]pgtype.Int4, len(tasks))
 	parentTaskExternalIds := make([]*uuid.UUID, len(tasks))
 	parentTaskIds := make([]pgtype.Int8, len(tasks))
 	parentTaskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
@@ -2404,12 +2426,14 @@ func (r *sharedRepository) insertTasks(
 		taskParentStrategyIds := make([]pgtype.Int8, 0)
 		taskStrategyIds := make([]int64, 0)
 		emptyConcurrencyKeys := make([]string, 0)
+		emptyConcurrencyMaxRuns := make([]pgtype.Int4, 0)
 
 		if strats, ok := concurrencyStrats[task.StepId]; ok {
 			for _, strat := range strats {
 				taskStrategyIds = append(taskStrategyIds, strat.ID)
 				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+				emptyConcurrencyMaxRuns = append(emptyConcurrencyMaxRuns, pgtype.Int4{})
 
 				// we only need to cleanup parent strategy ids if the task is not in a QUEUED state, because
 				// this skips the creation of a concurrency slot and means we might want to cleanup the workflow slot
@@ -2424,6 +2448,7 @@ func (r *sharedRepository) insertTasks(
 		parentStrategyIds[i] = taskParentStrategyIds
 		strategyIds[i] = taskStrategyIds
 		concurrencyKeys[i] = emptyConcurrencyKeys
+		concurrencyMaxRuns[i] = emptyConcurrencyMaxRuns
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
@@ -2431,6 +2456,7 @@ func (r *sharedRepository) insertTasks(
 			// if we have a step expression, evaluate the expression
 			if strats, ok := concurrencyStrats[task.StepId]; ok {
 				taskConcurrencyKeys := make([]string, 0)
+				taskConcurrencyMaxRuns := make([]pgtype.Int4, 0)
 				var failTaskError error
 
 				for _, strat := range strats {
@@ -2475,6 +2501,24 @@ func (r *sharedRepository) insertTasks(
 					}
 
 					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
+
+					maxRuns := pgtype.Int4{}
+
+					if strat.MaxRunsExpression.Valid {
+						maxRuns, err = r.evalMaxRunsExpression(strat, cel.NewInput(
+							cel.WithInput(task.Input.Input),
+							cel.WithAdditionalMetadata(additionalMeta),
+							cel.WithWorkflowRunID(task.ExternalId),
+							cel.WithParents(task.Input.TriggerData),
+						))
+
+						if err != nil {
+							failTaskError = err
+							break
+						}
+					}
+
+					taskConcurrencyMaxRuns = append(taskConcurrencyMaxRuns, maxRuns)
 				}
 
 				if failTaskError != nil {
@@ -2492,8 +2536,10 @@ func (r *sharedRepository) insertTasks(
 						failedKeys[j] = "FAILED"
 					}
 					concurrencyKeys[i] = failedKeys
+					concurrencyMaxRuns[i] = make([]pgtype.Int4, len(strats))
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
+					concurrencyMaxRuns[i] = taskConcurrencyMaxRuns
 				}
 			}
 		}
@@ -2600,6 +2646,7 @@ func (r *sharedRepository) insertTasks(
 				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
 				ConcurrencyStrategyIds:       make([][]int64, 0),
 				ConcurrencyKeys:              make([][]string, 0),
+				ConcurrencyMaxRuns:           make([][]pgtype.Int4, 0),
 				ParentTaskExternalIds:        make([]*uuid.UUID, 0),
 				ParentTaskIds:                make([]pgtype.Int8, 0),
 				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
@@ -2643,6 +2690,7 @@ func (r *sharedRepository) insertTasks(
 		params.Concurrencyparentstrategyids = append(params.Concurrencyparentstrategyids, parentStrategyIds[i])
 		params.ConcurrencyStrategyIds = append(params.ConcurrencyStrategyIds, strategyIds[i])
 		params.ConcurrencyKeys = append(params.ConcurrencyKeys, concurrencyKeys[i])
+		params.ConcurrencyMaxRuns = append(params.ConcurrencyMaxRuns, concurrencyMaxRuns[i])
 		params.ParentTaskExternalIds = append(params.ParentTaskExternalIds, parentTaskExternalIds[i])
 		params.ParentTaskIds = append(params.ParentTaskIds, parentTaskIds[i])
 		params.ParentTaskInsertedAts = append(params.ParentTaskInsertedAts, parentTaskInsertedAts[i])
@@ -2842,6 +2890,7 @@ func (r *sharedRepository) replayTasks(
 	initialStates := make([]string, len(tasks))
 	initialStateReasons := make([]pgtype.Text, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
+	concurrencyMaxRuns := make([][]pgtype.Int4, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
 	queues := make([]string, len(tasks))
 	batchKeys := make([]string, len(tasks))
@@ -2888,14 +2937,18 @@ func (r *sharedRepository) replayTasks(
 
 		if strats, ok := concurrencyStrats[task.StepId]; ok {
 			emptyConcurrencyKeys := make([]string, 0)
+			emptyConcurrencyMaxRuns := make([]pgtype.Int4, 0)
 
 			for range strats {
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+				emptyConcurrencyMaxRuns = append(emptyConcurrencyMaxRuns, pgtype.Int4{})
 			}
 
 			concurrencyKeys[i] = emptyConcurrencyKeys
+			concurrencyMaxRuns[i] = emptyConcurrencyMaxRuns
 		} else {
 			concurrencyKeys[i] = make([]string, 0)
+			concurrencyMaxRuns[i] = make([]pgtype.Int4, 0)
 		}
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
@@ -2904,6 +2957,7 @@ func (r *sharedRepository) replayTasks(
 			// if we have a step expression, evaluate the expression
 			if strats, ok := concurrencyStrats[task.StepId]; ok {
 				taskConcurrencyKeys := make([]string, 0)
+				taskConcurrencyMaxRuns := make([]pgtype.Int4, 0)
 
 				var failTaskError error
 
@@ -2948,6 +3002,24 @@ func (r *sharedRepository) replayTasks(
 
 					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
 
+					maxRuns := pgtype.Int4{}
+
+					if strat.MaxRunsExpression.Valid {
+						maxRuns, err = r.evalMaxRunsExpression(strat, cel.NewInput(
+							cel.WithInput(task.Input.Input),
+							cel.WithAdditionalMetadata(additionalMeta),
+							cel.WithWorkflowRunID(task.ExternalId),
+							cel.WithParents(task.Input.TriggerData),
+						))
+
+						if err != nil {
+							failTaskError = err
+							break
+						}
+					}
+
+					taskConcurrencyMaxRuns = append(taskConcurrencyMaxRuns, maxRuns)
+
 				}
 
 				if failTaskError != nil {
@@ -2965,8 +3037,10 @@ func (r *sharedRepository) replayTasks(
 						failedKeys[j] = "FAILED"
 					}
 					concurrencyKeys[i] = failedKeys
+					concurrencyMaxRuns[i] = make([]pgtype.Int4, len(strats))
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
+					concurrencyMaxRuns[i] = taskConcurrencyMaxRuns
 				}
 			}
 		}
@@ -2992,6 +3066,7 @@ func (r *sharedRepository) replayTasks(
 				InitialStates:              make([]string, 0),
 				InitialStateReasons:        make([]pgtype.Text, 0),
 				Concurrencykeys:            make([][]string, 0),
+				ConcurrencyMaxRuns:         make([][]pgtype.Int4, 0),
 				DesiredWorkerLabels:        make([][]byte, 0),
 				TriggeringEventExternalIds: make([]*uuid.UUID, 0),
 				TriggeringEventKeys:        make([]pgtype.Text, 0),
@@ -3007,6 +3082,7 @@ func (r *sharedRepository) replayTasks(
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
+		params.ConcurrencyMaxRuns = append(params.ConcurrencyMaxRuns, concurrencyMaxRuns[i])
 		params.BatchKeys = append(params.BatchKeys, batchKeys[i])
 		params.DesiredWorkerLabels = append(params.DesiredWorkerLabels, task.DesiredWorkerLabel)
 		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
