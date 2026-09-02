@@ -848,7 +848,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 		if concurrency.TenantScoped {
 			tenantScoped := true
-			c.TenantScoped = &tenantScoped
+			c.IsTenantScoped = &tenantScoped
 		}
 
 		if concurrency.MaxRunsExpression != nil {

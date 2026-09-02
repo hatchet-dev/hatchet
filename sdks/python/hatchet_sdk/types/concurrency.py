@@ -82,7 +82,7 @@ class SharedConcurrency(BaseModel):
     def to_proto(self) -> Concurrency:
         return Concurrency(
             name=self.name,
-            tenant_scoped=True,
+            is_tenant_scoped=True,
             expression=self.expression,
             max_runs=self.max_runs,
             limit_strategy=self.limit_strategy,

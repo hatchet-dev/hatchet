@@ -223,6 +223,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
+        # the public signatures take Sequence, which admits tuples as well as lists
         if isinstance(self._config.concurrency, (list, tuple)):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
