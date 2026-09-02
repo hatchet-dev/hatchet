@@ -8,7 +8,7 @@ module Hatchet
     attr_reader backoff_max_seconds: Integer?
     attr_reader backoff_factor: Float?
     attr_reader rate_limits: Array[RateLimit]
-    attr_reader concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil
+    attr_reader concurrency: Array[ConcurrencyExpression | SharedConcurrency] | ConcurrencyExpression | SharedConcurrency | nil
     attr_reader desired_worker_labels: Hash[Symbol, untyped]?
     attr_reader wait_for: Array[untyped]
     attr_reader skip_if: Array[untyped]
@@ -29,7 +29,7 @@ module Hatchet
       ?backoff_max_seconds: Integer?,
       ?backoff_factor: Float?,
       ?rate_limits: Array[RateLimit],
-      ?concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil,
+      ?concurrency: Array[ConcurrencyExpression | SharedConcurrency] | ConcurrencyExpression | SharedConcurrency | nil,
       ?desired_worker_labels: Hash[Symbol, untyped]?,
       ?wait_for: Array[untyped],
       ?skip_if: Array[untyped],
