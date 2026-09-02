@@ -7,7 +7,7 @@ RSpec.describe Hatchet::ConcurrencyExpression do
     proto = described_class.new(
       expression: "input.group",
       max_runs: 5,
-      limit_strategy: :group_round_robin
+      limit_strategy: :group_round_robin,
     ).to_proto
 
     expect(proto.expression).to eq("input.group")
@@ -20,7 +20,7 @@ RSpec.describe Hatchet::ConcurrencyExpression do
     proto = described_class.new(
       expression: "input.tier",
       max_runs: "input.tier == 'premium' ? 10 : 1",
-      limit_strategy: :group_round_robin
+      limit_strategy: :group_round_robin,
     ).to_proto
 
     expect(proto.max_runs).to eq(1)
@@ -34,7 +34,7 @@ RSpec.describe Hatchet::SharedConcurrency do
       name: "tenant-wide-limit",
       expression: "input.group",
       max_runs: 1,
-      limit_strategy: :group_round_robin
+      limit_strategy: :group_round_robin,
     ).to_proto
 
     expect(proto.name).to eq("tenant-wide-limit")
@@ -47,7 +47,7 @@ RSpec.describe Hatchet::SharedConcurrency do
     proto = described_class.new(
       name: "tenant-wide-limit",
       expression: "input.group",
-      max_runs: "input.limit"
+      max_runs: "input.limit",
     ).to_proto
 
     expect(proto.max_runs).to eq(1)
