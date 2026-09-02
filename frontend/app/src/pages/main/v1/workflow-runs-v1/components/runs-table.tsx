@@ -12,6 +12,7 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -25,9 +26,10 @@ import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { isBeforeRetention } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -87,6 +89,7 @@ const GetWorkflowChart = () => {
 
 export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
 
@@ -216,6 +219,10 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     filters.timeWindow !== '1d';
   const isDefaultOneDayWindow =
     !filters.isCustomTimeRange && filters.timeWindow === '1d';
+  const isOutsideRetention = Boolean(
+    tenant?.dataRetentionPeriod &&
+      isBeforeRetention(filters.apiFilters.since, tenant.dataRetentionPeriod),
+  );
 
   const leftActions = [
     ...(!hideCounts
@@ -272,6 +279,10 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       )}
 
       {!hideMetrics && <GetWorkflowChart />}
+
+      {isOutsideRetention && tenant?.dataRetentionPeriod ? (
+        <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />
+      ) : null}
 
       <div className="min-h-0 flex-1">
         <DataTable
