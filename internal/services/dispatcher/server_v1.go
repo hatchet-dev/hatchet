@@ -1348,6 +1348,25 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
+	// An eviction request from an older invocation (e.g. a stalled ordered release held by a
+	// previous session) must not evict the newer invocation that replaced it: the notice would
+	// be dropped by the worker's invocation-count check, leaving the run evicted in the
+	// database while its worker keeps executing it.
+	idInsertedAt := v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}
+
+	currentCounts, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, []v1.IdInsertedAt{idInsertedAt})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current invocation count: %w", err)
+	}
+
+	if current, ok := currentCounts[idInsertedAt]; ok && current != nil && invocationCount < *current {
+		d.l.Warn().Msgf(
+			"skipping eviction of durable task %s: requested for invocation %d but current invocation is %d",
+			taskExternalId, invocationCount, *current,
+		)
+		return &v1.EvictTaskResult{}, nil
+	}
+
 	evictRes, err := d.repo.Tasks().EvictTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
@@ -1571,8 +1590,14 @@ func (d *DispatcherServiceImpl) evictStalledOrderedReleases(ctx context.Context,
 			key.taskExternalId, key.invocationCount, durableOrderedReleaseGapTimeout,
 		)
 
-		if _, err := d.evictDurableTask(ctx, invocation.tenantId, key.taskExternalId, key.invocationCount, "ordered durable completion release stalled on a missing entry"); err != nil {
+		evictRes, err := d.evictDurableTask(ctx, invocation.tenantId, key.taskExternalId, key.invocationCount, "ordered durable completion release stalled on a missing entry")
+		if err != nil {
 			d.l.Error().Err(err).Msgf("failed to evict durable task %s for stalled ordered release", key.taskExternalId)
+			continue
+		}
+
+		if !evictRes.WasEvicted {
+			invocation.clearRelease(key)
 			continue
 		}
 
