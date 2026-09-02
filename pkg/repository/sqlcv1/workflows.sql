@@ -41,7 +41,8 @@ SELECT
 FROM
     steps s
 LEFT JOIN
-    step_orders so ON so."stepId" = s."id";
+    step_orders so ON so."stepId" = s."id"
+ORDER BY s."createdAt", s."id";
 
 -- name: ListStepsByIds :many
 SELECT
@@ -657,7 +658,8 @@ FROM
     v1_step_match_condition
 WHERE
     step_id = ANY(@stepIds::uuid[])
-    AND tenant_id = @tenantId::uuid;
+    AND tenant_id = @tenantId::uuid
+ORDER BY step_id, id;
 
 -- name: LockWorkflowVersion :one
 SELECT
