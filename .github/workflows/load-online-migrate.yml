@@ -61,8 +61,10 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Compose
-        run: docker compose up -d
+      - name: Start embedded Postgres
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          pg-only: "true"
 
       - name: Run migrations up to base
         run: go run ./cmd/hatchet-migrate --up-to ${{ env.BASE_MIGRATION_VERSION }}
@@ -186,4 +188,3 @@ jobs:
         run: |
           if [ -f /tmp/loadtest.pid ]; then kill $(cat /tmp/loadtest.pid) 2>/dev/null || true; fi
           if [ -f /tmp/engine.pid ]; then kill $(cat /tmp/engine.pid) 2>/dev/null || true; fi
-          docker compose down

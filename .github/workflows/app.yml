@@ -116,8 +116,13 @@ jobs:
         working-directory: frontend/app
         run: pnpm run docs:gen
 
-      - name: Start dependencies (postgres, rabbitmq)
-        run: docker compose up -d
+      - name: Start rabbitmq
+        run: docker compose up -d rabbitmq
+
+      - name: Start embedded Postgres
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          pg-only: "true"
 
       - name: Write E2E env
         run: bash ./hack/ci/write-e2e-env.sh

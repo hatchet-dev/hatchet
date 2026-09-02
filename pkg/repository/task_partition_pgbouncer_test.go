@@ -5,9 +5,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -18,11 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/testing/embeddedpg"
 )
 
 // setupPostgresWithPgBouncer starts a PostgreSQL container, runs migrations,
@@ -32,29 +29,12 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 	t.Helper()
 	ctx := context.Background()
 
-	// Start PostgreSQL with a fixed host port so pgbouncer can reach it
-	postgresContainer, err := postgres.Run(ctx,
-		"postgres:17-alpine",
-		postgres.WithDatabase("hatchet"),
-		postgres.WithUsername("hatchet"),
-		postgres.WithPassword("hatchet"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-	)
+	pg, err := embeddedpg.Start("hatchet", "hatchet", "hatchet", 0, "17")
 	require.NoError(t, err)
 
-	pgConnStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
+	pgConnStr := pg.ConnStr
+	pgPort := pg.Port
 	t.Logf("PostgreSQL started: %s", pgConnStr)
-
-	// Extract the mapped port for pgbouncer to connect to
-	u, err := url.Parse(pgConnStr)
-	require.NoError(t, err)
-	pgPort, err := strconv.Atoi(u.Port())
-	require.NoError(t, err)
 
 	// Run migrations on direct postgres
 	originalDatabaseURL := os.Getenv("DATABASE_URL")
@@ -138,7 +118,7 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 		pgbouncerPool.Close()
 		directPool.Close()
 		pgBouncerContainer.Terminate(ctx) // nolint: errcheck
-		postgresContainer.Terminate(ctx)  // nolint: errcheck
+		_ = pg.Stop()
 		if originalDatabaseURL != "" {
 			os.Setenv("DATABASE_URL", originalDatabaseURL)
 		} else {

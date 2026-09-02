@@ -184,17 +184,6 @@ jobs:
         shell: bash
         run: |
           ./branch-sync.sh
-      - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
-        with:
-          version: "25.1"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Task
-        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -227,53 +216,16 @@ jobs:
           cache: true
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
-      - name: Compose
-        working-directory: .
-        run: docker compose up -d
-
       - name: Install dependencies
         run: ${{ matrix.install-cmd }}
 
-      - name: Generate
-        working-directory: .
-        run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
+      - name: Start Hatchet embedded
+        uses: ./.github/actions/hatchet-embedded
+        with:
+          log-file: engine.log
 
-      - name: Setup
-        working-directory: .
-        run: |
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-          export SERVER_LOGGER_LEVEL=info
-          export SERVER_LOGGER_FORMAT=console
-          export DATABASE_LOGGER_LEVEL=warn
-          export DATABASE_LOGGER_FORMAT=console
-          export SERVER_SECURITY_CHECK_ENABLED=false
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
-          go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
-
-          sleep 30
       - name: E2E tests
-        run: |
-          cd ../..
-          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
-
-          cd sdks/typescript
-          export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
-          export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
-          export NODE_TLS_REJECT_UNAUTHORIZED=0
-          ${{ matrix.e2e-test-cmd }}
+        run: ${{ matrix.e2e-test-cmd }}
 
       - name: Upload engine logs
         if: always()
@@ -281,13 +233,6 @@ jobs:
         with:
           name: sdk-typescript-engine-logs-${{ matrix.package-manager }}
           path: engine.log
-
-      - name: Upload API logs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sdk-typescript-api-logs-${{ matrix.package-manager }}
-          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4
