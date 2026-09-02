@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
+	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -102,6 +103,7 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 	go t.listenForWorkerLeases(ctx)
 	go t.listenForQueueLeases(ctx)
 	go t.listenForConcurrencyLeases(ctx)
+	go t.loopCheckTenantConcurrencyActive(ctx)
 	go t.listenForBatchLeases(ctx)
 
 	leaseManager.start(ctx)
@@ -316,9 +318,12 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	for _, c := range t.concurrencyStrategies {
 		if strat, ok := strategiesSet[c.strategy.ID]; ok {
 			// If the definition changed (e.g. a shared strategy was re-registered with a
-			// different max_concurrency or expression), replace the manager so the
-			// in-memory index is rebuilt against the new definition.
-			if c.strategyDiffers(strat) {
+			// different max_concurrency or expression), apply it to the running manager
+			// in place. Only structural changes (limit-strategy kind, parent linkage)
+			// still tear the manager down and rebuild: an async cleanup + init re-acquires
+			// the outbox topic and rehydrates every slot, and risks contending with the
+			// old manager's locks while it winds down.
+			if c.strategyDiffers(strat) && !c.UpdateStrategy(strat) {
 				go c.cleanup()
 
 				newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strat, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
@@ -340,6 +345,43 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	t.concurrencyStrategies = newArr
+}
+
+// loopCheckTenantConcurrencyActive periodically retires stale tenant-scoped strategies
+// in one batched pass for the whole tenant. This replaces the per-manager check-active
+// loop for tenant strategies (see newConcurrencyManager), keeping the strategy advisory
+// locks free for the slot-flush path.
+func (t *tenantManager) loopCheckTenantConcurrencyActive(ctx context.Context) {
+	ticker := randomticker.NewRandomTicker(
+		t.cf.schedulerCheckActiveMinInterval,
+		t.cf.schedulerCheckActiveMaxInterval,
+	)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		t.concurrencyMu.RLock()
+		var strategyIds []int64
+		for _, c := range t.concurrencyStrategies {
+			if c.strategy.TenantStrategyID.Valid {
+				strategyIds = append(strategyIds, c.strategy.ID)
+			}
+		}
+		t.concurrencyMu.RUnlock()
+
+		if len(strategyIds) == 0 {
+			continue
+		}
+
+		if err := t.cf.repo.Concurrency().CheckAndDeactivateTenantConcurrency(ctx, t.tenantId, strategyIds); err != nil {
+			t.cf.l.Error().Err(err).Msgf("error checking tenant concurrency strategies for tenant %s", t.tenantId)
+		}
+	}
 }
 
 func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {

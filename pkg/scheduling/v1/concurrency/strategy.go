@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/pgoutbox"
 	outboxsqlc "github.com/hatchet-dev/pgoutbox/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -32,19 +33,23 @@ type ConcurrencyStrategy struct {
 	// sub-queues are pruned after each batch (see pruneEmpty), so idle keys don't accumulate, but a
 	// large live backlog still grows this without limit - we eventually need a bounded or evicting
 	// strategy (e.g. spill to disk/db) for very high key cardinality. Not critical yet.
-	subQueues      map[string]*subQueue
-	strategy       *sqlcv1.V1StepConcurrency
-	l              *zerolog.Logger
-	compare        func(a, b slot) int
-	built          chan struct{}
-	topic          string
-	pending        []*repository.RunConcurrencyResult
-	openScopes     []*subQueue
-	mu             sync.RWMutex
-	pendingMu      sync.Mutex
-	buildingMu     sync.Mutex
-	initialQueueMu sync.Mutex
-	initialQueued  bool
+	subQueues map[string]*subQueue
+	strategy  *sqlcv1.V1StepConcurrency
+	// immutable copies of the strategy identity, safe to read without holding any lock
+	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
+	strategyId       int64
+	strategyTenantId uuid.UUID
+	l                *zerolog.Logger
+	compare          func(a, b slot) int
+	built            chan struct{}
+	topic            string
+	pending          []*repository.RunConcurrencyResult
+	openScopes       []*subQueue
+	mu               sync.RWMutex
+	pendingMu        sync.Mutex
+	buildingMu       sync.Mutex
+	initialQueueMu   sync.Mutex
+	initialQueued    bool
 }
 
 // commitScopes discards the undo log on each open sub-queue, making this batch's in-memory
@@ -101,14 +106,16 @@ func NewConcurrencyStrategy(
 	l *zerolog.Logger,
 ) *ConcurrencyStrategy {
 	c := &ConcurrencyStrategy{
-		subQueues: make(map[string]*subQueue),
-		strategy:  strategy,
-		repo:      repo,
-		l:         l,
-		compare:   comparatorForStrategy(strategy.Strategy),
-		outbox:    outbox,
-		topic:     getTopic(strategy),
-		built:     make(chan struct{}),
+		subQueues:        make(map[string]*subQueue),
+		strategy:         strategy,
+		strategyId:       strategy.ID,
+		strategyTenantId: strategy.TenantID,
+		repo:             repo,
+		l:                l,
+		compare:          comparatorForStrategy(strategy.Strategy),
+		outbox:           outbox,
+		topic:            getTopic(strategy),
+		built:            make(chan struct{}),
 	}
 
 	outbox.AddFlusher(c.topic, c)
@@ -192,8 +199,8 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 	defer span.End()
 
 	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
-		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategyId},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategyTenantId},
 	)
 
 	// wait for the initial (async) index build to complete before processing WAL messages. If the
@@ -853,6 +860,25 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 	}
 
 	return tasksToSetFilled, cancelledSlots
+}
+
+// UpdateStrategy applies a changed definition to the live index without a rebuild. The
+// caller guarantees the strategy kind and parent linkage are unchanged (those alter the
+// scheduling structure and require a rebuild); expression and static max-concurrency
+// changes are safe to swap in place. buildingMu serializes this against WAL processing,
+// index builds, and the post-build queueing pass, so no batch observes a half-applied
+// definition; mu covers getOrCreateSubQueue's reads.
+func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.strategy = next
+
+	for _, sq := range c.subQueues {
+		sq.maxRuns = next.MaxConcurrency
+	}
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {

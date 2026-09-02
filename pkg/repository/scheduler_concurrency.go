@@ -70,6 +70,11 @@ type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
+	// CheckAndDeactivateTenantConcurrency retires tenant-scoped strategies that no
+	// workflow's latest version references and that hold no slots. Called by the tenant
+	// manager in one batched pass rather than per strategy manager.
+	CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) error
+
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 
 	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
@@ -116,8 +121,10 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
+	// tenant-scoped strategies are retired by CheckAndDeactivateTenantConcurrency (one
+	// batched, mostly lock-free pass per tenant) rather than per manager
 	if strategy.TenantStrategyID.Valid {
-		return c.updateTenantConcurrencyStrategyIsActive(ctx, tenantId, strategy)
+		return nil
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
@@ -161,13 +168,46 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	return commit(ctx)
 }
 
-// updateTenantConcurrencyStrategyIsActive retires a tenant-scoped strategy when no
-// workflow's latest version references it and it holds no concurrency slots. Reactivation
+// CheckAndDeactivateTenantConcurrency retires tenant-scoped strategies that no
+// workflow's latest version references and that hold no concurrency slots. Reactivation
 // happens via the slot-insert trigger and via re-registration upserts.
-func (c *ConcurrencyRepositoryImpl) updateTenantConcurrencyStrategyIsActive(
+//
+// The active check runs without any lock: its cost grows with the number of referencing
+// workflows, and holding the strategy's advisory lock for its duration would starve the
+// slot-flush path, which try-locks the same key on every batch. Only the rare
+// deactivation takes a short try-lock (skipping to the next pass when contended) and
+// re-checks under it before writing.
+func (c *ConcurrencyRepositoryImpl) CheckAndDeactivateTenantConcurrency(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	strategy *sqlcv1.V1StepConcurrency,
+	strategyIds []int64,
+) error {
+	for _, strategyId := range strategyIds {
+		isActive, err := c.queries.CheckTenantStrategyActive(ctx, c.pool, sqlcv1.CheckTenantStrategyActiveParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if isActive {
+			continue
+		}
+
+		if err := c.deactivateTenantConcurrency(ctx, tenantId, strategyId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *ConcurrencyRepositoryImpl) deactivateTenantConcurrency(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategyId int64,
 ) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
@@ -177,15 +217,23 @@ func (c *ConcurrencyRepositoryImpl) updateTenantConcurrencyStrategyIsActive(
 
 	defer rollback()
 
-	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategyId)
 
 	if err != nil {
 		return err
 	}
 
+	if !acquired {
+		// the strategy's manager is mid-flush; it is clearly not stale, and the next
+		// pass will get another look
+		return nil
+	}
+
+	// re-check under the lock so a slot inserted since the lock-free check keeps the
+	// strategy active
 	isActive, err := c.queries.CheckTenantStrategyActive(ctx, tx, sqlcv1.CheckTenantStrategyActiveParams{
 		Tenantid:   tenantId,
-		Strategyid: strategy.ID,
+		Strategyid: strategyId,
 	})
 
 	if err != nil {
@@ -195,7 +243,7 @@ func (c *ConcurrencyRepositoryImpl) updateTenantConcurrencyStrategyIsActive(
 	if !isActive {
 		err = c.queries.SetTenantConcurrencyStrategyInactive(ctx, tx, sqlcv1.SetTenantConcurrencyStrategyInactiveParams{
 			Tenantid:   tenantId,
-			Strategyid: strategy.ID,
+			Strategyid: strategyId,
 		})
 
 		if err != nil {

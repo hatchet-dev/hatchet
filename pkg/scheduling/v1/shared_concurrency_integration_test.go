@@ -425,7 +425,7 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 		// referenced by a latest workflow version: stays active
 		s := setupSharedConcurrencyTest(t, ctx, conf, "shared-active-test", "GROUP_ROUND_ROBIN", 1, 1)
 
-		err := s.repo.UpdateConcurrencyStrategyIsActive(ctx, s.tenantId, s.strategyDescriptor())
+		err := s.repo.CheckAndDeactivateTenantConcurrency(ctx, s.tenantId, []int64{s.strategy.ID})
 		require.NoError(t, err)
 
 		strat, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
@@ -441,10 +441,33 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 
 		createWorkflowWithConcurrency(t, ctx, conf, s2.tenantId, "shared-inactive-test-registrar", nil)
 
-		err = s2.repo.UpdateConcurrencyStrategyIsActive(ctx, s2.tenantId, s2.strategyDescriptor())
+		// while another session holds the strategy's advisory lock (as the slot-flush
+		// path does mid-batch), the pass must skip the strategy rather than block on it
+		lockConn, err := conf.Pool.Acquire(ctx)
+		require.NoError(t, err)
+		lockTx, err := lockConn.Begin(ctx)
+		require.NoError(t, err)
+		_, err = lockTx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", s2.strategy.ID)
+		require.NoError(t, err)
+
+		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, []int64{s2.strategy.ID})
 		require.NoError(t, err)
 
 		strat2, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
+			Tenantid: s2.tenantId,
+			ID:       s2.strategy.ID,
+		})
+		require.NoError(t, err)
+		require.True(t, strat2.IsActive, "the pass must skip (not block on) a strategy whose advisory lock is held")
+
+		require.NoError(t, lockTx.Rollback(ctx))
+		lockConn.Release()
+
+		// with the lock free, the same pass retires it
+		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, []int64{s2.strategy.ID})
+		require.NoError(t, err)
+
+		strat2, err = queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
 			Tenantid: s2.tenantId,
 			ID:       s2.strategy.ID,
 		})
