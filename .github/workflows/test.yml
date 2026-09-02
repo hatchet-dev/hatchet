@@ -117,10 +117,6 @@ jobs:
           version: 10.16.1
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
         run: docker compose up -d
 
@@ -163,10 +159,6 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
         run: docker compose up -d --wait
@@ -296,10 +288,6 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
         run: docker compose up -d --wait
