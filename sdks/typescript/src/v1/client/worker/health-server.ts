@@ -70,7 +70,8 @@ export class HealthServer {
       nodeVersion: process.version,
     };
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const httpStatus = response.status === workerStatus.UNHEALTHY ? 503 : 200;
+    res.writeHead(httpStatus, { 'Content-Type': 'application/json' });
     await res.end(JSON.stringify(response));
   }
 
