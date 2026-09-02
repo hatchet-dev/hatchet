@@ -19,6 +19,20 @@ class WorkflowInput(BaseModel):
     chain_c: str = "default"
 
 
+class RunWindow(BaseModel):
+    """When the task function was actually executing, so tests can assert whether two
+    runs overlapped."""
+
+    start_ms: int
+    end_ms: int
+
+
+def run_window(duration_seconds: float) -> RunWindow:
+    start = int(time.time() * 1000)
+    time.sleep(duration_seconds)
+    return RunWindow(start_ms=start, end_ms=int(time.time() * 1000))
+
+
 # > Shared Concurrency Strategy
 # A tenant-scoped strategy is shared across workflows: every task declaring the same name
 # consumes the same concurrency limit. The definition rides on workflow registration and
@@ -30,42 +44,24 @@ shared_limit = SharedConcurrency(
     limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
 )
 
-concurrency_shared_workflow_a = hatchet.workflow(
-    name="ConcurrencySharedA",
-    input_validator=WorkflowInput,
-)
 
-concurrency_shared_workflow_b = hatchet.workflow(
-    name="ConcurrencySharedB",
-    input_validator=WorkflowInput,
-)
+@hatchet.task(input_validator=WorkflowInput, concurrency=[shared_limit])
+def task_a(input: WorkflowInput, ctx: Context) -> RunWindow:
+    return run_window(1.5)
 
 
-@concurrency_shared_workflow_a.task(concurrency=[shared_limit])
-def task_a(input: WorkflowInput, ctx: Context) -> dict[str, int]:
-    start = int(time.time() * 1000)
-    time.sleep(1.5)
-    return {"start_ms": start, "end_ms": int(time.time() * 1000)}
+@hatchet.task(input_validator=WorkflowInput, concurrency=[shared_limit])
+def task_b(input: WorkflowInput, ctx: Context) -> RunWindow:
+    return run_window(1.5)
 
-
-@concurrency_shared_workflow_b.task(concurrency=[shared_limit])
-def task_b(input: WorkflowInput, ctx: Context) -> dict[str, int]:
-    start = int(time.time() * 1000)
-    time.sleep(1.5)
-    return {"start_ms": start, "end_ms": int(time.time() * 1000)}
 
 
 
 # > Mixed Inline And Shared Concurrency
 # A single task can combine a workflow-scoped inline strategy with a shared strategy;
 # both limits apply at once.
-concurrency_shared_mixed_workflow = hatchet.workflow(
-    name="ConcurrencySharedMixed",
+@hatchet.task(
     input_validator=WorkflowInput,
-)
-
-
-@concurrency_shared_mixed_workflow.task(
     concurrency=[
         ConcurrencyExpression(
             expression="input.inline",
@@ -75,10 +71,8 @@ concurrency_shared_mixed_workflow = hatchet.workflow(
         shared_limit,
     ],
 )
-def task_mixed(input: WorkflowInput, ctx: Context) -> dict[str, int]:
-    start = int(time.time() * 1000)
-    time.sleep(1.5)
-    return {"start_ms": start, "end_ms": int(time.time() * 1000)}
+def task_mixed(input: WorkflowInput, ctx: Context) -> RunWindow:
+    return run_window(1.5)
 
 
 
@@ -99,13 +93,9 @@ chain_limit_c = SharedConcurrency(
     limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
 )
 
-concurrency_shared_chain_workflow = hatchet.workflow(
-    name="ConcurrencySharedChain",
+
+@hatchet.task(
     input_validator=WorkflowInput,
-)
-
-
-@concurrency_shared_chain_workflow.task(
     concurrency=[
         chain_limit_a,
         ConcurrencyExpression(
@@ -116,10 +106,8 @@ concurrency_shared_chain_workflow = hatchet.workflow(
         chain_limit_c,
     ],
 )
-def task_chain(input: WorkflowInput, ctx: Context) -> dict[str, int]:
-    start = int(time.time() * 1000)
-    time.sleep(10)
-    return {"start_ms": start, "end_ms": int(time.time() * 1000)}
+def task_chain(input: WorkflowInput, ctx: Context) -> RunWindow:
+    return run_window(10)
 
 
 
@@ -128,10 +116,10 @@ def main() -> None:
     worker = hatchet.worker(
         "concurrency-shared-worker",
         workflows=[
-            concurrency_shared_workflow_a,
-            concurrency_shared_workflow_b,
-            concurrency_shared_mixed_workflow,
-            concurrency_shared_chain_workflow,
+            task_a,
+            task_b,
+            task_mixed,
+            task_chain,
         ],
     )
     worker.start()

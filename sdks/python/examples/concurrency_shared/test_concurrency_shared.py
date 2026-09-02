@@ -1,50 +1,48 @@
 import asyncio
-from typing import Any
 from uuid import uuid4
 
 import pytest
 
 from examples.concurrency_shared.worker import (
+    RunWindow,
     WorkflowInput,
-    concurrency_shared_chain_workflow,
-    concurrency_shared_mixed_workflow,
-    concurrency_shared_workflow_a,
-    concurrency_shared_workflow_b,
+    task_a,
+    task_b,
+    task_chain,
+    task_mixed,
 )
 from hatchet_sdk import Hatchet, V1TaskStatus
-from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.runnables.workflow import Standalone
 
 TOLERANCE_MS = 100
 
+ConcurrencyTask = Standalone[WorkflowInput, RunWindow]
+
 
 async def gather_run_windows(
-    runs: list[tuple[Workflow[WorkflowInput], str, WorkflowInput]],
-) -> list[dict[str, int]]:
-    """Trigger each (workflow, task_name, input) concurrently and return the run windows
-    reported by the task functions."""
-    results: list[dict[str, Any]] = await asyncio.gather(
-        *(wf.aio_run(inp) for wf, _, inp in runs)
-    )
-
-    return [result[task_name] for result, (_, task_name, _) in zip(results, runs)]
+    runs: list[tuple[ConcurrencyTask, WorkflowInput]],
+) -> list[RunWindow]:
+    """Trigger each (task, input) concurrently and return the run windows reported by the
+    task functions."""
+    return list(await asyncio.gather(*(task.aio_run(inp) for task, inp in runs)))
 
 
-def assert_serialized(windows: list[dict[str, int]]) -> None:
+def assert_serialized(windows: list[RunWindow]) -> None:
     """No two run windows may overlap (max concurrency of 1)."""
-    ordered = sorted(windows, key=lambda w: w["start_ms"])
+    ordered = sorted(windows, key=lambda w: w.start_ms)
 
     for prev, cur in zip(ordered, ordered[1:]):
         assert (
-            cur["start_ms"] >= prev["end_ms"] - TOLERANCE_MS
+            cur.start_ms >= prev.end_ms - TOLERANCE_MS
         ), f"runs overlapped: {prev} vs {cur}"
 
 
-def assert_some_overlap(windows: list[dict[str, int]]) -> None:
+def assert_some_overlap(windows: list[RunWindow]) -> None:
     """At least one pair of windows must overlap, proving the worker can run these tasks
     concurrently when no limit binds."""
     for i, a in enumerate(windows):
         for b in windows[i + 1 :]:
-            if a["start_ms"] < b["end_ms"] and b["start_ms"] < a["end_ms"]:
+            if a.start_ms < b.end_ms and b.start_ms < a.end_ms:
                 return
 
     raise AssertionError(f"expected at least one overlapping pair, got: {windows}")
@@ -52,16 +50,16 @@ def assert_some_overlap(windows: list[dict[str, int]]) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_shared_concurrency_cross_workflow(hatchet: Hatchet) -> None:
-    """Tasks from two DIFFERENT workflows referencing the same shared strategy (max=1)
-    with the same group key never run concurrently."""
+    """Runs of two DIFFERENT tasks referencing the same shared strategy (max=1) with the
+    same group key never run concurrently."""
     group = f"xwf-{uuid4()}"
 
     windows = await gather_run_windows(
         [
-            (concurrency_shared_workflow_a, "task_a", WorkflowInput(group=group)),
-            (concurrency_shared_workflow_a, "task_a", WorkflowInput(group=group)),
-            (concurrency_shared_workflow_b, "task_b", WorkflowInput(group=group)),
-            (concurrency_shared_workflow_b, "task_b", WorkflowInput(group=group)),
+            (task_a, WorkflowInput(group=group)),
+            (task_a, WorkflowInput(group=group)),
+            (task_b, WorkflowInput(group=group)),
+            (task_b, WorkflowInput(group=group)),
         ]
     )
 
@@ -72,22 +70,14 @@ async def test_shared_concurrency_cross_workflow(hatchet: Hatchet) -> None:
 async def test_shared_concurrency_mixed_shared_limit_binds(hatchet: Hatchet) -> None:
     """The mixed task holds an inline strategy AND the shared strategy. With distinct
     inline keys but one shared group key, the shared limit serializes the runs — including
-    against a task from another workflow."""
+    against a different task."""
     group = f"mixed-shared-{uuid4()}"
 
     windows = await gather_run_windows(
         [
-            (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
-                WorkflowInput(group=group, inline=f"inline-{uuid4()}"),
-            ),
-            (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
-                WorkflowInput(group=group, inline=f"inline-{uuid4()}"),
-            ),
-            (concurrency_shared_workflow_a, "task_a", WorkflowInput(group=group)),
+            (task_mixed, WorkflowInput(group=group, inline=f"inline-{uuid4()}")),
+            (task_mixed, WorkflowInput(group=group, inline=f"inline-{uuid4()}")),
+            (task_a, WorkflowInput(group=group)),
         ]
     )
 
@@ -102,16 +92,8 @@ async def test_shared_concurrency_mixed_inline_limit_binds(hatchet: Hatchet) -> 
 
     windows = await gather_run_windows(
         [
-            (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
-                WorkflowInput(group=f"group-{uuid4()}", inline=inline),
-            ),
-            (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
-                WorkflowInput(group=f"group-{uuid4()}", inline=inline),
-            ),
+            (task_mixed, WorkflowInput(group=f"group-{uuid4()}", inline=inline)),
+            (task_mixed, WorkflowInput(group=f"group-{uuid4()}", inline=inline)),
         ]
     )
 
@@ -126,13 +108,11 @@ async def test_shared_concurrency_no_limit_overlaps(hatchet: Hatchet) -> None:
     windows = await gather_run_windows(
         [
             (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
+                task_mixed,
                 WorkflowInput(group=f"group-{uuid4()}", inline=f"inline-{uuid4()}"),
             ),
             (
-                concurrency_shared_mixed_workflow,
-                "task_mixed",
+                task_mixed,
                 WorkflowInput(group=f"group-{uuid4()}", inline=f"inline-{uuid4()}"),
             ),
         ]
@@ -149,7 +129,7 @@ async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None
     the newer run cancelling the older in-flight one."""
     inline = f"chain-inline-{uuid4()}"
 
-    ref_old = await concurrency_shared_chain_workflow.aio_run(
+    ref_old = await task_chain.aio_run(
         WorkflowInput(group=f"a-{uuid4()}", inline=inline, chain_c=f"c-{uuid4()}"),
         wait_for_result=False,
     )
@@ -157,7 +137,7 @@ async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None
     # let the first run acquire its full chain and start executing
     await asyncio.sleep(3)
 
-    ref_new = await concurrency_shared_chain_workflow.aio_run(
+    ref_new = await task_chain.aio_run(
         WorkflowInput(group=f"a-{uuid4()}", inline=inline, chain_c=f"c-{uuid4()}"),
         wait_for_result=False,
     )

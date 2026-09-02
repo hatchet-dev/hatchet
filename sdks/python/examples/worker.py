@@ -1,22 +1,44 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.batch_assign.worker import (
-    batch_keyed,
-    batch_keyed_interval,
-    batch_keyed_failable,
-    batch_large,
-    batch_simple,
-    batch_single,
-    batch_ordered,
     batch_broadcast,
     batch_cancel,
-    batch_child_spawn,
     batch_child_batch_spawn,
-    child_batch,
+    batch_child_spawn,
+    batch_keyed,
+    batch_keyed_failable,
+    batch_keyed_interval,
+    batch_large,
+    batch_ordered,
+    batch_simple,
+    batch_single,
     child,
+    child_batch,
+)
+from examples.bug_tests.durable_child_key_duplicate_child.worker import (
+    child_child_key_bug,
+    durable_parent_child_key_bug,
+)
+from examples.bug_tests.durable_dag_child.worker import (
+    dag_spawning_dag,
+    diamond_dag,
+    durable_spawner_dag,
+    mixed_spawner_dag,
+    multi_spawner_dag,
+    parent_dag,
+    spawned_child,
+    spawned_child_dag,
+)
+from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
+from examples.bug_tests.durable_spawn_index_collision.worker import (
+    durable_spawn_index_collision,
+    spawn_index_child_a,
+    spawn_index_child_b,
 )
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
 )
+from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
+from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.bulk_operations.worker import (
     bulk_replay_test_1,
@@ -24,6 +46,16 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from examples.cancellation.worker import cancellation_workflow
+from examples.concurrency_cancel_in_progress.worker import (
+    concurrency_cancel_in_progress_workflow,
+)
+from examples.concurrency_cancel_in_progress_task_level.worker import (
+    concurrency_cancel_in_progress_task_level_workflow,
+)
+from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
+from examples.concurrency_cancel_newest_task_level.worker import (
+    concurrency_cancel_newest_task_level_workflow,
+)
 from examples.concurrency_cancel_queued_except_newest.worker import (
     concurrency_cancel_queued_except_newest_workflow,
 )
@@ -36,39 +68,34 @@ from examples.concurrency_cancel_queued_except_oldest.worker import (
 from examples.concurrency_cancel_queued_except_oldest_with_parent_concurrency.worker import (
     concurrency_cancel_queued_except_oldest_with_parent_concurrency_workflow,
 )
-from examples.concurrency_shared.worker import (
-    concurrency_shared_chain_workflow,
-    concurrency_shared_mixed_workflow,
-    concurrency_shared_workflow_a,
-    concurrency_shared_workflow_b,
-)
-from examples.concurrency_cancel_in_progress.worker import (
-    concurrency_cancel_in_progress_workflow,
-)
-from examples.concurrency_cancel_in_progress_task_level.worker import (
-    concurrency_cancel_in_progress_task_level_workflow,
-)
-from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
-from examples.concurrency_cancel_newest_task_level.worker import (
-    concurrency_cancel_newest_task_level_workflow,
-)
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
+from examples.concurrency_shared.worker import (
+    task_a as concurrency_shared_task_a,
+)
+from examples.concurrency_shared.worker import (
+    task_b as concurrency_shared_task_b,
+)
+from examples.concurrency_shared.worker import (
+    task_chain as concurrency_shared_task_chain,
+)
+from examples.concurrency_shared.worker import (
+    task_mixed as concurrency_shared_task_mixed,
+)
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
 from examples.conditions.worker import (
-    task_condition_workflow,
-    cancel_if_workflow,
-    skip_if_sleep_workflow,
-    skip_if_or_workflow,
     cancel_if_event_workflow,
-    cancel_if_sleep_workflow,
     cancel_if_or_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_workflow,
+    skip_if_or_workflow,
+    skip_if_sleep_workflow,
+    task_condition_workflow,
     wait_for_event_only_workflow,
 )
-from examples.conditions.worker import task_condition_workflow
 from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
@@ -82,25 +109,25 @@ from examples.dependency_injection.worker import (
 )
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
+    dag_child_workflow,
+    durable_child_key_dedup_replay,
+    durable_non_determinism,
+    durable_replay_reset,
     durable_sleep_event_spawn,
+    durable_spawn_dag,
+    durable_spawn_many_dags,
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
-    spawn_child_task,
-    wait_for_sleep_twice,
-    dag_child_workflow,
-    durable_spawn_dag,
-    durable_non_determinism,
-    durable_replay_reset,
-    memo_task,
+    error_raising_durable_parent,
+    error_raising_task,
     memo_now_caching,
+    memo_task,
+    spawn_child_task,
     wait_for_event_lookback,
     wait_for_or_event_lookback,
+    wait_for_sleep_twice,
     wait_for_two_events_second_pushed_first,
-    durable_child_key_dedup_replay,
-    durable_spawn_many_dags,
-    error_raising_task,
-    error_raising_durable_parent,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -108,8 +135,6 @@ from examples.durable_event.worker import (
 )
 from examples.durable_eviction.worker import (
     branch_child,
-    bulk_child_task as eviction_bulk_child_task,
-    child_task as eviction_child_task,
     concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
@@ -118,20 +143,37 @@ from examples.durable_eviction.worker import (
     multiple_eviction,
     non_evictable_sleep,
 )
+from examples.durable_eviction.worker import (
+    bulk_child_task as eviction_bulk_child_task,
+)
+from examples.durable_eviction.worker import (
+    child_task as eviction_child_task,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
+from examples.idempotency.worker import (
+    idempotent_status_based_task,
+    idempotent_status_based_task_with_retries,
+    idempotent_task,
+    idempotent_task_short_window,
+)
 from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
+from examples.opentelemetry_instrumentation.worker import (
+    otel_simple_task,
+    otel_spawn_parent,
+    otel_workflow,
+)
+from examples.pdf_pipeline.worker import pdf_pipeline
 from examples.return_exceptions.worker import (
     exception_parsing_workflow,
     return_exceptions_task,
 )
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
-from examples.pdf_pipeline.worker import pdf_pipeline
 from examples.simple.worker import simple, simple_durable
 from examples.support_agent.worker import (
     escalate_ticket,
@@ -146,41 +188,7 @@ from examples.webhook_with_scope.worker import (
 )
 from examples.webhooks.worker import webhook
 from examples.welcome_email.worker import welcome_email
-from examples.opentelemetry_instrumentation.worker import (
-    otel_workflow,
-    otel_simple_task,
-    otel_spawn_parent,
-)
-from examples.bug_tests.durable_child_key_duplicate_child.worker import (
-    durable_parent_child_key_bug,
-    child_child_key_bug,
-)
-from examples.idempotency.worker import (
-    idempotent_task,
-    idempotent_task_short_window,
-    idempotent_status_based_task,
-    idempotent_status_based_task_with_retries,
-)
-from examples.bug_tests.durable_spawn_index_collision.worker import (
-    durable_spawn_index_collision,
-    spawn_index_child_a,
-    spawn_index_child_b,
-)
-from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
-
 from examples.workflow_pause.worker import pausable_workflow
-from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
-from examples.bug_tests.durable_dag_child.worker import (
-    dag_spawning_dag,
-    diamond_dag,
-    durable_spawner_dag,
-    mixed_spawner_dag,
-    multi_spawner_dag,
-    parent_dag,
-    spawned_child,
-    spawned_child_dag,
-)
-from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -237,10 +245,10 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
-            concurrency_shared_workflow_a,
-            concurrency_shared_workflow_b,
-            concurrency_shared_mixed_workflow,
-            concurrency_shared_chain_workflow,
+            concurrency_shared_task_a,
+            concurrency_shared_task_b,
+            concurrency_shared_task_mixed,
+            concurrency_shared_task_chain,
             concurrency_cancel_queued_except_newest_workflow,
             concurrency_cancel_queued_except_oldest_workflow,
             concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow,
