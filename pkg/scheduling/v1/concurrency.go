@@ -110,15 +110,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	}
 
 	go c.loopConcurrency(ctx)
-
-	// Tenant-scoped strategies are checked by the tenant manager in one batched pass
-	// (CheckAndDeactivateTenantConcurrency): the per-manager loop would hold the
-	// strategy's blocking advisory lock for the duration of a check whose cost grows
-	// with the number of referencing workflows, starving the slot-flush path that
-	// try-locks the same key.
-	if !strategy.TenantStrategyID.Valid {
-		go c.loopCheckActive(ctx)
-	}
+	go c.loopCheckActive(ctx)
 
 	// run once on startup instead of waiting for the first tick
 	c.notify(context.Background())
@@ -173,6 +165,10 @@ func (c *ConcurrencyManager) UpdateStrategy(next *sqlcv1.V1StepConcurrency) bool
 
 	c.concurrencyStrategy.UpdateStrategy(next)
 	c.appliedDef = next
+
+	// wake the run loop so the re-armed all-sub-queue pass applies the new limit
+	// promptly instead of waiting for the next tick or WAL message
+	c.notify(context.Background())
 
 	return true
 }
@@ -307,7 +303,16 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 			continue
 		}
 		start := time.Now()
-		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
+		var err error
+		if c.strategy.TenantStrategyID.Valid {
+			// tenant strategies use a dedicated endpoint: the check's cost grows with the
+			// number of referencing workflows, so it runs lock-free, and only the rare
+			// deactivation takes a short try-lock — never starving the slot-flush path,
+			// which try-locks the same advisory key on every batch
+			err = c.repo.CheckAndDeactivateTenantConcurrency(ctx, c.tenantId, c.strategy.ID)
+		} else {
+			err = c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
+		}
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()

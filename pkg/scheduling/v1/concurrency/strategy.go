@@ -864,11 +864,20 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 
 // UpdateStrategy applies a changed definition to the live index without a rebuild. The
 // caller guarantees the strategy kind and parent linkage are unchanged (those alter the
-// scheduling structure and require a rebuild); expression and static max-concurrency
-// changes are safe to swap in place. buildingMu serializes this against WAL processing,
-// index builds, and the post-build queueing pass, so no batch observes a half-applied
-// definition; mu covers getOrCreateSubQueue's reads.
+// sub-queue comparators and heap ordering, so they require a rebuild); expression and
+// static max-concurrency changes are safe to swap in place. buildingMu serializes this
+// against WAL processing, index builds, and the queueing pass, so no batch observes a
+// half-applied definition; mu covers getOrCreateSubQueue's reads.
+//
+// The WAL path only re-decides sub-queues its messages touch, so a changed limit would
+// otherwise not reach an idle group's backlog until new traffic arrived for it. Re-arm
+// the all-sub-queue queueing pass (the same one that runs post-build) so the next Run
+// applies the new limit everywhere: raises promote queued backlog immediately, lowers
+// trim or grandfather per the strategy kind. Lock order matches runInitialQueueing
+// (initialQueueMu before buildingMu).
 func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
+	c.initialQueueMu.Lock()
+	defer c.initialQueueMu.Unlock()
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
 	c.mu.Lock()
@@ -879,6 +888,8 @@ func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
 	for _, sq := range c.subQueues {
 		sq.maxRuns = next.MaxConcurrency
 	}
+
+	c.initialQueued = false
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {
