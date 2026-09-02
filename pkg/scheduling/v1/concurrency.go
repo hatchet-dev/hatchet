@@ -24,6 +24,12 @@ type ConcurrencyManager struct {
 
 	strategy *sqlcv1.V1StepConcurrency
 
+	// appliedDef is the most recent definition applied in place by UpdateStrategy (nil
+	// until the first in-place update). Only the tenant manager's reconcile goroutine
+	// reads or writes it, so it needs no lock; the loops keep reading the immutable
+	// identity fields on strategy.
+	appliedDef *sqlcv1.V1StepConcurrency
+
 	// concurrencyStrategy is the in-memory index + outbox-based approach
 	concurrencyStrategy *concurrency.ConcurrencyStrategy
 
@@ -64,7 +70,9 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var concurrencyStrategy *concurrency.ConcurrencyStrategy
-	if conf.concurrencyInMemoryIndexEnabled && !strategy.ParentStrategyID.Valid {
+	// Tenant-scoped strategies (TenantStrategyID set on the descriptor) are only supported
+	// by the in-memory index, so they always take that path regardless of the config flag.
+	if (conf.concurrencyInMemoryIndexEnabled || strategy.TenantStrategyID.Valid) && !strategy.ParentStrategyID.Valid {
 		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
 	} else {
 		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
@@ -112,6 +120,57 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 func (c *ConcurrencyManager) Cleanup() {
 	c.cleanup()
+}
+
+// currentDef is the definition this manager is currently running: the last in-place
+// update if one was applied, else the construction-time strategy. Reconcile-goroutine
+// only, like appliedDef.
+func (c *ConcurrencyManager) currentDef() *sqlcv1.V1StepConcurrency {
+	if c.appliedDef != nil {
+		return c.appliedDef
+	}
+
+	return c.strategy
+}
+
+// strategyDiffers reports whether this manager's strategy definition differs from next in
+// any scheduling-relevant field, meaning the manager must pick up the new definition
+// (in place via UpdateStrategy when possible, else by a rebuild).
+func (c *ConcurrencyManager) strategyDiffers(next *sqlcv1.V1StepConcurrency) bool {
+	cur := c.currentDef()
+
+	return cur.Expression != next.Expression ||
+		cur.Strategy != next.Strategy ||
+		cur.MaxConcurrency != next.MaxConcurrency ||
+		cur.ParentStrategyID != next.ParentStrategyID
+}
+
+// UpdateStrategy applies a changed definition to the running manager in place, avoiding
+// the cleanup/recreate cycle (topic re-acquisition and a full slot rehydration, plus the
+// contention window where the old manager still holds its locks while the new one spins
+// up). It returns false when the change is structural — the limit-strategy kind or the
+// parent linkage changed, or the manager runs the SQL path (no in-memory index), which
+// reads its definition from the construction-time strategy — in which case the caller
+// falls back to a rebuild. Reconcile-goroutine only.
+func (c *ConcurrencyManager) UpdateStrategy(next *sqlcv1.V1StepConcurrency) bool {
+	cur := c.currentDef()
+
+	if cur.Strategy != next.Strategy || cur.ParentStrategyID != next.ParentStrategyID {
+		return false
+	}
+
+	if c.concurrencyStrategy == nil {
+		return false
+	}
+
+	c.concurrencyStrategy.UpdateStrategy(next)
+	c.appliedDef = next
+
+	// wake the run loop so the re-armed all-sub-queue pass applies the new limit
+	// promptly instead of waiting for the next tick or WAL message
+	c.notify(context.Background())
+
+	return true
 }
 
 func (c *ConcurrencyManager) notify(ctx context.Context) {
@@ -244,7 +303,16 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 			continue
 		}
 		start := time.Now()
-		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
+		var err error
+		if c.strategy.TenantStrategyID.Valid {
+			// tenant strategies use a dedicated endpoint: the check's cost grows with the
+			// number of referencing workflows, so it runs lock-free, and only the rare
+			// deactivation takes a short try-lock — never starving the slot-flush path,
+			// which try-locks the same advisory key on every batch
+			err = c.repo.CheckAndDeactivateTenantConcurrency(ctx, c.tenantId, c.strategy.ID)
+		} else {
+			err = c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
+		}
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()

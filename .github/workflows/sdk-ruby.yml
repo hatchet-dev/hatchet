@@ -50,6 +50,13 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
+      # The shared runners intermittently hit GitHub's unauthenticated git-over-https
+      # limits, which breaks pre-commit's hook-repo clones ("could not read Username for
+      # 'https://github.com'"). Clone with the workflow token instead.
+      - name: Authenticate git for pre-commit hook repos
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+
+
       - name: Generate OpenAPI spec
         working-directory: .
         run: sh hack/oas/generate-server.sh

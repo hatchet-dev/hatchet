@@ -3192,20 +3192,40 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	fetchedByStepId := make(map[uuid.UUID][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
-		stepId := strat.StepID
-		fetchedByStepId[stepId] = append(fetchedByStepId[stepId], strat)
+		fetchedByStepId[strat.StepID] = append(fetchedByStepId[strat.StepID], strat)
 	}
 
 	// Populate cache for all missing step IDs, including negative-caching empty results.
 	for _, stepId := range missingStepIdStrs {
 		stepStrats := fetchedByStepId[stepId]
+		hasTenantRef := false
+
 		if stepStrats == nil {
 			stepStrats = []*sqlcv1.V1StepConcurrency{}
 		} else {
+			// Sort by row id first: creation order encodes the user-declared chain order.
 			sortStrategies(stepStrats)
+
+			// Then resolve rows referencing a tenant strategy to the tenant strategy's id,
+			// so task slots carry the shared id. This must happen after sorting, since the
+			// tenant strategy's own id says nothing about this step's chain order.
+			for _, strat := range stepStrats {
+				if strat.TenantStrategyID.Valid {
+					strat.ID = strat.TenantStrategyID.Int64
+					hasTenantRef = true
+				}
+			}
 		}
 
-		r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
+		// Steps referencing tenant-scoped strategies are never cached: their definitions
+		// are mutable (re-registration updates them in place, on any engine), and a cached
+		// copy would apply a stale expression. The referencing rows are kept in sync in
+		// the database by the v1_tenant_concurrency update trigger, so reading through is
+		// always current, and the lookup is a cheap indexed read per insert batch.
+		if !hasTenantRef {
+			r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
+		}
+
 		stepIdToStrats[stepId] = stepStrats
 	}
 
