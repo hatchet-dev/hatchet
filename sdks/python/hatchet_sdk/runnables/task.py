@@ -1,6 +1,6 @@
 import asyncio
 import warnings
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Callable
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -63,7 +63,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.types.concurrency import ConcurrencyExpression, SharedConcurrency
+from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
@@ -168,7 +168,7 @@ class Task(Generic[TWorkflowInput, R]):
         desired_worker_labels: list[DesiredWorkerLabel] | None,
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
-        concurrency: int | Sequence[ConcurrencyExpression | SharedConcurrency] | None,
+        concurrency: int | list[ConcurrencyExpression] | None,
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
@@ -484,9 +484,7 @@ class Task(Generic[TWorkflowInput, R]):
 
     def to_proto(self, service_name: str) -> CreateTaskOpts:
         if isinstance(self.concurrency, int):
-            concurrency: Sequence[ConcurrencyExpression | SharedConcurrency] = [
-                ConcurrencyExpression.from_int(self.concurrency)
-            ]
+            concurrency = [ConcurrencyExpression.from_int(self.concurrency)]
         else:
             concurrency = self.concurrency
 

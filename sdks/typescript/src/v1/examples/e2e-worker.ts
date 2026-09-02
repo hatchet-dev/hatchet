@@ -14,11 +14,6 @@ import { concurrencyCancelNewestWorkflow } from './concurrency_cancel_newest/wor
 import { concurrencyCancelQueuedExceptNewestWorkflow } from './concurrency_cancel_queued_except_newest/workflow';
 import { concurrencyCancelQueuedExceptOldestWorkflow } from './concurrency_cancel_queued_except_oldest/workflow';
 import { concurrencyMultipleKeysWorkflow } from './concurrency_multiple_keys/workflow';
-import {
-  concurrencySharedMixedWorkflow,
-  concurrencySharedWorkflowA,
-  concurrencySharedWorkflowB,
-} from './concurrency_shared/workflow';
 import { concurrencyWorkflowLevelWorkflow } from './concurrency_workflow_level/workflow';
 import { dag } from './dag/workflow';
 import {
@@ -106,9 +101,6 @@ const workflows = [
   concurrencyCancelQueuedExceptNewestWorkflow,
   concurrencyCancelQueuedExceptOldestWorkflow,
   concurrencyMultipleKeysWorkflow,
-  concurrencySharedWorkflowA,
-  concurrencySharedWorkflowB,
-  concurrencySharedMixedWorkflow,
   concurrencyWorkflowLevelWorkflow,
   dag,
   durableWorkflow,

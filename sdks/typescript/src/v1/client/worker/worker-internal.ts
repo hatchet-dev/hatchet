@@ -20,7 +20,6 @@ import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hat
 import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
 import {
   Concurrency,
-  SharedConcurrency,
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
@@ -394,7 +393,7 @@ export class InternalWorker {
         eventTriggers,
         cronTriggers,
         sticky: stickyStrategy,
-        concurrencyArr: mapConcurrencyPb(concurrencyArr),
+        concurrencyArr,
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
         inputJsonSchema,
@@ -420,12 +419,20 @@ export class InternalWorker {
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           batch: mapBatchConfigPb(batchOf(task)),
           concurrency: (() => {
-            const taskConcurrency = taskConcurrencyArr(task, workflow);
+            const taskConcurrency = task.concurrency
+              ? Array.isArray(task.concurrency)
+                ? task.concurrency
+                : [task.concurrency]
+              : workflow.taskDefaults?.concurrency
+                ? Array.isArray(workflow.taskDefaults.concurrency)
+                  ? workflow.taskDefaults.concurrency
+                  : [workflow.taskDefaults.concurrency]
+                : [];
             assertValidConcurrencyArr(taskConcurrency);
-            return mapConcurrencyPb(taskConcurrency);
+            return taskConcurrency;
           })(),
         })),
-        concurrency: concurrencySolo ? mapConcurrencyPb([concurrencySolo])[0] : undefined,
+        concurrency: concurrencySolo,
         defaultFilters:
           workflow.defaultFilters?.map((f) => ({
             scope: f.scope,
@@ -1374,35 +1381,6 @@ function batchOf(
   task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
 ): CreateWorkflowTaskOpts<any, any>['batch'] {
   return 'batch' in task ? task.batch : undefined;
-}
-
-// mapConcurrencyPb maps SDK concurrency entries onto the proto shape; entries keep their
-// declared order, which is the chain order.
-export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
-  return entries.map((c) => ({
-    expression: c.expression,
-    maxRuns: c.maxRuns,
-    limitStrategy: c.limitStrategy,
-    name: c.name,
-    tenantScoped: c.tenantScoped,
-  }));
-}
-
-export function taskConcurrencyArr(
-  task: { concurrency?: Concurrency | SharedConcurrency | (Concurrency | SharedConcurrency)[] },
-  workflow: { taskDefaults?: { concurrency?: Concurrency | Concurrency[] } }
-): (Concurrency | SharedConcurrency)[] {
-  if (task.concurrency) {
-    return Array.isArray(task.concurrency) ? task.concurrency : [task.concurrency];
-  }
-
-  if (workflow.taskDefaults?.concurrency) {
-    return Array.isArray(workflow.taskDefaults.concurrency)
-      ? workflow.taskDefaults.concurrency
-      : [workflow.taskDefaults.concurrency];
-  }
-
-  return [];
 }
 
 export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {
