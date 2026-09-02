@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/pm"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/tui"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
@@ -168,6 +169,59 @@ var workerGetCmd = &cobra.Command{
 	},
 }
 
+var workerPauseCmd = &cobra.Command{
+	Use:              "pause <worker-id>",
+	Short:            "Pause a worker",
+	Long:             `Pause a worker so it cannot accept new runs.`,
+	Args:             cobra.ExactArgs(1),
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {},
+	Run: func(cmd *cobra.Command, args []string) {
+		setWorkerPaused(cmd, args[0], true)
+	},
+}
+
+var workerResumeCmd = &cobra.Command{
+	Use:              "resume <worker-id>",
+	Short:            "Resume a worker",
+	Long:             `Resume a paused worker so it can accept new runs.`,
+	Args:             cobra.ExactArgs(1),
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {},
+	Run: func(cmd *cobra.Command, args []string) {
+		setWorkerPaused(cmd, args[0], false)
+	},
+}
+
+func setWorkerPaused(cmd *cobra.Command, workerID string, paused bool) {
+	isJSON := isJSONOutput(cmd)
+	_, hatchetClient := clientFromCmd(cmd)
+
+	workerUUID, err := uuid.Parse(workerID)
+	if err != nil {
+		cli.Logger.Fatalf("invalid worker ID %q: %v", workerID, err)
+	}
+
+	resp, err := hatchetClient.API().WorkerUpdateWithResponse(cmd.Context(), workerUUID, rest.UpdateWorkerRequest{
+		IsPaused: &paused,
+	})
+	if err != nil {
+		cli.Logger.Fatalf("failed to update worker: %v", err)
+	}
+	if resp.JSON200 == nil {
+		cli.Logger.Fatalf("failed to update worker (status %d)", resp.StatusCode())
+	}
+
+	if isJSON {
+		printJSON(resp.JSON200)
+		return
+	}
+
+	action := "Resumed"
+	if paused {
+		action = "Paused"
+	}
+	fmt.Println(styles.SuccessMessage(fmt.Sprintf("%s worker: %s", action, resp.JSON200.Name)))
+}
+
 // tuiModelWithInitialWorker wraps tuiModel to navigate to a specific worker on init
 type tuiModelWithInitialWorker struct {
 	initialWorkerID string
@@ -185,7 +239,7 @@ func init() {
 	rootCmd.AddCommand(workerCmd)
 
 	workerCmd.AddCommand(devCmd)
-	workerCmd.AddCommand(workerListCmd, workerGetCmd)
+	workerCmd.AddCommand(workerListCmd, workerGetCmd, workerPauseCmd, workerResumeCmd)
 
 	// Add flags for dev command
 	devCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
@@ -197,6 +251,10 @@ func init() {
 	workerListCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
 	workerGetCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	workerGetCmd.Flags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
+	for _, c := range []*cobra.Command{workerPauseCmd, workerResumeCmd} {
+		c.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
+		c.Flags().StringP("output", "o", "", "Output format: json")
+	}
 }
 
 func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileFlag string) {
