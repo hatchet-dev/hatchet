@@ -497,6 +497,9 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 		}
 	default:
 		if buffered, exists := rel.bufferedCompletions[order]; exists {
+			if buffered == nil || resp == nil {
+				return nil
+			}
 			existingRef := buffered.GetEntryCompleted().GetRef()
 			incomingRef := resp.GetEntryCompleted().GetRef()
 			if existingRef.GetNodeId() != incomingRef.GetNodeId() || existingRef.GetBranchId() != incomingRef.GetBranchId() {
@@ -516,6 +519,9 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	}
 
 	for _, r := range toSend {
+		if r == nil {
+			continue
+		}
 		if err := s.send(r); err != nil {
 			return err
 		}
@@ -566,10 +572,10 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	defer func() {
 		for taskId := range registeredTasks {
-			d.durableInvocations.Delete(durableInvocationsKey{
+			d.durableInvocations.CompareAndDelete(durableInvocationsKey{
 				tenantId: tenantId,
 				taskId:   taskId,
-			})
+			}, invocation)
 		}
 	}()
 
@@ -729,7 +735,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 			cancel()
 
 			for taskId := range registeredTasks {
-				d.durableInvocations.Delete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId})
+				d.durableInvocations.CompareAndDelete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId}, invocation)
 			}
 
 			invocation.sendMu.Lock()
@@ -1499,7 +1505,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		d.evictIdleOperatorTasks(ctx, invocation, uniqueExternalIds, staleExternalIds, callbacks)
 	}
 
-	d.evictStalledOrderedReleases(invocation)
+	d.evictStalledOrderedReleases(ctx, invocation)
 	invocation.pruneIdleReleases(durableReleaseIdleTTL)
 
 	return nil
@@ -1557,13 +1563,18 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 const durableOrderedReleaseGapTimeout = 60 * time.Second
 const durableReleaseIdleTTL = 24 * time.Hour
 
-func (d *DispatcherServiceImpl) evictStalledOrderedReleases(invocation *durableTaskInvocation) {
+func (d *DispatcherServiceImpl) evictStalledOrderedReleases(ctx context.Context, invocation *durableTaskInvocation) {
 	for _, key := range invocation.staleReleaseHolds(durableOrderedReleaseGapTimeout) {
 		d.l.Error().Msgf(
 			"durable task %s (invocation %d): ordered release stalled waiting for a missing satisfied_order for over %s; evicting to restart. "+
 				"if this repeats, the task was likely forked with BranchDurableTask across an out-of-order satisfaction, which is not supported",
 			key.taskExternalId, key.invocationCount, durableOrderedReleaseGapTimeout,
 		)
+
+		if _, err := d.evictDurableTask(ctx, invocation.tenantId, key.taskExternalId, key.invocationCount, "ordered durable completion release stalled on a missing entry"); err != nil {
+			d.l.Error().Err(err).Msgf("failed to evict durable task %s for stalled ordered release", key.taskExternalId)
+			continue
+		}
 
 		if err := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_ServerEvict{
@@ -1759,6 +1770,28 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 
 	if len(ingestionResult.TriggerRunsResult.Entries) == 0 {
 		return nil, fmt.Errorf("no entries returned from durable event ingestion")
+	}
+
+	if inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId: tenantId, taskId: task.ExternalID}); ok {
+		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
+		satisfiedEntries := make([]*v1.IngestTriggerRunsEntry, 0, len(ingestionResult.TriggerRunsResult.Entries))
+		for _, e := range ingestionResult.TriggerRunsResult.Entries {
+			if e.IsSatisfied {
+				satisfiedEntries = append(satisfiedEntries, e)
+			}
+		}
+
+		go func() {
+			for _, e := range satisfiedEntries {
+				if e.SatisfiedOrder == nil {
+					return
+				}
+
+				if err := inv.deliverOrdered(task.ExternalID, invocationCount, e.SatisfiedOrder, nil); err != nil {
+					d.l.Error().Err(err).Msgf("failed to advance ordered release for task %s past satisfied_order %d", task.ExternalID, *e.SatisfiedOrder)
+				}
+			}
+		}()
 	}
 
 	entry := ingestionResult.TriggerRunsResult.Entries[0]
