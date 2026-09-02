@@ -23,11 +23,20 @@ export type Concurrency = {
   expression: string;
 
   /**
-   * (optional) the maximum number of concurrent workflow runs
+   * (optional) the maximum number of concurrent runs: a fixed number, or a CEL
+   * expression over task input computing the max runs for that task's concurrency
+   * group. With an expression, a group's effective limit is the value from its most
+   * recently created task.
    *
    * default: 1
+   *
+   * @example
+   * ```
+   * maxRuns: 5
+   * maxRuns: "input.tier == 'premium' ? 10 : 1"
+   * ```
    */
-  maxRuns?: number;
+  maxRuns?: number | string;
 
   /**
    * (optional) the strategy to use when the concurrency limit is reached
@@ -49,18 +58,6 @@ export type Concurrency = {
    * and chains sharing tenant-scoped strategies must order them consistently.
    */
   tenantScoped?: boolean;
-
-  /**
-   * (optional) CEL expression over task input computing the max runs for that task's
-   * concurrency group; a group's effective limit is the value from its most recently
-   * created task. Overrides maxRuns per group.
-   *
-   * @example
-   * ```
-   * "input.tier == 'premium' ? 10 : 1"
-   * ```
-   */
-  maxRunsExpression?: string;
 };
 
 /**

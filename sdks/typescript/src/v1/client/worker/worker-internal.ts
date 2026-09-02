@@ -1381,11 +1381,13 @@ function batchOf(
 export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
   return entries.map((c) => ({
     expression: c.expression,
-    maxRuns: c.maxRuns,
+    // a string maxRuns is a CEL expression; the static field then carries the default
+    // of 1, which only governs slots created before the expression existed
+    maxRuns: typeof c.maxRuns === 'string' ? 1 : c.maxRuns,
     limitStrategy: c.limitStrategy,
     name: c.name,
     isTenantScoped: c.tenantScoped,
-    maxRunsExpression: c.maxRunsExpression,
+    maxRunsExpression: typeof c.maxRuns === 'string' ? c.maxRuns : undefined,
   }));
 }
 
@@ -1408,9 +1410,16 @@ export function taskConcurrencyArr(
 
 export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {
   concurrency?.forEach((c) => {
+    if (typeof c.maxRuns === 'string') {
+      if (!c.maxRuns.trim()) {
+        throw new Error('concurrency.maxRuns expression must be non-empty');
+      }
+      return;
+    }
+
     if (c.maxRuns !== undefined && (!Number.isInteger(c.maxRuns) || c.maxRuns <= 0)) {
       throw new Error(
-        `concurrency.maxRuns must be a positive integer when provided, got: ${c.maxRuns}`
+        `concurrency.maxRuns must be a positive integer or a CEL expression, got: ${c.maxRuns}`
       );
     }
   });
