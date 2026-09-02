@@ -402,6 +402,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		tasks,
 		onFailureTask,
 		externalId,
+		d.WorkerId(),
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		requestCh,
@@ -416,6 +417,15 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}
 
 	if dagErr != nil {
+		if isDagEvictedErr(dagErr) {
+			span.SetAttributes(attribute.Bool("dagoperator.evicted", true))
+
+			d.Logger().Debug().
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Msg("dag run evicted while waiting on durable events; slots released until restore")
+
+			return nil
+		}
 		if isDagCancelledErr(dagErr) {
 			return d.cancelDAG(span, action, dagErr.Error())
 		}

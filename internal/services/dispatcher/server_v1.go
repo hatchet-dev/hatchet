@@ -339,6 +339,8 @@ type durableTaskInvocation struct {
 	tenantId uuid.UUID
 	closed   bool // channel transport only; guarded by sendMu
 
+	isRunningOnOperator bool
+
 	releasesMu sync.Mutex
 	releases   map[orderedReleaseKey]*orderedRelease
 }
@@ -393,8 +395,17 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 	}
 
 	if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
-		d.l.Error().Err(err).Msg("error handling durable task request")
+		d.logDurableTaskRequestError(err)
 	}
+}
+
+func (d *DispatcherServiceImpl) logDurableTaskRequestError(err error) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, errDurableTaskSessionClosed) {
+		d.l.Debug().Err(err).Msg("durable task request abandoned because its session closed")
+		return
+	}
+
+	d.l.Error().Err(err).Msg("error handling durable task request")
 }
 
 func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedRelease {
@@ -644,7 +655,7 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				defer reqWg.Done()
 
 				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
-					d.l.Error().Err(err).Msg("error handling durable task request")
+					d.logDurableTaskRequestError(err)
 				}
 			}(r.req)
 		}
@@ -676,8 +687,9 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	respCh := make(chan *contracts.DurableTaskResponse)
 
 	invocation := &durableTaskInvocation{
-		tenantId: tenant.ID,
-		l:        d.l,
+		tenantId:            tenant.ID,
+		l:                   d.l,
+		isRunningOnOperator: true,
 		sendFn: func(resp *contracts.DurableTaskResponse) error {
 			select {
 			case respCh <- resp:
@@ -1287,63 +1299,13 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 		telemetry.AttributeKV{Key: "invocation_count", Value: req.InvocationCount},
 	)
 
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return d.sendEvictionError(invocation, req, fmt.Sprintf("invalid durable_task_external_id: %v", err))
 	}
 
-	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
-
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
-	if err != nil {
-		return d.sendEvictionError(invocation, req, fmt.Sprintf("task not found: %v", err))
-	}
-
-	evictRes, err := d.repo.Tasks().EvictTask(ctx, invocation.tenantId, v1.TaskIdInsertedAtRetryCount{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		RetryCount: task.RetryCount,
-	})
-	if err != nil {
-		return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to evict task: %v", err))
-	}
-
-	if !evictRes.HasUnsatisfiedEntries {
-		// see comment on the `EvictTaskResult` - if the evicted task has no unsatisfied entries, we have to immediately restore it,
-		// otherwise it can hang forever since nothing will ever wake it up. note that this does cause some churn, but I think that's okay
-		// in exchange for not hitting the indefinitely hang case
-		restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(invocation.tenantId, task.ExternalID, "all durable events satisfied at eviction time")
-		if msgErr != nil {
-			return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to build restore message: %v", msgErr))
-		}
-
-		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); sendErr != nil {
-			return d.sendEvictionError(invocation, req, fmt.Sprintf("failed to publish restore message: %v", sendErr))
-		}
-	}
-
-	if evictRes.WasEvicted {
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(
-			invocation.tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:                 task.ID,
-				RetryCount:             task.RetryCount,
-				DurableInvocationCount: req.InvocationCount,
-				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-				EventMessage:           durableEvictionMessage(req),
-			},
-		)
-		if err != nil {
-			d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
-		} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-			d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
-		}
-	} else {
-		d.l.Debug().Str("task_external_id", req.DurableTaskExternalId).Msg("eviction skipped, task likely already timed out")
+	if _, err := d.evictDurableTask(ctx, invocation.tenantId, taskExternalId, req.InvocationCount, durableEvictionMessage(req)); err != nil {
+		return d.sendEvictionError(invocation, req, err.Error())
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{
@@ -1361,6 +1323,70 @@ func durableEvictionMessage(req *contracts.DurableTaskEvictInvocationRequest) st
 		return reason
 	}
 	return "Task paused and evicted from worker"
+}
+
+func (d *DispatcherServiceImpl) evictDurableTask(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	taskExternalId uuid.UUID,
+	invocationCount int32,
+	reason string,
+) (*v1.EvictTaskResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	evictRes, err := d.repo.Tasks().EvictTask(ctx, tenantId, v1.TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: task.RetryCount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to evict task: %w", err)
+	}
+
+	if !evictRes.HasUnsatisfiedEntries {
+		// see comment on the `EvictTaskResult` - if the evicted task has no unsatisfied entries, we have to immediately restore it,
+		// otherwise it can hang forever since nothing will ever wake it up. note that this does cause some churn, but I think that's okay
+		// in exchange for not hitting the indefinitely hang case
+		restoreMsg, msgErr := tasktypes.DurableRestoreTaskMessage(tenantId, task.ExternalID, "all durable events satisfied at eviction time")
+		if msgErr != nil {
+			return nil, fmt.Errorf("failed to build restore message: %w", msgErr)
+		}
+
+		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); sendErr != nil {
+			return nil, fmt.Errorf("failed to publish restore message: %w", sendErr)
+		}
+	}
+
+	if evictRes.WasEvicted {
+		msg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:                 task.ID,
+				RetryCount:             task.RetryCount,
+				DurableInvocationCount: invocationCount,
+				EventTimestamp:         time.Now(),
+				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+				EventMessage:           reason,
+			},
+		)
+		if err != nil {
+			d.l.Warn().Err(err).Msg("failed to build DURABLE_EVICTED monitoring message")
+		} else if err := d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			d.l.Warn().Err(err).Msg("failed to publish DURABLE_EVICTED to OLAP")
+		}
+	} else {
+		d.l.Debug().Str("task_external_id", taskExternalId.String()).Msg("eviction skipped, task likely already timed out")
+	}
+
+	return evictRes, nil
 }
 
 func (d *DispatcherServiceImpl) handleWorkerStatus(
@@ -1403,6 +1429,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		return nil
 	}
 
+	staleExternalIds := make(map[uuid.UUID]struct{})
+
 	if len(uniqueExternalIds) > 0 {
 		externalIds := make([]uuid.UUID, 0, len(uniqueExternalIds))
 		for extId := range uniqueExternalIds {
@@ -1437,6 +1465,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 					continue
 				}
 				if workerInvocationCount < *currentCount {
+					staleExternalIds[extId] = struct{}{}
+
 					err = invocation.send(&contracts.DurableTaskResponse{
 						Message: &contracts.DurableTaskResponse_ServerEvict{
 							ServerEvict: &contracts.DurableTaskServerEvictNotice{
@@ -1465,10 +1495,61 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		}
 	}
 
+	if invocation.isRunningOnOperator {
+		d.evictIdleOperatorTasks(ctx, invocation, uniqueExternalIds, staleExternalIds, callbacks)
+	}
+
 	d.evictStalledOrderedReleases(invocation)
 	invocation.pruneIdleReleases(durableReleaseIdleTTL)
 
 	return nil
+}
+
+func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	waitingInvocationCounts map[uuid.UUID]int32,
+	staleExternalIds map[uuid.UUID]struct{},
+	satisfiedCallbacks []*v1.SatisfiedEventWithPayload,
+) {
+	tasksWithSatisfiedEntries := make(map[uuid.UUID]struct{}, len(satisfiedCallbacks))
+	for _, cb := range satisfiedCallbacks {
+		tasksWithSatisfiedEntries[cb.TaskExternalId] = struct{}{}
+	}
+
+	for taskExternalId, invocationCount := range waitingInvocationCounts {
+		if _, isStale := staleExternalIds[taskExternalId]; isStale {
+			continue
+		}
+		if _, hasSatisfied := tasksWithSatisfiedEntries[taskExternalId]; hasSatisfied {
+			continue
+		}
+
+		const reason = "operator run is blocked waiting on durable events"
+
+		evictRes, err := d.evictDurableTask(ctx, invocation.tenantId, taskExternalId, invocationCount, reason)
+		if err != nil {
+			d.l.Error().Err(err).Str("task_external_id", taskExternalId.String()).Msg("failed to auto-evict operator durable task")
+			continue
+		}
+
+		if !evictRes.WasEvicted {
+			continue
+		}
+
+		err = invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_ServerEvict{
+				ServerEvict: &contracts.DurableTaskServerEvictNotice{
+					DurableTaskExternalId: taskExternalId.String(),
+					InvocationCount:       invocationCount,
+					Reason:                reason,
+				},
+			},
+		})
+		if err != nil {
+			d.l.Error().Err(err).Str("task_external_id", taskExternalId.String()).Msg("failed to send eviction notice to operator session")
+		}
+	}
 }
 
 // durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a

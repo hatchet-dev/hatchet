@@ -46,6 +46,19 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+type dagEvictedError struct {
+	reason string
+}
+
+func (e *dagEvictedError) Error() string {
+	return fmt.Sprintf("invocation evicted by the engine: %s", e.reason)
+}
+
+func isDagEvictedErr(err error) bool {
+	var e *dagEvictedError
+	return errors.As(err, &e)
+}
+
 type dag struct {
 	requestCh    chan<- *v1contracts.DurableTaskRequest
 	responseCh   <-chan *v1contracts.DurableTaskResponse
@@ -60,6 +73,7 @@ type dag struct {
 
 	pendingTasks    []*task
 	externalId      uuid.UUID
+	workerId        uuid.UUID
 	invocationCount int32
 	input           string
 	err             error
@@ -148,6 +162,7 @@ func dagDurableTask(
 	tasks []*task,
 	onFailureTask *task,
 	externalId uuid.UUID,
+	workerId uuid.UUID,
 	invocationCount int32,
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
@@ -173,6 +188,7 @@ func dagDurableTask(
 		responseCh:       responseCh,
 		evalBoolExpr:     evalBoolExpr,
 		externalId:       externalId,
+		workerId:         workerId,
 		invocationCount:  invocationCount,
 		input:            input,
 		triggerStep:      triggerStep,
@@ -199,6 +215,14 @@ func dagDurableTask(
 
 		if d.isDone() {
 			break
+		}
+
+		if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
+			return err
+		}
+
+		if len(d.queuedResponses) > 0 {
+			continue
 		}
 
 		resp, err := d.awaitResponse(ctx, responseCh)
@@ -261,6 +285,62 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 
 		return resp, nil
 	}
+}
+
+// tells the dispatcher which unsatisfied durable event log entries that are about to block so
+// we can evict the durable task to free its slot
+func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
+	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
+		return nil
+	}
+
+	entries := d.outstandingWaitingEntries()
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return d.send(ctx, &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_WorkerStatus{
+			WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{
+				WorkerId:       d.workerId.String(),
+				WaitingEntries: entries,
+			},
+		},
+	})
+}
+
+func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompletedEntry {
+	var entries []*v1contracts.DurableTaskAwaitedCompletedEntry
+
+	appendEntry := func(nodeId, branchId int64) {
+		entries = append(entries, &v1contracts.DurableTaskAwaitedCompletedEntry{
+			DurableTaskExternalId: d.externalId.String(),
+			InvocationCount:       d.invocationCount,
+			NodeId:                nodeId,
+			BranchId:              branchId,
+		})
+	}
+
+	for _, t := range d.tasks {
+		if t.isTriggered && !t.isCompleted {
+			appendEntry(t.nodeId, t.branchId)
+		}
+
+		if t.isWaiting && !t.isWaitSatisfied {
+			appendEntry(t.waitNodeId, t.waitBranchId)
+		}
+
+		if t.skipWatchRegistered && !t.skipWatchFired {
+			appendEntry(t.skipWatchNodeId, t.skipWatchBranchId)
+		}
+
+		if t.cancelWatchRegistered && !t.cancelWatchFired {
+			appendEntry(t.cancelWatchNodeId, t.cancelWatchBranchId)
+		}
+	}
+
+	return entries
 }
 
 func (d *dag) taskEmitter(ctx context.Context) error {
@@ -485,6 +565,13 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			// Raced ahead of its own WaitForAck; retry once that ack lands.
 			d.pendingEntryCompletions = append(d.pendingEntryCompletions, entry)
 		}
+
+	case *v1contracts.DurableTaskResponse_ServerEvict:
+		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() {
+			return
+		}
+
+		d.err = &dagEvictedError{reason: m.ServerEvict.GetReason()}
 	}
 }
 
