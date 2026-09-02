@@ -499,19 +499,19 @@ Fields:
 
 Options for `Client.NewWorkflow` (and standalone task constructors):
 
-| Name                          | Signature                                                         | Description                                                                                |
-| ----------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `WithDefaultFilters`          | `WithDefaultFilters(filters ...types.DefaultFilter)`              | WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks. |
-| `WithWorkflowConcurrency`     | `WithWorkflowConcurrency(concurrency ...types.Concurrency)`       | WithWorkflowConcurrency sets concurrency controls for the workflow.                        |
-| `WithWorkflowCron`            | `WithWorkflowCron(cronExpressions ...string)`                     | WithWorkflowCron configures the workflow to run on a cron schedule.                        |
-| `WithWorkflowCronInput`       | `WithWorkflowCronInput(input any)`                                | WithWorkflowCronInput sets the input for cron workflows.                                   |
-| `WithWorkflowDefaultPriority` | `WithWorkflowDefaultPriority(priority RunPriority)`               | WithWorkflowDefaultPriority sets the default priority for the workflow.                    |
-| `WithWorkflowDescription`     | `WithWorkflowDescription(description string)`                     | WithWorkflowDescription sets a human-readable description for the workflow.                |
-| `WithWorkflowEvents`          | `WithWorkflowEvents(events ...string)`                            | WithWorkflowEvents configures the workflow to trigger on specific events.                  |
-| `WithWorkflowIdempotency`     | `WithWorkflowIdempotency(config IdempotencyConfig)`               | WithWorkflowIdempotency configures idempotency for the workflow.                           |
-| `WithWorkflowStickyStrategy`  | `WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy)` | WithWorkflowStickyStrategy sets the sticky strategy for the workflow.                      |
-| `WithWorkflowTaskDefaults`    | `WithWorkflowTaskDefaults(defaults *create.TaskDefaults)`         | WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.     |
-| `WithWorkflowVersion`         | `WithWorkflowVersion(version string)`                             | WithWorkflowVersion sets the version identifier for the workflow.                          |
+| Name                          | Signature                                                   | Description                                                                                |
+| ----------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `WithDefaultFilters`          | `WithDefaultFilters(filters ...DefaultFilter)`              | WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks. |
+| `WithWorkflowConcurrency`     | `WithWorkflowConcurrency(concurrency ...Concurrency)`       | WithWorkflowConcurrency sets concurrency controls for the workflow.                        |
+| `WithWorkflowCron`            | `WithWorkflowCron(cronExpressions ...string)`               | WithWorkflowCron configures the workflow to run on a cron schedule.                        |
+| `WithWorkflowCronInput`       | `WithWorkflowCronInput(input any)`                          | WithWorkflowCronInput sets the input for cron workflows.                                   |
+| `WithWorkflowDefaultPriority` | `WithWorkflowDefaultPriority(priority RunPriority)`         | WithWorkflowDefaultPriority sets the default priority for the workflow.                    |
+| `WithWorkflowDescription`     | `WithWorkflowDescription(description string)`               | WithWorkflowDescription sets a human-readable description for the workflow.                |
+| `WithWorkflowEvents`          | `WithWorkflowEvents(events ...string)`                      | WithWorkflowEvents configures the workflow to trigger on specific events.                  |
+| `WithWorkflowIdempotency`     | `WithWorkflowIdempotency(config IdempotencyConfig)`         | WithWorkflowIdempotency configures idempotency for the workflow.                           |
+| `WithWorkflowStickyStrategy`  | `WithWorkflowStickyStrategy(stickyStrategy StickyStrategy)` | WithWorkflowStickyStrategy sets the sticky strategy for the workflow.                      |
+| `WithWorkflowTaskDefaults`    | `WithWorkflowTaskDefaults(defaults *TaskDefaults)`          | WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.     |
+| `WithWorkflowVersion`         | `WithWorkflowVersion(version string)`                       | WithWorkflowVersion sets the version identifier for the workflow.                          |
 
 ## Task options
 
@@ -519,20 +519,20 @@ Options for `Workflow.NewTask` and the other task constructors:
 
 | Name                   | Signature                                                 | Description                                                                |
 | ---------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `WithConcurrency`      | `WithConcurrency(concurrency ...*types.Concurrency)`      | WithConcurrency sets concurrency limits for task execution.                |
+| `WithConcurrency`      | `WithConcurrency(concurrency ...*Concurrency)`            | WithConcurrency sets concurrency limits for task execution.                |
 | `WithCron`             | `WithCron(cronExpressions ...string)`                     | WithCron configures standalone tasks to run on a cron schedule.            |
 | `WithDescription`      | `WithDescription(description string)`                     | WithDescription sets a human-readable description for the task.            |
 | `WithEvents`           | `WithEvents(events ...string)`                            | WithEvents configures standalone tasks to trigger on specific events.      |
 | `WithEvictionPolicy`   | `WithEvictionPolicy(policy *EvictionPolicy)`              | WithEvictionPolicy sets the eviction policy for a durable task.            |
 | `WithExecutionTimeout` | `WithExecutionTimeout(timeout time.Duration)`             | WithExecutionTimeout sets the maximum execution duration for a task.       |
 | `WithParents`          | `WithParents(parents ...*Task)`                           | WithParents sets parent task dependencies.                                 |
-| `WithRateLimits`       | `WithRateLimits(rateLimits ...*types.RateLimit)`          | WithRateLimits sets rate limiting for task execution.                      |
+| `WithRateLimits`       | `WithRateLimits(rateLimits ...*RateLimit)`                | WithRateLimits sets rate limiting for task execution.                      |
 | `WithRetries`          | `WithRetries(retries int)`                                | WithRetries sets the number of retry attempts for failed tasks.            |
 | `WithRetryBackoff`     | `WithRetryBackoff(factor float32, maxBackoffSeconds int)` | WithRetryBackoff configures exponential backoff for task retries.          |
 | `WithScheduleTimeout`  | `WithScheduleTimeout(timeout time.Duration)`              | WithScheduleTimeout sets the maximum time a task can wait to be scheduled. |
-| `WithSkipIf`           | `WithSkipIf(condition condition.Condition)`               | WithSkipIf sets a condition that will skip the task if met.                |
+| `WithSkipIf`           | `WithSkipIf(condition Condition)`                         | WithSkipIf sets a condition that will skip the task if met.                |
 | `WithSlotCost`         | `WithSlotCost(cost int)`                                  | WithSlotCost sets the number of default worker slots this task consumes.   |
-| `WithWaitFor`          | `WithWaitFor(condition condition.Condition)`              | WithWaitFor sets a condition that must be met before the task executes.    |
+| `WithWaitFor`          | `WithWaitFor(condition Condition)`                        | WithWaitFor sets a condition that must be met before the task executes.    |
 
 ## Run options
 
@@ -546,18 +546,6 @@ Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 | `WithRunPriority`         | `WithRunPriority(priority RunPriority)`                          | WithRunPriority sets the priority for the workflow run.                                              |
 | `WithRunSticky`           | `WithRunSticky(sticky bool)`                                     | WithRunSticky enables stickiness for the child workflow run.                                         |
 
-## Conditions
-
-Helpers for building the conditions used with `WithWaitFor`, `WithSkipIf`, and `DurableContext.WaitFor` (see [Context](/reference/go/context)):
-
-| Name                 | Signature                                                                                  | Description                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `AndCondition`       | `AndCondition(conditions ...condition.Condition)`                                          | AndCondition creates a condition that is satisfied when all of the provided conditions are met. |
-| `OrCondition`        | `OrCondition(conditions ...condition.Condition)`                                           | OrCondition creates a condition that is satisfied when any of the provided conditions are met.  |
-| `ParentCondition`    | `ParentCondition(task *Task, expression string)`                                           | ParentCondition creates a condition based on a parent task's output.                            |
-| `SleepCondition`     | `SleepCondition(duration time.Duration)`                                                   | SleepCondition creates a condition that waits for a specified duration.                         |
-| `UserEventCondition` | `UserEventCondition(eventKey, expression string, opts ...condition.UserEventConditionOpt)` | UserEventCondition creates a condition that waits for a user event.                             |
-
 ## Other types
 
 ### BatchConfig
@@ -567,6 +555,10 @@ BatchConfig configures batching behavior for a batch task. See Workflow.NewBatch
 ### BatchMemberId
 
 BatchMemberId identifies a single item within a batch task's input/output map. Its value is the external id of the buffered item's underlying task run.
+
+### BulkPushOpFunc
+
+BulkPushOpFunc configures a bulk event push via EventClient.BulkPush.
 
 ### BulkTriggerIdempotencyCollisionError
 
@@ -614,6 +606,314 @@ Returns:
 | -------- |
 | `string` |
 
+### ClientOpt
+
+ClientOpt configures the client created by NewClient.
+
+#### Functions
+
+##### `WithClientLogLevel`
+
+WithClientLogLevel sets the log level for the client's default logger.
+
+```go
+func WithClientLogLevel(lvl string) ClientOpt
+```
+
+Parameters:
+
+| Name  | Type     |
+| ----- | -------- |
+| `lvl` | `string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithClientLogger`
+
+WithClientLogger sets the logger used by the client and its workers.
+
+```go
+func WithClientLogger(l *zerolog.Logger) ClientOpt
+```
+
+Parameters:
+
+| Name | Type              |
+| ---- | ----------------- |
+| `l`  | `*zerolog.Logger` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithGRPCHeaders`
+
+WithGRPCHeaders adds custom headers to every gRPC request made by the client.
+
+```go
+func WithGRPCHeaders(headers map[string]string) ClientOpt
+```
+
+Parameters:
+
+| Name      | Type                |
+| --------- | ------------------- |
+| `headers` | `map[string]string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithHostPort`
+
+WithHostPort sets the gRPC host and port to connect to, overriding the address embedded in the token or set via environment variables.
+
+```go
+func WithHostPort(host string, port int) ClientOpt
+```
+
+Parameters:
+
+| Name   | Type     |
+| ------ | -------- |
+| `host` | `string` |
+| `port` | `int`    |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithNamespace`
+
+WithNamespace prefixes all workflow, event, and cron names with the given namespace.
+
+```go
+func WithNamespace(namespace string) ClientOpt
+```
+
+Parameters:
+
+| Name        | Type     |
+| ----------- | -------- |
+| `namespace` | `string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithSharedMeta`
+
+WithSharedMeta sets metadata that is attached to every event pushed by the client.
+
+```go
+func WithSharedMeta(meta map[string]string) ClientOpt
+```
+
+Parameters:
+
+| Name   | Type                |
+| ------ | ------------------- |
+| `meta` | `map[string]string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithTLSConfig`
+
+WithTLSConfig sets the gRPC TLS config directly, overriding any config derived from environment variables. A nil config connects without TLS (insecure).
+
+```go
+func WithTLSConfig(tlsConfig *tls.Config) ClientOpt
+```
+
+Parameters:
+
+| Name        | Type          |
+| ----------- | ------------- |
+| `tlsConfig` | `*tls.Config` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithTenantId`
+
+WithTenantId sets the tenant ID for the client, overriding the one embedded in the token.
+
+```go
+func WithTenantId(tenantId string) ClientOpt
+```
+
+Parameters:
+
+| Name       | Type     |
+| ---------- | -------- |
+| `tenantId` | `string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+##### `WithToken`
+
+WithToken sets the API token used to authenticate with Hatchet. Defaults to the HATCHET_CLIENT_TOKEN environment variable.
+
+```go
+func WithToken(token string) ClientOpt
+```
+
+Parameters:
+
+| Name    | Type     |
+| ------- | -------- |
+| `token` | `string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `ClientOpt` |
+
+### Concurrency
+
+Concurrency controls how many runs of a workflow or task may execute at once for a given key expression, and what happens when the limit is exceeded.
+
+### ConcurrencyLimitStrategy
+
+ConcurrencyLimitStrategy determines what happens to runs beyond a concurrency limit.
+
+### Condition
+
+Condition is a condition used with WithWaitFor and WithSkipIf to gate task execution. Build conditions with SleepCondition, UserEventCondition, ParentCondition, OrCondition, and AndCondition.
+
+#### Functions
+
+##### `AndCondition`
+
+AndCondition creates a condition that is satisfied when all of the provided conditions are met.
+
+```go
+func AndCondition(conditions ...Condition) Condition
+```
+
+Parameters:
+
+| Name         | Type           |
+| ------------ | -------------- |
+| `conditions` | `...Condition` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `Condition` |
+
+##### `OrCondition`
+
+OrCondition creates a condition that is satisfied when any of the provided conditions are met.
+
+```go
+func OrCondition(conditions ...Condition) Condition
+```
+
+Parameters:
+
+| Name         | Type           |
+| ------------ | -------------- |
+| `conditions` | `...Condition` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `Condition` |
+
+##### `ParentCondition`
+
+ParentCondition creates a condition based on a parent task's output.
+
+```go
+func ParentCondition(task *Task, expression string) Condition
+```
+
+Parameters:
+
+| Name         | Type     |
+| ------------ | -------- |
+| `task`       | `*Task`  |
+| `expression` | `string` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `Condition` |
+
+##### `SleepCondition`
+
+SleepCondition creates a condition that waits for a specified duration.
+
+```go
+func SleepCondition(duration time.Duration) Condition
+```
+
+Parameters:
+
+| Name       | Type            |
+| ---------- | --------------- |
+| `duration` | `time.Duration` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `Condition` |
+
+##### `UserEventCondition`
+
+UserEventCondition creates a condition that waits for a user event.
+
+```go
+func UserEventCondition(eventKey, expression string, opts ...UserEventConditionOpt) Condition
+```
+
+Parameters:
+
+| Name         | Type                       |
+| ------------ | -------------------------- |
+| `eventKey`   | `string`                   |
+| `expression` | `string`                   |
+| `opts`       | `...UserEventConditionOpt` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `Condition` |
+
+### DefaultFilter
+
+DefaultFilter declares a default event filter for a workflow or standalone task, used with WithDefaultFilters.
+
 ### DeprecationError
 
 DeprecationError is returned when a deprecation grace period has expired.
@@ -652,9 +952,17 @@ Fields:
 
 ### DesiredWorkerLabel
 
+### EventClient
+
+EventClient sends events to Hatchet, triggering any workflows subscribed to the event key. Obtain one from Client.Events().
+
 ### EventUnmarshaller
 
 EventUnmarshaller is implemented by the result of DurableContext.WaitForEvent. Use EventInto to extract the event payload.
+
+### EventWithAdditionalMetadata
+
+EventWithAdditionalMetadata is a single event in an EventClient.BulkPush call.
 
 ### EvictionNotSupportedError
 
@@ -774,6 +1082,10 @@ Fields:
 
 IdempotencyMethod determines how the lifetime of an idempotency key is managed.
 
+### MiddlewareFunc
+
+MiddlewareFunc is a middleware function invoked around each task run execution. It receives the task's Context and a next function that continues the chain.
+
 ### NonDeterminismError
 
 NonDeterminismError is returned when a durable task replay detects non-deterministic behavior.
@@ -822,9 +1134,171 @@ Returns:
 | -------- |
 | `string` |
 
+### NonRetryableError
+
+NonRetryableError marks a task failure as non-retryable: the task fails immediately without consuming any remaining retries.
+
+### PushOpFunc
+
+PushOpFunc configures a single event pushed via EventClient.Push.
+
+#### Functions
+
+##### `WithEventMetadata`
+
+WithEventMetadata attaches additional metadata to the pushed event.
+
+```go
+func WithEventMetadata(metadata map[string]string) PushOpFunc
+```
+
+Parameters:
+
+| Name       | Type                |
+| ---------- | ------------------- |
+| `metadata` | `map[string]string` |
+
+Returns:
+
+| Type         |
+| ------------ |
+| `PushOpFunc` |
+
+##### `WithEventPriority`
+
+WithEventPriority sets the priority of the runs triggered by the pushed event.
+
+```go
+func WithEventPriority(priority *int32) PushOpFunc
+```
+
+Parameters:
+
+| Name       | Type     |
+| ---------- | -------- |
+| `priority` | `*int32` |
+
+Returns:
+
+| Type         |
+| ------------ |
+| `PushOpFunc` |
+
+##### `WithFilterScope`
+
+WithFilterScope sets the filter scope for the pushed event, matching it against default filters declared with the same scope (see WithDefaultFilters).
+
+```go
+func WithFilterScope(scope *string) PushOpFunc
+```
+
+Parameters:
+
+| Name    | Type      |
+| ------- | --------- |
+| `scope` | `*string` |
+
+Returns:
+
+| Type         |
+| ------------ |
+| `PushOpFunc` |
+
+### RateLimit
+
+RateLimit declares a rate limit consumed by a task run, used with WithRateLimits.
+
+### RateLimitDuration
+
+RateLimitDuration is the window over which a rate limit applies.
+
 ### RunPriority
 
+### SingleWaitResult
+
+SingleWaitResult holds the result of a single-condition durable wait such as DurableContext.SleepFor or DurableContext.WaitForEvent.
+
+### StickyStrategy
+
+StickyStrategy determines how child workflow runs are routed back to the worker that ran the parent.
+
+### TaskDefaults
+
+TaskDefaults sets default task configuration for all tasks in a workflow, used with WithWorkflowTaskDefaults.
+
+### UserEventConditionOpt
+
+UserEventConditionOpt configures a UserEventCondition.
+
+#### Functions
+
+##### `WithConsiderEventsSince`
+
+WithConsiderEventsSince makes a user event condition also match events pushed after the given time but before the wait was registered (event lookback). Requires WithEventScope to be set as well.
+
+```go
+func WithConsiderEventsSince(since time.Time) UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type        |
+| ------- | ----------- |
+| `since` | `time.Time` |
+
+Returns:
+
+| Type                    |
+| ----------------------- |
+| `UserEventConditionOpt` |
+
+##### `WithEventScope`
+
+WithEventScope restricts a user event condition to events pushed with a matching scope.
+
+```go
+func WithEventScope(scope string) UserEventConditionOpt
+```
+
+Parameters:
+
+| Name    | Type     |
+| ------- | -------- |
+| `scope` | `string` |
+
+Returns:
+
+| Type                    |
+| ----------------------- |
+| `UserEventConditionOpt` |
+
+### WaitResult
+
+WaitResult holds the results of a DurableContext.WaitFor call, keyed by condition.
+
 ### WorkerLabelComparator
+
+#### Functions
+
+##### `ComparatorPtr`
+
+ComparatorPtr returns a pointer to the given comparator, for use in DesiredWorkerLabel.
+
+```go
+func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator
+```
+
+Parameters:
+
+| Name | Type                    |
+| ---- | ----------------------- |
+| `v`  | `WorkerLabelComparator` |
+
+Returns:
+
+| Type                     |
+| ------------------------ |
+| `*WorkerLabelComparator` |
 
 ## Other functions
 
@@ -881,6 +1355,46 @@ Parameters:
 | ------- | ------------------- |
 | `event` | `EventUnmarshaller` |
 | `dest`  | `any`               |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+### `IsNonRetryableError`
+
+IsNonRetryableError reports whether err is (or wraps) a NonRetryableError.
+
+```go
+func IsNonRetryableError(err error) bool
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |
+
+### `NewNonRetryableError`
+
+NewNonRetryableError wraps err so that the task run fails without being retried, regardless of the task's retry configuration.
+
+```go
+func NewNonRetryableError(err error) error
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
 
 Returns:
 
@@ -951,43 +1465,3 @@ Returns:
 | ------- |
 | `bool`  |
 | `error` |
-
-### `WithConsiderEventsSince`
-
-WithConsiderEventsSince makes a user event condition also match events pushed after the given time but before the wait was registered (event lookback). Requires WithEventScope to be set as well.
-
-```go
-func WithConsiderEventsSince(since time.Time) condition.UserEventConditionOpt
-```
-
-Parameters:
-
-| Name    | Type        |
-| ------- | ----------- |
-| `since` | `time.Time` |
-
-Returns:
-
-| Type                              |
-| --------------------------------- |
-| `condition.UserEventConditionOpt` |
-
-### `WithEventScope`
-
-WithEventScope restricts a user event condition to events pushed with a matching scope.
-
-```go
-func WithEventScope(scope string) condition.UserEventConditionOpt
-```
-
-Parameters:
-
-| Name    | Type     |
-| ------- | -------- |
-| `scope` | `string` |
-
-Returns:
-
-| Type                              |
-| --------------------------------- |
-| `condition.UserEventConditionOpt` |

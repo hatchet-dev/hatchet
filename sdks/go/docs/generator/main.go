@@ -878,7 +878,7 @@ func optionTable(p *pkgDocs, fns []*doc.Func) string {
 
 const clientIntro = `This is the Go SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running. For complete, generated API documentation, see the [Go package docs on pkg.go.dev](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go).
 
-By default, the client reads its configuration (token, host, TLS settings, and so on) from the ` + "`HATCHET_CLIENT_*`" + ` environment variables. Configuration can be overridden with client options from the ` + "`github.com/hatchet-dev/hatchet/pkg/client`" + ` package, such as ` + "`WithToken`" + `, ` + "`WithHostPort`" + `, and ` + "`WithNamespace`" + `.
+By default, the client reads its configuration (token, host, TLS settings, and so on) from the ` + "`HATCHET_CLIENT_*`" + ` environment variables. Configuration can be overridden with client options such as ` + "`hatchet.WithToken`" + `, ` + "`hatchet.WithHostPort`" + `, and ` + "`hatchet.WithNamespace`" + `.
 `
 
 func renderClientPage(p *pkgDocs, accessors []accessor) string {

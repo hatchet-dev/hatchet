@@ -984,8 +984,6 @@ func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
 	return wc.worker.registered_workflows[workflowName]
 }
 
-// Deprecated: SingleWaitResult is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SingleWaitResult struct {
 	*WaitResult
 
@@ -999,14 +997,10 @@ func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
 	}
 }
 
-// Deprecated: Unmarshal is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
-// Deprecated: WaitResult is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
 	allResults map[string]map[string][]map[string]interface{}
 }
@@ -1025,20 +1019,14 @@ func newWaitResult(dataBytes []byte) (*WaitResult, error) {
 	}, nil
 }
 
-// Deprecated: ErrMarshalKeyNotFound is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ErrMarshalKeyNotFound struct {
 	Key string
 }
 
-// Deprecated: Error is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e ErrMarshalKeyNotFound) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
 
-// Deprecated: Keys is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Keys() []string {
 	keys := make([]string, 0, len(w.allResults))
 
@@ -1051,8 +1039,6 @@ func (w *WaitResult) Keys() []string {
 	return keys
 }
 
-// Deprecated: Unmarshal is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	eNotFound := ErrMarshalKeyNotFound{
 		Key: key,

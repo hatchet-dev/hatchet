@@ -131,6 +131,7 @@ func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	}
 }
 
+// Deprecated: use hatchet.WithEventMetadata from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.additionalMetadata = metadata
@@ -139,6 +140,7 @@ func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	}
 }
 
+// Deprecated: use hatchet.WithEventPriority from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithEventPriority(priority *int32) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.priority = priority
@@ -146,6 +148,7 @@ func WithEventPriority(priority *int32) PushOpFunc {
 	}
 }
 
+// Deprecated: use hatchet.WithFilterScope from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithFilterScope(scope *string) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.scope = scope
