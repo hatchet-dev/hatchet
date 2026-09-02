@@ -7,15 +7,31 @@ import { ClientConfig } from '../../hatchet-client';
 import { DispatcherClient } from '../dispatcher-client';
 import { z } from 'zod/v4';
 
-const HeartbeatMessageSchema = z.object({
+const HeartbeatLogMessageSchema = z.object({
   type: z.enum(['info', 'warn', 'error', 'debug']),
   message: z.string(),
 });
+
+const HeartbeatStreamInactiveMessageSchema = z.object({
+  type: z.literal('stream_inactive'),
+  message: z.string(),
+  consecutiveFailures: z.number(),
+});
+
+const HeartbeatMessageSchema = z.union([
+  HeartbeatLogMessageSchema,
+  HeartbeatStreamInactiveMessageSchema,
+]);
 
 export type HeartbeatMessage = z.infer<typeof HeartbeatMessageSchema>;
 
 export const isHeartbeatMessage = (message: unknown): message is HeartbeatMessage =>
   HeartbeatMessageSchema.safeParse(message).success;
+
+export const isStreamInactiveMessage = (
+  message: HeartbeatMessage
+): message is z.infer<typeof HeartbeatStreamInactiveMessageSchema> =>
+  message.type === 'stream_inactive';
 
 export const STOP_HEARTBEAT = 'stop';
 export class Heartbeat {
@@ -25,6 +41,7 @@ export class Heartbeat {
   logger: Logger;
 
   heartbeatWorker: Worker | undefined;
+  onStreamInactive?: () => void;
 
   constructor(client: DispatcherClient, workerId: string) {
     this.config = client.config;
@@ -33,7 +50,9 @@ export class Heartbeat {
     this.logger = client.config.logger(`HeartbeatController`, this.config.log_level);
   }
 
-  async start() {
+  async start(onStreamInactive?: () => void) {
+    this.onStreamInactive = onStreamInactive;
+
     if (!this.heartbeatWorker) {
       const {
         middleware: _m,
@@ -49,6 +68,12 @@ export class Heartbeat {
 
       this.heartbeatWorker.on('message', (message: unknown) => {
         if (!isHeartbeatMessage(message)) {
+          return;
+        }
+
+        if (isStreamInactiveMessage(message)) {
+          this.logger.error(message.message);
+          this.onStreamInactive?.();
           return;
         }
 

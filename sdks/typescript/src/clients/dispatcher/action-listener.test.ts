@@ -1,10 +1,19 @@
 import { ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import sleep from '@util/sleep';
-// import { ServerError, Status } from 'nice-grpc-common';
+import { AbortError } from '@hatchet/util/abort-error';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { DispatcherClient } from './dispatcher-client';
 import { ActionListener } from './action-listener';
 import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
+import {
+  LISTENER_RECONNECT_REASON,
+  LISTENER_SHUTDOWN_REASON,
+} from './listener-abort';
+
+jest.mock('@util/sleep', () => ({
+  __esModule: true,
+  default: jest.fn(() => Promise.resolve()),
+}));
 
 let dispatcher: DispatcherClient;
 
@@ -253,5 +262,66 @@ describe('ActionListener', () => {
     //   expect(unsubscribeSpy).toHaveBeenCalled();
     //   expect(res.workerId).toEqual('WORKER_ID');
     // });
+  });
+
+  describe('inactive stream reconnect', () => {
+    it('reconnects on listener reconnect abort without exiting the generator', async () => {
+      const listener = new ActionListener(dispatcher, 'WORKER_ID', 1, 5);
+      const getListenClientSpy = jest.spyOn(listener, 'getListenClient');
+
+      getListenClientSpy
+        .mockResolvedValueOnce(
+          (async function* first() {
+            yield mockAssignedActions[0] as AssignedAction;
+            throw new AbortError(LISTENER_RECONNECT_REASON);
+          })()
+        )
+        .mockResolvedValueOnce(
+          (async function* second() {
+            yield mockAssignedActions[0] as AssignedAction;
+            throw new AbortError(LISTENER_SHUTDOWN_REASON);
+          })()
+        );
+
+      const actions = listener.actions();
+      const first = await actions.next();
+      expect(first.done).toBe(false);
+
+      const second = await actions.next();
+      expect(second.done).toBe(false);
+
+      expect(getListenClientSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('exits the generator on shutdown abort', async () => {
+      const listener = new ActionListener(dispatcher, 'WORKER_ID', 1, 5);
+      const getListenClientSpy = jest.spyOn(listener, 'getListenClient');
+
+      getListenClientSpy.mockResolvedValueOnce(
+        (async function* shutdown() {
+          yield mockAssignedActions[0] as AssignedAction;
+          throw new AbortError(LISTENER_SHUTDOWN_REASON);
+        })()
+      );
+
+      const actions = listener.actions();
+      const results = [];
+      for await (const action of actions) {
+        results.push(action);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(getListenClientSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks worker unhealthy when stream goes inactive', () => {
+      const listener = new ActionListener(dispatcher, 'WORKER_ID');
+      const statusChanges: string[] = [];
+      listener.setWorkerStatusCallback((status) => statusChanges.push(status));
+
+      (listener as any).handleStreamInactive();
+
+      expect(statusChanges).toEqual(['UNHEALTHY']);
+    });
   });
 });

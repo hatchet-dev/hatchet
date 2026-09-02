@@ -61,8 +61,9 @@ export class HealthServer {
   }
 
   private async handleHealth(res: ServerResponse): Promise<void> {
+    const status = this.getStatus();
     const response: HealthCheckResponse = {
-      status: this.getStatus(),
+      status,
       name: this.workerName,
       slots: this.getSlots(),
       actions: this.getActions(),
@@ -70,7 +71,8 @@ export class HealthServer {
       nodeVersion: process.version,
     };
 
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const httpStatus = status === workerStatus.HEALTHY ? 200 : 503;
+    res.writeHead(httpStatus, { 'Content-Type': 'application/json' });
     await res.end(JSON.stringify(response));
   }
 

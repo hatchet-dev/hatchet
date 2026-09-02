@@ -11,9 +11,18 @@ import { Logger } from '@hatchet/util/logger';
 import { DispatcherClient } from './dispatcher-client';
 import { Heartbeat } from './heartbeat/heartbeat-controller';
 import { classifyListenerFailure } from './listener-severity';
+import {
+  isListenerReconnectAbort,
+  isListenerShutdownAbort,
+  LISTENER_RECONNECT_REASON,
+  LISTENER_SHUTDOWN_REASON,
+} from './listener-abort';
+import { WorkerStatus, workerStatus } from '@hatchet/v1/client/worker/health-server';
 
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
+const DEFAULT_STREAM_INACTIVE_RECONNECT_COUNT = 10;
+const STREAM_INACTIVE_RECONNECT_BACKOFF_MS = 3000;
 
 enum ListenStrategy {
   LISTEN_STRATEGY_V1 = 1,
@@ -56,6 +65,10 @@ export class ActionListener {
   listenStrategy = ListenStrategy.LISTEN_STRATEGY_V2;
   heartbeat: Heartbeat;
   abortController?: AbortController;
+  streamInactiveReconnects = 0;
+  maxStreamInactiveReconnects = DEFAULT_STREAM_INACTIVE_RECONNECT_COUNT;
+  reconnecting = false;
+  onWorkerStatusChange?: (status: WorkerStatus) => void;
 
   constructor(
     client: DispatcherClient,
@@ -72,6 +85,30 @@ export class ActionListener {
     this.heartbeat = new Heartbeat(client, workerId);
   }
 
+  setWorkerStatusCallback(callback: (status: WorkerStatus) => void): void {
+    this.onWorkerStatusChange = callback;
+  }
+
+  private handleStreamInactive(): void {
+    if (this.done || this.reconnecting) {
+      return;
+    }
+
+    this.reconnecting = true;
+    this.streamInactiveReconnects += 1;
+    this.onWorkerStatusChange?.(workerStatus.UNHEALTHY);
+
+    this.logger.warn(
+      `Listener stream inactive, reconnecting (${this.streamInactiveReconnects}/${this.maxStreamInactiveReconnects})`
+    );
+
+    this.heartbeat.stop();
+
+    if (this.abortController) {
+      this.abortController.abort(LISTENER_RECONNECT_REASON);
+    }
+  }
+
   actions = () =>
     (async function* gen(client: ActionListener) {
       while (true) {
@@ -86,8 +123,26 @@ export class ActionListener {
             yield createAction(assignedAction);
           }
         } catch (e: unknown) {
-          // If the stream was aborted (e.g., during worker shutdown), exit gracefully
           if (isAbortError(e)) {
+            if (isListenerReconnectAbort(e)) {
+              client.reconnecting = false;
+
+              if (client.streamInactiveReconnects > client.maxStreamInactiveReconnects) {
+                throw new HatchetError(
+                  `Could not re-establish listener after ${client.maxStreamInactiveReconnects} inactive-stream reconnect attempts`
+                );
+              }
+
+              client.logger.warn('Listener reconnecting after inactive stream');
+              await sleep(STREAM_INACTIVE_RECONNECT_BACKOFF_MS);
+              continue;
+            }
+
+            if (isListenerShutdownAbort(e)) {
+              client.logger.info('Listener aborted, exiting generator');
+              break;
+            }
+
             client.logger.info('Listener aborted, exiting generator');
             break;
           }
@@ -185,7 +240,9 @@ export class ActionListener {
         }
       );
 
-      await this.heartbeat.start();
+      await this.heartbeat.start(() => this.handleStreamInactive());
+      this.streamInactiveReconnects = 0;
+      this.onWorkerStatusChange?.(workerStatus.HEALTHY);
       this.logger.green('Connection established using LISTEN_STRATEGY_V2');
       return res;
     } catch (e: unknown) {
@@ -213,7 +270,7 @@ export class ActionListener {
 
     // Abort the gRPC stream to immediately cancel the generator
     if (this.abortController) {
-      this.abortController.abort('Worker stopping');
+      this.abortController.abort(LISTENER_SHUTDOWN_REASON);
     }
 
     try {

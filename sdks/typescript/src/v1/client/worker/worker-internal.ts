@@ -1111,6 +1111,7 @@ export class InternalWorker {
 
     try {
       this.listener = await this.createListener();
+      this.listener.setWorkerStatusCallback((status) => this.setStatus(status));
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

@@ -5,11 +5,11 @@ import { DispatcherClient as PbDispatcherClient } from '@hatchet/protoc/dispatch
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { Status, createClientFactory } from 'nice-grpc';
 import { getErrorMessage } from '@util/errors/hatchet-error';
-import { getGrpcErrorCode } from '@util/grpc-error';
+import { getGrpcErrorCode, isWorkerStreamInactiveError } from '@util/grpc-error';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { DispatcherClient } from '../dispatcher-client';
 import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
-import { classifyHeartbeatFailure } from './heartbeat-severity';
+import { classifyHeartbeatFailure, MAX_MISSED_HEARTBEATS } from './heartbeat-severity';
 
 const HEARTBEAT_INTERVAL = 4000;
 // Fail fast on a stalled connection: without a deadline, a heartbeat RPC on a dead
@@ -28,6 +28,7 @@ class HeartbeatWorker {
   workerId: string;
   timeLastHeartbeat = new Date().getTime();
   missedHeartbeats = 0;
+  consecutiveStreamInactiveFailures = 0;
 
   constructor(config: ClientConfig, workerId: string) {
     this.workerId = workerId;
@@ -91,6 +92,7 @@ class HeartbeatWorker {
         });
         this.timeLastHeartbeat = now;
         this.missedHeartbeats = 0;
+        this.consecutiveStreamInactiveFailures = 0;
       } catch (e: unknown) {
         if (getGrpcErrorCode(e) === Status.UNIMPLEMENTED) {
           // break out of interval
@@ -105,6 +107,23 @@ class HeartbeatWorker {
         }
 
         this.missedHeartbeats += 1;
+
+        if (isWorkerStreamInactiveError(e)) {
+          this.consecutiveStreamInactiveFailures += 1;
+
+          if (this.consecutiveStreamInactiveFailures >= MAX_MISSED_HEARTBEATS) {
+            const message = `Worker listener stream inactive for ${this.consecutiveStreamInactiveFailures} consecutive heartbeats, requesting reconnect`;
+            this.logger.error(message);
+            postMessage({
+              type: 'stream_inactive',
+              message,
+              consecutiveFailures: this.consecutiveStreamInactiveFailures,
+            });
+            this.consecutiveStreamInactiveFailures = 0;
+          }
+        } else {
+          this.consecutiveStreamInactiveFailures = 0;
+        }
 
         const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);

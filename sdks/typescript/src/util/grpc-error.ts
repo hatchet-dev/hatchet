@@ -42,3 +42,19 @@ export function getGrpcErrorDetails(e: unknown): string | undefined {
   }
   return undefined;
 }
+
+/** Engine message when the ListenV2 stream is dead but unary heartbeats still reach the server. */
+export const WORKER_STREAM_INACTIVE_MESSAGE = 'worker stream is not active';
+
+/**
+ * Returns true when the engine rejected a heartbeat because the worker's listener
+ * stream is no longer active (FailedPrecondition). This is distinct from other
+ * FAILED_PRECONDITION errors and signals the SDK must re-establish ListenV2.
+ */
+export function isWorkerStreamInactiveError(e: unknown): boolean {
+  if (getGrpcErrorCode(e) !== Status.FAILED_PRECONDITION) {
+    return false;
+  }
+  const details = getGrpcErrorDetails(e);
+  return details !== undefined && details.includes(WORKER_STREAM_INACTIVE_MESSAGE);
+}
