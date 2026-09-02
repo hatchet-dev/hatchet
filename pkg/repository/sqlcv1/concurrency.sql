@@ -1371,28 +1371,39 @@ WHERE task_id = $2
   AND strategy_id = $5
 RETURNING *;
 
--- name: UpsertTenantConcurrencyStrategy :one
+-- name: UpsertTenantConcurrencyStrategies :exec
+-- Single-statement bulk upsert: one registration touches all of a workflow's tenant
+-- strategy rows at once, in name order, so concurrent registrations acquire row locks in
+-- a consistent order and cannot deadlock each other.
+WITH input AS (
+    SELECT
+        unnest(@names::text[]) AS name,
+        unnest(cast(@strategies::text[] as v1_concurrency_strategy[])) AS strategy,
+        unnest(@expressions::text[]) AS expression,
+        unnest(@maxConcurrencies::int[]) AS max_concurrency
+)
 INSERT INTO v1_tenant_concurrency (
     tenant_id,
     name,
     strategy,
     expression,
     max_concurrency
-) VALUES (
-    @tenantId::uuid,
-    @name::text,
-    @strategy::v1_concurrency_strategy,
-    @expression::text,
-    @maxConcurrency::int
 )
+SELECT
+    @tenantId::uuid,
+    i.name,
+    i.strategy,
+    i.expression,
+    i.max_concurrency
+FROM input i
+ORDER BY i.name
 ON CONFLICT (tenant_id, name)
 DO UPDATE SET
     strategy = EXCLUDED.strategy,
     expression = EXCLUDED.expression,
     max_concurrency = EXCLUDED.max_concurrency,
     is_active = TRUE,
-    last_active_at = NOW()
-RETURNING *;
+    last_active_at = NOW();
 
 -- name: GetTenantConcurrencyStrategiesByNames :many
 SELECT
@@ -1409,7 +1420,8 @@ WITH stale_tenant_concurrencies AS (
     FROM v1_tenant_concurrency tc
     WHERE tc.tenant_id = @tenantId::UUID
         AND tc.is_active = TRUE
-        -- we use 25 hours because there's a 1-hour cache on updating last_active_at
+        -- 25 hours = a 24-hour idle window plus the 1-hour last_active_at refresh cache
+        -- (the slot-insert trigger only bumps last_active_at at most once per hour)
         AND tc.last_active_at < NOW() - INTERVAL '25 hours'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
@@ -1417,6 +1429,9 @@ WITH stale_tenant_concurrencies AS (
                 cs.strategy_id = tc.id
                 AND cs.tenant_id = @tenantId::UUID -- tenant id filter to force index usage
         )
+    -- deterministic acquisition order, matching the other v1_tenant_concurrency
+    -- updaters (SKIP LOCKED already prevents blocking either way)
+    ORDER BY tc.id
     FOR UPDATE SKIP LOCKED
 )
 

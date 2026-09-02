@@ -21,9 +21,12 @@ CREATE TABLE v1_tenant_concurrency (
     expression TEXT NOT NULL,
     max_concurrency INTEGER NOT NULL,
     CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_tenant_concurrency_tenant_name_ux UNIQUE (tenant_id, name)
+    CONSTRAINT v1_tenant_concurrency_tenant_name_uq UNIQUE (tenant_id, name)
 );
 
+-- Plain CREATE INDEX (not CONCURRENTLY): the column was added in this migration, so the
+-- partial index matches zero rows and builds instantly; goose also runs this inside a
+-- transaction, where CONCURRENTLY is not allowed.
 CREATE INDEX v1_step_concurrency_tenant_strategy_id_idx
     ON v1_step_concurrency (tenant_strategy_id)
     WHERE tenant_strategy_id IS NOT NULL;

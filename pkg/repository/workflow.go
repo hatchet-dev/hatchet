@@ -334,30 +334,46 @@ func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenant
 	return r.listStepMatchConditions(ctx, r.pool, tenantId, stepIds)
 }
 
-func (r *workflowRepository) upsertTenantConcurrencyStrategy(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, opts *CreateConcurrencyOpts) (*sqlcv1.V1TenantConcurrency, error) {
-	if opts.Name == "" {
-		return nil, newTenantConcurrencyError("tenant-scoped concurrency entries require a name")
+// upsertTenantConcurrencyStrategies upserts all of a workflow's tenant-scoped strategy
+// definitions in one statement (row locks are taken in name order inside the statement,
+// so concurrent registrations cannot deadlock each other).
+func (r *workflowRepository) upsertTenantConcurrencyStrategies(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, defs []*CreateConcurrencyOpts) error {
+	if len(defs) == 0 {
+		return nil
 	}
 
-	var maxRuns int32 = 1
-
-	if opts.MaxRuns != nil {
-		maxRuns = *opts.MaxRuns
+	params := sqlcv1.UpsertTenantConcurrencyStrategiesParams{
+		Tenantid:         tenantId,
+		Names:            make([]string, len(defs)),
+		Strategies:       make([]string, len(defs)),
+		Expressions:      make([]string, len(defs)),
+		Maxconcurrencies: make([]int32, len(defs)),
 	}
 
-	strategy := sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
+	for i, opts := range defs {
+		if opts.Name == "" {
+			return newTenantConcurrencyError("tenant-scoped concurrency entries require a name")
+		}
 
-	if opts.LimitStrategy != nil {
-		strategy = sqlcv1.V1ConcurrencyStrategy(*opts.LimitStrategy)
+		var maxRuns int32 = 1
+
+		if opts.MaxRuns != nil {
+			maxRuns = *opts.MaxRuns
+		}
+
+		strategy := sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
+
+		if opts.LimitStrategy != nil {
+			strategy = sqlcv1.V1ConcurrencyStrategy(*opts.LimitStrategy)
+		}
+
+		params.Names[i] = opts.Name
+		params.Strategies[i] = string(strategy)
+		params.Expressions[i] = opts.Expression
+		params.Maxconcurrencies[i] = maxRuns
 	}
 
-	return r.queries.UpsertTenantConcurrencyStrategy(ctx, dbtx, sqlcv1.UpsertTenantConcurrencyStrategyParams{
-		Tenantid:       tenantId,
-		Name:           opts.Name,
-		Strategy:       strategy,
-		Expression:     opts.Expression,
-		Maxconcurrency: maxRuns,
-	})
+	return r.queries.UpsertTenantConcurrencyStrategies(ctx, dbtx, params)
 }
 
 // collectTenantConcurrencyDefs returns the tenant-scoped concurrency definitions (name +
@@ -393,9 +409,8 @@ func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConc
 		collect(opts.OnFailure.Concurrency)
 	}
 
-	// upserts happen in this order inside the registration transaction, so it must be
-	// deterministic across registrations: two concurrent puts locking the same strategy
-	// rows in different orders would deadlock in the database
+	// the bulk upsert locks strategy rows in name order; returning the defs sorted the
+	// same way keeps the caller's view consistent with that order
 	sort.Strings(names)
 
 	defs := make([]*CreateConcurrencyOpts, 0, len(names))
@@ -692,10 +707,8 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	// entries created below can reference them. This runs before the checksum early-return
 	// on purpose: definitions are tenant-level state, so re-registering an unchanged
 	// workflow with a changed definition must still update the strategy in place.
-	for _, entry := range collectTenantConcurrencyDefs(opts) {
-		if _, err := r.upsertTenantConcurrencyStrategy(ctx, tx, tenantId, entry); err != nil {
-			return nil, fmt.Errorf("could not upsert tenant concurrency strategy %s: %w", entry.Name, err)
-		}
+	if err := r.upsertTenantConcurrencyStrategies(ctx, tx, tenantId, collectTenantConcurrencyDefs(opts)); err != nil {
+		return nil, fmt.Errorf("could not upsert tenant concurrency strategies: %w", err)
 	}
 
 	var workflowId uuid.UUID

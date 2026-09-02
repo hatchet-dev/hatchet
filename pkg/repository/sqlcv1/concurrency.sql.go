@@ -217,7 +217,8 @@ WITH stale_tenant_concurrencies AS (
     FROM v1_tenant_concurrency tc
     WHERE tc.tenant_id = $1::UUID
         AND tc.is_active = TRUE
-        -- we use 25 hours because there's a 1-hour cache on updating last_active_at
+        -- 25 hours = a 24-hour idle window plus the 1-hour last_active_at refresh cache
+        -- (the slot-insert trigger only bumps last_active_at at most once per hour)
         AND tc.last_active_at < NOW() - INTERVAL '25 hours'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
@@ -225,6 +226,9 @@ WITH stale_tenant_concurrencies AS (
                 cs.strategy_id = tc.id
                 AND cs.tenant_id = $1::UUID -- tenant id filter to force index usage
         )
+    -- deterministic acquisition order, matching the other v1_tenant_concurrency
+    -- updaters (SKIP LOCKED already prevents blocking either way)
+    ORDER BY tc.id
     FOR UPDATE SKIP LOCKED
 )
 
@@ -2427,20 +2431,29 @@ func (q *Queries) UpdateConcurrencySlotIsFilled(ctx context.Context, db DBTX, ar
 	return &i, err
 }
 
-const upsertTenantConcurrencyStrategy = `-- name: UpsertTenantConcurrencyStrategy :one
+const upsertTenantConcurrencyStrategies = `-- name: UpsertTenantConcurrencyStrategies :exec
+WITH input AS (
+    SELECT
+        unnest($2::text[]) AS name,
+        unnest(cast($3::text[] as v1_concurrency_strategy[])) AS strategy,
+        unnest($4::text[]) AS expression,
+        unnest($5::int[]) AS max_concurrency
+)
 INSERT INTO v1_tenant_concurrency (
     tenant_id,
     name,
     strategy,
     expression,
     max_concurrency
-) VALUES (
-    $1::uuid,
-    $2::text,
-    $3::v1_concurrency_strategy,
-    $4::text,
-    $5::int
 )
+SELECT
+    $1::uuid,
+    i.name,
+    i.strategy,
+    i.expression,
+    i.max_concurrency
+FROM input i
+ORDER BY i.name
 ON CONFLICT (tenant_id, name)
 DO UPDATE SET
     strategy = EXCLUDED.strategy,
@@ -2448,35 +2461,26 @@ DO UPDATE SET
     max_concurrency = EXCLUDED.max_concurrency,
     is_active = TRUE,
     last_active_at = NOW()
-RETURNING id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
 `
 
-type UpsertTenantConcurrencyStrategyParams struct {
-	Tenantid       uuid.UUID             `json:"tenantid"`
-	Name           string                `json:"name"`
-	Strategy       V1ConcurrencyStrategy `json:"strategy"`
-	Expression     string                `json:"expression"`
-	Maxconcurrency int32                 `json:"maxconcurrency"`
+type UpsertTenantConcurrencyStrategiesParams struct {
+	Tenantid         uuid.UUID `json:"tenantid"`
+	Names            []string  `json:"names"`
+	Strategies       []string  `json:"strategies"`
+	Expressions      []string  `json:"expressions"`
+	Maxconcurrencies []int32   `json:"maxconcurrencies"`
 }
 
-func (q *Queries) UpsertTenantConcurrencyStrategy(ctx context.Context, db DBTX, arg UpsertTenantConcurrencyStrategyParams) (*V1TenantConcurrency, error) {
-	row := db.QueryRow(ctx, upsertTenantConcurrencyStrategy,
+// Single-statement bulk upsert: one registration touches all of a workflow's tenant
+// strategy rows at once, in name order, so concurrent registrations acquire row locks in
+// a consistent order and cannot deadlock each other.
+func (q *Queries) UpsertTenantConcurrencyStrategies(ctx context.Context, db DBTX, arg UpsertTenantConcurrencyStrategiesParams) error {
+	_, err := db.Exec(ctx, upsertTenantConcurrencyStrategies,
 		arg.Tenantid,
-		arg.Name,
-		arg.Strategy,
-		arg.Expression,
-		arg.Maxconcurrency,
+		arg.Names,
+		arg.Strategies,
+		arg.Expressions,
+		arg.Maxconcurrencies,
 	)
-	var i V1TenantConcurrency
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.Name,
-		&i.IsActive,
-		&i.LastActiveAt,
-		&i.Strategy,
-		&i.Expression,
-		&i.MaxConcurrency,
-	)
-	return &i, err
+	return err
 }

@@ -286,7 +286,7 @@ CREATE TABLE v1_tenant_concurrency (
     expression TEXT NOT NULL,
     max_concurrency INTEGER NOT NULL,
     CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_tenant_concurrency_tenant_name_ux UNIQUE (tenant_id, name)
+    CONSTRAINT v1_tenant_concurrency_tenant_name_uq UNIQUE (tenant_id, name)
 );
 
 -- These are low-volume tables, so a real FK is fine here (unlike the high-volume v1

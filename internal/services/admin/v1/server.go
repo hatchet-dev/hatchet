@@ -1032,7 +1032,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			)
 		}
 
-		tenantScoped := req.Concurrency.TenantScoped != nil && *req.Concurrency.TenantScoped
+		tenantScoped := req.Concurrency.IsTenantScoped != nil && *req.Concurrency.IsTenantScoped
 
 		if tenantScoped && (req.Concurrency.Name == nil || *req.Concurrency.Name == "") {
 			return nil, status.Error(
@@ -1071,7 +1071,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			)
 		}
 
-		tenantScoped := c.TenantScoped != nil && *c.TenantScoped
+		tenantScoped := c.IsTenantScoped != nil && *c.IsTenantScoped
 
 		if tenantScoped && (c.Name == nil || *c.Name == "") {
 			return nil, status.Error(
@@ -1410,7 +1410,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					)
 				}
 
-				tenantScoped := concurrency.TenantScoped != nil && *concurrency.TenantScoped
+				tenantScoped := concurrency.IsTenantScoped != nil && *concurrency.IsTenantScoped
 
 				if tenantScoped && (concurrency.Name == nil || *concurrency.Name == "") {
 					return nil, status.Error(
