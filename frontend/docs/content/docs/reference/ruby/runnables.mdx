@@ -58,9 +58,9 @@ Workflow-level concurrency.
 
 Returns:
 
-| Type                                                           | Description                 |
-| -------------------------------------------------------------- | --------------------------- |
-| `Array<ConcurrencyExpression> \| ConcurrencyExpression \| nil` | Workflow-level concurrency. |
+| Type                                                                                                   | Description                 |
+| ------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `Array<ConcurrencyExpression, SharedConcurrency> \| ConcurrencyExpression \| SharedConcurrency \| nil` | Workflow-level concurrency. |
 
 #### `default_filters`
 
@@ -190,21 +190,21 @@ Define a task within this workflow. The block receives the workflow input and a 
 
 Parameters:
 
-| Name                    | Type                                                           | Description                                                                                        | Default    |
-| ----------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------- |
-| `name`                  | `Symbol \| String`                                             | The name of the task.                                                                              | _required_ |
-| `parents`               | `Array<Task, Symbol>`                                          | A list of tasks that are parents of the task. Note: parents must be defined before their children. | `[]`       |
-| `execution_timeout`     | `Integer \| String \| nil`                                     | The maximum time to wait for the task to complete, in seconds or as a duration string (e.g. "60s") | `nil`      |
-| `schedule_timeout`      | `Integer \| String \| nil`                                     | The maximum time to wait for the task to be scheduled.                                             | `nil`      |
-| `retries`               | `Integer \| nil`                                               | The number of times to retry the task before failing.                                              | `nil`      |
-| `backoff_factor`        | `Float \| nil`                                                 | The backoff factor for controlling exponential backoff in retries.                                 | `nil`      |
-| `backoff_max_seconds`   | `Integer \| nil`                                               | The maximum number of seconds to allow retries with exponential backoff to continue.               | `nil`      |
-| `rate_limits`           | `Array<RateLimit>`                                             | A list of rate limit configurations for the task.                                                  | `[]`       |
-| `concurrency`           | `ConcurrencyExpression \| Array<ConcurrencyExpression> \| nil` | A concurrency expression (or list of them) controlling the concurrency settings for this task.     | `nil`      |
-| `desired_worker_labels` | `Hash \| nil`                                                  | A hash of desired worker labels that determine to which worker the task should be assigned.        | `nil`      |
-| `wait_for`              | `Array`                                                        | A list of conditions that must be met before the task can run.                                     | `[]`       |
-| `skip_if`               | `Array`                                                        | A list of conditions that, if met, will cause the task to be skipped.                              | `[]`       |
-| `deps`                  | `Hash \| nil`                                                  | Dependency providers to inject into the task's context.                                            | `nil`      |
+| Name                    | Type                                                                                                   | Description                                                                                        | Default    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------- |
+| `name`                  | `Symbol \| String`                                                                                     | The name of the task.                                                                              | _required_ |
+| `parents`               | `Array<Task, Symbol>`                                                                                  | A list of tasks that are parents of the task. Note: parents must be defined before their children. | `[]`       |
+| `execution_timeout`     | `Integer \| String \| nil`                                                                             | The maximum time to wait for the task to complete, in seconds or as a duration string (e.g. "60s") | `nil`      |
+| `schedule_timeout`      | `Integer \| String \| nil`                                                                             | The maximum time to wait for the task to be scheduled.                                             | `nil`      |
+| `retries`               | `Integer \| nil`                                                                                       | The number of times to retry the task before failing.                                              | `nil`      |
+| `backoff_factor`        | `Float \| nil`                                                                                         | The backoff factor for controlling exponential backoff in retries.                                 | `nil`      |
+| `backoff_max_seconds`   | `Integer \| nil`                                                                                       | The maximum number of seconds to allow retries with exponential backoff to continue.               | `nil`      |
+| `rate_limits`           | `Array<RateLimit>`                                                                                     | A list of rate limit configurations for the task.                                                  | `[]`       |
+| `concurrency`           | `ConcurrencyExpression \| SharedConcurrency \| Array<ConcurrencyExpression, SharedConcurrency> \| nil` | A concurrency expression (or list of them) controlling the concurrency settings for this task.     | `nil`      |
+| `desired_worker_labels` | `Hash \| nil`                                                                                          | A hash of desired worker labels that determine to which worker the task should be assigned.        | `nil`      |
+| `wait_for`              | `Array`                                                                                                | A list of conditions that must be met before the task can run.                                     | `[]`       |
+| `skip_if`               | `Array`                                                                                                | A list of conditions that, if met, will cause the task to be skipped.                              | `[]`       |
+| `deps`                  | `Hash \| nil`                                                                                          | Dependency providers to inject into the task's context.                                            | `nil`      |
 
 Returns:
 
@@ -516,9 +516,9 @@ Task-level concurrency.
 
 Returns:
 
-| Type                                                           | Description             |
-| -------------------------------------------------------------- | ----------------------- |
-| `Array<ConcurrencyExpression> \| ConcurrencyExpression \| nil` | Task-level concurrency. |
+| Type                                                                                                   | Description             |
+| ------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `Array<ConcurrencyExpression, SharedConcurrency> \| ConcurrencyExpression \| SharedConcurrency \| nil` | Task-level concurrency. |
 
 #### `deps`
 
