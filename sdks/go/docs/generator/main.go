@@ -65,6 +65,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	v0client, err := loadPackage(filepath.Join(repoRoot, "pkg", "client"), "github.com/hatchet-dev/hatchet/pkg/client")
+	if err != nil {
+		return err
+	}
 
 	accessors := featureAccessors(root.pkg)
 
@@ -76,7 +80,7 @@ func run() error {
 		"client.mdx":    renderClientPage(root, accessors),
 		"context.mdx":   renderContextPage(worker),
 		"embedded.mdx":  renderEmbeddedPage(root),
-		"runnables.mdx": renderRunnablesPage(root),
+		"runnables.mdx": renderRunnablesPage(root, worker, v0client),
 	}
 	for _, a := range accessors {
 		files[filepath.Join("feature-clients", a.page+".mdx")] = renderFeaturePage(features, a)
@@ -1045,7 +1049,63 @@ const runnablesIntro = `Runnables in the Hatchet Go SDK are things that can be r
 Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](/reference/go/client) for the constructors.
 `
 
-func renderRunnablesPage(p *pkgDocs) string {
+// aliasSource points a type alias in the root package at the package that
+// declares the underlying type, so its methods can be documented alongside it.
+type aliasSource struct {
+	pkg      *pkgDocs
+	typeName string
+}
+
+// writeAliasedMethods documents the methods of the type an alias refers to,
+// which go/doc cannot see from the aliasing package.
+func writeAliasedMethods(b *strings.Builder, src aliasSource, level int) {
+	t := findType(src.pkg, src.typeName)
+	if t == nil {
+		return
+	}
+
+	if ifaceMethods := interfaceMethods(t); len(ifaceMethods) > 0 {
+		var rows [][]string
+		var kept []*ast.Field
+		for _, f := range ifaceMethods {
+			docText := f.Doc.Text()
+			if docText == "" && f.Comment != nil {
+				docText = f.Comment.Text()
+			}
+			if skipDoc(docText) {
+				continue
+			}
+			kept = append(kept, f)
+			rows = append(rows, []string{"`" + f.Names[0].Name + "`", escapeCell(synopsis(src.pkg, docText))})
+		}
+		if len(kept) == 0 {
+			return
+		}
+		b.WriteString("Methods:\n\n")
+		b.WriteString(table([]string{"Name", "Description"}, rows) + "\n")
+		for _, f := range kept {
+			writeInterfaceMethodSection(b, src.pkg, f, level+1)
+		}
+		return
+	}
+
+	var methods []*doc.Func
+	for _, m := range t.Methods {
+		if !skipDoc(m.Doc) {
+			methods = append(methods, m)
+		}
+	}
+	if len(methods) == 0 {
+		return
+	}
+	b.WriteString("Methods:\n\n")
+	b.WriteString(table([]string{"Name", "Description"}, methodRows(src.pkg, methods)) + "\n")
+	for _, m := range methods {
+		writeFuncSection(b, src.pkg, m, level+1)
+	}
+}
+
+func renderRunnablesPage(p, worker, v0client *pkgDocs) string {
 	var b strings.Builder
 	b.WriteString(frontmatter("Runnables"))
 	b.WriteString(generatedNotice())
@@ -1133,10 +1193,18 @@ func renderRunnablesPage(p *pkgDocs) string {
 		rest = append(rest, t)
 	}
 	sort.Slice(rest, func(i, j int) bool { return rest[i].Name < rest[j].Name })
+	aliasSources := map[string]aliasSource{
+		"EventClient":      {v0client, "EventClient"},
+		"WaitResult":       {worker, "WaitResult"},
+		"SingleWaitResult": {worker, "SingleWaitResult"},
+	}
 	if len(rest) > 0 {
 		b.WriteString("## Other types\n\n")
 		for _, t := range rest {
 			writeTypeSection(&b, p, t, 3, "", false)
+			if src, ok := aliasSources[t.Name]; ok {
+				writeAliasedMethods(&b, src, 3)
+			}
 		}
 	}
 

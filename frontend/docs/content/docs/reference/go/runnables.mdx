@@ -956,6 +956,133 @@ Fields:
 
 EventClient sends events to Hatchet, triggering any workflows subscribed to the event key. Obtain one from Client.Events().
 
+Methods:
+
+| Name                  | Description                                                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `Push`                | Push sends a single event with the given key and JSON-serializable payload, triggering any workflows subscribed to the event key. |
+| `BulkPush`            | BulkPush sends multiple events in a single request.                                                                               |
+| `PutLog`              | PutLog writes a log line to the given task run.                                                                                   |
+| `PutLogWithTimestamp` | PutLogWithTimestamp writes a log line to the given task run with an explicit timestamp.                                           |
+| `PutStreamEvent`      | PutStreamEvent publishes a chunk of streaming output for the given task run, delivered to subscribers of the run's stream.        |
+
+#### `Push`
+
+Push sends a single event with the given key and JSON-serializable payload, triggering any workflows subscribed to the event key.
+
+```go
+func Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
+```
+
+Parameters:
+
+| Name       | Type              |
+| ---------- | ----------------- |
+| `ctx`      | `context.Context` |
+| `eventKey` | `string`          |
+| `payload`  | `interface{}`     |
+| `options`  | `...PushOpFunc`   |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `BulkPush`
+
+BulkPush sends multiple events in a single request.
+
+```go
+func BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
+```
+
+Parameters:
+
+| Name       | Type                            |
+| ---------- | ------------------------------- |
+| `ctx`      | `context.Context`               |
+| `payloads` | `[]EventWithAdditionalMetadata` |
+| `options`  | `...BulkPushOpFunc`             |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `PutLog`
+
+PutLog writes a log line to the given task run.
+
+```go
+func PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error
+```
+
+Parameters:
+
+| Name             | Type              |
+| ---------------- | ----------------- |
+| `ctx`            | `context.Context` |
+| `taskRunId`      | `string`          |
+| `msg`            | `string`          |
+| `level`          | `*string`         |
+| `taskRetryCount` | `*int32`          |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `PutLogWithTimestamp`
+
+PutLogWithTimestamp writes a log line to the given task run with an explicit timestamp.
+
+```go
+func PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error
+```
+
+Parameters:
+
+| Name             | Type                     |
+| ---------------- | ------------------------ |
+| `ctx`            | `context.Context`        |
+| `taskRunId`      | `string`                 |
+| `msg`            | `string`                 |
+| `level`          | `*string`                |
+| `taskRetryCount` | `*int32`                 |
+| `createdAt`      | `*timestamppb.Timestamp` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
+#### `PutStreamEvent`
+
+PutStreamEvent publishes a chunk of streaming output for the given task run, delivered to subscribers of the run's stream.
+
+```go
+func PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
+```
+
+Parameters:
+
+| Name        | Type                   |
+| ----------- | ---------------------- |
+| `ctx`       | `context.Context`      |
+| `stepRunId` | `string`               |
+| `message`   | `[]byte`               |
+| `options`   | `...StreamEventOption` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
 ### EventUnmarshaller
 
 EventUnmarshaller is implemented by the result of DurableContext.WaitForEvent. Use EventInto to extract the event payload.
@@ -1218,6 +1345,32 @@ RateLimitDuration is the window over which a rate limit applies.
 
 SingleWaitResult holds the result of a single-condition durable wait such as DurableContext.SleepFor or DurableContext.WaitForEvent.
 
+Methods:
+
+| Name        | Description                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `Unmarshal` | Unmarshal decodes the matched event or condition payload into in, which must be a pointer. |
+
+#### `Unmarshal`
+
+Unmarshal decodes the matched event or condition payload into in, which must be a pointer. hatchet.EventInto is a convenience wrapper around it.
+
+```go
+func (w *SingleWaitResult) Unmarshal(in interface{}) error
+```
+
+Parameters:
+
+| Name | Type          |
+| ---- | ------------- |
+| `in` | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
 ### StickyStrategy
 
 StickyStrategy determines how child workflow runs are routed back to the worker that ran the parent.
@@ -1275,6 +1428,48 @@ Returns:
 ### WaitResult
 
 WaitResult holds the results of a DurableContext.WaitFor call, keyed by condition.
+
+Methods:
+
+| Name        | Description                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `Keys`      | Keys returns the readable keys of the conditions that produced this result, such as user event keys and "sleep:<duration>" entries. |
+| `Unmarshal` | Unmarshal decodes the payload matched for the given condition key into in, which must be a pointer.                                 |
+
+#### `Keys`
+
+Keys returns the readable keys of the conditions that produced this result, such as user event keys and "sleep:\<duration>" entries.
+
+```go
+func (w *WaitResult) Keys() []string
+```
+
+Returns:
+
+| Type       |
+| ---------- |
+| `[]string` |
+
+#### `Unmarshal`
+
+Unmarshal decodes the payload matched for the given condition key into in, which must be a pointer.
+
+```go
+func (w *WaitResult) Unmarshal(key string, in interface{}) error
+```
+
+Parameters:
+
+| Name  | Type          |
+| ----- | ------------- |
+| `key` | `string`      |
+| `in`  | `interface{}` |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
 
 ### WorkerLabelComparator
 

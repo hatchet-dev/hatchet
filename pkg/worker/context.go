@@ -997,6 +997,8 @@ func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
 	}
 }
 
+// Unmarshal decodes the matched event or condition payload into in, which must
+// be a pointer. hatchet.EventInto is a convenience wrapper around it.
 func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
@@ -1027,6 +1029,8 @@ func (e ErrMarshalKeyNotFound) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
 
+// Keys returns the readable keys of the conditions that produced this result,
+// such as user event keys and "sleep:<duration>" entries.
 func (w *WaitResult) Keys() []string {
 	keys := make([]string, 0, len(w.allResults))
 
@@ -1039,6 +1043,8 @@ func (w *WaitResult) Keys() []string {
 	return keys
 }
 
+// Unmarshal decodes the payload matched for the given condition key into in,
+// which must be a pointer.
 func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	eNotFound := ErrMarshalKeyNotFound{
 		Key: key,
