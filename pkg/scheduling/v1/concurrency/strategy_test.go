@@ -65,7 +65,7 @@ func (m *mockConcurrencyRepo) UpdateConcurrencySlots(ctx context.Context, tenant
 func (m *mockConcurrencyRepo) UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error {
 	return nil
 }
-func (m *mockConcurrencyRepo) CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) error {
+func (m *mockConcurrencyRepo) CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyId int64) error {
 	return nil
 }
 func (m *mockConcurrencyRepo) RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*repository.RunConcurrencyResult, error) {

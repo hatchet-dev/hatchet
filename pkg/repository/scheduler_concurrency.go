@@ -70,10 +70,11 @@ type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
-	// CheckAndDeactivateTenantConcurrency retires tenant-scoped strategies that no
-	// workflow's latest version references and that hold no slots. Called by the tenant
-	// manager in one batched pass rather than per strategy manager.
-	CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) error
+	// CheckAndDeactivateTenantConcurrency retires a tenant-scoped strategy when no
+	// workflow's latest version references it and it holds no slots. The tenant
+	// counterpart of UpdateConcurrencyStrategyIsActive, called from the same
+	// per-manager check-active loop.
+	CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyId int64) error
 
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 
@@ -168,9 +169,9 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	return commit(ctx)
 }
 
-// CheckAndDeactivateTenantConcurrency retires tenant-scoped strategies that no
-// workflow's latest version references and that hold no concurrency slots. Reactivation
-// happens via the slot-insert trigger and via re-registration upserts.
+// CheckAndDeactivateTenantConcurrency retires a tenant-scoped strategy when no
+// workflow's latest version references it and it holds no concurrency slots.
+// Reactivation happens via the slot-insert trigger and via re-registration upserts.
 //
 // The active check runs without any lock: its cost grows with the number of referencing
 // workflows, and holding the strategy's advisory lock for its duration would starve the
@@ -180,28 +181,22 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 func (c *ConcurrencyRepositoryImpl) CheckAndDeactivateTenantConcurrency(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	strategyIds []int64,
+	strategyId int64,
 ) error {
-	for _, strategyId := range strategyIds {
-		isActive, err := c.queries.CheckTenantStrategyActive(ctx, c.pool, sqlcv1.CheckTenantStrategyActiveParams{
-			Tenantid:   tenantId,
-			Strategyid: strategyId,
-		})
+	isActive, err := c.queries.CheckTenantStrategyActive(ctx, c.pool, sqlcv1.CheckTenantStrategyActiveParams{
+		Tenantid:   tenantId,
+		Strategyid: strategyId,
+	})
 
-		if err != nil {
-			return err
-		}
-
-		if isActive {
-			continue
-		}
-
-		if err := c.deactivateTenantConcurrency(ctx, tenantId, strategyId); err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 
-	return nil
+	if isActive {
+		return nil
+	}
+
+	return c.deactivateTenantConcurrency(ctx, tenantId, strategyId)
 }
 
 func (c *ConcurrencyRepositoryImpl) deactivateTenantConcurrency(

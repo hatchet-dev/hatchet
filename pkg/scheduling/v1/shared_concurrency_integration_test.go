@@ -425,7 +425,7 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 		// referenced by a latest workflow version: stays active
 		s := setupSharedConcurrencyTest(t, ctx, conf, "shared-active-test", "GROUP_ROUND_ROBIN", 1, 1)
 
-		err := s.repo.CheckAndDeactivateTenantConcurrency(ctx, s.tenantId, []int64{s.strategy.ID})
+		err := s.repo.CheckAndDeactivateTenantConcurrency(ctx, s.tenantId, s.strategy.ID)
 		require.NoError(t, err)
 
 		strat, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
@@ -450,7 +450,7 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 		_, err = lockTx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", s2.strategy.ID)
 		require.NoError(t, err)
 
-		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, []int64{s2.strategy.ID})
+		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, s2.strategy.ID)
 		require.NoError(t, err)
 
 		strat2, err := queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
@@ -464,7 +464,7 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 		lockConn.Release()
 
 		// with the lock free, the same pass retires it
-		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, []int64{s2.strategy.ID})
+		err = s2.repo.CheckAndDeactivateTenantConcurrency(ctx, s2.tenantId, s2.strategy.ID)
 		require.NoError(t, err)
 
 		strat2, err = queries.GetTenantConcurrencyStrategyById(ctx, conf.Pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
