@@ -260,10 +260,11 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		}
 	}
 
-	// Strategies with no runnable branch (e.g. NONE, which exists so tasks of a removed
-	// strategy can still enqueue) must return an empty result rather than nil: the
-	// scheduler dereferences the embedded result and would panic on nil.
+	// No strategy branch ran. This should no longer be reachable (every enum value has a
+	// branch above), so log it as an error, but still return an empty result rather than
+	// nil: the scheduler dereferences the embedded result and would panic on nil.
 	if res == nil {
+		c.l.Error().Ctx(ctx).Msgf("no result for concurrency strategy %s (strategy ID: %d); returning empty result", strategy.Strategy, strategy.ID)
 		res = &RunConcurrencyResult{}
 	}
 
