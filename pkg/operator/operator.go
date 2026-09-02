@@ -182,7 +182,16 @@ func (s *SharedOperator[T]) RegisterDurableTask(ctx context.Context, externalId 
 
 // SendStarted reports that the operator has started processing the assigned action.
 func (s *SharedOperator[T]) SendStarted(action *contracts.AssignedAction) error {
-	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, "", nil)
+	return s.SendStartedAt(action, time.Now())
+}
+
+// SendStartedAt reports STARTED with an explicit event timestamp. Callers that report STARTED
+// asynchronously (e.g. from a goroutine that races the task body) must capture the timestamp
+// synchronously before the work begins and pass it here, otherwise a fast task can emit
+// COMPLETED/FAILED with an earlier timestamp than the STARTED goroutine's, inverting the event
+// order in OLAP.
+func (s *SharedOperator[T]) SendStartedAt(action *contracts.AssignedAction, at time.Time) error {
+	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, "", nil, at)
 }
 
 // SendCompleted reports a successful result. output should be the task's JSON output.
@@ -236,12 +245,17 @@ func (s *SharedOperator[T]) SendCancelledWithMessage(action *contracts.AssignedA
 // through the dispatcher's TaskEventWriter. It uses a detached, time-bounded context (the
 // caller's request context may already be cancelled by the time we report) and injects the
 // tenant the dispatcher expects on the context.
-func (s *SharedOperator[T]) sendStepActionEvent(action *contracts.AssignedAction, eventType contracts.StepActionEventType, payload string, shouldNotRetry *bool) error {
+func (s *SharedOperator[T]) sendStepActionEvent(action *contracts.AssignedAction, eventType contracts.StepActionEventType, payload string, shouldNotRetry *bool, eventTS ...time.Time) error {
 	if s.taskEventWriter == nil {
 		return fmt.Errorf("operator has no task event writer configured")
 	}
 
 	retryCount := action.RetryCount
+
+	ts := time.Now()
+	if len(eventTS) > 0 {
+		ts = eventTS[0]
+	}
 
 	event := &contracts.StepActionEvent{
 		WorkerId:          s.workerId.String(),
@@ -250,7 +264,7 @@ func (s *SharedOperator[T]) sendStepActionEvent(action *contracts.AssignedAction
 		TaskId:            action.TaskId,
 		TaskRunExternalId: action.TaskRunExternalId,
 		ActionId:          action.ActionId,
-		EventTimestamp:    timestamppb.Now(),
+		EventTimestamp:    timestamppb.New(ts),
 		EventType:         eventType,
 		EventPayload:      payload,
 		RetryCount:        &retryCount,
