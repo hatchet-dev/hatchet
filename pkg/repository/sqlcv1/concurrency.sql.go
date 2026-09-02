@@ -43,7 +43,8 @@ WITH latest_workflow_version AS (
         sc.tenant_id = $2::uuid AND
         sc.workflow_id = $1::uuid AND
         sc.workflow_version_id = $3::uuid AND
-        sc.is_active = TRUE
+        sc.is_active = TRUE AND
+        sc.tenant_strategy_id IS NULL
     ORDER BY
         sc.id ASC
     LIMIT 1
@@ -109,6 +110,55 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const checkTenantStrategyActive = `-- name: CheckTenantStrategyActive :one
+SELECT (
+    EXISTS (
+        SELECT 1 FROM v1_concurrency_slot cs
+        WHERE cs.tenant_id = $1::uuid AND cs.strategy_id = $2::bigint
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM (
+            SELECT DISTINCT sc.workflow_id
+            FROM v1_step_concurrency sc
+            WHERE sc.tenant_id = $1::uuid AND sc.tenant_strategy_id = $2::bigint
+        ) w
+        JOIN LATERAL (
+            SELECT wv."id"
+            FROM "WorkflowVersion" wv
+            WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+            ORDER BY wv."order" DESC
+            LIMIT 1
+        ) latest ON TRUE
+        JOIN LATERAL (
+            SELECT 1
+            FROM v1_step_concurrency sc2
+            WHERE sc2.workflow_id = w.workflow_id
+              AND sc2.workflow_version_id = latest."id"
+              AND sc2.tenant_strategy_id = $2::bigint
+            LIMIT 1
+        ) hit ON TRUE
+    )
+)::bool AS "isActive"
+`
+
+type CheckTenantStrategyActiveParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+}
+
+// A tenant strategy is active if it still has concurrency slots, or if a step of some
+// workflow's latest (non-deleted) version references it. The latest-version lookup is a
+// LATERAL top-1 per referenced workflow so it descends idx_workflow_version_workflow_id_order
+// with LIMIT 1; a DISTINCT ON over an IN-subquery reads every version of every referenced
+// workflow instead, degrading with total "WorkflowVersion" size.
+func (q *Queries) CheckTenantStrategyActive(ctx context.Context, db DBTX, arg CheckTenantStrategyActiveParams) (bool, error) {
+	row := db.QueryRow(ctx, checkTenantStrategyActive, arg.Tenantid, arg.Strategyid)
+	var isActive bool
+	err := row.Scan(&isActive)
+	return isActive, err
+}
+
 const createParentTempTable = `-- name: CreateParentTempTable :exec
 CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
 SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
@@ -161,9 +211,41 @@ func (q *Queries) DeactivateStaleStepConcurrency(ctx context.Context, db DBTX, t
 	return err
 }
 
+const deactivateStaleTenantConcurrency = `-- name: DeactivateStaleTenantConcurrency :exec
+WITH stale_tenant_concurrencies AS (
+    SELECT tc.id
+    FROM v1_tenant_concurrency tc
+    WHERE tc.tenant_id = $1::UUID
+        AND tc.is_active = TRUE
+        -- 25 hours = a 24-hour idle window plus the 1-hour last_active_at refresh cache
+        -- (the slot-insert trigger only bumps last_active_at at most once per hour)
+        AND tc.last_active_at < NOW() - INTERVAL '25 hours'
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = tc.id
+                AND cs.tenant_id = $1::UUID -- tenant id filter to force index usage
+        )
+    -- deterministic acquisition order, matching the other v1_tenant_concurrency
+    -- updaters (SKIP LOCKED already prevents blocking either way)
+    ORDER BY tc.id
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_tenant_concurrency tc
+SET is_active = FALSE
+FROM stale_tenant_concurrencies
+WHERE tc.id = stale_tenant_concurrencies.id
+`
+
+func (q *Queries) DeactivateStaleTenantConcurrency(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, deactivateStaleTenantConcurrency, tenantid)
+	return err
+}
+
 const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id
 FROM
     v1_step_concurrency sc
 WHERE
@@ -190,6 +272,126 @@ func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg G
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
+		&i.MaxConcurrency,
+		&i.TenantStrategyID,
+	)
+	return &i, err
+}
+
+const getTenantConcurrencyStrategiesByIds = `-- name: GetTenantConcurrencyStrategiesByIds :many
+SELECT
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    id = ANY($2::bigint[])
+`
+
+type GetTenantConcurrencyStrategiesByIdsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Ids      []int64   `json:"ids"`
+}
+
+func (q *Queries) GetTenantConcurrencyStrategiesByIds(ctx context.Context, db DBTX, arg GetTenantConcurrencyStrategiesByIdsParams) ([]*V1TenantConcurrency, error) {
+	rows, err := db.Query(ctx, getTenantConcurrencyStrategiesByIds, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TenantConcurrency
+	for rows.Next() {
+		var i V1TenantConcurrency
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.IsActive,
+			&i.LastActiveAt,
+			&i.Strategy,
+			&i.Expression,
+			&i.MaxConcurrency,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTenantConcurrencyStrategiesByNames = `-- name: GetTenantConcurrencyStrategiesByNames :many
+SELECT
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    name = ANY($2::text[])
+`
+
+type GetTenantConcurrencyStrategiesByNamesParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Names    []string  `json:"names"`
+}
+
+func (q *Queries) GetTenantConcurrencyStrategiesByNames(ctx context.Context, db DBTX, arg GetTenantConcurrencyStrategiesByNamesParams) ([]*V1TenantConcurrency, error) {
+	rows, err := db.Query(ctx, getTenantConcurrencyStrategiesByNames, arg.Tenantid, arg.Names)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TenantConcurrency
+	for rows.Next() {
+		var i V1TenantConcurrency
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.IsActive,
+			&i.LastActiveAt,
+			&i.Strategy,
+			&i.Expression,
+			&i.MaxConcurrency,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTenantConcurrencyStrategyById = `-- name: GetTenantConcurrencyStrategyById :one
+SELECT
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    id = $2::bigint
+`
+
+type GetTenantConcurrencyStrategyByIdParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       int64     `json:"id"`
+}
+
+func (q *Queries) GetTenantConcurrencyStrategyById(ctx context.Context, db DBTX, arg GetTenantConcurrencyStrategyByIdParams) (*V1TenantConcurrency, error) {
+	row := db.QueryRow(ctx, getTenantConcurrencyStrategyById, arg.Tenantid, arg.ID)
+	var i V1TenantConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.IsActive,
+		&i.LastActiveAt,
+		&i.Strategy,
+		&i.Expression,
 		&i.MaxConcurrency,
 	)
 	return &i, err
@@ -240,16 +442,20 @@ func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX
 
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id
 FROM
     v1_step_concurrency sc
 JOIN
     "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
 WHERE
     sc.tenant_id = $1::uuid AND
-    sc.is_active = TRUE
+    sc.is_active = TRUE AND
+    sc.tenant_strategy_id IS NULL
 `
 
+// Rows referencing a tenant strategy (tenant_strategy_id set) are excluded: the tenant
+// strategy itself (see ListActiveTenantConcurrencyStrategies) is what gets registered
+// with the concurrency manager.
 func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1StepConcurrency, error) {
 	rows, err := db.Query(ctx, listActiveConcurrencyStrategies, tenantid)
 	if err != nil {
@@ -270,6 +476,46 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
+			&i.MaxConcurrency,
+			&i.TenantStrategyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveTenantConcurrencyStrategies = `-- name: ListActiveTenantConcurrencyStrategies :many
+SELECT
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = $1::uuid AND
+    is_active = TRUE
+`
+
+func (q *Queries) ListActiveTenantConcurrencyStrategies(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1TenantConcurrency, error) {
+	rows, err := db.Query(ctx, listActiveTenantConcurrencyStrategies, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TenantConcurrency
+	for rows.Next() {
+		var i V1TenantConcurrency
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.IsActive,
+			&i.LastActiveAt,
+			&i.Strategy,
+			&i.Expression,
 			&i.MaxConcurrency,
 		); err != nil {
 			return nil, err
@@ -362,7 +608,7 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
-    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
+    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
 FROM
     v1_step_concurrency
 WHERE
@@ -375,6 +621,9 @@ type ListConcurrencyStrategiesByStepIdParams struct {
 	Stepids  []uuid.UUID `json:"stepids"`
 }
 
+// For rows referencing a tenant strategy, the definition columns are kept in sync by the
+// v1_tenant_concurrency update trigger; callers resolve the effective strategy id from
+// tenant_strategy_id so task slots carry the shared id.
 func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX, arg ListConcurrencyStrategiesByStepIdParams) ([]*V1StepConcurrency, error) {
 	rows, err := db.Query(ctx, listConcurrencyStrategiesByStepId, arg.Tenantid, arg.Stepids)
 	if err != nil {
@@ -396,6 +645,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 			&i.Expression,
 			&i.TenantID,
 			&i.MaxConcurrency,
+			&i.TenantStrategyID,
 		); err != nil {
 			return nil, err
 		}
@@ -408,7 +658,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 }
 
 const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
+SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, c.tenant_strategy_id, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
 WHERE
@@ -443,6 +693,7 @@ type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
 	StepReadableID    pgtype.Text           `json:"step_readable_id"`
 }
 
@@ -467,7 +718,93 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.Expression,
 			&i.TenantID,
 			&i.MaxConcurrency,
+			&i.TenantStrategyID,
 			&i.StepReadableID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantConcurrencyOrderings = `-- name: ListTenantConcurrencyOrderings :many
+WITH ref_workflows AS (
+    SELECT DISTINCT sc.workflow_id
+    FROM v1_step_concurrency sc
+    WHERE
+        sc.tenant_id = $1::uuid
+        AND sc.tenant_strategy_id IS NOT NULL
+        AND sc.workflow_id != $2::uuid
+), latest_versions AS (
+    SELECT latest."id"
+    FROM ref_workflows w
+    JOIN LATERAL (
+        SELECT wv."id"
+        FROM "WorkflowVersion" wv
+        WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+        ORDER BY wv."order" DESC
+        LIMIT 1
+    ) latest ON TRUE
+), live_versions AS (
+    SELECT lv."id" FROM latest_versions lv
+    UNION
+    SELECT DISTINCT cs.workflow_version_id AS "id"
+    FROM v1_concurrency_slot cs
+    JOIN v1_tenant_concurrency tc ON tc.id = cs.strategy_id AND tc.tenant_id = $1::uuid
+    WHERE cs.tenant_id = $1::uuid
+)
+SELECT
+    sc.workflow_id,
+    sc.step_id,
+    sc.workflow_version_id,
+    array_agg(sc.tenant_strategy_id ORDER BY sc.id)::bigint[] AS strategy_ids
+FROM v1_step_concurrency sc
+JOIN live_versions lv ON lv."id" = sc.workflow_version_id
+WHERE
+    sc.tenant_id = $1::uuid
+    AND sc.tenant_strategy_id IS NOT NULL
+GROUP BY sc.workflow_id, sc.step_id, sc.workflow_version_id
+HAVING COUNT(*) > 1
+`
+
+type ListTenantConcurrencyOrderingsParams struct {
+	Tenantid          uuid.UUID `json:"tenantid"`
+	Excludeworkflowid uuid.UUID `json:"excludeworkflowid"`
+}
+
+type ListTenantConcurrencyOrderingsRow struct {
+	WorkflowID        uuid.UUID `json:"workflow_id"`
+	StepID            uuid.UUID `json:"step_id"`
+	WorkflowVersionID uuid.UUID `json:"workflow_version_id"`
+	StrategyIds       []int64   `json:"strategy_ids"`
+}
+
+// Per-step ordered chains of tenant-scoped strategies which can still admit new or queued
+// runs: chains of every workflow's latest (non-deleted) version, plus chains of superseded
+// versions whose runs still hold concurrency slots. The workflow being re-registered is
+// excluded from the latest-version set (its new chains replace the old ones), but its
+// superseded versions with live slots still constrain it, so a reorder waits for old runs
+// to drain. Creation order (ascending row id) encodes the declared chain order. The
+// latest-version lookup is a LATERAL top-1 per referenced workflow for the same reason as
+// CheckTenantStrategyActive.
+func (q *Queries) ListTenantConcurrencyOrderings(ctx context.Context, db DBTX, arg ListTenantConcurrencyOrderingsParams) ([]*ListTenantConcurrencyOrderingsRow, error) {
+	rows, err := db.Query(ctx, listTenantConcurrencyOrderings, arg.Tenantid, arg.Excludeworkflowid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTenantConcurrencyOrderingsRow
+	for rows.Next() {
+		var i ListTenantConcurrencyOrderingsRow
+		if err := rows.Scan(
+			&i.WorkflowID,
+			&i.StepID,
+			&i.WorkflowVersionID,
+			&i.StrategyIds,
 		); err != nil {
 			return nil, err
 		}
@@ -1974,6 +2311,26 @@ func (q *Queries) SetConcurrencyStrategyInactive(ctx context.Context, db DBTX, a
 	return err
 }
 
+const setTenantConcurrencyStrategyInactive = `-- name: SetTenantConcurrencyStrategyInactive :exec
+UPDATE
+    v1_tenant_concurrency
+SET
+    is_active = FALSE
+WHERE
+    tenant_id = $1::uuid AND
+    id = $2::bigint
+`
+
+type SetTenantConcurrencyStrategyInactiveParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+}
+
+func (q *Queries) SetTenantConcurrencyStrategyInactive(ctx context.Context, db DBTX, arg SetTenantConcurrencyStrategyInactiveParams) error {
+	_, err := db.Exec(ctx, setTenantConcurrencyStrategyInactive, arg.Tenantid, arg.Strategyid)
+	return err
+}
+
 const tryAdvisoryLock = `-- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock($1::bigint) AS "locked"
 `
@@ -2072,4 +2429,58 @@ func (q *Queries) UpdateConcurrencySlotIsFilled(ctx context.Context, db DBTX, ar
 		&i.ScheduleTimeoutAt,
 	)
 	return &i, err
+}
+
+const upsertTenantConcurrencyStrategies = `-- name: UpsertTenantConcurrencyStrategies :exec
+WITH input AS (
+    SELECT
+        unnest($2::text[]) AS name,
+        unnest(cast($3::text[] as v1_concurrency_strategy[])) AS strategy,
+        unnest($4::text[]) AS expression,
+        unnest($5::int[]) AS max_concurrency
+)
+INSERT INTO v1_tenant_concurrency (
+    tenant_id,
+    name,
+    strategy,
+    expression,
+    max_concurrency
+)
+SELECT
+    $1::uuid,
+    i.name,
+    i.strategy,
+    i.expression,
+    i.max_concurrency
+FROM input i
+ORDER BY i.name
+ON CONFLICT (tenant_id, name)
+DO UPDATE SET
+    strategy = EXCLUDED.strategy,
+    expression = EXCLUDED.expression,
+    max_concurrency = EXCLUDED.max_concurrency,
+    is_active = TRUE,
+    last_active_at = NOW()
+`
+
+type UpsertTenantConcurrencyStrategiesParams struct {
+	Tenantid         uuid.UUID `json:"tenantid"`
+	Names            []string  `json:"names"`
+	Strategies       []string  `json:"strategies"`
+	Expressions      []string  `json:"expressions"`
+	Maxconcurrencies []int32   `json:"maxconcurrencies"`
+}
+
+// Single-statement bulk upsert: one registration touches all of a workflow's tenant
+// strategy rows at once, in name order, so concurrent registrations acquire row locks in
+// a consistent order and cannot deadlock each other.
+func (q *Queries) UpsertTenantConcurrencyStrategies(ctx context.Context, db DBTX, arg UpsertTenantConcurrencyStrategiesParams) error {
+	_, err := db.Exec(ctx, upsertTenantConcurrencyStrategies,
+		arg.Tenantid,
+		arg.Names,
+		arg.Strategies,
+		arg.Expressions,
+		arg.Maxconcurrencies,
+	)
+	return err
 }
