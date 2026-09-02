@@ -496,6 +496,107 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
+// emitOrchestratorTerminalEvent reliably delivers a DAG-orchestrator task's terminal monitoring
+// event to OLAP. Operator-DAG status in OLAP is driven only by these events
+// (UpdateDAGStatusesFromOrchestratorEvents); the dispatcher's fire-and-forget publish through the
+// in-memory pub buffer can drop them on a restart, which strands the run non-terminal forever.
+// This does an awaited SendMessage on the durable OLAP_QUEUE with a bounded retry; on final
+// failure the caller returns an error so the source TASK_PROCESSING_QUEUE message is redelivered
+// and the (idempotent) finalize handler re-runs.
+func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	taskId int64,
+	retryCount int32,
+	eventType sqlcv1.V1EventTypeOlap,
+	detail string,
+) error {
+	payload := tasktypes.CreateMonitoringEventPayload{
+		TaskId:         taskId,
+		RetryCount:     retryCount,
+		EventType:      eventType,
+		EventTimestamp: time.Now().UTC(),
+	}
+
+	// CANCELLED carries its human-readable reason in EventMessage; FINISHED/FAILED carry the
+	// output / error string in EventPayload (matches the dispatcher's mapping).
+	if eventType == sqlcv1.V1EventTypeOlapCANCELLED {
+		payload.EventMessage = detail
+	} else {
+		payload.EventPayload = detail
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, payload)
+
+	if err != nil {
+		return fmt.Errorf("could not build orchestrator monitoring event: %w", err)
+	}
+
+	const maxAttempts = 4
+
+	var lastErr error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			// 200ms, 600ms, 1.8s
+			delay := time.Duration(200*math.Pow(3, float64(attempt-1))) * time.Millisecond
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		if lastErr = tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); lastErr == nil {
+			return nil
+		}
+
+		tc.l.Warn().Ctx(ctx).Err(lastErr).
+			Int64("task_id", taskId).
+			Int("attempt", attempt+1).
+			Msg("retrying orchestrator terminal monitoring event publish")
+	}
+
+	return fmt.Errorf("could not publish orchestrator monitoring event for task %d after %d attempts: %w", taskId, maxAttempts, lastErr)
+}
+
+// emitOrchestratorTerminalEvents fans emitOrchestratorTerminalEvent over the DAG-orchestrator
+// tasks among released. skipRetried is nil for COMPLETED/CANCELLED; for FAILED it holds task ids
+// that were retried (still running) and so must not be marked terminal. Re-running this on a
+// source-message redelivery is safe: releaseTasks is row-count-stable, CreateTaskEvents dedupes
+// terminal events on ON CONFLICT DO NOTHING, and UpdateDAGStatusesFromOrchestratorEvents is a
+// monotonic upsert.
+func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	released []*sqlcv1.ReleaseTasksRow,
+	detailByTaskId map[int64]string,
+	skipRetried map[int64]struct{},
+	eventType sqlcv1.V1EventTypeOlap,
+) error {
+	var errs error
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDagOrchestrator || !rt.IsCurrentRetry {
+			continue
+		}
+
+		if _, retried := skipRetried[rt.ID]; retried {
+			continue
+		}
+
+		if err := tc.emitOrchestratorTerminalEvent(
+			ctx, tenantId, rt.ID, rt.RetryCount, eventType, detailByTaskId[rt.ID],
+		); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
+	// errs is nil unless a publish failed above
+	return errs
+}
+
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
@@ -503,7 +604,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.CompleteTaskOpts, 0)
-	idsToData := make(map[int64][]byte)
+	outputByTaskId := make(map[int64]string)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
@@ -517,7 +618,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 			Output: msg.Output,
 		})
 
-		idsToData[msg.TaskId] = msg.Output
+		outputByTaskId[msg.TaskId] = string(msg.Output)
 	}
 
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
@@ -540,6 +641,14 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
+
+	if err := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, outputByTaskId, nil, sqlcv1.V1EventTypeOlapFINISHED,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
+		return err
+	}
 
 	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
@@ -620,6 +729,21 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		return err
 	}
 
+	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
+	// reliable OLAP publish
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
+	if err := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, sqlcv1.V1EventTypeOlapFAILED,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
+		return err
+	}
+
 	return nil
 }
 
@@ -697,6 +821,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
+	cancelMsgByTaskId := make(map[int64]string)
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
@@ -706,6 +831,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		})
 
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
+		cancelMsgByTaskId[msg.TaskId] = msg.EventMessage
 	}
 
 	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
@@ -792,6 +918,14 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
+	if emitErr := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, cancelMsgByTaskId, nil, sqlcv1.V1EventTypeOlapCANCELLED,
+	); emitErr != nil {
+		span.RecordError(emitErr)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
+		outerErr = multierror.Append(outerErr, emitErr)
+	}
+
 	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
@@ -802,7 +936,9 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
-	return err
+	// outerErr accumulates every per-task publish failure above (including the orchestrator
+	// terminal events); returning it lets the source message redeliver on any failure
+	return outerErr
 }
 
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
