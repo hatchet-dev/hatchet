@@ -93,7 +93,7 @@ jobs:
           cd cmd/hatchet-cli/cli
           go test -tags e2e_cli \
             -ldflags "-X github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli.Version=${CLI_VERSION}" \
-            -run TestQuickstartTemplates -v -timeout 15m
+            -run TestQuickstartTemplates -timeout 15m
         env:
           CI: true
           CLI_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0-alpha.0' }}
@@ -104,7 +104,7 @@ jobs:
           cd cmd/hatchet-cli/cli
           go test -tags e2e_cli \
             -run 'Test(Runs|Workflows|Worker|RateLimits|Scheduled|Cron|Webhooks)' \
-            -v -timeout 10m
+            -timeout 10m
         env:
           HATCHET_CLI_PROFILE: local
 
