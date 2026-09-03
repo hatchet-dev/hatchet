@@ -30,16 +30,21 @@ func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl
 	return seedOperatorDagWithExternalId(t, ctx, repo, dagId, uuid.New())
 }
 
-func seedOperatorDagWithExternalId(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64, dagExternalId uuid.UUID) operatorDagFixture {
-	t.Helper()
-
-	f := operatorDagFixture{
+func newOperatorDagFixture(dagId int64, dagExternalId uuid.UUID) operatorDagFixture {
+	return operatorDagFixture{
 		tenantId:      uuid.New(),
 		dagId:         dagId,
 		dagInsertedAt: pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true},
 		dagExternalId: dagExternalId,
 		workflowId:    uuid.New(),
 	}
+}
+
+// create writes the operator DAG's OLAP row (the 'created-dag' message path). Split from fixture
+// construction so a test can land orchestrator events in v1_task_events_olap first, reproducing
+// the ordering race where created-dag arrives last.
+func (f operatorDagFixture) create(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl) {
+	t.Helper()
 
 	dag := &DAGWithData{
 		V1Dag: &sqlcv1.V1Dag{
@@ -59,6 +64,45 @@ func seedOperatorDagWithExternalId(t *testing.T, ctx context.Context, repo *OLAP
 	locksNotAcquired, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{dag})
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
+}
+
+// orchestratorEvent builds a monitoring event addressed to the orchestrator task, which for an
+// operator DAG shares the DAG's id and inserted_at.
+func (f operatorDagFixture) orchestratorEvent(eventType sqlcv1.V1EventTypeOlap, status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.CreateTaskEventsOLAPParams {
+	return sqlcv1.CreateTaskEventsOLAPParams{
+		TenantID:       f.tenantId,
+		TaskID:         f.dagId,
+		TaskInsertedAt: f.dagInsertedAt,
+		EventType:      eventType,
+		WorkflowID:     f.workflowId,
+		EventTimestamp: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ReadableStatus: status,
+		RetryCount:     retryCount,
+		Output:         []byte(`{}`),
+		ExternalID:     uuid.New(),
+	}
+}
+
+// applyOrchestratorMonitoringEvents writes raw orchestrator monitoring events to
+// v1_task_events_olap without requiring the DAG row to exist yet.
+func (f operatorDagFixture) applyOrchestratorMonitoringEvents(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, events ...sqlcv1.CreateTaskEventsOLAPParams) {
+	t.Helper()
+
+	eventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID, len(events))
+	for _, e := range events {
+		eventExternalIdToWorkflowRunId[e.ExternalID] = f.dagExternalId
+	}
+
+	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, f.operatorRunIds())
+	require.NoError(t, err)
+	require.Empty(t, locksNotAcquired)
+}
+
+func seedOperatorDagWithExternalId(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64, dagExternalId uuid.UUID) operatorDagFixture {
+	t.Helper()
+
+	f := newOperatorDagFixture(dagId, dagExternalId)
+	f.create(t, ctx, repo)
 
 	return f
 }
@@ -427,4 +471,84 @@ func TestOperatorDAG_UpdatesIgnoreWorkflowRunAdvisoryLock(t *testing.T) {
 	result = f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapFAILED, 0))
 	require.Len(t, result.DAGRows, 1)
 	f.assertDagStatus(t, ctx, pool, "FAILED")
+}
+
+// TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow reproduces the ordering race: the
+// orchestrator's ASSIGNED/STARTED/FINISHED monitoring events land in OLAP before the independent
+// 'created-dag' message. Without the catch-up, UpdateDAGStatusesFromOrchestratorEvents no-ops
+// (no DAG row to join) and the DAG is stranded non-terminal. writeDAGBatch must reconcile the
+// freshly-inserted row against the events already on record.
+func TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	t.Run("terminal event before dag row", func(t *testing.T) {
+		f := newOperatorDagFixture(600, uuid.New())
+
+		// orchestrator lifecycle events arrive first, while there is no v1_dags_olap row
+		f.applyOrchestratorMonitoringEvents(t, ctx, repo,
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0),
+		)
+
+		// the created-dag message finally lands
+		f.create(t, ctx, repo)
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+	})
+
+	t.Run("only running events before dag row", func(t *testing.T) {
+		f := newOperatorDagFixture(601, uuid.New())
+
+		f.applyOrchestratorMonitoringEvents(t, ctx, repo,
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+		)
+
+		f.create(t, ctx, repo)
+		f.assertDagStatus(t, ctx, pool, "RUNNING")
+
+		// the later FINISHED still applies through the normal path now that the row exists
+		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+		require.Len(t, result.DAGRows, 1)
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+	})
+
+	t.Run("higher retry terminal event before dag row", func(t *testing.T) {
+		f := newOperatorDagFixture(602, uuid.New())
+
+		f.applyOrchestratorMonitoringEvents(t, ctx, repo,
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 0),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+			f.orchestratorEvent(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 1),
+		)
+
+		f.create(t, ctx, repo)
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+
+		var latestRetry int32
+		require.NoError(t, pool.QueryRow(ctx, `
+			SELECT latest_retry_count FROM v1_dags_olap WHERE tenant_id = $1 AND id = $2
+		`, f.tenantId, f.dagId).Scan(&latestRetry))
+		assert.Equal(t, int32(1), latestRetry)
+	})
+
+	t.Run("no orchestrator events yet is a no-op", func(t *testing.T) {
+		f := newOperatorDagFixture(603, uuid.New())
+
+		f.create(t, ctx, repo)
+
+		f.assertDagStatus(t, ctx, pool, "QUEUED")
+	})
 }
