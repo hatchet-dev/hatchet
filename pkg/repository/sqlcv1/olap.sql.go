@@ -1838,7 +1838,10 @@ WITH tasks AS (
         lt.external_id = $1::uuid
         AND lt.tenant_id = $2::uuid
         AND (
-            dt.task_id != dt.dag_id
+            -- the orchestrator's self-mapping row is hidden by default once real child tasks
+            -- exist, since orchestration is abstracted away from the user
+            COALESCE($3::boolean, FALSE)
+            OR dt.task_id != dt.dag_id
             OR NOT EXISTS (
                 SELECT 1
                 FROM v1_dag_to_task_olap other
@@ -1896,8 +1899,9 @@ ORDER BY a.time_first_seen DESC, e.event_timestamp DESC
 `
 
 type ListTaskEventsForWorkflowRunParams struct {
-	Workflowrunid uuid.UUID `json:"workflowrunid"`
-	Tenantid      uuid.UUID `json:"tenantid"`
+	Workflowrunid             uuid.UUID   `json:"workflowrunid"`
+	Tenantid                  uuid.UUID   `json:"tenantid"`
+	IncludeOrchestratorEvents pgtype.Bool `json:"includeOrchestratorEvents"`
 }
 
 type ListTaskEventsForWorkflowRunRow struct {
@@ -1924,7 +1928,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 }
 
 func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg ListTaskEventsForWorkflowRunParams) ([]*ListTaskEventsForWorkflowRunRow, error) {
-	rows, err := db.Query(ctx, listTaskEventsForWorkflowRun, arg.Workflowrunid, arg.Tenantid)
+	rows, err := db.Query(ctx, listTaskEventsForWorkflowRun, arg.Workflowrunid, arg.Tenantid, arg.IncludeOrchestratorEvents)
 	if err != nil {
 		return nil, err
 	}
