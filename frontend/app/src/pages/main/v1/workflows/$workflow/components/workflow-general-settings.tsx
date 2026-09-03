@@ -13,12 +13,14 @@ function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
   switch (strategy) {
     case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
       return 'Cancel In Progress';
-    case ConcurrencyLimitStrategy.DROP_NEWEST:
-      return 'Drop Newest';
-    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
-      return 'Queue Newest';
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
       return 'Group Round Robin';
+    case ConcurrencyLimitStrategy.CANCEL_NEWEST:
+      return 'Cancel Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST:
+      return 'Cancel Queued Except Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST:
+      return 'Cancel Queued Except Oldest';
     default: {
       const exhaustiveCheck: never = strategy;
       return exhaustiveCheck;
