@@ -14,9 +14,9 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     StickyStrategy as StickyStrategyProto,
 )
+from hatchet_sdk.runnables.types import StickyStrategy
 from hatchet_sdk.types.concurrency import ConcurrencyStrategy
 from hatchet_sdk.types.rate_limit import RateLimitDuration
-from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
 CONCURRENCY_STRATEGY_LITERAL = ConcurrencyStrategy.model_fields["strategy"].annotation

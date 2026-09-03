@@ -6,6 +6,7 @@ from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
+    Literal,
     NewType,
     ParamSpec,
     TypeAlias,
@@ -25,7 +26,6 @@ from hatchet_sdk.types.idempotency import (
     TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     DataclassInstance,
@@ -35,6 +35,8 @@ from hatchet_sdk.utils.typing import (
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import Context, DurableContext
 
+
+StickyStrategy = Literal["SOFT", "HARD"]
 
 ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
 

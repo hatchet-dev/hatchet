@@ -37,6 +37,7 @@ from hatchet_sdk.runnables.types import (
     BatchMemberId,
     DefaultFilter,
     R,
+    StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
@@ -51,7 +52,6 @@ from hatchet_sdk.types.idempotency import (
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
-from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
