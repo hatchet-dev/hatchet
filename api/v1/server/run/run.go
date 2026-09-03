@@ -615,7 +615,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		// lookup here to see if the task is a dag orchestrator
 		coreDBTask, err := config.V1.Tasks().GetTaskByExternalId(ctx, tenantId, taskID, false)
 
-		if coreDBTask != nil && err != nil && coreDBTask.IsDagOrchestrator {
+		if coreDBTask != nil && err == nil && coreDBTask.IsDagOrchestrator {
 			return coreDBTask, tenantId.String(), nil
 		}
 
