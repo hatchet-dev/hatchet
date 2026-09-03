@@ -1190,6 +1190,16 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.False(t, b.isCancelled)
 }
 
+func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {
+	t.Helper()
+
+	previous := blockedStatusReportInterval
+	blockedStatusReportInterval = interval
+	t.Cleanup(func() {
+		blockedStatusReportInterval = previous
+	})
+}
+
 func (h *dagHarness) waitWorkerStatus(t *testing.T) *v1contracts.DurableTaskWorkerStatusRequest {
 	t.Helper()
 
@@ -1221,6 +1231,8 @@ func sendServerEvict(t *testing.T, responseCh chan *v1contracts.DurableTaskRespo
 }
 
 func TestDag_ReportsBlockedStatusWhileAwaitingChild(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
 
@@ -1247,6 +1259,8 @@ func TestDag_ReportsBlockedStatusWhileAwaitingChild(t *testing.T) {
 }
 
 func TestDag_ServerEvictEndsRunWithEvictedError(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
 
@@ -1285,4 +1299,59 @@ func TestDag_ServerEvictForDifferentTaskIgnored(t *testing.T) {
 
 	require.NoError(t, h.waitErr(t))
 	require.True(t, a.isCompleted)
+}
+
+func TestDag_ServerEvictForOlderInvocationIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	select {
+	case h.responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: h.externalId.String(),
+				InvocationCount:       0,
+				Reason:                "delayed notice for a previous invocation",
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_NoBlockedStatusReportBeforeInterval(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		t.Fatalf("dag reported blocked status before the interval elapsed: %v", status)
+	default:
+	}
 }

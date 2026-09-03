@@ -1382,7 +1382,9 @@ WITH queued_tasks AS (
     JOIN
         v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+        -- tenant-scoped refs put the tenant strategy's id on the slot, so resolve via
+        -- tenant_strategy_id when set
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.is_filled = FALSE
@@ -1435,7 +1437,7 @@ WITH queued_tasks AS (
     JOIN
         v1_concurrency_slot cs ON cs.task_id = rta.task_id AND cs.task_inserted_at = rta.task_inserted_at AND cs.task_retry_count = rta.retry_count AND cs.workflow_id = rta.workflow_id AND cs.workflow_version_id = rta.workflow_version_id
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = sc.id
+        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.tenant_id = rta.tenant_id
