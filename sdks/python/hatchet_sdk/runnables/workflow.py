@@ -1,6 +1,7 @@
 import asyncio
 import json
-from collections.abc import Callable
+import warnings
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -194,12 +195,19 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
-        if isinstance(self._config.concurrency, list):
+        # the public signatures take Sequence, which admits tuples as well as lists
+        if isinstance(self._config.concurrency, (list, tuple)):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
         elif isinstance(self._config.concurrency, ConcurrencyStrategy):
-            _concurrency_arr = []
-            _concurrency = self._config.concurrency.to_proto()
+            if self._config.concurrency.is_tenant_scoped:
+                # concurrency_arr is the canonical field; the deprecated scalar field
+                # predates tenant-scoped entries
+                _concurrency_arr = [self._config.concurrency.to_proto()]
+                _concurrency = None
+            else:
+                _concurrency_arr = []
+                _concurrency = self._config.concurrency.to_proto()
         elif isinstance(self._config.concurrency, int):
             _concurrency_arr = []
             _concurrency = ConcurrencyStrategy.from_int(
@@ -1218,7 +1226,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyStrategy] | None = None,
+        concurrency: int | Sequence[ConcurrencyStrategy] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1480,7 +1488,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyStrategy] | None = None,
+        concurrency: int | Sequence[ConcurrencyStrategy] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1583,7 +1591,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyStrategy] | None = None,
+        concurrency: int | Sequence[ConcurrencyStrategy] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1653,7 +1661,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyStrategy] | None = None,
+        concurrency: int | Sequence[ConcurrencyStrategy] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],

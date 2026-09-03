@@ -393,7 +393,7 @@ export class InternalWorker {
         eventTriggers,
         cronTriggers,
         sticky: stickyStrategy,
-        concurrencyArr,
+        concurrencyArr: mapConcurrencyPb(concurrencyArr),
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
         inputJsonSchema,
@@ -419,20 +419,12 @@ export class InternalWorker {
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           batch: mapBatchConfigPb(batchOf(task)),
           concurrency: (() => {
-            const taskConcurrency = task.concurrency
-              ? Array.isArray(task.concurrency)
-                ? task.concurrency
-                : [task.concurrency]
-              : workflow.taskDefaults?.concurrency
-                ? Array.isArray(workflow.taskDefaults.concurrency)
-                  ? workflow.taskDefaults.concurrency
-                  : [workflow.taskDefaults.concurrency]
-                : [];
+            const taskConcurrency = taskConcurrencyArr(task, workflow);
             assertValidConcurrencyArr(taskConcurrency);
-            return taskConcurrency;
+            return mapConcurrencyPb(taskConcurrency);
           })(),
         })),
-        concurrency: concurrencySolo,
+        concurrency: concurrencySolo ? mapConcurrencyPb([concurrencySolo])[0] : undefined,
         defaultFilters:
           workflow.defaultFilters?.map((f) => ({
             scope: f.scope,
@@ -1396,11 +1388,50 @@ function batchOf(
   return 'batch' in task ? task.batch : undefined;
 }
 
+// mapConcurrencyPb maps SDK concurrency entries onto the proto shape; entries keep their
+// declared order, which is the chain order.
+export function mapConcurrencyPb(entries: Concurrency[]) {
+  return entries.map((c) => ({
+    expression: c.expression,
+    // a string maxRuns is a CEL expression; the static field then carries the default
+    // of 1, which only governs slots created before the expression existed
+    maxRuns: typeof c.maxRuns === 'string' ? 1 : c.maxRuns,
+    limitStrategy: c.limitStrategy,
+    name: c.name,
+    isTenantScoped: c.isTenantScoped,
+    maxRunsExpression: typeof c.maxRuns === 'string' ? c.maxRuns : undefined,
+  }));
+}
+
+export function taskConcurrencyArr(
+  task: { concurrency?: Concurrency | Concurrency[] },
+  workflow: { taskDefaults?: { concurrency?: Concurrency | Concurrency[] } }
+): Concurrency[] {
+  if (task.concurrency) {
+    return Array.isArray(task.concurrency) ? task.concurrency : [task.concurrency];
+  }
+
+  if (workflow.taskDefaults?.concurrency) {
+    return Array.isArray(workflow.taskDefaults.concurrency)
+      ? workflow.taskDefaults.concurrency
+      : [workflow.taskDefaults.concurrency];
+  }
+
+  return [];
+}
+
 export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {
   concurrency?.forEach((c) => {
+    if (typeof c.maxRuns === 'string') {
+      if (!c.maxRuns.trim()) {
+        throw new Error('concurrency.maxRuns expression must be non-empty');
+      }
+      return;
+    }
+
     if (c.maxRuns !== undefined && (!Number.isInteger(c.maxRuns) || c.maxRuns <= 0)) {
       throw new Error(
-        `concurrency.maxRuns must be a positive integer when provided, got: ${c.maxRuns}`
+        `concurrency.maxRuns must be a positive integer or a CEL expression, got: ${c.maxRuns}`
       );
     }
   });

@@ -1,6 +1,6 @@
 import inspect
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import timedelta
 from enum import Enum
 from typing import (
@@ -105,7 +105,7 @@ class WorkflowConfig(BaseModel):
     # `BaseWorkflow.to_proto`.
     cron_input: Any = None
     sticky: StickyStrategy | None = None
-    concurrency: int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None = None
+    concurrency: int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse] | None = None
     default_priority: Priority | None = None
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None

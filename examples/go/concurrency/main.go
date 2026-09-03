@@ -157,11 +157,69 @@ func ConcurrencyCancelQueuedExceptOldest(client *hatchet.Client) *hatchet.Standa
 	)
 }
 
+func SharedConcurrencyStrategy(client *hatchet.Client) (*hatchet.StandaloneTask, *hatchet.StandaloneTask) {
+	// > Shared Concurrency Strategy
+	var maxRuns int32 = 1
+	strategy := hatchet.GroupRoundRobin
+
+	// A tenant-scoped strategy is shared across workflows: every task declaring the
+	// same name consumes the same concurrency limit. Re-registering the name updates
+	// it in place.
+	sharedLimit := hatchet.Concurrency{
+		Name:           "example-shared-limit",
+		IsTenantScoped: true,
+		Expression:     "input.Account",
+		MaxRuns:        &maxRuns,
+		LimitStrategy:  &strategy,
+	}
+
+	// two different tasks, in two different workflows, consuming one limit
+	syncCrm := client.NewStandaloneTask("sync-crm",
+		func(ctx hatchet.Context, input ConcurrencyInput) (*TransformedOutput, error) {
+			return &TransformedOutput{TransformedMessage: input.Message}, nil
+		},
+		hatchet.WithWorkflowConcurrency(sharedLimit),
+	)
+
+	generateReport := client.NewStandaloneTask("generate-report",
+		func(ctx hatchet.Context, input ConcurrencyInput) (*TransformedOutput, error) {
+			return &TransformedOutput{TransformedMessage: input.Message}, nil
+		},
+		hatchet.WithWorkflowConcurrency(sharedLimit),
+	)
+
+	return syncCrm, generateReport
+}
+
+func DynamicMaxRuns(client *hatchet.Client) *hatchet.StandaloneTask {
+	// > Dynamic Max Runs
+	var maxRuns int32 = 1
+	strategy := hatchet.GroupRoundRobin
+
+	// MaxRunsExpression computes each concurrency group's limit from the task's
+	// input; MaxRuns stays the static default.
+	maxRunsExpression := "input.Tier == 'premium' ? 10 : 1"
+
+	return client.NewStandaloneTask("dynamic-concurrency",
+		func(ctx hatchet.Context, input ConcurrencyInput) (*TransformedOutput, error) {
+			return &TransformedOutput{TransformedMessage: input.Message}, nil
+		},
+		hatchet.WithWorkflowConcurrency(hatchet.Concurrency{
+			Expression:        "input.Account",
+			MaxRuns:           &maxRuns,
+			LimitStrategy:     &strategy,
+			MaxRunsExpression: &maxRunsExpression,
+		}),
+	)
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
+
+	syncCrm, generateReport := SharedConcurrencyStrategy(client)
 
 	// > Slots
 	worker, err := client.NewWorker("concurrency-worker",
@@ -172,6 +230,9 @@ func main() {
 			ConcurrencyCancelNewest(client),
 			ConcurrencyCancelQueuedExceptNewest(client),
 			ConcurrencyCancelQueuedExceptOldest(client),
+			syncCrm,
+			generateReport,
+			DynamicMaxRuns(client),
 		),
 		hatchet.WithSlots(10),
 	)

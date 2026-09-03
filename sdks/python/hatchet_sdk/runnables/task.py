@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -164,7 +164,7 @@ class Task(Generic[TWorkflowInput, R]):
         desired_worker_labels: list[DesiredWorkerLabel] | None,
         backoff_factor: float | None,
         backoff_max_seconds: int | None,
-        concurrency: int | list[ConcurrencyStrategy] | None,
+        concurrency: int | Sequence[ConcurrencyStrategy] | None,
         wait_for: list[Condition | OrGroup] | None,
         skip_if: list[Condition | OrGroup] | None,
         cancel_if: list[Condition | OrGroup] | None,
@@ -418,7 +418,9 @@ class Task(Generic[TWorkflowInput, R]):
 
     def to_proto(self, service_name: str) -> CreateTaskOpts:
         if isinstance(self.concurrency, int):
-            concurrency = [ConcurrencyStrategy.from_int(self.concurrency)]
+            concurrency: Sequence[ConcurrencyStrategy] = [
+                ConcurrencyStrategy.from_int(self.concurrency)
+            ]
         else:
             concurrency = self.concurrency
 

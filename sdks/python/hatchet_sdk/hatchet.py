@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
 
@@ -325,7 +325,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -349,7 +349,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -372,7 +372,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -453,7 +453,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -487,7 +487,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -520,7 +520,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -923,7 +923,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -957,7 +957,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -994,7 +994,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
+            int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
