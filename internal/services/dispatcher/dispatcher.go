@@ -574,6 +574,10 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypesv1.DurableCallbackCompletedPayload](task.Payloads)
 
+	// We need to return no active invocation errors because otherwise they will get stuck on engine failure, never go to DLQ,
+	// and then the next engine that stands up will have no idea about it, leading to runs stuck in RUNNING
+	var retryErr error
+
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
 			task.TenantID,
@@ -587,12 +591,20 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.ChildTaskErrorMessage,
 		)
 
-		if err != nil {
-			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s (worker may still be reconnecting; polling path will catch up)", payload.TaskExternalId)
+		if err == nil {
+			continue
 		}
+
+		if errors.Is(err, ErrNoActiveDurableInvocation) {
+			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (worker reconnecting); will redeliver", payload.TaskExternalId)
+			retryErr = err
+			continue
+		}
+
+		d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
 	}
 
-	return nil
+	return retryErr
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
