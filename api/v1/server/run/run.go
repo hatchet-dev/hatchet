@@ -616,7 +616,18 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		coreDBTask, err := config.V1.Tasks().GetTaskByExternalId(ctx, tenantId, taskID, false)
 
 		if coreDBTask != nil && err == nil && coreDBTask.IsDagOrchestrator {
-			return coreDBTask, tenantId.String(), nil
+			return &sqlcv1.V1TasksOlap{
+				TenantID:          tenantId,
+				ID:                coreDBTask.ID,
+				InsertedAt:        coreDBTask.InsertedAt,
+				ExternalID:        coreDBTask.ExternalID,
+				StepID:            coreDBTask.StepID,
+				WorkflowID:        coreDBTask.WorkflowID,
+				WorkflowRunID:     coreDBTask.WorkflowRunID,
+				WorkflowVersionID: coreDBTask.WorkflowVersionID,
+				DagID:             coreDBTask.DagID,
+				DagInsertedAt:     coreDBTask.DagInsertedAt,
+			}, tenantId.String(), nil
 		}
 
 		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID)
