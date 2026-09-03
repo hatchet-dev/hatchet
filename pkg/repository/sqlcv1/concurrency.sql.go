@@ -50,7 +50,7 @@ WITH latest_workflow_version AS (
     LIMIT 1
 ), active_slot AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -245,7 +245,7 @@ func (q *Queries) DeactivateStaleTenantConcurrency(ctx context.Context, db DBTX,
 
 const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id, sc.max_runs_expression
 FROM
     v1_step_concurrency sc
 WHERE
@@ -274,13 +274,14 @@ func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg G
 		&i.TenantID,
 		&i.MaxConcurrency,
 		&i.TenantStrategyID,
+		&i.MaxRunsExpression,
 	)
 	return &i, err
 }
 
 const getTenantConcurrencyStrategiesByIds = `-- name: GetTenantConcurrencyStrategiesByIds :many
 SELECT
-    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency, max_runs_expression
 FROM
     v1_tenant_concurrency
 WHERE
@@ -311,6 +312,7 @@ func (q *Queries) GetTenantConcurrencyStrategiesByIds(ctx context.Context, db DB
 			&i.Strategy,
 			&i.Expression,
 			&i.MaxConcurrency,
+			&i.MaxRunsExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +326,7 @@ func (q *Queries) GetTenantConcurrencyStrategiesByIds(ctx context.Context, db DB
 
 const getTenantConcurrencyStrategiesByNames = `-- name: GetTenantConcurrencyStrategiesByNames :many
 SELECT
-    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency, max_runs_expression
 FROM
     v1_tenant_concurrency
 WHERE
@@ -355,6 +357,7 @@ func (q *Queries) GetTenantConcurrencyStrategiesByNames(ctx context.Context, db 
 			&i.Strategy,
 			&i.Expression,
 			&i.MaxConcurrency,
+			&i.MaxRunsExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -368,7 +371,7 @@ func (q *Queries) GetTenantConcurrencyStrategiesByNames(ctx context.Context, db 
 
 const getTenantConcurrencyStrategyById = `-- name: GetTenantConcurrencyStrategyById :one
 SELECT
-    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency, max_runs_expression
 FROM
     v1_tenant_concurrency
 WHERE
@@ -393,6 +396,7 @@ func (q *Queries) GetTenantConcurrencyStrategyById(ctx context.Context, db DBTX,
 		&i.Strategy,
 		&i.Expression,
 		&i.MaxConcurrency,
+		&i.MaxRunsExpression,
 	)
 	return &i, err
 }
@@ -442,7 +446,7 @@ func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX
 
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency, sc.tenant_strategy_id, sc.max_runs_expression
 FROM
     v1_step_concurrency sc
 JOIN
@@ -478,6 +482,7 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 			&i.TenantID,
 			&i.MaxConcurrency,
 			&i.TenantStrategyID,
+			&i.MaxRunsExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +496,7 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 
 const listActiveTenantConcurrencyStrategies = `-- name: ListActiveTenantConcurrencyStrategies :many
 SELECT
-    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency
+    id, tenant_id, name, is_active, last_active_at, strategy, expression, max_concurrency, max_runs_expression
 FROM
     v1_tenant_concurrency
 WHERE
@@ -517,6 +522,7 @@ func (q *Queries) ListActiveTenantConcurrencyStrategies(ctx context.Context, db 
 			&i.Strategy,
 			&i.Expression,
 			&i.MaxConcurrency,
+			&i.MaxRunsExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -539,7 +545,8 @@ SELECT
     tenant_id,
     strategy_id,
     is_filled,
-    schedule_timeout_at
+    schedule_timeout_at,
+    max_runs
 FROM v1_concurrency_slot
 WHERE tenant_id = $1::UUID
 AND strategy_id = $2::BIGINT
@@ -567,6 +574,7 @@ type ListConcurrencySlotsForIndexingRow struct {
 	StrategyID        int64              `json:"strategy_id"`
 	IsFilled          bool               `json:"is_filled"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns           pgtype.Int4        `json:"max_runs"`
 }
 
 func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, arg ListConcurrencySlotsForIndexingParams) ([]*ListConcurrencySlotsForIndexingRow, error) {
@@ -595,6 +603,7 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 			&i.StrategyID,
 			&i.IsFilled,
 			&i.ScheduleTimeoutAt,
+			&i.MaxRuns,
 		); err != nil {
 			return nil, err
 		}
@@ -608,7 +617,7 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
-    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id
+    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id, max_runs_expression
 FROM
     v1_step_concurrency
 WHERE
@@ -646,6 +655,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 			&i.TenantID,
 			&i.MaxConcurrency,
 			&i.TenantStrategyID,
+			&i.MaxRunsExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -658,7 +668,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 }
 
 const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, c.tenant_strategy_id, s."readableId" AS step_readable_id
+SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, c.tenant_strategy_id, c.max_runs_expression, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
 WHERE
@@ -694,6 +704,7 @@ type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
 	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 	StepReadableID    pgtype.Text           `json:"step_readable_id"`
 }
 
@@ -719,6 +730,7 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.TenantID,
 			&i.MaxConcurrency,
 			&i.TenantStrategyID,
+			&i.MaxRunsExpression,
 			&i.StepReadableID,
 		); err != nil {
 			return nil, err
@@ -873,7 +885,7 @@ WITH slots AS (
         )
 ), schedule_timeout_slots AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -899,7 +911,7 @@ WITH slots AS (
         rn <= $3::int
 ), slots_to_cancel AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -918,7 +930,7 @@ WITH slots AS (
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -953,7 +965,7 @@ WITH slots AS (
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
-        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at, v1_concurrency_slot.max_runs, v1_concurrency_slot.next_max_runs
 ), deleted_slots AS (
     DELETE FROM
         v1_concurrency_slot
@@ -1089,7 +1101,7 @@ WITH slots AS (
         )
 ), schedule_timeout_slots AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1115,7 +1127,7 @@ WITH slots AS (
         rn <= $3::int
 ), slots_to_cancel AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1134,7 +1146,7 @@ WITH slots AS (
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1169,7 +1181,7 @@ WITH slots AS (
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
-        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at, v1_concurrency_slot.max_runs, v1_concurrency_slot.next_max_runs
 ), deleted_slots AS (
     DELETE FROM
         v1_concurrency_slot
@@ -1308,7 +1320,7 @@ WITH slots AS (
     )
     ), schedule_timeout_slots AS (
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
 FROM
     v1_concurrency_slot
 WHERE
@@ -1334,7 +1346,7 @@ WHERE
     rn <= $3::int
     ), slots_to_cancel AS (
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
 FROM
     v1_concurrency_slot
 WHERE
@@ -1367,7 +1379,7 @@ ORDER BY
     FOR UPDATE
     ), slots_to_run AS (
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
 FROM
     v1_concurrency_slot
 WHERE
@@ -1402,7 +1414,7 @@ WHERE
     v1_concurrency_slot.key = slots_to_run.key AND
     v1_concurrency_slot.is_filled = FALSE
     RETURNING
-    v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+    v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at, v1_concurrency_slot.max_runs, v1_concurrency_slot.next_max_runs
     ), deleted_slots AS (
 DELETE FROM
     v1_concurrency_slot
@@ -1537,7 +1549,7 @@ WITH slots AS (
         )
 ), schedule_timeout_slots AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1563,7 +1575,7 @@ WITH slots AS (
         rn <= $3::int
 ), slots_to_cancel AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1596,7 +1608,7 @@ WITH slots AS (
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1631,7 +1643,7 @@ WITH slots AS (
         v1_concurrency_slot.key = slots_to_run.key AND
         v1_concurrency_slot.is_filled = FALSE
     RETURNING
-        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at, v1_concurrency_slot.max_runs, v1_concurrency_slot.next_max_runs
 ), deleted_slots AS (
     DELETE FROM
         v1_concurrency_slot
@@ -1750,7 +1762,7 @@ func (q *Queries) RunCancelQueuedExceptOldest(ctx context.Context, db DBTX, arg 
 
 const runGroupRoundRobin = `-- name: RunGroupRoundRobin :many
 WITH eligible_slots_per_group AS (
-    SELECT cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
+    SELECT cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at, cs.max_runs, cs.next_max_runs
     FROM (
         SELECT DISTINCT key
         FROM v1_concurrency_slot
@@ -1759,7 +1771,7 @@ WITH eligible_slots_per_group AS (
             AND strategy_id = $2::bigint
     ) distinct_keys
     JOIN LATERAL (
-        SELECT sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        SELECT sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
         FROM v1_concurrency_slot wcs_all
         WHERE
             wcs_all.key = distinct_keys.key
@@ -1770,7 +1782,7 @@ WITH eligible_slots_per_group AS (
     ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
     FROM
         v1_concurrency_slot
     WHERE
@@ -1784,7 +1796,7 @@ WITH eligible_slots_per_group AS (
     LIMIT 1000
 ), eligible_slots AS (
     SELECT
-        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
+        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at, cs.max_runs, cs.next_max_runs
     FROM
         v1_concurrency_slot cs
     WHERE
@@ -1817,7 +1829,7 @@ WITH eligible_slots_per_group AS (
         v1_concurrency_slot.strategy_id = eligible_slots.strategy_id AND
         v1_concurrency_slot.key = eligible_slots.key
     RETURNING
-        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
+        v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at, v1_concurrency_slot.max_runs, v1_concurrency_slot.next_max_runs
 ), deleted_slots AS (
     DELETE FROM
         v1_concurrency_slot
@@ -2387,7 +2399,7 @@ WHERE task_id = $2
   AND task_inserted_at = $3
   AND task_retry_count = $4
   AND strategy_id = $5
-RETURNING sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+RETURNING sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at, max_runs, next_max_runs
 `
 
 type UpdateConcurrencySlotIsFilledParams struct {
@@ -2427,60 +2439,8 @@ func (q *Queries) UpdateConcurrencySlotIsFilled(ctx context.Context, db DBTX, ar
 		&i.NextKeys,
 		&i.QueueToNotify,
 		&i.ScheduleTimeoutAt,
+		&i.MaxRuns,
+		&i.NextMaxRuns,
 	)
 	return &i, err
-}
-
-const upsertTenantConcurrencyStrategies = `-- name: UpsertTenantConcurrencyStrategies :exec
-WITH input AS (
-    SELECT
-        unnest($2::text[]) AS name,
-        unnest(cast($3::text[] as v1_concurrency_strategy[])) AS strategy,
-        unnest($4::text[]) AS expression,
-        unnest($5::int[]) AS max_concurrency
-)
-INSERT INTO v1_tenant_concurrency (
-    tenant_id,
-    name,
-    strategy,
-    expression,
-    max_concurrency
-)
-SELECT
-    $1::uuid,
-    i.name,
-    i.strategy,
-    i.expression,
-    i.max_concurrency
-FROM input i
-ORDER BY i.name
-ON CONFLICT (tenant_id, name)
-DO UPDATE SET
-    strategy = EXCLUDED.strategy,
-    expression = EXCLUDED.expression,
-    max_concurrency = EXCLUDED.max_concurrency,
-    is_active = TRUE,
-    last_active_at = NOW()
-`
-
-type UpsertTenantConcurrencyStrategiesParams struct {
-	Tenantid         uuid.UUID `json:"tenantid"`
-	Names            []string  `json:"names"`
-	Strategies       []string  `json:"strategies"`
-	Expressions      []string  `json:"expressions"`
-	Maxconcurrencies []int32   `json:"maxconcurrencies"`
-}
-
-// Single-statement bulk upsert: one registration touches all of a workflow's tenant
-// strategy rows at once, in name order, so concurrent registrations acquire row locks in
-// a consistent order and cannot deadlock each other.
-func (q *Queries) UpsertTenantConcurrencyStrategies(ctx context.Context, db DBTX, arg UpsertTenantConcurrencyStrategiesParams) error {
-	_, err := db.Exec(ctx, upsertTenantConcurrencyStrategies,
-		arg.Tenantid,
-		arg.Names,
-		arg.Strategies,
-		arg.Expressions,
-		arg.Maxconcurrencies,
-	)
-	return err
 }
