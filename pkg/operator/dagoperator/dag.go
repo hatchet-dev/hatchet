@@ -483,6 +483,16 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 		}
 
+		// A run trigger is ingested directly by the dispatcher, outside the session channel that
+		// carries WAITFOR registrations, so emitting one while a registration is still un-acked
+		// lets the run overtake it in the log and claim its node id, which the engine then
+		// reports as nondeterminism on replay. An ack is only sent after the registration is
+		// ingested, so an empty pendingWaitAcks means every registration holds its node id.
+		if len(d.pendingWaitAcks) > 0 {
+			stillPending = append(stillPending, t)
+			continue
+		}
+
 		var parentTaskRunIds []uuid.UUID
 		for _, p := range d.tasks {
 			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
@@ -770,6 +780,12 @@ func (d *dag) isDone() bool {
 
 func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 	if d.onFailureTask == nil || d.onFailureTask.isTriggered {
+		return false, nil
+	}
+
+	// Same ordering constraint as emitReadyTasks: a run trigger must not overtake an un-acked
+	// WAITFOR registration in the log.
+	if len(d.pendingWaitAcks) > 0 {
 		return false, nil
 	}
 

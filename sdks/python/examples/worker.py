@@ -14,6 +14,11 @@ from examples.batch_assign.worker import (
     child,
     child_batch,
 )
+from examples.bug_tests.durable_callback_ordering.worker import (
+    callback_ordering_leaf,
+    callback_ordering_mid,
+    callback_ordering_root,
+)
 from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     child_child_key_bug,
     durable_parent_child_key_bug,
@@ -138,6 +143,7 @@ from examples.durable_eviction.worker import (
     concurrent_branches,
     evictable_child_bulk_spawn,
     evictable_child_spawn,
+    evictable_memo_then_wait_for_event,
     evictable_sleep,
     evictable_wait_for_event,
     multiple_eviction,
@@ -290,6 +296,7 @@ def main() -> None:
             memo_task,
             evictable_sleep,
             evictable_wait_for_event,
+            evictable_memo_then_wait_for_event,
             evictable_child_spawn,
             evictable_child_bulk_spawn,
             multiple_eviction,
@@ -336,6 +343,9 @@ def main() -> None:
             durable_spawner_dag,
             mixed_spawner_dag,
             evictable_durable,
+            callback_ordering_leaf,
+            callback_ordering_mid,
+            callback_ordering_root,
             workflow_pause_concurrency_bug_task,
         ],
         lifespan=lifespan,

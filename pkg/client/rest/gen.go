@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
 	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
@@ -2484,6 +2485,9 @@ type Worker struct {
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
+	// EvictedDurableTaskCount The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
+	EvictedDurableTaskCount *int `json:"evictedDurableTaskCount,omitempty"`
+
 	// Labels The current label state of the worker.
 	Labels *[]WorkerLabel `json:"labels,omitempty"`
 
@@ -2496,6 +2500,9 @@ type Worker struct {
 
 	// Name The name of the worker.
 	Name string `json:"name"`
+
+	// OperatorId The id of the operator that owns this worker, if it is an engine-managed operator worker.
+	OperatorId *openapi_types.UUID `json:"operatorId,omitempty"`
 
 	// RecentStepRuns The recent step runs for the worker.
 	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
@@ -3106,6 +3113,12 @@ type V1WorkflowRunExternalIdsListParams struct {
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
 }
 
+// V1WorkflowRunGetParams defines parameters for V1WorkflowRunGet.
+type V1WorkflowRunGetParams struct {
+	// IncludeOrchestratorEvents Whether to include the DAG orchestrator's task events, which are hidden by default
+	IncludeOrchestratorEvents *bool `form:"includeOrchestratorEvents,omitempty" json:"includeOrchestratorEvents,omitempty"`
+}
+
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
 type V1WorkflowRunTaskEventsListParams struct {
 	// Offset The number to skip
@@ -3233,6 +3246,9 @@ type WorkerListParams struct {
 
 	// Labels Filter by worker labels
 	Labels *[]string `form:"labels,omitempty" json:"labels,omitempty"`
+
+	// IncludeOperators Whether to include engine-managed operator workers, which are hidden by default
+	IncludeOperators *bool `form:"includeOperators,omitempty" json:"includeOperators,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -3933,7 +3949,7 @@ type ClientInterface interface {
 	V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunGet request
-	V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunGetStatus request
 	V1WorkflowRunGetStatus(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5049,8 +5065,8 @@ func (c *Client) V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WorkflowRunGetRequest(c.Server, v1WorkflowRun)
+func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetRequest(c.Server, v1WorkflowRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9930,7 +9946,7 @@ func NewV1WorkflowRunCreateRequestWithBody(server string, tenant openapi_types.U
 }
 
 // NewV1WorkflowRunGetRequest generates requests for V1WorkflowRunGet
-func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID) (*http.Request, error) {
+func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -9953,6 +9969,28 @@ func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID)
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeOrchestratorEvents != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "includeOrchestratorEvents", runtime.ParamLocationQuery, *params.IncludeOrchestratorEvents); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -12307,6 +12345,22 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *Work
 		if params.Labels != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labels", runtime.ParamLocationQuery, *params.Labels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludeOperators != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "includeOperators", runtime.ParamLocationQuery, *params.IncludeOperators); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -15235,7 +15289,7 @@ type ClientWithResponsesInterface interface {
 	V1WorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
 
 	// V1WorkflowRunGetWithResponse request
-	V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error)
+	V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error)
 
 	// V1WorkflowRunGetStatusWithResponse request
 	V1WorkflowRunGetStatusWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetStatusResponse, error)
@@ -19750,8 +19804,8 @@ func (c *ClientWithResponses) V1WorkflowRunCreateWithResponse(ctx context.Contex
 }
 
 // V1WorkflowRunGetWithResponse request returning *V1WorkflowRunGetResponse
-func (c *ClientWithResponses) V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error) {
-	rsp, err := c.V1WorkflowRunGet(ctx, v1WorkflowRun, reqEditors...)
+func (c *ClientWithResponses) V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error) {
+	rsp, err := c.V1WorkflowRunGet(ctx, v1WorkflowRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

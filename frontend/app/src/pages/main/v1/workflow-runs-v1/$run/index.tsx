@@ -34,6 +34,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import api, {
   V1TaskStatus,
@@ -347,12 +348,38 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [taskRuns],
   );
 
-  const durableTaskIds = useMemo(
+  const { isEnabled: showOrchestration } = useIsFeatureEnabled(
+    FeatureFlagId.OperatorDetailsEnabled,
+    false,
+  );
+
+  // Events reported by the run's own task id belong to the DAG orchestrator (or a standalone
+  // durable task); they exist whenever the run is orchestrated by a durable task.
+  const hasOrchestratorEvents = useMemo(
+    () => taskEvents.some((e) => e.taskId === id),
+    [taskEvents, id],
+  );
+
+  const durableTaskIds = useMemo(() => {
+    const ids = taskRuns
+      .filter((t) => t.isDurable && t.taskExternalId !== id)
+      .map((t) => t.taskExternalId);
+
+    if (showOrchestration && hasOrchestratorEvents) {
+      ids.push(id);
+    }
+
+    return ids;
+  }, [taskRuns, id, showOrchestration, hasOrchestratorEvents]);
+
+  const visibleTaskEvents = useMemo(
     () =>
-      taskRuns
-        .filter((t) => t.isDurable && t.taskExternalId !== id)
-        .map((t) => t.taskExternalId),
-    [taskRuns, id],
+      showOrchestration
+        ? taskEvents
+        : taskEvents.filter(
+            (e) => e.taskId !== id || isFailureEventType(e.eventType),
+          ),
+    [taskEvents, id, showOrchestration],
   );
 
   if (isLoading || isError || !workflowRun) {
@@ -433,9 +460,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
-                  events={taskEvents.filter(
-                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
-                  )}
+                  events={visibleTaskEvents}
                 />
               </TabsContent>
               <TabsContent

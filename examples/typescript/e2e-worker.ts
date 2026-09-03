@@ -43,6 +43,7 @@ import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,
@@ -50,6 +51,11 @@ import {
   bulkChildTask,
   evictableChildBulkSpawn,
 } from './durable_eviction/workflow';
+import {
+  callbackOrderingLeaf,
+  callbackOrderingMid,
+  callbackOrderingRoot,
+} from './durable_callback_ordering/workflow';
 import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
@@ -129,9 +135,13 @@ const workflows = [
   errorRaisingDurableParent,
   durableEvent,
   durableEventWithFilter,
+  callbackOrderingLeaf,
+  callbackOrderingMid,
+  callbackOrderingRoot,
   durableSleep,
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,
