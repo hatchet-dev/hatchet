@@ -209,7 +209,7 @@ async def test_evictable_memo_then_wait_for_event_restore(hatchet: Hatchet) -> N
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
 
-    hatchet.event.push(MEMO_EVENT_KEY, {})
+    await hatchet.events.aio_push(MEMO_EVENT_KEY, {})
 
     result = await asyncio.wait_for(ref.aio_result(), timeout=60)
     assert result["status"] == "completed"

@@ -1,6 +1,5 @@
 import asyncio
 import json
-import warnings
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from functools import cached_property

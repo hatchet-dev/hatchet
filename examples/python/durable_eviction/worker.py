@@ -4,7 +4,7 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
-from hatchet_sdk import Context, DurableContext, Hatchet, UserEventCondition
+from hatchet_sdk import Context, DurableContext, Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from pydantic import BaseModel
 
@@ -72,7 +72,7 @@ async def _compute_memoized_value() -> MemoizedValue:
     eviction_policy=EVICTION_POLICY,
 )
 async def evictable_memo_then_wait_for_event(
-    input: EmptyModel, ctx: DurableContext
+    input: None, ctx: DurableContext
 ) -> dict[str, Any]:
     memoized = await ctx._aio_memo(_compute_memoized_value, MemoizedValue)
     await ctx.aio_wait_for_event(MEMO_EVENT_KEY, "true")
