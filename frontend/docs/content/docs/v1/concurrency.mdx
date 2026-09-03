@@ -304,6 +304,10 @@ You can also combine multiple concurrency strategies to create a more complex co
 
 ## Shared concurrency across workflows
 
+<Callout type="info">
+  Shared concurrency strategies require engine version 0.106.0 or greater.
+</Callout>
+
 All of the strategies above are scoped to a single workflow, but you can also share concurrency strategies between workflows. These are shared via the name of the strategy: every task in every workflow that declares the same name consumes the same concurrency limit.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
@@ -345,6 +349,10 @@ Shared strategies can be mixed freely with inline (workflow-scoped) entries on t
 </Callout>
 
 ## Dynamic limits with a max runs expression
+
+<Callout type="info">
+  Max runs expressions require engine version 0.106.0 or greater.
+</Callout>
 
 The `max_runs` limit on a concurrency strategy is normally a fixed number that applies to every key. You can instead compute the limit per key with a CEL expression over the task's input, so different groups get different limits from a single strategy. For example, let's say you want different pricing tiers in your application to correspond to different limits: you can use the `max_runs` expression to define something like `input.tier == 'premium' ? 10 : 1`.
 
