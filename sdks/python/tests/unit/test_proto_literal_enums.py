@@ -111,7 +111,9 @@ def test_none_and_invalid_values_are_handled(
 
 
 def test_deprecated_allowlist_is_current() -> None:
-    registered = {name: (literal, proto) for name, literal, proto in LITERAL_TO_PROTO_ENUM}
+    registered = {
+        name: (literal, proto) for name, literal, proto in LITERAL_TO_PROTO_ENUM
+    }
 
     for name, deprecated_values in DEPRECATED_PROTO_VALUES.items():
         assert name in registered, (
