@@ -1827,6 +1827,49 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 
 	entry := ingestionResult.TriggerRunsResult.Entries[0]
 
+	// Heal an orphaned RUN entry: the durable log entry is committed but its child task row was
+	// never created -- a crash or engine roll landed between IngestDurableTaskEvent and
+	// TriggerPendingRunEntries on the original attempt. On replay the entry already exists, and
+	// the ingest's pending-trigger builder keys the request opts by freshly-computed node ids, so
+	// an existing entry at a different node id isn't matched back and never lands in
+	// PendingTriggers. replayDAGStepChild can't help either (no task row to replay). Left alone
+	// the orchestrator blocks on this entry forever. The entry still has triggered_at IS NULL
+	// (child creation and the triggered_at claim are one transaction), so re-drive the trigger
+	// directly, reusing the child external id already committed on the entry.
+	if entry.AlreadyExisted && !entry.IsSatisfied && !req.IsSkipped && !req.IsCancelled &&
+		len(ingestionResult.TriggerRunsResult.PendingTriggers) == 0 {
+
+		childTasks, lookupErr := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{entry.WorkflowRunExternalId})
+		if lookupErr != nil {
+			return nil, fmt.Errorf("failed to check dag step child %s: %w", entry.WorkflowRunExternalId, lookupErr)
+		}
+
+		if len(childTasks) == 0 {
+			d.l.Warn().Msgf("dag step child %s (node %d branch %d) has a durable log entry but no task row; re-triggering", entry.WorkflowRunExternalId, entry.NodeId, entry.BranchId)
+
+			healOpts := *triggerOpts[0]
+			healOpts.ExternalId = entry.WorkflowRunExternalId
+
+			healedTasks, healedDags, _, healErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
+				Task: task,
+				PendingRuns: []v1.PendingDurableRunTrigger{{
+					NodeId:      entry.NodeId,
+					BranchId:    entry.BranchId,
+					TriggerOpts: &healOpts,
+				}},
+			}})
+			if healErr != nil {
+				return nil, fmt.Errorf("failed to re-trigger orphaned dag step child %s: %w", entry.WorkflowRunExternalId, healErr)
+			}
+
+			if len(healedDags) > 0 || len(healedTasks) > 0 {
+				if sigErr := d.triggerWriter.SignalCreated(ctx, tenantId, healedTasks, healedDags); sigErr != nil {
+					d.l.Error().Err(sigErr).Msg("failed to signal re-triggered orphaned dag step child")
+				}
+			}
+		}
+	}
+
 	if entry.ChildNeedsReplay {
 		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
 			return nil, err
