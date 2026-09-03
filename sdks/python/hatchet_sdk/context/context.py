@@ -1015,6 +1015,13 @@ class DurableContext(Context):
         if not isinstance(ack, DurableTaskEventMemoAck):
             raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
 
+        listener.consume_callback_without_blocking(
+            durable_task_external_id=run_external_id,
+            invocation_count=self.invocation_count,
+            branch_id=ack.branch_id,
+            node_id=ack.node_id,
+        )
+
         if ack.memo_already_existed and ack.memo_result_payload is None:
             logger.warning(
                 "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "

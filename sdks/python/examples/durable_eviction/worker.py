@@ -58,6 +58,29 @@ async def evictable_wait_for_event(input: None, ctx: DurableContext) -> dict[str
     return {"status": "completed"}
 
 
+MEMO_EVENT_KEY = "durable-eviction:memo-event"
+
+
+class MemoizedValue(BaseModel):
+    value: str
+
+
+async def _compute_memoized_value() -> MemoizedValue:
+    return MemoizedValue(value="computed-once")
+
+
+@hatchet.durable_task(
+    execution_timeout=timedelta(minutes=5),
+    eviction_policy=EVICTION_POLICY,
+)
+async def evictable_memo_then_wait_for_event(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, Any]:
+    memoized = await ctx._aio_memo(_compute_memoized_value, MemoizedValue)
+    await ctx.aio_wait_for_event(MEMO_EVENT_KEY, "true")
+    return {"status": "completed", "memoized": memoized.value}
+
+
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
@@ -191,6 +214,7 @@ def main() -> None:
         workflows=[
             evictable_sleep,
             evictable_wait_for_event,
+            evictable_memo_then_wait_for_event,
             evictable_child_spawn,
             evictable_child_bulk_spawn,
             multiple_eviction,
