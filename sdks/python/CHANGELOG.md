@@ -11,11 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added support for tenant-scoped shared concurrency strategies. Declare a `ConcurrencyExpression` with `is_tenant_scoped=True` and a `name`, and reference the same name from the `concurrency` list of tasks in different workflows so they share a single concurrency limit. Tenant-scoped entries can be mixed with ordinary workflow-scoped entries on the same task.
 - `ConcurrencyExpression.max_runs` now accepts `int | str`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
-
-## [1.39.1] - 2026-09-01
-
-### Fixed
-
 - Fixes another durable callback ordering bug which would cause NonDeterminismErrors to be raised on replay in the case where e.g. children were spawned recursively, concurrently.
 
 ## [1.39.0] - 2026-08-26
