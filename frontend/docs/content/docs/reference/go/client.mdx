@@ -6,7 +6,7 @@ title: "Client"
 
 This is the Go SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running. For complete, generated API documentation, see the [Go package docs on pkg.go.dev](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go).
 
-By default, the client reads its configuration (token, host, TLS settings, and so on) from the `HATCHET_CLIENT_*` environment variables. Configuration can be overridden with client options from the `github.com/hatchet-dev/hatchet/pkg/client` package, such as `WithToken`, `WithHostPort`, and `WithNamespace`.
+By default, the client reads its configuration (token, host, TLS settings, and so on) from the `HATCHET_CLIENT_*` environment variables. Configuration can be overridden with client options such as `hatchet.WithToken`, `hatchet.WithHostPort`, and `hatchet.WithNamespace`.
 
 ## Client
 
@@ -83,14 +83,14 @@ Workflows returns a client for managing workflow definitions. See the [Workflows
 NewClient creates a new Hatchet client. Configuration options can be provided to customize the client behavior.
 
 ```go
-func NewClient(opts ...client.ClientOpt) (*Client, error)
+func NewClient(opts ...ClientOpt) (*Client, error)
 ```
 
 Parameters:
 
-| Name   | Type                  |
-| ------ | --------------------- |
-| `opts` | `...client.ClientOpt` |
+| Name   | Type           |
+| ------ | -------------- |
+| `opts` | `...ClientOpt` |
 
 Returns:
 
@@ -124,14 +124,14 @@ Returns:
 Events returns a client for sending and managing events.
 
 ```go
-func (c *Client) Events() client.EventClient
+func (c *Client) Events() EventClient
 ```
 
 Returns:
 
-| Type                 |
-| -------------------- |
-| `client.EventClient` |
+| Type          |
+| ------------- |
+| `EventClient` |
 
 #### `GetEngineVersion`
 
@@ -427,14 +427,14 @@ Returns:
 Use registers middleware functions on the worker. Middleware functions are called in order for each step run execution.
 
 ```go
-func (w *Worker) Use(mws ...worker.MiddlewareFunc)
+func (w *Worker) Use(mws ...MiddlewareFunc)
 ```
 
 Parameters:
 
-| Name  | Type                       |
-| ----- | -------------------------- |
-| `mws` | `...worker.MiddlewareFunc` |
+| Name  | Type                |
+| ----- | ------------------- |
+| `mws` | `...MiddlewareFunc` |
 
 ## Worker options
 
