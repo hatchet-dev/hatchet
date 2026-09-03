@@ -25,13 +25,19 @@ func TestEvalMaxRunsExpression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("eval: %v", err)
 	}
-	if !got.Valid || got.Int32 != 10 {
-		t.Fatalf("got %+v, want valid 10", got)
+	if got == nil || *got != 10 {
+		t.Fatalf("got %v, want 10", got)
 	}
 
 	got, err = r.evalMaxRunsExpression(strat("input.limit"), input(map[string]interface{}{"limit": 3}))
-	if err != nil || got.Int32 != 3 {
-		t.Fatalf("got (%+v, %v), want valid 3", got, err)
+	if err != nil || got == nil || *got != 3 {
+		t.Fatalf("got (%v, %v), want 3", got, err)
+	}
+
+	// zero is allowed: it holds the group until a newer task raises the limit
+	got, err = r.evalMaxRunsExpression(strat("input.limit"), input(map[string]interface{}{"limit": 0}))
+	if err != nil || got == nil || *got != 0 {
+		t.Fatalf("got (%v, %v), want 0", got, err)
 	}
 
 	// a string result must fail the task, not silently coerce
@@ -39,10 +45,7 @@ func TestEvalMaxRunsExpression(t *testing.T) {
 		t.Fatalf("expected error for string result")
 	}
 
-	// zero and negative results must fail the task, matching the static min=1 validation
-	if _, err = r.evalMaxRunsExpression(strat("input.limit"), input(map[string]interface{}{"limit": 0})); err == nil {
-		t.Fatalf("expected error for zero result")
-	}
+	// negative results must fail the task
 	if _, err = r.evalMaxRunsExpression(strat("input.limit"), input(map[string]interface{}{"limit": -2})); err == nil {
 		t.Fatalf("expected error for negative result")
 	}

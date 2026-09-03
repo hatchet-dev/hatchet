@@ -1372,46 +1372,6 @@ WHERE task_id = $2
   AND strategy_id = $5
 RETURNING *;
 
--- name: UpsertTenantConcurrencyStrategies :exec
--- Single-statement bulk upsert: one registration touches all of a workflow's tenant
--- strategy rows at once, in name order, so concurrent registrations acquire row locks in
--- a consistent order and cannot deadlock each other.
-WITH input AS (
-    SELECT
-        unnest(@names::text[]) AS name,
-        unnest(cast(@strategies::text[] as v1_concurrency_strategy[])) AS strategy,
-        unnest(@expressions::text[]) AS expression,
-        unnest(@maxConcurrencies::int[]) AS max_concurrency,
-        -- empty string means "no expression" (NULLIF below); keeps the parameter a
-        -- plain text[] while still writing NULL for static entries
-        unnest(@maxRunsExpressions::text[]) AS max_runs_expression
-)
-INSERT INTO v1_tenant_concurrency (
-    tenant_id,
-    name,
-    strategy,
-    expression,
-    max_concurrency,
-    max_runs_expression
-)
-SELECT
-    @tenantId::uuid,
-    i.name,
-    i.strategy,
-    i.expression,
-    i.max_concurrency,
-    NULLIF(i.max_runs_expression, '')
-FROM input i
-ORDER BY i.name
-ON CONFLICT (tenant_id, name)
-DO UPDATE SET
-    strategy = EXCLUDED.strategy,
-    expression = EXCLUDED.expression,
-    max_concurrency = EXCLUDED.max_concurrency,
-    max_runs_expression = EXCLUDED.max_runs_expression,
-    is_active = TRUE,
-    last_active_at = NOW();
-
 -- name: GetTenantConcurrencyStrategiesByNames :many
 SELECT
     *

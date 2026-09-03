@@ -365,7 +365,7 @@ func TestConcurrency_DynamicMaxRuns_TenantScopedPropagation(t *testing.T) {
 
 		def := repo.CreateConcurrencyOpts{
 			Name:              "dyn-shared",
-			TenantScoped:      true,
+			IsTenantScoped:    true,
 			Expression:        "input.group",
 			MaxRuns:           &maxRuns,
 			LimitStrategy:     &strategyType,

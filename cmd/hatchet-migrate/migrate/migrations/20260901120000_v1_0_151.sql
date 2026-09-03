@@ -1,25 +1,42 @@
+-- +goose NO TRANSACTION
+-- Runs without a wrapping transaction on purpose: the ALTER TABLE statements below take
+-- ACCESS EXCLUSIVE locks on v1_task and v1_concurrency_slot, which many application
+-- transactions touch together. Acquiring those locks one statement at a time (instead of
+-- holding both for the whole migration) avoids deadlocking against in-flight work. Every
+-- statement is idempotent (IF NOT EXISTS / CREATE OR REPLACE) so a partially applied
+-- migration can simply be re-run.
+
 -- +goose Up
 -- +goose StatementBegin
 -- CEL expression over task input computing the max runs for that task's concurrency
 -- group. Evaluated at task-insert time (the scheduler never sees task input); the
 -- group's effective limit is the value from its most recently created task. NULL means
 -- the static max_concurrency applies. Only honored by the in-memory concurrency index.
-ALTER TABLE v1_step_concurrency ADD COLUMN max_runs_expression TEXT;
+ALTER TABLE v1_step_concurrency ADD COLUMN IF NOT EXISTS max_runs_expression TEXT;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 -- See v1_step_concurrency.max_runs_expression; copied onto referencing rows by the
 -- update trigger below like the other definition columns.
-ALTER TABLE v1_tenant_concurrency ADD COLUMN max_runs_expression TEXT;
+ALTER TABLE v1_tenant_concurrency ADD COLUMN IF NOT EXISTS max_runs_expression TEXT;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 -- Per-strategy max-runs values evaluated from max_runs_expression at insert time,
 -- parallel to concurrency_strategy_ids. A NULL element means that strategy's static
 -- max_concurrency applies.
-ALTER TABLE v1_task ADD COLUMN concurrency_max_runs INTEGER[];
+ALTER TABLE v1_task ADD COLUMN IF NOT EXISTS concurrency_max_runs INTEGER[];
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 -- max_runs is this task's insert-time evaluation of the strategy's max_runs_expression
 -- (NULL = static max_concurrency applies); next_max_runs carries the values for the
 -- rest of the chain, peeled forward like next_keys.
-ALTER TABLE v1_concurrency_slot ADD COLUMN max_runs INTEGER;
-ALTER TABLE v1_concurrency_slot ADD COLUMN next_max_runs INTEGER[];
+ALTER TABLE v1_concurrency_slot ADD COLUMN IF NOT EXISTS max_runs INTEGER;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_concurrency_slot ADD COLUMN IF NOT EXISTS next_max_runs INTEGER[];
 -- +goose StatementEnd
 
 -- +goose StatementBegin
@@ -1443,9 +1460,21 @@ $$ LANGUAGE plpgsql;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-ALTER TABLE v1_concurrency_slot DROP COLUMN next_max_runs;
-ALTER TABLE v1_concurrency_slot DROP COLUMN max_runs;
-ALTER TABLE v1_task DROP COLUMN concurrency_max_runs;
-ALTER TABLE v1_tenant_concurrency DROP COLUMN max_runs_expression;
-ALTER TABLE v1_step_concurrency DROP COLUMN max_runs_expression;
+ALTER TABLE v1_concurrency_slot DROP COLUMN IF EXISTS next_max_runs;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_concurrency_slot DROP COLUMN IF EXISTS max_runs;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_task DROP COLUMN IF EXISTS concurrency_max_runs;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_tenant_concurrency DROP COLUMN IF EXISTS max_runs_expression;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_step_concurrency DROP COLUMN IF EXISTS max_runs_expression;
 -- +goose StatementEnd

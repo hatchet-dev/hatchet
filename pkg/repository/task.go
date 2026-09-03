@@ -2206,24 +2206,28 @@ func (r *sharedRepository) evalBatchGroupKey(
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
 // evalMaxRunsExpression evaluates a strategy's max_runs_expression against one task's
-// input. The returned value rides on the task's concurrency slot; a NULL (invalid)
-// value means the strategy's static max_concurrency applies.
-func (r *sharedRepository) evalMaxRunsExpression(strat *sqlcv1.V1StepConcurrency, in cel.Input) (pgtype.Int4, error) {
+// input. The returned value rides on the task's concurrency slot; nil means the
+// strategy's static max_concurrency applies. A result of 0 is allowed and holds the
+// group: nothing runs (or, for cancel strategies, queued work is cancelled) until a
+// newer task raises the limit, which is useful to pause a group outright.
+func (r *sharedRepository) evalMaxRunsExpression(strat *sqlcv1.V1StepConcurrency, in cel.Input) (*int32, error) {
 	res, err := r.celParser.ParseAndEvalStepRun(strat.MaxRunsExpression.String, in)
 
 	if err != nil {
-		return pgtype.Int4{}, fmt.Errorf("failed to parse max runs expression (%s): %w", strat.MaxRunsExpression.String, err)
+		return nil, fmt.Errorf("failed to parse max runs expression (%s): %w", strat.MaxRunsExpression.String, err)
 	}
 
 	if res.Int == nil {
-		return pgtype.Int4{}, fmt.Errorf("failed to parse max runs expression (%s): expected integer output", strat.MaxRunsExpression.String)
+		return nil, fmt.Errorf("failed to parse max runs expression (%s): expected integer output", strat.MaxRunsExpression.String)
 	}
 
-	if *res.Int < 1 {
-		return pgtype.Int4{}, fmt.Errorf("failed to evaluate max runs expression (%s): result must be a positive integer, got %d", strat.MaxRunsExpression.String, *res.Int)
+	if *res.Int < 0 {
+		return nil, fmt.Errorf("failed to evaluate max runs expression (%s): result must be a non-negative integer, got %d", strat.MaxRunsExpression.String, *res.Int)
 	}
 
-	return pgtype.Int4{Int32: int32(*res.Int), Valid: true}, nil //nolint:gosec
+	v := int32(*res.Int) //nolint:gosec
+
+	return &v, nil
 }
 
 func (r *sharedRepository) insertTasks(
@@ -2505,17 +2509,19 @@ func (r *sharedRepository) insertTasks(
 					maxRuns := pgtype.Int4{}
 
 					if strat.MaxRunsExpression.Valid {
-						maxRuns, err = r.evalMaxRunsExpression(strat, cel.NewInput(
+						evaluated, evalErr := r.evalMaxRunsExpression(strat, cel.NewInput(
 							cel.WithInput(task.Input.Input),
 							cel.WithAdditionalMetadata(additionalMeta),
 							cel.WithWorkflowRunID(task.ExternalId),
 							cel.WithParents(task.Input.TriggerData),
 						))
 
-						if err != nil {
-							failTaskError = err
+						if evalErr != nil {
+							failTaskError = evalErr
 							break
 						}
+
+						maxRuns = pgtype.Int4{Int32: *evaluated, Valid: true}
 					}
 
 					taskConcurrencyMaxRuns = append(taskConcurrencyMaxRuns, maxRuns)
@@ -3005,17 +3011,19 @@ func (r *sharedRepository) replayTasks(
 					maxRuns := pgtype.Int4{}
 
 					if strat.MaxRunsExpression.Valid {
-						maxRuns, err = r.evalMaxRunsExpression(strat, cel.NewInput(
+						evaluated, evalErr := r.evalMaxRunsExpression(strat, cel.NewInput(
 							cel.WithInput(task.Input.Input),
 							cel.WithAdditionalMetadata(additionalMeta),
 							cel.WithWorkflowRunID(task.ExternalId),
 							cel.WithParents(task.Input.TriggerData),
 						))
 
-						if err != nil {
-							failTaskError = err
+						if evalErr != nil {
+							failTaskError = evalErr
 							break
 						}
+
+						maxRuns = pgtype.Int4{Int32: *evaluated, Valid: true}
 					}
 
 					taskConcurrencyMaxRuns = append(taskConcurrencyMaxRuns, maxRuns)

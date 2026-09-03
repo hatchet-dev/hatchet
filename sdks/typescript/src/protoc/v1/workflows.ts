@@ -413,7 +413,7 @@ export interface Concurrency {
   name?: string | undefined;
   /** (optional) when true, the entry is a tenant-scoped strategy shared across workflows, default false */
   isTenantScoped?: boolean | undefined;
-  /** (optional) CEL expression over task input returning the max runs for that task's concurrency group; the group's effective limit is the value from its most recently created task. Overrides max_runs per group; a non-integer or non-positive result fails the task */
+  /** (optional) CEL expression over task input returning the max runs for that task's concurrency group; the group's effective limit is the value from its most recently created task. Overrides max_runs per group; a non-integer or negative result fails the task, and 0 holds the group until a newer task raises the limit */
   maxRunsExpression?: string | undefined;
 }
 

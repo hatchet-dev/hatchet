@@ -90,13 +90,15 @@ type CreateConcurrencyOpts struct {
 	// struct, so renaming the serialized key would re-version every existing workflow
 	Expression string `validate:"celworkflowrunstr"`
 
-	// (required when TenantScoped) the strategy name; unique per tenant for tenant-scoped
+	// (required when IsTenantScoped) the strategy name; unique per tenant for tenant-scoped
 	// strategies
 	Name string `json:"name,omitempty" validate:"omitempty,hatchetName"`
 
 	// (optional) when true, the entry defines (or updates in place) a tenant-scoped
 	// strategy shared across workflows, keyed by Name
-	TenantScoped bool `json:"tenantScoped,omitempty"`
+	// note: the json key stays "tenantScoped" because the workflow version checksum
+	// serializes this struct; renaming the key would re-version existing workflows
+	IsTenantScoped bool `json:"tenantScoped,omitempty"`
 
 	// (optional) CEL expression over task input computing the max runs for that task's
 	// concurrency group; a group's effective limit is the value from its most recently
@@ -105,11 +107,6 @@ type CreateConcurrencyOpts struct {
 	// note: omitempty keeps existing workflow version checksums stable for entries that
 	// do not set this field
 	MaxRunsExpression *string `json:"maxRunsExpression,omitempty" validate:"omitnil,celmaxrunsint"`
-}
-
-// IsTenantScoped reports whether the entry declares a tenant-scoped strategy.
-func (c *CreateConcurrencyOpts) IsTenantScoped() bool {
-	return c.TenantScoped
 }
 
 type CreateStepOpts struct {
@@ -356,7 +353,7 @@ func (r *workflowRepository) upsertTenantConcurrencyStrategies(ctx context.Conte
 		Strategies:         make([]string, len(defs)),
 		Expressions:        make([]string, len(defs)),
 		Maxconcurrencies:   make([]int32, len(defs)),
-		Maxrunsexpressions: make([]string, len(defs)),
+		Maxrunsexpressions: make([]pgtype.Text, len(defs)),
 	}
 
 	for i, opts := range defs {
@@ -381,9 +378,8 @@ func (r *workflowRepository) upsertTenantConcurrencyStrategies(ctx context.Conte
 		params.Expressions[i] = opts.Expression
 		params.Maxconcurrencies[i] = maxRuns
 
-		// empty string writes NULL (NULLIF in the query)
 		if opts.MaxRunsExpression != nil {
-			params.Maxrunsexpressions[i] = *opts.MaxRunsExpression
+			params.Maxrunsexpressions[i] = pgtype.Text{String: *opts.MaxRunsExpression, Valid: true}
 		}
 	}
 
@@ -401,7 +397,7 @@ func collectTenantConcurrencyDefs(opts *CreateWorkflowVersionOpts) []*CreateConc
 		for i := range entries {
 			entry := &entries[i]
 
-			if !entry.IsTenantScoped() {
+			if !entry.IsTenantScoped {
 				continue
 			}
 
@@ -444,7 +440,7 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 	seen := make(map[string]bool)
 
 	for _, entry := range entries {
-		if !entry.IsTenantScoped() {
+		if !entry.IsTenantScoped {
 			continue
 		}
 
@@ -510,7 +506,7 @@ func (r *workflowRepository) checkTenantConcurrencyOrdering(ctx context.Context,
 		names := make([]string, 0)
 
 		for _, entry := range entries {
-			if entry.IsTenantScoped() {
+			if entry.IsTenantScoped {
 				names = append(names, entry.Name)
 				allNames[entry.Name] = true
 			}
@@ -885,7 +881,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		remaining := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency))
 
 		for _, entry := range opts.Concurrency {
-			if entry.IsTenantScoped() {
+			if entry.IsTenantScoped {
 				orchestrator.Concurrency = append(orchestrator.Concurrency, entry)
 			} else {
 				remaining = append(remaining, entry)
@@ -900,7 +896,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	// concurrency to, and the parent/child machinery does not support it. The same
 	// machinery never sees per-slot max-runs values, so dynamic entries are rejected too.
 	for _, entry := range opts.Concurrency {
-		if entry.IsTenantScoped() {
+		if entry.IsTenantScoped {
 			return nil, newTenantConcurrencyError("tenant-scoped concurrency (name %s) is not supported at the workflow level unless the workflow is a single task or uses the DAG operator", entry.Name)
 		}
 
@@ -1613,7 +1609,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					params.MaxRunsExpression = pgtype.Text{String: *concurrency.MaxRunsExpression, Valid: true}
 				}
 
-				if concurrency.IsTenantScoped() {
+				if concurrency.IsTenantScoped {
 					// The referencing row carries a copy of the tenant strategy's current
 					// definition (kept in sync by the v1_tenant_concurrency update trigger).
 					tenantStrategy := tenantStrategies[concurrency.Name]
@@ -2090,7 +2086,7 @@ func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurr
 	for i, entry := range entries {
 		stripped[i] = entry
 
-		if entry.IsTenantScoped() {
+		if entry.IsTenantScoped {
 			stripped[i].Expression = ""
 			stripped[i].MaxRuns = nil
 			stripped[i].LimitStrategy = nil
