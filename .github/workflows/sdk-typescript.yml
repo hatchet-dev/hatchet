@@ -227,10 +227,6 @@ jobs:
           cache: true
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
         working-directory: .
         run: docker compose up -d
