@@ -5,6 +5,8 @@ import { makeE2EClient, poll, checkDurableEvictionSupport } from '../__e2e__/har
 import {
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
+  MEMO_EVENT_KEY,
   evictableChildSpawn,
   evictableChildBulkSpawn,
   multipleEviction,
@@ -212,6 +214,26 @@ describe('durable-eviction-e2e', () => {
 
     const result = await ref.output;
     expect(result.status).toBe('completed');
+  }, 180_000);
+
+  it('memo before wait-for-event does not block completion delivery on replay', async () => {
+    if (requireEviction()) return;
+    const ref = await evictableMemoThenWaitForEvent.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const details = await pollUntilEvicted(runId);
+    const taskId = getTaskExternalId(details);
+    expect(taskId).toBeDefined();
+
+    await hatchet.runs.restoreTask(taskId!);
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+
+    await hatchet.events.push(MEMO_EVENT_KEY, {});
+
+    const result = await ref.output;
+    expect(result.status).toBe('completed');
+    expect(result.memoizedNow).toBeDefined();
   }, 180_000);
 
   it('evictable child spawn is evicted after TTL', async () => {
