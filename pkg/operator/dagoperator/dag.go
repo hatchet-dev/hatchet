@@ -377,62 +377,6 @@ func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompl
 	return entries
 }
 
-// tells the dispatcher which unsatisfied durable event log entries that are about to block so
-// we can evict the durable task to free its slot
-func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
-	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
-		return nil
-	}
-
-	entries := d.outstandingWaitingEntries()
-
-	if len(entries) == 0 {
-		return nil
-	}
-
-	return d.send(ctx, &v1contracts.DurableTaskRequest{
-		Message: &v1contracts.DurableTaskRequest_WorkerStatus{
-			WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{
-				WorkerId:       d.workerId.String(),
-				WaitingEntries: entries,
-			},
-		},
-	})
-}
-
-func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompletedEntry {
-	var entries []*v1contracts.DurableTaskAwaitedCompletedEntry
-
-	appendEntry := func(nodeId, branchId int64) {
-		entries = append(entries, &v1contracts.DurableTaskAwaitedCompletedEntry{
-			DurableTaskExternalId: d.externalId.String(),
-			InvocationCount:       d.invocationCount,
-			NodeId:                nodeId,
-			BranchId:              branchId,
-		})
-	}
-
-	for _, t := range d.tasks {
-		if t.isTriggered && !t.isCompleted {
-			appendEntry(t.nodeId, t.branchId)
-		}
-
-		if t.isWaiting && !t.isWaitSatisfied {
-			appendEntry(t.waitNodeId, t.waitBranchId)
-		}
-
-		if t.skipWatchRegistered && !t.skipWatchFired {
-			appendEntry(t.skipWatchNodeId, t.skipWatchBranchId)
-		}
-
-		if t.cancelWatchRegistered && !t.cancelWatchFired {
-			appendEntry(t.cancelWatchNodeId, t.cancelWatchBranchId)
-		}
-	}
-
-	return entries
-}
-
 func (d *dag) taskEmitter(ctx context.Context) error {
 	ctx, span := telemetry.NewSpan(ctx, "dag.taskEmitter")
 	defer span.End()
