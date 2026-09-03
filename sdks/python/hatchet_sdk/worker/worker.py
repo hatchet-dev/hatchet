@@ -405,10 +405,6 @@ class Worker:
             )
 
         options = options or WorkerStartOptions()
-        if not self._action_registry:
-            raise ValueError(
-                "no actions registered, register workflows before starting worker"
-            )
 
         if options.loop is not None:
             warn(
