@@ -16,12 +16,13 @@ require 'time'
 module HatchetSdkRest
   class ConcurrencyLimitStrategy
     CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS".freeze
-    DROP_NEWEST = "DROP_NEWEST".freeze
-    QUEUE_NEWEST = "QUEUE_NEWEST".freeze
     GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN".freeze
+    CANCEL_NEWEST = "CANCEL_NEWEST".freeze
+    CANCEL_QUEUED_EXCEPT_NEWEST = "CANCEL_QUEUED_EXCEPT_NEWEST".freeze
+    CANCEL_QUEUED_EXCEPT_OLDEST = "CANCEL_QUEUED_EXCEPT_OLDEST".freeze
 
     def self.all_vars
-      @all_vars ||= [CANCEL_IN_PROGRESS, DROP_NEWEST, QUEUE_NEWEST, GROUP_ROUND_ROBIN].freeze
+      @all_vars ||= [CANCEL_IN_PROGRESS, GROUP_ROUND_ROBIN, CANCEL_NEWEST, CANCEL_QUEUED_EXCEPT_NEWEST, CANCEL_QUEUED_EXCEPT_OLDEST].freeze
     end
 
     # Builds the enum from string
