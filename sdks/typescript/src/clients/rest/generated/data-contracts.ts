@@ -43,6 +43,7 @@ export enum FeatureFlagId {
   TenantLogWorkflowFilterEnabled = 'tenant-log-workflow-filter-enabled',
   TraceMinimapEnabled = 'trace-minimap-enabled',
   OrganizationSsoEnabled = 'organization-sso-enabled',
+  OperatorDetailsEnabled = 'operator-details-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -2576,6 +2577,13 @@ export interface Worker {
    */
   webhookId?: string;
   runtimeInfo?: WorkerRuntimeInfo;
+  /**
+   * The id of the operator that owns this worker, if it is an engine-managed operator worker.
+   * @format uuid
+   */
+  operatorId?: string;
+  /** The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers. */
+  evictedDurableTaskCount?: number;
 }
 
 export interface WorkerList {

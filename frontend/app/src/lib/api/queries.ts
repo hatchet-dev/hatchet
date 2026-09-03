@@ -323,9 +323,18 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
-    details: (workflowRunId: string) => ({
-      queryKey: ['workflow-run-details:get', workflowRunId],
-      queryFn: async () => (await api.v1WorkflowRunGet(workflowRunId)).data,
+    details: (workflowRunId: string, includeOrchestratorEvents?: boolean) => ({
+      queryKey: [
+        'workflow-run-details:get',
+        workflowRunId,
+        includeOrchestratorEvents,
+      ],
+      queryFn: async () =>
+        (
+          await api.v1WorkflowRunGet(workflowRunId, {
+            includeOrchestratorEvents: includeOrchestratorEvents || undefined,
+          })
+        ).data,
     }),
     listDisplayNames: (tenant: string, externalIds: string[]) => ({
       queryKey: ['workflow-run:display-names:list', tenant, externalIds],
