@@ -43,7 +43,7 @@ There have been a number of other breaking changes throughout the SDK in V1.
 
 Typing improvements:
 
-1. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
+1. External-facing protobuf objects, such as `StickyStrategy`, have been replaced by native Python enums to make working with them easier. Concurrency strategies are passed as a plain string `Literal` on `ConcurrencyStrategy` rather than a separate enum type.
 2. All external-facing types that are used for triggering workflows, scheduling workflows, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
 3. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
 4. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly.

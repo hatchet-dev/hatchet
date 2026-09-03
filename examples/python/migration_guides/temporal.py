@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     DurableContext,
     RateLimit,
@@ -145,7 +144,7 @@ async def wait_a_day(input: None, ctx: DurableContext) -> None:
 
 # > Hatchet event push
 async def grant_approval(correlation_id: str) -> None:
-    await hatchet.event.aio_push(
+    await hatchet.events.aio_push(
         "approval:granted",
         {"correlation_id": correlation_id},
     )
@@ -276,10 +275,10 @@ class SyncOutput(BaseModel):
 sync_customer = hatchet.workflow(
     name="SyncCustomer",
     input_validator=SyncInput,
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.customer_id",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
 )
 

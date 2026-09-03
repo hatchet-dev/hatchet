@@ -55,7 +55,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.concurrency import ConcurrencyStrategy
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
@@ -201,12 +201,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if isinstance(self._config.concurrency, list):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
-        elif isinstance(self._config.concurrency, ConcurrencyExpression):
+        elif isinstance(self._config.concurrency, ConcurrencyStrategy):
             _concurrency_arr = []
             _concurrency = self._config.concurrency.to_proto()
         elif isinstance(self._config.concurrency, int):
             _concurrency_arr = []
-            _concurrency = ConcurrencyExpression.from_int(
+            _concurrency = ConcurrencyStrategy.from_int(
                 self._config.concurrency
             ).to_proto()
         else:
@@ -1218,7 +1218,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyStrategy] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1480,7 +1480,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyStrategy] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1583,7 +1583,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyStrategy] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1653,7 +1653,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | list[ConcurrencyStrategy] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],

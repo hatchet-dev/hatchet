@@ -78,8 +78,7 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
 )
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
@@ -114,8 +113,7 @@ __all__ = [
     "CELSuccess",
     "ClientConfig",
     "ClientTLSConfig",
-    "ConcurrencyExpression",
-    "ConcurrencyLimitStrategy",
+    "ConcurrencyStrategy",
     "Condition",
     "Context",
     "DedupeViolationError",

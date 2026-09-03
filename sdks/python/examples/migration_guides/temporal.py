@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     DurableContext,
     RateLimit,
@@ -287,10 +286,10 @@ class SyncOutput(BaseModel):
 sync_customer = hatchet.workflow(
     name="SyncCustomer",
     input_validator=SyncInput,
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.customer_id",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
 )
 

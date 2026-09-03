@@ -1,6 +1,5 @@
 from hatchet_sdk.types.concurrency import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
@@ -12,8 +11,7 @@ from hatchet_sdk.types.slot_types import SlotType
 from hatchet_sdk.types.sticky import StickyStrategy
 
 __all__ = [
-    "ConcurrencyExpression",
-    "ConcurrencyLimitStrategy",
+    "ConcurrencyStrategy",
     "DesiredWorkerLabel",
     "Priority",
     "RateLimit",

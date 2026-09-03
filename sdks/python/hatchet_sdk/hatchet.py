@@ -43,7 +43,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
-from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.concurrency import ConcurrencyStrategy
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
     TTLBasedIdempotencyConfig,
@@ -325,7 +325,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -349,7 +349,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -372,7 +372,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -453,7 +453,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -487,7 +487,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -520,7 +520,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -624,10 +624,10 @@ class Hatchet:
 
             if isinstance(concurrency, list):
                 _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyExpression):
+            elif isinstance(concurrency, ConcurrencyStrategy):
                 _concurrency = [concurrency]
             elif isinstance(concurrency, int):
-                _concurrency = [ConcurrencyExpression.from_int(concurrency)]
+                _concurrency = [ConcurrencyStrategy.from_int(concurrency)]
             else:
                 _concurrency = []
 
@@ -923,7 +923,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -957,7 +957,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -994,7 +994,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyStrategy | list[ConcurrencyStrategy] | None
         ) = None,
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
@@ -1101,10 +1101,10 @@ class Hatchet:
 
             if isinstance(concurrency, list):
                 _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyExpression):
+            elif isinstance(concurrency, ConcurrencyStrategy):
                 _concurrency = [concurrency]
             elif isinstance(concurrency, int):
-                _concurrency = [ConcurrencyExpression.from_int(concurrency)]
+                _concurrency = [ConcurrencyStrategy.from_int(concurrency)]
             else:
                 _concurrency = []
 

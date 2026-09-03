@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -18,15 +17,15 @@ class InputModel(BaseModel):
 hatchet = Hatchet()
 
 concurrency_strat = [
-    ConcurrencyExpression(
+    ConcurrencyStrategy(
         expression="input.key1",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
-    ConcurrencyExpression(
+    ConcurrencyStrategy(
         expression="input.key2",
         max_runs=5,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        strategy="GROUP_ROUND_ROBIN",
     ),
 ]
 concurrency_strategy_workflow = hatchet.workflow(

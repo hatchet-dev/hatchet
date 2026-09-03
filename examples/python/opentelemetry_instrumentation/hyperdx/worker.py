@@ -74,7 +74,7 @@ async def hyperdx_parent_task(input: TaskInput, ctx: Context) -> dict[str, Any]:
 
     with tracer.start_as_current_span("push-event") as span:
         span.set_attribute("event.key", "hyperdx:test-event")
-        hatchet.event.push(
+        hatchet.events.push(
             "hyperdx:test-event",
             {"message": f"from parent: {input.message}"},
         )
