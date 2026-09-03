@@ -232,14 +232,6 @@ func dagDurableTask(
 			break
 		}
 
-		if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
-			return err
-		}
-
-		if len(d.queuedResponses) > 0 {
-			continue
-		}
-
 		resp, err := d.awaitResponse(ctx, responseCh)
 
 		if err != nil {
