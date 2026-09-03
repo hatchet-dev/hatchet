@@ -20,10 +20,6 @@ const nextConfig = {
       // --- New site: section index redirects ---
       { source: '/', destination: '/v1', permanent: false, basePath: false },
       { source: '/get-started', destination: '/v1', permanent: false, basePath: false },
-      { source: '/reference/python', destination: '/reference/python/client', permanent: false, basePath: false },
-      { source: '/reference/python/', destination: '/reference/python/client', permanent: false, basePath: false },
-      { source: '/reference/typescript', destination: '/reference/typescript/client', permanent: false, basePath: false },
-      { source: '/reference/typescript/', destination: '/reference/typescript/client', permanent: false, basePath: false },
       { source: '/v1/migrating', destination: '/v1/migrating/v1-sdk-improvements', permanent: false, basePath: false },
       { source: '/v1/migrating/', destination: '/v1/migrating/v1-sdk-improvements', permanent: false, basePath: false },
       { source: '/agent-instructions', destination: '/agent-instructions/setup-cli', permanent: false, basePath: false },

@@ -1,0 +1,199 @@
+{
+  "_comment": [
+    "Shared mapping used by the four SDK reference doc generators (sdks/{python,typescript,go,ruby}/docs)",
+    "to emit the per-language overview pages at content/docs/reference/<lang>/index.mdx.",
+    "",
+    "corePages: descriptions for the shared top-level reference pages. A language only lists the",
+    "core pages it actually emits (for example, only Go and TypeScript have an embedded page).",
+    "",
+    "featureClients: one entry per canonical feature-client concept. 'slugs' maps each language to",
+    "the page slug under reference/<lang>/feature-clients/; a language is omitted when it has no",
+    "such client. 'guide' and 'guideTitle' point at the user-guide page for the feature (null when",
+    "no guide exists). Guide paths must be absolute and must exist under",
+    "frontend/docs/content/docs/.",
+    "",
+    "Validation (enforced by every generator, which hard-fails on violation):",
+    "  - every emitted feature-client page must have exactly one entry whose slug matches",
+    "  - every entry with a slug for the language must match an emitted page (no stale entries)",
+    "  - every non-null guide path must exist as a content file"
+  ],
+  "corePages": {
+    "client": {
+      "title": "Client",
+      "description": "The main Hatchet client, its configuration, and the feature client accessors"
+    },
+    "context": {
+      "title": "Context",
+      "description": "The context object passed to tasks at runtime"
+    },
+    "embedded": {
+      "title": "Embedded",
+      "description": "Run a full Hatchet engine in-process for local development"
+    },
+    "runnables": {
+      "title": "Runnables",
+      "description": "Tasks and workflows, the objects you register on workers and run"
+    }
+  },
+  "featureClients": {
+    "cel": {
+      "title": "CEL",
+      "description": "Evaluate and debug CEL expressions used in event filters and concurrency keys",
+      "guide": null,
+      "guideTitle": null,
+      "slugs": {
+        "python": "cel",
+        "typescript": "cel",
+        "go": "cel",
+        "ruby": "cel"
+      }
+    },
+    "crons": {
+      "title": "Crons",
+      "description": "Create and manage cron triggers that run workflows on a schedule",
+      "guide": "/v1/cron-runs",
+      "guideTitle": "Cron Runs",
+      "slugs": {
+        "python": "cron",
+        "typescript": "crons",
+        "go": "crons",
+        "ruby": "cron"
+      }
+    },
+    "events": {
+      "title": "Events",
+      "description": "Push events and inspect event history",
+      "guide": "/v1/events",
+      "guideTitle": "Events",
+      "slugs": {
+        "ruby": "events"
+      }
+    },
+    "filters": {
+      "title": "Filters",
+      "description": "Manage event filters that scope which events trigger runs",
+      "guide": "/v1/events",
+      "guideTitle": "Events",
+      "slugs": {
+        "python": "filters",
+        "typescript": "filters",
+        "go": "filters",
+        "ruby": "filters"
+      }
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "Read logs written by task runs",
+      "guide": "/v1/logging",
+      "guideTitle": "Logging",
+      "slugs": {
+        "python": "logs",
+        "typescript": "logs",
+        "go": "logs",
+        "ruby": "logs"
+      }
+    },
+    "metrics": {
+      "title": "Metrics",
+      "description": "Read queue depths, task status counts, and tenant Prometheus metrics",
+      "guide": "/v1/prometheus-metrics",
+      "guideTitle": "Prometheus Metrics",
+      "slugs": {
+        "python": "metrics",
+        "typescript": "metrics",
+        "go": "metrics",
+        "ruby": "metrics"
+      }
+    },
+    "rate-limits": {
+      "title": "Rate Limits",
+      "description": "Create and inspect rate limits that control task throughput",
+      "guide": "/v1/rate-limits",
+      "guideTitle": "Rate Limits",
+      "slugs": {
+        "python": "rate_limits",
+        "typescript": "ratelimits",
+        "go": "ratelimits",
+        "ruby": "rate_limits"
+      }
+    },
+    "runs": {
+      "title": "Runs",
+      "description": "Get, replay, cancel, and inspect workflow runs and their results",
+      "guide": "/v1/running-your-task",
+      "guideTitle": "Running Tasks",
+      "slugs": {
+        "python": "runs",
+        "typescript": "runs",
+        "go": "runs",
+        "ruby": "runs"
+      }
+    },
+    "scheduled": {
+      "title": "Scheduled Runs",
+      "description": "Schedule workflow runs for a specific future time",
+      "guide": "/v1/scheduled-runs",
+      "guideTitle": "Scheduled Runs",
+      "slugs": {
+        "python": "scheduled",
+        "typescript": "schedules",
+        "go": "schedules",
+        "ruby": "scheduled"
+      }
+    },
+    "stubs": {
+      "title": "Stubs",
+      "description": "Create typed stubs for tasks and workflows registered in another service",
+      "guide": "/v1/inter-service-triggering",
+      "guideTitle": "Inter-Service Triggering",
+      "slugs": {
+        "python": "stubs"
+      }
+    },
+    "tenant": {
+      "title": "Tenant",
+      "description": "Read details about the current tenant",
+      "guide": null,
+      "guideTitle": null,
+      "slugs": {
+        "typescript": "tenant",
+        "ruby": "tenant"
+      }
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "description": "Manage incoming webhooks that trigger runs from external services",
+      "guide": "/v1/webhooks",
+      "guideTitle": "Webhooks",
+      "slugs": {
+        "python": "webhooks",
+        "typescript": "webhooks",
+        "go": "webhooks"
+      }
+    },
+    "workers": {
+      "title": "Workers",
+      "description": "List workers and manage their state",
+      "guide": "/v1/workers",
+      "guideTitle": "Workers",
+      "slugs": {
+        "python": "workers",
+        "typescript": "workers",
+        "go": "workers",
+        "ruby": "workers"
+      }
+    },
+    "workflows": {
+      "title": "Workflows",
+      "description": "List and manage registered workflow definitions",
+      "guide": "/v1/tasks",
+      "guideTitle": "Tasks",
+      "slugs": {
+        "python": "workflows",
+        "typescript": "workflows",
+        "go": "workflows",
+        "ruby": "workflows"
+      }
+    }
+  }
+}
