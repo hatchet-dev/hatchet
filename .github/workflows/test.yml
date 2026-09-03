@@ -58,6 +58,12 @@ jobs:
       - name: Compose
         run: docker compose up -d
 
+      # The shared runners intermittently hit GitHub's unauthenticated git-over-https
+      # limits, which breaks pre-commit's hook-repo clones ("could not read Username for
+      # 'https://github.com'"). Clone with the workflow token instead.
+      - name: Authenticate git for pre-commit hook repos
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+
       - name: Generate
         run: |
           go run ./cmd/hatchet-migrate
@@ -86,7 +92,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test $(go list ./... | grep -v "quickstart") -v -failfast
+        run: go test $(go list ./... | grep -v "quickstart") -failfast
 
   integration:
     runs-on: ubicloud-standard-8
@@ -111,10 +117,6 @@ jobs:
           version: 10.16.1
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
         run: docker compose up -d
 
@@ -128,7 +130,7 @@ jobs:
           task generate-local-encryption-keys
 
       - name: Test
-        run: go test -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
+        run: go test -tags integration $(go list ./... | grep -v "quickstart") -failfast
 
       - name: Teardown
         run: docker compose down
@@ -157,10 +159,6 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
         run: docker compose up -d --wait
@@ -261,7 +259,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags e2e ./... -p 1 -v -failfast
+          go test -tags e2e ./... -p 1 -failfast
 
       - name: Teardown
         run: docker compose down
@@ -290,10 +288,6 @@ jobs:
         with:
           version: 10.16.1
           run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
         run: docker compose up -d --wait
@@ -396,7 +390,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags e2e ./... -p 1 -v -failfast
+          go test -tags e2e ./... -p 1 -failfast
 
       - name: Teardown
         run: docker compose down
@@ -437,7 +431,7 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
@@ -535,7 +529,7 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -race -failfast -timeout 20m
         env:
           # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
           HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
@@ -587,7 +581,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags rampup ./... -p 5 -v -race -failfast -timeout 20m
+          go test -tags rampup ./... -p 5 -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}

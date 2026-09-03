@@ -148,3 +148,13 @@ WHERE
     AND s."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 ORDER BY action;
+
+-- name: CountEvictedDAGOrchestratorRuns :one
+SELECT COUNT(*)
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+JOIN "Step" s ON s."id" = t.step_id
+WHERE
+    rt.tenant_id = @tenantId::uuid
+    AND rt.evicted_at IS NOT NULL
+    AND s."isDagOrchestrator" = TRUE;

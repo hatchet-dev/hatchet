@@ -235,14 +235,20 @@ class DefaultFilter(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., scope: _Optional[str] = ..., payload: _Optional[bytes] = ...) -> None: ...
 
 class Concurrency(_message.Message):
-    __slots__ = ("expression", "max_runs", "limit_strategy")
+    __slots__ = ("expression", "max_runs", "limit_strategy", "name", "is_tenant_scoped", "max_runs_expression")
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
     LIMIT_STRATEGY_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    IS_TENANT_SCOPED_FIELD_NUMBER: _ClassVar[int]
+    MAX_RUNS_EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     expression: str
     max_runs: int
     limit_strategy: ConcurrencyLimitStrategy
-    def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
+    name: str
+    is_tenant_scoped: bool
+    max_runs_expression: str
+    def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ..., name: _Optional[str] = ..., is_tenant_scoped: bool = ..., max_runs_expression: _Optional[str] = ...) -> None: ...
 
 class TaskBatchConfig(_message.Message):
     __slots__ = ("batch_max_size", "batch_max_interval_ms", "batch_group_key", "batch_group_max_runs", "broadcast_output")

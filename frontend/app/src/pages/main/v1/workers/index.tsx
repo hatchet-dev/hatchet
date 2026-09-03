@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePagination } from '@/hooks/use-pagination';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
@@ -77,6 +78,11 @@ function WorkersTable() {
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
 
+  const { isEnabled: showOperators } = useIsFeatureEnabled(
+    FeatureFlagId.OperatorDetailsEnabled,
+    false,
+  );
+
   const handleSetOpenLabelsPopover = useCallback(
     (id: string | null) => setOpenLabelsPopover(id),
     [],
@@ -93,6 +99,7 @@ function WorkersTable() {
       limit,
       statuses: statuses as WorkerStatus[],
       labels: labels.length > 0 ? labels : undefined,
+      includeOperators: showOperators || undefined,
     }),
     refetchInterval,
   });

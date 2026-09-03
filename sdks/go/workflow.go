@@ -54,6 +54,74 @@ type DesiredWorkerLabel = types.DesiredWorkerLabel
 
 type WorkerLabelComparator = types.WorkerLabelComparator
 
+// WorkerLabelComparator values for DesiredWorkerLabel.Comparator.
+const (
+	WorkerLabelComparatorEqual              = types.WorkerLabelComparator_EQUAL
+	WorkerLabelComparatorNotEqual           = types.WorkerLabelComparator_NOT_EQUAL
+	WorkerLabelComparatorGreaterThan        = types.WorkerLabelComparator_GREATER_THAN
+	WorkerLabelComparatorGreaterThanOrEqual = types.WorkerLabelComparator_GREATER_THAN_OR_EQUAL
+	WorkerLabelComparatorLessThan           = types.WorkerLabelComparator_LESS_THAN
+	WorkerLabelComparatorLessThanOrEqual    = types.WorkerLabelComparator_LESS_THAN_OR_EQUAL
+)
+
+// ComparatorPtr returns a pointer to the given comparator, for use in DesiredWorkerLabel.
+func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator {
+	return &v
+}
+
+// Concurrency controls how many runs of a workflow or task may execute at once
+// for a given key expression, and what happens when the limit is exceeded.
+type Concurrency = types.Concurrency
+
+// ConcurrencyLimitStrategy determines what happens to runs beyond a concurrency limit.
+type ConcurrencyLimitStrategy = types.WorkflowConcurrencyLimitStrategy
+
+// ConcurrencyLimitStrategy values for Concurrency.LimitStrategy.
+const (
+	CancelInProgress         = types.CancelInProgress
+	CancelNewest             = types.CancelNewest
+	GroupRoundRobin          = types.GroupRoundRobin
+	DropNewest               = types.DropNewest
+	QueueNewest              = types.QueueNewest
+	CancelQueuedExceptNewest = types.CancelQueuedExceptNewest
+	CancelQueuedExceptOldest = types.CancelQueuedExceptOldest
+)
+
+// RateLimit declares a rate limit consumed by a task run, used with WithRateLimits.
+type RateLimit = types.RateLimit
+
+// RateLimitDuration is the window over which a rate limit applies.
+type RateLimitDuration = types.RateLimitDuration
+
+// RateLimitDuration values.
+const (
+	Second = types.Second
+	Minute = types.Minute
+	Hour   = types.Hour
+	Day    = types.Day
+	Week   = types.Week
+	Month  = types.Month
+	Year   = types.Year
+)
+
+// StickyStrategy determines how child workflow runs are routed back to the worker
+// that ran the parent.
+type StickyStrategy = types.StickyStrategy
+
+// StickyStrategy values for WithWorkflowStickyStrategy.
+const (
+	StickyStrategySoft = types.StickyStrategy_SOFT
+	StickyStrategyHard = types.StickyStrategy_HARD
+)
+
+// DefaultFilter declares a default event filter for a workflow or standalone task,
+// used with WithDefaultFilters.
+type DefaultFilter = types.DefaultFilter
+
+// TaskDefaults sets default task configuration for all tasks in a workflow,
+// used with WithWorkflowTaskDefaults.
+type TaskDefaults = create.TaskDefaults
+
 type runOpts struct {
 	AdditionalMetadata  *map[string]string
 	Priority            *RunPriority
@@ -240,14 +308,14 @@ func WithWorkflowDescription(description string) WorkflowOption {
 }
 
 // WithWorkflowConcurrency sets concurrency controls for the workflow.
-func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
+func WithWorkflowConcurrency(concurrency ...Concurrency) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.concurrency = concurrency
 	}
 }
 
 // WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
-func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
+func WithWorkflowTaskDefaults(defaults *TaskDefaults) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.taskDefaults = defaults
 	}
@@ -261,7 +329,7 @@ func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
 }
 
 // WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
-func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption {
+func WithWorkflowStickyStrategy(stickyStrategy StickyStrategy) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.stickyStrategy = &stickyStrategy
 	}
@@ -422,14 +490,14 @@ func WithEvents(events ...string) TaskOption {
 }
 
 // WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks.
-func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
+func WithDefaultFilters(filters ...DefaultFilter) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.defaultFilters = filters
 	}
 }
 
 // WithConcurrency sets concurrency limits for task execution.
-func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
+func WithConcurrency(concurrency ...*Concurrency) TaskOption {
 	return func(config *taskConfig) {
 		config.concurrency = concurrency
 	}
@@ -443,7 +511,7 @@ func withDurable() TaskOption {
 }
 
 // WithRateLimits sets rate limiting for task execution.
-func WithRateLimits(rateLimits ...*types.RateLimit) TaskOption {
+func WithRateLimits(rateLimits ...*RateLimit) TaskOption {
 	return func(config *taskConfig) {
 		config.rateLimits = rateLimits
 	}
@@ -462,14 +530,14 @@ func WithParents(parents ...*Task) TaskOption {
 }
 
 // WithWaitFor sets a condition that must be met before the task executes.
-func WithWaitFor(condition condition.Condition) TaskOption {
+func WithWaitFor(condition Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.waitFor = condition
 	}
 }
 
 // WithSkipIf sets a condition that will skip the task if met.
-func WithSkipIf(condition condition.Condition) TaskOption {
+func WithSkipIf(condition Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.skipIf = condition
 	}

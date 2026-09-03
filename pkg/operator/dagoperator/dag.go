@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -46,6 +47,33 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+type dagEngineError struct {
+	errorType    string
+	errorMessage string
+}
+
+func (e *dagEngineError) Error() string {
+	return fmt.Sprintf("durable task error from engine (%s): %s", e.errorType, e.errorMessage)
+}
+
+func isDagEngineErr(err error) bool {
+	var e *dagEngineError
+	return errors.As(err, &e)
+}
+
+type dagEvictedError struct {
+	reason string
+}
+
+func (e *dagEvictedError) Error() string {
+	return fmt.Sprintf("invocation evicted by the engine: %s", e.reason)
+}
+
+func isDagEvictedErr(err error) bool {
+	var e *dagEvictedError
+	return errors.As(err, &e)
+}
+
 type dag struct {
 	requestCh    chan<- *v1contracts.DurableTaskRequest
 	responseCh   <-chan *v1contracts.DurableTaskResponse
@@ -60,6 +88,7 @@ type dag struct {
 
 	pendingTasks    []*task
 	externalId      uuid.UUID
+	workerId        uuid.UUID
 	invocationCount int32
 	input           string
 	err             error
@@ -148,6 +177,7 @@ func dagDurableTask(
 	tasks []*task,
 	onFailureTask *task,
 	externalId uuid.UUID,
+	workerId uuid.UUID,
 	invocationCount int32,
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
@@ -173,6 +203,7 @@ func dagDurableTask(
 		responseCh:       responseCh,
 		evalBoolExpr:     evalBoolExpr,
 		externalId:       externalId,
+		workerId:         workerId,
 		invocationCount:  invocationCount,
 		input:            input,
 		triggerStep:      triggerStep,
@@ -229,6 +260,8 @@ func dagDurableTask(
 	return nil
 }
 
+var blockedStatusReportInterval = 10 * time.Second
+
 // blocks until the child task returns - this is basically here to just reveal bottlenecks, especially on child spawning, in the traces
 func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.DurableTaskResponse) (*v1contracts.DurableTaskResponse, error) {
 	_, span := telemetry.NewSpan(ctx, "dag.awaitResponse")
@@ -251,16 +284,89 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 		attribute.Int("dag.pending_task_count", len(d.pendingTasks)),
 	)
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case resp, ok := <-responseCh:
-		if !ok {
-			return nil, fmt.Errorf("durable task session closed")
+	timer := time.NewTimer(blockedStatusReportInterval)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case resp, ok := <-responseCh:
+			if !ok {
+				return nil, fmt.Errorf("durable task session closed")
+			}
+
+			return resp, nil
+		case <-timer.C:
+			if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
+				return nil, err
+			}
+
+			if len(d.queuedResponses) > 0 {
+				resp := d.queuedResponses[0]
+				d.queuedResponses = d.queuedResponses[1:]
+				return resp, nil
+			}
+
+			timer.Reset(blockedStatusReportInterval)
+		}
+	}
+}
+
+// tells the dispatcher which unsatisfied durable event log entries we've been blocked on so
+// it can evict the durable task to free its slot
+func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
+	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
+		return nil
+	}
+
+	entries := d.outstandingWaitingEntries()
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return d.send(ctx, &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_WorkerStatus{
+			WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{
+				WorkerId:       d.workerId.String(),
+				WaitingEntries: entries,
+			},
+		},
+	})
+}
+
+func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompletedEntry {
+	var entries []*v1contracts.DurableTaskAwaitedCompletedEntry
+
+	appendEntry := func(nodeId, branchId int64) {
+		entries = append(entries, &v1contracts.DurableTaskAwaitedCompletedEntry{
+			DurableTaskExternalId: d.externalId.String(),
+			InvocationCount:       d.invocationCount,
+			NodeId:                nodeId,
+			BranchId:              branchId,
+		})
+	}
+
+	for _, t := range d.tasks {
+		if t.isTriggered && !t.isCompleted {
+			appendEntry(t.nodeId, t.branchId)
 		}
 
-		return resp, nil
+		if t.isWaiting && !t.isWaitSatisfied {
+			appendEntry(t.waitNodeId, t.waitBranchId)
+		}
+
+		if t.skipWatchRegistered && !t.skipWatchFired {
+			appendEntry(t.skipWatchNodeId, t.skipWatchBranchId)
+		}
+
+		if t.cancelWatchRegistered && !t.cancelWatchFired {
+			appendEntry(t.cancelWatchNodeId, t.cancelWatchBranchId)
+		}
 	}
+
+	return entries
 }
 
 func (d *dag) taskEmitter(ctx context.Context) error {
@@ -291,13 +397,8 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 
 	progressed := false
 
-	stillPending := d.pendingTasks[:0]
-
+	readyAtPassStart := make(map[*task]bool, len(d.pendingTasks))
 	for _, t := range d.pendingTasks {
-		if t.isTriggered || t.isSkipped {
-			continue
-		}
-
 		ready := true
 		for _, p := range t.parents {
 			if !p.isCompleted {
@@ -305,8 +406,17 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 				break
 			}
 		}
+		readyAtPassStart[t] = ready
+	}
 
-		if !ready {
+	stillPending := d.pendingTasks[:0]
+
+	for _, t := range d.pendingTasks {
+		if t.isTriggered || t.isSkipped {
+			continue
+		}
+
+		if !readyAtPassStart[t] {
 			stillPending = append(stillPending, t)
 			continue
 		}
@@ -371,6 +481,16 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 					}
 				}
 			}
+		}
+
+		// A run trigger is ingested directly by the dispatcher, outside the session channel that
+		// carries WAITFOR registrations, so emitting one while a registration is still un-acked
+		// lets the run overtake it in the log and claim its node id, which the engine then
+		// reports as nondeterminism on replay. An ack is only sent after the registration is
+		// ingested, so an empty pendingWaitAcks means every registration holds its node id.
+		if len(d.pendingWaitAcks) > 0 {
+			stillPending = append(stillPending, t)
+			continue
 		}
 
 		var parentTaskRunIds []uuid.UUID
@@ -485,6 +605,23 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			// Raced ahead of its own WaitForAck; retry once that ack lands.
 			d.pendingEntryCompletions = append(d.pendingEntryCompletions, entry)
 		}
+
+	case *v1contracts.DurableTaskResponse_ServerEvict:
+		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() ||
+			m.ServerEvict.GetInvocationCount() != d.invocationCount {
+			return
+		}
+
+		d.err = &dagEvictedError{reason: m.ServerEvict.GetReason()}
+
+	case *v1contracts.DurableTaskResponse_Error:
+		if ref := m.Error.GetRef(); ref != nil && ref.GetDurableTaskExternalId() != d.externalId.String() {
+			return
+		}
+
+		// Dropping this would leave the run waiting forever for an ack or completion that
+		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType().String(), errorMessage: m.Error.GetErrorMessage()}
 	}
 }
 
@@ -643,6 +780,12 @@ func (d *dag) isDone() bool {
 
 func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 	if d.onFailureTask == nil || d.onFailureTask.isTriggered {
+		return false, nil
+	}
+
+	// Same ordering constraint as emitReadyTasks: a run trigger must not overtake an un-acked
+	// WAITFOR registration in the log.
+	if len(d.pendingWaitAcks) > 0 {
 		return false, nil
 	}
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -68,6 +70,12 @@ type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
+	// CheckAndDeactivateTenantConcurrency retires a tenant-scoped strategy when no
+	// workflow's latest version references it and it holds no slots. The tenant
+	// counterpart of UpdateConcurrencyStrategyIsActive, called from the same
+	// per-manager check-active loop.
+	CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyId int64) error
+
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 
 	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
@@ -114,6 +122,12 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	tenantId uuid.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
+	// tenant-scoped strategies are retired by CheckAndDeactivateTenantConcurrency (one
+	// batched, mostly lock-free pass per tenant) rather than per manager
+	if strategy.TenantStrategyID.Valid {
+		return nil
+	}
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
 
 	if err != nil {
@@ -155,6 +169,103 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	return commit(ctx)
 }
 
+// CheckAndDeactivateTenantConcurrency retires a tenant-scoped strategy when no
+// workflow's latest version references it and it holds no concurrency slots.
+// Reactivation happens via the slot-insert trigger and via re-registration upserts.
+//
+// The active check runs without any lock: its cost grows with the number of referencing
+// workflows, and holding the strategy's advisory lock for its duration would starve the
+// slot-flush path, which try-locks the same key on every batch. Only the rare
+// deactivation takes a short try-lock (skipping to the next pass when contended) and
+// re-checks under it before writing.
+func (c *ConcurrencyRepositoryImpl) CheckAndDeactivateTenantConcurrency(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategyId int64,
+) error {
+	isActive, err := c.queries.CheckTenantStrategyActive(ctx, c.pool, sqlcv1.CheckTenantStrategyActiveParams{
+		Tenantid:   tenantId,
+		Strategyid: strategyId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if isActive {
+		return nil
+	}
+
+	return c.deactivateTenantConcurrency(ctx, tenantId, strategyId)
+}
+
+func (c *ConcurrencyRepositoryImpl) deactivateTenantConcurrency(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategyId int64,
+) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategyId)
+
+	if err != nil {
+		return err
+	}
+
+	if !acquired {
+		// the strategy's manager is mid-flush; it is clearly not stale, and the next
+		// pass will get another look
+		return nil
+	}
+
+	// re-check under the lock so a slot inserted since the lock-free check keeps the
+	// strategy active
+	isActive, err := c.queries.CheckTenantStrategyActive(ctx, tx, sqlcv1.CheckTenantStrategyActiveParams{
+		Tenantid:   tenantId,
+		Strategyid: strategyId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !isActive {
+		err = c.queries.SetTenantConcurrencyStrategyInactive(ctx, tx, sqlcv1.SetTenantConcurrencyStrategyInactiveParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return commit(ctx)
+}
+
+// TenantConcurrencyDescriptor represents a tenant-scoped strategy as the descriptor type
+// the scheduler shares with step-scoped strategies. TenantStrategyID is set to the
+// strategy's own id to mark tenant scope; the workflow columns are zero values.
+func TenantConcurrencyDescriptor(tc *sqlcv1.V1TenantConcurrency) *sqlcv1.V1StepConcurrency {
+	return &sqlcv1.V1StepConcurrency{
+		ID:                tc.ID,
+		TenantID:          tc.TenantID,
+		TenantStrategyID:  pgtype.Int8{Int64: tc.ID, Valid: true},
+		IsActive:          tc.IsActive,
+		LastActiveAt:      tc.LastActiveAt,
+		Strategy:          tc.Strategy,
+		Expression:        tc.Expression,
+		MaxConcurrency:    tc.MaxConcurrency,
+		MaxRunsExpression: tc.MaxRunsExpression,
+	}
+}
+
 func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -191,6 +302,14 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
 		}
+	}
+
+	// No strategy branch ran. This should no longer be reachable (every enum value has a
+	// branch above), so log it as an error, but still return an empty result rather than
+	// nil: the scheduler dereferences the embedded result and would panic on nil.
+	if res == nil {
+		c.l.Error().Ctx(ctx).Msgf("no result for concurrency strategy %s (strategy ID: %d); returning empty result", strategy.Strategy, strategy.ID)
+		res = &RunConcurrencyResult{}
 	}
 
 	return res, nil
@@ -1345,7 +1464,11 @@ func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Conte
 }
 
 func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error {
-	return c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId)
+	if err := c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId); err != nil {
+		return err
+	}
+
+	return c.queries.DeactivateStaleTenantConcurrency(ctx, c.pool, tenantId)
 }
 
 func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {

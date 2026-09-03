@@ -229,6 +229,17 @@ CREATE TABLE v1_workflow_concurrency (
 CREATE TABLE v1_step_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
     -- strategies on a step in the same order.
+    --
+    -- IMPORTANT: v1_tenant_concurrency borrows this column's identity sequence (via a
+    -- pg_get_serial_sequence default) so strategy ids are unique across both tables.
+    -- Postgres records NO dependency for that borrow, so treat the following as breaking
+    -- changes for v1_tenant_concurrency even though nothing will fail at migration time:
+    --   - renaming this table or dropping/re-identifying this column (tenant inserts start
+    --     erroring at runtime)
+    --   - TRUNCATE ... RESTART IDENTITY (resets the shared counter and mints colliding ids)
+    --   - sequence fixup scripts (e.g. after logical-replication cutover) must setval from
+    --     GREATEST(max(v1_step_concurrency.id), max(v1_tenant_concurrency.id)), not from
+    --     this table alone
     id bigint GENERATED ALWAYS AS IDENTITY,
     -- The parent_strategy_id exists if concurrency is defined at the workflow level
     parent_strategy_id BIGINT,
@@ -243,8 +254,86 @@ CREATE TABLE v1_step_concurrency (
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
     max_concurrency INTEGER NOT NULL,
+    -- When set, this row references a tenant-scoped strategy in v1_tenant_concurrency: the
+    -- step consumes that strategy's limit (shared across workflows). This row's own
+    -- strategy/expression/max_concurrency columns are copies of the referenced definition,
+    -- kept in sync by the v1_tenant_concurrency update trigger, so reads can use this
+    -- table directly.
+    tenant_strategy_id BIGINT,
+    -- CEL expression over task input computing the max runs for that task's concurrency
+    -- group. Evaluated at task-insert time (the scheduler never sees task input); the
+    -- group's effective limit is the value from its most recently created task. NULL means
+    -- the static max_concurrency applies. Only honored by the in-memory concurrency index.
+    max_runs_expression TEXT,
     CONSTRAINT v1_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
 );
+
+CREATE INDEX v1_step_concurrency_tenant_strategy_id_idx
+    ON v1_step_concurrency (tenant_strategy_id)
+    WHERE tenant_strategy_id IS NOT NULL;
+
+-- Tenant-scoped concurrency strategies, registered independently of any workflow and
+-- referenced by steps via v1_step_concurrency.tenant_strategy_id so tasks across different
+-- workflows consume the same concurrency limit.
+CREATE TABLE v1_tenant_concurrency (
+    -- Draws from v1_step_concurrency's identity sequence so strategy ids are unique across
+    -- both tables: concurrency slots, outbox topics, leases, and advisory locks all key on
+    -- the bare strategy id. The borrow is a runtime name lookup with no recorded catalog
+    -- dependency; see the warning on v1_step_concurrency.id before changing either side.
+    id bigint NOT NULL DEFAULT nextval(pg_get_serial_sequence('v1_step_concurrency', 'id')),
+    tenant_id UUID NOT NULL,
+    -- Unique per tenant: registration upserts by (tenant_id, name).
+    name TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    strategy v1_concurrency_strategy NOT NULL,
+    expression TEXT NOT NULL,
+    max_concurrency INTEGER NOT NULL,
+    -- See v1_step_concurrency.max_runs_expression; copied onto referencing rows by the
+    -- update trigger below like the other definition columns.
+    max_runs_expression TEXT,
+    CONSTRAINT v1_tenant_concurrency_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_tenant_concurrency_tenant_name_uq UNIQUE (tenant_id, name)
+);
+
+-- These are low-volume tables, so a real FK is fine here (unlike the high-volume v1
+-- tables, which avoid them).
+ALTER TABLE v1_step_concurrency
+    ADD CONSTRAINT v1_step_concurrency_tenant_strategy_id_fkey
+    FOREIGN KEY (tenant_strategy_id) REFERENCES v1_tenant_concurrency (id);
+
+-- Keeps the definition copies on referencing v1_step_concurrency rows in sync when a
+-- tenant strategy is updated in place, so per-step reads never see a stale definition.
+CREATE OR REPLACE FUNCTION v1_tenant_concurrency_update_function()
+RETURNS trigger AS $$
+BEGIN
+    UPDATE v1_step_concurrency sc
+    SET
+        strategy = nt.strategy,
+        expression = nt.expression,
+        max_concurrency = nt.max_concurrency,
+        max_runs_expression = nt.max_runs_expression
+    FROM new_table nt
+    JOIN old_table ot ON ot.id = nt.id
+    WHERE
+        sc.tenant_strategy_id = nt.id
+        AND (
+            nt.strategy IS DISTINCT FROM ot.strategy
+            OR nt.expression IS DISTINCT FROM ot.expression
+            OR nt.max_concurrency IS DISTINCT FROM ot.max_concurrency
+            OR nt.max_runs_expression IS DISTINCT FROM ot.max_runs_expression
+        );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_tenant_concurrency_update_trigger
+AFTER UPDATE ON v1_tenant_concurrency
+REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tenant_concurrency_update_function();
 
 CREATE OR REPLACE FUNCTION create_v1_step_concurrency()
 RETURNS trigger AS $$
@@ -378,6 +467,10 @@ CREATE TABLE v1_task (
     triggering_event_key TEXT,
     idempotency_key TEXT,
     is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
+    -- Per-strategy max-runs values evaluated from max_runs_expression at insert time,
+    -- parallel to concurrency_strategy_ids. A NULL element means that strategy's static
+    -- max_concurrency applies.
+    concurrency_max_runs INTEGER[],
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1010,6 +1103,11 @@ CREATE TABLE v1_concurrency_slot (
     next_keys TEXT[],
     queue_to_notify TEXT NOT NULL,
     schedule_timeout_at TIMESTAMP(3) NOT NULL,
+    -- max_runs is this task's insert-time evaluation of the strategy's max_runs_expression
+    -- (NULL = static max_concurrency applies); next_max_runs carries the values for the
+    -- rest of the chain, peeled forward like next_keys.
+    max_runs INTEGER,
+    next_max_runs INTEGER[],
     CONSTRAINT v1_concurrency_slot_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count, strategy_id)
 );
 
@@ -1099,6 +1197,28 @@ BEGIN
         strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
         strategy.step_id = inactive_strategies.step_id AND
         strategy.id = inactive_strategies.id;
+
+    -- Same reactivation for tenant-scoped strategies: their slots carry the tenant
+    -- strategy's id, which (by the shared id sequence) never matches a step strategy.
+    WITH inactive_tenant_strategies AS (
+        SELECT
+            strategy.*
+        FROM
+            new_table cs
+        JOIN
+            v1_tenant_concurrency strategy ON strategy.id = cs.strategy_id
+        WHERE
+            strategy.is_active = FALSE
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
+        ORDER BY
+            strategy.id
+        FOR UPDATE
+    )
+    UPDATE v1_tenant_concurrency strategy
+    SET is_active = TRUE, last_active_at = NOW()
+    FROM inactive_tenant_strategies
+    WHERE
+        strategy.id = inactive_tenant_strategies.id;
 
     RETURN NULL;
 END;
@@ -1301,6 +1421,11 @@ BEGIN
                     WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
                     ELSE '{}'::text[]
                 END AS next_keys,
+                concurrency_max_runs[1] AS max_runs,
+                CASE
+                    WHEN array_length(concurrency_max_runs, 1) > 1 THEN concurrency_max_runs[2:array_length(concurrency_max_runs, 1)]
+                    ELSE '{}'::integer[]
+                END AS next_max_runs,
                 workflow_id,
                 workflow_version_id,
                 queue,
@@ -1324,6 +1449,8 @@ BEGIN
             priority,
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue_to_notify,
             schedule_timeout_at
         )
@@ -1343,6 +1470,8 @@ BEGIN
             COALESCE(priority, 1),
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue,
             schedule_timeout_at
         FROM new_slot_rows;
@@ -1506,6 +1635,11 @@ BEGIN
                 WHEN array_length(nt.concurrency_keys, 1) > 1 THEN nt.concurrency_keys[2:array_length(nt.concurrency_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
+            nt.concurrency_max_runs[1] AS max_runs,
+            CASE
+                WHEN array_length(nt.concurrency_max_runs, 1) > 1 THEN nt.concurrency_max_runs[2:array_length(nt.concurrency_max_runs, 1)]
+                ELSE '{}'::integer[]
+            END AS next_max_runs,
             nt.workflow_id,
             nt.workflow_version_id,
             nt.queue,
@@ -1559,6 +1693,8 @@ BEGIN
         priority,
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         queue_to_notify,
         schedule_timeout_at
     )
@@ -1578,6 +1714,8 @@ BEGIN
         4,
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         queue,
         schedule_timeout_at
     FROM slots_to_insert;
@@ -1666,6 +1804,11 @@ BEGIN
                 WHEN array_length(t.concurrency_keys, 1) > 1 THEN t.concurrency_keys[2:array_length(t.concurrency_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
+            t.concurrency_max_runs[1] AS max_runs,
+            CASE
+                WHEN array_length(t.concurrency_max_runs, 1) > 1 THEN t.concurrency_max_runs[2:array_length(t.concurrency_max_runs, 1)]
+                ELSE '{}'::integer[]
+            END AS next_max_runs,
             t.workflow_id,
             t.workflow_version_id,
             t.queue,
@@ -1695,6 +1838,8 @@ BEGIN
         priority,
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         queue_to_notify,
         schedule_timeout_at
     )
@@ -1714,6 +1859,8 @@ BEGIN
         4,
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         queue,
         schedule_timeout_at
     FROM new_slot_rows;
@@ -1811,6 +1958,11 @@ BEGIN
                 WHEN array_length(nt.next_keys, 1) > 1 THEN nt.next_keys[2:array_length(nt.next_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
+            nt.next_max_runs[1] AS max_runs,
+            CASE
+                WHEN array_length(nt.next_max_runs, 1) > 1 THEN nt.next_max_runs[2:array_length(nt.next_max_runs, 1)]
+                ELSE '{}'::integer[]
+            END AS next_max_runs,
             t.workflow_id,
             t.workflow_version_id,
             CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout) AS schedule_timeout_at
@@ -1838,6 +1990,8 @@ BEGIN
         priority,
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         schedule_timeout_at,
         queue_to_notify
     )
@@ -1857,6 +2011,8 @@ BEGIN
         COALESCE(priority, 1),
         key,
         next_keys,
+        max_runs,
+        next_max_runs,
         schedule_timeout_at,
         queue
     FROM new_slot_rows;
@@ -2676,7 +2832,10 @@ BEGIN
             'taskId', nt.task_id,
             'taskInsertedAt', nt.task_inserted_at,
             'taskRetryCount', nt.task_retry_count,
-            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint,
+            -- only INSERT payloads carry max_runs: the index applies it guarded by
+            -- taskInsertedAt so a replayed older task cannot regress a newer group limit
+            'maxRuns', nt.max_runs
         )
     FROM new_table nt
     WHERE nt.parent_strategy_id IS NULL;

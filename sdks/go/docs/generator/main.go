@@ -65,10 +65,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	v0client, err := loadPackage(filepath.Join(repoRoot, "pkg", "client"), "github.com/hatchet-dev/hatchet/pkg/client")
+	if err != nil {
+		return err
+	}
 
 	accessors := featureAccessors(root.pkg)
 
-	if err := cleanOutDir(outDir); err != nil {
+	refMap, err := loadRefMap(repoRoot)
+	if err != nil {
 		return err
 	}
 
@@ -76,12 +81,18 @@ func run() error {
 		"client.mdx":    renderClientPage(root, accessors),
 		"context.mdx":   renderContextPage(worker),
 		"embedded.mdx":  renderEmbeddedPage(root),
-		"runnables.mdx": renderRunnablesPage(root),
+		"runnables.mdx": renderRunnablesPage(root, worker, v0client),
 	}
 	for _, a := range accessors {
 		files[filepath.Join("feature-clients", a.page+".mdx")] = renderFeaturePage(features, a)
 	}
 	files[filepath.Join("feature-clients", "meta.json")] = renderFeatureMeta(accessors)
+
+	indexPage, err := renderIndexPage(refMap, repoRoot, files, accessors)
+	if err != nil {
+		return err
+	}
+	files["index.mdx"] = indexPage
 
 	topPages := []string{"feature-clients"}
 	for name := range files {
@@ -96,6 +107,13 @@ func run() error {
 	files["meta.json"] = topMeta
 
 	if err := verifyMetaCoverage(files); err != nil {
+		return err
+	}
+
+	// Everything rendered and validated; only now touch the output directory so a
+	// validation failure (for example a stale reference-map.json entry) leaves the
+	// existing docs intact.
+	if err := cleanOutDir(outDir); err != nil {
 		return err
 	}
 
@@ -389,7 +407,10 @@ func fenceIndentedCode(md string) string {
 
 func synopsis(p *pkgDocs, text string) string {
 	s := p.pkg.Synopsis(text)
-	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	// MDX parses a bare "<" in prose as the start of a JSX tag; escape it the way
+	// go/doc's Markdown printer does for full doc bodies.
+	return strings.ReplaceAll(s, "<", "\\<")
 }
 
 // ---------- signature helpers ----------
@@ -878,7 +899,7 @@ func optionTable(p *pkgDocs, fns []*doc.Func) string {
 
 const clientIntro = `This is the Go SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](/v1) for an introduction for getting your first tasks running. For complete, generated API documentation, see the [Go package docs on pkg.go.dev](https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go).
 
-By default, the client reads its configuration (token, host, TLS settings, and so on) from the ` + "`HATCHET_CLIENT_*`" + ` environment variables. Configuration can be overridden with client options from the ` + "`github.com/hatchet-dev/hatchet/pkg/client`" + ` package, such as ` + "`WithToken`" + `, ` + "`WithHostPort`" + `, and ` + "`WithNamespace`" + `.
+By default, the client reads its configuration (token, host, TLS settings, and so on) from the ` + "`HATCHET_CLIENT_*`" + ` environment variables. Configuration can be overridden with client options such as ` + "`hatchet.WithToken`" + `, ` + "`hatchet.WithHostPort`" + `, and ` + "`hatchet.WithNamespace`" + `.
 `
 
 func renderClientPage(p *pkgDocs, accessors []accessor) string {
@@ -1045,7 +1066,63 @@ const runnablesIntro = `Runnables in the Hatchet Go SDK are things that can be r
 Both implement the ` + "`WorkflowBase`" + ` interface and can be registered on a worker with ` + "`hatchet.WithWorkflows`" + `. See the [Client page](/reference/go/client) for the constructors.
 `
 
-func renderRunnablesPage(p *pkgDocs) string {
+// aliasSource points a type alias in the root package at the package that
+// declares the underlying type, so its methods can be documented alongside it.
+type aliasSource struct {
+	pkg      *pkgDocs
+	typeName string
+}
+
+// writeAliasedMethods documents the methods of the type an alias refers to,
+// which go/doc cannot see from the aliasing package.
+func writeAliasedMethods(b *strings.Builder, src aliasSource, level int) {
+	t := findType(src.pkg, src.typeName)
+	if t == nil {
+		return
+	}
+
+	if ifaceMethods := interfaceMethods(t); len(ifaceMethods) > 0 {
+		var rows [][]string
+		var kept []*ast.Field
+		for _, f := range ifaceMethods {
+			docText := f.Doc.Text()
+			if docText == "" && f.Comment != nil {
+				docText = f.Comment.Text()
+			}
+			if skipDoc(docText) {
+				continue
+			}
+			kept = append(kept, f)
+			rows = append(rows, []string{"`" + f.Names[0].Name + "`", escapeCell(synopsis(src.pkg, docText))})
+		}
+		if len(kept) == 0 {
+			return
+		}
+		b.WriteString("Methods:\n\n")
+		b.WriteString(table([]string{"Name", "Description"}, rows) + "\n")
+		for _, f := range kept {
+			writeInterfaceMethodSection(b, src.pkg, f, level+1)
+		}
+		return
+	}
+
+	var methods []*doc.Func
+	for _, m := range t.Methods {
+		if !skipDoc(m.Doc) {
+			methods = append(methods, m)
+		}
+	}
+	if len(methods) == 0 {
+		return
+	}
+	b.WriteString("Methods:\n\n")
+	b.WriteString(table([]string{"Name", "Description"}, methodRows(src.pkg, methods)) + "\n")
+	for _, m := range methods {
+		writeFuncSection(b, src.pkg, m, level+1)
+	}
+}
+
+func renderRunnablesPage(p, worker, v0client *pkgDocs) string {
 	var b strings.Builder
 	b.WriteString(frontmatter("Runnables"))
 	b.WriteString(generatedNotice())
@@ -1133,10 +1210,18 @@ func renderRunnablesPage(p *pkgDocs) string {
 		rest = append(rest, t)
 	}
 	sort.Slice(rest, func(i, j int) bool { return rest[i].Name < rest[j].Name })
+	aliasSources := map[string]aliasSource{
+		"EventClient":      {v0client, "EventClient"},
+		"WaitResult":       {worker, "WaitResult"},
+		"SingleWaitResult": {worker, "SingleWaitResult"},
+	}
 	if len(rest) > 0 {
 		b.WriteString("## Other types\n\n")
 		for _, t := range rest {
 			writeTypeSection(&b, p, t, 3, "", false)
+			if src, ok := aliasSources[t.Name]; ok {
+				writeAliasedMethods(&b, src, 3)
+			}
 		}
 	}
 
@@ -1220,6 +1305,128 @@ func renderFeaturePage(features *pkgDocs, a accessor) string {
 	}
 
 	return b.String()
+}
+
+// ---------- overview (index) page ----------
+
+// The shared mapping pairing feature-client concepts with descriptions, per-language
+// page slugs, and user-guide links. Hand-maintained at frontend/docs/reference-map.json
+// and consumed by all four SDK doc generators.
+type refMapCorePage struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type refMapFeature struct {
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Guide       *string           `json:"guide"`
+	GuideTitle  *string           `json:"guideTitle"`
+	Slugs       map[string]string `json:"slugs"`
+}
+
+type refMap struct {
+	CorePages      map[string]refMapCorePage `json:"corePages"`
+	FeatureClients map[string]refMapFeature  `json:"featureClients"`
+}
+
+func loadRefMap(repoRoot string) (*refMap, error) {
+	path := filepath.Join(repoRoot, "frontend", "docs", "reference-map.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read reference map: %w", err)
+	}
+	var m refMap
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return &m, nil
+}
+
+// renderIndexPage emits the Go SDK overview page: a link map over the core pages and a
+// feature-clients table cross-linked to the user guide. It hard-fails when an emitted
+// feature-client page has no reference-map.json entry, when an entry's go slug matches
+// no emitted page (stale entry), or when a guide link points at a missing content file.
+func renderIndexPage(m *refMap, repoRoot string, files map[string]string, accessors []accessor) (string, error) {
+	const lang = "go"
+
+	slugToConcept := map[string]string{}
+	for concept, f := range m.FeatureClients {
+		if slug, ok := f.Slugs[lang]; ok {
+			if other, dup := slugToConcept[slug]; dup {
+				return "", fmt.Errorf("reference-map.json: %s slug %q claimed by both %q and %q", lang, slug, other, concept)
+			}
+			slugToConcept[slug] = concept
+		}
+	}
+
+	emitted := map[string]bool{}
+	for _, a := range accessors {
+		emitted[a.page] = true
+		if _, ok := slugToConcept[a.page]; !ok {
+			return "", fmt.Errorf("reference-map.json has no featureClients entry with slugs.%s = %q; add one for the %s client", lang, a.page, a.title)
+		}
+	}
+	for slug, concept := range slugToConcept {
+		if !emitted[slug] {
+			return "", fmt.Errorf("reference-map.json entry %q lists stale %s slug %q: no such feature-client page is emitted", concept, lang, slug)
+		}
+	}
+
+	contentDir := filepath.Join(repoRoot, "frontend", "docs", "content", "docs")
+	guideExists := func(guide string) bool {
+		rel := strings.TrimPrefix(guide, "/")
+		if _, err := os.Stat(filepath.Join(contentDir, rel+".mdx")); err == nil {
+			return true
+		}
+		_, err := os.Stat(filepath.Join(contentDir, rel, "index.mdx"))
+		return err == nil
+	}
+
+	var b strings.Builder
+	b.WriteString(frontmatter("Overview"))
+	b.WriteString("# Go SDK\n\n")
+	b.WriteString("This is the generated API reference for the Hatchet Go SDK. For concepts and guides, see the [user guide](/v1).\n\n")
+
+	b.WriteString("## Core pages\n\n")
+	var topPages []string
+	for name := range files {
+		if !strings.Contains(name, string(filepath.Separator)) && strings.HasSuffix(name, ".mdx") {
+			topPages = append(topPages, strings.TrimSuffix(name, ".mdx"))
+		}
+	}
+	sort.Strings(topPages)
+	for _, page := range topPages {
+		core, ok := m.CorePages[page]
+		if !ok {
+			return "", fmt.Errorf("reference-map.json has no corePages entry for emitted page %q", page)
+		}
+		fmt.Fprintf(&b, "- [%s](/reference/%s/%s): %s\n", core.Title, lang, page, core.Description)
+	}
+	b.WriteString("\n")
+
+	b.WriteString("## Feature clients\n\n")
+	b.WriteString("Feature clients are accessed via methods on the [client](/reference/go/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.\n\n")
+	var rows [][]string
+	for _, a := range accessors {
+		f := m.FeatureClients[slugToConcept[a.page]]
+		guide := ""
+		if f.Guide != nil {
+			if !guideExists(*f.Guide) {
+				return "", fmt.Errorf("reference-map.json: guide %q for %q does not exist under frontend/docs/content/docs", *f.Guide, f.Title)
+			}
+			title := *f.Guide
+			if f.GuideTitle != nil {
+				title = *f.GuideTitle
+			}
+			guide = fmt.Sprintf("[%s](%s)", title, *f.Guide)
+		}
+		name := fmt.Sprintf("[%s](/reference/%s/feature-clients/%s)", f.Title, lang, a.page)
+		rows = append(rows, []string{name, escapeCell(f.Description), guide})
+	}
+	b.WriteString(table([]string{"Client", "Description", "Guide"}, rows))
+
+	return b.String(), nil
 }
 
 func renderFeatureMeta(accessors []accessor) string {

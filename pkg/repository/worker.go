@@ -81,6 +81,9 @@ type ListWorkersOpts struct {
 	// must have a label matching every key/value pair to be included.
 	LabelKeys   []string
 	LabelValues []string
+
+	// IncludeOperators includes engine-managed operator workers, which are hidden by default.
+	IncludeOperators *bool
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -198,6 +201,14 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	if opts.Statuses != nil {
 		queryParams.Statuses = opts.Statuses
 		countParams.Statuses = opts.Statuses
+	}
+
+	if opts.IncludeOperators != nil {
+		queryParams.IncludeOperators = pgtype.Bool{
+			Bool:  *opts.IncludeOperators,
+			Valid: true,
+		}
+		countParams.IncludeOperators = queryParams.IncludeOperators
 	}
 
 	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {

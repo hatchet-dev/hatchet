@@ -42,6 +42,7 @@ type DisplayProps = {
 
 type RunFilteringProps = {
   workflowId?: string;
+  workflowIds?: string[];
   parentTaskExternalId?: string;
   workerId?: string;
   triggeringEventExternalId?: string;
@@ -166,6 +167,7 @@ export const RunsProvider = ({
 
   const {
     workflowId,
+    workflowIds: runFilterWorkflowIds,
     parentTaskExternalId,
     workerId,
     triggeringEventExternalId,
@@ -188,7 +190,7 @@ export const RunsProvider = ({
     hideCancelAndReplayButtons || !canWrite;
 
   const filters = useRunsTableFilters(tableKey, {
-    workflowIds: workflowId ? [workflowId] : undefined,
+    workflowIds: workflowId ? [workflowId] : runFilterWorkflowIds,
   });
 
   const toolbarFilters = useToolbarFilters({

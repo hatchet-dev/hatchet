@@ -172,6 +172,27 @@ func (p *CELParser) ParseWorkflowString(workflowExp string) (cel.Program, error)
 	return p.workflowStrEnv.Program(ast)
 }
 
+// ValidateWorkflowStringAsInt compiles like ParseWorkflowString but additionally rejects
+// expressions whose static output type can never be an integer (string or bool). Most
+// real expressions read the dyn input maps and infer dyn, which passes here; the
+// evaluation-time int check at task insert is the backstop.
+func (p *CELParser) ValidateWorkflowStringAsInt(workflowExp string) error {
+	ast, issues := p.workflowStrEnv.Compile(workflowExp)
+
+	if issues != nil && issues.Err() != nil {
+		return issues.Err()
+	}
+
+	switch ast.OutputType().TypeName() {
+	case "string", "bool":
+		return fmt.Errorf("expression must evaluate to an integer, got %s", ast.OutputType().TypeName())
+	}
+
+	_, err := p.workflowStrEnv.Program(ast)
+
+	return err
+}
+
 func (p *CELParser) ParseAndEvalWorkflowString(workflowExp string, in Input) (string, error) {
 	prg, err := p.ParseWorkflowString(workflowExp)
 	if err != nil {

@@ -5,6 +5,9 @@ FROM v1_workflow_concurrency_slot
 WHERE tenant_id = @tenantId::uuid AND strategy_id = @strategyId::bigint;
 
 -- name: ListActiveConcurrencyStrategies :many
+-- Rows referencing a tenant strategy (tenant_strategy_id set) are excluded: the tenant
+-- strategy itself (see ListActiveTenantConcurrencyStrategies) is what gets registered
+-- with the concurrency manager.
 SELECT
     sc.*
 FROM
@@ -13,7 +16,8 @@ JOIN
     "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
 WHERE
     sc.tenant_id = @tenantId::uuid AND
-    sc.is_active = TRUE;
+    sc.is_active = TRUE AND
+    sc.tenant_strategy_id IS NULL;
 
 -- name: GetConcurrencyStrategyById :one
 SELECT
@@ -59,6 +63,9 @@ GROUP BY
     wcs.key;
 
 -- name: ListConcurrencyStrategiesByStepId :many
+-- For rows referencing a tenant strategy, the definition columns are kept in sync by the
+-- v1_tenant_concurrency update trigger; callers resolve the effective strategy id from
+-- tenant_strategy_id so task slots carry the shared id.
 SELECT
     *
 FROM
@@ -92,7 +99,8 @@ WITH latest_workflow_version AS (
         sc.tenant_id = @tenantId::uuid AND
         sc.workflow_id = @workflowId::uuid AND
         sc.workflow_version_id = @workflowVersionId::uuid AND
-        sc.is_active = TRUE
+        sc.is_active = TRUE AND
+        sc.tenant_strategy_id IS NULL
     ORDER BY
         sc.id ASC
     LIMIT 1
@@ -1346,7 +1354,8 @@ SELECT
     tenant_id,
     strategy_id,
     is_filled,
-    schedule_timeout_at
+    schedule_timeout_at,
+    max_runs
 FROM v1_concurrency_slot
 WHERE tenant_id = @tenantId::UUID
 AND strategy_id = @strategyId::BIGINT
@@ -1362,3 +1371,157 @@ WHERE task_id = $2
   AND task_retry_count = $4
   AND strategy_id = $5
 RETURNING *;
+
+-- name: GetTenantConcurrencyStrategiesByNames :many
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    name = ANY(@names::text[]);
+
+-- name: DeactivateStaleTenantConcurrency :exec
+WITH stale_tenant_concurrencies AS (
+    SELECT tc.id
+    FROM v1_tenant_concurrency tc
+    WHERE tc.tenant_id = @tenantId::UUID
+        AND tc.is_active = TRUE
+        -- 25 hours = a 24-hour idle window plus the 1-hour last_active_at refresh cache
+        -- (the slot-insert trigger only bumps last_active_at at most once per hour)
+        AND tc.last_active_at < NOW() - INTERVAL '25 hours'
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = tc.id
+                AND cs.tenant_id = @tenantId::UUID -- tenant id filter to force index usage
+        )
+    -- deterministic acquisition order, matching the other v1_tenant_concurrency
+    -- updaters (SKIP LOCKED already prevents blocking either way)
+    ORDER BY tc.id
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_tenant_concurrency tc
+SET is_active = FALSE
+FROM stale_tenant_concurrencies
+WHERE tc.id = stale_tenant_concurrencies.id;
+
+-- name: ListActiveTenantConcurrencyStrategies :many
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    is_active = TRUE;
+
+-- name: GetTenantConcurrencyStrategyById :one
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    id = @id::bigint;
+
+-- name: CheckTenantStrategyActive :one
+-- A tenant strategy is active if it still has concurrency slots, or if a step of some
+-- workflow's latest (non-deleted) version references it. The latest-version lookup is a
+-- LATERAL top-1 per referenced workflow so it descends idx_workflow_version_workflow_id_order
+-- with LIMIT 1; a DISTINCT ON over an IN-subquery reads every version of every referenced
+-- workflow instead, degrading with total "WorkflowVersion" size.
+SELECT (
+    EXISTS (
+        SELECT 1 FROM v1_concurrency_slot cs
+        WHERE cs.tenant_id = @tenantId::uuid AND cs.strategy_id = @strategyId::bigint
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM (
+            SELECT DISTINCT sc.workflow_id
+            FROM v1_step_concurrency sc
+            WHERE sc.tenant_id = @tenantId::uuid AND sc.tenant_strategy_id = @strategyId::bigint
+        ) w
+        JOIN LATERAL (
+            SELECT wv."id"
+            FROM "WorkflowVersion" wv
+            WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+            ORDER BY wv."order" DESC
+            LIMIT 1
+        ) latest ON TRUE
+        JOIN LATERAL (
+            SELECT 1
+            FROM v1_step_concurrency sc2
+            WHERE sc2.workflow_id = w.workflow_id
+              AND sc2.workflow_version_id = latest."id"
+              AND sc2.tenant_strategy_id = @strategyId::bigint
+            LIMIT 1
+        ) hit ON TRUE
+    )
+)::bool AS "isActive";
+
+-- name: SetTenantConcurrencyStrategyInactive :exec
+UPDATE
+    v1_tenant_concurrency
+SET
+    is_active = FALSE
+WHERE
+    tenant_id = @tenantId::uuid AND
+    id = @strategyId::bigint;
+
+-- name: ListTenantConcurrencyOrderings :many
+-- Per-step ordered chains of tenant-scoped strategies which can still admit new or queued
+-- runs: chains of every workflow's latest (non-deleted) version, plus chains of superseded
+-- versions whose runs still hold concurrency slots. The workflow being re-registered is
+-- excluded from the latest-version set (its new chains replace the old ones), but its
+-- superseded versions with live slots still constrain it, so a reorder waits for old runs
+-- to drain. Creation order (ascending row id) encodes the declared chain order. The
+-- latest-version lookup is a LATERAL top-1 per referenced workflow for the same reason as
+-- CheckTenantStrategyActive.
+WITH ref_workflows AS (
+    SELECT DISTINCT sc.workflow_id
+    FROM v1_step_concurrency sc
+    WHERE
+        sc.tenant_id = @tenantId::uuid
+        AND sc.tenant_strategy_id IS NOT NULL
+        AND sc.workflow_id != @excludeWorkflowId::uuid
+), latest_versions AS (
+    SELECT latest."id"
+    FROM ref_workflows w
+    JOIN LATERAL (
+        SELECT wv."id"
+        FROM "WorkflowVersion" wv
+        WHERE wv."workflowId" = w.workflow_id AND wv."deletedAt" IS NULL
+        ORDER BY wv."order" DESC
+        LIMIT 1
+    ) latest ON TRUE
+), live_versions AS (
+    SELECT lv."id" FROM latest_versions lv
+    UNION
+    SELECT DISTINCT cs.workflow_version_id AS "id"
+    FROM v1_concurrency_slot cs
+    JOIN v1_tenant_concurrency tc ON tc.id = cs.strategy_id AND tc.tenant_id = @tenantId::uuid
+    WHERE cs.tenant_id = @tenantId::uuid
+)
+SELECT
+    sc.workflow_id,
+    sc.step_id,
+    sc.workflow_version_id,
+    array_agg(sc.tenant_strategy_id ORDER BY sc.id)::bigint[] AS strategy_ids
+FROM v1_step_concurrency sc
+JOIN live_versions lv ON lv."id" = sc.workflow_version_id
+WHERE
+    sc.tenant_id = @tenantId::uuid
+    AND sc.tenant_strategy_id IS NOT NULL
+GROUP BY sc.workflow_id, sc.step_id, sc.workflow_version_id
+HAVING COUNT(*) > 1;
+
+-- name: GetTenantConcurrencyStrategiesByIds :many
+SELECT
+    *
+FROM
+    v1_tenant_concurrency
+WHERE
+    tenant_id = @tenantId::uuid AND
+    id = ANY(@ids::bigint[]);
