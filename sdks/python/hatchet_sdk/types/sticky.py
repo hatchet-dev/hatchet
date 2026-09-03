@@ -1,6 +1,3 @@
-from enum import Enum
+from typing import Literal
 
-
-class StickyStrategy(str, Enum):
-    SOFT = "SOFT"
-    HARD = "HARD"
+StickyStrategy = Literal["SOFT", "HARD"]

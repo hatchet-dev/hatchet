@@ -45,6 +45,7 @@ from hatchet_sdk.config import (
     ClientTLSConfig,
     EmbeddedHatchetConfig,
     HealthcheckConfig,
+    HTTPMethod,
     OpenTelemetryConfig,
     TenacityConfig,
 )
@@ -75,7 +76,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     WorkflowConfig,
 )
-from hatchet_sdk.runnables.workflow import TaskRunRef
+from hatchet_sdk.runnables.workflow import MCPProvider, TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
     ConcurrencyStrategy,
@@ -127,9 +128,11 @@ __all__ = [
     "EvictionNotSupportedError",
     "EvictionPolicy",
     "FailedTaskRunExceptionGroup",
+    "HTTPMethod",
     "Hatchet",
     "HealthcheckConfig",
     "IdempotencyCollisionError",
+    "MCPProvider",
     "NonDeterminismError",
     "NonRetryableException",
     "OTelAttribute",

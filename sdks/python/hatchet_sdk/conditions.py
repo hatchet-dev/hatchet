@@ -45,7 +45,7 @@ class BaseCondition(BaseModel):
     def to_proto(self) -> BaseMatchCondition:
         return BaseMatchCondition(
             readable_data_key=self.readable_data_key,
-            action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
+            action=convert_python_enum_to_proto(self.action, ProtoAction),
             or_group_id=self.or_group_id,
             expression=self.expression,
         )

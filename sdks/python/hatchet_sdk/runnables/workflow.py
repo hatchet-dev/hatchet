@@ -2,7 +2,6 @@ import asyncio
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from enum import Enum
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -65,7 +64,7 @@ from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -80,10 +79,7 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-# Once support for 3.10 is dropped, convert this to StrEnum
-class MCPProvider(str, Enum):
-    CLAUDE = "CLAUDE"
-    OPENAI = "OPENAI"
+MCPProvider = Literal["CLAUDE", "OPENAI"]
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -232,9 +228,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             tasks=tasks,
             cron_input=self._serialize_input(self._config.cron_input, target="bytes"),
             on_failure_task=on_failure_task,
-            sticky=convert_python_enum_to_proto(
+            sticky=convert_python_literal_to_proto(
                 self._config.sticky, StickyStrategyProto
-            ),  # type: ignore[arg-type]
+            ),
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
             default_priority=self._config.default_priority,
@@ -767,13 +763,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     @overload
     def mcp_tool(
         self,
-        provider: Literal[MCPProvider.CLAUDE],
+        provider: Literal["CLAUDE"],
         **kwargs: Any,  # noqa: ANN401
     ) -> "SdkMcpTool[TWorkflowInput]": ...
     @overload
     def mcp_tool(
         self,
-        provider: Literal[MCPProvider.OPENAI],
+        provider: Literal["OPENAI"],
         **kwargs: Any,  # noqa: ANN401
     ) -> "FunctionTool": ...
     def mcp_tool(
@@ -808,13 +804,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         input_schema = self.input_validator.json_schema()
         if isinstance(self, Workflow):
             match provider:
-                case MCPProvider.CLAUDE:
+                case "CLAUDE":
                     from hatchet_sdk.runnables.mcp.claude import workflow_to_claude_mcp
 
                     return workflow_to_claude_mcp(
                         self, input_schema, description, **kwargs
                     )
-                case MCPProvider.OPENAI:
+                case "OPENAI":
                     from hatchet_sdk.runnables.mcp.openai import workflow_to_openai_mcp
 
                     return workflow_to_openai_mcp(
@@ -824,11 +820,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     assert_never(unreachable)
         elif isinstance(self, Standalone):
             match provider:
-                case MCPProvider.CLAUDE:
+                case "CLAUDE":
                     from hatchet_sdk.runnables.mcp.claude import task_to_claude_mcp
 
                     return task_to_claude_mcp(self, input_schema, description, **kwargs)
-                case MCPProvider.OPENAI:
+                case "OPENAI":
                     from hatchet_sdk.runnables.mcp.openai import task_to_openai_mcp
 
                     return task_to_openai_mcp(self, input_schema, description, **kwargs)

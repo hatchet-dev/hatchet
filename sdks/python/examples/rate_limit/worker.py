@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk import RateLimit, RateLimitDuration
+from hatchet_sdk import RateLimit
 
 hatchet = Hatchet()
 
@@ -38,7 +38,7 @@ def step_1(input: RateLimitInput, ctx: Context) -> None:
             dynamic_key="input.user_id",
             units=1,
             limit=10,
-            duration=RateLimitDuration.MINUTE,
+            duration="MINUTE",
         )
     ]
 )
@@ -53,7 +53,7 @@ def main() -> None:
     # > Create a rate limit
     RATE_LIMIT_KEY = "test-limit"
 
-    hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, RateLimitDuration.SECOND)
+    hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, "SECOND")
     # !!
 
     worker = hatchet.worker(

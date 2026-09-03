@@ -1,7 +1,6 @@
 from hatchet_sdk import (
     Context,
     Hatchet,
-    StickyStrategy,
 )
 
 hatchet = Hatchet()
@@ -12,7 +11,7 @@ hatchet = Hatchet()
 sticky_workflow = hatchet.workflow(
     name="StickyWorkflow",
     # 👀 Specify a sticky strategy when declaring the workflow
-    sticky=StickyStrategy.SOFT,
+    sticky="SOFT",
 )
 
 
@@ -30,9 +29,7 @@ def step1b(input: None, ctx: Context) -> dict[str, str | None]:
 
 # > StickyChild
 
-sticky_child_workflow = hatchet.workflow(
-    name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
-)
+sticky_child_workflow = hatchet.workflow(name="StickyChildWorkflow", sticky="SOFT")
 
 
 @sticky_workflow.task(parents=[step1a, step1b])

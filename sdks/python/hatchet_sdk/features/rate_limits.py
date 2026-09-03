@@ -16,11 +16,10 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
-from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
 
 class RateLimitsClient(BaseRestClient):
@@ -37,7 +36,7 @@ class RateLimitsClient(BaseRestClient):
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
         Put a rate limit for a given key.
@@ -49,8 +48,8 @@ class RateLimitsClient(BaseRestClient):
         :return: None
         """
 
-        duration_proto = convert_python_enum_to_proto(
-            duration, workflow_protos.RateLimitDuration
+        duration_proto = convert_python_literal_to_proto(
+            duration, v0_workflow_protos.RateLimitDuration
         )
 
         conn = new_conn(self.client_config, False)
@@ -63,7 +62,7 @@ class RateLimitsClient(BaseRestClient):
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=duration_proto,  # type: ignore[arg-type]
+                duration=duration_proto,
             ),
             metadata=create_authorization_header(self.client_config.token),
         )
@@ -72,7 +71,7 @@ class RateLimitsClient(BaseRestClient):
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
         Put a rate limit for a given key.

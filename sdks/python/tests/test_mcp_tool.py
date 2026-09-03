@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import pytest
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.runnables.workflow import MCPProvider
 from dataclasses import dataclass
 
 
@@ -39,7 +38,7 @@ async def test_mcp_tool_no_description(hatchet: Hatchet):
         return None
 
     with pytest.RaisesExc(ValueError):
-        get_temperature.mcp_tool(MCPProvider.CLAUDE)
+        get_temperature.mcp_tool("CLAUDE")
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -50,7 +49,7 @@ async def test_mcp_tool_no_input_validator(hatchet: Hatchet):
         return None
 
     with pytest.RaisesExc(ValueError):
-        get_temperature.mcp_tool(MCPProvider.CLAUDE)
+        get_temperature.mcp_tool("CLAUDE")
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -61,7 +60,7 @@ async def test_mcp_tool_pydantic(hatchet: Hatchet):
     async def get_temperature(input: TemperatureInput, ctx: Context) -> None:
         return None
 
-    tool = get_temperature.mcp_tool(MCPProvider.CLAUDE)
+    tool = get_temperature.mcp_tool("CLAUDE")
     assert "location_name" in tool.input_schema["required"]
 
 
@@ -75,5 +74,5 @@ async def test_mcp_tool_dataclass(hatchet: Hatchet):
     async def get_temperature(input: TemperatureInputDataclass, ctx: Context) -> None:
         return None
 
-    tool = get_temperature.mcp_tool(MCPProvider.CLAUDE)
+    tool = get_temperature.mcp_tool("CLAUDE")
     assert "location_name" in tool.input_schema["required"]

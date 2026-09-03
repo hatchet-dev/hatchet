@@ -51,7 +51,7 @@ from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -286,7 +286,7 @@ class AdminClient:
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
         return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
@@ -319,10 +319,10 @@ class AdminClient:
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
-        duration_proto = convert_python_enum_to_proto(
-            duration, workflow_protos.RateLimitDuration
+        duration_proto = convert_python_literal_to_proto(
+            duration, v0_workflow_protos.RateLimitDuration
         )
 
         client = self._get_or_create_v0_client()
@@ -332,7 +332,7 @@ class AdminClient:
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=duration_proto,  # type: ignore[arg-type]
+                duration=duration_proto,
             ),
             metadata=create_authorization_header(self.token),
         )

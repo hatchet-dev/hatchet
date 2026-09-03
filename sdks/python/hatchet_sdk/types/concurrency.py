@@ -3,6 +3,10 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    ConcurrencyLimitStrategy as ConcurrencyLimitStrategyProto,
+)
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
 
 class ConcurrencyStrategy(BaseModel):
@@ -30,7 +34,9 @@ class ConcurrencyStrategy(BaseModel):
         return Concurrency(
             expression=self.expression,
             max_runs=self.max_runs,
-            limit_strategy=self.strategy,
+            limit_strategy=convert_python_literal_to_proto(
+                self.strategy, ConcurrencyLimitStrategyProto
+            ),
         )
 
     @staticmethod
