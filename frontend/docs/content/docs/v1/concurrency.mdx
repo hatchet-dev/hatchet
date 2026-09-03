@@ -301,3 +301,72 @@ You can also combine multiple concurrency strategies to create a more complex co
     />
   </Tabs.Tab>
 </UniversalTabs>
+
+## Shared concurrency across workflows
+
+All of the strategies above are scoped to a single workflow, but you can also share concurrency strategies between workflows. These are shared via the name of the strategy: every task in every workflow that declares the same name consumes the same concurrency limit.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={
+        snippets.python.concurrency_shared.worker.shared_concurrency_strategy
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={
+        snippets.typescript.concurrency_shared.workflow
+          .shared_concurrency_strategy
+      }
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.concurrency.main.shared_concurrency_strategy} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet
+      src={snippets.ruby.concurrency_shared.worker.shared_concurrency_strategy}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+If you edit a shared concurrency strategy, it will edit in-place on the next worker deployment and re-registration of the workflow.
+
+Shared strategies can be mixed freely with inline (workflow-scoped) entries on the same task: the position in the concurrency list is the chain order, so a shared entry may come before or after an inline one, and every limit in the chain applies at once.
+
+<Callout type="warning">
+  When multiple workflows chain the same shared strategies, they must order
+  those shared strategies consistently relative to each other. Registrations
+  whose chains order the same shared strategies differently are rejected, since
+  inconsistent orders can deadlock runs that hold one shared slot while waiting
+  for another.
+</Callout>
+
+## Dynamic limits with a max runs expression
+
+The `max_runs` limit on a concurrency strategy is normally a fixed number that applies to every key. You can instead compute the limit per key with a CEL expression over the task's input, so different groups get different limits from a single strategy. For example, let's say you want different pricing tiers in your application to correspond to different limits: you can use the `max_runs` expression to define something like `input.tier == 'premium' ? 10 : 1`.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet
+      src={snippets.python.concurrency_dynamic.worker.dynamic_max_runs}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.concurrency_dynamic.workflow.dynamic_max_runs}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.concurrency.main.dynamic_max_runs} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.concurrency_dynamic.worker.dynamic_max_runs} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+If an expression fails to evaluate, it will result in a task failure with the evaluation error as the task failure message.
+
+If you edit the expression, the new limit will get picked up on the next triggered task. This does not apply to replays of existing tasks: the task has to be a new task. If the limit gets lowered, the `GROUP_ROUND_ROBIN` strategy and the cancel-queued strategies let running work finish and stop filling until the group drains below the new limit, while `CANCEL_IN_PROGRESS` cancels running work above it.

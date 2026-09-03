@@ -140,5 +140,4 @@ module Hatchet
       ::V1::Concurrency.new(**args)
     end
   end
-
 end
