@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.1] - 2026-09-03
+
+### Security
+
+- Bumped `qs` to 6.16.0 to address GHSA-4mjr-xmp4-gh2g and GHSA-x5fp-wj9c-mxmx.
+
+
 ## [1.30.0] - 2026-08-26
 
 ### Added
