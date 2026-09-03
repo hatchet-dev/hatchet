@@ -63,6 +63,7 @@ type TasksControllerImpl struct {
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
 	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
+	restoreEvictedOrchestratorsOperations    *operation.TenantOperationPool
 
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
@@ -319,6 +320,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
+	t.restoreEvictedOrchestratorsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "restore-evicted-orchestrators", timeout, "restore stuck evicted durable orchestrators", t.processStuckEvictedDurableOrchestrators, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		30*time.Second,
+		2*time.Minute,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	return t, nil
 }
 
@@ -436,6 +446,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
 		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 		tc.expirePausedWorkflowQueueItemsOperations.Cleanup()
+		tc.restoreEvictedOrchestratorsOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 

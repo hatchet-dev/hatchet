@@ -416,7 +416,14 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		defer wg.Done()
 
 		if taskErr := d.handleV1Task(ctx, task); taskErr != nil {
-			d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
+			// ErrNoActiveDurableInvocation is an expected, self-healing condition (worker
+			// reconnecting after a roll); it's returned so the callback dead-letters and is
+			// re-routed, not because anything is wrong here.
+			if errors.Is(taskErr, ErrNoActiveDurableInvocation) {
+				d.l.Warn().Ctx(ctx).Err(taskErr).Msgf("deferring dispatcher task %s to dead-letter retry", task.ID)
+			} else {
+				d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
+			}
 			return taskErr
 		}
 

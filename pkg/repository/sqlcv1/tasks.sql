@@ -1153,6 +1153,35 @@ SELECT
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
 
+-- name: ListStuckEvictedDurableOrchestrators :many
+-- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+-- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+-- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+-- fired: the callback was lost on an engine roll, or every entry was satisfied before the
+-- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+SELECT
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    rt.retry_count
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+WHERE rt.tenant_id = @tenantId::uuid
+    AND rt.evicted_at IS NOT NULL
+    AND rt.evicted_at < NOW() - @gracePeriod::interval
+    AND t.is_dag_orchestrator
+    AND EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+          AND NOT e.is_satisfied
+    )
+ORDER BY rt.evicted_at
+LIMIT @maxTasks::int;
+
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.

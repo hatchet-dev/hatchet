@@ -1608,6 +1608,74 @@ func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pg
 	return items, nil
 }
 
+const listStuckEvictedDurableOrchestrators = `-- name: ListStuckEvictedDurableOrchestrators :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    rt.retry_count
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+WHERE rt.tenant_id = $1::uuid
+    AND rt.evicted_at IS NOT NULL
+    AND rt.evicted_at < NOW() - $2::interval
+    AND t.is_dag_orchestrator
+    AND EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+          AND NOT e.is_satisfied
+    )
+ORDER BY rt.evicted_at
+LIMIT $3::int
+`
+
+type ListStuckEvictedDurableOrchestratorsParams struct {
+	Tenantid    uuid.UUID       `json:"tenantid"`
+	Graceperiod pgtype.Interval `json:"graceperiod"`
+	Maxtasks    int32           `json:"maxtasks"`
+}
+
+type ListStuckEvictedDurableOrchestratorsRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID uuid.UUID          `json:"external_id"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+// fired: the callback was lost on an engine roll, or every entry was satisfied before the
+// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+func (q *Queries) ListStuckEvictedDurableOrchestrators(ctx context.Context, db DBTX, arg ListStuckEvictedDurableOrchestratorsParams) ([]*ListStuckEvictedDurableOrchestratorsRow, error) {
+	rows, err := db.Query(ctx, listStuckEvictedDurableOrchestrators, arg.Tenantid, arg.Graceperiod, arg.Maxtasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStuckEvictedDurableOrchestratorsRow
+	for rows.Next() {
+		var i ListStuckEvictedDurableOrchestratorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskExpressionEvals = `-- name: ListTaskExpressionEvals :many
 WITH input AS (
     SELECT

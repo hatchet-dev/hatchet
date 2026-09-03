@@ -321,6 +321,8 @@ type TaskRepository interface {
 
 	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
+	ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error)
+
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
 	CountActiveTaskBatchRuns(ctx context.Context, tenantId, stepId, batchKey string) (int, error)
@@ -1988,6 +1990,17 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	}
 
 	return rows, nil
+}
+
+func (r *TaskRepositoryImpl) ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error) {
+	return r.queries.ListStuckEvictedDurableOrchestrators(ctx, r.pool, sqlcv1.ListStuckEvictedDurableOrchestratorsParams{
+		Tenantid: tenantId,
+		Graceperiod: pgtype.Interval{
+			Microseconds: grace.Microseconds(),
+			Valid:        true,
+		},
+		Maxtasks: maxTasks,
+	})
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
