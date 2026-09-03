@@ -617,7 +617,8 @@ INSERT INTO v1_step_concurrency (
     expression,
     tenant_id,
     max_concurrency,
-    tenant_strategy_id
+    tenant_strategy_id,
+    max_runs_expression
 )
 VALUES (
     @workflowId::uuid,
@@ -627,7 +628,8 @@ VALUES (
     @expression::text,
     @tenantId::uuid,
     @maxConcurrency::integer,
-    sqlc.narg('tenantStrategyId')::bigint
+    sqlc.narg('tenantStrategyId')::bigint,
+    sqlc.narg('maxRunsExpression')::text
 ) RETURNING *;
 
 -- name: CreateStepMatchCondition :one

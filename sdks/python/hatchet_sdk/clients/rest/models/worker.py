@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -92,6 +92,16 @@ class Worker(BaseModel):
         default=None, description="The webhook ID for the worker.", alias="webhookId"
     )
     runtime_info: Optional[WorkerRuntimeInfo] = Field(default=None, alias="runtimeInfo")
+    operator_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The id of the operator that owns this worker, if it is an engine-managed operator worker.",
+        alias="operatorId",
+    )
+    evicted_durable_task_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.",
+        alias="evictedDurableTaskCount",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -109,6 +119,8 @@ class Worker(BaseModel):
         "webhookUrl",
         "webhookId",
         "runtimeInfo",
+        "operatorId",
+        "evictedDurableTaskCount",
     ]
 
     model_config = ConfigDict(
@@ -254,6 +266,8 @@ class Worker(BaseModel):
                     if obj.get("runtimeInfo") is not None
                     else None
                 ),
+                "operatorId": obj.get("operatorId"),
+                "evictedDurableTaskCount": obj.get("evictedDurableTaskCount"),
             }
         )
         return _obj

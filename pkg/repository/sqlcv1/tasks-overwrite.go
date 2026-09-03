@@ -50,7 +50,8 @@ WITH input AS (
 		unnest($36::text[]) AS triggering_event_key,
 		unnest($37::text[]) AS idempotency_key,
 		unnest($38::text[]) AS batch_key,
-		unnest($39::boolean[]) AS is_dag_orchestrator
+		unnest($39::boolean[]) AS is_dag_orchestrator,
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -92,7 +93,8 @@ INSERT INTO v1_task (
 	triggering_event_key,
 	idempotency_key,
 	batch_key,
-	is_dag_orchestrator
+	is_dag_orchestrator,
+	concurrency_max_runs
 )
 SELECT
     i.tenant_id,
@@ -137,13 +139,14 @@ SELECT
 		WHEN sbc.batch_max_size IS NOT NULL AND sbc.batch_max_size >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
 	END,
-	i.is_dag_orchestrator
+	i.is_dag_orchestrator,
+	i.concurrency_max_runs
 FROM
     input i
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs
 `
 
 type CreateTasksParams struct {
@@ -172,6 +175,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
+	ConcurrencyMaxRuns           [][]pgtype.Int4      `json:"concurrencyMaxRuns"`
 	ParentTaskExternalIds        []*uuid.UUID         `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
@@ -245,6 +249,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.IdempotencyKeys,
 		arg.BatchKeys,
 		arg.IsDagOrchestrators,
+		arg.ConcurrencyMaxRuns,
 	)
 	if err != nil {
 		return nil, err
@@ -298,6 +303,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.IdempotencyKey,
 			&i.BatchKey,
 			&i.IsDagOrchestrator,
+			&i.ConcurrencyMaxRuns,
 		); err != nil {
 			return nil, err
 		}
@@ -449,7 +455,8 @@ WITH input AS (
         unnest($7::jsonb[]) AS desired_worker_label,
         unnest($8::uuid[]) AS triggering_event_external_id,
         unnest($9::text[]) AS triggering_event_key,
-		unnest($10::text[]) AS batch_key
+		unnest($10::text[]) AS batch_key,
+		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs
 )
 
 UPDATE
@@ -461,6 +468,7 @@ SET
     input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
+    concurrency_max_runs = i.concurrency_max_runs,
     initial_state_reason = i.initial_state_reason,
     desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
@@ -471,7 +479,7 @@ FROM
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.batch_key
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.batch_key, v1_task.concurrency_max_runs
 `
 
 type ReplayTasksParams struct {
@@ -482,12 +490,13 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys            [][]string    `json:"concurrencykeys"`
-	InitialStateReasons        []pgtype.Text `json:"initialStateReasons"`
-	DesiredWorkerLabels        [][]byte      `json:"desiredWorkerLabels"`
-	TriggeringEventExternalIds []*uuid.UUID  `json:"triggeringEventExternalIds"`
-	TriggeringEventKeys        []pgtype.Text `json:"triggeringEventKeys"`
-	BatchKeys                  []string      `json:"batchKeys"`
+	Concurrencykeys            [][]string      `json:"concurrencykeys"`
+	ConcurrencyMaxRuns         [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
+	InitialStateReasons        []pgtype.Text   `json:"initialStateReasons"`
+	DesiredWorkerLabels        [][]byte        `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds []*uuid.UUID    `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys        []pgtype.Text   `json:"triggeringEventKeys"`
+	BatchKeys                  []string        `json:"batchKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -503,6 +512,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
 		arg.BatchKeys,
+		arg.ConcurrencyMaxRuns,
 	)
 	if err != nil {
 		return nil, err
@@ -548,6 +558,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
 			&i.BatchKey,
+			&i.ConcurrencyMaxRuns,
 		); err != nil {
 			return nil, err
 		}

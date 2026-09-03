@@ -162,7 +162,7 @@ var runsGetCmd = &cobra.Command{
 			cli.Logger.Fatalf("invalid run ID %q: %v", runID, err)
 		}
 
-		resp, err := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
+		resp, err := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID, nil)
 		if err != nil {
 			cli.Logger.Fatalf("failed to get run: %v", err)
 		}
@@ -209,7 +209,7 @@ If no run ID is provided, requires --since flag and cancels runs matching the fi
 			if !isJSON && !yes {
 				// Try to get run name for confirmation
 				runName := shortID(runID)
-				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
+				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID, nil)
 				if runResp != nil && runResp.JSON200 != nil {
 					runName = runResp.JSON200.Run.DisplayName
 				}
@@ -321,7 +321,7 @@ If no run ID is provided, requires --since flag and replays runs matching the fi
 
 			if !isJSON && !yes {
 				runName := shortID(runID)
-				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
+				runResp, _ := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID, nil)
 				if runResp != nil && runResp.JSON200 != nil {
 					runName = runResp.JSON200.Run.DisplayName
 				}
@@ -454,7 +454,7 @@ var runsLogsCmd = &cobra.Command{
 		// to avoid dropping logs between polls (nil means apply --tail logic instead).
 		fetchLogs := func(since *time.Time, pollLimit *int64) ([]logEntry, error) {
 			// Try to fetch as a workflow run (DAG)
-			runResp, fetchErr := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
+			runResp, fetchErr := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID, nil)
 			if fetchErr == nil && runResp.JSON200 != nil {
 				// DAG run: fetch all logs per task then apply --tail to the merged list,
 				// rather than limiting per-task (which would give wrong "newest N overall").
@@ -773,7 +773,7 @@ var runsEventsCmd = &cobra.Command{
 		var events []rest.V1TaskEvent
 
 		// Try as a workflow run (DAG) first — TaskEvents are embedded in the run details
-		runResp, err := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID)
+		runResp, err := hatchetClient.API().V1WorkflowRunGetWithResponse(ctx, runUUID, nil)
 		if err == nil && runResp.JSON200 != nil && len(runResp.JSON200.TaskEvents) > 0 {
 			events = runResp.JSON200.TaskEvents
 		} else {

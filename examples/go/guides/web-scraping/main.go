@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
@@ -92,7 +91,7 @@ func main() {
 			"url": result.URL, "title": result.Title,
 			"content": result.Content, "scraped_at": result.ScrapedAt,
 		}, nil
-	}, hatchet.WithRetries(2), hatchet.WithRateLimits(&types.RateLimit{
+	}, hatchet.WithRetries(2), hatchet.WithRateLimits(&hatchet.RateLimit{
 		Key:   scrapeRateLimitKey,
 		Units: &units,
 	}))
@@ -101,7 +100,7 @@ func main() {
 	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
 		Key:      scrapeRateLimitKey,
 		Limit:    10,
-		Duration: types.Minute,
+		Duration: hatchet.Minute,
 	})
 	if err != nil {
 		log.Fatalf("failed to upsert rate limit: %v", err)

@@ -319,7 +319,10 @@ WITH tasks AS (
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
         AND (
-            dt.task_id != dt.dag_id
+            -- the orchestrator's self-mapping row is hidden by default once real child tasks
+            -- exist, since orchestration is abstracted away from the user
+            COALESCE(sqlc.narg('includeOrchestratorEvents')::boolean, FALSE)
+            OR dt.task_id != dt.dag_id
             OR NOT EXISTS (
                 SELECT 1
                 FROM v1_dag_to_task_olap other

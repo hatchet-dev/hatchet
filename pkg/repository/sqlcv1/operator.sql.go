@@ -73,6 +73,24 @@ func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid
 	return items, nil
 }
 
+const countEvictedDAGOrchestratorRuns = `-- name: CountEvictedDAGOrchestratorRuns :one
+SELECT COUNT(*)
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+JOIN "Step" s ON s."id" = t.step_id
+WHERE
+    rt.tenant_id = $1::uuid
+    AND rt.evicted_at IS NOT NULL
+    AND s."isDagOrchestrator" = TRUE
+`
+
+func (q *Queries) CountEvictedDAGOrchestratorRuns(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countEvictedDAGOrchestratorRuns, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countOperators = `-- name: CountOperators :one
 SELECT COUNT(*)
 FROM v1_operator

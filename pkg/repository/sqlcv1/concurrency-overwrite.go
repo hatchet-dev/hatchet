@@ -1374,3 +1374,65 @@ func (q *Queries) UpdateConcurrencySlotIsFilledBatch(ctx context.Context, db DBT
 
 	return items, nil
 }
+
+const upsertTenantConcurrencyStrategies = `-- name: UpsertTenantConcurrencyStrategies :exec
+WITH input AS (
+    SELECT
+        unnest($2::text[]) AS name,
+        unnest(cast($3::text[] as v1_concurrency_strategy[])) AS strategy,
+        unnest($4::text[]) AS expression,
+        unnest($5::int[]) AS max_concurrency,
+        unnest($6::text[]) AS max_runs_expression
+)
+INSERT INTO v1_tenant_concurrency (
+    tenant_id,
+    name,
+    strategy,
+    expression,
+    max_concurrency,
+    max_runs_expression
+)
+SELECT
+    $1::uuid,
+    i.name,
+    i.strategy,
+    i.expression,
+    i.max_concurrency,
+    i.max_runs_expression
+FROM input i
+ORDER BY i.name
+ON CONFLICT (tenant_id, name)
+DO UPDATE SET
+    strategy = EXCLUDED.strategy,
+    expression = EXCLUDED.expression,
+    max_concurrency = EXCLUDED.max_concurrency,
+    max_runs_expression = EXCLUDED.max_runs_expression,
+    is_active = TRUE,
+    last_active_at = NOW()
+`
+
+type UpsertTenantConcurrencyStrategiesParams struct {
+	Tenantid           uuid.UUID     `json:"tenantid"`
+	Names              []string      `json:"names"`
+	Strategies         []string      `json:"strategies"`
+	Expressions        []string      `json:"expressions"`
+	Maxconcurrencies   []int32       `json:"maxconcurrencies"`
+	Maxrunsexpressions []pgtype.Text `json:"maxrunsexpressions"`
+}
+
+// UpsertTenantConcurrencyStrategies is a single-statement bulk upsert: one registration
+// touches all of a workflow's tenant strategy rows at once, in name order, so concurrent
+// registrations acquire row locks in a consistent order and cannot deadlock each other.
+// Hand-written so max_runs_expression can carry NULL elements ([]pgtype.Text); sqlc types
+// unnest'd array parameters as non-nullable slices.
+func (q *Queries) UpsertTenantConcurrencyStrategies(ctx context.Context, db DBTX, arg UpsertTenantConcurrencyStrategiesParams) error {
+	_, err := db.Exec(ctx, upsertTenantConcurrencyStrategies,
+		arg.Tenantid,
+		arg.Names,
+		arg.Strategies,
+		arg.Expressions,
+		arg.Maxconcurrencies,
+		arg.Maxrunsexpressions,
+	)
+	return err
+}
