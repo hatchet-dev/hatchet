@@ -742,7 +742,7 @@ description = "Composable command line interface toolkit"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform != \"emscripten\" and (extra == \"openai\" or extra == \"claude\") or extra == \"docs\" or extra == \"lint\""
+markers = "(extra == \"openai\" or extra == \"claude\" or extra == \"docs\" or extra == \"lint\") and (sys_platform != \"emscripten\" or extra == \"docs\" or extra == \"lint\")"
 files = [
     {file = "click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76"},
     {file = "click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6"},
@@ -762,7 +762,7 @@ files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
-markers = {main = "(platform_system == \"Windows\" or extra == \"test\") and (platform_system == \"Windows\" or sys_platform == \"win32\") and (extra == \"openai\" or extra == \"docs\" or extra == \"lint\" or extra == \"claude\" or extra == \"test\") and (sys_platform == \"win32\" or extra == \"openai\" or extra == \"docs\" or extra == \"lint\" or extra == \"claude\") and (sys_platform != \"emscripten\" or extra == \"openai\" or extra == \"docs\" or extra == \"lint\")", test = "sys_platform == \"win32\""}
+markers = {main = "(platform_system == \"Windows\" or extra == \"test\") and (platform_system == \"Windows\" or sys_platform == \"win32\") and (extra == \"openai\" or extra == \"docs\" or extra == \"lint\" or extra == \"claude\" or extra == \"test\") and (extra == \"openai\" or extra == \"docs\" or extra == \"lint\" or extra == \"claude\" or sys_platform == \"win32\") and (sys_platform != \"emscripten\" or extra == \"openai\" or extra == \"docs\" or extra == \"lint\")", test = "sys_platform == \"win32\""}
 
 [[package]]
 name = "cryptography"
@@ -2856,7 +2856,7 @@ description = "C parser in Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "(extra == \"openai\" or extra == \"claude\") and platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
+markers = "(extra == \"openai\" or extra == \"claude\") and implementation_name != \"PyPy\" and platform_python_implementation != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -4065,7 +4065,7 @@ description = "The lightning-fast ASGI server."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "(extra == \"openai\" or extra == \"claude\") and sys_platform != \"emscripten\" or extra == \"docs\""
+markers = "(extra == \"openai\" or extra == \"claude\" or extra == \"docs\") and (sys_platform != \"emscripten\" or extra == \"docs\")"
 files = [
     {file = "uvicorn-0.52.1-py3-none-any.whl", hash = "sha256:e4403f9d93188cf9d1088e9f40e3acd12630e2df8675316704379a7fc20fff6a"},
     {file = "uvicorn-0.52.1.tar.gz", hash = "sha256:112ec661814189acbccd3f7b86460147cc065fc92c0821afa78918780e4354dd"},

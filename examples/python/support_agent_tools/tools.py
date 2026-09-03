@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.runnables.workflow import MCPProvider
 
 hatchet = Hatchet()
 
@@ -156,29 +155,29 @@ async def create_ticket(input: CreateTicketInput, ctx: Context) -> TicketResult:
 
 # > Create Claude tools
 def create_lookup_customer_tool_claude() -> SdkMcpTool[CustomerLookupInput]:
-    return lookup_customer.mcp_tool(MCPProvider.CLAUDE)
+    return lookup_customer.mcp_tool("CLAUDE")
 
 
 def create_check_order_status_tool_claude() -> SdkMcpTool[OrderStatusInput]:
-    return check_order_status.mcp_tool(MCPProvider.CLAUDE)
+    return check_order_status.mcp_tool("CLAUDE")
 
 
 def create_ticket_tool_claude() -> SdkMcpTool[CreateTicketInput]:
-    return create_ticket.mcp_tool(MCPProvider.CLAUDE)
+    return create_ticket.mcp_tool("CLAUDE")
 
 
 
 
 # > Create openai tools
 def create_lookup_customer_tool_openai() -> FunctionTool:
-    return lookup_customer.mcp_tool(MCPProvider.OPENAI)
+    return lookup_customer.mcp_tool("OPENAI")
 
 
 def create_check_order_status_tool_openai() -> FunctionTool:
-    return check_order_status.mcp_tool(MCPProvider.OPENAI)
+    return check_order_status.mcp_tool("OPENAI")
 
 
 def create_ticket_tool_openai() -> FunctionTool:
-    return create_ticket.mcp_tool(MCPProvider.OPENAI)
+    return create_ticket.mcp_tool("OPENAI")
 
 

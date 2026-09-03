@@ -8,7 +8,6 @@ from hatchet_sdk import (
     Context,
     DurableContext,
     RateLimit,
-    RateLimitDuration,
 )
 
 from .hatchet_client import hatchet
@@ -365,7 +364,7 @@ def main() -> None:
 # it instead, which is what you want if you are trying them out.
 def run_all_examples() -> None:
     # `call_model` consumes this static key, so it has to exist before the task runs.
-    hatchet.rate_limits.put("openai", 1000, RateLimitDuration.MINUTE)
+    hatchet.rate_limits.put("openai", 1000, "MINUTE")
 
     worker = hatchet.worker(
         "temporal-migration-guide-worker",

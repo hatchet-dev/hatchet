@@ -5,7 +5,6 @@ import httpx
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.runnables.workflow import MCPProvider
 
 hatchet = Hatchet()
 
@@ -86,18 +85,18 @@ async def get_temperature_standalone(
 
 # > Create MCP tools
 def create_temperature_workflow_tool_claude() -> Any:
-    return get_temperature_workflow.mcp_tool(MCPProvider.CLAUDE)
+    return get_temperature_workflow.mcp_tool("CLAUDE")
 
 
 def create_temperature_workflow_tool_openai() -> Any:
-    return get_temperature_workflow.mcp_tool(MCPProvider.OPENAI)
+    return get_temperature_workflow.mcp_tool("OPENAI")
 
 
 def create_temperature_task_tool_claude() -> Any:
-    return get_temperature_standalone.mcp_tool(MCPProvider.CLAUDE)
+    return get_temperature_standalone.mcp_tool("CLAUDE")
 
 
 def create_temperature_task_tool_openai() -> Any:
-    return get_temperature_standalone.mcp_tool(MCPProvider.OPENAI)
+    return get_temperature_standalone.mcp_tool("OPENAI")
 
 
