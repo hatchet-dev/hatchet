@@ -19,7 +19,6 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
-    SharedConcurrency,
 )
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
@@ -110,11 +109,7 @@ class WorkflowConfig(BaseModel):
     cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: (
-        int
-        | ConcurrencyExpression
-        | SharedConcurrency
-        | Sequence[ConcurrencyExpression | SharedConcurrency]
-        | None
+        int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
     ) = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None

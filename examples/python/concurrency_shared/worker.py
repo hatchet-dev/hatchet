@@ -7,7 +7,6 @@ from hatchet_sdk import (
     ConcurrencyLimitStrategy,
     Context,
     Hatchet,
-    SharedConcurrency,
 )
 
 hatchet = Hatchet()
@@ -37,11 +36,12 @@ def run_window(duration_seconds: float) -> RunWindow:
 # A tenant-scoped strategy is shared across workflows: every task declaring the same name
 # consumes the same concurrency limit. The definition rides on workflow registration and
 # re-registering the name updates it in place.
-shared_limit = SharedConcurrency(
-    name="example-shared-limit",
+shared_limit = ConcurrencyExpression(
     expression="input.group",
     max_runs=1,
     limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    name="example-shared-limit",
+    is_tenant_scoped=True,
 )
 
 
@@ -79,18 +79,20 @@ def task_mixed(input: WorkflowInput, ctx: Context) -> RunWindow:
 # > Multi-Strategy Chain
 # A chain can mix multiple tenant-scoped and workflow-scoped entries, each with its own
 # limit strategy; entries are processed in the declared order.
-chain_limit_a = SharedConcurrency(
-    name="example-chain-limit-a",
+chain_limit_a = ConcurrencyExpression(
     expression="input.group",
     max_runs=1,
     limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    name="example-chain-limit-a",
+    is_tenant_scoped=True,
 )
 
-chain_limit_c = SharedConcurrency(
-    name="example-chain-limit-c",
+chain_limit_c = ConcurrencyExpression(
     expression="input.chain_c",
     max_runs=1,
     limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    name="example-chain-limit-c",
+    is_tenant_scoped=True,
 )
 
 

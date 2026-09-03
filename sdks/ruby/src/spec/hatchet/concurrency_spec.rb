@@ -28,13 +28,14 @@ RSpec.describe Hatchet::ConcurrencyExpression do
   end
 end
 
-RSpec.describe Hatchet::SharedConcurrency do
+RSpec.describe Hatchet::ConcurrencyExpression, "tenant-scoped entries" do
   it "serializes as a tenant-scoped entry" do
     proto = described_class.new(
-      name: "tenant-wide-limit",
       expression: "input.group",
       max_runs: 1,
       limit_strategy: :group_round_robin,
+      name: "tenant-wide-limit",
+      is_tenant_scoped: true,
     ).to_proto
 
     expect(proto.name).to eq("tenant-wide-limit")
@@ -43,20 +44,21 @@ RSpec.describe Hatchet::SharedConcurrency do
     expect(proto.has_max_runs_expression?).to be(false)
   end
 
-  it "supports a CEL max_runs expression" do
+  it "supports a CEL max_runs expression on tenant-scoped entries" do
     proto = described_class.new(
-      name: "tenant-wide-limit",
       expression: "input.group",
       max_runs: "input.limit",
+      name: "tenant-wide-limit",
+      is_tenant_scoped: true,
     ).to_proto
 
     expect(proto.max_runs).to eq(1)
     expect(proto.max_runs_expression).to eq("input.limit")
   end
 
-  it "rejects an empty name" do
+  it "rejects tenant-scoped entries without a name" do
     expect do
-      described_class.new(name: "", expression: "input.group")
-    end.to raise_error(ArgumentError, /name must be non-empty/)
+      described_class.new(expression: "input.group", is_tenant_scoped: true)
+    end.to raise_error(ArgumentError, /name is required/)
   end
 end

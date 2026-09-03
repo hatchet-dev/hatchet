@@ -60,7 +60,7 @@ from hatchet_sdk.runnables.types import (
     normalize_validator,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.types.concurrency import ConcurrencyExpression, SharedConcurrency
+from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import (
     _warn_if_dict_desired_worker_labels,
 )
@@ -227,13 +227,15 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if isinstance(self._config.concurrency, (list, tuple)):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
-        elif isinstance(self._config.concurrency, SharedConcurrency):
-            # concurrency_arr is the canonical field; the scalar field is deprecated
-            _concurrency_arr = [self._config.concurrency.to_proto()]
-            _concurrency = None
         elif isinstance(self._config.concurrency, ConcurrencyExpression):
-            _concurrency_arr = []
-            _concurrency = self._config.concurrency.to_proto()
+            if self._config.concurrency.is_tenant_scoped:
+                # concurrency_arr is the canonical field; the deprecated scalar field
+                # predates tenant-scoped entries
+                _concurrency_arr = [self._config.concurrency.to_proto()]
+                _concurrency = None
+            else:
+                _concurrency_arr = []
+                _concurrency = self._config.concurrency.to_proto()
         elif isinstance(self._config.concurrency, int):
             _concurrency_arr = []
             _concurrency = ConcurrencyExpression.from_int(
@@ -1427,9 +1429,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: (
-            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
-        ) = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1718,9 +1718,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: (
-            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
-        ) = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1833,9 +1831,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: (
-            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
-        ) = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1906,9 +1902,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: (
-            int | Sequence[ConcurrencyExpression | SharedConcurrency] | None
-        ) = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],

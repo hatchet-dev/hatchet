@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 
@@ -15,28 +15,10 @@ class ConcurrencyLimitStrategy(str, Enum):
     CANCEL_QUEUED_EXCEPT_OLDEST = "CANCEL_QUEUED_EXCEPT_OLDEST"
 
 
-def _validate_max_runs(v: int | str) -> int | str:
-    if isinstance(v, int) and v <= 0:
-        raise ValueError("max_runs must be greater than 0")
-    if isinstance(v, str) and not v.strip():
-        raise ValueError("max_runs expression must be non-empty")
-    return v
-
-
-def _max_runs_to_proto(v: int | str) -> tuple[int, str | None]:
-    """Split the union onto the proto's static/expression field pair. When a CEL
-    expression is used, the static field carries the default of 1, which only governs
-    slots created before the expression existed (each new task's slot carries its own
-    evaluated value)."""
-    if isinstance(v, str):
-        return 1, v
-
-    return v, None
-
-
 class ConcurrencyExpression(BaseModel):
     """
     Defines concurrency limits for a workflow using a CEL expression.
+
     Args:
         expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
         max_runs (int | str): Maximum number of concurrent runs, either a fixed number or
@@ -45,28 +27,70 @@ class ConcurrencyExpression(BaseModel):
             expression, a group's effective limit is the value from its most recently
             created task.
         limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
+        name (str | None): Unique (per tenant) strategy name. Required when
+            `is_tenant_scoped` is set.
+        is_tenant_scoped (bool): When True, the entry defines (or updates in place) a
+            tenant-scoped strategy shared across workflows, keyed by `name`: every task
+            declaring the same name consumes the same concurrency limit. The position in
+            the concurrency list is the chain order, and chains sharing tenant-scoped
+            strategies must order them consistently.
+
     Example:
         ConcurrencyExpression("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+
+    Example (tenant-scoped, shared across workflows):
+        ConcurrencyExpression(
+            expression="input.group",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            name="tenant-wide-limit",
+            is_tenant_scoped=True,
+        )
     """
 
     expression: str
     max_runs: int | str
     limit_strategy: ConcurrencyLimitStrategy
+    name: str | None = None
+    is_tenant_scoped: bool = False
 
     @field_validator("max_runs")
     @classmethod
     def validate_max_runs(cls, v: int | str) -> int | str:
-        return _validate_max_runs(v)
+        if isinstance(v, int) and v <= 0:
+            raise ValueError("max_runs must be greater than 0")
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("max_runs expression must be non-empty")
+        return v
+
+    @model_validator(mode="after")
+    def validate_tenant_scoped_name(self) -> "ConcurrencyExpression":
+        if self.is_tenant_scoped and not (self.name or "").strip():
+            raise ValueError("a name is required for tenant-scoped concurrency")
+        return self
 
     def to_proto(self) -> Concurrency:
-        max_runs, max_runs_expression = _max_runs_to_proto(self.max_runs)
+        # a string max_runs is a CEL expression; the static field then carries the
+        # default of 1, which only governs slots created before the expression existed
+        # (each new task's slot carries its own evaluated value)
+        if isinstance(self.max_runs, str):
+            max_runs, max_runs_expression = 1, self.max_runs
+        else:
+            max_runs, max_runs_expression = self.max_runs, None
 
-        return Concurrency(
+        proto = Concurrency(
             expression=self.expression,
             max_runs=max_runs,
             limit_strategy=self.limit_strategy,
+            name=self.name,
             max_runs_expression=max_runs_expression,
         )
+
+        # leave the optional field unset for ordinary entries
+        if self.is_tenant_scoped:
+            proto.is_tenant_scoped = True
+
+        return proto
 
     @staticmethod
     def from_int(max_runs: int) -> "ConcurrencyExpression":
@@ -74,48 +98,4 @@ class ConcurrencyExpression(BaseModel):
             expression="'constant'",
             max_runs=max_runs,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        )
-
-
-class SharedConcurrency(BaseModel):
-    """
-    A tenant-scoped concurrency strategy, shared across workflows: every task declaring the
-    same name consumes the same concurrency limit, and re-declaring a name updates the
-    strategy in place. Declare it anywhere a `ConcurrencyExpression` is accepted; the
-    position in the concurrency list is the chain order, so it may come before or after
-    workflow-scoped entries. Chains sharing tenant-scoped strategies must order them
-    consistently, or registration is rejected.
-
-    Args:
-        name (str): Unique (per tenant) name of the strategy.
-        expression (str): CEL expression to determine concurrency grouping. (i.e. "input.user_id")
-        max_runs (int | str): Maximum number of concurrent runs, either a fixed number
-            (defaults to 1) or a CEL expression over task input computing the max runs for
-            that task's concurrency group. With an expression, a group's effective limit
-            is the value from its most recently created task.
-        limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
-    """
-
-    name: str
-    expression: str
-    max_runs: int | str = 1
-    limit_strategy: ConcurrencyLimitStrategy = (
-        ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
-    )
-
-    @field_validator("max_runs")
-    @classmethod
-    def validate_max_runs(cls, v: int | str) -> int | str:
-        return _validate_max_runs(v)
-
-    def to_proto(self) -> Concurrency:
-        max_runs, max_runs_expression = _max_runs_to_proto(self.max_runs)
-
-        return Concurrency(
-            name=self.name,
-            is_tenant_scoped=True,
-            expression=self.expression,
-            max_runs=max_runs,
-            limit_strategy=self.limit_strategy,
-            max_runs_expression=max_runs_expression,
         )

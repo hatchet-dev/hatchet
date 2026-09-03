@@ -46,7 +46,7 @@ export type Concurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 
   /**
-   * (required when tenantScoped) the strategy name; unique per tenant for tenant-scoped
+   * (required when isTenantScoped) the strategy name; unique per tenant for tenant-scoped
    * strategies
    */
   name?: string;
@@ -57,17 +57,7 @@ export type Concurrency = {
    * the same concurrency limit. The position in the concurrency list is the chain order,
    * and chains sharing tenant-scoped strategies must order them consistently.
    */
-  tenantScoped?: boolean;
-};
-
-/**
- * A tenant-scoped concurrency strategy: a `Concurrency` entry with a required name and
- * tenantScoped set. Every task declaring the same name consumes the same concurrency
- * limit, across workflows.
- */
-export type SharedConcurrency = Concurrency & {
-  name: string;
-  tenantScoped: true;
+  isTenantScoped?: boolean;
 };
 
 /**

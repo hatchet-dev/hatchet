@@ -176,7 +176,6 @@ from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
-    SharedConcurrency,
 )
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
@@ -290,7 +289,6 @@ __all__ = [
     "RunStatus",
     "ScheduleTriggerWorkflowOptions",
     "ScheduleTriggerWorkflowOptions",
-    "SharedConcurrency",
     "SleepCondition",
     "SlotType",
     "StatusBasedIdempotencyConfig",

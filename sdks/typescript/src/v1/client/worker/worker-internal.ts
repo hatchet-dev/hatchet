@@ -20,7 +20,6 @@ import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hat
 import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
 import {
   Concurrency,
-  SharedConcurrency,
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
@@ -1378,7 +1377,7 @@ function batchOf(
 
 // mapConcurrencyPb maps SDK concurrency entries onto the proto shape; entries keep their
 // declared order, which is the chain order.
-export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
+export function mapConcurrencyPb(entries: Concurrency[]) {
   return entries.map((c) => ({
     expression: c.expression,
     // a string maxRuns is a CEL expression; the static field then carries the default
@@ -1386,15 +1385,15 @@ export function mapConcurrencyPb(entries: (Concurrency | SharedConcurrency)[]) {
     maxRuns: typeof c.maxRuns === 'string' ? 1 : c.maxRuns,
     limitStrategy: c.limitStrategy,
     name: c.name,
-    isTenantScoped: c.tenantScoped,
+    isTenantScoped: c.isTenantScoped,
     maxRunsExpression: typeof c.maxRuns === 'string' ? c.maxRuns : undefined,
   }));
 }
 
 export function taskConcurrencyArr(
-  task: { concurrency?: Concurrency | SharedConcurrency | (Concurrency | SharedConcurrency)[] },
+  task: { concurrency?: Concurrency | Concurrency[] },
   workflow: { taskDefaults?: { concurrency?: Concurrency | Concurrency[] } }
-): (Concurrency | SharedConcurrency)[] {
+): Concurrency[] {
   if (task.concurrency) {
     return Array.isArray(task.concurrency) ? task.concurrency : [task.concurrency];
   }

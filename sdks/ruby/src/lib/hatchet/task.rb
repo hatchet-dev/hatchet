@@ -50,7 +50,7 @@ module Hatchet
     # @return [Array<RateLimit>] Rate limits applied to this task
     attr_reader :rate_limits
 
-    # @return [Array<ConcurrencyExpression, SharedConcurrency>, ConcurrencyExpression, SharedConcurrency, nil] Task-level concurrency
+    # @return [Array<ConcurrencyExpression>, ConcurrencyExpression, nil] Task-level concurrency
     attr_reader :concurrency
 
     # @return [Hash, nil] Desired worker labels for scheduling
@@ -91,7 +91,7 @@ module Hatchet
     # @param backoff_max_seconds [Integer, nil] Max backoff seconds
     # @param backoff_factor [Float, nil] Backoff multiplier
     # @param rate_limits [Array<RateLimit>] Rate limits
-    # @param concurrency [Array<ConcurrencyExpression, SharedConcurrency>, ConcurrencyExpression, SharedConcurrency, nil]
+    # @param concurrency [Array<ConcurrencyExpression>, ConcurrencyExpression, nil]
     # @param desired_worker_labels [Hash, nil]
     # @param wait_for [Array] Wait conditions
     # @param skip_if [Array] Skip conditions

@@ -196,7 +196,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 			concurrencyOpts.Name = &name
 		}
 
-		if concurrency.TenantScoped {
+		if concurrency.IsTenantScoped {
 			tenantScoped := true
 			concurrencyOpts.IsTenantScoped = &tenantScoped
 		}

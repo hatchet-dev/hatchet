@@ -1,4 +1,4 @@
-import { ConcurrencyLimitStrategy, SharedConcurrency } from '@hatchet-dev/typescript-sdk/v1';
+import { Concurrency, ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
 const sleep = (ms: number) =>
@@ -26,9 +26,9 @@ export type WorkflowOutput = {
 // A tenant-scoped strategy is shared across workflows: every task declaring the same name
 // consumes the same concurrency limit. The definition rides on workflow registration and
 // re-registering the name updates it in place.
-export const sharedLimit: SharedConcurrency = {
+export const sharedLimit: Concurrency = {
   name: 'ts-example-shared-limit',
-  tenantScoped: true,
+  isTenantScoped: true,
   expression: 'input.group',
   maxRuns: 1,
   limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,

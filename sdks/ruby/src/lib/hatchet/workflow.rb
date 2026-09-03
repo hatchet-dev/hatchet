@@ -22,7 +22,7 @@ module Hatchet
     # @return [Array<String>] Cron expressions that trigger this workflow
     attr_reader :on_crons
 
-    # @return [Array<ConcurrencyExpression, SharedConcurrency>, ConcurrencyExpression, SharedConcurrency, nil] Workflow-level concurrency
+    # @return [Array<ConcurrencyExpression>, ConcurrencyExpression, nil] Workflow-level concurrency
     attr_reader :concurrency
 
     # @return [Integer, nil] Default priority for runs (1-4)
@@ -55,7 +55,7 @@ module Hatchet
     # @param name [String] Workflow name
     # @param on_events [Array<String>] Event trigger keys
     # @param on_crons [Array<String>] Cron trigger expressions
-    # @param concurrency [Array<ConcurrencyExpression, SharedConcurrency>, ConcurrencyExpression, SharedConcurrency, nil]
+    # @param concurrency [Array<ConcurrencyExpression>, ConcurrencyExpression, nil]
     # @param default_priority [Integer, nil] Default priority
     # @param task_defaults [Hash, nil] Default task settings
     # @param default_filters [Array<DefaultFilter>] Default filters
@@ -110,7 +110,7 @@ module Hatchet
     # @option opts [Float, nil] :backoff_factor (nil) The backoff factor for controlling exponential backoff in retries
     # @option opts [Integer, nil] :backoff_max_seconds (nil) The maximum number of seconds to allow retries with exponential backoff to continue
     # @option opts [Array<RateLimit>] :rate_limits ([]) A list of rate limit configurations for the task
-    # @option opts [ConcurrencyExpression, SharedConcurrency, Array<ConcurrencyExpression, SharedConcurrency>, nil] :concurrency (nil) A concurrency expression (or list of them) controlling the concurrency settings for this task
+    # @option opts [ConcurrencyExpression, Array<ConcurrencyExpression>, nil] :concurrency (nil) A concurrency expression (or list of them) controlling the concurrency settings for this task
     # @option opts [Hash, nil] :desired_worker_labels (nil) A hash of desired worker labels that determine to which worker the task should be assigned
     # @option opts [Array] :wait_for ([]) A list of conditions that must be met before the task can run
     # @option opts [Array] :skip_if ([]) A list of conditions that, if met, will cause the task to be skipped

@@ -771,7 +771,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 			c.Name = &name
 		}
 
-		if concurrency.TenantScoped {
+		if concurrency.IsTenantScoped {
 			tenantScoped := true
 			c.IsTenantScoped = &tenantScoped
 		}

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added support for tenant-scoped shared concurrency strategies. Define a `SharedConcurrency` strategy once, and reference it from tasks in different workflows so they share a single concurrency limit. Shared strategies can be mixed with inline `Concurrency` strategies on the same task.
+- Added support for tenant-scoped shared concurrency strategies. Declare a `Concurrency` entry with `isTenantScoped: true` and a `name`, and reference the same name from tasks in different workflows so they share a single concurrency limit. Tenant-scoped entries can be mixed with ordinary workflow-scoped entries on the same task.
 - `Concurrency.maxRuns` now accepts `number | string`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
 
 

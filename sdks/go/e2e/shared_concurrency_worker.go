@@ -51,11 +51,11 @@ func sharedConcLimit() *types.Concurrency {
 	strategy := types.GroupRoundRobin
 
 	return &types.Concurrency{
-		Name:          sharedConcurrencyStrategyName,
-		TenantScoped:  true,
-		Expression:    "input.group",
-		MaxRuns:       &maxRuns,
-		LimitStrategy: &strategy,
+		Name:           sharedConcurrencyStrategyName,
+		IsTenantScoped: true,
+		Expression:     "input.group",
+		MaxRuns:        &maxRuns,
+		LimitStrategy:  &strategy,
 	}
 }
 

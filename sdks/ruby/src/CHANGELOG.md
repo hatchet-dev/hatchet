@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `Hatchet::SharedConcurrency`: a tenant-scoped concurrency strategy shared across workflows — every task declaring the same name consumes the same concurrency limit, and re-declaring a name updates the strategy in place. Accepted anywhere a `ConcurrencyExpression` is, and both can be mixed in one chain.
-- `max_runs` on `ConcurrencyExpression` and `SharedConcurrency` now accepts an `Integer` or a `String`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
+- Added support for tenant-scoped shared concurrency strategies: declare a `ConcurrencyExpression` with `is_tenant_scoped: true` and a `name`, and every task declaring the same name (across workflows) consumes the same concurrency limit. Re-declaring a name updates the strategy in place, and tenant-scoped entries mix freely with workflow-scoped entries in one chain.
+- `max_runs` on `ConcurrencyExpression` now accepts an `Integer` or a `String`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
 
 
 ## [0.7.0] - 2026-08-26
