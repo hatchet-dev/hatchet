@@ -129,13 +129,16 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = @tenantId
-    AND NOT EXISTS (
-        -- hide dag operators
-        SELECT 1
-        FROM v1_operator op
-        WHERE
-            op.id = workers."operatorId"
-            AND op.kind = 'DAG'
+    AND (
+        COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
+        OR NOT EXISTS (
+            -- hide dag operators
+            SELECT 1
+            FROM v1_operator op
+            WHERE
+                op.id = workers."operatorId"
+                AND op.kind = 'DAG'
+        )
     )
     AND (
         sqlc.narg('actionId')::text IS NULL OR
@@ -206,13 +209,16 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = @tenantId
-    AND NOT EXISTS (
-        -- hide dag operators
-        SELECT 1
-        FROM v1_operator op
-        WHERE
-            op.id = workers."operatorId"
-            AND op.kind = 'DAG'
+    AND (
+        COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
+        OR NOT EXISTS (
+            -- hide dag operators
+            SELECT 1
+            FROM v1_operator op
+            WHERE
+                op.id = workers."operatorId"
+                AND op.kind = 'DAG'
+        )
     )
     AND (
         sqlc.narg('actionId')::text IS NULL OR

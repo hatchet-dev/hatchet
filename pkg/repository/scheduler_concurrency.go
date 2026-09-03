@@ -254,14 +254,15 @@ func (c *ConcurrencyRepositoryImpl) deactivateTenantConcurrency(
 // strategy's own id to mark tenant scope; the workflow columns are zero values.
 func TenantConcurrencyDescriptor(tc *sqlcv1.V1TenantConcurrency) *sqlcv1.V1StepConcurrency {
 	return &sqlcv1.V1StepConcurrency{
-		ID:               tc.ID,
-		TenantID:         tc.TenantID,
-		TenantStrategyID: pgtype.Int8{Int64: tc.ID, Valid: true},
-		IsActive:         tc.IsActive,
-		LastActiveAt:     tc.LastActiveAt,
-		Strategy:         tc.Strategy,
-		Expression:       tc.Expression,
-		MaxConcurrency:   tc.MaxConcurrency,
+		ID:                tc.ID,
+		TenantID:          tc.TenantID,
+		TenantStrategyID:  pgtype.Int8{Int64: tc.ID, Valid: true},
+		IsActive:          tc.IsActive,
+		LastActiveAt:      tc.LastActiveAt,
+		Strategy:          tc.Strategy,
+		Expression:        tc.Expression,
+		MaxConcurrency:    tc.MaxConcurrency,
+		MaxRunsExpression: tc.MaxRunsExpression,
 	}
 }
 

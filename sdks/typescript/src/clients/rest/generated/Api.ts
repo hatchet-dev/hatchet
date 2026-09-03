@@ -683,10 +683,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}
    * @secure
    */
-  v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
+  v1WorkflowRunGet = (
+    v1WorkflowRun: string,
+    query?: {
+      /** Whether to include the DAG orchestrator's task events, which are hidden by default */
+      includeOrchestratorEvents?: boolean;
+    },
+    params: RequestParams = {}
+  ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -3461,6 +3469,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       statuses?: WorkerStatus[];
       /** Filter by worker labels */
       labels?: string[];
+      /** Whether to include engine-managed operator workers, which are hidden by default */
+      includeOperators?: boolean;
     },
     params: RequestParams = {}
   ) =>

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
 
@@ -329,7 +329,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -353,7 +353,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -376,7 +376,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -455,7 +455,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -491,7 +491,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -526,7 +526,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -940,7 +940,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -976,7 +976,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -1015,7 +1015,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),

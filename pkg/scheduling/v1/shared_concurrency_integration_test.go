@@ -100,11 +100,11 @@ func setupSharedConcurrencyTest(
 	// the definition is a tenant-scoped Concurrency entry riding on a workflow put (the
 	// only registration path); every declaring task carries the full definition
 	def := repo.CreateConcurrencyOpts{
-		Name:          "shared-limit",
-		TenantScoped:  true,
-		Expression:    "input.my_id",
-		MaxRuns:       &maxRuns,
-		LimitStrategy: &strategyType,
+		Name:           "shared-limit",
+		IsTenantScoped: true,
+		Expression:     "input.my_id",
+		MaxRuns:        &maxRuns,
+		LimitStrategy:  &strategyType,
 	}
 
 	createWorkflowWithConcurrency(t, ctx, conf, tenantId, fmt.Sprintf("%s-registrar", name), []repo.CreateConcurrencyOpts{def})
@@ -255,11 +255,11 @@ func TestConcurrency_SharedStrategy_MixedWithInline(t *testing.T) {
 			Expression:    "input.other_id",
 		}
 		ref := repo.CreateConcurrencyOpts{
-			Name:          "shared-limit",
-			TenantScoped:  true,
-			Expression:    "input.my_id",
-			MaxRuns:       &shMax,
-			LimitStrategy: &strategyType,
+			Name:           "shared-limit",
+			IsTenantScoped: true,
+			Expression:     "input.my_id",
+			MaxRuns:        &shMax,
+			LimitStrategy:  &strategyType,
 		}
 
 		// declared order is the chain order: inline first here, tenant entry first below
@@ -320,11 +320,11 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		newStrategy := "CANCEL_IN_PROGRESS"
 		createWorkflowWithConcurrency(t, ctx, conf, s.tenantId, "shared-upsert-redeclare", []repo.CreateConcurrencyOpts{
 			{
-				Name:          "shared-limit",
-				TenantScoped:  true,
-				Expression:    "input.other_id",
-				MaxRuns:       &newMax,
-				LimitStrategy: &newStrategy,
+				Name:           "shared-limit",
+				IsTenantScoped: true,
+				Expression:     "input.other_id",
+				MaxRuns:        &newMax,
+				LimitStrategy:  &newStrategy,
 			},
 		})
 
@@ -513,11 +513,11 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 		}
 		workflowConcurrency := []repo.CreateConcurrencyOpts{
 			{
-				Name:          "wf-shared-limit",
-				TenantScoped:  true,
-				Expression:    "input.my_id",
-				MaxRuns:       &maxRuns,
-				LimitStrategy: &strategyType,
+				Name:           "wf-shared-limit",
+				IsTenantScoped: true,
+				Expression:     "input.my_id",
+				MaxRuns:        &maxRuns,
+				LimitStrategy:  &strategyType,
 			},
 		}
 
@@ -587,8 +587,8 @@ func TestConcurrency_SharedStrategy_OrderConflictRejected(t *testing.T) {
 
 		maxRuns := int32(1)
 		strategyType := "GROUP_ROUND_ROBIN"
-		t1 := repo.CreateConcurrencyOpts{Name: "order-t1", TenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
-		t2 := repo.CreateConcurrencyOpts{Name: "order-t2", TenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
+		t1 := repo.CreateConcurrencyOpts{Name: "order-t1", IsTenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
+		t2 := repo.CreateConcurrencyOpts{Name: "order-t2", IsTenantScoped: true, Expression: "input.my_id", MaxRuns: &maxRuns, LimitStrategy: &strategyType}
 
 		desc := "test workflow"
 
@@ -702,11 +702,11 @@ func TestConcurrency_SharedStrategy_RegisteredViaPutWorkflow(t *testing.T) {
 						Action:     "test:run",
 						Concurrency: []repo.CreateConcurrencyOpts{
 							{
-								Name:          "putwf-shared-limit",
-								TenantScoped:  true,
-								Expression:    "input.my_id",
-								MaxRuns:       &defMaxRuns,
-								LimitStrategy: &strategyType,
+								Name:           "putwf-shared-limit",
+								IsTenantScoped: true,
+								Expression:     "input.my_id",
+								MaxRuns:        &defMaxRuns,
+								LimitStrategy:  &strategyType,
 							},
 						},
 					},

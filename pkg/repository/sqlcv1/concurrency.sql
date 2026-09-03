@@ -1354,7 +1354,8 @@ SELECT
     tenant_id,
     strategy_id,
     is_filled,
-    schedule_timeout_at
+    schedule_timeout_at,
+    max_runs
 FROM v1_concurrency_slot
 WHERE tenant_id = @tenantId::UUID
 AND strategy_id = @strategyId::BIGINT
@@ -1370,40 +1371,6 @@ WHERE task_id = $2
   AND task_retry_count = $4
   AND strategy_id = $5
 RETURNING *;
-
--- name: UpsertTenantConcurrencyStrategies :exec
--- Single-statement bulk upsert: one registration touches all of a workflow's tenant
--- strategy rows at once, in name order, so concurrent registrations acquire row locks in
--- a consistent order and cannot deadlock each other.
-WITH input AS (
-    SELECT
-        unnest(@names::text[]) AS name,
-        unnest(cast(@strategies::text[] as v1_concurrency_strategy[])) AS strategy,
-        unnest(@expressions::text[]) AS expression,
-        unnest(@maxConcurrencies::int[]) AS max_concurrency
-)
-INSERT INTO v1_tenant_concurrency (
-    tenant_id,
-    name,
-    strategy,
-    expression,
-    max_concurrency
-)
-SELECT
-    @tenantId::uuid,
-    i.name,
-    i.strategy,
-    i.expression,
-    i.max_concurrency
-FROM input i
-ORDER BY i.name
-ON CONFLICT (tenant_id, name)
-DO UPDATE SET
-    strategy = EXCLUDED.strategy,
-    expression = EXCLUDED.expression,
-    max_concurrency = EXCLUDED.max_concurrency,
-    is_active = TRUE,
-    last_active_at = NOW();
 
 -- name: GetTenantConcurrencyStrategiesByNames :many
 SELECT

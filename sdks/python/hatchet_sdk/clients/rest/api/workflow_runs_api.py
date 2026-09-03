@@ -1399,6 +1399,12 @@ class WorkflowRunsApi:
                 description="The workflow run id to get",
             ),
         ],
+        include_orchestrator_events: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include the DAG orchestrator's task events, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1417,6 +1423,8 @@ class WorkflowRunsApi:
 
         :param v1_workflow_run: The workflow run id to get (required)
         :type v1_workflow_run: str
+        :param include_orchestrator_events: Whether to include the DAG orchestrator's task events, which are hidden by default
+        :type include_orchestrator_events: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1441,6 +1449,7 @@ class WorkflowRunsApi:
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
+            include_orchestrator_events=include_orchestrator_events,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1474,6 +1483,12 @@ class WorkflowRunsApi:
                 description="The workflow run id to get",
             ),
         ],
+        include_orchestrator_events: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include the DAG orchestrator's task events, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1492,6 +1507,8 @@ class WorkflowRunsApi:
 
         :param v1_workflow_run: The workflow run id to get (required)
         :type v1_workflow_run: str
+        :param include_orchestrator_events: Whether to include the DAG orchestrator's task events, which are hidden by default
+        :type include_orchestrator_events: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1516,6 +1533,7 @@ class WorkflowRunsApi:
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
+            include_orchestrator_events=include_orchestrator_events,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1549,6 +1567,12 @@ class WorkflowRunsApi:
                 description="The workflow run id to get",
             ),
         ],
+        include_orchestrator_events: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include the DAG orchestrator's task events, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1567,6 +1591,8 @@ class WorkflowRunsApi:
 
         :param v1_workflow_run: The workflow run id to get (required)
         :type v1_workflow_run: str
+        :param include_orchestrator_events: Whether to include the DAG orchestrator's task events, which are hidden by default
+        :type include_orchestrator_events: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1591,6 +1617,7 @@ class WorkflowRunsApi:
 
         _param = self._v1_workflow_run_get_serialize(
             v1_workflow_run=v1_workflow_run,
+            include_orchestrator_events=include_orchestrator_events,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1611,6 +1638,7 @@ class WorkflowRunsApi:
     def _v1_workflow_run_get_serialize(
         self,
         v1_workflow_run,
+        include_orchestrator_events,
         _request_auth,
         _content_type,
         _headers,
@@ -1634,6 +1662,12 @@ class WorkflowRunsApi:
         if v1_workflow_run is not None:
             _path_params["v1-workflow-run"] = v1_workflow_run
         # process the query parameters
+        if include_orchestrator_events is not None:
+
+            _query_params.append(
+                ("includeOrchestratorEvents", include_orchestrator_events)
+            )
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
