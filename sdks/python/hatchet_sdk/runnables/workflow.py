@@ -226,7 +226,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self._config.on_crons,
             tasks=tasks,
-            cron_input=self._serialize_input(self._config.cron_input, target="bytes"),
+            cron_input=(
+                self._serialize_input(self._config.cron_input, target="bytes")
+                if self._config.cron_input
+                else None
+            ),
             on_failure_task=on_failure_task,
             sticky=convert_python_literal_to_proto(
                 self._config.sticky, StickyStrategyProto
@@ -363,9 +367,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),
         )
 
-    def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str | None:
+    def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str:
         if self._config.input_validator is None:
-            return None
+            return "{}"
 
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
@@ -390,7 +394,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     @overload
     def _serialize_input(
         self, input: TWorkflowInput | None, target: Literal["bytes"] = "bytes"
-    ) -> str | None: ...
+    ) -> str: ...
 
     @overload
     def _serialize_input(
@@ -401,9 +405,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         input: TWorkflowInput | None,
         target: Literal["bytes"] | Literal["dict"] = "bytes",
-    ) -> JSONSerializableMapping | str | None:
+    ) -> JSONSerializableMapping | str:
         if not input:
-            return None
+            return "{}" if target == "bytes" else {}
 
         if target == "bytes":
             return self._serialize_input_to_bytes(input)
@@ -1795,6 +1799,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             if origin is dict and len(args) == 2:
                 return_type = args[1]
 
+        self._task_returns_none = return_type is type(None)
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
             normalize_validator(return_type)
         )
@@ -1810,6 +1815,9 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     ) -> R | BaseException:
         if isinstance(result, BaseException):
             return result
+
+        if self._task_returns_none:
+            return cast("R", None)
 
         # if a task is cancelled, we can get `None` back here
         ## this is a bit of an edge case since both `None` and an empty dict

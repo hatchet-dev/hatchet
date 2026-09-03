@@ -1,6 +1,4 @@
-from datetime import datetime, timedelta, timezone
 from datetime import datetime, timezone
-from uuid import uuid4
 
 import pytest
 import tenacity
@@ -12,10 +10,8 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -98,7 +94,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
                 f"(statuses: {summarize_statuses(rows)})"
             )
 
-        return runs
+        return rows
 
     await wait_for_all_failed()
 
@@ -141,7 +137,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
                 f"(statuses: {summarize_statuses(rows)})"
             )
 
-        return runs
+        return rows
 
     runs = await wait_for_replayed_completed()
 

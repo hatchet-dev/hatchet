@@ -692,7 +692,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return await wrapped(
                 event_key,
                 payload,
-                None,
                 _inject_source_info(
                     _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),

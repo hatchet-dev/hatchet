@@ -59,7 +59,7 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
             len(tasks) >= 2
             and all(
                 t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED]
-                for t in run.tasks
+                for t in tasks
             )
         ),
     )
