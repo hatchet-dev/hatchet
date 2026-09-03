@@ -344,7 +344,11 @@ class Worker:
             logger.exception(f"failed to register workflow: {opts.name}")
             sys.exit(1)
 
-    async def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
+    def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
+        for workflow in workflows:
+            self.register_workflow(workflow)
+
+    def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         if not workflow.tasks:
             msg = f"failed to register workflow: {workflow.name}. Workflows must have at least one task registered before registering"
             raise ValueError(msg)
@@ -359,6 +363,9 @@ class Worker:
             action_name = workflow._create_action_name(step)
 
             self._action_registry[action_name] = step
+
+    async def aio_register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
+        await asyncio.to_thread(self.register_workflow, workflow)
 
     @property
     def status(self) -> WorkerStatus:
@@ -489,7 +496,7 @@ class Worker:
         self._status = WorkerStatus.STARTING
 
         await gather_max_concurrency(
-            *[self.register_workflow(wf) for wf in self._workflows],
+            *[self.aio_register_workflow(wf) for wf in self._workflows],
             max_concurrency=5,
         )
 
