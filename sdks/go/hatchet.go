@@ -48,6 +48,48 @@
 //   - Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/on-failure
 //
 // View all examples: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples
+//
+// # Documentation for agents
+//
+// The linked pages serve plain markdown for tools and agents. Full docs index: https://docs.hatchet.run/llms.txt
+//
+// Setup and local development:
+//
+//   - Quickstart: https://docs.hatchet.run/v1/quickstart.md
+//   - Running Hatchet locally: https://docs.hatchet.run/v1/running-locally.md
+//   - Embedded mode: https://docs.hatchet.run/v1/embedded.md
+//
+// Core concepts:
+//
+//   - Tasks: https://docs.hatchet.run/v1/tasks.md
+//   - Workers: https://docs.hatchet.run/v1/workers.md
+//   - Running tasks: https://docs.hatchet.run/v1/running-your-task.md
+//   - DAGs: https://docs.hatchet.run/v1/directed-acyclic-graphs.md
+//   - Durable execution: https://docs.hatchet.run/v1/durable-execution.md
+//
+// Flow control:
+//
+//   - Concurrency: https://docs.hatchet.run/v1/concurrency.md
+//   - Rate limits: https://docs.hatchet.run/v1/rate-limits.md
+//   - Retries: https://docs.hatchet.run/v1/retry-policies.md
+//   - Idempotency: https://docs.hatchet.run/v1/idempotency.md
+//   - CEL expressions: https://docs.hatchet.run/v1/cel-expressions.md
+//
+// Go SDK reference (overview: https://docs.hatchet.run/reference/go.md):
+//
+//   - CEL: https://docs.hatchet.run/reference/go/feature-clients/cel.md
+//   - Crons: https://docs.hatchet.run/reference/go/feature-clients/crons.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
+//   - Filters: https://docs.hatchet.run/reference/go/feature-clients/filters.md (guide: https://docs.hatchet.run/v1/events.md)
+//   - Logs: https://docs.hatchet.run/reference/go/feature-clients/logs.md (guide: https://docs.hatchet.run/v1/logging.md)
+//   - Metrics: https://docs.hatchet.run/reference/go/feature-clients/metrics.md (guide: https://docs.hatchet.run/v1/prometheus-metrics.md)
+//   - Rate Limits: https://docs.hatchet.run/reference/go/feature-clients/ratelimits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
+//   - Runs: https://docs.hatchet.run/reference/go/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
+//   - Scheduled Runs: https://docs.hatchet.run/reference/go/feature-clients/schedules.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+//   - Webhooks: https://docs.hatchet.run/reference/go/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)
+//   - Workers: https://docs.hatchet.run/reference/go/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
+//   - Workflows: https://docs.hatchet.run/reference/go/feature-clients/workflows.md (guide: https://docs.hatchet.run/v1/tasks.md)
+//
+//hatchet:agent-docs-generated (do not edit; regenerate with `go run ./docs/generator`)
 package hatchet
 
 import (
