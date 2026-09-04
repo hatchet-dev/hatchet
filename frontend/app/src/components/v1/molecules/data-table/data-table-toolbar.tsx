@@ -32,12 +32,10 @@ export interface TimeRangeConfig {
   onCreatedAfterChange?: (date?: string) => void;
   onFinishedBeforeChange?: (date?: string) => void;
   onClearTimeRange?: () => void;
-  onRetentionBlocked?: (date: Date) => void;
   currentTimeWindow?: string;
   isCustomTimeRange?: boolean;
   createdAfter?: string;
   finishedBefore?: string;
-  retentionPeriod?: string;
 }
 
 export interface FilterSearchConfig {

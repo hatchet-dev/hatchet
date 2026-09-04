@@ -12,7 +12,7 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
-import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -26,10 +26,10 @@ import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { isBeforeRetention } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -89,6 +89,7 @@ const GetWorkflowChart = () => {
 
 export function RunsTable({ leftLabel }: { leftLabel?: string }) {
   const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
   const sidePanel = useSidePanel();
   const { setIsFrozen } = useRefetchInterval();
 
@@ -216,9 +217,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     !!filters.apiFilters.runningFilter ||
     filters.isCustomTimeRange ||
     filters.timeWindow !== '1d';
-  const retainedLabel = filters.retentionPeriod
-    ? formatRetentionPeriod(filters.retentionPeriod)
-    : '1 day';
+  const isDefaultOneDayWindow =
+    !filters.isCustomTimeRange && filters.timeWindow === '1d';
+  const isOutsideRetention = Boolean(
+    tenant?.dataRetentionPeriod &&
+      isBeforeRetention(filters.apiFilters.since, tenant.dataRetentionPeriod),
+  );
 
   const leftActions = [
     ...(!hideCounts
@@ -276,11 +280,9 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      <RetentionUpgradeDialog
-        attempt={filters.retentionGate.attempt}
-        retentionPeriod={filters.retentionPeriod}
-        onClose={filters.retentionGate.close}
-      />
+      {isOutsideRetention && tenant?.dataRetentionPeriod ? (
+        <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />
+      ) : null}
 
       <div className="min-h-0 flex-1">
         <DataTable
@@ -298,15 +300,15 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
             ) : (
               <EmptyState
                 title="No runs found"
-                description={`No runs in the last ${retainedLabel}.`}
+                description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
                 docPage={docsPages.v1.quickstart}
                 docLabel="Learn about running tasks"
                 buttons={
-                  filters.isDefaultOneDayWindow
+                  isDefaultOneDayWindow
                     ? [
                         {
-                          label: 'Search all retained history',
-                          onClick: filters.searchAllRetainedHistory,
+                          label: 'Search past 7 days',
+                          onClick: () => filters.setTimeWindow('7d'),
                         },
                       ]
                     : undefined

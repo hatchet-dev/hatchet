@@ -20,16 +20,17 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
+import { RetentionBanner } from '@/components/v1/retention-banner';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { isBeforeRetention } from '@/lib/utils/retention';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -78,15 +79,16 @@ function EventsTable() {
     timeRangeConfig,
     hasActiveFilters,
     isDefaultOneDayWindow,
-    searchAllRetainedHistory,
-    retentionPeriod,
-    retentionGate,
+    setTimeWindow,
+    since,
   } = useEvents({
     key: 'table',
   });
-  const retainedLabel = retentionPeriod
-    ? formatRetentionPeriod(retentionPeriod)
-    : '1 day';
+  const { tenant } = useTenantDetails();
+  const isOutsideRetention = Boolean(
+    tenant?.dataRetentionPeriod &&
+      isBeforeRetention(since, tenant.dataRetentionPeriod),
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:events', {
@@ -112,11 +114,11 @@ function EventsTable() {
 
   return (
     <>
-      <RetentionUpgradeDialog
-        attempt={retentionGate.attempt}
-        retentionPeriod={retentionPeriod}
-        onClose={retentionGate.close}
-      />
+      {isOutsideRetention && tenant?.dataRetentionPeriod ? (
+        <div className="mb-4">
+          <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />
+        </div>
+      ) : null}
       <DataTable
         error={error}
         isLoading={isLoading}
@@ -192,15 +194,15 @@ function EventsTable() {
           ) : (
             <EmptyState
               title="No events found"
-              description={`No events in the last ${retainedLabel}.`}
+              description="Events are payloads you push to Hatchet to trigger workflows. No events have been received yet."
               docPage={docsPages.v1.events}
               docLabel="Learn about events"
               buttons={
                 isDefaultOneDayWindow
                   ? [
                       {
-                        label: 'Search all retained history',
-                        onClick: searchAllRetainedHistory,
+                        label: 'Search past 7 days',
+                        onClick: () => setTimeWindow('7d'),
                       },
                     ]
                   : undefined
