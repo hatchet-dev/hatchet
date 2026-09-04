@@ -1167,7 +1167,6 @@ SELECT
 FROM v1_task_runtime rt
 JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
 WHERE rt.tenant_id = @tenantId::uuid
-    AND rt.evicted_at IS NOT NULL
     AND rt.evicted_at < NOW() - @gracePeriod::interval
     AND t.is_dag_orchestrator
     AND EXISTS (
