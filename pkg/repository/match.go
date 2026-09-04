@@ -846,6 +846,15 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		}
 	}
 
+	// JIT compilation has been implicated in postgres backend segfaults on this query,
+	// so it is disabled for the rest of this transaction unless DATABASE_ENABLE_JIT=true.
+	// SET LOCAL resets at commit/rollback, so other transactions are unaffected.
+	if !m.enableJIT {
+		if _, err := tx.Exec(ctx, "SET LOCAL jit = off"); err != nil {
+			return nil, fmt.Errorf("failed to disable jit: %w", err)
+		}
+	}
+
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
 		Branchids:              durableTaskBranchIds,

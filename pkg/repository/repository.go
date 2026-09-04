@@ -107,10 +107,11 @@ func NewRepository(
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
 	durableEventBufferOpts DurableEventBufferOpts,
+	enableJIT bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, enableJIT)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

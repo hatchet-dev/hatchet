@@ -47,6 +47,12 @@ type ConfigFile struct {
 
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 
+	// EnableJIT controls PostgreSQL JIT compilation for queries known to trigger JIT-related
+	// backend segfaults (currently UpdateDurableEventLogEntriesSatisfied). When false, those
+	// queries run with SET LOCAL jit = off in their transaction. Set DATABASE_ENABLE_JIT=true
+	// to leave the server's jit setting untouched.
+	EnableJIT bool `mapstructure:"enableJit" json:"enableJit,omitempty" default:"false"`
+
 	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
 
 	// EnforceUTCTimezone enforces that the database instance timezone is set to UTC.
@@ -94,6 +100,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
 	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
 	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
+	_ = v.BindEnv("enableJit", "DATABASE_ENABLE_JIT")
 	_ = v.BindEnv("maxConns", "DATABASE_MAX_CONNS")
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")

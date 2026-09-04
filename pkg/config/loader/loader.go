@@ -411,6 +411,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		scf.Runtime.Limits,
 		scf.Runtime.EnforceLimits,
 		durableEventBufferOpts,
+		cf.EnableJIT,
 	)
 
 	if readReplicaPool != nil {

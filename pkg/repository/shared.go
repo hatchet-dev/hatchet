@@ -54,6 +54,10 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
+
+	// enableJIT controls PostgreSQL JIT compilation for queries known to trigger
+	// JIT-related backend segfaults; when false, those queries run with SET LOCAL jit = off
+	enableJIT bool
 }
 
 func newSharedRepository(
@@ -64,6 +68,7 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
+	enableJIT bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -118,6 +123,7 @@ func newSharedRepository(
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
+		enableJIT:                   enableJIT,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
