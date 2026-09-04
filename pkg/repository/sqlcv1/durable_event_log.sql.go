@@ -977,6 +977,7 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.tenant_id = $4::UUID
 )
 
 SELECT
@@ -996,6 +997,7 @@ type ListSatisfiedEntriesParams struct {
 	Taskexternalids []uuid.UUID `json:"taskexternalids"`
 	Nodeids         []int64     `json:"nodeids"`
 	Branchids       []int64     `json:"branchids"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
 }
 
 type ListSatisfiedEntriesRow struct {
@@ -1024,7 +1026,12 @@ type ListSatisfiedEntriesRow struct {
 }
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
-	rows, err := db.Query(ctx, listSatisfiedEntries, arg.Taskexternalids, arg.Nodeids, arg.Branchids)
+	rows, err := db.Query(ctx, listSatisfiedEntries,
+		arg.Taskexternalids,
+		arg.Nodeids,
+		arg.Branchids,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

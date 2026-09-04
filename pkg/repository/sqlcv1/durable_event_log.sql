@@ -209,6 +209,7 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.tenant_id = @tenantId::UUID
 )
 
 SELECT

@@ -712,6 +712,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		Taskexternalids: taskExternalIds,
 		Nodeids:         nodeIds,
 		Branchids:       branchIds,
+		Tenantid:        tenantId,
 	})
 
 	if err != nil {
