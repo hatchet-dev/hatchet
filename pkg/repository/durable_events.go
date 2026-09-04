@@ -2058,7 +2058,9 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 					idempotencyKey = key
 				}
 
-				childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
+				if _, exists := childExternalIdToTriggerOpts[triggerOpts.ExternalId]; !exists {
+					childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
+				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
 					Kind:                sqlcv1.V1DurableEventLogKindRUN,
@@ -2073,7 +2075,9 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			nonSkipOffset++
 			branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
-			childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
+			if _, exists := childExternalIdToTriggerOpts[triggerOpts.ExternalId]; !exists {
+				childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
+			}
 
 			inputPayload, marshalErr := json.Marshal(triggerOpts)
 			if marshalErr != nil {
