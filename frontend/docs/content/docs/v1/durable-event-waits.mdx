@@ -45,7 +45,7 @@ Your durable tasks can establish an event wait by using helper methods on the `D
 
 ## Matching CEL expressions
 
-In general, you'll want to match the payload of the incoming event to some data that your task knows about to make sure the event you receive is the _right_ one. For instance, you might want to make sure that the event payload contains the correct user or organization id in order to consider the event wait as having been completed. To do this, you can provide a [CEL expression](https://celbyexample.com/) in addition to the event key when establishing the wait.
+In general, you'll want to match the payload of the incoming event to some data that your task knows about to make sure the event you receive is the _right_ one. For instance, you might want to make sure that the event payload contains the correct user or organization id in order to consider the event wait as having been completed. To do this, you can provide a [CEL expression](/v1/cel-expressions) in addition to the event key when establishing the wait.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
