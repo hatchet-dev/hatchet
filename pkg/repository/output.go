@@ -76,11 +76,11 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	return e
 }
 
-func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent {
+func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload, cancelMessage *string) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
 
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
-	e.CancellationReason = &task.Queue
+	e.CancellationReason = cancelMessage
 
 	return e
 }
