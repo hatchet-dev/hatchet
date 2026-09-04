@@ -95,6 +95,12 @@ func newValidator() *validator.Validate {
 		return celParser.ValidateWorkflowStringAsInt(fl.Field().String()) == nil
 	})
 
+	_ = validate.RegisterValidation("celidempotencykeystr", func(fl validator.FieldLevel) bool {
+		_, err := celParser.ParseIdempotencyKey(fl.Field().String())
+
+		return err == nil
+	})
+
 	_ = validate.RegisterValidation("future", func(fl validator.FieldLevel) bool {
 		if t, ok := fl.Field().Interface().(time.Time); ok {
 			return t.After(time.Now())
