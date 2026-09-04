@@ -13,7 +13,6 @@ import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-s
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
-import { RetentionBanner } from '@/components/v1/retention-banner';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
@@ -25,9 +24,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { docsPages } from '@/lib/generated/docs';
-import { isBeforeRetention } from '@/lib/utils/retention';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -73,11 +70,6 @@ function TenantLogs() {
     isDefaultOneDayWindow,
     resetFilters,
   } = useTenantLogs();
-  const { tenant } = useTenantDetails();
-  const isOutsideRetention = Boolean(
-    tenant?.dataRetentionPeriod &&
-      isBeforeRetention(chartSince, tenant.dataRetentionPeriod),
-  );
 
   const sidePanel = useSidePanel();
 
@@ -189,9 +181,6 @@ function TenantLogs() {
           onRefetch={refetch}
         />
       </div>
-      {isOutsideRetention && tenant?.dataRetentionPeriod ? (
-        <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />
-      ) : null}
       <LogViewer
         key={queryString + chartSince + (chartUntil ?? '')}
         logs={logs}

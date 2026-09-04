@@ -20,17 +20,14 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { RetentionBanner } from '@/components/v1/retention-banner';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
-import { isBeforeRetention } from '@/lib/utils/retention';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -80,15 +77,9 @@ function EventsTable() {
     hasActiveFilters,
     isDefaultOneDayWindow,
     setTimeWindow,
-    since,
   } = useEvents({
     key: 'table',
   });
-  const { tenant } = useTenantDetails();
-  const isOutsideRetention = Boolean(
-    tenant?.dataRetentionPeriod &&
-      isBeforeRetention(since, tenant.dataRetentionPeriod),
-  );
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:events', {
@@ -114,11 +105,6 @@ function EventsTable() {
 
   return (
     <>
-      {isOutsideRetention && tenant?.dataRetentionPeriod ? (
-        <div className="mb-4">
-          <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />
-        </div>
-      ) : null}
       <DataTable
         error={error}
         isLoading={isLoading}

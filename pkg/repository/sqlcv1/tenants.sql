@@ -35,8 +35,7 @@ SET
     "name" = COALESCE(sqlc.narg('name')::text, "name"),
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
-    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
-    "dataRetentionPeriod" = COALESCE(sqlc.narg('dataRetentionPeriod')::text, "dataRetentionPeriod")
+    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
@@ -613,8 +612,7 @@ SELECT
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",
-    t."environment" as "tenantEnvironment",
-    t."dataRetentionPeriod" as "tenantDataRetentionPeriod"
+    t."environment" as "tenantEnvironment"
 FROM
     "TenantMember" tm
 JOIN

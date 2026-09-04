@@ -23,7 +23,6 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import { RetentionBanner } from '@/components/v1/retention-banner';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -37,7 +36,6 @@ import {
 } from '@/components/v1/ui/tabs';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -46,7 +44,6 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
-import { isBeforeRetention } from '@/lib/utils/retention';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes, tenantRunRoute } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -144,7 +141,6 @@ export default function Run() {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
   const { run } = params;
   const { wasRedirectedFromTrigger } = tenantRunRoute.useSearch();
-  const { tenant } = useTenantDetails();
 
   // Once we've shown the redirect-404 page, stay on it during subsequent refetches
   // instead of flashing back to the full-page spinner (which would unmount the component
@@ -265,20 +261,6 @@ export default function Run() {
 
   if (!runData) {
     return null;
-  }
-
-  const createdAt =
-    runData.task?.createdAt ??
-    runData.task?.metadata.createdAt ??
-    runData.dag?.run.metadata.createdAt;
-  const isOutsideRetention = Boolean(
-    createdAt &&
-      tenant?.dataRetentionPeriod &&
-      isBeforeRetention(createdAt, tenant.dataRetentionPeriod),
-  );
-
-  if (isOutsideRetention && tenant?.dataRetentionPeriod) {
-    return <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />;
   }
 
   if (runData.type === 'task') {
