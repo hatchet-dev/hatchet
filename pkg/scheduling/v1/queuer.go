@@ -62,8 +62,6 @@ type Queuer struct {
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
 
-	hasRateLimits bool
-
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
@@ -221,15 +219,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		start := time.Now()
 		checkpoint := start
-		var err error
 
-		if q.hasRateLimits {
-			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
-
-			if err != nil {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-			}
-		}
+		q.requeueRateLimitedItems(ctx)
 
 		qis, err := q.refillQueue(ctx)
 
@@ -268,10 +259,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 			q.unackedToUnassigned(qis)
 			continue
-		}
-
-		if len(rls) > 0 {
-			q.hasRateLimits = true
 		}
 
 		rateLimitTime := time.Since(checkpoint)
@@ -503,6 +490,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
 		}(start)
+	}
+}
+
+func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
+	_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+
+	if err != nil {
+		q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 	}
 }
 
