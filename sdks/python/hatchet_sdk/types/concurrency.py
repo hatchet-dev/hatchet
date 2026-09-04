@@ -29,10 +29,10 @@ class ConcurrencyStrategy(BaseModel):
             strategies must order them consistently.
 
     Example:
-        ConcurrencyExpression("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+        ConcurrencyStrategy("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
 
     Example (tenant-scoped, shared across workflows):
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.group",
             max_runs=1,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,

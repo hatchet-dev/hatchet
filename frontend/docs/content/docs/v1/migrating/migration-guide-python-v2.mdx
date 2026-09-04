@@ -163,14 +163,14 @@ This applies everywhere a priority is accepted: `default_priority` on `workflow(
 
 ```python
 # V1
-from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy
+from hatchet_sdk import ConcurrencyStrategy
 
 workflow = hatchet.workflow(
     name="MyWorkflow",
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.user_id",
         max_runs=5,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
 )
 ```
