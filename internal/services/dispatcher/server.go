@@ -1355,10 +1355,11 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 		case sqlcv1.V1TaskEventTypeCANCELLED:
 			//FIXME: this should be more specific for schedule timeouts
 			return &contracts.StepRunResult{
-				TaskRunExternalId: event.TaskExternalId.String(),
-				TaskName:          event.StepReadableID,
-				JobRunId:          event.TaskExternalId.String(),
-				Error:             &event.ErrorMessage,
+				TaskRunExternalId:  event.TaskExternalId.String(),
+				TaskName:           event.StepReadableID,
+				JobRunId:           event.TaskExternalId.String(),
+				Error:              &event.ErrorMessage,
+				CancellationReason: event.CancellationReason,
 			}
 		}
 		return nil
@@ -1504,11 +1505,14 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		false,
 		true,
 		tasktypes.CancelTasksPayload{
-			Tasks: []v1.TaskIdInsertedAtRetryCount{
+			Tasks: []tasktypes.CancelTaskPayloadSingleton{
 				{
-					Id:         task.ID,
-					InsertedAt: task.InsertedAt,
-					RetryCount: retryCount,
+					TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+						Id:         task.ID,
+						InsertedAt: task.InsertedAt,
+						RetryCount: retryCount,
+					},
+					CancellationReason: "cancelled by user request",
 				},
 			},
 		},
@@ -2063,13 +2067,16 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		WorkerId: request.WorkerId,
 	}
 
-	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+	tasksToCancel := make([]tasktypes.CancelTaskPayloadSingleton, 0, len(tasks))
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+		tasksToCancel = append(tasksToCancel, tasktypes.CancelTaskPayloadSingleton{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			CancellationReason: "batch task cancelled", // fixme - correct this
 		})
 	}
 
