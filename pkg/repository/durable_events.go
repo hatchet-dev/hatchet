@@ -192,9 +192,9 @@ func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBuffe
 type durableTaskId int64
 
 type appendDurableEventLogResult struct {
-	logEntries                  []*EventLogEntryWithPayloads
-	nodeIdBranchIdToTriggerOpts map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts
-	childrenToReplay            map[uuid.UUID]bool
+	logEntries                   []*EventLogEntryWithPayloads
+	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
+	childrenToReplay             map[uuid.UUID]bool
 }
 
 type durableEventIngestResponse struct {
@@ -1477,7 +1477,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	}
 
 	logEntries := appendResult.logEntries
-	nodeIdBranchIdToTriggerOpts := appendResult.nodeIdBranchIdToTriggerOpts
+	childExternalIdToTriggerOpts := appendResult.childExternalIdToTriggerOpts
 	childrenToReplay := appendResult.childrenToReplay
 
 	var memoResult *IngestMemoResult
@@ -1549,10 +1549,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				continue
 			}
 
-			key := NodeIdBranchIdTuple{NodeId: le.Entry.NodeID, BranchId: le.Entry.BranchID}
-			triggerOpts, ok := nodeIdBranchIdToTriggerOpts[key]
+			// child external id is stable across replays so use that to get triggerOpts
+			triggerOpts, ok := childExternalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
 			if !ok {
-				return nil, fmt.Errorf("untriggered RUN log entry at nodeId %d branchId %d has no matching trigger in the request", le.Entry.NodeID, le.Entry.BranchID)
+				return nil, fmt.Errorf("untriggered RUN log entry at nodeId %d branchId %d (child %s) has no matching trigger in the request", le.Entry.NodeID, le.Entry.BranchID, *le.Entry.ChildTaskExternalID)
 			}
 
 			// trigger using the child external id already committed on the entry so re-triggering
@@ -1996,9 +1996,9 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 
 	for taskId, plan := range planByTaskId {
 		results[taskId] = &appendDurableEventLogResult{
-			logEntries:                  logEntriesByTaskId[taskId],
-			nodeIdBranchIdToTriggerOpts: plan.nodeIdBranchIdToTriggerOpts,
-			childrenToReplay:            plan.childrenToReplay,
+			logEntries:                   logEntriesByTaskId[taskId],
+			childExternalIdToTriggerOpts: plan.childExternalIdToTriggerOpts,
+			childrenToReplay:             plan.childrenToReplay,
 		}
 	}
 
@@ -2006,10 +2006,10 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 }
 
 type durableEventLogAppendPlan struct {
-	opts                        IngestDurableTaskEventOpts
-	getOrCreateOpts             GetOrCreateLogEntryOpts
-	nodeIdBranchIdToTriggerOpts map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts
-	childrenToReplay            map[uuid.UUID]bool
+	opts                         IngestDurableTaskEventOpts
+	getOrCreateOpts              GetOrCreateLogEntryOpts
+	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
+	childrenToReplay             map[uuid.UUID]bool
 }
 
 // planDurableEventLogAppend builds the log entries to get-or-create for one task in the batch. A
@@ -2029,7 +2029,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 
 	var getOrCreateOpts GetOrCreateLogEntryOpts
 
-	nodeIdBranchIdToTriggerOpts := make(map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts)
+	childExternalIdToTriggerOpts := make(map[uuid.UUID]*WorkflowNameTriggerOpts)
 	childrenToReplay := make(map[uuid.UUID]bool)
 
 	switch opts.Kind {
@@ -2058,6 +2058,8 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 					idempotencyKey = key
 				}
 
+				childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
+
 				innerOpts[i] = GetOrCreateLogEntryOpt{
 					Kind:                sqlcv1.V1DurableEventLogKindRUN,
 					ChildTaskExternalId: triggerOpts.ExternalId,
@@ -2071,7 +2073,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			nonSkipOffset++
 			branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
-			nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}] = triggerOpts
+			childExternalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
 
 			inputPayload, marshalErr := json.Marshal(triggerOpts)
 			if marshalErr != nil {
@@ -2169,10 +2171,10 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 	}
 
 	return &durableEventLogAppendPlan{
-		opts:                        opts,
-		getOrCreateOpts:             getOrCreateOpts,
-		nodeIdBranchIdToTriggerOpts: nodeIdBranchIdToTriggerOpts,
-		childrenToReplay:            childrenToReplay,
+		opts:                         opts,
+		getOrCreateOpts:              getOrCreateOpts,
+		childExternalIdToTriggerOpts: childExternalIdToTriggerOpts,
+		childrenToReplay:             childrenToReplay,
 	}, nil, nil
 }
 
