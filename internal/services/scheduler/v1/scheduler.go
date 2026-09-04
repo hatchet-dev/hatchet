@@ -1455,6 +1455,15 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 	return nil
 }
 
+// maxDurableCallbackRedeliveries bounds the dead-letter retry loop for a durable callback that
+// no dispatcher can deliver (no active session). Each re-dispatch re-looks-up the task's
+// dispatcher, so a worker reconnecting mid-loop gets its callback; but without a cap this loops
+// forever (the dispatcher rejects -> DLX -> here -> fresh publish -> reject ...), which is a
+// self-inflicted storm during an engine roll. After the cap we drop it and rely on the worker's
+// GetSatisfiedDurableEvents poll on wait re-registration, timeout reassignment of the orphaned
+// task, or the OLAP reconcile sweeps.
+const maxDurableCallbackRedeliveries = 50
+
 func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Context, msg *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](msg.Payloads)
 
@@ -1482,6 +1491,11 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 			continue
 		}
 
+		if p.RedeliveryCount >= maxDurableCallbackRedeliveries {
+			s.l.Error().Ctx(ctx).Msgf("giving up on undelivered durable callback for task %s node %d after %d redeliveries; worker never re-registered its durable session. recovery now depends on task reassignment or reconcile.", p.TaskExternalId, p.NodeId, p.RedeliveryCount)
+			continue
+		}
+
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
 			DurableTaskId:         t.ID,
 			DurableTaskInsertedAt: t.InsertedAt,
@@ -1492,6 +1506,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 			Data:                  p.Payload,
 			ChildTaskIsFailure:    p.ChildTaskIsFailure,
 			ChildTaskErrorMessage: p.ChildTaskErrorMessage,
+			RedeliveryCount:       p.RedeliveryCount + 1,
 		})
 	}
 

@@ -265,10 +265,14 @@ type DurableCallbackCompletedPayload struct {
 	NodeId                int64
 	InvocationCount       int32
 	TaskExternalId        uuid.UUID
+	// RedeliveryCount is bumped each time the dead-letter path re-dispatches this callback
+	// because no dispatcher had an active durable session for the task. It bounds that retry
+	// loop (see handleDeadLetteredDurableCallbackCompleted).
+	RedeliveryCount int32 `json:"redelivery_count,omitempty"`
 }
 
 func DurableCallbackCompletedMessage(
-	tenantId, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, childTaskIsFailure bool, childTaskErrorMessage *string,
+	tenantId, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, childTaskIsFailure bool, childTaskErrorMessage *string, redeliveryCount int32,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -284,6 +288,7 @@ func DurableCallbackCompletedMessage(
 			SatisfiedOrder:        satisfiedOrder,
 			ChildTaskIsFailure:    childTaskIsFailure,
 			ChildTaskErrorMessage: childTaskErrorMessage,
+			RedeliveryCount:       redeliveryCount,
 		},
 	)
 }

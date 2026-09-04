@@ -85,6 +85,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 			cb.SatisfiedOrder,
 			cb.ChildTaskIsFailure,
 			cb.ChildTaskErrorMessage,
+			cb.RedeliveryCount,
 		)
 		if err != nil {
 			l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId.String(), cb.NodeId)

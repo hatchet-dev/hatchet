@@ -177,6 +177,9 @@ type SatisfiedEntry struct {
 	SatisfiedOrder        *int64
 	InvocationCount       int32
 	DurableTaskExternalId uuid.UUID
+	// RedeliveryCount is non-zero only when this entry is being re-dispatched from the
+	// dead-letter path; it bounds that retry loop.
+	RedeliveryCount int32
 }
 
 type MatchRepository interface {

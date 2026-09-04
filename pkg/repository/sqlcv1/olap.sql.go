@@ -3398,6 +3398,59 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const reconcileOperatorDAGStatusesOnCreate = `-- name: ReconcileOperatorDAGStatusesOnCreate :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS dag_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at
+), latest_event AS (
+    SELECT DISTINCT ON (e.task_id, e.task_inserted_at)
+        e.task_id,
+        e.task_inserted_at,
+        e.readable_status,
+        e.retry_count
+    FROM v1_task_events_olap e
+    -- dag operator task ids are the same as the dag ids
+    JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
+    ORDER BY
+        e.task_id,
+        e.task_inserted_at,
+        e.retry_count DESC,
+        v1_status_to_priority(e.readable_status) DESC,
+        e.id DESC
+)
+UPDATE v1_dags_olap d
+SET
+    readable_status = le.readable_status,
+    latest_retry_count = le.retry_count
+FROM latest_event le
+WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND (
+        le.retry_count > d.latest_retry_count
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND v1_status_to_priority(le.readable_status) > v1_status_to_priority(d.readable_status)
+        )
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND d.readable_status = 'EVICTED'
+            AND le.readable_status != 'EVICTED'
+        )
+    )
+`
+
+type ReconcileOperatorDAGStatusesOnCreateParams struct {
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+}
+
+// An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
+// This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
+func (q *Queries) ReconcileOperatorDAGStatusesOnCreate(ctx context.Context, db DBTX, arg ReconcileOperatorDAGStatusesOnCreateParams) error {
+	_, err := db.Exec(ctx, reconcileOperatorDAGStatusesOnCreate, arg.Dagids, arg.Daginsertedats)
+	return err
+}
+
 const reconcileTaskStatusesFromEvents = `-- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
     SELECT

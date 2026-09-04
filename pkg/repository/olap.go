@@ -2518,6 +2518,11 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		if err != nil {
 			return nil, err
 		}
+
+		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams(selfMappingParams))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
