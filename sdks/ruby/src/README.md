@@ -40,7 +40,7 @@ Flow control:
 
 Ruby SDK reference (overview: https://docs.hatchet.run/reference/ruby.md):
 
-- CEL: https://docs.hatchet.run/reference/ruby/feature-clients/cel.md
+- CEL: https://docs.hatchet.run/reference/ruby/feature-clients/cel.md (guide: https://docs.hatchet.run/v1/cel-expressions.md)
 - Crons: https://docs.hatchet.run/reference/ruby/feature-clients/cron.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
 - Events: https://docs.hatchet.run/reference/ruby/feature-clients/events.md (guide: https://docs.hatchet.run/v1/events.md)
 - Filters: https://docs.hatchet.run/reference/ruby/feature-clients/filters.md (guide: https://docs.hatchet.run/v1/events.md)

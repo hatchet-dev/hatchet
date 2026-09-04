@@ -77,7 +77,7 @@
 //
 // Go SDK reference (overview: https://docs.hatchet.run/reference/go.md):
 //
-//   - CEL: https://docs.hatchet.run/reference/go/feature-clients/cel.md
+//   - CEL: https://docs.hatchet.run/reference/go/feature-clients/cel.md (guide: https://docs.hatchet.run/v1/cel-expressions.md)
 //   - Crons: https://docs.hatchet.run/reference/go/feature-clients/crons.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
 //   - Filters: https://docs.hatchet.run/reference/go/feature-clients/filters.md (guide: https://docs.hatchet.run/v1/events.md)
 //   - Logs: https://docs.hatchet.run/reference/go/feature-clients/logs.md (guide: https://docs.hatchet.run/v1/logging.md)
