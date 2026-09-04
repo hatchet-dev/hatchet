@@ -168,6 +168,8 @@ type AdminClient interface {
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
 
 	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
+	// BulkRunWorkflows triggers multiple workflow runs in a single request. The returned runs are in the same order as the inputs.
+	BulkRunWorkflows(workflows []*WorkflowRun) ([]*Workflow, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
@@ -191,6 +193,39 @@ type IdempotencyViolationErr struct {
 
 func (e *IdempotencyViolationErr) Error() string {
 	return fmt.Sprintf("idempotency key collision: existing run %s", e.ExistingRunExternalId)
+}
+
+// BulkIdempotencyViolationErr is returned when one or more runs in a bulk trigger collide on idempotency keys.
+type BulkIdempotencyViolationErr struct {
+	SuccessfulRunExternalIds []string
+	Collisions               []*IdempotencyViolationErr
+}
+
+func (e *BulkIdempotencyViolationErr) Error() string {
+	return fmt.Sprintf("idempotency key collision in bulk trigger: %d successful, %d collision(s)", len(e.SuccessfulRunExternalIds), len(e.Collisions))
+}
+
+func parseBulkTriggerErr(err error) error {
+	if status.Code(err) != codes.AlreadyExists {
+		return fmt.Errorf("could not bulk trigger workflows: %w", err)
+	}
+
+	if st, ok := status.FromError(err); ok {
+		for _, detail := range st.Details() {
+			if bulkErr, ok := detail.(*v1contracts.BulkTriggerIdempotencyCollisionError); ok {
+				collisions := make([]*IdempotencyViolationErr, len(bulkErr.Collisions))
+				for i, c := range bulkErr.Collisions {
+					collisions[i] = &IdempotencyViolationErr{ExistingRunExternalId: c.GetExistingRunExternalId()}
+				}
+				return &BulkIdempotencyViolationErr{
+					SuccessfulRunExternalIds: bulkErr.GetSuccessfulWorkflowRunExternalIds(),
+					Collisions:               collisions,
+				}
+			}
+		}
+	}
+
+	return &DedupeViolationErr{details: fmt.Sprintf("could not bulk trigger workflows: %s", err.Error())}
 }
 
 type adminClientImpl struct {
@@ -470,7 +505,20 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 }
 
 func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
+	runs, err := a.BulkRunWorkflows(workflows)
+	if err != nil {
+		return nil, err
+	}
 
+	ids := make([]string, len(runs))
+	for i, run := range runs {
+		ids[i] = run.RunId()
+	}
+
+	return ids, nil
+}
+
+func (a *adminClientImpl) BulkRunWorkflows(workflows []*WorkflowRun) ([]*Workflow, error) {
 	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
@@ -500,11 +548,21 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
+		return nil, parseBulkTriggerErr(err)
 	}
 
-	return res.WorkflowRunIds, nil
+	listener, err := a.saveOrLoadListener()
 
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	runs := make([]*Workflow, len(res.WorkflowRunIds))
+	for i, id := range res.WorkflowRunIds {
+		runs[i] = NewWorkflow(id, listener)
+	}
+
+	return runs, nil
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
@@ -567,8 +625,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 	})
 
 	if err != nil {
-
-		return nil, fmt.Errorf("could not trigger child workflow: %w", err)
+		return nil, parseBulkTriggerErr(err)
 	}
 
 	return res.WorkflowRunIds, nil
