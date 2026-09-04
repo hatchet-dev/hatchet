@@ -2540,6 +2540,7 @@ WITH inputs AS (
         e.readable_status,
         e.retry_count
     FROM v1_task_events_olap e
+    -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
     ORDER BY
         e.task_id,
