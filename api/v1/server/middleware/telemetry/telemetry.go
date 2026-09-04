@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
@@ -35,6 +36,30 @@ func (m *OTelMiddleware) Middleware() echo.MiddlewareFunc {
 		}),
 		otelecho.WithTracerProvider(tracerProvider),
 	)
+}
+
+func (m *OTelMiddleware) QueryParamMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			queryParams := c.QueryParams()
+
+			if len(queryParams) > 0 {
+				span := trace.SpanFromContext(c.Request().Context())
+
+				for name, values := range queryParams {
+					key := "url.query." + name
+
+					if len(values) == 1 {
+						span.SetAttributes(attribute.String(key, values[0]))
+					} else {
+						span.SetAttributes(attribute.StringSlice(key, values))
+					}
+				}
+			}
+
+			return next(c)
+		}
+	}
 }
 
 // ErrorStatusMiddleware marks the current span as Error for any 4xx or 5xx response,

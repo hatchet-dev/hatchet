@@ -826,6 +826,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		rateLimitMW.Middleware(),
 		webhookRateLimitMW,
 		otelMW.Middleware(),
+		otelMW.QueryParamMiddleware(),
 		otelMW.ErrorStatusMiddleware(),
 		allHatchetMiddleware,
 	)
