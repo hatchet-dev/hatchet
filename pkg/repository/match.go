@@ -795,6 +795,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 	errorMessages := make([]string, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
+	minDurableTaskInsertedAt := time.Time{}
 
 	for _, match := range satisfiedMatches {
 		durableTaskExternalId := match.SignalTaskExternalID
@@ -843,16 +844,21 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			}
 
 			errorMessages = append(errorMessages, errorMsgToInsert)
+
+			if minDurableTaskInsertedAt.IsZero() || durableTaskInsertedAt.Time.Before(minDurableTaskInsertedAt) {
+				minDurableTaskInsertedAt = durableTaskInsertedAt.Time
+			}
 		}
 	}
 
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
-		Nodeids:                durableTaskNodeIds,
-		Branchids:              durableTaskBranchIds,
-		Durabletaskids:         durableTaskIds,
-		Durabletaskinsertedats: durableTaskInsertedAts,
-		Childtaskisfailures:    isFailures,
-		Childtaskerrormessages: errorMessages,
+		Nodeids:                  durableTaskNodeIds,
+		Branchids:                durableTaskBranchIds,
+		Durabletaskids:           durableTaskIds,
+		Durabletaskinsertedats:   durableTaskInsertedAts,
+		Childtaskisfailures:      isFailures,
+		Childtaskerrormessages:   errorMessages,
+		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
 	})
 
 	if err != nil {
