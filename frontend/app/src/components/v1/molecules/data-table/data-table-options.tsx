@@ -8,6 +8,7 @@ import {
   ToolbarType,
 } from './data-table-toolbar';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { TimeRangeSelect } from '@/components/v1/molecules/time-picker/time-range-select';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
@@ -113,6 +114,8 @@ function FilterControl<TData>({
                       config.onCreatedAfterChange?.(date?.toISOString())
                     }
                     triggerClassName="w-full"
+                    retentionPeriod={config.retentionPeriod}
+                    onBlockedDate={config.onRetentionBlocked}
                   />
                 </div>
                 <div className="w-full space-y-1">
@@ -127,6 +130,8 @@ function FilterControl<TData>({
                       config.onFinishedBeforeChange?.(date?.toISOString())
                     }
                     triggerClassName="w-full"
+                    retentionPeriod={config.retentionPeriod}
+                    onBlockedDate={config.onRetentionBlocked}
                   />
                 </div>
               </div>
@@ -134,25 +139,13 @@ function FilterControl<TData>({
           )}
 
           {!config.isCustomTimeRange && (
-            <div className="space-y-1">
-              <Select
-                value={
-                  config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
-                }
-                onValueChange={(value) => config.onTimeWindowChange?.(value)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Choose time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1h">1 hour</SelectItem>
-                  <SelectItem value="6h">6 hours</SelectItem>
-                  <SelectItem value="1d">1 day</SelectItem>
-                  <SelectItem value="7d">7 days</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <TimeRangeSelect
+              value={
+                config.isCustomTimeRange ? 'custom' : (config.currentTimeWindow ?? '1d')
+              }
+              onChange={(value) => config.onTimeWindowChange?.(value)}
+              retentionPeriod={config.retentionPeriod}
+            />
           )}
         </div>
       );

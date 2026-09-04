@@ -12,6 +12,7 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -28,6 +29,7 @@ import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -214,8 +216,9 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     !!filters.apiFilters.runningFilter ||
     filters.isCustomTimeRange ||
     filters.timeWindow !== '1d';
-  const isDefaultOneDayWindow =
-    !filters.isCustomTimeRange && filters.timeWindow === '1d';
+  const retainedLabel = filters.retentionPeriod
+    ? formatRetentionPeriod(filters.retentionPeriod)
+    : '1 day';
 
   const leftActions = [
     ...(!hideCounts
@@ -273,6 +276,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
+      <RetentionUpgradeDialog
+        attempt={filters.retentionGate.attempt}
+        retentionPeriod={filters.retentionPeriod}
+        onClose={filters.retentionGate.close}
+      />
+
       <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
@@ -289,15 +298,15 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
             ) : (
               <EmptyState
                 title="No runs found"
-                description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
+                description={`No runs in the last ${retainedLabel}.`}
                 docPage={docsPages.v1.quickstart}
                 docLabel="Learn about running tasks"
                 buttons={
-                  isDefaultOneDayWindow
+                  filters.isDefaultOneDayWindow
                     ? [
                         {
-                          label: 'Search past 7 days',
-                          onClick: () => filters.setTimeWindow('7d'),
+                          label: 'Search all retained history',
+                          onClick: filters.searchAllRetainedHistory,
                         },
                       ]
                     : undefined
