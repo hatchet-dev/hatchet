@@ -8,7 +8,7 @@ import time
 from typing import Any, Callable
 
 _TRANSIENT = ("502", "503", "timeout", "timed out", "rate limit", "abuse", "secondary",
-              "connection reset", "eof")
+              "connection reset", "eof", "unexpected eof")
 
 
 class GhError(RuntimeError):
@@ -39,20 +39,27 @@ def api_json(path: str) -> Any:
     return json.loads(_run(["api", path]))
 
 
-def api_text(path: str, timeout: int = 180) -> str | None:
+def api_text(path: str, timeout: int = 180, retries: int = 3) -> str | None:
     """GET raw text (e.g. job logs). Returns None when the resource is gone (404/410)."""
-    proc = subprocess.run(
-        ["gh", "api", path],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    if proc.returncode != 0:
-        stderr = proc.stderr.lower()
-        if any(s in stderr for s in ("not found", "404", "410", "gone", "no logs")):
+    last = ""
+    for attempt in range(retries + 1):
+        proc = subprocess.run(
+            ["gh", "api", "--allow-escape-sequences", path],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if proc.returncode == 0:
+            return proc.stdout
+        last = proc.stderr.strip()
+        stderr_lower = last.lower()
+        if any(s in stderr_lower for s in ("not found", "404", "410", "gone", "no logs")):
             return None
-        raise GhError(f"gh api {path} failed ({proc.returncode}): {proc.stderr.strip()}")
-    return proc.stdout
+        if attempt < retries and any(s in stderr_lower for s in _TRANSIENT):
+            time.sleep(2 * (attempt + 1))
+            continue
+        break
+    raise GhError(f"gh api {path} failed ({proc.returncode}): {last}")
 
 
 def paginate(
