@@ -10,7 +10,7 @@ V = TypeVar("V")
 
 
 class BoundedDict(OrderedDict[K, V]):
-    def __init__(self, maxsize: int):
+    def __init__(self, maxsize: int) -> None:
         super().__init__()
         self.maxsize = maxsize
 

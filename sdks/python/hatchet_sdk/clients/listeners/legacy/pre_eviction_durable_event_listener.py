@@ -85,7 +85,7 @@ class PreEvictionDurableEventListener(
             self.client = V1DispatcherStub(conn)
 
         return cast(
-            grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent],
+            "grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent]",
             self.client.ListenForDurableEvent(
                 request,  # type: ignore[arg-type]
                 metadata=metadata,
@@ -122,4 +122,4 @@ class PreEvictionDurableEventListener(
 
         event = await self.subscribe(key)
 
-        return cast(dict[str, Any], json.loads(event.data.decode("utf-8")))
+        return cast("dict[str, Any]", json.loads(event.data.decode("utf-8")))

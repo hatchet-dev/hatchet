@@ -19,7 +19,7 @@ hatchet.filters.create(
 )
 
 # > Skip a run
-hatchet.event.push(
+hatchet.events.push(
     event_key=EVENT_KEY,
     payload={
         "should_skip": True,
@@ -28,7 +28,7 @@ hatchet.event.push(
 )
 
 # > Trigger a run
-hatchet.event.push(
+hatchet.events.push(
     event_key=EVENT_KEY,
     payload={
         "should_skip": False,

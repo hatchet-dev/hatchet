@@ -107,7 +107,7 @@ def _sidecar_asset_name() -> str:
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args: object, **kwargs: object) -> None:
+    def redirect_request(self, *_a: object, **_kw: object) -> None:
         return None
 
 

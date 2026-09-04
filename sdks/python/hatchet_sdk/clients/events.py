@@ -1,18 +1,18 @@
 import asyncio
 import datetime
 import json
-import warnings
 from datetime import timezone
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-from hatchet_sdk.clients.rest.api.event_api import EventApi
-from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.event_api import EventApi
+    from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
@@ -35,13 +35,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import (
-    BulkPushEventOptions as BulkPushEventOptions,
-)
-from hatchet_sdk.types.trigger import (
     BulkPushEventWithMetadata as BulkPushEventWithMetadata,
-)
-from hatchet_sdk.types.trigger import (
-    PushEventOptions as PushEventOptions,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
@@ -78,20 +72,10 @@ class Event(BaseModel):
     event_id: str
     key: str
     payload: str
-    event_timestamp: timestamp_pb2.Timestamp
     additional_metadata: str | None = None
     scope: str | None = None
     seen_at: datetime.datetime
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @property
-    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
-        return self.event_timestamp
-
-    @property
-    def additionalMetadata(self) -> str | None:  # noqa: N802
-        return self.additional_metadata
+    triggering_webhook_name: str | None = None
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
@@ -105,7 +89,6 @@ class Event(BaseModel):
             event_id=proto.event_id,
             key=proto.key,
             payload=proto.payload,
-            event_timestamp=proto.event_timestamp,
             additional_metadata=additional_metadata,
             scope=scope,
             seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
@@ -113,7 +96,7 @@ class Event(BaseModel):
 
 
 class EventClient(BaseRestClient):
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         super().__init__(config)
 
         self._client: EventsServiceStub | None = None
@@ -131,10 +114,14 @@ class EventClient(BaseRestClient):
             self._bulk_push_event, self.client_config.tenacity
         )
 
-    def _wra(self, client: ApiClient) -> WorkflowRunsApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunsApi":
+        from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
         return WorkflowRunsApi(client)
 
-    def _ea(self, client: ApiClient) -> EventApi:
+    def _ea(self, client: ApiClient) -> "EventApi":
+        from hatchet_sdk.clients.rest.api.event_api import EventApi
+
         return EventApi(client)
 
     def _get_or_create_aio_client(self) -> EventsServiceStub:
@@ -153,19 +140,15 @@ class EventClient(BaseRestClient):
         self,
         key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
-        namespace_override: str | None = None,
     ) -> PushEventRequest:
-        namespace = namespace_override or options.namespace or self.namespace
+        namespace = self.namespace
         namespaced_key = self.client_config.apply_namespace(key, namespace)
 
         try:
-            meta = _inject_source_info(
-                additional_metadata or options.additional_metadata
-            )
+            meta = _inject_source_info(additional_metadata or {})
             meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
@@ -180,32 +163,21 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=priority or options.priority,
-            scope=scope or options.scope,
+            priority=priority,
+            scope=scope,
         )
 
     async def aio_push(
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        if options is not None:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = PushEventOptions()
-
         request = self._prepare_push_event_request(
             key=event_key,
             payload=payload,
-            options=options,
             additional_metadata=additional_metadata,
             priority=priority,
             scope=scope,
@@ -224,7 +196,7 @@ class EventClient(BaseRestClient):
     ) -> EventProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventProto,
+            "EventProto",
             await aio_client.Push(request, metadata=metadata),  # type: ignore[misc]
         )
 
@@ -232,19 +204,10 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        if options is not None:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = PushEventOptions()
 
         client = self._get_or_create_client()
         push_event = tenacity_retry(client.Push, self.client_config.tenacity)
@@ -252,14 +215,13 @@ class EventClient(BaseRestClient):
         request = self._prepare_push_event_request(
             key=event_key,
             payload=payload,
-            options=options,
             additional_metadata=additional_metadata,
             priority=priority,
             scope=scope,
         )
 
         response = cast(
-            EventProto,
+            "EventProto",
             push_event(request, metadata=create_authorization_header(self.token)),
         )
 
@@ -268,33 +230,19 @@ class EventClient(BaseRestClient):
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        if options:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = BulkPushEventOptions()
-
-        namespace = options.namespace or self.namespace
-
         bulk_request = BulkPushEventRequest(
             events=[
                 self._prepare_push_event_request(
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    options=PushEventOptions(),
                     priority=(
                         Priority(event.priority)
                         if isinstance(event.priority, int)
                         else event.priority
                     ),
                     scope=event.scope,
-                    namespace_override=namespace,
                 )
                 for event in events
             ]
@@ -313,40 +261,26 @@ class EventClient(BaseRestClient):
     ) -> EventsProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventsProto,
+            "EventsProto",
             await aio_client.BulkPush(request, metadata=metadata),  # type: ignore[misc]
         )
 
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        if options:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = BulkPushEventOptions()
-
-        namespace = options.namespace or self.namespace
-
         bulk_request = BulkPushEventRequest(
             events=[
                 self._prepare_push_event_request(
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    options=PushEventOptions(),
                     priority=(
                         Priority(event.priority)
                         if isinstance(event.priority, int)
                         else event.priority
                     ),
                     scope=event.scope,
-                    namespace_override=namespace,
                 )
                 for event in events
             ]
@@ -357,13 +291,13 @@ class EventClient(BaseRestClient):
         bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
 
         response = cast(
-            EventsProto,
+            "EventsProto",
             bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
 
         return [Event.from_proto(event) for event in response.events]
 
-    def log(
+    def _log(
         self,
         message: str,
         step_run_id: str,
@@ -403,7 +337,7 @@ class EventClient(BaseRestClient):
             event_index=index,
         )
 
-    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    def _stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         client = self._get_or_create_client()
         put_stream_event = tenacity_retry(
             client.PutStreamEvent, self.client_config.tenacity
@@ -422,13 +356,15 @@ class EventClient(BaseRestClient):
     ) -> PutStreamEventResponse:
         client = self._get_or_create_aio_client()
         return cast(
-            PutStreamEventResponse,
+            "PutStreamEventResponse",
             await client.PutStreamEvent(  # type: ignore[misc]
                 request, metadata=metadata
             ),
         )
 
-    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    async def _aio_stream(
+        self, data: str | bytes, step_run_id: str, index: int
+    ) -> None:
         request = self._create_put_stream_event_request(data, step_run_id, index)
 
         await self._retrying_aio_put_stream_event(
@@ -447,7 +383,7 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[V1Event]:
         return await asyncio.to_thread(
             self.list,
             offset=offset,
@@ -474,9 +410,9 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[V1Event]:
         with self.client() as client:
-            return self._ea(client).v1_event_list(
+            el = self._ea(client).v1_event_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -491,6 +427,8 @@ class EventClient(BaseRestClient):
                 ),
                 scopes=scopes,
             )
+
+            return el.rows or []
 
     def get(
         self,

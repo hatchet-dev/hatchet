@@ -36,7 +36,7 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
@@ -95,9 +95,9 @@ Parameters:
 
 Returns:
 
-| Type                | Description               |
-| ------------------- | ------------------------- |
-| `CronWorkflowsList` | A list of cron workflows. |
+| Type                  | Description               |
+| --------------------- | ------------------------- |
+| `list[CronWorkflows]` | A list of cron workflows. |
 
 #### `create`
 
@@ -112,7 +112,7 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
@@ -171,6 +171,6 @@ Parameters:
 
 Returns:
 
-| Type                | Description               |
-| ------------------- | ------------------------- |
-| `CronWorkflowsList` | A list of cron workflows. |
+| Type                  | Description               |
+| --------------------- | ------------------------- |
+| `list[CronWorkflows]` | A list of cron workflows. |

@@ -4,13 +4,10 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     DurableContext,
-    EmptyModel,
     RateLimit,
-    RateLimitDuration,
 )
 
 from .hatchet_client import hatchet
@@ -144,7 +141,7 @@ async def onboarding_flow(input: OnboardingInput, ctx: DurableContext) -> None:
 
 
 @hatchet.durable_task(name="WaitADay", execution_timeout=timedelta(days=2))
-async def wait_a_day(input: EmptyModel, ctx: DurableContext) -> None:
+async def wait_a_day(input: None, ctx: DurableContext) -> None:
     # > Hatchet durable sleep
     await ctx.aio_sleep_for(timedelta(days=1))
     # !!
@@ -152,7 +149,7 @@ async def wait_a_day(input: EmptyModel, ctx: DurableContext) -> None:
 
 # > Hatchet event push
 async def grant_approval(correlation_id: str) -> None:
-    await hatchet.event.aio_push(
+    await hatchet.events.aio_push(
         "approval:granted",
         {"correlation_id": correlation_id},
     )
@@ -288,10 +285,10 @@ class SyncOutput(BaseModel):
 sync_customer = hatchet.workflow(
     name="SyncCustomer",
     input_validator=SyncInput,
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.customer_id",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
 )
 
@@ -382,7 +379,7 @@ def main() -> None:
 # it instead, which is what you want if you are trying them out.
 def run_all_examples() -> None:
     # `call_model` consumes this static key, so it has to exist before the task runs.
-    hatchet.rate_limits.put("openai", 1000, RateLimitDuration.MINUTE)
+    hatchet.rate_limits.put("openai", 1000, "MINUTE")
 
     worker = hatchet.worker(
         "temporal-migration-guide-worker",

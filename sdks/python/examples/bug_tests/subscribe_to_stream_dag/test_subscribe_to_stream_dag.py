@@ -14,7 +14,7 @@ from examples.bug_tests.subscribe_to_stream_dag.worker import (
     dag_stream,
     long_stream,
 )
-from hatchet_sdk import EmptyModel, Hatchet
+from hatchet_sdk import Hatchet
 from hatchet_sdk.runnables.workflow import Workflow
 
 pytestmark = pytest.mark.parametrize(
@@ -40,7 +40,7 @@ async def collect_stream(hatchet: Hatchet, run_id: str) -> tuple[float, list[str
 
 
 async def subscribe_from_start(
-    hatchet: Hatchet, workflow: Workflow[EmptyModel]
+    hatchet: Hatchet, workflow: Workflow[None]
 ) -> tuple[float, list[str]]:
     ref = await workflow.aio_run(wait_for_result=False)
     elapsed, chunks = await collect_stream(hatchet, ref.workflow_run_id)

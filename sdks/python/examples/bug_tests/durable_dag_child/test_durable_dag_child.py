@@ -11,7 +11,7 @@ from examples.bug_tests.durable_dag_child.worker import (
     multi_spawner_dag,
     parent_dag,
 )
-from hatchet_sdk import EmptyModel, Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.runnables.workflow import Workflow
 
@@ -47,7 +47,7 @@ async def wait_for_run(
 
 
 async def run_dag_to_completion(
-    hatchet: Hatchet, workflow: Workflow[EmptyModel], expected_steps: set[str]
+    hatchet: Hatchet, workflow: Workflow[None], expected_steps: set[str]
 ) -> WorkflowRunDetail:
     ref = await workflow.aio_run(wait_for_result=False)
     await ref.aio_result()
@@ -156,6 +156,6 @@ async def test_multiple_steps_spawning(hatchet: Hatchet) -> None:
         step = details.task_runs[readable_id]
         children = await hatchet.runs.aio_list(parent_task_external_id=step.external_id)
 
-        assert {child.metadata.id for child in children.rows} == set(
+        assert {child.metadata.id for child in children} == set(
             (step.output or {}).get("spawned_run_ids", [])
         ), f"{readable_id}'s spawned child must be attached to the step that spawned it"

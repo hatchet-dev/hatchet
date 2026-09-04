@@ -30,7 +30,7 @@ def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
         [
             sync_fanout_child.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
-                key=f"child{i}",
+                child_key=f"child{i}",
                 additional_metadata={"hello": "earth"},
             )
             for i in range(input.n)

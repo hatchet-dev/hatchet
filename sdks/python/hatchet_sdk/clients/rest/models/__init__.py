@@ -13,432 +13,753 @@ Do not edit the class manually.
 """  # noqa: E501
 
 # import models into model package
-from hatchet_sdk.clients.rest.models.api_error import APIError
-from hatchet_sdk.clients.rest.models.api_errors import APIErrors
-from hatchet_sdk.clients.rest.models.api_meta import APIMeta
-from hatchet_sdk.clients.rest.models.api_meta_auth import APIMetaAuth
-from hatchet_sdk.clients.rest.models.api_meta_integration import APIMetaIntegration
-from hatchet_sdk.clients.rest.models.api_meta_posthog import APIMetaPosthog
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.api_token import APIToken
-from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
-from hatchet_sdk.clients.rest.models.bulk_create_event_request import (
-    BulkCreateEventRequest,
-)
-from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequest
-from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
-    ConcurrencyLimitStrategy,
-)
-from hatchet_sdk.clients.rest.models.concurrency_scope import ConcurrencyScope
-from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
-from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
-from hatchet_sdk.clients.rest.models.create_api_token_request import (
-    CreateAPITokenRequest,
-)
-from hatchet_sdk.clients.rest.models.create_api_token_response import (
-    CreateAPITokenResponse,
-)
-from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
-    CreateCronWorkflowTriggerRequest,
-)
-from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
-from hatchet_sdk.clients.rest.models.create_pull_request_from_step_run import (
-    CreatePullRequestFromStepRun,
-)
-from hatchet_sdk.clients.rest.models.create_sns_integration_request import (
-    CreateSNSIntegrationRequest,
-)
-from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import (
-    CreateTenantAlertEmailGroupRequest,
-)
-from hatchet_sdk.clients.rest.models.create_tenant_invite_request import (
-    CreateTenantInviteRequest,
-)
-from hatchet_sdk.clients.rest.models.create_tenant_request import CreateTenantRequest
-from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
-from hatchet_sdk.clients.rest.models.cron_workflows_method import CronWorkflowsMethod
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
-    CronWorkflowsOrderByField,
-)
-from hatchet_sdk.clients.rest.models.event import Event
-from hatchet_sdk.clients.rest.models.event_data import EventData
-from hatchet_sdk.clients.rest.models.event_key_list import EventKeyList
-from hatchet_sdk.clients.rest.models.event_list import EventList
-from hatchet_sdk.clients.rest.models.event_order_by_direction import (
-    EventOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
-from hatchet_sdk.clients.rest.models.event_update_cancel200_response import (
-    EventUpdateCancel200Response,
-)
-from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
-    EventWorkflowRunSummary,
-)
-from hatchet_sdk.clients.rest.models.events import Events
-from hatchet_sdk.clients.rest.models.feature_flag_evaluation_result import (
-    FeatureFlagEvaluationResult,
-)
-from hatchet_sdk.clients.rest.models.feature_flag_id import FeatureFlagId
-from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
-    GetStepRunDiffResponse,
-)
-from hatchet_sdk.clients.rest.models.info_get_version200_response import (
-    InfoGetVersion200Response,
-)
-from hatchet_sdk.clients.rest.models.job import Job
-from hatchet_sdk.clients.rest.models.job_run import JobRun
-from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
-from hatchet_sdk.clients.rest.models.list_api_tokens_response import (
-    ListAPITokensResponse,
-)
-from hatchet_sdk.clients.rest.models.list_pull_requests_response import (
-    ListPullRequestsResponse,
-)
-from hatchet_sdk.clients.rest.models.list_sns_integrations import ListSNSIntegrations
-from hatchet_sdk.clients.rest.models.list_slack_webhooks import ListSlackWebhooks
-from hatchet_sdk.clients.rest.models.log_line import LogLine
-from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
-from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
-from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
-    LogLineOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
-from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
-from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
-from hatchet_sdk.clients.rest.models.otel_span_list import OtelSpanList
-from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
-from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
-from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
-from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
-    PauseWorkflowRequestPause,
-)
-from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
-    PauseWorkflowRequestUnpause,
-)
-from hatchet_sdk.clients.rest.models.pull_request import PullRequest
-from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
-from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
-from hatchet_sdk.clients.rest.models.rate_limit import RateLimit
-from hatchet_sdk.clients.rest.models.rate_limit_list import RateLimitList
-from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import (
-    RateLimitOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.rate_limit_order_by_field import (
-    RateLimitOrderByField,
-)
-from hatchet_sdk.clients.rest.models.recent_step_runs import RecentStepRuns
-from hatchet_sdk.clients.rest.models.registered_workflow import RegisteredWorkflow
-from hatchet_sdk.clients.rest.models.reject_invite_request import RejectInviteRequest
-from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_request import (
-    ReplayWorkflowRunsRequest,
-)
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_response import (
-    ReplayWorkflowRunsResponse,
-)
-from hatchet_sdk.clients.rest.models.rerun_step_run_request import RerunStepRunRequest
-from hatchet_sdk.clients.rest.models.sns_integration import SNSIntegration
-from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
-    ScheduleWorkflowRunRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
-from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
-    ScheduledWorkflowsBulkDeleteFilter,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import (
-    ScheduledWorkflowsBulkDeleteRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
-    ScheduledWorkflowsBulkDeleteResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import (
-    ScheduledWorkflowsBulkError,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
-    ScheduledWorkflowsBulkUpdateItem,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import (
-    ScheduledWorkflowsBulkUpdateRequest,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
-    ScheduledWorkflowsBulkUpdateResponse,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
-    ScheduledWorkflowsList,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_method import (
-    ScheduledWorkflowsMethod,
-)
-from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
-    ScheduledWorkflowsOrderByField,
-)
-from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
-from hatchet_sdk.clients.rest.models.slack_webhook import SlackWebhook
-from hatchet_sdk.clients.rest.models.step import Step
-from hatchet_sdk.clients.rest.models.step_run import StepRun
-from hatchet_sdk.clients.rest.models.step_run_archive import StepRunArchive
-from hatchet_sdk.clients.rest.models.step_run_archive_list import StepRunArchiveList
-from hatchet_sdk.clients.rest.models.step_run_diff import StepRunDiff
-from hatchet_sdk.clients.rest.models.step_run_event import StepRunEvent
-from hatchet_sdk.clients.rest.models.step_run_event_list import StepRunEventList
-from hatchet_sdk.clients.rest.models.step_run_event_reason import StepRunEventReason
-from hatchet_sdk.clients.rest.models.step_run_event_severity import StepRunEventSeverity
-from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
-from hatchet_sdk.clients.rest.models.task_stat import TaskStat
-from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
-from hatchet_sdk.clients.rest.models.tenant import Tenant
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group import (
-    TenantAlertEmailGroup,
-)
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
-    TenantAlertEmailGroupList,
-)
-from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
-    TenantAlertingSettings,
-)
-from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
-from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
-from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
-from hatchet_sdk.clients.rest.models.tenant_list import TenantList
-from hatchet_sdk.clients.rest.models.tenant_member import TenantMember
-from hatchet_sdk.clients.rest.models.tenant_member_list import TenantMemberList
-from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
-from hatchet_sdk.clients.rest.models.tenant_queue_metrics import TenantQueueMetrics
-from hatchet_sdk.clients.rest.models.tenant_resource import TenantResource
-from hatchet_sdk.clients.rest.models.tenant_resource_limit import TenantResourceLimit
-from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourcePolicy
-from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
-    TenantStepRunQueueMetrics,
-)
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
-from hatchet_sdk.clients.rest.models.trigger_run_result import TriggerRunResult
-from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
-    TriggerWorkflowRunRequest,
-)
-from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import (
-    UpdateCronWorkflowTriggerRequest,
-)
-from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import (
-    UpdateScheduledWorkflowRunRequest,
-)
-from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
-    UpdateTenantAlertEmailGroupRequest,
-)
-from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
-    UpdateTenantInviteRequest,
-)
-from hatchet_sdk.clients.rest.models.update_tenant_member_request import (
-    UpdateTenantMemberRequest,
-)
-from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
-from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
-from hatchet_sdk.clients.rest.models.user import User
-from hatchet_sdk.clients.rest.models.user_change_password_request import (
-    UserChangePasswordRequest,
-)
-from hatchet_sdk.clients.rest.models.user_login_request import UserLoginRequest
-from hatchet_sdk.clients.rest.models.user_register_request import UserRegisterRequest
-from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
-    UserTenantMembershipsList,
-)
-from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
-from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
-    V1AdditionalMetadataOperator,
-)
-from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
-    V1BranchDurableTaskRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
-    V1BranchDurableTaskResponse,
-)
-from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
-from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
-    V1CELDebugResponseStatus,
-)
-from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
-from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
-from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
-    V1CreateFilterRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_http_operator_request import (
-    V1CreateHTTPOperatorRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
-    V1CreateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
-    V1CreateWebhookRequestAPIKey,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_base import (
-    V1CreateWebhookRequestBase,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
-    V1CreateWebhookRequestBasicAuth,
-)
-from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
-    V1CreateWebhookRequestHMAC,
-)
-from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
-from hatchet_sdk.clients.rest.models.v1_durable_event_log_entry import (
-    V1DurableEventLogEntry,
-)
-from hatchet_sdk.clients.rest.models.v1_durable_event_log_kind import (
-    V1DurableEventLogKind,
-)
-from hatchet_sdk.clients.rest.models.v1_durable_wait_condition import (
-    V1DurableWaitCondition,
-)
-from hatchet_sdk.clients.rest.models.v1_durable_wait_condition_kind import (
-    V1DurableWaitConditionKind,
-)
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
-from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
-from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
-    V1EventWorkflowRunSummary,
-)
-from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
-from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_http_operator import V1HTTPOperator
-from hatchet_sdk.clients.rest.models.v1_http_operator_list import V1HTTPOperatorList
-from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
-from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
-from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
-from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
-    V1LogLineOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.v1_logs_point_metric import V1LogsPointMetric
-from hatchet_sdk.clients.rest.models.v1_logs_point_metrics import V1LogsPointMetrics
-from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
-from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
-from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
-    V1RestoreTaskResponse,
-)
-from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
-from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
-from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
-from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
-from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
-from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
-from hatchet_sdk.clients.rest.models.v1_task_point_metric import V1TaskPointMetric
-from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
-from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
-from hatchet_sdk.clients.rest.models.v1_task_run_status import V1TaskRunStatus
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
-from hatchet_sdk.clients.rest.models.v1_task_timing import V1TaskTiming
-from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
-from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
-    V1TriggerWorkflowRunRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
-    V1UpdateFilterRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_update_http_operator_request import (
-    V1UpdateHTTPOperatorRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
-    V1UpdateWebhookRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_wait_item import V1WaitItem
-from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
-from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
-from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
-    V1WebhookHMACAlgorithm,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
-    V1WebhookHMACEncoding,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
-from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
-from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
-    V1WorkflowRunDisplayName,
-)
-from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
-    V1WorkflowRunDisplayNameList,
-)
-from hatchet_sdk.clients.rest.models.v1_workflow_type import V1WorkflowType
-from hatchet_sdk.clients.rest.models.webhook_worker import WebhookWorker
-from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (
-    WebhookWorkerCreateRequest,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_create_response import (
-    WebhookWorkerCreateResponse,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
-from hatchet_sdk.clients.rest.models.webhook_worker_list_response import (
-    WebhookWorkerListResponse,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_request import WebhookWorkerRequest
-from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import (
-    WebhookWorkerRequestListResponse,
-)
-from hatchet_sdk.clients.rest.models.webhook_worker_request_method import (
-    WebhookWorkerRequestMethod,
-)
-from hatchet_sdk.clients.rest.models.worker import Worker
-from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
-from hatchet_sdk.clients.rest.models.worker_list import WorkerList
-from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
-from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
-from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
-from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
-from hatchet_sdk.clients.rest.models.worker_type import WorkerType
-from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
-from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
-from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
-from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
-from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
-    WorkflowPauseScheduledCronRunQueueBehavior,
-)
-from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
-    WorkflowRunOrderByDirection,
-)
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
-    WorkflowRunOrderByField,
-)
-from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
-from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import (
-    WorkflowRunShapeItemForWorkflowRunDetails,
-)
-from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
-from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
-    WorkflowRunTriggeredBy,
-)
-from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
-    WorkflowRunsCancelRequest,
-)
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics import WorkflowRunsMetrics
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
-    WorkflowRunsMetricsCounts,
-)
-from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
-from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
-    WorkflowTriggerCronRef,
-)
-from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
-    WorkflowTriggerEventRef,
-)
-from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
-from hatchet_sdk.clients.rest.models.workflow_update_request import (
-    WorkflowUpdateRequest,
-)
-from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.clients.rest.models.workflow_version_definition import (
-    WorkflowVersionDefinition,
-)
-from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.clients.rest.models.workflow_workers_count import WorkflowWorkersCount
+
+import importlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.models.api_error import APIError
+    from hatchet_sdk.clients.rest.models.api_errors import APIErrors
+    from hatchet_sdk.clients.rest.models.api_meta import APIMeta
+    from hatchet_sdk.clients.rest.models.api_meta_auth import APIMetaAuth
+    from hatchet_sdk.clients.rest.models.api_meta_integration import APIMetaIntegration
+    from hatchet_sdk.clients.rest.models.api_meta_posthog import APIMetaPosthog
+    from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+    from hatchet_sdk.clients.rest.models.api_token import APIToken
+    from hatchet_sdk.clients.rest.models.accept_invite_request import (
+        AcceptInviteRequest,
+    )
+    from hatchet_sdk.clients.rest.models.bulk_create_event_request import (
+        BulkCreateEventRequest,
+    )
+    from hatchet_sdk.clients.rest.models.cancel_event_request import CancelEventRequest
+    from hatchet_sdk.clients.rest.models.concurrency_limit_strategy import (
+        ConcurrencyLimitStrategy,
+    )
+    from hatchet_sdk.clients.rest.models.concurrency_scope import ConcurrencyScope
+    from hatchet_sdk.clients.rest.models.concurrency_setting import ConcurrencySetting
+    from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
+    from hatchet_sdk.clients.rest.models.create_api_token_request import (
+        CreateAPITokenRequest,
+    )
+    from hatchet_sdk.clients.rest.models.create_api_token_response import (
+        CreateAPITokenResponse,
+    )
+    from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
+        CreateCronWorkflowTriggerRequest,
+    )
+    from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
+    from hatchet_sdk.clients.rest.models.create_pull_request_from_step_run import (
+        CreatePullRequestFromStepRun,
+    )
+    from hatchet_sdk.clients.rest.models.create_sns_integration_request import (
+        CreateSNSIntegrationRequest,
+    )
+    from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import (
+        CreateTenantAlertEmailGroupRequest,
+    )
+    from hatchet_sdk.clients.rest.models.create_tenant_invite_request import (
+        CreateTenantInviteRequest,
+    )
+    from hatchet_sdk.clients.rest.models.create_tenant_request import (
+        CreateTenantRequest,
+    )
+    from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+    from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
+    from hatchet_sdk.clients.rest.models.cron_workflows_method import (
+        CronWorkflowsMethod,
+    )
+    from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
+        CronWorkflowsOrderByField,
+    )
+    from hatchet_sdk.clients.rest.models.event import Event
+    from hatchet_sdk.clients.rest.models.event_data import EventData
+    from hatchet_sdk.clients.rest.models.event_key_list import EventKeyList
+    from hatchet_sdk.clients.rest.models.event_list import EventList
+    from hatchet_sdk.clients.rest.models.event_order_by_direction import (
+        EventOrderByDirection,
+    )
+    from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
+    from hatchet_sdk.clients.rest.models.event_update_cancel200_response import (
+        EventUpdateCancel200Response,
+    )
+    from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
+        EventWorkflowRunSummary,
+    )
+    from hatchet_sdk.clients.rest.models.events import Events
+    from hatchet_sdk.clients.rest.models.feature_flag_evaluation_result import (
+        FeatureFlagEvaluationResult,
+    )
+    from hatchet_sdk.clients.rest.models.feature_flag_id import FeatureFlagId
+    from hatchet_sdk.clients.rest.models.get_step_run_diff_response import (
+        GetStepRunDiffResponse,
+    )
+    from hatchet_sdk.clients.rest.models.info_get_version200_response import (
+        InfoGetVersion200Response,
+    )
+    from hatchet_sdk.clients.rest.models.job import Job
+    from hatchet_sdk.clients.rest.models.job_run import JobRun
+    from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
+    from hatchet_sdk.clients.rest.models.list_api_tokens_response import (
+        ListAPITokensResponse,
+    )
+    from hatchet_sdk.clients.rest.models.list_pull_requests_response import (
+        ListPullRequestsResponse,
+    )
+    from hatchet_sdk.clients.rest.models.list_sns_integrations import (
+        ListSNSIntegrations,
+    )
+    from hatchet_sdk.clients.rest.models.list_slack_webhooks import ListSlackWebhooks
+    from hatchet_sdk.clients.rest.models.log_line import LogLine
+    from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
+    from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
+    from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
+        LogLineOrderByDirection,
+    )
+    from hatchet_sdk.clients.rest.models.log_line_order_by_field import (
+        LogLineOrderByField,
+    )
+    from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
+    from hatchet_sdk.clients.rest.models.otel_span_kind import OtelSpanKind
+    from hatchet_sdk.clients.rest.models.otel_span_list import OtelSpanList
+    from hatchet_sdk.clients.rest.models.otel_status_code import OtelStatusCode
+    from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
+    from hatchet_sdk.clients.rest.models.pause_workflow_request import (
+        PauseWorkflowRequest,
+    )
+    from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
+        PauseWorkflowRequestPause,
+    )
+    from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
+        PauseWorkflowRequestUnpause,
+    )
+    from hatchet_sdk.clients.rest.models.pull_request import PullRequest
+    from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
+    from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
+    from hatchet_sdk.clients.rest.models.rate_limit import RateLimit
+    from hatchet_sdk.clients.rest.models.rate_limit_list import RateLimitList
+    from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import (
+        RateLimitOrderByDirection,
+    )
+    from hatchet_sdk.clients.rest.models.rate_limit_order_by_field import (
+        RateLimitOrderByField,
+    )
+    from hatchet_sdk.clients.rest.models.recent_step_runs import RecentStepRuns
+    from hatchet_sdk.clients.rest.models.registered_workflow import RegisteredWorkflow
+    from hatchet_sdk.clients.rest.models.reject_invite_request import (
+        RejectInviteRequest,
+    )
+    from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
+    from hatchet_sdk.clients.rest.models.replay_workflow_runs_request import (
+        ReplayWorkflowRunsRequest,
+    )
+    from hatchet_sdk.clients.rest.models.replay_workflow_runs_response import (
+        ReplayWorkflowRunsResponse,
+    )
+    from hatchet_sdk.clients.rest.models.rerun_step_run_request import (
+        RerunStepRunRequest,
+    )
+    from hatchet_sdk.clients.rest.models.sns_integration import SNSIntegration
+    from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
+        ScheduleWorkflowRunRequest,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
+    from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter import (
+        ScheduledWorkflowsBulkDeleteFilter,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request import (
+        ScheduledWorkflowsBulkDeleteRequest,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response import (
+        ScheduledWorkflowsBulkDeleteResponse,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error import (
+        ScheduledWorkflowsBulkError,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item import (
+        ScheduledWorkflowsBulkUpdateItem,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request import (
+        ScheduledWorkflowsBulkUpdateRequest,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
+        ScheduledWorkflowsBulkUpdateResponse,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
+        ScheduledWorkflowsList,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_method import (
+        ScheduledWorkflowsMethod,
+    )
+    from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
+        ScheduledWorkflowsOrderByField,
+    )
+    from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
+    from hatchet_sdk.clients.rest.models.slack_webhook import SlackWebhook
+    from hatchet_sdk.clients.rest.models.step import Step
+    from hatchet_sdk.clients.rest.models.step_run import StepRun
+    from hatchet_sdk.clients.rest.models.step_run_archive import StepRunArchive
+    from hatchet_sdk.clients.rest.models.step_run_archive_list import StepRunArchiveList
+    from hatchet_sdk.clients.rest.models.step_run_diff import StepRunDiff
+    from hatchet_sdk.clients.rest.models.step_run_event import StepRunEvent
+    from hatchet_sdk.clients.rest.models.step_run_event_list import StepRunEventList
+    from hatchet_sdk.clients.rest.models.step_run_event_reason import StepRunEventReason
+    from hatchet_sdk.clients.rest.models.step_run_event_severity import (
+        StepRunEventSeverity,
+    )
+    from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+    from hatchet_sdk.clients.rest.models.task_stat import TaskStat
+    from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
+    from hatchet_sdk.clients.rest.models.tenant import Tenant
+    from hatchet_sdk.clients.rest.models.tenant_alert_email_group import (
+        TenantAlertEmailGroup,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
+        TenantAlertEmailGroupList,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
+        TenantAlertingSettings,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
+    from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
+    from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
+    from hatchet_sdk.clients.rest.models.tenant_list import TenantList
+    from hatchet_sdk.clients.rest.models.tenant_member import TenantMember
+    from hatchet_sdk.clients.rest.models.tenant_member_list import TenantMemberList
+    from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
+    from hatchet_sdk.clients.rest.models.tenant_queue_metrics import TenantQueueMetrics
+    from hatchet_sdk.clients.rest.models.tenant_resource import TenantResource
+    from hatchet_sdk.clients.rest.models.tenant_resource_limit import (
+        TenantResourceLimit,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_resource_policy import (
+        TenantResourcePolicy,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
+        TenantStepRunQueueMetrics,
+    )
+    from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+    from hatchet_sdk.clients.rest.models.trigger_run_result import TriggerRunResult
+    from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
+        TriggerWorkflowRunRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request import (
+        UpdateCronWorkflowTriggerRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request import (
+        UpdateScheduledWorkflowRunRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
+        UpdateTenantAlertEmailGroupRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
+        UpdateTenantInviteRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_tenant_member_request import (
+        UpdateTenantMemberRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_tenant_request import (
+        UpdateTenantRequest,
+    )
+    from hatchet_sdk.clients.rest.models.update_worker_request import (
+        UpdateWorkerRequest,
+    )
+    from hatchet_sdk.clients.rest.models.user import User
+    from hatchet_sdk.clients.rest.models.user_change_password_request import (
+        UserChangePasswordRequest,
+    )
+    from hatchet_sdk.clients.rest.models.user_login_request import UserLoginRequest
+    from hatchet_sdk.clients.rest.models.user_register_request import (
+        UserRegisterRequest,
+    )
+    from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
+        UserTenantMembershipsList,
+    )
+    from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
+    from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
+        V1AdditionalMetadataOperator,
+    )
+    from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
+        V1BranchDurableTaskRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
+        V1BranchDurableTaskResponse,
+    )
+    from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
+    from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
+    from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
+        V1CELDebugResponseStatus,
+    )
+    from hatchet_sdk.clients.rest.models.v1_cancel_task_request import (
+        V1CancelTaskRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+    from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+        V1CreateFilterRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_http_operator_request import (
+        V1CreateHTTPOperatorRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
+        V1CreateWebhookRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
+        V1CreateWebhookRequestAPIKey,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_webhook_request_base import (
+        V1CreateWebhookRequestBase,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
+        V1CreateWebhookRequestBasicAuth,
+    )
+    from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
+        V1CreateWebhookRequestHMAC,
+    )
+    from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
+    from hatchet_sdk.clients.rest.models.v1_durable_event_log_entry import (
+        V1DurableEventLogEntry,
+    )
+    from hatchet_sdk.clients.rest.models.v1_durable_event_log_kind import (
+        V1DurableEventLogKind,
+    )
+    from hatchet_sdk.clients.rest.models.v1_durable_wait_condition import (
+        V1DurableWaitCondition,
+    )
+    from hatchet_sdk.clients.rest.models.v1_durable_wait_condition_kind import (
+        V1DurableWaitConditionKind,
+    )
+    from hatchet_sdk.clients.rest.models.v1_event import V1Event
+    from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
+    from hatchet_sdk.clients.rest.models.v1_event_triggered_run import (
+        V1EventTriggeredRun,
+    )
+    from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+        V1EventWorkflowRunSummary,
+    )
+    from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
+    from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
+    from hatchet_sdk.clients.rest.models.v1_http_operator import V1HTTPOperator
+    from hatchet_sdk.clients.rest.models.v1_http_operator_list import V1HTTPOperatorList
+    from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
+    from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
+    from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
+    from hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction import (
+        V1LogLineOrderByDirection,
+    )
+    from hatchet_sdk.clients.rest.models.v1_logs_point_metric import V1LogsPointMetric
+    from hatchet_sdk.clients.rest.models.v1_logs_point_metrics import V1LogsPointMetrics
+    from hatchet_sdk.clients.rest.models.v1_replay_task_request import (
+        V1ReplayTaskRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
+    from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
+        V1RestoreTaskResponse,
+    )
+    from hatchet_sdk.clients.rest.models.v1_running_detail_count import (
+        V1RunningDetailCount,
+    )
+    from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+    from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
+    from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
+    from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
+    from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
+    from hatchet_sdk.clients.rest.models.v1_task_point_metric import V1TaskPointMetric
+    from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
+    from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
+    from hatchet_sdk.clients.rest.models.v1_task_run_status import V1TaskRunStatus
+    from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+    from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+    from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+    from hatchet_sdk.clients.rest.models.v1_task_timing import V1TaskTiming
+    from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
+    from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
+        V1TriggerWorkflowRunRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+        V1UpdateFilterRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_update_http_operator_request import (
+        V1UpdateHTTPOperatorRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
+        V1UpdateWebhookRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_wait_item import V1WaitItem
+    from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
+    from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import (
+        V1WebhookAPIKeyAuth,
+    )
+    from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
+    from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
+    from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+        V1WebhookHMACAlgorithm,
+    )
+    from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
+    from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+        V1WebhookHMACEncoding,
+    )
+    from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
+    from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
+    from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
+        V1WebhookSourceName,
+    )
+    from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
+    from hatchet_sdk.clients.rest.models.v1_workflow_run_details import (
+        V1WorkflowRunDetails,
+    )
+    from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
+        V1WorkflowRunDisplayName,
+    )
+    from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
+        V1WorkflowRunDisplayNameList,
+    )
+    from hatchet_sdk.clients.rest.models.v1_workflow_type import V1WorkflowType
+    from hatchet_sdk.clients.rest.models.webhook_worker import WebhookWorker
+    from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (
+        WebhookWorkerCreateRequest,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_create_response import (
+        WebhookWorkerCreateResponse,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_created import (
+        WebhookWorkerCreated,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_list_response import (
+        WebhookWorkerListResponse,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_request import (
+        WebhookWorkerRequest,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import (
+        WebhookWorkerRequestListResponse,
+    )
+    from hatchet_sdk.clients.rest.models.webhook_worker_request_method import (
+        WebhookWorkerRequestMethod,
+    )
+    from hatchet_sdk.clients.rest.models.worker import Worker
+    from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
+    from hatchet_sdk.clients.rest.models.worker_list import WorkerList
+    from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
+    from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
+    from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
+    from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
+    from hatchet_sdk.clients.rest.models.worker_type import WorkerType
+    from hatchet_sdk.clients.rest.models.workflow import Workflow
+    from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
+    from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
+    from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
+    from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
+    from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+        WorkflowPauseScheduledCronRunQueueBehavior,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
+    from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
+    from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
+        WorkflowRunOrderByDirection,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
+        WorkflowRunOrderByField,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
+    from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import (
+        WorkflowRunShapeItemForWorkflowRunDetails,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+    from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
+        WorkflowRunTriggeredBy,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
+        WorkflowRunsCancelRequest,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_runs_metrics import (
+        WorkflowRunsMetrics,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
+        WorkflowRunsMetricsCounts,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
+    from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
+        WorkflowTriggerCronRef,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
+        WorkflowTriggerEventRef,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
+    from hatchet_sdk.clients.rest.models.workflow_update_request import (
+        WorkflowUpdateRequest,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
+    from hatchet_sdk.clients.rest.models.workflow_version_definition import (
+        WorkflowVersionDefinition,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_version_meta import (
+        WorkflowVersionMeta,
+    )
+    from hatchet_sdk.clients.rest.models.workflow_workers_count import (
+        WorkflowWorkersCount,
+    )
+
+_LAZY_IMPORTS: dict[str, str] = {
+    "APIError": "hatchet_sdk.clients.rest.models.api_error",
+    "APIErrors": "hatchet_sdk.clients.rest.models.api_errors",
+    "APIMeta": "hatchet_sdk.clients.rest.models.api_meta",
+    "APIMetaAuth": "hatchet_sdk.clients.rest.models.api_meta_auth",
+    "APIMetaIntegration": "hatchet_sdk.clients.rest.models.api_meta_integration",
+    "APIMetaPosthog": "hatchet_sdk.clients.rest.models.api_meta_posthog",
+    "APIResourceMeta": "hatchet_sdk.clients.rest.models.api_resource_meta",
+    "APIToken": "hatchet_sdk.clients.rest.models.api_token",
+    "AcceptInviteRequest": "hatchet_sdk.clients.rest.models.accept_invite_request",
+    "BulkCreateEventRequest": "hatchet_sdk.clients.rest.models.bulk_create_event_request",
+    "CancelEventRequest": "hatchet_sdk.clients.rest.models.cancel_event_request",
+    "ConcurrencyLimitStrategy": "hatchet_sdk.clients.rest.models.concurrency_limit_strategy",
+    "ConcurrencyScope": "hatchet_sdk.clients.rest.models.concurrency_scope",
+    "ConcurrencySetting": "hatchet_sdk.clients.rest.models.concurrency_setting",
+    "ConcurrencyStat": "hatchet_sdk.clients.rest.models.concurrency_stat",
+    "CreateAPITokenRequest": "hatchet_sdk.clients.rest.models.create_api_token_request",
+    "CreateAPITokenResponse": "hatchet_sdk.clients.rest.models.create_api_token_response",
+    "CreateCronWorkflowTriggerRequest": "hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request",
+    "CreateEventRequest": "hatchet_sdk.clients.rest.models.create_event_request",
+    "CreatePullRequestFromStepRun": "hatchet_sdk.clients.rest.models.create_pull_request_from_step_run",
+    "CreateSNSIntegrationRequest": "hatchet_sdk.clients.rest.models.create_sns_integration_request",
+    "CreateTenantAlertEmailGroupRequest": "hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request",
+    "CreateTenantInviteRequest": "hatchet_sdk.clients.rest.models.create_tenant_invite_request",
+    "CreateTenantRequest": "hatchet_sdk.clients.rest.models.create_tenant_request",
+    "CronWorkflows": "hatchet_sdk.clients.rest.models.cron_workflows",
+    "CronWorkflowsList": "hatchet_sdk.clients.rest.models.cron_workflows_list",
+    "CronWorkflowsMethod": "hatchet_sdk.clients.rest.models.cron_workflows_method",
+    "CronWorkflowsOrderByField": "hatchet_sdk.clients.rest.models.cron_workflows_order_by_field",
+    "Event": "hatchet_sdk.clients.rest.models.event",
+    "EventData": "hatchet_sdk.clients.rest.models.event_data",
+    "EventKeyList": "hatchet_sdk.clients.rest.models.event_key_list",
+    "EventList": "hatchet_sdk.clients.rest.models.event_list",
+    "EventOrderByDirection": "hatchet_sdk.clients.rest.models.event_order_by_direction",
+    "EventOrderByField": "hatchet_sdk.clients.rest.models.event_order_by_field",
+    "EventUpdateCancel200Response": "hatchet_sdk.clients.rest.models.event_update_cancel200_response",
+    "EventWorkflowRunSummary": "hatchet_sdk.clients.rest.models.event_workflow_run_summary",
+    "Events": "hatchet_sdk.clients.rest.models.events",
+    "FeatureFlagEvaluationResult": "hatchet_sdk.clients.rest.models.feature_flag_evaluation_result",
+    "FeatureFlagId": "hatchet_sdk.clients.rest.models.feature_flag_id",
+    "GetStepRunDiffResponse": "hatchet_sdk.clients.rest.models.get_step_run_diff_response",
+    "InfoGetVersion200Response": "hatchet_sdk.clients.rest.models.info_get_version200_response",
+    "Job": "hatchet_sdk.clients.rest.models.job",
+    "JobRun": "hatchet_sdk.clients.rest.models.job_run",
+    "JobRunStatus": "hatchet_sdk.clients.rest.models.job_run_status",
+    "ListAPITokensResponse": "hatchet_sdk.clients.rest.models.list_api_tokens_response",
+    "ListPullRequestsResponse": "hatchet_sdk.clients.rest.models.list_pull_requests_response",
+    "ListSNSIntegrations": "hatchet_sdk.clients.rest.models.list_sns_integrations",
+    "ListSlackWebhooks": "hatchet_sdk.clients.rest.models.list_slack_webhooks",
+    "LogLine": "hatchet_sdk.clients.rest.models.log_line",
+    "LogLineLevel": "hatchet_sdk.clients.rest.models.log_line_level",
+    "LogLineList": "hatchet_sdk.clients.rest.models.log_line_list",
+    "LogLineOrderByDirection": "hatchet_sdk.clients.rest.models.log_line_order_by_direction",
+    "LogLineOrderByField": "hatchet_sdk.clients.rest.models.log_line_order_by_field",
+    "OtelSpan": "hatchet_sdk.clients.rest.models.otel_span",
+    "OtelSpanKind": "hatchet_sdk.clients.rest.models.otel_span_kind",
+    "OtelSpanList": "hatchet_sdk.clients.rest.models.otel_span_list",
+    "OtelStatusCode": "hatchet_sdk.clients.rest.models.otel_status_code",
+    "PaginationResponse": "hatchet_sdk.clients.rest.models.pagination_response",
+    "PauseWorkflowRequest": "hatchet_sdk.clients.rest.models.pause_workflow_request",
+    "PauseWorkflowRequestPause": "hatchet_sdk.clients.rest.models.pause_workflow_request_pause",
+    "PauseWorkflowRequestUnpause": "hatchet_sdk.clients.rest.models.pause_workflow_request_unpause",
+    "PullRequest": "hatchet_sdk.clients.rest.models.pull_request",
+    "PullRequestState": "hatchet_sdk.clients.rest.models.pull_request_state",
+    "QueueMetrics": "hatchet_sdk.clients.rest.models.queue_metrics",
+    "RateLimit": "hatchet_sdk.clients.rest.models.rate_limit",
+    "RateLimitList": "hatchet_sdk.clients.rest.models.rate_limit_list",
+    "RateLimitOrderByDirection": "hatchet_sdk.clients.rest.models.rate_limit_order_by_direction",
+    "RateLimitOrderByField": "hatchet_sdk.clients.rest.models.rate_limit_order_by_field",
+    "RecentStepRuns": "hatchet_sdk.clients.rest.models.recent_step_runs",
+    "RegisteredWorkflow": "hatchet_sdk.clients.rest.models.registered_workflow",
+    "RejectInviteRequest": "hatchet_sdk.clients.rest.models.reject_invite_request",
+    "ReplayEventRequest": "hatchet_sdk.clients.rest.models.replay_event_request",
+    "ReplayWorkflowRunsRequest": "hatchet_sdk.clients.rest.models.replay_workflow_runs_request",
+    "ReplayWorkflowRunsResponse": "hatchet_sdk.clients.rest.models.replay_workflow_runs_response",
+    "RerunStepRunRequest": "hatchet_sdk.clients.rest.models.rerun_step_run_request",
+    "SNSIntegration": "hatchet_sdk.clients.rest.models.sns_integration",
+    "ScheduleWorkflowRunRequest": "hatchet_sdk.clients.rest.models.schedule_workflow_run_request",
+    "ScheduledRunStatus": "hatchet_sdk.clients.rest.models.scheduled_run_status",
+    "ScheduledWorkflows": "hatchet_sdk.clients.rest.models.scheduled_workflows",
+    "ScheduledWorkflowsBulkDeleteFilter": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_filter",
+    "ScheduledWorkflowsBulkDeleteRequest": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_request",
+    "ScheduledWorkflowsBulkDeleteResponse": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_delete_response",
+    "ScheduledWorkflowsBulkError": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_error",
+    "ScheduledWorkflowsBulkUpdateItem": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_item",
+    "ScheduledWorkflowsBulkUpdateRequest": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request",
+    "ScheduledWorkflowsBulkUpdateResponse": "hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response",
+    "ScheduledWorkflowsList": "hatchet_sdk.clients.rest.models.scheduled_workflows_list",
+    "ScheduledWorkflowsMethod": "hatchet_sdk.clients.rest.models.scheduled_workflows_method",
+    "ScheduledWorkflowsOrderByField": "hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field",
+    "SemaphoreSlots": "hatchet_sdk.clients.rest.models.semaphore_slots",
+    "SlackWebhook": "hatchet_sdk.clients.rest.models.slack_webhook",
+    "Step": "hatchet_sdk.clients.rest.models.step",
+    "StepRun": "hatchet_sdk.clients.rest.models.step_run",
+    "StepRunArchive": "hatchet_sdk.clients.rest.models.step_run_archive",
+    "StepRunArchiveList": "hatchet_sdk.clients.rest.models.step_run_archive_list",
+    "StepRunDiff": "hatchet_sdk.clients.rest.models.step_run_diff",
+    "StepRunEvent": "hatchet_sdk.clients.rest.models.step_run_event",
+    "StepRunEventList": "hatchet_sdk.clients.rest.models.step_run_event_list",
+    "StepRunEventReason": "hatchet_sdk.clients.rest.models.step_run_event_reason",
+    "StepRunEventSeverity": "hatchet_sdk.clients.rest.models.step_run_event_severity",
+    "StepRunStatus": "hatchet_sdk.clients.rest.models.step_run_status",
+    "TaskStat": "hatchet_sdk.clients.rest.models.task_stat",
+    "TaskStatusStat": "hatchet_sdk.clients.rest.models.task_status_stat",
+    "Tenant": "hatchet_sdk.clients.rest.models.tenant",
+    "TenantAlertEmailGroup": "hatchet_sdk.clients.rest.models.tenant_alert_email_group",
+    "TenantAlertEmailGroupList": "hatchet_sdk.clients.rest.models.tenant_alert_email_group_list",
+    "TenantAlertingSettings": "hatchet_sdk.clients.rest.models.tenant_alerting_settings",
+    "TenantEnvironment": "hatchet_sdk.clients.rest.models.tenant_environment",
+    "TenantInvite": "hatchet_sdk.clients.rest.models.tenant_invite",
+    "TenantInviteList": "hatchet_sdk.clients.rest.models.tenant_invite_list",
+    "TenantList": "hatchet_sdk.clients.rest.models.tenant_list",
+    "TenantMember": "hatchet_sdk.clients.rest.models.tenant_member",
+    "TenantMemberList": "hatchet_sdk.clients.rest.models.tenant_member_list",
+    "TenantMemberRole": "hatchet_sdk.clients.rest.models.tenant_member_role",
+    "TenantQueueMetrics": "hatchet_sdk.clients.rest.models.tenant_queue_metrics",
+    "TenantResource": "hatchet_sdk.clients.rest.models.tenant_resource",
+    "TenantResourceLimit": "hatchet_sdk.clients.rest.models.tenant_resource_limit",
+    "TenantResourcePolicy": "hatchet_sdk.clients.rest.models.tenant_resource_policy",
+    "TenantStepRunQueueMetrics": "hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics",
+    "TenantVersion": "hatchet_sdk.clients.rest.models.tenant_version",
+    "TriggerRunResult": "hatchet_sdk.clients.rest.models.trigger_run_result",
+    "TriggerWorkflowRunRequest": "hatchet_sdk.clients.rest.models.trigger_workflow_run_request",
+    "UpdateCronWorkflowTriggerRequest": "hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request",
+    "UpdateScheduledWorkflowRunRequest": "hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request",
+    "UpdateTenantAlertEmailGroupRequest": "hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request",
+    "UpdateTenantInviteRequest": "hatchet_sdk.clients.rest.models.update_tenant_invite_request",
+    "UpdateTenantMemberRequest": "hatchet_sdk.clients.rest.models.update_tenant_member_request",
+    "UpdateTenantRequest": "hatchet_sdk.clients.rest.models.update_tenant_request",
+    "UpdateWorkerRequest": "hatchet_sdk.clients.rest.models.update_worker_request",
+    "User": "hatchet_sdk.clients.rest.models.user",
+    "UserChangePasswordRequest": "hatchet_sdk.clients.rest.models.user_change_password_request",
+    "UserLoginRequest": "hatchet_sdk.clients.rest.models.user_login_request",
+    "UserRegisterRequest": "hatchet_sdk.clients.rest.models.user_register_request",
+    "UserTenantMembershipsList": "hatchet_sdk.clients.rest.models.user_tenant_memberships_list",
+    "UserTenantPublic": "hatchet_sdk.clients.rest.models.user_tenant_public",
+    "V1AdditionalMetadataOperator": "hatchet_sdk.clients.rest.models.v1_additional_metadata_operator",
+    "V1BranchDurableTaskRequest": "hatchet_sdk.clients.rest.models.v1_branch_durable_task_request",
+    "V1BranchDurableTaskResponse": "hatchet_sdk.clients.rest.models.v1_branch_durable_task_response",
+    "V1CELDebugRequest": "hatchet_sdk.clients.rest.models.v1_cel_debug_request",
+    "V1CELDebugResponse": "hatchet_sdk.clients.rest.models.v1_cel_debug_response",
+    "V1CELDebugResponseStatus": "hatchet_sdk.clients.rest.models.v1_cel_debug_response_status",
+    "V1CancelTaskRequest": "hatchet_sdk.clients.rest.models.v1_cancel_task_request",
+    "V1CancelledTasks": "hatchet_sdk.clients.rest.models.v1_cancelled_tasks",
+    "V1CreateFilterRequest": "hatchet_sdk.clients.rest.models.v1_create_filter_request",
+    "V1CreateHTTPOperatorRequest": "hatchet_sdk.clients.rest.models.v1_create_http_operator_request",
+    "V1CreateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_create_webhook_request",
+    "V1CreateWebhookRequestAPIKey": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key",
+    "V1CreateWebhookRequestBase": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_base",
+    "V1CreateWebhookRequestBasicAuth": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth",
+    "V1CreateWebhookRequestHMAC": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac",
+    "V1DagChildren": "hatchet_sdk.clients.rest.models.v1_dag_children",
+    "V1DurableEventLogEntry": "hatchet_sdk.clients.rest.models.v1_durable_event_log_entry",
+    "V1DurableEventLogKind": "hatchet_sdk.clients.rest.models.v1_durable_event_log_kind",
+    "V1DurableWaitCondition": "hatchet_sdk.clients.rest.models.v1_durable_wait_condition",
+    "V1DurableWaitConditionKind": "hatchet_sdk.clients.rest.models.v1_durable_wait_condition_kind",
+    "V1Event": "hatchet_sdk.clients.rest.models.v1_event",
+    "V1EventList": "hatchet_sdk.clients.rest.models.v1_event_list",
+    "V1EventTriggeredRun": "hatchet_sdk.clients.rest.models.v1_event_triggered_run",
+    "V1EventWorkflowRunSummary": "hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary",
+    "V1Filter": "hatchet_sdk.clients.rest.models.v1_filter",
+    "V1FilterList": "hatchet_sdk.clients.rest.models.v1_filter_list",
+    "V1HTTPOperator": "hatchet_sdk.clients.rest.models.v1_http_operator",
+    "V1HTTPOperatorList": "hatchet_sdk.clients.rest.models.v1_http_operator_list",
+    "V1LogLine": "hatchet_sdk.clients.rest.models.v1_log_line",
+    "V1LogLineLevel": "hatchet_sdk.clients.rest.models.v1_log_line_level",
+    "V1LogLineList": "hatchet_sdk.clients.rest.models.v1_log_line_list",
+    "V1LogLineOrderByDirection": "hatchet_sdk.clients.rest.models.v1_log_line_order_by_direction",
+    "V1LogsPointMetric": "hatchet_sdk.clients.rest.models.v1_logs_point_metric",
+    "V1LogsPointMetrics": "hatchet_sdk.clients.rest.models.v1_logs_point_metrics",
+    "V1ReplayTaskRequest": "hatchet_sdk.clients.rest.models.v1_replay_task_request",
+    "V1ReplayedTasks": "hatchet_sdk.clients.rest.models.v1_replayed_tasks",
+    "V1RestoreTaskResponse": "hatchet_sdk.clients.rest.models.v1_restore_task_response",
+    "V1RunningDetailCount": "hatchet_sdk.clients.rest.models.v1_running_detail_count",
+    "V1RunningFilter": "hatchet_sdk.clients.rest.models.v1_running_filter",
+    "V1TaskEvent": "hatchet_sdk.clients.rest.models.v1_task_event",
+    "V1TaskEventList": "hatchet_sdk.clients.rest.models.v1_task_event_list",
+    "V1TaskEventType": "hatchet_sdk.clients.rest.models.v1_task_event_type",
+    "V1TaskFilter": "hatchet_sdk.clients.rest.models.v1_task_filter",
+    "V1TaskPointMetric": "hatchet_sdk.clients.rest.models.v1_task_point_metric",
+    "V1TaskPointMetrics": "hatchet_sdk.clients.rest.models.v1_task_point_metrics",
+    "V1TaskRunMetric": "hatchet_sdk.clients.rest.models.v1_task_run_metric",
+    "V1TaskRunStatus": "hatchet_sdk.clients.rest.models.v1_task_run_status",
+    "V1TaskStatus": "hatchet_sdk.clients.rest.models.v1_task_status",
+    "V1TaskSummary": "hatchet_sdk.clients.rest.models.v1_task_summary",
+    "V1TaskSummaryList": "hatchet_sdk.clients.rest.models.v1_task_summary_list",
+    "V1TaskTiming": "hatchet_sdk.clients.rest.models.v1_task_timing",
+    "V1TaskTimingList": "hatchet_sdk.clients.rest.models.v1_task_timing_list",
+    "V1TriggerWorkflowRunRequest": "hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request",
+    "V1UpdateFilterRequest": "hatchet_sdk.clients.rest.models.v1_update_filter_request",
+    "V1UpdateHTTPOperatorRequest": "hatchet_sdk.clients.rest.models.v1_update_http_operator_request",
+    "V1UpdateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_update_webhook_request",
+    "V1WaitItem": "hatchet_sdk.clients.rest.models.v1_wait_item",
+    "V1Webhook": "hatchet_sdk.clients.rest.models.v1_webhook",
+    "V1WebhookAPIKeyAuth": "hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth",
+    "V1WebhookAuthType": "hatchet_sdk.clients.rest.models.v1_webhook_auth_type",
+    "V1WebhookBasicAuth": "hatchet_sdk.clients.rest.models.v1_webhook_basic_auth",
+    "V1WebhookHMACAlgorithm": "hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm",
+    "V1WebhookHMACAuth": "hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth",
+    "V1WebhookHMACEncoding": "hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding",
+    "V1WebhookList": "hatchet_sdk.clients.rest.models.v1_webhook_list",
+    "V1WebhookResponse": "hatchet_sdk.clients.rest.models.v1_webhook_response",
+    "V1WebhookSourceName": "hatchet_sdk.clients.rest.models.v1_webhook_source_name",
+    "V1WorkflowRun": "hatchet_sdk.clients.rest.models.v1_workflow_run",
+    "V1WorkflowRunDetails": "hatchet_sdk.clients.rest.models.v1_workflow_run_details",
+    "V1WorkflowRunDisplayName": "hatchet_sdk.clients.rest.models.v1_workflow_run_display_name",
+    "V1WorkflowRunDisplayNameList": "hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list",
+    "V1WorkflowType": "hatchet_sdk.clients.rest.models.v1_workflow_type",
+    "WebhookWorker": "hatchet_sdk.clients.rest.models.webhook_worker",
+    "WebhookWorkerCreateRequest": "hatchet_sdk.clients.rest.models.webhook_worker_create_request",
+    "WebhookWorkerCreateResponse": "hatchet_sdk.clients.rest.models.webhook_worker_create_response",
+    "WebhookWorkerCreated": "hatchet_sdk.clients.rest.models.webhook_worker_created",
+    "WebhookWorkerListResponse": "hatchet_sdk.clients.rest.models.webhook_worker_list_response",
+    "WebhookWorkerRequest": "hatchet_sdk.clients.rest.models.webhook_worker_request",
+    "WebhookWorkerRequestListResponse": "hatchet_sdk.clients.rest.models.webhook_worker_request_list_response",
+    "WebhookWorkerRequestMethod": "hatchet_sdk.clients.rest.models.webhook_worker_request_method",
+    "Worker": "hatchet_sdk.clients.rest.models.worker",
+    "WorkerLabel": "hatchet_sdk.clients.rest.models.worker_label",
+    "WorkerList": "hatchet_sdk.clients.rest.models.worker_list",
+    "WorkerRuntimeInfo": "hatchet_sdk.clients.rest.models.worker_runtime_info",
+    "WorkerRuntimeSDKs": "hatchet_sdk.clients.rest.models.worker_runtime_sdks",
+    "WorkerSlotConfig": "hatchet_sdk.clients.rest.models.worker_slot_config",
+    "WorkerStatus": "hatchet_sdk.clients.rest.models.worker_status",
+    "WorkerType": "hatchet_sdk.clients.rest.models.worker_type",
+    "Workflow": "hatchet_sdk.clients.rest.models.workflow",
+    "WorkflowConcurrency": "hatchet_sdk.clients.rest.models.workflow_concurrency",
+    "WorkflowKind": "hatchet_sdk.clients.rest.models.workflow_kind",
+    "WorkflowList": "hatchet_sdk.clients.rest.models.workflow_list",
+    "WorkflowMetrics": "hatchet_sdk.clients.rest.models.workflow_metrics",
+    "WorkflowPauseScheduledCronRunQueueBehavior": "hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior",
+    "WorkflowRun": "hatchet_sdk.clients.rest.models.workflow_run",
+    "WorkflowRunList": "hatchet_sdk.clients.rest.models.workflow_run_list",
+    "WorkflowRunOrderByDirection": "hatchet_sdk.clients.rest.models.workflow_run_order_by_direction",
+    "WorkflowRunOrderByField": "hatchet_sdk.clients.rest.models.workflow_run_order_by_field",
+    "WorkflowRunShape": "hatchet_sdk.clients.rest.models.workflow_run_shape",
+    "WorkflowRunShapeItemForWorkflowRunDetails": "hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details",
+    "WorkflowRunStatus": "hatchet_sdk.clients.rest.models.workflow_run_status",
+    "WorkflowRunTriggeredBy": "hatchet_sdk.clients.rest.models.workflow_run_triggered_by",
+    "WorkflowRunsCancelRequest": "hatchet_sdk.clients.rest.models.workflow_runs_cancel_request",
+    "WorkflowRunsMetrics": "hatchet_sdk.clients.rest.models.workflow_runs_metrics",
+    "WorkflowRunsMetricsCounts": "hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts",
+    "WorkflowTag": "hatchet_sdk.clients.rest.models.workflow_tag",
+    "WorkflowTriggerCronRef": "hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref",
+    "WorkflowTriggerEventRef": "hatchet_sdk.clients.rest.models.workflow_trigger_event_ref",
+    "WorkflowTriggers": "hatchet_sdk.clients.rest.models.workflow_triggers",
+    "WorkflowUpdateRequest": "hatchet_sdk.clients.rest.models.workflow_update_request",
+    "WorkflowVersion": "hatchet_sdk.clients.rest.models.workflow_version",
+    "WorkflowVersionDefinition": "hatchet_sdk.clients.rest.models.workflow_version_definition",
+    "WorkflowVersionMeta": "hatchet_sdk.clients.rest.models.workflow_version_meta",
+    "WorkflowWorkersCount": "hatchet_sdk.clients.rest.models.workflow_workers_count",
+}
+
+__all__ = list(_LAZY_IMPORTS)
+
+
+def __getattr__(name: str) -> object:
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(importlib.import_module(_LAZY_IMPORTS[name]), name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_IMPORTS))

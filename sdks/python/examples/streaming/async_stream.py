@@ -1,7 +1,7 @@
 import asyncio
 
 from examples.streaming.worker import hatchet, stream_task
-from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
+from hatchet_sdk import TaskRunEventType
 
 
 async def main() -> None:
