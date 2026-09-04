@@ -296,12 +296,16 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		return d.fail(span, action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
 	}
 
+	// Capture the STARTED timestamp synchronously: the report itself runs in a goroutine that
+	// races the DAG body, and for a fast DAG the goroutine can execute after SendCompleted,
+	// which would otherwise stamp STARTED later than COMPLETED and invert the event order in OLAP.
+	startedAt := time.Now()
 	startedReported := make(chan struct{})
 
 	go func() {
 		defer close(startedReported)
 
-		if err := d.SendStarted(action); err != nil {
+		if err := d.SendStartedAt(action, startedAt); err != nil {
 			d.Logger().Error().Err(err).
 				Str("task_run_external_id", action.TaskRunExternalId).
 				Msg("could not report task started")

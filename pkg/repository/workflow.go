@@ -72,7 +72,7 @@ type CreateWorkflowVersionOpts struct {
 }
 
 type IdempotencyConfig struct {
-	Expression string                   `json:"expression" validate:"required,celworkflowrunstr"`
+	Expression string                   `json:"expression" validate:"required,celidempotencykeystr"`
 	TTLMs      int64                    `json:"ttlMs" validate:"required,min=1"`
 	Method     sqlcv1.IdempotencyMethod `json:"method" validate:"required,oneof=TTL STATUS"`
 }

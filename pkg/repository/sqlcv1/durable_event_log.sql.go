@@ -977,6 +977,7 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.tenant_id = $4::UUID
 )
 
 SELECT
@@ -996,6 +997,7 @@ type ListSatisfiedEntriesParams struct {
 	Taskexternalids []uuid.UUID `json:"taskexternalids"`
 	Nodeids         []int64     `json:"nodeids"`
 	Branchids       []int64     `json:"branchids"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
 }
 
 type ListSatisfiedEntriesRow struct {
@@ -1024,7 +1026,12 @@ type ListSatisfiedEntriesRow struct {
 }
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
-	rows, err := db.Query(ctx, listSatisfiedEntries, arg.Taskexternalids, arg.Nodeids, arg.Branchids)
+	rows, err := db.Query(ctx, listSatisfiedEntries,
+		arg.Taskexternalids,
+		arg.Nodeids,
+		arg.Branchids,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1130,10 +1137,12 @@ WITH inputs AS (
 ), locked_log_files AS (
     SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
     FROM v1_durable_event_log_file
-    WHERE (durable_task_id, durable_task_inserted_at) IN (
-        SELECT durable_task_id, durable_task_inserted_at
-        FROM inputs
-    )
+    WHERE
+        (durable_task_id, durable_task_inserted_at) IN (
+            SELECT durable_task_id, durable_task_inserted_at
+            FROM inputs
+        )
+        AND durable_task_inserted_at >= $7::TIMESTAMPTZ
     ORDER BY durable_task_id, durable_task_inserted_at
     FOR UPDATE
 ), satisfied_orders_to_apply AS (
@@ -1150,6 +1159,7 @@ WITH inputs AS (
     JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
+        AND e.durable_task_inserted_at >= $7::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -1186,12 +1196,13 @@ JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_insert
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Nodeids                []int64              `json:"nodeids"`
-	Branchids              []int64              `json:"branchids"`
-	Childtaskisfailures    []bool               `json:"childtaskisfailures"`
-	Childtaskerrormessages []string             `json:"childtaskerrormessages"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Nodeids                  []int64              `json:"nodeids"`
+	Branchids                []int64              `json:"branchids"`
+	Childtaskisfailures      []bool               `json:"childtaskisfailures"`
+	Childtaskerrormessages   []string             `json:"childtaskerrormessages"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
 }
 
 type UpdateDurableEventLogEntriesSatisfiedRow struct {
@@ -1226,6 +1237,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 		arg.Branchids,
 		arg.Childtaskisfailures,
 		arg.Childtaskerrormessages,
+		arg.Mindurabletaskinsertedat,
 	)
 	if err != nil {
 		return nil, err

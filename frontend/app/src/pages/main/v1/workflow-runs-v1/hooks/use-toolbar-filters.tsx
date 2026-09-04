@@ -100,12 +100,10 @@ export const useToolbarFilters = ({
       }
     },
     onClearTimeRange: () => filterActions.setCustomTimeRange(null),
-    onRetentionBlocked: filterActions.retentionGate.blockSince,
     currentTimeWindow: filterActions.timeWindow,
     isCustomTimeRange: filterActions.isCustomTimeRange,
     createdAfter: filterActions.apiFilters.since,
     finishedBefore: filterActions.apiFilters.until,
-    retentionPeriod: filterActions.retentionPeriod,
   };
 
   return [

@@ -3,8 +3,6 @@ import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import useControlPlane from '@/hooks/use-control-plane';
-import { useRetentionGate } from '@/hooks/use-retention-gate';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import {
   V1LogLine,
   V1LogLineOrderByDirection,
@@ -13,14 +11,6 @@ import {
 } from '@/lib/api';
 import api, { SELF_HOSTED_LIST_TIMEOUT_MS } from '@/lib/api/api';
 import { useSearchParams } from '@/lib/router-helpers';
-import {
-  defaultTimeWindowForRetention,
-  getRetentionBoundary,
-  isBeforeRetention,
-  isTimeWindowOutsideRetention,
-  largestAllowedTimeWindow,
-  type TimeWindowPreset,
-} from '@/lib/utils/retention';
 import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -31,7 +21,7 @@ import { z } from 'zod';
 const LOGS_PER_PAGE = 100;
 const FILTER_KEY = 'tenant-logs-filters';
 
-export type TimeWindow = TimeWindowPreset;
+export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
 const filterSchema = z.object({
   q: z.string().optional(),
@@ -66,9 +56,6 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
 
 export function useTenantLogs() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
-  const { tenant } = useTenantDetails();
-  const retentionPeriod = tenant?.dataRetentionPeriod;
-  const retentionGate = useRetentionGate(retentionPeriod);
   const { refetchInterval } = useRefetchInterval();
   const { isSelfHosted } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -244,57 +231,25 @@ export function useTenantLogs() {
 
   const setCustomTimeRange = useCallback(
     (newSince: string, newUntil: string) => {
-      retentionGate.trySince(newSince, () => {
-        setFilters({ since: newSince, until: newUntil });
-      });
+      setFilters({ since: newSince, until: newUntil });
     },
-    [setFilters, retentionGate.trySince],
+    [setFilters],
   );
 
   const setTimeWindow = useCallback(
     (tw: TimeWindow) => {
-      retentionGate.tryTimeWindow(tw, () => {
-        setSearchParams((prev) => ({
-          ...Object.fromEntries(prev.entries()),
-          [FILTER_KEY]: JSON.stringify({
-            ...filters,
-            tw,
-            since: undefined,
-            until: undefined,
-          }),
-        }));
-      });
-    },
-    [filters, setSearchParams, retentionGate.tryTimeWindow],
-  );
-
-  useEffect(() => {
-    if (!retentionPeriod) {
-      return;
-    }
-    if (filters.since && isBeforeRetention(filters.since, retentionPeriod)) {
-      const boundary = getRetentionBoundary(retentionPeriod);
-      if (boundary) {
-        setFilters({ since: boundary.toISOString() });
-      }
-      return;
-    }
-    if (
-      !filters.since &&
-      isTimeWindowOutsideRetention(filters.tw, retentionPeriod)
-    ) {
-      const next = largestAllowedTimeWindow(retentionPeriod);
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
         [FILTER_KEY]: JSON.stringify({
           ...filters,
-          tw: next,
+          tw,
           since: undefined,
           until: undefined,
         }),
       }));
-    }
-  }, [retentionPeriod, filters, setFilters, setSearchParams]);
+    },
+    [filters, setSearchParams],
+  );
 
   const clearTimeRange = useCallback(() => {
     setSearchParams((prev) => ({
@@ -308,12 +263,8 @@ export function useTenantLogs() {
   }, [filters, setSearchParams]);
 
   const setCustomSince = useCallback(
-    (newSince: string | undefined) => {
-      retentionGate.trySince(newSince, () => {
-        setFilters({ since: newSince });
-      });
-    },
-    [setFilters, retentionGate.trySince],
+    (newSince: string | undefined) => setFilters({ since: newSince }),
+    [setFilters],
   );
 
   const setCustomUntil = useCallback(
@@ -325,9 +276,7 @@ export function useTenantLogs() {
 
   const hasActiveFilters =
     (filters.q ?? '').trim() !== '' || isCustomTimeRange || filters.tw !== '1d';
-  const isDefaultOneDayWindow =
-    !isCustomTimeRange &&
-    filters.tw === defaultTimeWindowForRetention(retentionPeriod);
+  const isDefaultOneDayWindow = !isCustomTimeRange && filters.tw === '1d';
 
   const resetFilters = useCallback(() => {
     setSearchParams((prev) => {
@@ -366,9 +315,5 @@ export function useTenantLogs() {
     hasActiveFilters,
     isDefaultOneDayWindow,
     resetFilters,
-    searchAllRetainedHistory: () =>
-      setTimeWindow(largestAllowedTimeWindow(retentionPeriod)),
-    retentionPeriod,
-    retentionGate,
   };
 }

@@ -767,7 +767,7 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 		}
 	}
 
-	key, err := r.celParser.ParseAndEvalWorkflowString(
+	key, err := r.celParser.ParseAndEvalIdempotencyKey(
 		tuple.idempotency.Expression,
 		cel.NewInput(
 			cel.WithInput(inputData),

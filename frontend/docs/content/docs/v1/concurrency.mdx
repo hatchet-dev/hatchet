@@ -15,7 +15,7 @@ Hatchet provides powerful concurrency control features to help you manage the ex
 
 <Callout type="info">
   This page will discuss concurrency **keys** often. The key is the result of
-  evaluating a [CEL expression](https://celbyexample.com/) that you provide on
+  evaluating a [CEL expression](/v1/cel-expressions) that you provide on
   your tasks or workflows. The CEL expression you create can reference the
   `input` to the workflow and the `additional_metadata`.
 
@@ -50,7 +50,7 @@ Concurrency control also lets you limit the number of runs for a workflow global
 
 When a new task instance is triggered, the Group Round Robin strategy will:
 
-1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+1. Determine the key that the run belongs to based on the [CEL expression](/v1/cel-expressions) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
 3. If a slot is available, the new task or workflow starts executing immediately.
 4. If no slots are available, the new task or workflow is added to a queue for its key.
@@ -95,7 +95,7 @@ To use this strategy, set the `GROUP_ROUND_ROBIN` limit strategy along with a `m
 
 When a new task instance is triggered, the Cancel In Progress strategy will:
 
-1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+1. Determine the key that the run belongs to based on the [CEL expression](/v1/cel-expressions) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
 3. If a slot is available, the new task or workflow starts executing immediately.
 4. If no slots are available, a running instance of the task or workflow with the same concurrency key will be cancelled to free up a slot, and the new instance will start executing immediately.
@@ -136,7 +136,7 @@ To use this strategy, set the `CANCEL_IN_PROGRESS` limit strategy along with a `
 
 When a new task instance is triggered, the Cancel Newest strategy will:
 
-1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+1. Determine the key that the run belongs to based on the [CEL expression](/v1/cel-expressions) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
 3. If a slot is available, the new task or workflow starts executing immediately.
 4. If no slots are available, the newly triggered run is cancelled immediately, allowing the in-progress runs to continue uninterrupted.
@@ -170,7 +170,7 @@ To use this strategy, set the `CANCEL_NEWEST` limit strategy along with a `max_r
 
 When a new task instance is triggered, the Cancel Queued Except Newest strategy will:
 
-1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+1. Determine the key that the run belongs to based on the [CEL expression](/v1/cel-expressions) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
 3. If a slot is available, the new task or workflow starts executing immediately.
 4. If no slots are available, the newly triggered run is cancelled immediately, _except for the most recent `max_runs` tasks_, which will be kept in the queued state until there is available slot capacity.
@@ -221,7 +221,7 @@ To use this strategy, set the `CANCEL_QUEUED_EXCEPT_NEWEST` limit strategy along
 
 When a new task instance is triggered, the Cancel Queued Except Oldest strategy will:
 
-1. Determine the key that the run belongs to based on the [CEL expression](https://celbyexample.com/) defined in the task or workflow's concurrency configuration.
+1. Determine the key that the run belongs to based on the [CEL expression](/v1/cel-expressions) defined in the task or workflow's concurrency configuration.
 2. Check if there are any available slots for the computed concurrency key based on the maximum number of concurrent runs allowed by the concurrency configuration.
 3. If a slot is available, the new task or workflow starts executing immediately.
 4. If no slots are available, the newly triggered run is cancelled immediately, _except for the oldest `max_runs` still-queued tasks_, which will be kept in the queued state until there is available slot capacity.

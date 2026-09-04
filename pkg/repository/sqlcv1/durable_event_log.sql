@@ -140,10 +140,12 @@ WITH inputs AS (
 ), locked_log_files AS (
     SELECT *
     FROM v1_durable_event_log_file
-    WHERE (durable_task_id, durable_task_inserted_at) IN (
-        SELECT durable_task_id, durable_task_inserted_at
-        FROM inputs
-    )
+    WHERE
+        (durable_task_id, durable_task_inserted_at) IN (
+            SELECT durable_task_id, durable_task_inserted_at
+            FROM inputs
+        )
+        AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
     ORDER BY durable_task_id, durable_task_inserted_at
     FOR UPDATE
 ), satisfied_orders_to_apply AS (
@@ -160,6 +162,7 @@ WITH inputs AS (
     JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
+        AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -206,6 +209,7 @@ WITH inputs AS (
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE lt.tenant_id = @tenantId::UUID
 )
 
 SELECT

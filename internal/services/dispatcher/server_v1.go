@@ -1640,6 +1640,12 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 	})
 }
 
+// ErrNoActiveDurableInvocation is returned by DeliverDurableEventLogEntryCompletion when this
+// dispatcher has no in-memory durable session for the task -- typically because an engine restart
+// wiped it and the worker has not reconnected yet, catching this error so that messages get sent do the DLQ
+// lets DispatchCallbacks re-route it once the worker reconnects to a live dispatcher.
+var ErrNoActiveDurableInvocation = errors.New("no active durable invocation found")
+
 func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, isFailure bool, errorMessage *string) error {
 	inv, ok := d.durableInvocations.Load(durableInvocationsKey{
 		tenantId: tenantId,
@@ -1647,7 +1653,7 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 	})
 
 	if !ok {
-		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
+		return fmt.Errorf("%w for task %s", ErrNoActiveDurableInvocation, taskExternalId)
 	}
 
 	ref := &contracts.DurableEventLogEntryRef{
