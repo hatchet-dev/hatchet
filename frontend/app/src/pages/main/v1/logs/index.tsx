@@ -13,14 +13,18 @@ import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-s
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
-import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { TimeRangeSelect } from '@/components/v1/molecules/time-picker/time-range-select';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -65,13 +69,7 @@ function TenantLogs() {
     hasActiveFilters,
     isDefaultOneDayWindow,
     resetFilters,
-    searchAllRetainedHistory,
-    retentionPeriod,
-    retentionGate,
   } = useTenantLogs();
-  const retainedLabel = retentionPeriod
-    ? formatRetentionPeriod(retentionPeriod)
-    : '1 day';
 
   const sidePanel = useSidePanel();
 
@@ -95,11 +93,6 @@ function TenantLogs() {
 
   return (
     <div className="flex flex-col h-full gap-4">
-      <RetentionUpgradeDialog
-        attempt={retentionGate.attempt}
-        retentionPeriod={retentionPeriod}
-        onClose={retentionGate.close}
-      />
       <LogsChart
         metrics={chartMetrics}
         since={chartSince}
@@ -144,16 +137,12 @@ function TenantLogs() {
               date={customSince ? new Date(customSince) : undefined}
               setDate={(date) => setCustomSince(date?.toISOString())}
               triggerClassName="h-8 text-xs"
-              retentionPeriod={retentionPeriod}
-              onBlockedDate={retentionGate.blockSince}
             />
             <DateTimePicker
               label="Before"
               date={customUntil ? new Date(customUntil) : undefined}
               setDate={(date) => setCustomUntil(date?.toISOString())}
               triggerClassName="h-8 text-xs"
-              retentionPeriod={retentionPeriod}
-              onBlockedDate={retentionGate.blockSince}
             />
             <Button
               onClick={clearTimeRange}
@@ -165,18 +154,27 @@ function TenantLogs() {
             </Button>
           </div>
         ) : (
-          <TimeRangeSelect
+          <Select
             value={timeWindow}
-            onChange={(value) => {
+            onValueChange={(value) => {
               if (value === 'custom') {
                 setCustomTimeRange(chartSince, new Date().toISOString());
               } else {
                 setTimeWindow(value as TimeWindow);
               }
             }}
-            retentionPeriod={retentionPeriod}
-            triggerClassName="h-8 w-28 text-xs"
-          />
+          >
+            <SelectTrigger className="h-8 text-xs w-28">
+              <SelectValue placeholder="Choose time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">1 hour</SelectItem>
+              <SelectItem value="6h">6 hours</SelectItem>
+              <SelectItem value="1d">1 day</SelectItem>
+              <SelectItem value="7d">7 days</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
         )}
         <RefetchIntervalDropdown
           isRefetching={isRefetching}
@@ -203,7 +201,7 @@ function TenantLogs() {
           ) : (
             <EmptyState
               title="No logs found"
-              description={`No logs in the last ${retainedLabel}.`}
+              description="Logs are emitted by your workers as they execute tasks."
               links={[
                 {
                   href: docsPages.v1.logging.href,
@@ -215,8 +213,8 @@ function TenantLogs() {
                 isDefaultOneDayWindow
                   ? [
                       {
-                        label: 'Search all retained history',
-                        onClick: searchAllRetainedHistory,
+                        label: 'Search past 7 days',
+                        onClick: () => setTimeWindow('7d'),
                       },
                     ]
                   : undefined

@@ -26,9 +26,6 @@ Tenant:
     region:
       type: string
       description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
-    dataRetentionPeriod:
-      type: string
-      description: The data retention period for the tenant, e.g. 720h.
   required:
     - metadata
     - name
