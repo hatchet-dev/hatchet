@@ -39,6 +39,7 @@ sql:
       - users.sql
       - sync.sql
       - workflow_schedules.sql
+      - allocated_resources.sql
       - durable_event_log.sql
       - operator.sql
     schema:
@@ -62,6 +63,13 @@ sql:
             go_type:
               import: "github.com/jackc/pgx/v5/pgtype"
               type: "Int8"
+              slice: true
+          # NULL elements mean "static max_concurrency applies", so the slice type must
+          # be able to represent them
+          - column: "v1_task.concurrency_max_runs"
+            go_type:
+              import: "github.com/jackc/pgx/v5/pgtype"
+              type: "Int4"
               slice: true
           - db_type: "uuid"
             go_type:

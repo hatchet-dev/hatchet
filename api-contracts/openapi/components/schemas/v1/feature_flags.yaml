@@ -15,3 +15,4 @@ FeatureFlagId:
     - "tenant-log-workflow-filter-enabled"
     - "trace-minimap-enabled"
     - "organization-sso-enabled"
+    - "operator-details-enabled"

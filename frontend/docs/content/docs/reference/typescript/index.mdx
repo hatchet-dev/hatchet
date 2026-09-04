@@ -1,0 +1,33 @@
+---
+title: "Overview"
+---
+
+# TypeScript SDK
+
+This is the generated API reference for the Hatchet TypeScript SDK. For concepts and guides, see the [user guide](/v1).
+
+## Core pages
+
+- [Client](/reference/typescript/client): The main Hatchet client, its configuration, and the feature client accessors
+- [Context](/reference/typescript/context): The context object passed to tasks at runtime
+- [Embedded](/reference/typescript/embedded): Run a full Hatchet engine in-process for local development
+- [Runnables](/reference/typescript/runnables): Tasks and workflows, the objects you register on workers and run
+
+## Feature clients
+
+Feature clients are available as properties on the [client](/reference/typescript/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.
+
+| Client                                                            | Description                                                                   | Guide                                        |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| [CEL](/reference/typescript/feature-clients/cel)                  | Evaluate and debug CEL expressions used in event filters and concurrency keys |                                              |
+| [Crons](/reference/typescript/feature-clients/crons)              | Create and manage cron triggers that run workflows on a schedule              | [Cron Runs](/v1/cron-runs)                   |
+| [Filters](/reference/typescript/feature-clients/filters)          | Manage event filters that scope which events trigger runs                     | [Events](/v1/events)                         |
+| [Logs](/reference/typescript/feature-clients/logs)                | Read logs written by task runs                                                | [Logging](/v1/logging)                       |
+| [Metrics](/reference/typescript/feature-clients/metrics)          | Read queue depths, task status counts, and tenant Prometheus metrics          | [Prometheus Metrics](/v1/prometheus-metrics) |
+| [Rate Limits](/reference/typescript/feature-clients/ratelimits)   | Create and inspect rate limits that control task throughput                   | [Rate Limits](/v1/rate-limits)               |
+| [Runs](/reference/typescript/feature-clients/runs)                | Get, replay, cancel, and inspect workflow runs and their results              | [Running Tasks](/v1/running-your-task)       |
+| [Scheduled Runs](/reference/typescript/feature-clients/schedules) | Schedule workflow runs for a specific future time                             | [Scheduled Runs](/v1/scheduled-runs)         |
+| [Tenant](/reference/typescript/feature-clients/tenant)            | Read details about the current tenant                                         |                                              |
+| [Webhooks](/reference/typescript/feature-clients/webhooks)        | Manage incoming webhooks that trigger runs from external services             | [Webhooks](/v1/webhooks)                     |
+| [Workers](/reference/typescript/feature-clients/workers)          | List workers and manage their state                                           | [Workers](/v1/workers)                       |
+| [Workflows](/reference/typescript/feature-clients/workflows)      | List and manage registered workflow definitions                               | [Tasks](/v1/tasks)                           |

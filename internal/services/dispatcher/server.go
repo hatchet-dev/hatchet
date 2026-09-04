@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -433,13 +434,6 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, err
 	}
 
-	// if the worker is not active, the listener should reconnect
-	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		span.RecordError(err)
-		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
-	}
-
 	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
 
 	if err != nil {
@@ -451,6 +445,17 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		}
 
 		return nil, err
+	}
+
+	// If the worker's listen stream is down, tell it to reconnect — but only after
+	// recording the heartbeat above. The process is alive and still executing its
+	// in-flight tasks, so a stale stream must not cause those tasks to be reassigned
+	// (reassignment triggers on lastHeartbeatAt). New work is independently gated on
+	// isActive = true, so a fresh heartbeat here cannot route tasks to a streamless
+	// worker.
+	if worker.LastListenerEstablished.Valid && !worker.IsActive {
+		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
@@ -710,8 +715,15 @@ type StreamEventBuffer struct {
 	cancel                    context.CancelFunc
 	timeoutDuration           time.Duration
 	gracePeriod               time.Duration
+	hangupQuietPeriod         time.Duration
+	hangupMaxWait             time.Duration
+	pendingHangup             *contracts.WorkflowEvent
+	hangupReceivedAt          time.Time
+	lastStreamTime            time.Time
 	mu                        sync.Mutex
 }
+
+const defaultHangupQuietPeriod = 500 * time.Millisecond
 
 func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -723,6 +735,8 @@ func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 		stepRunIdToCompletionTime: make(map[uuid.UUID]time.Time),
 		timeoutDuration:           timeout,
 		gracePeriod:               2 * time.Second, // Wait 2 seconds after completion for late events
+		hangupQuietPeriod:         defaultHangupQuietPeriod,
+		hangupMaxWait:             timeout,
 		eventsChan:                make(chan *contracts.WorkflowEvent, 100),
 		timedOutEventProducer:     make(chan timeoutEvent, 100),
 		ctx:                       ctx,
@@ -731,6 +745,7 @@ func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
 
 	go buffer.processTimeoutEvents()
 	go buffer.periodicCleanup()
+	go buffer.hangupDrainLoop()
 
 	return buffer
 }
@@ -744,6 +759,24 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 		(event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED ||
 			event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED ||
 			event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED)
+}
+
+func isWorkflowRunHangup(event *contracts.WorkflowEvent) bool {
+	if event == nil {
+		return false
+	}
+
+	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
+		return false
+	}
+
+	if event.Hangup {
+		return true
+	}
+
+	return event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED ||
+		event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED ||
+		event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
 }
 
 func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
@@ -799,6 +832,7 @@ func (b *StreamEventBuffer) processTimeoutEvents() {
 						for _, e := range bufferedEvents {
 							select {
 							case b.eventsChan <- e:
+								b.lastStreamTime = time.Now()
 							case <-b.ctx.Done():
 								b.mu.Unlock()
 								return
@@ -828,6 +862,90 @@ func (b *StreamEventBuffer) Close() {
 	b.cancel()
 }
 
+func (b *StreamEventBuffer) sendEventLocked(event *contracts.WorkflowEvent) bool {
+	select {
+	case b.eventsChan <- event:
+		return true
+	case <-b.ctx.Done():
+		return false
+	}
+}
+
+func (b *StreamEventBuffer) bufferedStreamCountLocked() int {
+	n := 0
+	for _, events := range b.stepRunIdToWorkflowEvents {
+		n += len(events)
+	}
+	return n
+}
+
+func (b *StreamEventBuffer) flushBufferedStreamEventsLocked() {
+	for stepRunId, events := range b.stepRunIdToWorkflowEvents {
+		if len(events) == 0 {
+			continue
+		}
+
+		slices.SortFunc(events, sortByEventIndex)
+
+		for _, e := range events {
+			if !b.sendEventLocked(e) {
+				return
+			}
+		}
+
+		delete(b.stepRunIdToWorkflowEvents, stepRunId)
+		delete(b.stepRunIdToLastSeenTime, stepRunId)
+		b.stepRunIdToExpectedIndex[stepRunId] = -1
+	}
+}
+
+func (b *StreamEventBuffer) hangupDrainLoop() {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-ticker.C:
+			b.maybeReleaseHangup()
+		}
+	}
+}
+
+func (b *StreamEventBuffer) maybeReleaseHangup() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.pendingHangup == nil {
+		return
+	}
+
+	now := time.Now()
+	sinceHangup := now.Sub(b.hangupReceivedAt)
+	bufferEmpty := b.bufferedStreamCountLocked() == 0
+
+	if !bufferEmpty {
+		if sinceHangup < b.hangupMaxWait {
+			return
+		}
+	} else {
+		anchor := b.hangupReceivedAt
+		if !b.lastStreamTime.IsZero() && b.lastStreamTime.After(b.hangupReceivedAt) {
+			anchor = b.lastStreamTime
+		}
+
+		if now.Sub(anchor) < b.hangupQuietPeriod && sinceHangup < b.hangupMaxWait {
+			return
+		}
+	}
+
+	b.flushBufferedStreamEventsLocked()
+	hangup := b.pendingHangup
+	b.pendingHangup = nil
+	b.sendEventLocked(hangup)
+}
+
 func (b *StreamEventBuffer) periodicCleanup() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -842,6 +960,19 @@ func (b *StreamEventBuffer) periodicCleanup() {
 
 			for stepRunId, completionTime := range b.stepRunIdToCompletionTime {
 				if now.Sub(completionTime) > b.gracePeriod {
+					// flush leftovers instead of discarding them: buffered
+					// events here are real chunks the client never saw
+					if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
+						slices.SortFunc(events, sortByEventIndex)
+
+						for _, e := range events {
+							if !b.sendEventLocked(e) {
+								b.mu.Unlock()
+								return
+							}
+						}
+					}
+
 					delete(b.stepRunIdToWorkflowEvents, stepRunId)
 					delete(b.stepRunIdToExpectedIndex, stepRunId)
 					delete(b.stepRunIdToLastSeenTime, stepRunId)
@@ -858,29 +989,30 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	stepRunId := uuid.MustParse(event.ResourceId)
 	now := time.Now()
+
+	if isWorkflowRunHangup(event) {
+		if b.pendingHangup == nil {
+			b.pendingHangup = event
+			b.hangupReceivedAt = now
+		}
+		return
+	}
+
+	stepRunId := uuid.MustParse(event.ResourceId)
 
 	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_STEP_RUN ||
 		event.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
 
 		if isTerminalEvent(event) {
-			if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
-				slices.SortFunc(events, sortByEventIndex)
-
-				for _, e := range events {
-					select {
-					case b.eventsChan <- e:
-					case <-b.ctx.Done():
-						return
-					}
-				}
-
-				delete(b.stepRunIdToWorkflowEvents, stepRunId)
-				delete(b.stepRunIdToExpectedIndex, stepRunId)
-				delete(b.stepRunIdToLastSeenTime, stepRunId)
-			}
-
+			// The terminal event can leapfrog late stream chunks (they ride
+			// separate per-msgId flush buffers), so don't flush buffered
+			// chunks past a hole here and don't reset the expected index:
+			// the straggler usually arrives moments later, fills the hole,
+			// and the buffer drains in order. The hangup drain (which holds
+			// the hangup until buffers are empty) and periodicCleanup (which
+			// flushes leftovers after the grace period) cover chunks that
+			// never arrive.
 			b.stepRunIdToCompletionTime[stepRunId] = now
 		}
 
@@ -893,6 +1025,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	}
 
 	b.stepRunIdToLastSeenTime[stepRunId] = now
+	b.lastStreamTime = now
 
 	if _, exists := b.stepRunIdToExpectedIndex[stepRunId]; !exists {
 		// IMPORTANT: Events are zero-indexed
@@ -1327,10 +1460,10 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	if task.IsDurable.Bool {
 		invocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenant.ID, []v1.IdInsertedAt{
-			{ID: task.ID, InsertedAt: task.InsertedAt},
+			{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()},
 		})
 		if err == nil {
-			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			if count, ok := invocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 				durableInvCount = *count
 			}
 		}
@@ -1628,7 +1761,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1660,7 +1793,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 
@@ -1718,7 +1851,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
-		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
 	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
@@ -1779,7 +1912,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 
 		var durableInvocationCount int32
 
-		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 			durableInvocationCount = *count
 		}
 
@@ -2170,52 +2303,15 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	deregister := s.streamSessions.Register(cancel)
 	defer deregister()
 
-	retries := 0
-	foundWorkflowRun := false
-
-	for retries < 10 {
-		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, workflowRunId)
-
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				retries++
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			return err
-		}
-
-		if wr == nil || wr.WorkflowRun == nil {
-			retries++
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if wr.WorkflowRun.TenantID != tenantId {
-			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
-		}
-
-		if wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED ||
-			wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED ||
-			wr.WorkflowRun.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
-			return nil
-		}
-
-		foundWorkflowRun = true
-		break
-	}
-
-	if !foundWorkflowRun {
-		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
-	}
+	ctx, span := telemetry.NewSpan(ctx, "subscribe-to-workflow-events-by-run-id")
+	defer span.End()
+	span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 
 	wg := sync.WaitGroup{}
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	streamBuffer := NewStreamEventBuffer(s.streamEventBufferTimeout)
-	defer streamBuffer.Close()
 
 	// Handle events from the stream buffer
 	go func() {
@@ -2227,11 +2323,12 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				if !ok {
 					return
 				}
-
+				ctx, span := telemetry.NewSpan(ctx, "send-streambuffer-events")
+				span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 				sendMu.Lock()
 				err := stream.Send(event)
 				sendMu.Unlock()
-
+				span.End()
 				if err != nil {
 					s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event to client")
 					cancel()
@@ -2249,13 +2346,14 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	f := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
-
+		ctx, span := telemetry.NewSpan(ctx, "get-workflow-events")
+		defer span.End()
+		span.SetAttributes(attribute.String("workflow_run_id", workflowRunId.String()))
 		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
-				workflowRunIds := make([]uuid.UUID, 0)
-				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
+				res := make([]*contracts.WorkflowEvent, 0, len(events))
 
 				for _, e := range events {
 					wri, err := uuid.Parse(e.WorkflowRunId)
@@ -2268,26 +2366,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 						continue
 					}
 
-					workflowRunIds = append(workflowRunIds, wri)
-					workflowRunIdsToEvents[e.WorkflowRunId] = append(workflowRunIdsToEvents[e.WorkflowRunId], e)
-				}
-
-				workflowRuns, err := s.listWorkflowRuns(ctx, tenantId, workflowRunIds)
-
-				if err != nil {
-					return nil, err
-				}
-
-				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
-
-				for _, wr := range workflowRuns {
-					workflowRunIdsToRow[wr.WorkflowRunId] = wr
-				}
-
-				res := make([]*contracts.WorkflowEvent, 0)
-
-				for _, es := range workflowRunIdsToEvents {
-					res = append(res, es...)
+					res = append(res, e)
 				}
 
 				return res, nil
@@ -2331,25 +2410,95 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		return nil
 	}
 
-	// subscribe to the task queue for the tenant
+	// Bind the tenant fanout before waiting on core so stream chunks published
+	// while the run is looked up are not dropped.
 	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
+		streamBuffer.Close()
 		return fmt.Errorf("could not subscribe to shared tenant queue: %w", err)
 	}
 
-	<-ctx.Done()
+	defer func() {
+		// Close the buffer before unsubscribing so in-flight f callbacks cannot
+		// block on a full channel while waitFor waits on those same callbacks.
+		streamBuffer.Close()
 
-	// the consumer goroutine has exited with the context, so close the buffer now:
-	// otherwise in-flight f callbacks block sending to the buffer's full channel until
-	// this function returns, and waitFor below waits on those same callbacks
-	streamBuffer.Close()
+		if err := cleanupQueue(); err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not cleanup queue")
+		}
 
-	if err := cleanupQueue(); err != nil {
-		return fmt.Errorf("could not cleanup queue: %w", err)
+		waitFor(&wg, 60*time.Second, s.l)
+	}()
+
+	foundWorkflowRun := false
+
+	for retries := 0; retries < 10; retries++ {
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		tasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{workflowRunId})
+
+		if err != nil {
+			return err
+		}
+
+		if len(tasks) == 0 {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Second):
+			}
+			continue
+		}
+
+		foundWorkflowRun = true
+
+		finalized, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{workflowRunId})
+
+		if err != nil {
+			return err
+		}
+
+		var finalizedRun *v1.ListFinalizedWorkflowRunsResponse
+
+		for _, wr := range finalized {
+			if wr.WorkflowRunId == workflowRunId {
+				finalizedRun = wr
+				break
+			}
+		}
+
+		if finalizedRun != nil {
+			eventType := workflowRunEventTypeFromOutputEvents(finalizedRun.OutputEvents)
+			span.SetAttributes(attribute.String("workflow_run.status", eventType.String()))
+
+			s.l.Warn().Ctx(ctx).
+				Str("workflow_run_id", workflowRunId.String()).
+				Str("status", eventType.String()).
+				Msg("workflow run already in terminal state, sending hangup")
+
+			streamBuffer.AddEvent(&contracts.WorkflowEvent{
+				WorkflowRunId:  workflowRunId.String(),
+				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
+				ResourceId:     workflowRunId.String(),
+				EventType:      eventType,
+				Hangup:         true,
+				EventTimestamp: timestamppb.Now(),
+			})
+		} else {
+			span.SetAttributes(attribute.String("workflow_run.status", "RUNNING"))
+		}
+
+		break
 	}
 
-	waitFor(&wg, 60*time.Second, s.l)
+	if !foundWorkflowRun {
+		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
+	}
+
+	<-ctx.Done()
 
 	return nil
 }

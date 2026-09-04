@@ -992,10 +992,12 @@ func (ns NullV1CelEvaluationFailureSource) Value() (driver.Value, error) {
 type V1ConcurrencyStrategy string
 
 const (
-	V1ConcurrencyStrategyNONE             V1ConcurrencyStrategy = "NONE"
-	V1ConcurrencyStrategyGROUPROUNDROBIN  V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
-	V1ConcurrencyStrategyCANCELINPROGRESS V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
-	V1ConcurrencyStrategyCANCELNEWEST     V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyNONE                     V1ConcurrencyStrategy = "NONE"
+	V1ConcurrencyStrategyGROUPROUNDROBIN          V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyStrategyCANCELINPROGRESS         V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyStrategyCANCELNEWEST             V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
 )
 
 func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
@@ -3282,6 +3284,8 @@ type V1ConcurrencySlot struct {
 	NextKeys              []string           `json:"next_keys"`
 	QueueToNotify         string             `json:"queue_to_notify"`
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns               pgtype.Int4        `json:"max_runs"`
+	NextMaxRuns           []int32            `json:"next_max_runs"`
 }
 
 type V1Dag struct {
@@ -3332,6 +3336,7 @@ type V1DagsOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -3771,6 +3776,8 @@ type V1StepConcurrency struct {
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 }
 
 type V1StepMatchCondition struct {
@@ -3841,6 +3848,7 @@ type V1Task struct {
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
+	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
 }
 
 type V1TaskEvent struct {
@@ -3962,6 +3970,18 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+}
+
+type V1TenantConcurrency struct {
+	ID                int64                 `json:"id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
+	Name              string                `json:"name"`
+	IsActive          bool                  `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 }
 
 type V1WorkerSlotConfig struct {

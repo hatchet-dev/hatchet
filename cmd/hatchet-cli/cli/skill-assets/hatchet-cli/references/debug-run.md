@@ -2,6 +2,8 @@
 
 These are instructions for an AI agent to diagnose why a Hatchet run failed, is stuck, or behaved unexpectedly. Follow each step in order.
 
+These commands need a profile. For local development the worker can run against embedded mode instead (see `local-dev-embedded.md`); inspect embedded runs from code or with `hatchet embedded-ui`.
+
 ## Step 1: Get Run State
 
 ```bash

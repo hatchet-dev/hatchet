@@ -503,6 +503,7 @@ func (m tuiModel) detectRunType(runID string) tea.Cmd {
 			response, err := m.ctx.Client.API().V1WorkflowRunGetWithResponse(
 				ctx,
 				runUUID,
+				nil,
 			)
 
 			if err != nil || response.JSON200 == nil {

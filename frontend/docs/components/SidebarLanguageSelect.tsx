@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
@@ -45,6 +46,13 @@ function resolve(lang: string) {
 export function SidebarLanguageSelect() {
   const { selectedLanguage, setSelectedLanguage } = useLanguage();
   const current = resolve(selectedLanguage);
+  const pathname = usePathname();
+
+  // The reference section is organized per language already, so a global SDK
+  // selector is confusing there. Language tabs on individual pages stay usable.
+  if (pathname === "/reference" || pathname.startsWith("/reference/")) {
+    return null;
+  }
 
   return (
     <div className="mb-2 flex flex-col gap-1.5">
@@ -66,7 +74,7 @@ export function SidebarLanguageSelect() {
           <Select.Content
             position="popper"
             sideOffset={6}
-            className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-fd-border bg-fd-popover font-mono text-fd-popover-foreground shadow-lg"
+            className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-fd-border bg-fd-popover text-fd-popover-foreground shadow-lg"
           >
             <Select.Viewport className="p-1">
               {DOC_LANGUAGES.map((lang) => (

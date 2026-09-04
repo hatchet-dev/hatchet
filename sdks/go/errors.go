@@ -1,6 +1,27 @@
 package hatchet
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+// NonRetryableError marks a task failure as non-retryable: the task fails
+// immediately without consuming any remaining retries.
+//
+//nolint:staticcheck // SA1019: bridges to the v0 type so errors.As works across old and new code
+type NonRetryableError = worker.NonRetryableError
+
+// NewNonRetryableError wraps err so that the task run fails without being retried,
+// regardless of the task's retry configuration.
+func NewNonRetryableError(err error) error {
+	return worker.NewNonRetryableError(err) //nolint:staticcheck // SA1019
+}
+
+// IsNonRetryableError reports whether err is (or wraps) a NonRetryableError.
+func IsNonRetryableError(err error) bool {
+	return worker.IsNonRetryableError(err) //nolint:staticcheck // SA1019
+}
 
 // NonDeterminismError is returned when a durable task replay detects non-deterministic behavior.
 type NonDeterminismError struct {

@@ -22,6 +22,7 @@ const (
 	CronErr        = "Invalid cron expression"
 	DurationErr    = "Invalid duration. Durations must be one or more <number><unit> components, where unit is one of: 'ms', 's', 'm', 'h'. For example: '10s', '1h30m', '1.5h'"
 	CELExprErr     = "Invalid CEL expression"
+	CELIntExprErr  = "Invalid CEL expression: must evaluate to an integer"
 )
 
 type APIErrors gen.APIErrors
@@ -139,6 +140,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(CELExprErr)
 	case "celsteprunstr":
 		return errObj.SafeExternalError(CELExprErr)
+	case "celmaxrunsint":
+		return errObj.SafeExternalError(CELIntExprErr)
 	default:
 		return errObj.SafeExternalError("")
 	}

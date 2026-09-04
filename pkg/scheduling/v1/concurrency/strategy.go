@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/pgoutbox"
 	outboxsqlc "github.com/hatchet-dev/pgoutbox/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -32,19 +33,23 @@ type ConcurrencyStrategy struct {
 	// sub-queues are pruned after each batch (see pruneEmpty), so idle keys don't accumulate, but a
 	// large live backlog still grows this without limit - we eventually need a bounded or evicting
 	// strategy (e.g. spill to disk/db) for very high key cardinality. Not critical yet.
-	subQueues      map[string]*subQueue
-	strategy       *sqlcv1.V1StepConcurrency
-	l              *zerolog.Logger
-	compare        func(a, b slot) int
-	built          chan struct{}
-	topic          string
-	pending        []*repository.RunConcurrencyResult
-	openScopes     []*subQueue
-	mu             sync.RWMutex
-	pendingMu      sync.Mutex
-	buildingMu     sync.Mutex
-	initialQueueMu sync.Mutex
-	initialQueued  bool
+	subQueues map[string]*subQueue
+	strategy  *sqlcv1.V1StepConcurrency
+	// immutable copies of the strategy identity, safe to read without holding any lock
+	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
+	strategyId       int64
+	strategyTenantId uuid.UUID
+	l                *zerolog.Logger
+	compare          func(a, b slot) int
+	built            chan struct{}
+	topic            string
+	pending          []*repository.RunConcurrencyResult
+	openScopes       []*subQueue
+	mu               sync.RWMutex
+	pendingMu        sync.Mutex
+	buildingMu       sync.Mutex
+	initialQueueMu   sync.Mutex
+	initialQueued    bool
 }
 
 // commitScopes discards the undo log on each open sub-queue, making this batch's in-memory
@@ -101,14 +106,16 @@ func NewConcurrencyStrategy(
 	l *zerolog.Logger,
 ) *ConcurrencyStrategy {
 	c := &ConcurrencyStrategy{
-		subQueues: make(map[string]*subQueue),
-		strategy:  strategy,
-		repo:      repo,
-		l:         l,
-		compare:   comparatorForStrategy(strategy.Strategy),
-		outbox:    outbox,
-		topic:     getTopic(strategy),
-		built:     make(chan struct{}),
+		subQueues:        make(map[string]*subQueue),
+		strategy:         strategy,
+		strategyId:       strategy.ID,
+		strategyTenantId: strategy.TenantID,
+		repo:             repo,
+		l:                l,
+		compare:          comparatorForStrategy(strategy.Strategy),
+		outbox:           outbox,
+		topic:            getTopic(strategy),
+		built:            make(chan struct{}),
 	}
 
 	outbox.AddFlusher(c.topic, c)
@@ -192,8 +199,8 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 	defer span.End()
 
 	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
-		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategyId},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategyTenantId},
 	)
 
 	// wait for the initial (async) index build to complete before processing WAL messages. If the
@@ -414,6 +421,10 @@ type walMessage struct {
 
 	// only populated by UPDATE messages
 	IsFilled bool `json:"isFilled"`
+
+	// only populated by INSERT messages, and only for strategies with a
+	// max_runs_expression: the slot's insert-time evaluation of the per-group limit
+	MaxRuns *int32 `json:"maxRuns"`
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
@@ -449,6 +460,12 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				}
 
 				sq := c.getOrCreateSubQueue(row.Key)
+
+				// the timestamp guard makes page order irrelevant: each group converges to
+				// the value evaluated for its most recently created live slot
+				if row.MaxRuns.Valid {
+					sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
+				}
 
 				s := slot{
 					priority:            row.Priority,
@@ -506,6 +523,9 @@ func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) in
 	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
 		return cancelInProgressCompare
 	}
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST {
+		return cancelQueuedExceptCompare
+	}
 	return priorityCompare
 }
 
@@ -522,9 +542,45 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelInProgress
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+		return decideCancelQueuedExceptNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		return decideCancelQueuedExceptOldest
 	default:
 		panic("unknown concurrency strategy")
 	}
+}
+
+// decideCancelQueuedExceptNewest fills free capacity from queued buffer, then cancels everything
+// except for the maxRuns newest, which will stick around to be queued up the next time
+func decideCancelQueuedExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.running.insert(s)
+	}
+	toCancel = sq.queued.pop(sq.queued.len() - int(sq.maxRuns))
+	return toFill, toCancel
+}
+
+// decideCancelQueuedExceptOldest is the same as CancelQueuedExceptNewest except that it keeps the oldest slot around
+func decideCancelQueuedExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.running.insert(s)
+	}
+	// somewhat awkward here, but we want to keep the first elements (because oldest-first comparator),
+	// so we need to pop and then reinsert.
+	// maxRuns is clamped to 0 here to guard against a negative value (e.g. from data written before
+	// MaxRuns positivity validation was enforced) producing an out-of-range slice index below.
+	maxRuns := max(0, int(sq.maxRuns))
+	if sq.queued.len() > maxRuns {
+		popped := sq.queued.pop(sq.queued.len())
+		toCancel = popped[maxRuns:]
+		for _, s := range popped[:maxRuns] {
+			sq.queued.insert(s)
+		}
+	}
+	return toFill, toCancel
 }
 
 // decideGroupRoundRobin fills free capacity (maxRuns - running) from the queued backlog in comparator
@@ -611,6 +667,13 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 	for _, msg := range msgs {
 		switch msg.Operation {
 		case "INSERT":
+			// Applied even when the slot itself ends up superseded below: the value is
+			// still the evaluation of the group's newest task. UPDATE/DELETE messages
+			// never carry a value, so retries and completions cannot move the limit.
+			if msg.MaxRuns != nil {
+				sq.observeMaxRuns(*msg.MaxRuns, msg.TaskInsertedAt.UnixNano())
+			}
+
 			if currentRunningSlot, exists := sq.running.get(msg.TaskId); exists {
 				// compare the current running slot's retry count with the message's retry count; the greater wins
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
@@ -814,6 +877,43 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 	}
 
 	return tasksToSetFilled, cancelledSlots
+}
+
+// UpdateStrategy applies a changed definition to the live index without a rebuild. The
+// caller guarantees the strategy kind and parent linkage are unchanged (those alter the
+// sub-queue comparators and heap ordering, so they require a rebuild); expression and
+// static max-concurrency changes are safe to swap in place. buildingMu serializes this
+// against WAL processing, index builds, and the queueing pass, so no batch observes a
+// half-applied definition; mu covers getOrCreateSubQueue's reads.
+//
+// The WAL path only re-decides sub-queues its messages touch, so a changed limit would
+// otherwise not reach an idle group's backlog until new traffic arrived for it. Re-arm
+// the all-sub-queue queueing pass (the same one that runs post-build) so the next Run
+// applies the new limit everywhere: raises promote queued backlog immediately, lowers
+// trim or grandfather per the strategy kind. Lock order matches runInitialQueueing
+// (initialQueueMu before buildingMu).
+func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
+	c.initialQueueMu.Lock()
+	defer c.initialQueueMu.Unlock()
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.strategy = next
+
+	for _, sq := range c.subQueues {
+		// only groups still on the static default move to the new static limit; a
+		// dynamically observed value (maxRunsFrom set) stays until a newer task's
+		// evaluation replaces it. The begin-scope snapshot moves too so a rollback of an
+		// in-flight batch restores the new static value rather than the old one.
+		if sq.maxRunsFrom == 0 {
+			sq.maxRuns = next.MaxConcurrency
+			sq.maxRunsAtBegin = next.MaxConcurrency
+		}
+	}
+
+	c.initialQueued = false
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {

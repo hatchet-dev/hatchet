@@ -81,6 +81,9 @@ type ListWorkersOpts struct {
 	// must have a label matching every key/value pair to be included.
 	LabelKeys   []string
 	LabelValues []string
+
+	// IncludeOperators includes engine-managed operator workers, which are hidden by default.
+	IncludeOperators *bool
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -198,6 +201,14 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	if opts.Statuses != nil {
 		queryParams.Statuses = opts.Statuses
 		countParams.Statuses = opts.Statuses
+	}
+
+	if opts.IncludeOperators != nil {
+		queryParams.IncludeOperators = pgtype.Bool{
+			Bool:  *opts.IncludeOperators,
+			Valid: true,
+		}
+		countParams.IncludeOperators = queryParams.IncludeOperators
 	}
 
 	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {
@@ -967,7 +978,7 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for i, tuple := range idInsertedAtTuples {
 		taskIds[i] = tuple.ID
-		taskInsertedAts[i] = tuple.InsertedAt
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMicros(tuple.InsertedAtUnixMicros)
 	}
 
 	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
@@ -984,8 +995,8 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for _, row := range rows {
 		taskIdToDispatcherInfo[IdInsertedAt{
-			ID:         row.TaskID,
-			InsertedAt: row.TaskInsertedAt,
+			ID:                   row.TaskID,
+			InsertedAtUnixMicros: row.TaskInsertedAt.Time.UnixMicro(),
 		}] = DurableTaskDispatcherLookup{
 			DispatcherId: row.DurableTaskDispatcherId,
 			IsEvicted:    row.EvictedAt.Valid,

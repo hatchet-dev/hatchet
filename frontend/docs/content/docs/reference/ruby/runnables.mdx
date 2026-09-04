@@ -1,0 +1,865 @@
+---
+title: "Runnables"
+---
+
+# Runnables
+
+Runnables in the Hatchet Ruby SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
+
+- `Hatchet::Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods
+- `Hatchet::Task`, which is a single task returned by `hatchet.task` (standalone) or `workflow.task`, and can be run, scheduled, etc.
+
+Triggering methods that don't wait for a result return run references - `WorkflowRunRef` and `TaskRunRef` - which are also documented below.
+
+## Workflow
+
+Represents a workflow definition with one or more tasks arranged in a DAG.
+
+```ruby
+wf = hatchet.workflow(name: "MyWorkflow")
+step1 = wf.task(:step1) { |input, ctx| { "value" => 42 } }
+wf.task(:step2, parents: [step1]) { |input, ctx|
+  { "result" => ctx.task_output(step1)["value"] + 1 }
+}
+```
+
+### Methods
+
+| Name                   | Description                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `task`                 | Define a task within this workflow.                                                        |
+| `durable_task`         | Define a durable task within this workflow.                                                |
+| `batch_task`           | Define a batch task within this workflow.                                                  |
+| `on_failure_task`      | Define an on_failure task for this workflow.                                               |
+| `on_success_task`      | Define an on_success task for this workflow.                                               |
+| `run`                  | Run this workflow synchronously and wait for it to complete.                               |
+| `run_no_wait`          | Trigger a workflow run without waiting for it to complete.                                 |
+| `run_many`             | Run this workflow in bulk and wait for all runs to complete.                               |
+| `run_many_no_wait`     | Run this workflow in bulk without waiting for the runs to complete.                        |
+| `create_bulk_run_item` | Create a bulk run item for this workflow, intended to be used with the `run_many` methods. |
+| `schedule`             | Schedule this workflow to run at a specific time.                                          |
+| `create_cron`          | Create a cron trigger for this workflow.                                                   |
+
+### Attributes
+
+#### `client`
+
+The Hatchet client.
+
+Returns:
+
+| Type                     | Description         |
+| ------------------------ | ------------------- |
+| `Hatchet::Client \| nil` | The Hatchet client. |
+
+#### `concurrency`
+
+Workflow-level concurrency.
+
+Returns:
+
+| Type                                                           | Description                 |
+| -------------------------------------------------------------- | --------------------------- |
+| `Array<ConcurrencyExpression> \| ConcurrencyExpression \| nil` | Workflow-level concurrency. |
+
+#### `default_filters`
+
+Default filters for event triggers.
+
+Returns:
+
+| Type                   | Description                         |
+| ---------------------- | ----------------------------------- |
+| `Array<DefaultFilter>` | Default filters for event triggers. |
+
+#### `default_priority`
+
+Default priority for runs (1-4)
+
+Returns:
+
+| Type             | Description                     |
+| ---------------- | ------------------------------- |
+| `Integer \| nil` | Default priority for runs (1-4) |
+
+#### `id`
+
+Get the workflow ID (UUID). If not already set, lazily resolves it by looking up the workflow by name via the REST API.
+
+Returns:
+
+| Type            | Description        |
+| --------------- | ------------------ |
+| `String \| nil` | The workflow UUID. |
+
+#### `idempotency`
+
+Idempotency configuration.
+
+Returns:
+
+| Type                                                                                 | Description                |
+| ------------------------------------------------------------------------------------ | -------------------------- |
+| `Hatchet::TTLBasedIdempotencyConfig \| Hatchet::StatusBasedIdempotencyConfig \| nil` | Idempotency configuration. |
+
+#### `name`
+
+Workflow name.
+
+Returns:
+
+| Type     | Description    |
+| -------- | -------------- |
+| `String` | Workflow name. |
+
+#### `on_crons`
+
+Cron expressions that trigger this workflow.
+
+Returns:
+
+| Type            | Description                                  |
+| --------------- | -------------------------------------------- |
+| `Array<String>` | Cron expressions that trigger this workflow. |
+
+#### `on_events`
+
+Event keys that trigger this workflow.
+
+Returns:
+
+| Type            | Description                            |
+| --------------- | -------------------------------------- |
+| `Array<String>` | Event keys that trigger this workflow. |
+
+#### `on_failure`
+
+The on_failure task.
+
+Returns:
+
+| Type          | Description          |
+| ------------- | -------------------- |
+| `Task \| nil` | The on_failure task. |
+
+#### `on_success`
+
+The on_success task.
+
+Returns:
+
+| Type          | Description          |
+| ------------- | -------------------- |
+| `Task \| nil` | The on_success task. |
+
+#### `sticky`
+
+Sticky strategy (:soft, :hard)
+
+Returns:
+
+| Type            | Description                    |
+| --------------- | ------------------------------ |
+| `Symbol \| nil` | Sticky strategy (:soft, :hard) |
+
+#### `task_defaults`
+
+Default task settings.
+
+Returns:
+
+| Type          | Description            |
+| ------------- | ---------------------- |
+| `Hash \| nil` | Default task settings. |
+
+#### `tasks`
+
+Map of task name to Task object.
+
+Returns:
+
+| Type                 | Description                      |
+| -------------------- | -------------------------------- |
+| `Hash<Symbol, Task>` | Map of task name to Task object. |
+
+### Functions
+
+#### `task`
+
+Define a task within this workflow. The block receives the workflow input and a `Context` object, and its return value (a Hash) becomes the task output.
+
+Parameters:
+
+| Name                    | Type                                                           | Description                                                                                        | Default    |
+| ----------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------- |
+| `name`                  | `Symbol \| String`                                             | The name of the task.                                                                              | _required_ |
+| `parents`               | `Array<Task, Symbol>`                                          | A list of tasks that are parents of the task. Note: parents must be defined before their children. | `[]`       |
+| `execution_timeout`     | `Integer \| String \| nil`                                     | The maximum time to wait for the task to complete, in seconds or as a duration string (e.g. "60s") | `nil`      |
+| `schedule_timeout`      | `Integer \| String \| nil`                                     | The maximum time to wait for the task to be scheduled.                                             | `nil`      |
+| `retries`               | `Integer \| nil`                                               | The number of times to retry the task before failing.                                              | `nil`      |
+| `backoff_factor`        | `Float \| nil`                                                 | The backoff factor for controlling exponential backoff in retries.                                 | `nil`      |
+| `backoff_max_seconds`   | `Integer \| nil`                                               | The maximum number of seconds to allow retries with exponential backoff to continue.               | `nil`      |
+| `rate_limits`           | `Array<RateLimit>`                                             | A list of rate limit configurations for the task.                                                  | `[]`       |
+| `concurrency`           | `ConcurrencyExpression \| Array<ConcurrencyExpression> \| nil` | A concurrency expression (or list of them) controlling the concurrency settings for this task.     | `nil`      |
+| `desired_worker_labels` | `Hash \| nil`                                                  | A hash of desired worker labels that determine to which worker the task should be assigned.        | `nil`      |
+| `wait_for`              | `Array`                                                        | A list of conditions that must be met before the task can run.                                     | `[]`       |
+| `skip_if`               | `Array`                                                        | A list of conditions that, if met, will cause the task to be skipped.                              | `[]`       |
+| `deps`                  | `Hash \| nil`                                                  | Dependency providers to inject into the task's context.                                            | `nil`      |
+
+Returns:
+
+| Type   | Description       |
+| ------ | ----------------- |
+| `Task` | The created task. |
+
+#### `durable_task`
+
+Define a durable task within this workflow.
+
+Parameters:
+
+| Name              | Type                             | Description                                                                                                                                                                                           | Default                                         |
+| ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `name`            | `Symbol \| String`               | Task name.                                                                                                                                                                                            | _required_                                      |
+| `eviction_policy` | `Hatchet::EvictionPolicy \| nil` | Eviction policy for this durable task. Defaults to `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` (15-minute TTL, capacity-eviction enabled). Pass `nil` to disable eviction entirely for this task. | `Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
+| `**opts`          | `Hash`                           | Other Task options forwarded to `task`.                                                                                                                                                               | `{}`                                            |
+
+Returns:
+
+| Type   | Description               |
+| ------ | ------------------------- |
+| `Task` | The created durable task. |
+
+#### `batch_task`
+
+Define a batch task within this workflow.
+
+Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or flush interval), then invoke the block once with all buffered inputs keyed by each run's task-run external id. The block must return a Hash mapping each id to its output, or use `broadcast_output` on the batch config to return the same result to all callers. retries is always forced to 0 for batch tasks.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Parameters:
+
+| Name     | Type                       | Description                             | Default    |
+| -------- | -------------------------- | --------------------------------------- | ---------- |
+| `name`   | `Symbol \| String`         | Task name.                              | _required_ |
+| `batch`  | `Hatchet::BatchTaskConfig` | Batch configuration.                    | _required_ |
+| `**opts` | `Hash`                     | Other Task options forwarded to `task`. | `{}`       |
+
+Returns:
+
+| Type   | Description             |
+| ------ | ----------------------- |
+| `Task` | The created batch task. |
+
+#### `on_failure_task`
+
+Define an on_failure task for this workflow.
+
+Parameters:
+
+| Name     | Type   | Description   | Default |
+| -------- | ------ | ------------- | ------- |
+| `**opts` | `Hash` | Task options. | `{}`    |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `Task` |             |
+
+#### `on_success_task`
+
+Define an on_success task for this workflow.
+
+Parameters:
+
+| Name     | Type   | Description   | Default |
+| -------- | ------ | ------------- | ------- |
+| `**opts` | `Hash` | Task options. | `{}`    |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `Task` |             |
+
+#### `run`
+
+Run this workflow synchronously and wait for it to complete.
+
+Parameters:
+
+| Name      | Type                            | Description                                                                                | Default |
+| --------- | ------------------------------- | ------------------------------------------------------------------------------------------ | ------- |
+| `input`   | `Hash`                          | The input data for the workflow.                                                           | `{}`    |
+| `options` | `TriggerWorkflowOptions \| nil` | Additional options for workflow execution, such as `additional_metadata:` and `priority:`. | `nil`   |
+
+Returns:
+
+| Type   | Description                                                                               |
+| ------ | ----------------------------------------------------------------------------------------- |
+| `Hash` | The workflow run output, keyed by task name (e.g. `{"step1" => {...}, "step2" => {...}}`) |
+
+Raises:
+
+| Type                      | Description                                   |
+| ------------------------- | --------------------------------------------- |
+| `Hatchet::Error`          | If no client is associated with the workflow. |
+| `Hatchet::FailedRunError` | If the workflow run failed.                   |
+
+#### `run_no_wait`
+
+Trigger a workflow run without waiting for it to complete. Useful for starting a run and immediately returning a reference to it without blocking while the workflow runs.
+
+Parameters:
+
+| Name      | Type                            | Description                                | Default |
+| --------- | ------------------------------- | ------------------------------------------ | ------- |
+| `input`   | `Hash`                          | The input data for the workflow.           | `{}`    |
+| `options` | `TriggerWorkflowOptions \| nil` | Additional options for workflow execution. | `nil`   |
+
+Returns:
+
+| Type             | Description                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `WorkflowRunRef` | A reference to the workflow run, whose `result` method blocks until the run completes. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `run_many`
+
+Run this workflow in bulk and wait for all runs to complete. Runs are triggered via bulk gRPC triggering (batched by 1000) and results are collected concurrently.
+
+Parameters:
+
+| Name                | Type          | Description                                                                        | Default    |
+| ------------------- | ------------- | ---------------------------------------------------------------------------------- | ---------- |
+| `items`             | `Array<Hash>` | A list of bulk run items, as created by `create_bulk_run_item`.                    | _required_ |
+| `return_exceptions` | `Boolean`     | If `true`, exceptions are returned as part of the results instead of being raised. | `false`    |
+
+Returns:
+
+| Type    | Description                              |
+| ------- | ---------------------------------------- |
+| `Array` | A list of results for each workflow run. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `run_many_no_wait`
+
+Run this workflow in bulk without waiting for the runs to complete.
+
+Parameters:
+
+| Name    | Type          | Description                                                     | Default    |
+| ------- | ------------- | --------------------------------------------------------------- | ---------- |
+| `items` | `Array<Hash>` | A list of bulk run items, as created by `create_bulk_run_item`. | _required_ |
+
+Returns:
+
+| Type                    | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `Array<WorkflowRunRef>` | A list of references to the triggered workflow runs. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `create_bulk_run_item`
+
+Create a bulk run item for this workflow, intended to be used with the `run_many` methods.
+
+Parameters:
+
+| Name      | Type                            | Description                                                              | Default |
+| --------- | ------------------------------- | ------------------------------------------------------------------------ | ------- |
+| `input`   | `Hash`                          | The input data for the workflow.                                         | `{}`    |
+| `key`     | `String \| nil`                 | The key for the workflow run, used for identification and deduplication. | `nil`   |
+| `options` | `TriggerWorkflowOptions \| nil` | Additional options for the workflow run.                                 | `nil`   |
+
+Returns:
+
+| Type   | Description                                                   |
+| ------ | ------------------------------------------------------------- |
+| `Hash` | A bulk run item that can be passed to the `run_many` methods. |
+
+#### `schedule`
+
+Schedule this workflow to run at a specific time.
+
+Parameters:
+
+| Name      | Type                                    | Description                      | Default    |
+| --------- | --------------------------------------- | -------------------------------- | ---------- |
+| `time`    | `Time`                                  | When to execute the workflow.    | _required_ |
+| `input`   | `Hash`                                  | The input data for the workflow. | `{}`       |
+| `options` | `ScheduleTriggerWorkflowOptions \| nil` | Additional schedule options.     | `nil`      |
+
+Returns:
+
+| Type     | Description                                    |
+| -------- | ---------------------------------------------- |
+| `Object` | The schedule response from the Hatchet engine. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `create_cron`
+
+Create a cron trigger for this workflow.
+
+Parameters:
+
+| Name         | Type     | Description                                    | Default    |
+| ------------ | -------- | ---------------------------------------------- | ---------- |
+| `cron_name`  | `String` | The name of the cron job.                      | _required_ |
+| `expression` | `String` | The cron expression that defines the schedule. | _required_ |
+| `input`      | `Hash`   | The input data for the workflow.               | `{}`       |
+
+Returns:
+
+| Type     | Description                        |
+| -------- | ---------------------------------- |
+| `Object` | The created cron workflow trigger. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+## Task
+
+Represents a task within a workflow (or a standalone task).
+
+Tasks are the basic unit of work in Hatchet. They can be defined as part of a workflow or as standalone tasks. Each task has a block that executes the task logic, receiving the workflow input and a context object.
+
+```ruby
+step1 = workflow.task(:step1) { |input, ctx| { "result" => "done" } }
+```
+
+```ruby
+task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
+```
+
+### Methods
+
+| Name                   | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `run`                  | Run this task (or its owning workflow) synchronously. |
+| `run_no_wait`          | Run this task without waiting for the result.         |
+| `run_many`             | Run many instances of this task in bulk.              |
+| `run_many_no_wait`     | Run many instances without waiting for results.       |
+| `create_bulk_run_item` | Create a bulk run item for use with run_many.         |
+| `mock_run`             | Execute task in unit test mode with mocked context.   |
+| `id`                   |                                                       |
+
+### Attributes
+
+#### `backoff_factor`
+
+Backoff factor between retries.
+
+Returns:
+
+| Type           | Description                     |
+| -------------- | ------------------------------- |
+| `Float \| nil` | Backoff factor between retries. |
+
+#### `backoff_max_seconds`
+
+Maximum backoff seconds between retries.
+
+Returns:
+
+| Type             | Description                              |
+| ---------------- | ---------------------------------------- |
+| `Integer \| nil` | Maximum backoff seconds between retries. |
+
+#### `batch`
+
+Batch configuration, if this is a batch task.
+
+Returns:
+
+| Type                              | Description                                   |
+| --------------------------------- | --------------------------------------------- |
+| `Hatchet::BatchTaskConfig \| nil` | Batch configuration, if this is a batch task. |
+
+#### `client`
+
+The Hatchet client.
+
+Returns:
+
+| Type                     | Description         |
+| ------------------------ | ------------------- |
+| `Hatchet::Client \| nil` | The Hatchet client. |
+
+#### `concurrency`
+
+Task-level concurrency.
+
+Returns:
+
+| Type                                                           | Description             |
+| -------------------------------------------------------------- | ----------------------- |
+| `Array<ConcurrencyExpression> \| ConcurrencyExpression \| nil` | Task-level concurrency. |
+
+#### `deps`
+
+Dependency providers.
+
+Returns:
+
+| Type          | Description           |
+| ------------- | --------------------- |
+| `Hash \| nil` | Dependency providers. |
+
+#### `desired_worker_labels`
+
+Desired worker labels for scheduling.
+
+Returns:
+
+| Type          | Description                           |
+| ------------- | ------------------------------------- |
+| `Hash \| nil` | Desired worker labels for scheduling. |
+
+#### `durable`
+
+Whether this is a durable task.
+
+Returns:
+
+| Type      | Description                     |
+| --------- | ------------------------------- |
+| `Boolean` | Whether this is a durable task. |
+
+#### `eviction_policy`
+
+Eviction policy for durable tasks.
+
+Returns:
+
+| Type                             | Description                        |
+| -------------------------------- | ---------------------------------- |
+| `Hatchet::EvictionPolicy \| nil` | Eviction policy for durable tasks. |
+
+#### `execution_timeout`
+
+Execution timeout in seconds.
+
+Returns:
+
+| Type             | Description                   |
+| ---------------- | ----------------------------- |
+| `Integer \| nil` | Execution timeout in seconds. |
+
+#### `name`
+
+Task name.
+
+Returns:
+
+| Type               | Description |
+| ------------------ | ----------- |
+| `Symbol \| String` | Task name.  |
+
+#### `parents`
+
+Parent task references.
+
+Returns:
+
+| Type                  | Description             |
+| --------------------- | ----------------------- |
+| `Array<Task, Symbol>` | Parent task references. |
+
+#### `rate_limits`
+
+Rate limits applied to this task.
+
+Returns:
+
+| Type               | Description                       |
+| ------------------ | --------------------------------- |
+| `Array<RateLimit>` | Rate limits applied to this task. |
+
+#### `retries`
+
+Maximum number of retries.
+
+Returns:
+
+| Type             | Description                |
+| ---------------- | -------------------------- |
+| `Integer \| nil` | Maximum number of retries. |
+
+#### `schedule_timeout`
+
+Schedule timeout in seconds.
+
+Returns:
+
+| Type             | Description                  |
+| ---------------- | ---------------------------- |
+| `Integer \| nil` | Schedule timeout in seconds. |
+
+#### `skip_if`
+
+Skip-if conditions.
+
+Returns:
+
+| Type    | Description         |
+| ------- | ------------------- |
+| `Array` | Skip-if conditions. |
+
+#### `wait_for`
+
+Wait-for conditions.
+
+Returns:
+
+| Type    | Description          |
+| ------- | -------------------- |
+| `Array` | Wait-for conditions. |
+
+#### `workflow`
+
+The owning workflow.
+
+Returns:
+
+| Type              | Description          |
+| ----------------- | -------------------- |
+| `Workflow \| nil` | The owning workflow. |
+
+### Functions
+
+#### `run`
+
+Run this task (or its owning workflow) synchronously.
+
+For standalone tasks the result is automatically unwrapped so that the caller receives the task output directly (e.g. `{"result" => "done"}`) rather than the workflow-level output keyed by task name (e.g. `{"my_task" => {"result" => "done"}}`).
+
+Parameters:
+
+| Name      | Type                            | Description      | Default |
+| --------- | ------------------------------- | ---------------- | ------- |
+| `input`   | `Hash`                          | Input data.      | `{}`    |
+| `options` | `TriggerWorkflowOptions \| nil` | Trigger options. | `nil`   |
+
+Returns:
+
+| Type   | Description      |
+| ------ | ---------------- |
+| `Hash` | The task output. |
+
+#### `run_no_wait`
+
+Run this task without waiting for the result.
+
+Returns a `TaskRunRef` whose `result` method automatically unwraps the task output, matching the behaviour of `run`.
+
+Parameters:
+
+| Name      | Type                            | Description      | Default |
+| --------- | ------------------------------- | ---------------- | ------- |
+| `input`   | `Hash`                          | Input data.      | `{}`    |
+| `options` | `TriggerWorkflowOptions \| nil` | Trigger options. | `nil`   |
+
+Returns:
+
+| Type         | Description |
+| ------------ | ----------- |
+| `TaskRunRef` |             |
+
+#### `run_many`
+
+Run many instances of this task in bulk.
+
+Parameters:
+
+| Name                | Type          | Description                                      | Default    |
+| ------------------- | ------------- | ------------------------------------------------ | ---------- |
+| `items`             | `Array<Hash>` | Bulk run items.                                  | _required_ |
+| `return_exceptions` | `Boolean`     | Whether to return exceptions instead of raising. | `false`    |
+
+Returns:
+
+| Type    | Description                                 |
+| ------- | ------------------------------------------- |
+| `Array` | Results (each unwrapped to the task output) |
+
+#### `run_many_no_wait`
+
+Run many instances without waiting for results.
+
+Parameters:
+
+| Name    | Type          | Description     | Default    |
+| ------- | ------------- | --------------- | ---------- |
+| `items` | `Array<Hash>` | Bulk run items. | _required_ |
+
+Returns:
+
+| Type                | Description |
+| ------------------- | ----------- |
+| `Array<TaskRunRef>` |             |
+
+#### `create_bulk_run_item`
+
+Create a bulk run item for use with run_many.
+
+Parameters:
+
+| Name      | Type                            | Description        | Default |
+| --------- | ------------------------------- | ------------------ | ------- |
+| `input`   | `Hash`                          | Input data.        | `{}`    |
+| `key`     | `String \| nil`                 | Deduplication key. | `nil`   |
+| `options` | `TriggerWorkflowOptions \| nil` | Trigger options.   | `nil`   |
+
+Returns:
+
+| Type   | Description    |
+| ------ | -------------- |
+| `Hash` | Bulk run item. |
+
+#### `mock_run`
+
+Execute task in unit test mode with mocked context.
+
+Parameters:
+
+| Name                  | Type      | Description                 | Default    |
+| --------------------- | --------- | --------------------------- | ---------- |
+| `input`               | `Hash`    | Task input.                 | _required_ |
+| `additional_metadata` | `Hash`    | Metadata for the context.   | `{}`       |
+| `retry_count`         | `Integer` | Simulated retry count.      | `0`        |
+| `parent_outputs`      | `Hash`    | Mocked parent task outputs. | `{}`       |
+
+Returns:
+
+| Type     | Description  |
+| -------- | ------------ |
+| `Object` | Task output. |
+
+#### `id`
+
+Returns:
+
+| Type     | Description                     |
+| -------- | ------------------------------- |
+| `String` | The workflow ID (for API calls) |
+
+## WorkflowRunRef
+
+Reference to a running workflow, returned by `Workflow#run_no_wait`.
+
+The result is the full workflow-level output keyed by task readable_id, e.g. `{"step1" => {...}, "step2" => {...}}`.
+
+```ruby
+ref = workflow.run_no_wait(input)
+result = ref.result  # blocks until complete
+```
+
+### Methods
+
+| Name     | Description                                                   |
+| -------- | ------------------------------------------------------------- |
+| `result` | Block until the workflow run completes and return the result. |
+
+### Attributes
+
+#### `workflow_run_id`
+
+The workflow run ID.
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `String` | The workflow run ID. |
+
+### Functions
+
+#### `result`
+
+Block until the workflow run completes and return the result.
+
+Uses the pooled gRPC `SubscribeToWorkflowRuns` listener when available. Falls back to gRPC `GetRunDetails` polling otherwise.
+
+Returns:
+
+| Type   | Description                                        |
+| ------ | -------------------------------------------------- |
+| `Hash` | The workflow run output keyed by task readable_id. |
+
+Raises:
+
+| Type                      | Description                 |
+| ------------------------- | --------------------------- |
+| `Hatchet::FailedRunError` | if the workflow run failed. |
+
+## TaskRunRef
+
+Reference to a running standalone task, returned by `Task#run_no_wait`.
+
+Wraps a `WorkflowRunRef` and automatically extracts the task-specific output from the workflow-level result. For a task named "my_task", calling `result` returns the task output directly (e.g. `{"value" => 42}`) instead of the full keyed output (`{"my_task" => {"value" => 42}}`).
+
+```ruby
+ref = my_task.run_no_wait(input)
+output = ref.result  # => {"value" => 42}
+```
+
+### Methods
+
+| Name     | Description                                                          |
+| -------- | -------------------------------------------------------------------- |
+| `result` | Block until the task completes and return the extracted task output. |
+
+### Attributes
+
+#### `workflow_run_id`
+
+The workflow run ID.
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `String` | The workflow run ID. |
+
+### Functions
+
+#### `result`
+
+Block until the task completes and return the extracted task output.
+
+Returns:
+
+| Type   | Description      |
+| ------ | ---------------- |
+| `Hash` | The task output. |
+
+Raises:
+
+| Type                      | Description                 |
+| ------------------------- | --------------------------- |
+| `Hatchet::FailedRunError` | if the workflow run failed. |

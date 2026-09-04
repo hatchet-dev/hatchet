@@ -39,6 +39,11 @@ type OperatorRepository interface {
 
 	// HasDAGOperator reports whether any DAG operator is registered for the given tenant.
 	HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
+	// CountEvictedDAGOrchestratorRuns returns the number of DAG orchestrator runs for the
+	// tenant that are currently evicted while waiting on durable events. They hold no worker
+	// slots, so this is the only way to see how many runs the DAG operator has in flight.
+	CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error)
 }
 
 type operatorRepository struct {
@@ -161,7 +166,11 @@ func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, te
 }
 
 func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	return r.sharedRepository.hasDAGOperator(ctx, tenantId)
+	return r.hasDAGOperator(ctx, tenantId)
+}
+
+func (r *operatorRepository) CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error) {
+	return r.queries.CountEvictedDAGOrchestratorRuns(ctx, r.pool, tenantId)
 }
 
 func (r *operatorRepository) CreateOperatorWorker(ctx context.Context, dispatcherId uuid.UUID, operator *sqlcv1.V1Operator, slotConfig map[string]int32) (*sqlcv1.Worker, error) {

@@ -312,60 +312,71 @@ LIMIT @eventLimit::bigint OFFSET @eventOffset::bigint;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id, dt.task_inserted_at
+    SELECT dt.task_id, dt.task_inserted_at, dt.dag_id, dt.dag_inserted_at
     FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
+        AND (
+            -- the orchestrator's self-mapping row is hidden by default once real child tasks
+            -- exist, since orchestration is abstracted away from the user
+            COALESCE(sqlc.narg('includeOrchestratorEvents')::boolean, FALSE)
+            OR dt.task_id != dt.dag_id
+            OR NOT EXISTS (
+                SELECT 1
+                FROM v1_dag_to_task_olap other
+                WHERE other.dag_id = dt.dag_id
+                    AND other.dag_inserted_at = dt.dag_inserted_at
+                    AND other.task_id != other.dag_id
+            )
+        )
 ), aggregated_events AS (
-  SELECT
-    tenant_id,
-    task_id,
-    task_inserted_at,
-    retry_count,
-    event_type,
-    durable_invocation_count,
-    MIN(event_timestamp)::timestamptz AS time_first_seen,
-    MAX(event_timestamp)::timestamptz AS time_last_seen,
-    COUNT(*) AS count,
-    MIN(id) AS first_id
-  FROM v1_task_events_olap
-  WHERE
-    tenant_id = @tenantId::uuid
-    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+    SELECT
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        t.dag_id,
+        t.dag_inserted_at,
+        e.retry_count,
+        e.event_type,
+        e.durable_invocation_count,
+        MIN(e.event_timestamp)::timestamptz AS time_first_seen,
+        MAX(e.event_timestamp)::timestamptz AS time_last_seen,
+        COUNT(*) AS count,
+        MIN(e.id) AS first_id
+    FROM v1_task_events_olap e
+    JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+    GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
 SELECT
-  a.tenant_id,
-  a.task_id,
-  a.task_inserted_at,
-  a.retry_count,
-  a.event_type,
-  a.durable_invocation_count,
-  a.time_first_seen,
-  a.time_last_seen,
-  a.count,
-  t.id,
-  t.event_timestamp,
-  t.readable_status,
-  t.error_message,
-  t.output,
-  t.external_id AS event_external_id,
-  t.worker_id,
-  t.additional__event_data,
-  t.additional__event_message,
-  tsk.display_name,
-  tsk.external_id AS task_external_id
+    a.tenant_id,
+    a.task_id,
+    a.task_inserted_at,
+    a.retry_count,
+    a.event_type,
+    a.durable_invocation_count,
+    a.time_first_seen,
+    a.time_last_seen,
+    a.count,
+    e.id,
+    e.event_timestamp,
+    e.readable_status,
+    e.error_message,
+    e.output,
+    e.external_id AS event_external_id,
+    e.worker_id,
+    e.additional__event_data,
+    e.additional__event_message,
+    COALESCE(t.display_name, d.display_name) AS display_name,
+    COALESCE(t.external_id, d.external_id) AS task_external_id
 FROM aggregated_events a
-JOIN v1_task_events_olap t
-  ON t.tenant_id = a.tenant_id
-  AND t.task_id = a.task_id
-  AND t.task_inserted_at = a.task_inserted_at
-  AND t.id = a.first_id
-JOIN v1_tasks_olap tsk
-    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
-ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.id) = (a.task_id, a.task_inserted_at, a.tenant_id, a.first_id)
+LEFT JOIN v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (e.task_inserted_at, e.task_id, e.tenant_id)
+LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (a.dag_inserted_at, a.dag_id, a.tenant_id)
+ORDER BY a.time_first_seen DESC, e.event_timestamp DESC;
 
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
@@ -1025,10 +1036,22 @@ WITH inputs AS (
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
     SELECT *
-    FROM v1_dags_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT dag_inserted_at, dag_id, tenant_id
-        FROM inputs
+    FROM v1_dags_olap d
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT dag_inserted_at, dag_id, tenant_id
+            FROM inputs
+        )
+    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
+    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
+    -- this classifies correctly even for dags created by a pod that predates this change
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE
+            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
     )
     ORDER BY inserted_at, id
     FOR UPDATE
@@ -1062,9 +1085,6 @@ WITH inputs AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -1163,6 +1183,14 @@ WITH tenants AS (
             FROM
                 distinct_dags dd
         )
+        -- see UpdateDAGStatusesFromMQ
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_dag_to_task_olap dt
+            WHERE
+                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
+                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
+        )
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -1217,9 +1245,6 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -2430,41 +2455,53 @@ WHERE
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
 
 -- name: UpdateDAGStatusesFromOrchestratorEvents :many
--- Applies orchestrator task lifecycle events to their operator-managed DAGs. The orchestrator
--- has no v1_tasks_olap row, so its terminal failures must be forced onto the DAG directly:
--- children may never be created, in which case count-based derivation cannot converge. Retry
--- events reset a terminal DAG back to RUNNING; non-reset RUNNING events only move a DAG out of
--- QUEUED. Completion is never applied here — it must come from child task counting.
+-- important: need to dedupe the dags before calling this query to make
+-- sure each dag only gets one candidate update per call
 WITH inputs AS (
     SELECT
         UNNEST(@dagIds::BIGINT[]) AS dag_id,
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST(@statuses::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST(@isResets::BOOLEAN[]) AS is_reset
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
 ), locked_dags AS (
     SELECT
         d.id,
         d.inserted_at,
         d.tenant_id,
         i.new_readable_status,
-        i.is_reset
+        i.retry_count AS new_retry_count
     FROM v1_dags_olap d
     JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE d.tenant_id = @tenantId::UUID
+    WHERE
+        d.tenant_id = @tenantId::UUID
+        AND (
+            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+            -- from the previous attempt can no longer clobber it
+            (
+                i.retry_count > d.latest_retry_count
+            ) OR
+            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+            (
+                i.retry_count = d.latest_retry_count
+                AND v1_status_to_priority(i.new_readable_status) > v1_status_to_priority(d.readable_status)
+            ) OR
+            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+            -- RUNNING by priority, so it needs an explicit escape hatch
+            (
+                i.retry_count = d.latest_retry_count
+                AND d.readable_status = 'EVICTED'
+                AND i.new_readable_status != 'EVICTED'
+            )
+        )
     ORDER BY d.inserted_at, d.id
-    FOR UPDATE
+    FOR UPDATE OF d
 ), updated_dags AS (
     UPDATE v1_dags_olap d
-    SET readable_status = ld.new_readable_status
+    SET
+        readable_status = ld.new_readable_status,
+        latest_retry_count = ld.new_retry_count
     FROM locked_dags ld
-    WHERE
-        (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
-        AND d.readable_status != ld.new_readable_status
-        AND (
-            (ld.new_readable_status IN ('FAILED', 'CANCELLED') AND d.readable_status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND ld.is_reset AND d.readable_status IN ('QUEUED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND NOT ld.is_reset AND d.readable_status = 'QUEUED')
-        )
+    WHERE (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
     RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
 )
 SELECT

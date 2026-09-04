@@ -134,7 +134,7 @@ export class Context<T, K = {}> {
   overridesData: Record<string, any> = {};
   _logger: Logger;
 
-  /** @deprecated — kept for backward compat; prefer {@link nextChildIndex}. */
+  /** @deprecated Kept for backward compat; prefer {@link nextChildIndex}. */
   spawnIndex: number = 0;
   streamIndex = 0;
 
@@ -197,7 +197,7 @@ export class Context<T, K = {}> {
   async cancel() {
     if (this.action.batchId) {
       // Batch tasks share one context across every buffered member, so there is no single
-      // task-run id to cancel — cancel every member of the batch instead. `this.data` is
+      // task-run id to cancel, so cancel every member of the batch instead. `this.data` is
       // the raw batch-items map for a START_BATCH action, keyed by each member's
       // task-run external id.
       const memberIds = Object.keys(this.data ?? {});
@@ -899,6 +899,29 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   private _engineVersion: string | undefined;
   private _waitKey: number = 0;
 
+  // Serializes sendEvent calls from concurrent coroutines in this invocation.
+  // The listener keys pending acks by (task, invocation), so overlapping sends
+  // would overwrite each other's ack and cross-wire branch/node assignments.
+  private _sendEventLock: Promise<void> = Promise.resolve();
+
+  private _serializeSendEvent<R>(send: () => Promise<R>): Promise<R> {
+    // Re-check cancellation when the queued send actually executes: once this
+    // invocation is aborted (evicted), a queued send must not reach the
+    // server, where it could race the eviction and append to the event log
+    // out of recorded order. Python gets this for free from task
+    // cancellation killing coroutines queued on the send lock.
+    const runSend = () => {
+      this.throwIfCancelled();
+      return send();
+    };
+    const result = this._sendEventLock.then(runSend, runSend);
+    this._sendEventLock = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  }
+
   constructor(
     action: Action,
     v1: HatchetClient,
@@ -1019,17 +1042,15 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     const rendered = Render(ConditionAction.CREATE, conditions);
     const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'waitFor',
         waitForConditions: {
           sleepConditions: pbConditions.sleepConditions,
           userEventConditions: pbConditions.userEventConditions,
         },
         label,
-      }
+      })
     );
 
     const resourceId =
@@ -1085,9 +1106,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     lookbackWindow?: Duration,
     label?: string
   ): Promise<unknown> {
-    const now = await this.now();
     const considerEventsSince = lookbackWindow
-      ? new Date(now.getTime() - durationToMs(lookbackWindow)).toISOString()
+      ? new Date((await this.now()).getTime() - durationToMs(lookbackWindow)).toISOString()
       : undefined;
 
     const res = await this.waitFor(
@@ -1251,13 +1271,11 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return triggerOpts;
     });
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'runChildren',
         triggerOpts: triggerOptsList,
-      }
+      })
     );
 
     const results = await Promise.all(
@@ -1297,13 +1315,18 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
 
-    const ack = await this._durableListener.sendEvent(
-      this.action.taskRunExternalId,
-      this.invocationCount,
-      {
+    const ack = await this._serializeSendEvent(() =>
+      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
         kind: 'memo',
         memoKey,
-      }
+      })
+    );
+
+    this._durableListener.consumeCallbackWithoutBlocking(
+      this.action.taskRunExternalId,
+      this.invocationCount,
+      ack.branchId,
+      ack.nodeId
     );
 
     if (ack.memoAlreadyExisted && ack.memoResultPayload && ack.memoResultPayload.length > 0) {

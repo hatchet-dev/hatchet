@@ -35,9 +35,8 @@ from examples.durable.worker import (
     error_raising_task,
     ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
-
 from examples.test_utils import wait_for_running_status
 
 TIMING_TOLERANCE = 1.0
@@ -104,6 +103,8 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await hatchet.runs.aio_replay(
         first_sleep.workflow_run_id,
     )
+
+    await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
 
     second_sleep_result = await first_sleep.aio_result()
     replay_elapsed = time.time() - replay_start
