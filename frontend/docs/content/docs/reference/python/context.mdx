@@ -18,18 +18,16 @@ There are two types of context classes you'll encounter:
 
 Methods:
 
-| Name                   | Description                                                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `was_skipped`          | Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).                              |
-| `task_output`          | Get the output of a parent task in a DAG.                                                                                                                                |
-| `cancel`               | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
-| `aio_cancel`           | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
-| `done`                 | Check if the current task run has been cancelled.                                                                                                                        |
-| `log`                  | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                    |
-| `release_slot`         | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
-| `put_stream`           | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
-| `refresh_timeout`      | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](/v1/timeouts#refreshing-timeouts).                                    |
-| `fetch_task_run_error` | **DEPRECATED**: Use `get_task_run_error` instead.                                                                                                                        |
+| Name              | Description                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `was_skipped`     | Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).                              |
+| `task_output`     | Get the output of a parent task in a DAG.                                                                                                                                |
+| `cancel`          | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
+| `aio_cancel`      | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
+| `log`             | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                    |
+| `release_slot`    | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
+| `put_stream`      | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
+| `refresh_timeout` | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](/v1/timeouts#refreshing-timeouts).                                    |
 
 ### Attributes
 
@@ -42,16 +40,6 @@ Returns:
 | Type   | Description                                                      |
 | ------ | ---------------------------------------------------------------- |
 | `bool` | True if the workflow was triggered by an event, False otherwise. |
-
-#### `workflow_input`
-
-The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
-
-Returns:
-
-| Type                      | Description                |
-| ------------------------- | -------------------------- |
-| `JSONSerializableMapping` | The input to the workflow. |
 
 #### `lifespan`
 
@@ -209,26 +197,15 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-#### `done`
-
-Check if the current task run has been cancelled.
-
-Returns:
-
-| Type   | Description                                               |
-| ------ | --------------------------------------------------------- |
-| `bool` | True if the task run has been cancelled, False otherwise. |
-
 #### `log`
 
 Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
 
 Parameters:
 
-| Name             | Type                             | Description                                                           | Default    |
-| ---------------- | -------------------------------- | --------------------------------------------------------------------- | ---------- |
-| `line`           | `str \| JSONSerializableMapping` | The line to log. Can be a string or a JSON serializable mapping.      | _required_ |
-| `raise_on_error` | `bool`                           | If True, will raise an exception if the log fails. Defaults to False. | `False`    |
+| Name   | Type                             | Description                                                      | Default    |
+| ------ | -------------------------------- | ---------------------------------------------------------------- | ---------- |
+| `line` | `str \| JSONSerializableMapping` | The line to log. Can be a string or a JSON serializable mapping. | _required_ |
 
 Returns:
 
@@ -268,33 +245,15 @@ Refresh the timeout for the current task run. You can read about refreshing time
 
 Parameters:
 
-| Name           | Type       | Description                                                                                        | Default    |
-| -------------- | ---------- | -------------------------------------------------------------------------------------------------- | ---------- |
-| `increment_by` | `Duration` | The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object. | _required_ |
+| Name           | Type        | Description                                                                                        | Default    |
+| -------------- | ----------- | -------------------------------------------------------------------------------------------------- | ---------- |
+| `increment_by` | `timedelta` | The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object. | _required_ |
 
 Returns:
 
 | Type   | Description |
 | ------ | ----------- |
 | `None` | None        |
-
-#### `fetch_task_run_error`
-
-**DEPRECATED**: Use `get_task_run_error` instead.
-
-A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
-
-Parameters:
-
-| Name   | Type                      | Description                                | Default    |
-| ------ | ------------------------- | ------------------------------------------ | ---------- |
-| `task` | `Task[TWorkflowInput, R]` | The task whose error you want to retrieve. | _required_ |
-
-Returns:
-
-| Type          | Description                                                      |
-| ------------- | ---------------------------------------------------------------- |
-| `str \| None` | The error message of the task run, or None if no error occurred. |
 
 ## DurableContext
 
@@ -323,9 +282,9 @@ Parameters:
 
 Returns:
 
-| Type             | Description                                      |
-| ---------------- | ------------------------------------------------ |
-| `dict[str, Any]` | A dictionary containing the results of the wait. |
+| Type                                                         | Description                                      |
+| ------------------------------------------------------------ | ------------------------------------------------ |
+| `list[SleepResult \| EventWaitResult[Any] \| OrGroupResult]` | A dictionary containing the results of the wait. |
 
 Raises:
 
@@ -344,7 +303,7 @@ Parameters:
 
 | Name       | Type          | Description                                                                                                                                                  | Default    |
 | ---------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `duration` | `Duration`    | The duration to sleep for. Should be a timedelta object.                                                                                                     | _required_ |
+| `duration` | `timedelta`   | The duration to sleep for. Should be a timedelta object.                                                                                                     | _required_ |
 | `label`    | `str \| None` | An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
 
 Returns:
