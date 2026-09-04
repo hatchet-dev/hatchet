@@ -29,6 +29,8 @@ type TaskOutputEvent struct {
 	StepReadableID string `json:"step_readable_id"`
 
 	IsDagOrchestrator bool `json:"is_dag_orchestrator"`
+
+	CancellationReason *string `json:"cancellation_reason,omitempty"`
 }
 
 func (e *TaskOutputEvent) IsCompleted() bool {
@@ -76,7 +78,10 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 
 func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
+
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
+	e.CancellationReason = &task.Queue
+
 	return e
 }
 
@@ -109,9 +114,10 @@ func NewFailedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, errorMsg string) *Tas
 	return e
 }
 
-func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
+func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, cancelMessage *string) *TaskOutputEvent {
 	e := baseFromReleaseTasksRow(row)
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
+	e.CancellationReason = cancelMessage
 	return e
 }
 

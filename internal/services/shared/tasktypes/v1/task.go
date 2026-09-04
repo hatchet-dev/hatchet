@@ -211,8 +211,13 @@ type SignalTaskCancelledPayload struct {
 	RetryCount int32
 }
 
+type CancelTaskPayloadSingleton struct {
+	*v1.TaskIdInsertedAtRetryCount
+	CancellationReason string
+}
+
 type CancelTasksPayload struct {
-	Tasks []v1.TaskIdInsertedAtRetryCount `json:"tasks"`
+	Tasks []CancelTaskPayloadSingleton `json:"tasks"`
 }
 
 type TaskIdInsertedAtRetryCountWithExternalId struct {
