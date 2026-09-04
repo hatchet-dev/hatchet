@@ -507,13 +507,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
-// emitOrchestratorTerminalEvent reliably delivers a DAG-orchestrator task's terminal monitoring
-// event to OLAP. Operator-DAG status in OLAP is driven only by these events
-// (UpdateDAGStatusesFromOrchestratorEvents); the dispatcher's fire-and-forget publish through the
-// in-memory pub buffer can drop them on a restart, which strands the run non-terminal forever.
-// This does an awaited SendMessage on the durable OLAP_QUEUE with a bounded retry; on final
-// failure the caller returns an error so the source TASK_PROCESSING_QUEUE message is redelivered
-// and the (idempotent) finalize handler re-runs.
+// await the sendMessage to the OLAP_QUEUE so that errors delivering are able to be retried
 func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 	ctx context.Context,
 	tenantId uuid.UUID,

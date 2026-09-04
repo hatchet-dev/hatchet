@@ -65,6 +65,5 @@ func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx conte
 		tc.l.Warn().Ctx(ctx).Msgf("restoring stuck evicted durable orchestrator %s (evicted, all durable events satisfied)", row.ExternalID)
 	}
 
-	// if we filled the batch there may be more; ask the pool to run again immediately
-	return len(rows) == stuckEvictedOrchestratorBatch, nil
+	return false, nil
 }
