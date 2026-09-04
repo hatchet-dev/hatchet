@@ -52,7 +52,7 @@ There have been a number of other breaking changes throughout the SDK in V1.
 Typing improvements:
 
 1. All times and durations, such as `timeout` and `schedule_timeout` fields are now `datetime.timedelta` objects instead of strings (e.g. `"10s"` becomes `timedelta(seconds=10)`).
-2. External-facing protobuf objects, such as `StickyStrategy`, have been replaced by native Python enums to make working with them easier. Concurrency strategies are passed as a plain string `Literal` on `ConcurrencyStrategy` rather than a separate enum type.
+2. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
 3. All interactions with the `Task` and `Workflow` objects are now typed, so you know e.g. what the type of the input to the task needs to be at type checking time (we see this in the Pydantic example above).
 4. All external-facing types that are used for triggering tasks, scheduling tasks, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
 5. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
