@@ -2519,10 +2519,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			return nil, err
 		}
 
-		// The orchestrator's lifecycle events (ASSIGNED/STARTED/FINISHED) are published on
-		// OLAP_QUEUE by other services, unordered with respect to this created-dag message. If
-		// any already landed, UpdateDAGStatusesFromOrchestratorEvents no-op'd (no DAG row yet),
-		// so catch the freshly-inserted rows up to the furthest-along event on record.
 		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams(selfMappingParams))
 		if err != nil {
 			return nil, err

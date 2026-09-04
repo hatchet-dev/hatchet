@@ -2527,13 +2527,8 @@ SELECT
 ON CONFLICT DO NOTHING;
 
 -- name: ReconcileOperatorDAGStatusesOnCreate :exec
--- An operator DAG's OLAP row is written by a 'created-dag' message that is independent of, and
--- unordered with respect to, its orchestrator lifecycle events (ASSIGNED/STARTED/FINISHED) -- those
--- are published by other services on the same queue with no ordering guarantee. When the events
--- land first, UpdateDAGStatusesFromOrchestratorEvents no-ops (no DAG row to join) and the DAG is
--- stranded at its initial RUNNING status forever. Call this right after inserting operator DAG
--- rows to catch each one up to the furthest-along orchestrator event already recorded. Same
--- monotonic rule as UpdateDAGStatusesFromOrchestratorEvents.
+-- An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
+-- This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
 WITH inputs AS (
     SELECT
         UNNEST(@dagIds::BIGINT[]) AS dag_id,

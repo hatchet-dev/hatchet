@@ -185,11 +185,6 @@ func (s *SharedOperator[T]) SendStarted(action *contracts.AssignedAction) error 
 	return s.SendStartedAt(action, time.Now())
 }
 
-// SendStartedAt reports STARTED with an explicit event timestamp. Callers that report STARTED
-// asynchronously (e.g. from a goroutine that races the task body) must capture the timestamp
-// synchronously before the work begins and pass it here, otherwise a fast task can emit
-// COMPLETED/FAILED with an earlier timestamp than the STARTED goroutine's, inverting the event
-// order in OLAP.
 func (s *SharedOperator[T]) SendStartedAt(action *contracts.AssignedAction, at time.Time) error {
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, "", nil, at)
 }
