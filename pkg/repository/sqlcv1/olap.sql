@@ -8,6 +8,14 @@ SELECT
     create_v1_range_partition('v1_payloads_olap'::text, @date::date)
 ;
 
+-- name: CreateOLAPHighVolumePartitions :exec
+SELECT
+    create_v1_range_partition('v1_statuses_olap'::text, @date::date),
+    create_v1_range_partition('v1_task_events_olap'::text, @date::date),
+    create_v1_range_partition('v1_lookup_table_olap'::text, @date::date),
+    create_v1_range_partition('v1_dag_to_task_olap'::text, @date::date)
+;
+
 -- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
@@ -64,6 +72,14 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
+), statuses_partitions AS (
+    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_statuses_olap', @date::date) AS p
+), task_events_partitions AS (
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_lookup_table_olap', @date::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -140,6 +156,34 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        statuses_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        dag_to_task_partitions
+
 )
 
 SELECT *
@@ -152,6 +196,10 @@ WHERE
     AND CASE
         WHEN @shouldPartitionOtelTables::BOOLEAN THEN TRUE
         ELSE parent_table NOT IN ('v1_otel_trace_olap', 'v1_otel_trace_lookup_olap')
+    END
+    AND CASE
+        WHEN @shouldPartitionHighVolumeTables::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN ('v1_statuses_olap', 'v1_task_events_olap', 'v1_lookup_table_olap', 'v1_dag_to_task_olap')
     END
 ;
 
