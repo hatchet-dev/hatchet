@@ -67,6 +67,7 @@
     "---Migration Guides---",
     "from-celery-to-hatchet",
     "from-temporal-to-hatchet",
+    "migration-guide-python-v2",
     "---Troubleshooting---",
     "faq"
   ],
