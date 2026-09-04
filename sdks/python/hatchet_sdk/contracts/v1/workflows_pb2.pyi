@@ -44,8 +44,6 @@ class IdempotencyMethod(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
-    DROP_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
-    QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_QUEUED_EXCEPT_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
@@ -68,8 +66,6 @@ EVICTED: RunStatus
 TTL: IdempotencyMethod
 STATUS: IdempotencyMethod
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
-DROP_NEWEST: ConcurrencyLimitStrategy
-QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 CANCEL_NEWEST: ConcurrencyLimitStrategy
 CANCEL_QUEUED_EXCEPT_NEWEST: ConcurrencyLimitStrategy

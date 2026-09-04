@@ -201,10 +201,6 @@ export function idempotencyMethodToJSON(object: IdempotencyMethod): string {
 
 export enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = 0,
-  /** DROP_NEWEST - deprecated */
-  DROP_NEWEST = 1,
-  /** QUEUE_NEWEST - deprecated */
-  QUEUE_NEWEST = 2,
   GROUP_ROUND_ROBIN = 3,
   CANCEL_NEWEST = 4,
   CANCEL_QUEUED_EXCEPT_NEWEST = 5,
@@ -217,12 +213,6 @@ export function concurrencyLimitStrategyFromJSON(object: any): ConcurrencyLimitS
     case 0:
     case 'CANCEL_IN_PROGRESS':
       return ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS;
-    case 1:
-    case 'DROP_NEWEST':
-      return ConcurrencyLimitStrategy.DROP_NEWEST;
-    case 2:
-    case 'QUEUE_NEWEST':
-      return ConcurrencyLimitStrategy.QUEUE_NEWEST;
     case 3:
     case 'GROUP_ROUND_ROBIN':
       return ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN;
@@ -246,10 +236,6 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
   switch (object) {
     case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
       return 'CANCEL_IN_PROGRESS';
-    case ConcurrencyLimitStrategy.DROP_NEWEST:
-      return 'DROP_NEWEST';
-    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
-      return 'QUEUE_NEWEST';
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
       return 'GROUP_ROUND_ROBIN';
     case ConcurrencyLimitStrategy.CANCEL_NEWEST:

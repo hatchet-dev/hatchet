@@ -81,8 +81,6 @@ const (
 	CancelInProgress         = types.CancelInProgress
 	CancelNewest             = types.CancelNewest
 	GroupRoundRobin          = types.GroupRoundRobin
-	DropNewest               = types.DropNewest
-	QueueNewest              = types.QueueNewest
 	CancelQueuedExceptNewest = types.CancelQueuedExceptNewest
 	CancelQueuedExceptOldest = types.CancelQueuedExceptOldest
 )
