@@ -23,7 +23,7 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
-import { RetentionBanner } from '@/components/v1/retention-banner';
+import { RetentionExpiredRun } from '@/components/v1/retention-expired-run';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -278,7 +278,13 @@ export default function Run() {
   );
 
   if (isOutsideRetention && tenant?.dataRetentionPeriod) {
-    return <RetentionBanner retentionPeriod={tenant.dataRetentionPeriod} />;
+    return (
+      <RetentionExpiredRun
+        retentionPeriod={tenant.dataRetentionPeriod}
+        createdAt={createdAt}
+        runId={run}
+      />
+    );
   }
 
   if (runData.type === 'task') {

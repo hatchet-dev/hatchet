@@ -11,6 +11,8 @@ import {
   runningFilterKey,
   idempotencyKeyKey,
 } from '../components/v1/task-runs-columns';
+import { useRetentionGate } from '@/hooks/use-retention-gate';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import {
   V1AdditionalMetadataOperator,
@@ -18,11 +20,19 @@ import {
   V1TaskStatus,
 } from '@/lib/api';
 import { useSearchParams } from '@/lib/router-helpers';
+import {
+  defaultTimeWindowForRetention,
+  getRetentionBoundary,
+  isBeforeRetention,
+  isTimeWindowOutsideRetention,
+  largestAllowedTimeWindow,
+  type TimeWindowPreset,
+} from '@/lib/utils/retention';
 import { ColumnFiltersState } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 
-type TimeWindow = '1h' | '6h' | '1d' | '7d';
+type TimeWindow = TimeWindowPreset;
 
 const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
   switch (timeWindow) {
@@ -73,6 +83,10 @@ export type FilterActions = {
   ) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
   resetFilters: () => void;
+  searchAllRetainedHistory: () => void;
+  retentionPeriod?: string;
+  retentionGate: ReturnType<typeof useRetentionGate>;
+  isDefaultOneDayWindow: boolean;
 };
 
 const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
@@ -115,6 +129,9 @@ export const useRunsTableFilters = (
   const paramKey = tableKey + '-workflow-runs-filters';
   const apiFilterSchema = createApiFilterSchema(initialValues);
   const [, setSearchParams] = useSearchParams();
+  const { tenant } = useTenantDetails();
+  const retentionPeriod = tenant?.dataRetentionPeriod;
+  const retentionGate = useRetentionGate(retentionPeriod);
 
   const zodFiltersHook = useZodColumnFilters(apiFilterSchema, paramKey, {
     tw: timeWindowKey,
@@ -171,14 +188,16 @@ export const useRunsTableFilters = (
 
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
-      setZodState({
-        tw: timeWindow,
-        ctr: false,
-        s: getCreatedAfterFromTimeRange(timeWindow),
-        u: undefined,
+      retentionGate.tryTimeWindow(timeWindow, () => {
+        setZodState({
+          tw: timeWindow,
+          ctr: false,
+          s: getCreatedAfterFromTimeRange(timeWindow),
+          u: undefined,
+        });
       });
     },
-    [setZodState],
+    [setZodState, retentionGate.tryTimeWindow],
   );
 
   const updateCurrentTimeWindow = useCallback(() => {
@@ -193,10 +212,12 @@ export const useRunsTableFilters = (
   const setCustomTimeRange = useCallback(
     (range: { start: string; end: string } | null) => {
       if (range) {
-        setZodState({
-          ctr: true,
-          s: range.start,
-          u: range.end,
+        retentionGate.trySince(range.start, () => {
+          setZodState({
+            ctr: true,
+            s: range.start,
+            u: range.end,
+          });
         });
       } else {
         setZodState({
@@ -206,8 +227,42 @@ export const useRunsTableFilters = (
         });
       }
     },
-    [setZodState, timeWindow],
+    [setZodState, timeWindow, retentionGate.trySince],
   );
+
+  useEffect(() => {
+    if (!retentionPeriod) {
+      return;
+    }
+    if (rawCreatedAfter && isBeforeRetention(rawCreatedAfter, retentionPeriod)) {
+      const boundary = getRetentionBoundary(retentionPeriod);
+      if (boundary) {
+        setZodState({
+          ctr: true,
+          s: boundary.toISOString(),
+        });
+      }
+      return;
+    }
+    if (
+      !isCustomTimeRange &&
+      isTimeWindowOutsideRetention(timeWindow, retentionPeriod)
+    ) {
+      const next = largestAllowedTimeWindow(retentionPeriod);
+      setZodState({
+        tw: next,
+        ctr: false,
+        s: getCreatedAfterFromTimeRange(next),
+        u: undefined,
+      });
+    }
+  }, [
+    retentionPeriod,
+    rawCreatedAfter,
+    isCustomTimeRange,
+    timeWindow,
+    setZodState,
+  ]);
 
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
@@ -306,5 +361,12 @@ export const useRunsTableFilters = (
     setAdditionalMetadataOperator,
     setColumnFilters,
     resetFilters,
+    searchAllRetainedHistory: () =>
+      setTimeWindow(largestAllowedTimeWindow(retentionPeriod)),
+    retentionPeriod,
+    retentionGate,
+    isDefaultOneDayWindow:
+      !isCustomTimeRange &&
+      timeWindow === defaultTimeWindowForRetention(retentionPeriod),
   };
 };
