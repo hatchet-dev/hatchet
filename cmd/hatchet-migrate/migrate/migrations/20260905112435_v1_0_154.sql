@@ -16,6 +16,8 @@ BEGIN
     ALTER TABLE v1_payload_new RENAME TO v1_payload;
     ALTER INDEX v1_payload_new_pkey RENAME TO v1_payload_pkey;
 
+    ALTER TABLE v1_payload ALTER COLUMN inserted_at_date DROP DEFAULT;
+
     FOR partition_row IN
         SELECT inhrelid::regclass::text AS partition_name
         FROM pg_inherits
@@ -241,6 +243,7 @@ BEGIN
 
     ALTER TABLE v1_payload RENAME TO v1_payload_new;
     ALTER INDEX v1_payload_pkey RENAME TO v1_payload_new_pkey;
+    ALTER TABLE v1_payload_new ALTER COLUMN inserted_at_date SET DEFAULT CURRENT_TIMESTAMP::DATE;
 
     FOR partition_row IN
         SELECT inhrelid::regclass::text AS partition_name
