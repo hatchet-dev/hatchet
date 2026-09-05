@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS v1_payload_new (
 	tenant_id UUID NOT NULL,
 	id BIGINT NOT NULL,
 	inserted_at TIMESTAMPTZ NOT NULL,
-	inserted_at_date DATE NOT NULL DEFAULT CURRENT_TIMESTAMP::DATE,
+	inserted_at_date DATE NOT NULL,
 	external_id UUID NOT NULL DEFAULT gen_random_uuid(),
 	type v1_payload_type NOT NULL,
 	location v1_payload_location NOT NULL,
