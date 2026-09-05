@@ -4,7 +4,6 @@
 ALTER TABLE v1_payload ADD COLUMN IF NOT EXISTS inserted_at_date DATE;
 ALTER TABLE v1_payload ALTER COLUMN inserted_at_date SET DEFAULT (NOW()::DATE);
 
--- guarded so the migration can be re-run if the backfill below fails partway through
 DO $$
 BEGIN
     IF NOT EXISTS (
