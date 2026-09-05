@@ -446,28 +446,12 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
 }
 
-type BulkCutOverPayload struct {
-	TenantID            uuid.UUID
-	Id                  int64
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	Type                sqlcv1.V1PayloadType
-	ExternalLocationKey ExternalPayloadLocationKey
-}
-
 type CutoverBatchOutcome struct {
 	ShouldContinue bool
 	NextExternalId uuid.UUID
 }
 
 type PartitionDate pgtype.Date
-
-type PayloadMetadata struct {
-	InsertedAt pgtype.Timestamptz
-	Type       sqlcv1.V1PayloadType
-	ID         int64
-	TenantID   uuid.UUID
-}
 
 func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
