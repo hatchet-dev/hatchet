@@ -44,16 +44,31 @@ async def test_run(hatchet: Hatchet) -> None:
         except Exception:
             pass
 
-    ## wait for the olap repo to catch up
-    await asyncio.sleep(5)
+    timeout = 30
+    start = time.time()
+    successful_status = None
+    cancelled_statuses: list[V1TaskStatus] = []
 
-    successful_run = hatchet.runs.get(to_run.workflow_run_id)
+    while time.time() - start < timeout:
+        successful_status = hatchet.runs.get(to_run.workflow_run_id).run.status
+        cancelled_statuses = [
+            r.status
+            for r in hatchet.runs.list(
+                additional_metadata={"test_run_id": test_run_id}
+            ).rows
+            if r.metadata.id != to_run.workflow_run_id
+        ]
 
-    assert successful_run.run.status == V1TaskStatus.COMPLETED
-    assert all(
-        r.status == V1TaskStatus.CANCELLED
-        for r in hatchet.runs.list(
-            additional_metadata={"test_run_id": test_run_id}
-        ).rows
-        if r.metadata.id != to_run.workflow_run_id
+        if (
+            successful_status == V1TaskStatus.COMPLETED
+            and len(cancelled_statuses) == 10
+            and all(s == V1TaskStatus.CANCELLED for s in cancelled_statuses)
+        ):
+            return
+
+        await asyncio.sleep(1)
+
+    assert False, (
+        f"Expected the first run to be COMPLETED and the other 10 to be CANCELLED within {timeout} seconds, "
+        f"but got first={successful_status} and others={cancelled_statuses}"
     )
