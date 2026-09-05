@@ -294,9 +294,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
-		Tenantids:     tenantIds,
-		Externalids:   externalIds,
-		Mininsertedat: sqlchelpers.TimestamptzFromTime(minInsertedAt),
+		Tenantids:         tenantIds,
+		Externalids:       externalIds,
+		Mininsertedatdate: sqlchelpers.DateFromTime(minInsertedAt),
 	})
 
 	if err != nil {

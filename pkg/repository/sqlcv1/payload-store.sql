@@ -9,7 +9,7 @@ SELECT *
 FROM v1_payload
 WHERE
     (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
-    AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND inserted_at_date >= @minInsertedAtDate::DATE
 ;
 
 -- name: WritePayloads :exec
@@ -49,7 +49,7 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (external_id, inserted_at)
+ON CONFLICT (external_id, inserted_at_date)
 DO UPDATE SET
     location = EXCLUDED.location,
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,

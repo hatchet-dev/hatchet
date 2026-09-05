@@ -364,17 +364,17 @@ SELECT tenant_id, id, inserted_at, inserted_at_date, external_id, type, location
 FROM v1_payload
 WHERE
     (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
-    AND inserted_at >= $1::TIMESTAMPTZ
+    AND inserted_at_date >= $1::DATE
 `
 
 type ReadPayloadsParams struct {
-	Mininsertedat pgtype.Timestamptz `json:"mininsertedat"`
-	Tenantids     []uuid.UUID        `json:"tenantids"`
-	Externalids   []uuid.UUID        `json:"externalids"`
+	Mininsertedatdate pgtype.Date `json:"mininsertedatdate"`
+	Tenantids         []uuid.UUID `json:"tenantids"`
+	Externalids       []uuid.UUID `json:"externalids"`
 }
 
 func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
-	rows, err := db.Query(ctx, readPayloads, arg.Mininsertedat, arg.Tenantids, arg.Externalids)
+	rows, err := db.Query(ctx, readPayloads, arg.Mininsertedatdate, arg.Tenantids, arg.Externalids)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +450,7 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (external_id, inserted_at)
+ON CONFLICT (external_id, inserted_at_date)
 DO UPDATE SET
     location = EXCLUDED.location,
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,

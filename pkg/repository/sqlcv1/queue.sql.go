@@ -1811,6 +1811,7 @@ WITH locked_qis AS (
         ON p.tenant_id = lqi.tenant_id
         AND p.id = lqi.task_id
         AND p.inserted_at = lqi.task_inserted_at
+        AND p.inserted_at_date = lqi.task_inserted_at::DATE
         AND p.type = 'TASK_INPUT'::v1_payload_type
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
