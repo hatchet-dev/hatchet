@@ -2166,7 +2166,7 @@ CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
-    id BIGINT NOT NULL,
+    id BIGINT NOT NULL, -- deprecated
     inserted_at TIMESTAMPTZ NOT NULL,
     inserted_at_date DATE NOT NULL DEFAULT CURRENT_TIMESTAMP::DATE,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -2184,7 +2184,7 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC); -- todo: unique constraint for this
 
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
