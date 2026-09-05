@@ -9,14 +9,14 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(upV10152, downV10152)
+	goose.AddMigrationNoTxContext(upV10153, downV10153)
 }
 
-func v10152IndexName(table string) string {
+func v10153IndexName(table string) string {
 	return fmt.Sprintf("%s_external_id_ins_at_uq", table)
 }
 
-func upV10152(ctx context.Context, db *sql.DB) error {
+func upV10153(ctx context.Context, db *sql.DB) error {
 	table := "v1_payload"
 
 	partitions, err := listLeafPartitions(ctx, db, table, 1)
@@ -26,7 +26,7 @@ func upV10152(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, partition := range partitions {
-		indexName := v10152IndexName(partition)
+		indexName := v10153IndexName(partition)
 		valid, err := indexIsValid(ctx, db, indexName)
 
 		if err != nil {
@@ -54,7 +54,7 @@ func upV10152(ctx context.Context, db *sql.DB) error {
 	}
 
 	// #nosec G201 -- identifiers are quoted and derived from internal migration logic, not user input
-	stmt := fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (external_id ASC, inserted_at ASC);", quoteIdent(v10152IndexName(table)), quoteIdent(table))
+	stmt := fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (external_id ASC, inserted_at ASC);", quoteIdent(v10153IndexName(table)), quoteIdent(table))
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to create index on %s: %w", table, err)
@@ -73,10 +73,10 @@ func upV10152(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func downV10152(ctx context.Context, db *sql.DB) error {
+func downV10153(ctx context.Context, db *sql.DB) error {
 	table := "v1_payload"
 
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX IF EXISTS %s;", quoteIdent(v10152IndexName(table)))); err != nil {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX IF EXISTS %s;", quoteIdent(v10153IndexName(table)))); err != nil {
 		return fmt.Errorf("failed to drop index on %s: %w", table, err)
 	}
 
