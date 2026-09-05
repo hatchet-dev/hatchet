@@ -43,3 +43,14 @@ func TimestamptzFromTime(t time.Time) pgtype.Timestamptz {
 
 	return pgTs
 }
+
+func DateFromTime(t time.Time) pgtype.Date {
+	if t.IsZero() {
+		return pgtype.Date{}
+	}
+
+	return pgtype.Date{
+		Time:  t,
+		Valid: true,
+	}
+}

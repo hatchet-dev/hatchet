@@ -1,18 +1,15 @@
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
+        UNNEST(@externalIds::UUID[]) AS external_id
 )
 
 SELECT *
 FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
+WHERE
+    (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
+    AND inserted_at_date >= @minInsertedAtDate::DATE
 ;
 
 -- name: WritePayloads :exec
@@ -52,12 +49,16 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (tenant_id, id, inserted_at, type)
+ON CONFLICT (external_id, inserted_at_date)
 DO UPDATE SET
     location = EXCLUDED.location,
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
+WHERE
+    v1_payload.location IS DISTINCT FROM EXCLUDED.location
+    OR v1_payload.external_location_key IS DISTINCT FROM EXCLUDED.external_location_key
+    OR v1_payload.inline_content IS DISTINCT FROM EXCLUDED.inline_content
 ;
 
 -- name: AnalyzeV1Payload :exec
