@@ -1,6 +1,12 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { ChannelCredentials } from 'nice-grpc';
 import { ConfigLoader } from './config-loader';
 import { HatchetClient } from '@hatchet/v1';
+
+// config paths resolve against the caller's working directory, not __dirname
+const fixturePath = (file: string) => path.join(__dirname, 'fixtures', file);
 
 describe('ConfigLoader', () => {
   beforeEach(() => {
@@ -72,7 +78,7 @@ describe('ConfigLoader', () => {
       ConfigLoader.loadClientConfig(
         {},
         {
-          path: './fixtures/not-found.yaml',
+          path: fixturePath('not-found.yaml'),
         }
       )
     ).toThrow();
@@ -84,7 +90,7 @@ describe('ConfigLoader', () => {
       ConfigLoader.loadClientConfig(
         {},
         {
-          path: './fixtures/.hatchet-invalid.yaml',
+          path: fixturePath('.hatchet-invalid.yaml'),
         }
       )
     ).toThrow();
@@ -94,7 +100,7 @@ describe('ConfigLoader', () => {
     const config = ConfigLoader.loadClientConfig(
       {},
       {
-        path: './fixtures/.hatchet.yaml',
+        path: fixturePath('.hatchet.yaml'),
       }
     );
     expect(config).toEqual({
@@ -145,7 +151,7 @@ describe('ConfigLoader', () => {
     const config = ConfigLoader.loadClientConfig(
       {},
       {
-        path: './fixtures/.hatchet.yaml',
+        path: fixturePath('.hatchet.yaml'),
       }
     );
     expect(config).toEqual({
@@ -164,5 +170,38 @@ describe('ConfigLoader', () => {
         port: 8002,
       },
     });
+  });
+
+  it('should load the default .hatchet.yaml from the caller cwd', () => {
+    const originalCwd = process.cwd();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hatchet-config-'));
+    fs.writeFileSync(
+      path.join(tmp, '.hatchet.yaml'),
+      'namespace: from-cwd-yaml\n'
+    );
+
+    process.chdir(tmp);
+    try {
+      const config = ConfigLoader.loadYamlConfig();
+      expect(config).toEqual({ namespace: 'from-cwd-yaml' });
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('should load an explicit relative config path from the caller cwd', () => {
+    const originalCwd = process.cwd();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hatchet-config-'));
+    fs.writeFileSync(path.join(tmp, 'custom.yaml'), 'namespace: from-cwd\n');
+
+    process.chdir(tmp);
+    try {
+      const config = ConfigLoader.loadYamlConfig('custom.yaml');
+      expect(config).toEqual({ namespace: 'from-cwd' });
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

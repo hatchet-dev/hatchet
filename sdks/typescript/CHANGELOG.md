@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.2] - 2026-09-05
+
+### Fixed
+
+- `ConfigLoader.loadYamlConfig` resolved config paths against the SDK's own install directory instead of the caller's working directory, so a `.hatchet.yaml` in the project root was silently never loaded and explicit relative `config_path` values never resolved. Paths now resolve against `process.cwd()`, matching the documented behavior.
+
 ## [1.31.1] - 2026-09-03
 
 ### Security

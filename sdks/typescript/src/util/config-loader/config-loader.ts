@@ -216,10 +216,13 @@ export class ConfigLoader {
 
   static loadYamlConfig(path?: string): ClientConfig | undefined {
     try {
-      const configFile = readFileSync(
-        p.join(__dirname, path ?? this.default_yaml_config_path),
-        'utf8'
-      );
+      // Caller-supplied paths resolve against the caller's working directory;
+      // an absolute path is used as-is. The default path is already absolute
+      // (cwd-relative), so it is used directly.
+      const configPath = path
+        ? p.resolve(process.cwd(), path)
+        : this.default_yaml_config_path;
+      const configFile = readFileSync(configPath, 'utf8');
 
       const config = parse(configFile);
 
