@@ -15,8 +15,53 @@
     "Validation (enforced by every generator, which hard-fails on violation):",
     "  - every emitted feature-client page must have exactly one entry whose slug matches",
     "  - every entry with a slug for the language must match an emitted page (no stale entries)",
-    "  - every non-null guide path must exist as a content file"
+    "  - every non-null guide path must exist as a content file",
+    "",
+    "agentDocs: shared content for the generated 'Documentation for agents' block each",
+    "generator injects into its package-manager-facing README (npm/PyPI/RubyGems) or, for Go,",
+    "into the package doc comment in sdks/go/hatchet.go. baseUrl + link path + '.md' is the",
+    "plain-markdown URL the docs site serves for each page. A link with a 'langs' array is",
+    "only rendered for those languages. Every link path must exist as a content file",
+    "(generators hard-fail otherwise)."
   ],
+  "agentDocs": {
+    "baseUrl": "https://docs.hatchet.run",
+    "lead": "The linked pages serve plain markdown for tools and agents. Full docs index: https://docs.hatchet.run/llms.txt",
+    "sections": [
+      {
+        "title": "Setup and local development",
+        "links": [
+          { "title": "Quickstart", "path": "/v1/quickstart" },
+          { "title": "Running Hatchet locally", "path": "/v1/running-locally" },
+          {
+            "title": "Embedded mode",
+            "path": "/v1/embedded",
+            "langs": ["go", "typescript", "python"]
+          }
+        ]
+      },
+      {
+        "title": "Core concepts",
+        "links": [
+          { "title": "Tasks", "path": "/v1/tasks" },
+          { "title": "Workers", "path": "/v1/workers" },
+          { "title": "Running tasks", "path": "/v1/running-your-task" },
+          { "title": "DAGs", "path": "/v1/directed-acyclic-graphs" },
+          { "title": "Durable execution", "path": "/v1/durable-execution" }
+        ]
+      },
+      {
+        "title": "Flow control",
+        "links": [
+          { "title": "Concurrency", "path": "/v1/concurrency" },
+          { "title": "Rate limits", "path": "/v1/rate-limits" },
+          { "title": "Retries", "path": "/v1/retry-policies" },
+          { "title": "Idempotency", "path": "/v1/idempotency" },
+          { "title": "CEL expressions", "path": "/v1/cel-expressions" }
+        ]
+      }
+    ]
+  },
   "corePages": {
     "client": {
       "title": "Client",
