@@ -49,12 +49,16 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (tenant_id, id, inserted_at, type)
+ON CONFLICT (external_id, inserted_at)
 DO UPDATE SET
     location = EXCLUDED.location,
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
+WHERE
+    v1_payload.location IS DISTINCT FROM EXCLUDED.location
+    OR v1_payload.external_location_key IS DISTINCT FROM EXCLUDED.external_location_key
+    OR v1_payload.inline_content IS DISTINCT FROM EXCLUDED.inline_content
 ;
 
 -- name: AnalyzeV1Payload :exec

@@ -2184,7 +2184,7 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC); -- todo: unique constraint for this
+CREATE UNIQUE INDEX v1_payload_external_id_ins_at_uq ON v1_payload (external_id ASC, inserted_at ASC);
 
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
