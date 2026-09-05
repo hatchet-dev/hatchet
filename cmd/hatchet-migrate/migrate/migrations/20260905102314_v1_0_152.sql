@@ -22,11 +22,11 @@ DECLARE
     batch_size INT := 10000;
     rows_updated INT;
 BEGIN
+    -- using a temp table so we only seq scan once
     CREATE TEMP TABLE v1_payload_rows_to_backfill (
         external_id UUID PRIMARY KEY
     );
 
-    -- using a temp table so we only seq scan once
     INSERT INTO v1_payload_rows_to_backfill (external_id)
     SELECT DISTINCT external_id
     FROM v1_payload
@@ -49,16 +49,15 @@ BEGIN
         FROM batch b
         WHERE
             p.external_id = b.external_id
-            AND p.inserted_at_date IS NULL;
+            AND p.inserted_at_date IS NULL
+        ;
 
         GET DIAGNOSTICS rows_updated = ROW_COUNT;
 
         EXIT WHEN rows_updated = 0;
+
         COMMIT;
-
     END LOOP;
-
-    DROP TABLE v1_payload_rows_to_backfill;
 END $$;
 -- +goose StatementEnd
 
