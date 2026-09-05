@@ -362,7 +362,7 @@ WITH inputs AS (
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
 )
 
-SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
+SELECT tenant_id, id, inserted_at, inserted_at_date, external_id, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
 WHERE (tenant_id, id, inserted_at, type) IN (
         SELECT tenant_id, id, inserted_at, type
@@ -395,6 +395,7 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
+			&i.InsertedAtDate,
 			&i.ExternalID,
 			&i.Type,
 			&i.Location,
@@ -438,6 +439,7 @@ INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    inserted_at_date,
     external_id,
     type,
     location,
@@ -448,6 +450,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.inserted_at::DATE,
     i.external_id,
     i.type,
     i.location,
