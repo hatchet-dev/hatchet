@@ -205,6 +205,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		uniqueKey := PayloadUniqueKey{
 			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
 			TenantId:        tenantId,
+			ExternalId:      payload.ExternalId,
 		}
 
 		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
