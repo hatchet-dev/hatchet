@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	goerrors "errors"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -65,7 +67,16 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant by id: %s", err)
-		return nil, forbidden
+		if goerrors.Is(err, pgx.ErrNoRows) {
+			return nil, forbidden
+		}
+		if goerrors.Is(err, context.Canceled) {
+			return nil, status.Error(codes.Canceled, "request was canceled")
+		}
+		if goerrors.Is(err, context.DeadlineExceeded) {
+			return nil, status.Error(codes.DeadlineExceeded, "request deadline exceeded")
+		}
+		return nil, status.Errorf(codes.Unavailable, "database unavailable, retry later")
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil

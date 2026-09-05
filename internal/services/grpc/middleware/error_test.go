@@ -95,6 +95,19 @@ func TestErrorStreamInterceptorMapsNoRowsToNotFound(t *testing.T) {
 	assert.Equal(t, 0, alerter.n)
 }
 
+func TestErrorInterceptorMapsDeadlineExceededWithoutAlert(t *testing.T) {
+	e, alerter := unaryInterceptor()
+	interceptor := e.ErrorUnaryServerInterceptor()
+
+	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/test"}, func(ctx context.Context, req any) (any, error) {
+		return nil, context.DeadlineExceeded
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+	assert.Equal(t, 0, alerter.n)
+}
+
 type stubServerStream struct {
 	grpc.ServerStream
 	ctx context.Context
