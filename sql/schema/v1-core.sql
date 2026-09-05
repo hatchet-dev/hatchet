@@ -1358,6 +1358,21 @@ RETURNS trigger AS $$
 DECLARE
     rec RECORD;
 BEGIN
+    -- Removing a retained replacement slot must suppress retry admission in the
+    -- same transaction, including retries whose deadline has already elapsed.
+    UPDATE v1_retry_queue_item r
+    SET retry_after = 'infinity'::timestamptz
+    FROM deleted_rows d
+    WHERE r.task_id = d.task_id
+        AND r.task_inserted_at = d.task_inserted_at
+        AND r.task_retry_count = d.task_retry_count;
+
+    DELETE FROM v1_retry_queue_item r
+    USING deleted_rows d
+    WHERE r.task_id = d.task_id
+        AND r.task_inserted_at = d.task_inserted_at
+        AND r.task_retry_count = d.task_retry_count;
+
     FOR rec IN SELECT * FROM deleted_rows ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
         IF rec.parent_strategy_id IS NOT NULL THEN
             PERFORM cleanup_workflow_concurrency_slots(
@@ -1612,6 +1627,24 @@ BEGIN
         tenant_id
     FROM new_retry_rows;
 
+    -- A pending retry remains unfinished work for replacement policies. Keep its
+    -- filled slot at the accepted invocation's position until retry admission.
+    UPDATE v1_concurrency_slot cs
+    SET task_retry_count = nt.retry_count
+    FROM new_table nt
+    JOIN old_table ot ON ot.id = nt.id AND ot.inserted_at = nt.inserted_at
+    JOIN v1_step_concurrency sc ON sc.id = ANY(nt.concurrency_strategy_ids)
+    WHERE cs.task_id = nt.id
+        AND cs.task_inserted_at = nt.inserted_at
+        AND cs.task_retry_count = ot.retry_count
+        AND cs.strategy_id = sc.id
+        AND sc.strategy = 'CANCEL_IN_PROGRESS'
+        AND cs.is_filled
+        AND nt.initial_state = 'QUEUED'
+        AND nt.retry_backoff_factor IS NOT NULL
+        AND ot.app_retry_count IS DISTINCT FROM nt.app_retry_count
+        AND nt.app_retry_count != 0;
+
     WITH new_slot_rows AS (
         SELECT
             nt.id,
@@ -1863,7 +1896,9 @@ BEGIN
         next_max_runs,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id)
+    DO UPDATE SET is_filled = FALSE, schedule_timeout_at = EXCLUDED.schedule_timeout_at;
 
     WITH tasks AS (
         SELECT
@@ -1932,6 +1967,12 @@ CREATE OR REPLACE FUNCTION v1_concurrency_slot_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
+    -- Chained-slot upserts invoke statement-level UPDATE triggers even when
+    -- there are no rows to advance.
+    IF NOT EXISTS (SELECT 1 FROM new_table) THEN
+        RETURN NULL;
+    END IF;
+
     -- If the concurrency slot has next_keys, insert a new slot for the next key
     WITH new_slot_rows AS (
         SELECT
@@ -2015,7 +2056,9 @@ BEGIN
         next_max_runs,
         schedule_timeout_at,
         queue
-    FROM new_slot_rows;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id)
+    DO UPDATE SET is_filled = FALSE, schedule_timeout_at = EXCLUDED.schedule_timeout_at;
 
     -- If the concurrency slot does not have next_keys, insert an item into v1_queue_item
     WITH tasks AS (
