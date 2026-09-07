@@ -51,7 +51,13 @@ async function withSlowNotice<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   let noticed = false;
+  let finished = false;
   const timer = setTimeout(() => {
+    // guards a callback already queued when fn settles, so a stale start
+    // message can never print after completion
+    if (finished) {
+      return;
+    }
     noticed = true;
     logProgress(startMsg);
   }, SLOW_NOTICE_DELAY_MS);
@@ -60,6 +66,7 @@ async function withSlowNotice<T>(
   try {
     result = await fn();
   } finally {
+    finished = true;
     clearTimeout(timer);
   }
   // only reached when fn succeeded
@@ -224,8 +231,8 @@ async function ensureSidecarBinary(version?: string, checksum?: string): Promise
   const expected =
     checksum ??
     (await withSlowNotice(
-      `fetching the release checksums for ${tag} (they verify the cached sidecar on every start)`,
-      'release checksums fetched',
+      `resolving the expected checksum for ${tag} (the cached checksum is used if the release cannot be reached)`,
+      'expected checksum resolved',
       () => resolveExpectedChecksum(tag, asset, binPath)
     ));
 

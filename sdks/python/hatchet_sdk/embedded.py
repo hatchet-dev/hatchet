@@ -17,6 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
+import hatchet_sdk.logger  # noqa: F401  (configures the parent "hatchet" logger)
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
@@ -24,17 +25,11 @@ REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 _SLOW_NOTICE_DELAY_SECONDS = 2.0
 _HEARTBEAT_INTERVAL_SECONDS = 30.0
 
-# first-contact progress goes to stderr (the SDK logger writes to stdout) in
-# the SDK's log format, so it never corrupts program output; warm starts print
-# at most one line
+# first-contact progress goes through a child of the SDK's shared "hatchet"
+# logger (importing hatchet_sdk.logger configures the parent), so consumers
+# manage it with standard logging configuration; warm starts print at most one
+# line
 _progress_logger = logging.getLogger("hatchet.embedded")
-_progress_logger.setLevel(logging.INFO)
-_progress_handler = logging.StreamHandler(sys.stderr)
-_progress_handler.setFormatter(
-    logging.Formatter("[%(levelname)s]\t🪓 -- %(asctime)s - %(message)s")
-)
-_progress_logger.addHandler(_progress_handler)
-_progress_logger.propagate = False
 
 
 @contextlib.contextmanager
@@ -45,11 +40,20 @@ def _slow_notice(start_msg: str, done_msg: str) -> Iterator[None]:
     warm-start network calls stay quiet while a blocked one explains what the
     process is waiting on.
     """
-    noticed = threading.Event()
+    lock = threading.Lock()
+    noticed = False
+    finished = False
 
     def emit() -> None:
-        noticed.set()
-        _progress_logger.info(start_msg)
+        nonlocal noticed
+        # the lock keeps the notice from printing after the wrapped block has
+        # already finished, which would leave a stale start message with no
+        # matching completion message
+        with lock:
+            if finished:
+                return
+            noticed = True
+            _progress_logger.info(start_msg)
 
     timer = threading.Timer(_SLOW_NOTICE_DELAY_SECONDS, emit)
     timer.daemon = True
@@ -59,9 +63,12 @@ def _slow_notice(start_msg: str, done_msg: str) -> Iterator[None]:
         yield
     finally:
         timer.cancel()
+        with lock:
+            finished = True
+            print_done = noticed
 
     # only reached when the wrapped block succeeded
-    if noticed.is_set():
+    if print_done:
         _progress_logger.info(done_msg)
 
 
@@ -202,8 +209,8 @@ def _resolve_expected_checksum(tag: str, asset: str, bin_path: Path) -> str:
     # verified binary still starts when GitHub is unreachable
     try:
         with _slow_notice(
-            f"fetching the release checksums for {tag} (they verify the cached sidecar on every start)",
-            "release checksums fetched",
+            f"resolving the expected checksum for {tag} (the cached checksum is used if the release cannot be reached)",
+            "expected checksum resolved",
         ):
             expected = _expected_checksum(tag, asset)
     except (urllib.error.URLError, OSError):
