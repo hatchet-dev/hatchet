@@ -461,30 +461,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
 	// new worker is available
 	if !worker.LastHeartbeatAt.Valid || worker.LastHeartbeatAt.Time.Before(heartbeatAt.Add(-30*time.Second)) {
-		if tenant.SchedulerPartitionId.Valid {
-			go func() {
-				// detached from the request so the notify outlives the handler, but keeps
-				// the request's values for tracing
-				notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-				defer cancel()
-
-				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
-
-				if err != nil {
-					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
-				} else {
-					err = s.pubsub.Pub(
-						notifyCtx,
-						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
-						msg,
-					)
-
-					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
-					}
-				}
-			}()
-		}
+		s.NotifyNewWorker(ctx, tenant, worker.ID)
 	}
 
 	return &contracts.HeartbeatResponse{}, nil
