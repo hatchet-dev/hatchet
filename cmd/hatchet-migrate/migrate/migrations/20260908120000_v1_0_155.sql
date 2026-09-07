@@ -1,5 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
+-- Serverless operators are upserted by (tenant, name) by every registration for the tenant,
+-- like GRPC operators. The SERVERLESS enum value is added by the previous migration outside a
+-- transaction, so it is usable in a predicate here.
+CREATE UNIQUE INDEX IF NOT EXISTS v1_operator_serverless_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'SERVERLESS';
+
 CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
 
 -- Customer configuration. Written by the API server; the operator writes only the status
@@ -87,6 +92,7 @@ CREATE UNIQUE INDEX v1_serverless_lease_unowned_idx ON v1_serverless_lease (tena
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX IF EXISTS v1_operator_serverless_tenant_name_key;
 DROP INDEX IF EXISTS v1_serverless_lease_unowned_idx;
 DROP INDEX IF EXISTS v1_serverless_lease_owner_idx;
 DROP TABLE IF EXISTS v1_serverless_lease;

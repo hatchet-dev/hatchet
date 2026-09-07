@@ -145,6 +145,25 @@ ON CONFLICT (tenant_id, name) WHERE kind = 'GRPC' DO UPDATE
 SET updated_at = NOW()
 RETURNING *;
 
+-- name: UpsertServerlessOperator :one
+-- Registers the serverless operator by (tenant, name). The row exists only so serverless
+-- registrations' workers have an "operatorId"; it carries no config and no worker_id, since
+-- each registration creates its own worker linked back via "Worker"."operatorId".
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    config
+) VALUES (
+    @tenantId::UUID,
+    @name::TEXT,
+    'SERVERLESS',
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name) WHERE kind = 'SERVERLESS' DO UPDATE
+SET updated_at = NOW()
+RETURNING *;
+
 -- name: UpdateWorkerActionsHash :exec
 UPDATE
     "Worker" w

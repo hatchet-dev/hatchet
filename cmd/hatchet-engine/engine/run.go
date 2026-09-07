@@ -489,6 +489,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
+		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
+		// unless enabled
+		stopServerlessOperator, err := startServerlessOperator(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -503,6 +511,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
@@ -963,6 +977,14 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
+		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
+		// unless enabled
+		stopServerlessOperator, err := startServerlessOperator(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -977,6 +999,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()

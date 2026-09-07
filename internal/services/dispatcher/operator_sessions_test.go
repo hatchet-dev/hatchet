@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const operatorStreamMethod = "/test.OperatorStream/Listen"
@@ -198,6 +199,90 @@ func TestAddOperatorStreamSessionFinAndRelease(t *testing.T) {
 	}
 
 	ws, _ := h.d.workers.Get(workerId)
+
+	if len(ws) != 0 {
+		t.Fatalf("release did not remove the session, %d remain", len(ws))
+	}
+}
+
+// AddOperatorSession registers an operator-backed session: actions sent to the worker reach
+// the operator's HandleAction, the entry is skipped by the shutdown drain (no stream, no
+// fin), and release removes the session.
+func TestAddOperatorSessionRoutesActionsAndReleases(t *testing.T) {
+	l := zerolog.Nop()
+	d := &DispatcherImpl{workers: &workers{}, l: &l}
+
+	op := &stubOperator{workerId: uuid.New()}
+
+	release := d.AddOperatorSession(op.workerId, op)
+
+	ws, err := d.workers.Get(op.workerId)
+
+	if err != nil {
+		t.Fatalf("expected session to be registered: %v", err)
+	}
+
+	if len(ws) != 1 {
+		t.Fatalf("expected exactly one session, got %d", len(ws))
+	}
+
+	worker := ws[0]
+
+	if worker.operator == nil || worker.stream != nil {
+		t.Fatal("operator session must be operator-backed with no stream")
+	}
+
+	start := &contracts.AssignedAction{
+		TenantId:          uuid.NewString(),
+		TaskRunExternalId: uuid.NewString(),
+		ActionType:        contracts.ActionType_START_STEP_RUN,
+	}
+
+	if err := worker.StartBatch(context.Background(), start); err != nil {
+		t.Fatalf("could not send start action: %v", err)
+	}
+
+	task := &sqlcv1.V1Task{
+		ID:                1,
+		ExternalID:        uuid.New(),
+		StepID:            uuid.New(),
+		WorkflowID:        uuid.New(),
+		WorkflowVersionID: uuid.New(),
+		WorkflowRunID:     uuid.New(),
+	}
+
+	if err := worker.CancelTask(context.Background(), uuid.New(), task, 0, nil); err != nil {
+		t.Fatalf("could not send cancel action: %v", err)
+	}
+
+	op.mu.Lock()
+	got := append([]contracts.ActionType(nil), op.receivedTypes...)
+	op.mu.Unlock()
+
+	want := []contracts.ActionType{contracts.ActionType_START_STEP_RUN, contracts.ActionType_CANCEL_STEP_RUN}
+
+	if len(got) != len(want) {
+		t.Fatalf("operator received %v, want %v", got, want)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("operator received %v, want %v", got, want)
+		}
+	}
+
+	// the operator's error is what the dispatcher sees, so a full operator can refuse an
+	// action and have it requeued
+	sentinel := errors.New("full")
+	op.handleActionFn = func(context.Context, *contracts.AssignedAction) error { return sentinel }
+
+	if err := worker.StartBatch(context.Background(), start); !errors.Is(err, sentinel) {
+		t.Fatalf("expected the operator's error, got %v", err)
+	}
+
+	release()
+
+	ws, _ = d.workers.Get(op.workerId)
 
 	if len(ws) != 0 {
 		t.Fatalf("release did not remove the session, %d remain", len(ws))

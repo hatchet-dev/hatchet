@@ -314,6 +314,15 @@ type ConfigFileRuntime struct {
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
 	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
 
+	// ServerlessOperatorEnabled runs the serverless operator core inside the engine's dispatcher process
+	// (SERVER_SERVERLESS_OPERATOR_ENABLED). Registrations then go straight to the local dispatcher instead
+	// of over the OperatorService API. Off by default. Deliveries go through pkg/operator/safeclient, so
+	// OperatorInfraBlockedCIDRs must be set (or ServerlessOperator.AllowEmptyInfraCIDRs) for it to start.
+	ServerlessOperatorEnabled bool `mapstructure:"serverlessOperatorEnabled" json:"serverlessOperatorEnabled,omitempty" default:"false"`
+
+	// ServerlessOperator holds the knobs of the in-engine serverless operator (SERVER_SERVERLESS_OPERATOR_*).
+	ServerlessOperator ServerlessOperatorConfigFile `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty"`
+
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -642,6 +651,50 @@ type ConfigFileEmail struct {
 	SMTP SMTPEmailConfig `mapstructure:"smtp" json:"smtp,omitempty"`
 }
 
+// ServerlessOperatorConfigFile is the in-engine serverless operator's configuration. The values mirror the
+// hatchet-serverless-operator binary's SERVERLESS_OPERATOR_* environment; the database, encryption, blocked
+// CIDRs and metrics come from the engine config.
+type ServerlessOperatorConfigFile struct {
+	// OperatorName is the v1_operator row name every registration's worker is attached to; the out-of-process
+	// binary uses the same name so both modes share one operator row per tenant.
+	OperatorName string `mapstructure:"operatorName" json:"operatorName,omitempty" default:"serverless"`
+
+	// DefaultSlots and DurableSlots are the slot config of every registration's worker (per tenant shard).
+	DefaultSlots int32 `mapstructure:"defaultSlots" json:"defaultSlots,omitempty" default:"10000"`
+	DurableSlots int32 `mapstructure:"durableSlots" json:"durableSlots,omitempty" default:"10000"`
+
+	// LeaseTTL is how long the process row stays live after a heartbeat; HeartbeatInterval refreshes it and
+	// RebalanceInterval is the claim/shed tick.
+	LeaseTTL          time.Duration `mapstructure:"leaseTtl" json:"leaseTtl,omitempty" default:"15s"`
+	HeartbeatInterval time.Duration `mapstructure:"heartbeatInterval" json:"heartbeatInterval,omitempty" default:"5s"`
+	RebalanceInterval time.Duration `mapstructure:"rebalanceInterval" json:"rebalanceInterval,omitempty" default:"5s"`
+
+	// ShedHysteresis is the fraction above fair share a process tolerates before shedding units.
+	ShedHysteresis float64 `mapstructure:"shedHysteresis" json:"shedHysteresis,omitempty" default:"0.2"`
+
+	// DrainTimeout bounds how long in-flight deliveries are awaited when a unit is lost or the engine stops.
+	DrainTimeout time.Duration `mapstructure:"drainTimeout" json:"drainTimeout,omitempty" default:"60s"`
+
+	// RoutingRefreshInterval is the incremental routing cache refresh cadence.
+	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" json:"routingRefreshInterval,omitempty" default:"10s"`
+
+	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide.
+	HealthcheckTimeout     time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
+	HealthcheckConcurrency int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+
+	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay.
+	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" json:"wsMaxFrameBytes,omitempty" default:"4194304"`
+	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" json:"wsPingInterval,omitempty" default:"15s"`
+
+	// AllowEmptyInfraCIDRs lets the operator start without OperatorInfraBlockedCIDRs; only the built-in
+	// reserved/private denylist then applies to deliveries.
+	AllowEmptyInfraCIDRs bool `mapstructure:"allowEmptyInfraCidrs" json:"allowEmptyInfraCidrs,omitempty" default:"false"`
+
+	// InsecureDestinations disables the delivery SSRF policy (plain http, any port, private ranges) for local
+	// development and e2e runs only.
+	InsecureDestinations bool `mapstructure:"insecureDestinations" json:"insecureDestinations,omitempty" default:"false"`
+}
+
 type ConfigFileMonitoring struct {
 	// Enabled controls whether the monitoring service is enabled for this Hatchet instance.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
@@ -879,6 +932,22 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
+	_ = v.BindEnv("runtime.serverlessOperatorEnabled", "SERVER_SERVERLESS_OPERATOR_ENABLED")
+	_ = v.BindEnv("runtime.serverlessOperator.operatorName", "SERVER_SERVERLESS_OPERATOR_OPERATOR_NAME")
+	_ = v.BindEnv("runtime.serverlessOperator.defaultSlots", "SERVER_SERVERLESS_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.serverlessOperator.durableSlots", "SERVER_SERVERLESS_OPERATOR_DURABLE_SLOTS")
+	_ = v.BindEnv("runtime.serverlessOperator.leaseTtl", "SERVER_SERVERLESS_OPERATOR_LEASE_TTL")
+	_ = v.BindEnv("runtime.serverlessOperator.heartbeatInterval", "SERVER_SERVERLESS_OPERATOR_HEARTBEAT_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.rebalanceInterval", "SERVER_SERVERLESS_OPERATOR_REBALANCE_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.shedHysteresis", "SERVER_SERVERLESS_OPERATOR_SHED_HYSTERESIS")
+	_ = v.BindEnv("runtime.serverlessOperator.drainTimeout", "SERVER_SERVERLESS_OPERATOR_DRAIN_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.routingRefreshInterval", "SERVER_SERVERLESS_OPERATOR_ROUTING_REFRESH_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxFrameBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsPingInterval", "SERVER_SERVERLESS_OPERATOR_WS_PING_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.allowEmptyInfraCidrs", "SERVER_SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
+	_ = v.BindEnv("runtime.serverlessOperator.insecureDestinations", "SERVER_SERVERLESS_OPERATOR_INSECURE_DESTINATIONS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

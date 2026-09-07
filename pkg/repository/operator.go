@@ -39,6 +39,12 @@ type OperatorRepository interface {
 	// "Worker"."operatorId".
 	UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
 
+	// UpsertServerlessOperator registers the serverless operator by (tenant, name) with kind
+	// SERVERLESS, returning the existing row on repeat registrations. Like GRPC operators the
+	// row never gets a worker_id: each serverless registration owns its own worker, created
+	// through WorkerRepository.CreateNewWorker with CreateWorkerOpts.OperatorId.
+	UpsertServerlessOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
+
 	// ListDAGOrchestrationActions returns the orchestration action IDs ("{name}_orchestrator")
 	// for all DAG workflows of a tenant. The DAG operator polls this to keep its registered
 	// actions in sync with the tenant's DAGs.
@@ -290,6 +296,13 @@ func (r *operatorRepository) UpdateOperatorWorkerActions(ctx context.Context, te
 
 func (r *operatorRepository) UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
 	return r.queries.UpsertGRPCOperator(ctx, r.pool, sqlcv1.UpsertGRPCOperatorParams{
+		Tenantid: tenantId,
+		Name:     name,
+	})
+}
+
+func (r *operatorRepository) UpsertServerlessOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return r.queries.UpsertServerlessOperator(ctx, r.pool, sqlcv1.UpsertServerlessOperatorParams{
 		Tenantid: tenantId,
 		Name:     name,
 	})

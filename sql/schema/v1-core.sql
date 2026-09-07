@@ -2806,6 +2806,10 @@ CREATE TABLE v1_operator (
 -- that kind. Other kinds are created through the REST API and may share names.
 CREATE UNIQUE INDEX v1_operator_grpc_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'GRPC';
 
+-- Serverless operators are upserted by name by every registration for the tenant, so the same
+-- uniqueness holds for that kind.
+CREATE UNIQUE INDEX v1_operator_serverless_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'SERVERLESS';
+
 CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
 
 -- Customer configuration. Written by the API server; the operator writes only the status

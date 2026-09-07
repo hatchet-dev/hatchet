@@ -3,6 +3,8 @@ package dispatcher
 import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 // AddOperatorStreamSession registers a gRPC stream owned by an out-of-process operator as a live
@@ -30,6 +32,27 @@ func (d *DispatcherImpl) AddOperatorStreamSession(
 	)
 
 	return finCh, func() {
+		d.workers.DeleteForSession(workerId, sessionId)
+	}
+}
+
+// AddOperatorSession registers an in-process operator as a live session for workerId, so the
+// dispatcher fans assigned actions out to op.HandleAction like it does for the operator
+// manager's operators. Operator-backed sessions have no stream: nothing selects on fin, the
+// shutdown drain in Start's cleanup skips them, and the owner tears them down by calling
+// release, which removes the session from the dispatcher. The owner is responsible for the
+// worker row (activation, heartbeats, deactivation, and the listener session id that fences
+// them); the dispatcher only routes.
+func (d *DispatcherImpl) AddOperatorSession(workerId uuid.UUID, op operator.Operator) (release func()) {
+	sessionId := uuid.New()
+
+	d.workers.Add(
+		workerId,
+		sessionId,
+		newOperatorSubscribedWorker(workerId, d.pubBuffer, op),
+	)
+
+	return func() {
 		d.workers.DeleteForSession(workerId, sessionId)
 	}
 }

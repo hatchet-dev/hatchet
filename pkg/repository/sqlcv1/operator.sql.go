@@ -497,3 +497,44 @@ func (q *Queries) UpsertGRPCOperator(ctx context.Context, db DBTX, arg UpsertGRP
 	)
 	return &i, err
 }
+
+const upsertServerlessOperator = `-- name: UpsertServerlessOperator :one
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    config
+) VALUES (
+    $1::UUID,
+    $2::TEXT,
+    'SERVERLESS',
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name) WHERE kind = 'SERVERLESS' DO UPDATE
+SET updated_at = NOW()
+RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+`
+
+type UpsertServerlessOperatorParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
+}
+
+// Registers the serverless operator by (tenant, name). The row exists only so serverless
+// registrations' workers have an "operatorId"; it carries no config and no worker_id, since
+// each registration creates its own worker linked back via "Worker"."operatorId".
+func (q *Queries) UpsertServerlessOperator(ctx context.Context, db DBTX, arg UpsertServerlessOperatorParams) (*V1Operator, error) {
+	row := db.QueryRow(ctx, upsertServerlessOperator, arg.Tenantid, arg.Name)
+	var i V1Operator
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Kind,
+		&i.Config,
+		&i.WorkerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
