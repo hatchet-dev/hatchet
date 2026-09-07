@@ -1,0 +1,77 @@
+---
+title: "Embedded"
+---
+
+# Embedded
+
+Embedded mode runs a full Hatchet engine and Postgres instance in-process for local development, with no account, API token, or Docker. It requires a blank import of [github.com/hatchet-dev/hatchet-embedded](https://github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See [Embedded Mode](/v1/embedded) for a guide.
+
+## `WithEmbedded`
+
+WithEmbedded runs a full Hatchet engine in-process for local development, with no API token or Docker required. By default it starts a bundled Postgres; pass WithEmbeddedDatabaseURL to point it at your own instead.
+
+Requires a blank import of the hatchet-embedded package (github.com/hatchet-dev/hatchet-embedded), which registers the engine backend. See the [embedded mode guide](https://docs.hatchet.run/v1/embedded) for usage.
+
+```go
+func WithEmbedded(opts ...EmbeddedOption) client.ClientOpt
+```
+
+Parameters:
+
+| Name   | Type                |
+| ------ | ------------------- |
+| `opts` | `...EmbeddedOption` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `client.ClientOpt` |
+
+## Embedded options
+
+Options for `WithEmbedded`:
+
+| Name                        | Signature                             | Description                                                                                      |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `WithEmbeddedAPIPort`       | `WithEmbeddedAPIPort(port int)`       | WithEmbeddedAPIPort overrides the port the embedded API server listens on.                       |
+| `WithEmbeddedDatabaseURL`   | `WithEmbeddedDatabaseURL(url string)` | WithEmbeddedDatabaseURL points embedded mode at an existing Postgres instead of the bundled one. |
+| `WithEmbeddedGRPCPort`      | `WithEmbeddedGRPCPort(port int)`      | WithEmbeddedGRPCPort overrides the port the embedded engine's gRPC server listens on.            |
+| `WithEmbeddedLogLevel`      | `WithEmbeddedLogLevel(level string)`  | WithEmbeddedLogLevel sets the embedded engine's log level.                                       |
+| `WithEmbeddedRabbitMQ`      | `WithEmbeddedRabbitMQ(url string)`    | WithEmbeddedRabbitMQ points the engine at a RabbitMQ instance for its message queue.             |
+| `WithoutEmbeddedAPI`        | `WithoutEmbeddedAPI()`                | WithoutEmbeddedAPI disables the embedded API server.                                             |
+| `WithoutEmbeddedMigrations` | `WithoutEmbeddedMigrations()`         | WithoutEmbeddedMigrations disables database migrations at engine startup.                        |
+
+## EmbeddedConfig
+
+EmbeddedConfig configures the embedded engine started by WithEmbedded. The WithEmbedded\* options set these fields.
+
+Fields:
+
+| Name            | Type      | Description                                                                                         |
+| --------------- | --------- | --------------------------------------------------------------------------------------------------- |
+| `GRPCPort`      | `*int`    | GRPCPort overrides the port the embedded engine's gRPC server listens on.                           |
+| `APIPort`       | `*int`    | APIPort overrides the port the embedded API server listens on.                                      |
+| `StartAPI`      | `*bool`   | StartAPI controls whether the embedded API server starts. Defaults to true.                         |
+| `RunMigrations` | `*bool`   | RunMigrations controls whether the engine applies database migrations at startup. Defaults to true. |
+| `RabbitMQURL`   | `*string` | RabbitMQURL points the engine at a RabbitMQ instance for its message queue.                         |
+| `LogLevel`      | `*string` | LogLevel sets the embedded engine's log level.                                                      |
+| `DatabaseURL`   | `string`  | DatabaseURL points the engine at an existing Postgres database instead of the bundled one.          |
+
+## EmbeddedBackend
+
+EmbeddedBackend boots the embedded engine and returns a shutdown function. The hatchet-embedded package provides the implementation and registers it via RegisterEmbeddedBackend when imported.
+
+## `RegisterEmbeddedBackend`
+
+RegisterEmbeddedBackend registers the function that boots the embedded engine. The hatchet-embedded package calls it from an init function, so a blank import of that package is all an application needs.
+
+```go
+func RegisterEmbeddedBackend(b EmbeddedBackend)
+```
+
+Parameters:
+
+| Name | Type              |
+| ---- | ----------------- |
+| `b`  | `EmbeddedBackend` |

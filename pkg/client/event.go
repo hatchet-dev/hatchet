@@ -84,14 +84,21 @@ func WithStreamEventIndex(index int64) StreamEventOption {
 }
 
 type EventClient interface {
+	// Push sends a single event with the given key and JSON-serializable payload,
+	// triggering any workflows subscribed to the event key.
 	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
 
+	// BulkPush sends multiple events in a single request.
 	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
+	// PutLog writes a log line to the given task run.
 	PutLog(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32) error
 
+	// PutLogWithTimestamp writes a log line to the given task run with an explicit timestamp.
 	PutLogWithTimestamp(ctx context.Context, taskRunId, msg string, level *string, taskRetryCount *int32, createdAt *timestamppb.Timestamp) error
 
+	// PutStreamEvent publishes a chunk of streaming output for the given task run,
+	// delivered to subscribers of the run's stream.
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
 
@@ -131,6 +138,7 @@ func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	}
 }
 
+// Deprecated: use hatchet.WithEventMetadata from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.additionalMetadata = metadata
@@ -139,6 +147,7 @@ func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	}
 }
 
+// Deprecated: use hatchet.WithEventPriority from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithEventPriority(priority *int32) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.priority = priority
@@ -146,6 +155,7 @@ func WithEventPriority(priority *int32) PushOpFunc {
 	}
 }
 
+// Deprecated: use hatchet.WithFilterScope from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithFilterScope(scope *string) PushOpFunc {
 	return func(r *pushOpt) error {
 		r.scope = scope

@@ -928,7 +928,7 @@ FROM
 
 -- name: PreflightCheckTasksForReplay :many
 -- Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
--- concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
+-- concurrency slots, retry queue items, or pending queue items. Returns the tasks which cannot be replayed.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::bigint[]) AS task_id,
@@ -952,6 +952,14 @@ LEFT JOIN
     v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
 LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+LEFT JOIN
+    v1_queue_item qi ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+LEFT JOIN
+    v1_batched_queue_item bqi ON bqi.task_id = t.id AND bqi.task_inserted_at = t.inserted_at AND bqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_rate_limited_queue_items rlqi ON rlqi.task_id = t.id AND rlqi.task_inserted_at = t.inserted_at AND rlqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_paused_workflow_queue_item pwqi ON pwqi.task_id = t.id AND pwqi.task_inserted_at = t.inserted_at AND pwqi.retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
     AND NOT EXISTS (
@@ -963,7 +971,15 @@ WHERE
             AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
             AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
     )
-    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+    AND (
+        tr.task_id IS NOT NULL
+        OR cs.task_id IS NOT NULL
+        OR rqi.task_id IS NOT NULL
+        OR qi.task_id IS NOT NULL
+        OR bqi.task_id IS NOT NULL
+        OR rlqi.task_id IS NOT NULL
+        OR pwqi.task_id IS NOT NULL
+    )
 ;
 
 -- name: ListAllTasksInDags :many
@@ -1136,6 +1152,34 @@ SELECT
           AND durable_task_inserted_at = @taskInsertedAt::timestamptz
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
+
+-- name: ListStuckEvictedDurableOrchestrators :many
+-- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+-- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+-- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+-- fired: the callback was lost on an engine roll, or every entry was satisfied before the
+-- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+SELECT
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    rt.retry_count
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+WHERE rt.tenant_id = @tenantId::uuid
+    AND rt.evicted_at < NOW() - @gracePeriod::interval
+    AND t.is_dag_orchestrator
+    AND EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+          AND NOT e.is_satisfied
+    )
+ORDER BY rt.evicted_at
+LIMIT @maxTasks::int;
 
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
@@ -1366,7 +1410,9 @@ WITH queued_tasks AS (
     JOIN
         v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+        -- tenant-scoped refs put the tenant strategy's id on the slot, so resolve via
+        -- tenant_strategy_id when set
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.is_filled = FALSE
@@ -1419,7 +1465,7 @@ WITH queued_tasks AS (
     JOIN
         v1_concurrency_slot cs ON cs.task_id = rta.task_id AND cs.task_inserted_at = rta.task_inserted_at AND cs.task_retry_count = rta.retry_count AND cs.workflow_id = rta.workflow_id AND cs.workflow_version_id = rta.workflow_version_id
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = sc.id
+        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.tenant_id = rta.tenant_id

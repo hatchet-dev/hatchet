@@ -391,6 +391,12 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),  // #nosec G115 -- admin-configured server setting, not attacker-controlled
 	}
 
+	durableEventBufferOpts := repov1.DurableEventBufferOpts{
+		FlushInterval:        scf.Runtime.DurableEventBufferFlushInterval,
+		MaxBatchSize:         scf.Runtime.DurableEventBufferMaxSize,
+		MaxConcurrentFlushes: scf.Runtime.DurableEventBufferMaxConcurrentFlushes,
+	}
+
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
 		ddlPool,
@@ -404,6 +410,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		statusUpdateOpts,
 		scf.Runtime.Limits,
 		scf.Runtime.EnforceLimits,
+		durableEventBufferOpts,
 	)
 
 	if readReplicaPool != nil {
@@ -590,6 +597,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			MQKind:         cf.MessageQueue.Kind,
 			OAuthProviders: oauthProviders,
 			AuthDisabled:   authmode.IsDisabled,
+			Embedded:       cf.Runtime.Embedded,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())

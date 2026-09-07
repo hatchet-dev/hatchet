@@ -767,7 +767,7 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 		}
 	}
 
-	key, err := r.celParser.ParseAndEvalWorkflowString(
+	key, err := r.celParser.ParseAndEvalIdempotencyKey(
 		tuple.idempotency.Expression,
 		cel.NewInput(
 			cel.WithInput(inputData),
@@ -1574,6 +1574,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			Tenantid:    tenantId,
 		}); err != nil {
 			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
+		}
+
+		if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move concurrency slots for paused workflows: %w", err)
 		}
 	}
 

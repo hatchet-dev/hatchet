@@ -2,6 +2,8 @@
 
 These are instructions for an AI agent to replay a previously executed Hatchet run, optionally with modified input. Follow each step in order.
 
+These commands need a profile. For local development the worker can run against embedded mode instead, where the loop is code-driven; see `local-dev-embedded.md`.
+
 ## Step 1: Inspect the Original Run
 
 First, understand what happened in the original run:

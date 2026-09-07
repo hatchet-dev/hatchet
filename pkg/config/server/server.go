@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -330,11 +331,27 @@ type ConfigFileRuntime struct {
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
+	// O11yUsageFlushInterval is how often the engine flushes per-tenant ingested
+	// log/span bytes to the optional O11yUsageFlush callback.
+	O11yUsageFlushInterval time.Duration `mapstructure:"o11yUsageFlushInterval" json:"o11yUsageFlushInterval,omitempty" default:"30s"`
+
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+
+	// DurableEventBufferFlushInterval is how long a durable task event waits in the
+	// ingestion buffer to accumulate a batch before the batch is flushed to the database.
+	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"5ms"`
+
+	// DurableEventBufferMaxSize caps how many durable task events a single flush
+	// batches together, so a burst of traffic still flushes promptly.
+	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"100"`
+
+	// DurableEventBufferMaxConcurrentFlushes bounds how many durable event ingestion
+	// transactions run concurrently.
+	DurableEventBufferMaxConcurrentFlushes int `mapstructure:"durableEventBufferMaxConcurrentFlushes" json:"durableEventBufferMaxConcurrentFlushes,omitempty" default:"16"`
 
 	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
 	// This controls how long the buffer waits for out-of-order events before flushing them.
@@ -716,6 +733,10 @@ type ServerConfig struct {
 
 	Analytics analytics.Analytics
 
+	// O11yUsageFlush, when set, receives periodic tenant → log/otel byte maps
+	// from the engine. Nil means the aggregator is not started (OSS / self-host).
+	O11yUsageFlush o11yusage.FlushFunc
+
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
@@ -879,6 +900,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// log ingestion
 	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
+	_ = v.BindEnv("runtime.o11yUsageFlushInterval", "SERVER_O11Y_USAGE_FLUSH_INTERVAL")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
@@ -1061,6 +1083,9 @@ func BindAllEnv(v *viper.Viper) {
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
+	_ = v.BindEnv("runtime.durableEventBufferFlushInterval", "SERVER_DURABLE_EVENT_BUFFER_FLUSH_INTERVAL")
+	_ = v.BindEnv("runtime.durableEventBufferMaxSize", "SERVER_DURABLE_EVENT_BUFFER_MAX_SIZE")
+	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options

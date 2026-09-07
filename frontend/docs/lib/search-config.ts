@@ -292,6 +292,20 @@ const SYNONYMS: Record<string, string> = {
   terminal: "cli tui",
   "command line": "cli",
   dashboard: "tui",
+
+  // Local development & embedded mode
+  local: "embedded",
+  locally: "embedded",
+  "local development": "embedded testing ci",
+  "local testing": "embedded ci",
+  "run locally": "embedded local",
+  testing: "embedded local ci",
+  ci: "embedded testing local",
+  "in-process": "embedded engine",
+  "no docker": "embedded",
+  "without docker": "embedded",
+  "embedded postgres": "embedded local",
+  sidecar: "embedded",
 };
 
 /**

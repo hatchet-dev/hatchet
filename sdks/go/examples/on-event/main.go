@@ -7,9 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -57,7 +55,7 @@ func LowerWithFilter(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask(
 		"lower", accessFilterPayload,
 		hatchet.WithWorkflowEvents(SimpleEvent),
-		hatchet.WithDefaultFilters(types.DefaultFilter{
+		hatchet.WithDefaultFilters(hatchet.DefaultFilter{
 			Expression: "true",
 			Scope:      "example-scope",
 			Payload: map[string]interface{}{
@@ -124,7 +122,7 @@ func main() {
 			context.Background(),
 			"simple-event:create",
 			skipPayload,
-			v0Client.WithFilterScope(&skipScope),
+			hatchet.WithFilterScope(&skipScope),
 		)
 		if err != nil {
 			return err
@@ -140,7 +138,7 @@ func main() {
 			context.Background(),
 			"simple-event:create",
 			triggerPayload,
-			v0Client.WithFilterScope(&triggerScope),
+			hatchet.WithFilterScope(&triggerScope),
 		)
 		if err != nil {
 			return err

@@ -41,7 +41,8 @@ SELECT
 FROM
     steps s
 LEFT JOIN
-    step_orders so ON so."stepId" = s."id";
+    step_orders so ON so."stepId" = s."id"
+ORDER BY s."createdAt", s."id";
 
 -- name: ListStepsByIds :many
 SELECT
@@ -605,6 +606,9 @@ WHERE workflow_id = @workflowId::uuid
   AND id = @workflowConcurrencyId::bigint;
 
 -- name: CreateStepConcurrency :one
+-- When tenant_strategy_id is set, the definition columns are copies of the referenced
+-- v1_tenant_concurrency row, kept in sync by its update trigger so per-step reads need
+-- no join.
 INSERT INTO v1_step_concurrency (
     workflow_id,
     workflow_version_id,
@@ -612,7 +616,9 @@ INSERT INTO v1_step_concurrency (
     strategy,
     expression,
     tenant_id,
-    max_concurrency
+    max_concurrency,
+    tenant_strategy_id,
+    max_runs_expression
 )
 VALUES (
     @workflowId::uuid,
@@ -621,7 +627,9 @@ VALUES (
     @strategy::v1_concurrency_strategy,
     @expression::text,
     @tenantId::uuid,
-    @maxConcurrency::integer
+    @maxConcurrency::integer,
+    sqlc.narg('tenantStrategyId')::bigint,
+    sqlc.narg('maxRunsExpression')::text
 ) RETURNING *;
 
 -- name: CreateStepMatchCondition :one
@@ -657,7 +665,8 @@ FROM
     v1_step_match_condition
 WHERE
     step_id = ANY(@stepIds::uuid[])
-    AND tenant_id = @tenantId::uuid;
+    AND tenant_id = @tenantId::uuid
+ORDER BY step_id, id;
 
 -- name: LockWorkflowVersion :one
 SELECT

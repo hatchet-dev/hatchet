@@ -1,4 +1,3 @@
-import HatchetError from '@util/errors/hatchet-error';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { HatchetClient } from '@hatchet/v1';
 import { EventClient } from './event-client';
@@ -79,7 +78,7 @@ describe('EventClient', () => {
 
     jest.spyOn(client, 'retrier').mockImplementation((fn) => fn());
 
-    await expect(client.push('type', { foo: 'bar' })).rejects.toThrow(new HatchetError('foo'));
+    await expect(client.push('type', { foo: 'bar' })).rejects.toThrow('foo');
   });
 
   it('should bulk push events', async () => {
@@ -176,6 +175,6 @@ describe('EventClient', () => {
     ];
 
     // Test that an error is thrown when bulkPush fails
-    await expect(client.bulkPush('type', events)).rejects.toThrow(new HatchetError('bulk error'));
+    await expect(client.bulkPush('type', events)).rejects.toThrow('bulk error');
   });
 });

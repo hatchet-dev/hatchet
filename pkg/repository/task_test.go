@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -18,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
@@ -34,13 +36,16 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 
 	shared := &sharedRepository{
 		pool:                pool,
+		ddlPool:             pool,
 		l:                   &logger,
+		v:                   validator.NewDefaultValidator(),
 		queries:             queries,
 		queueCache:          queueCache,
 		stepExpressionCache: stepExpressionCache,
 		celParser:           cel.NewCELParser(),
 		taskLookupCache:     taskLookupCache,
 		payloadStore:        payloadStore,
+		stepIdConfigCache:   expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute),
 	}
 
 	return &TaskRepositoryImpl{

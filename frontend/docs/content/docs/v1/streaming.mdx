@@ -6,10 +6,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
+import { StreamingDemo } from "@/components/flow-animations/StreamingDemo";
 
 # Streaming in Hatchet
 
 Hatchet tasks can stream data back to a consumer in real-time. This has a number of valuable uses, such as streaming the results of an LLM call back from a Hatchet worker to a frontend or sending progress updates as a task chugs along.
+
+<StreamingDemo />
 
 ## Publishing Stream Events
 

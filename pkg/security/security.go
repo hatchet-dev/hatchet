@@ -34,6 +34,7 @@ type DefaultSecurityCheck struct {
 	MQKind         string
 	OAuthProviders []string
 	AuthDisabled   bool
+	Embedded       bool
 
 	startTime time.Time
 }
@@ -48,16 +49,30 @@ func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepositor
 		MQKind:         opts.MQKind,
 		OAuthProviders: opts.OAuthProviders,
 		AuthDisabled:   opts.AuthDisabled,
+		Embedded:       opts.Embedded,
 		startTime:      time.Now(),
 	}
 }
 
-func detectEnvironment() string {
+func detectCI() string {
 	switch {
 	case os.Getenv("GITHUB_ACTIONS") == "true":
 		return "github_actions"
 	case os.Getenv("CI") != "":
 		return "ci"
+	default:
+		return ""
+	}
+}
+
+func detectEnvironment(embedded bool) string {
+	if embedded {
+		return "embedded"
+	}
+	if ci := detectCI(); ci != "" {
+		return ci
+	}
+	switch {
 	case os.Getenv("KUBERNETES_SERVICE_HOST") != "":
 		return "kubernetes"
 	case dockerEnv():
@@ -126,7 +141,10 @@ func (a DefaultSecurityCheck) report(timeout time.Duration) {
 	params.Set("version", a.Version)
 	params.Set("tag", ident)
 	params.Set("uptime_seconds", strconv.FormatInt(int64(time.Since(a.startTime).Seconds()), 10))
-	params.Set("environment", detectEnvironment())
+	params.Set("environment", detectEnvironment(a.Embedded))
+	if ci := detectCI(); ci != "" {
+		params.Set("ci", ci)
+	}
 	if a.MQKind != "" {
 		params.Set("mq_kind", a.MQKind)
 	}

@@ -71,8 +71,7 @@ type clientImpl struct {
 	v validator.Validator
 }
 
-// Deprecated: ClientOpt is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.ClientOpt and the hatchet.With* client options from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ClientOpt func(*ClientOpts)
 
 type filesLoaderFunc func() []*types.Workflow
@@ -155,8 +154,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
-// Deprecated: WithLogLevel is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithClientLogLevel from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
 		logger := logger.NewDefaultLogger("client")
@@ -170,48 +168,42 @@ func WithLogLevel(lvl string) ClientOpt {
 	}
 }
 
-// Deprecated: WithLogger is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithClientLogger from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithLogger(l *zerolog.Logger) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.l = l
 	}
 }
 
-// Deprecated: WithTenantId is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithTenantId from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithTenantId(tenantId string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.tenantId = tenantId
 	}
 }
 
-// Deprecated: WithHostPort is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithHostPort from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithHostPort(host string, port int) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.hostPort = fmt.Sprintf("%s:%d", host, port)
 	}
 }
 
-// Deprecated: WithToken is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithToken from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithToken(token string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.token = token
 	}
 }
 
-// Deprecated: WithNamespace is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithNamespace from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithNamespace(namespace string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.namespace = namespace + "_"
 	}
 }
 
-// Deprecated: WithSharedMeta is an internal function used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Deprecated: use hatchet.WithSharedMeta from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func WithSharedMeta(meta map[string]string) ClientOpt {
 	return func(opts *ClientOpts) {
 		if opts.sharedMeta == nil {

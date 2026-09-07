@@ -106,6 +106,7 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
+	durableEventBufferOpts DurableEventBufferOpts,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
@@ -116,7 +117,7 @@ func NewRepository(
 	impl := &repositoryImpl{
 		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
-		durableEvents:     newDurableEventsRepository(shared),
+		durableEvents:     newDurableEventsRepository(shared, durableEventBufferOpts),
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),

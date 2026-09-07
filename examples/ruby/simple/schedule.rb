@@ -6,4 +6,4 @@ require_relative "worker"
 schedule = SIMPLE.schedule(Time.now + 86_400, input: { "message" => "Hello, World!" })
 
 ## do something with the id
-puts schedule.metadata.id
+puts schedule.scheduled_workflows.first.id

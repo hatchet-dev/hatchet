@@ -11,7 +11,10 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -30,6 +33,7 @@ type otelCollectorImpl struct {
 	l            *zerolog.Logger
 	maxBatchSize int
 	a            analytics.Analytics
+	o11yUsage    *o11yusage.Aggregator
 }
 
 func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -75,6 +79,10 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 				ErrorMessage:  err.Error(),
 			},
 		}, nil
+	}
+
+	if oc.o11yUsage != nil {
+		oc.o11yUsage.AddOtel(tenantId, int64(proto.Size(req)))
 	}
 
 	err = olapRepo.CreateSpanLookupTableEntries(ctx, tenantId, &repository.CreateSpansOpts{

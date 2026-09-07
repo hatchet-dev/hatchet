@@ -45,6 +45,12 @@ withTenant:
             type: string
             description: The label key-value pairs (delimited by a `:`) to filter by
             minLength: 1
+      - description: Whether to include engine-managed operator workers, which are hidden by default
+        in: query
+        name: includeOperators
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:

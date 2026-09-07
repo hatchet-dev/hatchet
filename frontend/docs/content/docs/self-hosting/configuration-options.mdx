@@ -414,6 +414,7 @@ For how to enable and use internal trace export with these settings, see [Intern
 | `SERVER_OBSERVABILITY_ENABLED`           | Enable the worker→engine OTel collector gRPC service and REST trace endpoints                                                          | `false`       |
 | `SERVER_OBSERVABILITY_MAX_BATCH_SIZE`    | Max spans accepted per Export RPC call                                                                                                 | `1000`        |
 | `K8S_POD_NAME`                           | Sets the `k8s.pod.name` OpenTelemetry resource attribute; typically populated from the pod name via the downward API                   |               |
+| `K8S_CLOUD_REGION`                       | Sets the `cloud.region` OpenTelemetry resource attribute. Falls back to `AWS_REGION` or `AWS_DEFAULT_REGION` if unset                  |               |
 | `SERVER_PROMETHEUS_ENABLED`              | Enable Prometheus                                                                                                                      | `false`       |
 | `SERVER_PROMETHEUS_ADDRESS`              | Prometheus address                                                                                                                     | `:9090`       |
 | `SERVER_PROMETHEUS_PATH`                 | Prometheus metrics path                                                                                                                | `/metrics`    |

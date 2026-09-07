@@ -59,6 +59,22 @@ export const evictableWaitForEvent = hatchet.durableTask({
   },
 });
 
+export const MEMO_EVENT_KEY = 'durable-eviction:memo-event';
+
+export const evictableMemoThenWaitForEvent = hatchet.durableTask({
+  name: 'evictable-memo-then-wait-for-event',
+  executionTimeout: '5m',
+  evictionPolicy: EVICTION_POLICY,
+  fn: async (_input, ctx) => {
+    // now() records a memo node. On replay after eviction, the server
+    // re-delivers that node's completion, which never has a callback waiter
+    // and must not block the event completion queued behind it.
+    const memoizedNow = await ctx.now();
+    await ctx.waitForEvent(MEMO_EVENT_KEY, 'true');
+    return { status: 'completed', memoizedNow: memoizedNow.toISOString() };
+  },
+});
+
 export const evictableChildSpawn = hatchet.durableTask({
   name: 'evictable-child-spawn',
   executionTimeout: '5m',

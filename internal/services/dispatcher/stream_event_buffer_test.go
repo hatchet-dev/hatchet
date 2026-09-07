@@ -14,6 +14,24 @@ import (
 const WORKFLOW_RUN_ID = "00000000-0000-0000-0000-000000000001"
 const RESOURCE = "11111111-1111-1111-1111-111111111111"
 
+func genWorkflowHangup() *contracts.WorkflowEvent {
+	return &contracts.WorkflowEvent{
+		WorkflowRunId:  WORKFLOW_RUN_ID,
+		ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
+		ResourceId:     WORKFLOW_RUN_ID,
+		EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
+		Hangup:         true,
+		EventTimestamp: timestamppb.Now(),
+	}
+}
+
+func newStreamEventBufferForTest(timeout, quiet, maxWait time.Duration) *StreamEventBuffer {
+	buffer := NewStreamEventBuffer(timeout)
+	buffer.hangupQuietPeriod = quiet
+	buffer.hangupMaxWait = maxWait
+	return buffer
+}
+
 func genEvent(payload string, hangup bool, eventIndex *int64) *contracts.WorkflowEvent {
 	return &contracts.WorkflowEvent{
 		WorkflowRunId:  WORKFLOW_RUN_ID,

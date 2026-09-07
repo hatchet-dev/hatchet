@@ -29,6 +29,12 @@ func (m *Map[K, V]) Delete(key K) {
 	m.m.Delete(key)
 }
 
+// CompareAndDelete deletes the entry for key only if its current value equals old.
+// The stored value must be comparable (e.g. a pointer), or this panics.
+func (m *Map[K, V]) CompareAndDelete(key K, old V) bool {
+	return m.m.CompareAndDelete(key, old)
+}
+
 // LoadOrStore loads or stores the value for a key.
 func (m *Map[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	a, loaded := m.m.LoadOrStore(key, value)

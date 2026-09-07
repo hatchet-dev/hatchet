@@ -1,3 +1,4 @@
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { getErrorStatus } from '@/lib/error-utils';
 import { defaultQueryRetry } from '@/lib/query-retry';
@@ -20,6 +21,11 @@ export function isTerminalState(status: V1TaskStatus | undefined) {
 export const useWorkflowDetails = () => {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
 
+  const { isEnabled: includeOrchestratorEvents } = useIsFeatureEnabled(
+    FeatureFlagId.OperatorDetailsEnabled,
+    false,
+  );
+
   const { data, isLoading, isError, error } = useQuery({
     retry: defaultQueryRetry,
     refetchInterval: (query) => {
@@ -31,7 +37,7 @@ export const useWorkflowDetails = () => {
 
       return 1000;
     },
-    ...queries.v1WorkflowRuns.details(params.run),
+    ...queries.v1WorkflowRuns.details(params.run, includeOrchestratorEvents),
   });
 
   const shape = data?.shape || [];

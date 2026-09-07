@@ -94,12 +94,13 @@ func runSkillsInstall() {
 	fmt.Printf("  %s\n", skillDir+"/AGENTS.md")
 	fmt.Printf("  %s\n", skillDir+"/CLAUDE.md  (symlink → AGENTS.md)")
 	fmt.Printf("  %s\n", skillDir+"/references/setup-cli.md")
+	fmt.Printf("  %s\n", skillDir+"/references/local-dev-embedded.md")
 	fmt.Printf("  %s\n", skillDir+"/references/start-worker.md")
 	fmt.Printf("  %s\n", skillDir+"/references/trigger-and-watch.md")
 	fmt.Printf("  %s\n", skillDir+"/references/debug-run.md")
 	fmt.Printf("  %s\n", skillDir+"/references/replay-run.md")
 	fmt.Println()
-	fmt.Printf("  %s  (appended)\n", agentsFile)
+	fmt.Printf("  %s  (managed section created or updated)\n", agentsFile)
 	fmt.Println()
 
 	// 3. Check if skill directory already exists
@@ -124,29 +125,27 @@ func runSkillsInstall() {
 		}
 	}
 
-	// 4. Check AGENTS.md for existing marker
-	appendToAgents := true
+	// 4. Check AGENTS.md for existing managed section
+	updateAgents := true
+	replaceAgentsSection := false
 	if data, readErr := os.ReadFile(agentsFile); readErr == nil {
-		if strings.Contains(string(data), "<!-- hatchet-skills:start -->") {
-			fmt.Println(styles.InfoMessage("AGENTS.md already contains a hatchet-skills section."))
-			fmt.Println()
+		if strings.Contains(string(data), skillsMarkerStart) {
+			replaceAgentsSection = true
 			if !skillsInstallForce {
-				var appendAgain bool
+				fmt.Println(styles.InfoMessage("AGENTS.md already contains a hatchet-skills section."))
+				fmt.Println()
+				var updateSection bool
 				form := huh.NewForm(
 					huh.NewGroup(
 						huh.NewConfirm().
-							Title("Append another hatchet-skills section to AGENTS.md?").
-							Value(&appendAgain),
+							Title("Update the existing hatchet-skills section in AGENTS.md?").
+							Value(&updateSection),
 					),
 				).WithTheme(styles.HatchetTheme())
-				if formErr := form.Run(); formErr != nil || !appendAgain {
-					appendToAgents = false
-					fmt.Println()
-				} else {
-					fmt.Println()
+				if formErr := form.Run(); formErr != nil || !updateSection {
+					updateAgents = false
 				}
-			} else {
-				appendToAgents = false
+				fmt.Println()
 			}
 		}
 	}
@@ -231,8 +230,8 @@ func runSkillsInstall() {
 
 	fmt.Println(styles.SuccessMessage("Skill installed to " + skillDir))
 
-	// 7. Append to project AGENTS.md
-	if appendToAgents {
+	// 7. Create or update the managed section in the project AGENTS.md
+	if updateAgents {
 		entryData, readErr := skillAssets.ReadFile(srcRoot + "/agents-entry.md")
 		if readErr != nil {
 			cli.Logger.Fatalf("could not read agents-entry.md template: %v", readErr)
@@ -250,6 +249,20 @@ func runSkillsInstall() {
 			// Create AGENTS.md with the entry
 			if writeErr := os.WriteFile(agentsFile, []byte(entry), 0o600); writeErr != nil {
 				cli.Logger.Fatalf("could not create AGENTS.md: %v", writeErr)
+			}
+		} else if replaceAgentsSection {
+			// Replace the existing managed section in place so reinstalls
+			// refresh its content without duplicating it
+			data, readAgentsErr := os.ReadFile(agentsFile)
+			if readAgentsErr != nil {
+				cli.Logger.Fatalf("could not read AGENTS.md: %v", readAgentsErr)
+			}
+			updated, ok := replaceManagedSection(string(data), entry)
+			if !ok {
+				cli.Logger.Fatalf("could not locate the hatchet-skills section markers in AGENTS.md")
+			}
+			if writeErr := os.WriteFile(agentsFile, []byte(updated), 0o600); writeErr != nil { // #nosec G703 -- agentsFile derives from an operator-supplied CLI flag for this local tool, not remote input
+				cli.Logger.Fatalf("could not update AGENTS.md: %v", writeErr)
 			}
 		} else {
 			// Append to existing AGENTS.md
@@ -272,6 +285,63 @@ func runSkillsInstall() {
 	fmt.Println("  • Run " + styles.Code.Render("hatchet docs install") + " to add the Hatchet MCP server to your AI editor")
 	fmt.Println("  • Commit " + styles.Code.Render("skills/") + " and " + styles.Code.Render("AGENTS.md") + " to version control")
 	fmt.Println()
+}
+
+const (
+	skillsMarkerStart = "<!-- hatchet-skills:start -->"
+	skillsMarkerEnd   = "<!-- hatchet-skills:end -->"
+)
+
+// replaceManagedSection replaces the first marker-delimited hatchet-skills
+// section in existing with the marker-delimited section from entry, and drops
+// any additional sections that older installers appended as duplicates. It
+// returns false when either input is missing the markers.
+func replaceManagedSection(existing, entry string) (string, bool) {
+	entryStart := strings.Index(entry, skillsMarkerStart)
+	if entryStart == -1 {
+		return "", false
+	}
+	entryEnd := strings.Index(entry[entryStart:], skillsMarkerEnd)
+	if entryEnd == -1 {
+		return "", false
+	}
+	section := entry[entryStart : entryStart+entryEnd+len(skillsMarkerEnd)]
+
+	var b strings.Builder
+	rest := existing
+	replaced := false
+
+	for {
+		start := strings.Index(rest, skillsMarkerStart)
+		if start == -1 {
+			break
+		}
+		end := strings.Index(rest[start:], skillsMarkerEnd)
+		if end == -1 {
+			break
+		}
+		end = start + end + len(skillsMarkerEnd)
+
+		if replaced {
+			// a duplicate section: drop it along with the blank lines that
+			// separated it from the preceding content
+			b.WriteString(strings.TrimRight(rest[:start], "\n") + "\n")
+		} else {
+			b.WriteString(rest[:start])
+			b.WriteString(section)
+			replaced = true
+		}
+
+		rest = rest[end:]
+	}
+
+	if !replaced {
+		return "", false
+	}
+
+	b.WriteString(rest)
+
+	return b.String(), true
 }
 
 // stripFrontmatter removes YAML frontmatter (content between leading --- delimiters)

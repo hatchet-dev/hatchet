@@ -20,7 +20,7 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export type ActionKey = `${string}/${number}`;
+export type ActionKey = `${string}/${number}` | `${string}/${number}/${number}`;
 
 export type Action = AssignedAction & { readonly key: ActionKey };
 
@@ -35,6 +35,12 @@ export function createAction(assignedAction: AssignedAction): Action {
   const action = assignedAction as Action;
   Object.defineProperty(action, 'key', {
     get(): ActionKey {
+      // Durable task invocations each get a distinct key so a restored
+      // invocation never collides with the one it replaces in contexts,
+      // futures, or eviction state.
+      if (this.durableTaskInvocationCount !== undefined) {
+        return `${this.taskRunExternalId}/${this.retryCount}/${this.durableTaskInvocationCount}`;
+      }
       return `${this.taskRunExternalId}/${this.retryCount}`;
     },
     enumerable: true,

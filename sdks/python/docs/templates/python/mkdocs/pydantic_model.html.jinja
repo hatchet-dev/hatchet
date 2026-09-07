@@ -1,0 +1,32 @@
+{#- Override of griffe-pydantic's pydantic_model template.
+
+    The upstream "fields" block renders a bullet list of field names and types
+    with no descriptions, relying on per-member sections for the prose. We
+    render one Name/Type/Description table instead (descriptions come from
+    `Field(description=...)` via the griffe_pydantic extension), so model pages
+    match the table style used for Parameters and Returns everywhere else, and
+    the per-member sections can be disabled with `members: false`.
+-#}
+{% extends "_base/pydantic_model.html.jinja" %}
+
+{% block fields scoped %}
+  {% with fields = class.extra.griffe_pydantic.fields() %}
+    {% if fields %}
+      <p>Fields:</p>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          {% for name, field in fields.items() %}
+            <tr>
+              <td><code>{{ name }}</code></td>
+              <td><code>{% with expression = field.annotation %}{% include "expression.html.jinja" with context %}{% endwith %}</code></td>
+              <td>{{ field.docstring.value if field.docstring else "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endwith %}
+{% endblock fields %}

@@ -68,13 +68,16 @@ export function StepRunEvents({
   });
 
   // fixme: this is an n+1 query, would be better to have a bulk getter
+  const durableLogIds = [
+    ...(durableTaskIds ?? []),
+    ...(taskRunId ? [taskRunId] : []),
+  ];
+
   const durableLogsQueries = useQueries({
-    queries: [...(durableTaskIds ?? []), ...(taskRunId ? [taskRunId] : [])].map(
-      (id) => ({
-        ...queries.v1DurableTasks.eventLog(tenantId, id),
-        refetchInterval: 5000,
-      }),
-    ),
+    queries: durableLogIds.map((id) => ({
+      ...queries.v1DurableTasks.eventLog(tenantId, id),
+      refetchInterval: 5000,
+    })),
   });
 
   const logs = useMemo(() => {

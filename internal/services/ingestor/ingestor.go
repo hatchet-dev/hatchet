@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -50,6 +51,8 @@ type IngestorOpts struct {
 	grpcTriggerSlots    int
 
 	promGate *prometheus.Gate
+
+	o11yUsage *o11yusage.Aggregator
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -134,6 +137,12 @@ func WithPrometheusGate(gate *prometheus.Gate) IngestorOptFunc {
 	}
 }
 
+func WithO11yUsage(agg *o11yusage.Aggregator) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.o11yUsage = agg
+	}
+}
+
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
@@ -153,6 +162,7 @@ type IngestorImpl struct {
 	analytics analytics.Analytics
 	tw        *trigger.TriggerWriter
 	pubBuffer *msgqueue.MQPubBuffer
+	o11yUsage *o11yusage.Aggregator
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -209,6 +219,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		localDispatcher:          opts.localDispatcher,
 		tw:                       tw,
 		pubBuffer:                pubBuffer,
+		o11yUsage:                opts.o11yUsage,
 	}, nil
 }
 

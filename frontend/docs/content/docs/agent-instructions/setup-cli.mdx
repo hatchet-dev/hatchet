@@ -12,7 +12,7 @@ These are instructions for an AI agent to install the Hatchet CLI and configure 
 hatchet --version
 ```
 
-If this prints a version number, the CLI is already installed. Skip to Step 3 (profile setup).
+If this prints a version number, the CLI is already installed. Skip to Step 3 (choose a connection mode).
 
 If the command is not found, proceed to Step 2.
 
@@ -36,7 +36,12 @@ After installation, verify it worked:
 hatchet --version
 ```
 
-## Step 3: Check for Existing Profiles
+## Step 3: Choose a Connection Mode
+
+- **Local development (default)**: use embedded mode. It runs a full Hatchet engine inside the worker process with no API token, account, or server. Follow `local-dev-embedded.md` and skip the rest of this document.
+- **Hatchet Cloud or a self-hosted instance**: you need a profile backed by an API token. Continue with Step 4.
+
+## Step 4: Check for Existing Profiles
 
 ```bash
 hatchet profile list
@@ -44,11 +49,11 @@ hatchet profile list
 
 If a profile already exists that connects to the correct Hatchet instance, note its name and use it as the `-p` flag in all subsequent commands. You are done.
 
-If no profiles exist or the correct one is missing, proceed to Step 4.
+If no profiles exist or the correct one is missing, proceed to Step 5.
 
-## Step 4: Create a Profile
+## Step 5: Create a Profile
 
-You need a Hatchet API token. Ask the user for one if you do not have it. Then create a profile:
+You need a Hatchet API token for the target deployment (Hatchet Cloud or the self-hosted instance). Ask the user for one if you do not have it. Then create a profile:
 
 ```bash
 hatchet profile add --name HATCHET_PROFILE --token <API_TOKEN>
@@ -62,7 +67,7 @@ To set it as the default profile (so `-p` is optional in future commands):
 hatchet profile set-default --name HATCHET_PROFILE
 ```
 
-## Step 5: Verify Connectivity
+## Step 6: Verify Connectivity
 
 Test that the profile works by listing workflows:
 
@@ -76,4 +81,4 @@ If this returns a JSON response (even with an empty rows list), the profile is c
 
 - **"command not found"** after install: The CLI binary may not be on your PATH. Check `~/.local/bin/hatchet` or re-run the install script.
 - **Authentication error**: The API token may be invalid or expired. Ask the user for a new token and run `hatchet profile update`.
-- **Connection refused**: The Hatchet server may not be running. For local development, start it with `hatchet server start`.
+- **Connection refused**: The profile points at a server that is not running. Embedded mode needs no server; prefer it for local development (see `local-dev-embedded.md`). Use `hatchet server start` only when the user explicitly wants a full local stack (dashboard, separate services).

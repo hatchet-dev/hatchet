@@ -142,8 +142,13 @@ export const columns: (
         to={appRoutes.tenantWorkerRoute.to}
         params={{ tenant: tenantId, worker: row.original.metadata.id }}
       >
-        <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
+        <div className="flex min-w-fit cursor-pointer items-center gap-x-2 whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
+          {row.original.operatorId && (
+            <Badge variant="outline" className="text-xs">
+              Operator
+            </Badge>
+          )}
         </div>
       </Link>
     ),

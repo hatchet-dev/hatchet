@@ -27,4 +27,4 @@
 
 ## SDK Changes
 
-- Any changes that touch hatchet/sdks/** need to be accompanied by a version bump and changelog entry.
+- Changes that touch `sdks/**` need to be accompanied by a version bump and a changelog entry for that SDK, with one exception: the Go SDK (`sdks/go/**`). It has no version file or changelog in the repo — it is versioned by git tags on the module path, which are cut after the PR merges. Do not ask for a version bump or changelog entry on Go SDK PRs.

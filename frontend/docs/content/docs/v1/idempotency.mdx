@@ -24,7 +24,7 @@ Hatchet supports two different types of idempotency behavior, which you can choo
 
 ## The Idempotency Key Expression
 
-Every idempotency configuration, regardless of strategy, requires an **expression**, which is a CEL expression that's evaluated against the input and additional metadata of the run that's about to be triggered to produce the idempotency key. Two runs with the same computed key are considered duplicates.
+Every idempotency configuration, regardless of strategy, requires an **expression**, which is a [CEL expression](/v1/cel-expressions) that is evaluated against the input and additional metadata of the run that's about to be triggered to produce the idempotency key. Two runs with the same computed key are considered duplicates.
 
 <Callout type="warning">
   The idempotency key expression must evaluate to a string.

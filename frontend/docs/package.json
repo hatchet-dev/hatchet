@@ -42,7 +42,6 @@
     "posthog-node": "^5.24.15",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-lottie-player": "^2.1.0",
     "react-tweet": "^3.2.2",
     "recharts": "^2.15.4",
     "shiki": "^1.29.2",

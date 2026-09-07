@@ -110,6 +110,10 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
 	}
 
+	if worker.OperatorId != nil {
+		res.OperatorId = worker.OperatorId
+	}
+
 	res.Actions = &actions
 
 	if workflows != nil {

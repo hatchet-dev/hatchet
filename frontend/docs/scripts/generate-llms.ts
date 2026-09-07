@@ -164,12 +164,8 @@ function collectPages(): DocPage[] {
   const rootMeta = readMeta(CONTENT_DIR);
   if (!rootMeta?.pages) return pages;
 
-  // Sections to exclude from search index and llms output
-  const EXCLUDED_SECTIONS = new Set(["agent-instructions"]);
-
   for (const sectionKey of rootMeta.pages) {
     if (SEPARATOR_RE.test(sectionKey) || LINK_RE.test(sectionKey)) continue;
-    if (EXCLUDED_SECTIONS.has(sectionKey)) continue;
 
     const sectionDir = path.join(CONTENT_DIR, sectionKey);
     if (!fs.existsSync(sectionDir)) continue;

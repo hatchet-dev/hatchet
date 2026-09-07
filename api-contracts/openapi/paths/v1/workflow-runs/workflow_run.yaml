@@ -375,6 +375,12 @@ getWorkflowRunDetails:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: Whether to include the DAG orchestrator's task events, which are hidden by default
+        in: query
+        name: includeOrchestratorEvents
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:

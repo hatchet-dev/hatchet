@@ -1,5 +1,6 @@
 {
   "pages": [
+    "index",
     "client",
     "context",
     "feature-clients",

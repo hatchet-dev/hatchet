@@ -53,6 +53,14 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
 
 	for _, row := range rows {
+		// only terminal transitions are finalizations: UpdateDAGStatuses also
+		// returns QUEUED->RUNNING rows, and publishing those as
+		// workflow-run-finished makes stream subscribers hang up the moment a
+		// DAG run starts (the dispatcher treats the message as terminal)
+		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+			continue
+		}
+
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
 			ExternalId: row.ExternalId,
 			Status:     row.ReadableStatus,

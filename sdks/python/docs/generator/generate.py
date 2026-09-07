@@ -25,6 +25,24 @@ from docs.generator.utils import rm_rf
 CODE_SPAN_PATTERN = re.compile(r"`[^`]*`")
 EM_DASH_PATTERN = re.compile(r"\s*—\s*")
 
+## Shared mapping pairing feature-client concepts with descriptions, per-language
+## page slugs, and user-guide links. Hand-maintained; consumed by all four SDK
+## doc generators.
+REFERENCE_MAP_PATH = FRONTEND_DOCS_DIR / "reference-map.json"
+CONTENT_DOCS_DIR = FRONTEND_DOCS_DIR / "content" / "docs"
+MAP_LANG = "python"
+
+## One-line descriptions for the hand-authored Python-specifics pages listed
+## after the separator in python/meta.json. The overview page hard-fails if a
+## specifics page has no entry here.
+SPECIFICS_DESCRIPTIONS = {
+    "asyncio": "Working with asyncio in the Python SDK",
+    "pydantic": "Validating task inputs and outputs with Pydantic models",
+    "lifespans": "Sharing state like connections and clients across tasks on a worker",
+    "dependency-injection": "Injecting dependencies into tasks",
+    "dataclasses": "Using dataclasses as task input and output types",
+}
+
 
 def discover_feature_clients() -> dict[str, str]:
     """Map Hatchet client property names to mkdocstrings directives, e.g. `runs` -> `features.runs.RunsClient`."""
@@ -112,6 +130,146 @@ def write_mdx(document: Document) -> None:
         f.write(convert_markdown_to_mdx(document))
 
 
+def guide_page_exists(guide: str) -> bool:
+    rel = guide.removeprefix("/")
+
+    return (CONTENT_DOCS_DIR / f"{rel}.mdx").exists() or (
+        CONTENT_DOCS_DIR / rel / "index.mdx"
+    ).exists()
+
+
+def render_index_page(documents: list[Document], meta: dict[str, typing.Any]) -> str:
+    """Render the Python SDK overview page (index.mdx): a link map over the core
+    pages, the feature-clients table cross-linked to the user guide, and the
+    hand-authored Python-specifics pages. Hard-fails when an emitted
+    feature-client page has no reference-map.json entry, when an entry's python
+    slug matches no emitted page (stale entry), or when a guide link points at a
+    missing content file."""
+    ref_map = json.loads(REFERENCE_MAP_PATH.read_text(encoding="utf-8"))
+
+    slug_to_concept: dict[str, str] = {}
+
+    for concept, feature in ref_map["featureClients"].items():
+        slug = feature["slugs"].get(MAP_LANG)
+
+        if not slug:
+            continue
+
+        if slug in slug_to_concept:
+            raise RuntimeError(
+                f"reference-map.json: {MAP_LANG} slug {slug!r} claimed by both "
+                f"{slug_to_concept[slug]!r} and {concept!r}"
+            )
+
+        slug_to_concept[slug] = concept
+
+    feature_docs = [d for d in documents if d.directory == "feature-clients"]
+    emitted = {d.basename for d in feature_docs}
+
+    for d in feature_docs:
+        if d.basename not in slug_to_concept:
+            raise RuntimeError(
+                f"reference-map.json has no featureClients entry with "
+                f"slugs.{MAP_LANG} = {d.basename!r}; add one for the {d.title} client"
+            )
+
+    for slug, concept in slug_to_concept.items():
+        if slug not in emitted:
+            raise RuntimeError(
+                f"reference-map.json entry {concept!r} lists stale {MAP_LANG} slug "
+                f"{slug!r}: no such feature-client page is emitted"
+            )
+
+    core_lines = []
+
+    for d in documents:
+        if d.directory:
+            continue
+
+        core = ref_map["corePages"].get(d.basename)
+
+        if not core:
+            raise RuntimeError(
+                f"reference-map.json has no corePages entry for emitted page {d.basename!r}"
+            )
+
+        core_lines.append(
+            f"- [{core['title']}](/reference/{MAP_LANG}/{d.basename}): {core['description']}"
+        )
+
+    rows = []
+
+    for d in feature_docs:
+        feature = ref_map["featureClients"][slug_to_concept[d.basename]]
+        guide = ""
+
+        if guide_path := feature["guide"]:
+            if not guide_page_exists(guide_path):
+                raise RuntimeError(
+                    f"reference-map.json: guide {guide_path!r} for {feature['title']!r} "
+                    "does not exist under frontend/docs/content/docs"
+                )
+
+            guide = f"[{feature['guideTitle'] or guide_path}]({guide_path})"
+
+        name = (
+            f"[{feature['title']}](/reference/{MAP_LANG}/feature-clients/{d.basename})"
+        )
+        rows.append(f"| {name} | {feature['description']} | {guide} |")
+
+    specifics_lines = []
+
+    for page in specifics_pages(meta):
+        description = SPECIFICS_DESCRIPTIONS.get(page)
+
+        if not description:
+            raise RuntimeError(
+                f"SPECIFICS_DESCRIPTIONS in docs/generator/generate.py has no entry "
+                f"for the Python-specifics page {page!r}"
+            )
+
+        specifics_lines.append(
+            f"- [{page}](/reference/{MAP_LANG}/{page}): {description}"
+        )
+
+    return "\n".join(
+        [
+            "---",
+            'title: "Overview"',
+            "---",
+            "",
+            "# Python SDK",
+            "",
+            "This is the generated API reference for the Hatchet Python SDK. For concepts and guides, see the [user guide](/v1).",
+            "",
+            "## Core pages",
+            "",
+            *core_lines,
+            "",
+            "## Feature clients",
+            "",
+            "Feature clients are available as properties on the [client](/reference/python/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.",
+            "",
+            "| Client | Description | Guide |",
+            "| ------ | ----------- | ----- |",
+            *rows,
+            "",
+            "## Python specifics",
+            "",
+            *specifics_lines,
+            "",
+        ]
+    )
+
+
+def write_index_page(documents: list[Document], meta: dict[str, typing.Any]) -> str:
+    index_path = FRONTEND_PYTHON_REF_DIR / "index.mdx"
+    index_path.write_text(render_index_page(documents, meta), encoding="utf-8")
+    print("Generating mdx for index.mdx (overview page)")
+
+    return str(index_path)
+
+
 def load_root_meta() -> dict[str, typing.Any]:
     meta: dict[str, typing.Any] = json.loads(ROOT_META_PATH.read_text(encoding="utf-8"))
 
@@ -168,6 +326,8 @@ def merge_root_meta(documents: list[Document], meta: dict[str, typing.Any]) -> N
             for d in documents
             if os.path.exists(d.mdx_output_path)
         }
+        ## The overview page is generated separately from the mkdocs pipeline.
+        | ({"index"} if (FRONTEND_PYTHON_REF_DIR / "index.mdx").exists() else set())
     )
 
     owned = [p for p in pages[:separator_index] if p in emitted]
@@ -237,8 +397,13 @@ def run(selections: list[str]) -> None:
         for document in documents:
             write_mdx(document)
 
+        prettier_targets = [d.mdx_output_path for d in documents]
+
+        if not selections:
+            prettier_targets.append(write_index_page(documents, root_meta))
+
         subprocess.run(
-            ["npx", "prettier", "--write", *[d.mdx_output_path for d in documents]],
+            ["npx", "prettier", "--write", *prettier_targets],
             check=True,
             cwd=str(FRONTEND_DOCS_DIR),
         )
