@@ -35,6 +35,7 @@ type Client interface {
 	Cron() CronClient
 	Schedule() ScheduleClient
 	Dispatcher() DispatcherClient
+	Operator() OperatorClient
 	Event() EventClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
@@ -53,6 +54,7 @@ type clientImpl struct {
 	cron       CronClient
 	schedule   ScheduleClient
 	dispatcher DispatcherClient
+	operator   OperatorClient
 	event      EventClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
@@ -347,6 +349,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	subscribe := newSubscribe(conn, shared)
 	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
+	operator := newOperatorClient(conn, shared, opts.presetWorkerLabels)
 	event := newEvent(conn, shared)
 
 	authEditor := func(ctx context.Context, req *http.Request) error {
@@ -404,6 +407,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		cron:            cronClient,
 		schedule:        scheduleClient,
 		dispatcher:      dispatcher,
+		operator:        operator,
 		subscribe:       subscribe,
 		event:           event,
 		v:               opts.v,
@@ -429,6 +433,10 @@ func (c *clientImpl) Schedule() ScheduleClient {
 
 func (c *clientImpl) Dispatcher() DispatcherClient {
 	return c.dispatcher
+}
+
+func (c *clientImpl) Operator() OperatorClient {
+	return c.operator
 }
 
 func (c *clientImpl) Event() EventClient {
