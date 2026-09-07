@@ -217,3 +217,34 @@ func TestDeliver_CallerDeadlineHonored(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, context.DeadlineExceeded), "got %v", err)
 }
+
+// TestInsecureDestinations covers the development-only mode: plain http on loopback and an
+// ephemeral port is reachable, which the default policy rejects in TestDeliver_Rejected.
+func TestInsecureDestinations(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer srv.Close()
+
+	l := zerolog.Nop()
+
+	s, err := New(Config{InsecureDestinations: true}, &l)
+	require.NoError(t, err, "InsecureDestinations does not require infra CIDRs")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := s.Deliver(ctx, http.MethodPost, srv.URL+"/hook", []byte("{}"), nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, `{"ok":true}`, string(res.BodyPrefix))
+
+	_, err = s.Deliver(ctx, http.MethodPost, "ftp://example.com/", []byte("{}"), nil)
+	assert.ErrorIs(t, err, ErrBadScheme, "only http and https, even insecure")
+
+	// The default path is untouched: the same URL is still rejected without the flag.
+	strict := newTestSender(t)
+	_, err = strict.Deliver(ctx, http.MethodPost, srv.URL+"/hook", []byte("{}"), nil)
+	assert.ErrorIs(t, err, ErrBadScheme)
+}

@@ -1,0 +1,286 @@
+//go:build !e2e && !load && !rampup && !integration
+
+package grpclink
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
+)
+
+// testJWT builds an unsigned JWT with the claims the client loader reads.
+func testJWT(t *testing.T, tenantId uuid.UUID) string {
+	t.Helper()
+
+	header, _ := json.Marshal(map[string]string{"alg": "none"})
+	claims, err := json.Marshal(map[string]any{
+		"sub":                    tenantId.String(),
+		"server_url":             "https://app.example.test",
+		"grpc_broadcast_address": "grpc.example.test:443",
+		"exp":                    time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	enc := base64.RawURLEncoding
+
+	return enc.EncodeToString(header) + "." + enc.EncodeToString(claims) + ".sig"
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+func TestLocalExchangeLoadsAndReloads(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tenants.yaml")
+
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+
+	writeFile(t, filepath.Join(dir, "b.token"), "  token-b\n")
+	writeFile(t, path, "tenants:\n  "+tenantA.String()+": { token: token-a }\n  "+tenantB.String()+": { token_file: b.token }\n")
+
+	ex, err := NewLocalExchange(path, WithPollInterval(10*time.Millisecond))
+	require.NoError(t, err)
+	defer ex.Close()
+
+	tok, err := ex.Token(context.Background(), tenantA)
+	require.NoError(t, err)
+	assert.Equal(t, "token-a", tok)
+
+	tok, err = ex.Token(context.Background(), tenantB)
+	require.NoError(t, err)
+	assert.Equal(t, "token-b", tok, "token_file is read relative to the yaml and trimmed")
+
+	_, err = ex.Token(context.Background(), uuid.New())
+	assert.ErrorIs(t, err, ErrNoToken)
+	assert.ErrorIs(t, err, link.ErrNoToken)
+
+	// Rewriting the file with a newer mtime is picked up by the poller.
+	writeFile(t, path, "tenants:\n  "+tenantA.String()+": { token: token-a2 }\n")
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(path, future, future))
+
+	require.Eventually(t, func() bool {
+		tok, err := ex.Token(context.Background(), tenantA)
+		return err == nil && tok == "token-a2"
+	}, 2*time.Second, 5*time.Millisecond)
+
+	_, err = ex.Token(context.Background(), tenantB)
+	assert.ErrorIs(t, err, ErrNoToken, "a tenant removed from the file is no longer served")
+
+	// A broken rewrite keeps the previous mapping.
+	writeFile(t, path, "tenants:\n  not-a-uuid: { token: x }\n")
+	later := future.Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(path, later, later))
+
+	time.Sleep(50 * time.Millisecond)
+
+	tok, err = ex.Token(context.Background(), tenantA)
+	require.NoError(t, err)
+	assert.Equal(t, "token-a2", tok)
+}
+
+func TestLocalExchangeRejectsBadFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := NewLocalExchange(filepath.Join(dir, "missing.yaml"))
+	assert.Error(t, err)
+
+	path := filepath.Join(dir, "empty-entry.yaml")
+	writeFile(t, path, "tenants:\n  "+uuid.New().String()+": {}\n")
+
+	_, err = NewLocalExchange(path)
+	assert.Error(t, err, "an entry needs token or token_file")
+}
+
+func TestStaticExchange(t *testing.T) {
+	tenant := uuid.New()
+	tok := testJWT(t, tenant)
+
+	ex, err := NewStaticExchange(tok)
+	require.NoError(t, err)
+	assert.Equal(t, tenant, ex.TenantId())
+
+	got, err := ex.Token(context.Background(), tenant)
+	require.NoError(t, err)
+	assert.Equal(t, tok, got)
+
+	_, err = ex.Token(context.Background(), uuid.New())
+	assert.ErrorIs(t, err, ErrNoToken)
+
+	_, err = NewStaticExchange("not.a.jwt")
+	assert.Error(t, err)
+}
+
+// fakeSession is the minimal OperatorSession the link needs.
+type fakeSession struct {
+	client.OperatorSession
+	workerId string
+	closed   bool
+}
+
+func (f *fakeSession) Registration() client.OperatorRegistration {
+	return client.OperatorRegistration{WorkerId: f.workerId}
+}
+
+func (f *fakeSession) Close() error {
+	f.closed = true
+	return nil
+}
+
+type fakeOperatorClient struct {
+	connectErr error
+	requests   []*client.ConnectOperatorRequest
+	sessions   []*fakeSession
+}
+
+func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOperatorRequest) (client.OperatorSession, error) {
+	f.requests = append(f.requests, req)
+
+	if f.connectErr != nil {
+		err := f.connectErr
+		f.connectErr = nil
+
+		return nil, err
+	}
+
+	s := &fakeSession{workerId: "w" + req.Name}
+	f.sessions = append(f.sessions, s)
+
+	return s, nil
+}
+
+type fakeClient struct {
+	client.Client
+	operator *fakeOperatorClient
+	token    string
+}
+
+func (f *fakeClient) Operator() client.OperatorClient {
+	return f.operator
+}
+
+type mapExchange map[uuid.UUID]string
+
+func (m mapExchange) Token(_ context.Context, tenantId uuid.UUID) (string, error) {
+	tok, ok := m[tenantId]
+
+	if !ok {
+		return "", ErrNoToken
+	}
+
+	return tok, nil
+}
+
+func TestLinkOpenCachesClientPerTenant(t *testing.T) {
+	tenant := uuid.New()
+	exchange := mapExchange{tenant: "tok-1"}
+
+	var built []*fakeClient
+
+	lnk := New(exchange, Options{
+		OperatorName: "serverless",
+		NewClient: func(token string) (client.Client, error) {
+			c := &fakeClient{token: token, operator: &fakeOperatorClient{}}
+			built = append(built, c)
+
+			return c, nil
+		},
+	})
+
+	opts := link.OpenOpts{Actions: []string{"ns_svc:run"}, SlotConfig: map[string]int32{"default": 1}, Labels: map[string]interface{}{"k": "v"}}
+
+	reg, err := lnk.Open(context.Background(), tenant, 0, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "wserverless", reg.WorkerId())
+
+	reg2, err := lnk.Open(context.Background(), tenant, 1, opts)
+	require.NoError(t, err)
+
+	require.Len(t, built, 1, "one client per tenant")
+	require.Len(t, built[0].operator.requests, 2)
+
+	req := built[0].operator.requests[1]
+	assert.Equal(t, "serverless", req.Name)
+	assert.Equal(t, opts.Actions, req.Actions)
+	assert.Equal(t, opts.SlotConfig, req.SlotConfig)
+	assert.Equal(t, "v", req.Labels["k"])
+	assert.Equal(t, 1, req.Labels["hatchet-serverless-shard"])
+
+	_, err = reg.OpenDurable(context.Background(), "task", 0)
+	assert.ErrorIs(t, err, link.ErrDurableNotSupported)
+
+	require.NoError(t, reg2.Close())
+	assert.True(t, built[0].operator.sessions[1].closed)
+
+	// A rotated token rebuilds the client; a released tenant is evicted.
+	exchange[tenant] = "tok-2"
+
+	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	require.NoError(t, err)
+	require.Len(t, built, 2)
+	assert.Equal(t, "tok-2", built[1].token)
+
+	lnk.ReleaseTenant(tenant)
+
+	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	require.NoError(t, err)
+	assert.Len(t, built, 3)
+
+	_, err = lnk.Open(context.Background(), uuid.New(), 0, opts)
+	assert.ErrorIs(t, err, link.ErrNoToken)
+	assert.Len(t, built, 3, "no client is built without a token")
+}
+
+func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
+	tenant := uuid.New()
+	exchange := mapExchange{tenant: "tok"}
+
+	var built []*fakeClient
+
+	lnk := New(exchange, Options{
+		NewClient: func(token string) (client.Client, error) {
+			op := &fakeOperatorClient{}
+
+			if len(built) == 0 {
+				op.connectErr = status.Error(codes.Unauthenticated, "expired")
+			}
+
+			c := &fakeClient{token: token, operator: op}
+			built = append(built, c)
+
+			return c, nil
+		},
+	})
+
+	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	require.NoError(t, err)
+	assert.NotNil(t, reg)
+	assert.Len(t, built, 2, "the cached client is dropped and rebuilt after Unauthenticated")
+
+	// Other errors are not retried.
+	lnk2 := New(exchange, Options{
+		NewClient: func(token string) (client.Client, error) {
+			return &fakeClient{operator: &fakeOperatorClient{connectErr: errors.New("boom")}}, nil
+		},
+	})
+
+	_, err = lnk2.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	assert.Error(t, err)
+}

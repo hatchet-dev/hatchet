@@ -1,0 +1,220 @@
+// Package grpclink is the out-of-process Link: registrations are OperatorSessions opened over
+// the engine's OperatorService with a per-tenant API token from a TenantTokenExchange.
+package grpclink
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
+)
+
+// ClientFactory builds the engine client for one token. The default derives the gRPC address
+// and TLS settings from the token's claims and HATCHET_CLIENT_* environment, like the SDK.
+type ClientFactory func(token string) (client.Client, error) //nolint:staticcheck // see import
+
+// Options configures a Link.
+type Options struct {
+	Logger *zerolog.Logger
+
+	// NewClient replaces the default client factory; tests inject a fake.
+	NewClient ClientFactory
+
+	// OperatorName is the OperatorService operator name every registration connects as. The
+	// engine upserts one operator row per tenant by this name.
+	OperatorName string
+}
+
+type cachedClient struct {
+	client client.Client //nolint:staticcheck // see import
+	token  string
+}
+
+// Link caches one engine client per tenant. The token is asked from the exchange on every
+// Open so a rotated token replaces the cached client; the client is dropped when the core
+// reports the tenant is no longer served.
+type Link struct {
+	exchange  TenantTokenExchange
+	l         *zerolog.Logger
+	newClient ClientFactory
+	clients   map[uuid.UUID]*cachedClient
+	name      string
+	mu        sync.Mutex
+}
+
+// New builds a Link over exchange.
+func New(exchange TenantTokenExchange, opts Options) *Link {
+	l := opts.Logger
+
+	if l == nil {
+		nop := zerolog.Nop()
+		l = &nop
+	}
+
+	factory := opts.NewClient
+
+	if factory == nil {
+		factory = defaultClientFactory(l)
+	}
+
+	name := opts.OperatorName
+
+	if name == "" {
+		name = "serverless"
+	}
+
+	return &Link{
+		exchange:  exchange,
+		l:         l,
+		newClient: factory,
+		clients:   map[uuid.UUID]*cachedClient{},
+		name:      name,
+	}
+}
+
+// defaultClientFactory wraps client.New, which panics when the SDK config cannot be loaded
+// from the token and environment. The panic is turned into an error so one tenant's bad
+// token cannot take the process down.
+func defaultClientFactory(l *zerolog.Logger) ClientFactory {
+	return func(token string) (c client.Client, err error) { //nolint:staticcheck // see import
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("could not build engine client: %v", r)
+			}
+		}()
+
+		return client.New(client.WithToken(token), client.WithLogger(l)) //nolint:staticcheck // see import
+	}
+}
+
+// clientFor returns the cached client for the tenant, rebuilding it when the token changed.
+func (g *Link) clientFor(tenantId uuid.UUID, token string) (client.Client, error) { //nolint:staticcheck // see import
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if cached, ok := g.clients[tenantId]; ok && cached.token == token {
+		return cached.client, nil
+	}
+
+	c, err := g.newClient(token)
+
+	if err != nil {
+		return nil, err
+	}
+
+	g.clients[tenantId] = &cachedClient{client: c, token: token}
+
+	return c, nil
+}
+
+func (g *Link) evict(tenantId uuid.UUID) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// client.Client has no Close; the gRPC connection is dropped with the reference.
+	delete(g.clients, tenantId)
+}
+
+// ReleaseTenant implements link.TenantReleaser.
+func (g *Link) ReleaseTenant(tenantId uuid.UUID) {
+	g.evict(tenantId)
+}
+
+// Open implements link.Link. An Unauthenticated connect drops the cached client and asks the
+// exchange once more, so a token rotated between two Opens is used without waiting for the
+// exchange's own reload.
+func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
+	session, err := g.connect(ctx, tenantId, shard, opts)
+
+	if err != nil && status.Code(err) == codes.Unauthenticated {
+		g.evict(tenantId)
+		session, err = g.connect(ctx, tenantId, shard, opts)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &registration{session: session}, nil
+}
+
+func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (client.OperatorSession, error) {
+	token, err := g.exchange.Token(ctx, tenantId)
+
+	if err != nil {
+		if errors.Is(err, link.ErrNoToken) {
+			return nil, fmt.Errorf("tenant %s: %w", tenantId, link.ErrNoToken)
+		}
+
+		return nil, fmt.Errorf("could not resolve token for tenant %s: %w", tenantId, err)
+	}
+
+	c, err := g.clientFor(tenantId, token)
+
+	if err != nil {
+		return nil, fmt.Errorf("tenant %s: %w", tenantId, err)
+	}
+
+	labels := make(map[string]interface{}, len(opts.Labels)+1)
+
+	for k, v := range opts.Labels {
+		labels[k] = v
+	}
+
+	labels["hatchet-serverless-shard"] = shard
+
+	return c.Operator().Connect(ctx, &client.ConnectOperatorRequest{
+		Name:       g.name,
+		Workflows:  opts.Workflows,
+		Actions:    opts.Actions,
+		SlotConfig: opts.SlotConfig,
+		Labels:     labels,
+	})
+}
+
+// registration adapts an OperatorSession to link.Registration.
+type registration struct {
+	session client.OperatorSession
+}
+
+func (r *registration) WorkerId() string {
+	return r.session.Registration().WorkerId
+}
+
+func (r *registration) Actions(ctx context.Context) (<-chan *contracts.AssignedAction, <-chan error, error) {
+	return r.session.Actions(ctx)
+}
+
+func (r *registration) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error {
+	_, err := r.session.PutWorkflow(ctx, wf, fullActions)
+	return err
+}
+
+func (r *registration) UpdateActions(ctx context.Context, fullActions []string) error {
+	return r.session.UpdateActions(ctx, fullActions)
+}
+
+func (r *registration) SendStepActionEvent(ctx context.Context, ev *contracts.StepActionEvent) error {
+	_, err := r.session.SendStepActionEvent(ctx, ev)
+	return err
+}
+
+// OpenDurable is not implemented yet. Phase 5 backs it with the session's DurableTaskListener
+// (one per registration, multiplexed by task external id and invocation).
+func (r *registration) OpenDurable(_ context.Context, _ string, _ int32) (link.DurableChannel, error) {
+	return nil, link.ErrDurableNotSupported
+}
+
+func (r *registration) Close() error {
+	return r.session.Close()
+}

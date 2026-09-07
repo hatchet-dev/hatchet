@@ -49,6 +49,14 @@ type Config struct {
 	MaxRedirects         int
 	AllowEmptyInfraCIDRs bool
 	EnableIPv6           bool
+
+	// InsecureDestinations disables the SSRF policy for local development and e2e runs:
+	// plain http, any port, and loopback and private ranges are all allowed, and the
+	// request goes through a plain http.Client instead of safeurl. TLS verification stays
+	// on. It is only honored when set explicitly by the operator's own configuration;
+	// nothing in this package turns it on.
+	InsecureDestinations bool
+
 	testDisableBlocklist bool
 	testInsecureTLS      bool
 }
@@ -61,20 +69,39 @@ type DeliveryResult struct {
 	Duration   time.Duration
 }
 
+// httpDoer is the subset of http.Client the Sender uses: the safeurl WrappedClient in the
+// default policy, a plain http.Client under InsecureDestinations.
+type httpDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // Sender delivers outbound HTTP requests under the SSRF policy. Construct one with New and
 // reuse it; it is safe for concurrent use.
 type Sender struct {
-	client       *safeurl.WrappedClient
+	client       httpDoer
 	blocklist    *blocklist
 	l            *zerolog.Logger
 	allowedPorts []int
 	maxBytes     int64
+	insecure     bool
 }
 
 // New validates cfg, builds the safeurl-backed client, and returns a Sender. It fails if
 // InfraBlockedCIDRs is empty (unless AllowEmptyInfraCIDRs) or if any blocked CIDR — default
 // or infra — fails to parse. l may be nil (logging is then disabled).
 func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
+	if cfg.InsecureDestinations {
+		if cfg.ConnectTimeout <= 0 {
+			cfg.ConnectTimeout = defaultConnectTimeout
+		}
+
+		if cfg.MaxResponseBytes <= 0 {
+			cfg.MaxResponseBytes = defaultMaxResponseBytes
+		}
+
+		return newInsecureSender(cfg, l), nil
+	}
+
 	if len(cfg.InfraBlockedCIDRs) == 0 && !cfg.AllowEmptyInfraCIDRs {
 		return nil, fmt.Errorf("safeclient: InfraBlockedCIDRs is required (set AllowEmptyInfraCIDRs for local dev)")
 	}
@@ -148,6 +175,29 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 		maxBytes:     cfg.MaxResponseBytes,
 		l:            l,
 	}, nil
+}
+
+// newInsecureSender builds the development-only Sender: no scheme, port or destination
+// checks, no proxy, no redirects. The response cap and the caller-owned deadline still
+// apply.
+func newInsecureSender(cfg Config, l *zerolog.Logger) *Sender {
+	transport := &http.Transport{
+		TLSHandshakeTimeout: cfg.ConnectTimeout,
+		Proxy:               nil,
+		ForceAttemptHTTP2:   true,
+	}
+
+	if l != nil {
+		l.Warn().Msg("safeclient: SSRF policy disabled by InsecureDestinations; never run this way in production")
+	}
+
+	return &Sender{
+		client:    &http.Client{Transport: transport, CheckRedirect: noRedirects},
+		blocklist: &blocklist{},
+		maxBytes:  cfg.MaxResponseBytes,
+		l:         l,
+		insecure:  true,
+	}
 }
 
 // noRedirects tells the underlying http.Client to return the 3xx response as-is rather
@@ -240,6 +290,10 @@ func (s *Sender) Deliver(ctx context.Context, method, endpoint string, body []by
 // validate performs the network-free scheme/port/userinfo/host-literal checks. On failure
 // it returns the metric reason and a typed error; on success it returns ("", nil).
 func (s *Sender) validate(endpoint string) (blockReason, error) {
+	if s.insecure {
+		return validateInsecureURL(endpoint)
+	}
+
 	if reason, err := validateURL(endpoint, s.allowedPorts); err != nil {
 		return reason, err
 	}
@@ -290,6 +344,25 @@ func hostOf(rawURL string) string {
 func ValidateEndpoint(rawURL string) error {
 	_, err := validateURL(rawURL, []int{allowedPort})
 	return err
+}
+
+// validateInsecureURL is the InsecureDestinations pre-check: http or https with a host.
+func validateInsecureURL(rawURL string) (blockReason, error) {
+	u, err := url.Parse(rawURL)
+
+	if err != nil {
+		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+	}
+
+	if u.Scheme != allowedScheme && u.Scheme != "http" {
+		return reasonScheme, fmt.Errorf("%w: got %q", ErrBadScheme, u.Scheme)
+	}
+
+	if u.Hostname() == "" {
+		return reasonDestination, fmt.Errorf("%w: empty host", ErrBlockedDestination)
+	}
+
+	return "", nil
 }
 
 // validateURL is the shared scheme/port/userinfo validator. allowedPorts is the set of
