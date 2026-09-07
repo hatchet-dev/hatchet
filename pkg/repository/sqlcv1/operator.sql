@@ -85,9 +85,15 @@ WITH operators_on_inactive_dispatchers AS (
 )
 SELECT *
 FROM v1_operator
-WHERE v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+WHERE
+    -- GRPC operators run out of process and register their own workers over OperatorService, so
+    -- the in-engine operator manager never claims or reconciles them.
+    v1_operator.kind <> 'GRPC'
+    AND (
+        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
+        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
+        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+    )
 ORDER BY v1_operator.id
 FOR UPDATE SKIP LOCKED;
 
@@ -119,6 +125,24 @@ INSERT INTO "Worker" (
     -- operator workers have no gRPC listener to activate them, so they are born active.
     true
 ) RETURNING *;
+
+-- name: UpsertGRPCOperator :one
+-- Registers a GRPC operator by (tenant, name) on connect. The operator row carries no config and
+-- no worker_id: each Listen stream creates its own worker linked back via "Worker"."operatorId".
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    config
+) VALUES (
+    @tenantId::UUID,
+    @name::TEXT,
+    'GRPC',
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name) WHERE kind = 'GRPC' DO UPDATE
+SET updated_at = NOW()
+RETURNING *;
 
 -- name: UpdateWorkerActionsHash :exec
 UPDATE

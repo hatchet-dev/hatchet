@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/grpcoperator"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
@@ -470,6 +471,24 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
 		}
 
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -506,6 +525,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
@@ -921,6 +945,24 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
 		}
 
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -957,6 +999,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)

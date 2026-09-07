@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
 type subscribedWorker struct {
@@ -27,7 +26,7 @@ type subscribedWorker struct {
 }
 
 func newGRPCSubscribedWorker(
-	stream contracts.Dispatcher_ListenServer,
+	stream grpc.ServerStream,
 	fin chan<- bool,
 	workerId uuid.UUID,
 	maxLockAcquisitionTime time.Duration,

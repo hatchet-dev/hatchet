@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,10 @@ type CreateWorkerOpts struct {
 
 	// (optional) Runtime info for the worker
 	RuntimeInfo *RuntimeInfo `validate:"omitempty"`
+
+	// (optional) The operator this worker backs. Set for workers created by operator
+	// connections (for example an OperatorService Listen stream), nil for SDK workers.
+	OperatorId *uuid.UUID `validate:"omitempty"`
 }
 
 type UpdateWorkerOpts struct {
@@ -122,6 +127,16 @@ type WorkerRepository interface {
 
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
+
+	// AddWorkerActions links actionIds to the worker and folds the newly linked ones into its
+	// action hash. Actions the worker already has are skipped. It returns the number of actions
+	// actually linked.
+	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (added int, err error)
+
+	// RemoveWorkerActions unlinks actionIds from the worker and folds the unlinked ones out of
+	// its action hash. Actions the worker does not have are skipped. It returns the number of
+	// actions actually unlinked.
+	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (removed int, err error)
 
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
@@ -545,13 +560,53 @@ func hashActions(actions []string) []byte {
 	return h.Sum(nil)
 }
 
-func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
-	preWorker, postWorker := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+// xorActionHash folds actionIds into hash by XOR-ing each action's sha256 digest into it. It
+// is the incremental form of the worker action hash: XOR is commutative and its own inverse,
+// so folding an action in and out again restores the hash, and equal sets hash equal whatever
+// order they were built in (which is what GetWorkerActionsByWorkerActionHash relies on when it
+// reads one representative worker per hash). A delta therefore costs O(len(actionIds)) rather
+// than O(size of the set). The seed is whatever the worker row holds, so two workers created
+// with the same initial hash that build the same set in any order end with the same hash.
+func xorActionHash(hash []byte, actionIds []string) []byte {
+	out := make([]byte, sha256.Size)
+	copy(out, hash)
 
-	if err := preWorker(); err != nil {
-		return nil, err
+	for _, actionId := range actionIds {
+		digest := sha256.Sum256([]byte(actionId))
+
+		for i := range out {
+			out[i] ^= digest[i]
+		}
 	}
 
+	return out
+}
+
+// workerSDKFromContract maps the SDK reported by a worker at registration to the "Worker"."language"
+// column value.
+func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
+	var language sqlcv1.WorkerSDKS
+
+	switch sdk {
+	case contracts.SDKS_GO:
+		language = sqlcv1.WorkerSDKSGO
+	case contracts.SDKS_PYTHON:
+		language = sqlcv1.WorkerSDKSPYTHON
+	case contracts.SDKS_TYPESCRIPT:
+		language = sqlcv1.WorkerSDKSTYPESCRIPT
+	case contracts.SDKS_RUBY:
+		language = sqlcv1.WorkerSDKSRUBY
+	default:
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	}
+
+	return sqlcv1.NullWorkerSDKS{
+		WorkerSDKS: language,
+		Valid:      true,
+	}, nil
+}
+
+func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
 	slotConfig := opts.SlotConfig
 	slots := int32(0)
 
@@ -559,10 +614,26 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		slots += units
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+	// Operator workers are excluded from the WORKER and WORKER_SLOT limit counts by the
+	// "operatorId" IS NULL filters in workers.sql and tenant_limits.sql, so metering them here
+	// would charge for workers the limit queries never see.
+	postWorker := func() {}
+	postWorkerSlot := func() {}
 
-	if err := preWorkerSlot(); err != nil {
-		return nil, err
+	if opts.OperatorId == nil {
+		var preWorker, preWorkerSlot func() error
+
+		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+
+		if err := preWorker(); err != nil {
+			return nil, err
+		}
+
+		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+
+		if err := preWorkerSlot(); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := w.v.Validate(opts); err != nil {
@@ -582,6 +653,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
 		Actionhash:   hashActions(opts.Actions),
+		OperatorId:   opts.OperatorId,
 	}
 
 	// Default to self hosted
@@ -595,30 +667,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
 		}
 		if opts.RuntimeInfo.Language != nil {
-			switch *opts.RuntimeInfo.Language {
-			case contracts.SDKS_GO:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSGO,
-					Valid:      true,
-				}
-			case contracts.SDKS_PYTHON:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSPYTHON,
-					Valid:      true,
-				}
-			case contracts.SDKS_TYPESCRIPT:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSTYPESCRIPT,
-					Valid:      true,
-				}
-			case contracts.SDKS_RUBY:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSRUBY,
-					Valid:      true,
-				}
-			default:
-				return nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
+			language, err := workerSDKFromContract(*opts.RuntimeInfo.Language)
+
+			if err != nil {
+				return nil, err
 			}
+
+			createParams.Language = language
 		}
 		if opts.RuntimeInfo.LanguageVersion != nil {
 			createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
@@ -715,6 +770,182 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	postWorkerSlot()
 
 	return worker, nil
+}
+
+func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+	actionIds = dedupeActionIds(actionIds)
+
+	if len(actionIds) == 0 {
+		return 0, nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rollback()
+
+	// the row lock is held until commit, so the hash read here is the one updated below even
+	// when another delta for the same worker runs concurrently
+	hash, err := w.queries.LockWorkerActionHash(ctx, tx, workerId)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	}
+
+	actions, err := w.queries.UpsertActions(ctx, tx, sqlcv1.UpsertActionsParams{
+		Tenantid: tenantId,
+		Actions:  actionIds,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not upsert actions: %w", err)
+	}
+
+	actionUUIDs := make([]uuid.UUID, 0, len(actions))
+	actionIdByUUID := make(map[uuid.UUID]string, len(actions))
+
+	for _, action := range actions {
+		actionUUIDs = append(actionUUIDs, action.ID)
+		actionIdByUUID[action.ID] = action.ActionId
+	}
+
+	linked, err := w.queries.LinkActionsToWorkerReturning(ctx, tx, sqlcv1.LinkActionsToWorkerReturningParams{
+		Actionids: actionUUIDs,
+		Workerid:  workerId,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	if len(linked) == 0 {
+		return 0, nil
+	}
+
+	linkedIds := make([]string, 0, len(linked))
+
+	for _, id := range linked {
+		linkedIds = append(linkedIds, actionIdByUUID[id])
+	}
+
+	err = w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
+		Workerid:   workerId,
+		Actionhash: xorActionHash(hash, linkedIds),
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not update worker actions hash: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, err
+	}
+
+	return len(linked), nil
+}
+
+func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+	actionIds = dedupeActionIds(actionIds)
+
+	if len(actionIds) == 0 {
+		return 0, nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rollback()
+
+	hash, err := w.queries.LockWorkerActionHash(ctx, tx, workerId)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	}
+
+	actions, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+		Tenantid:  tenantId,
+		Actionids: actionIds,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not list actions: %w", err)
+	}
+
+	if len(actions) == 0 {
+		return 0, nil
+	}
+
+	actionUUIDs := make([]uuid.UUID, 0, len(actions))
+	actionIdByUUID := make(map[uuid.UUID]string, len(actions))
+
+	for _, action := range actions {
+		actionUUIDs = append(actionUUIDs, action.ID)
+		actionIdByUUID[action.ID] = action.ActionId
+	}
+
+	unlinked, err := w.queries.UnlinkActionsFromWorkerReturning(ctx, tx, sqlcv1.UnlinkActionsFromWorkerReturningParams{
+		Workerid:  workerId,
+		Actionids: actionUUIDs,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not unlink actions from worker: %w", err)
+	}
+
+	if len(unlinked) == 0 {
+		return 0, nil
+	}
+
+	unlinkedIds := make([]string, 0, len(unlinked))
+
+	for _, id := range unlinked {
+		unlinkedIds = append(unlinkedIds, actionIdByUUID[id])
+	}
+
+	err = w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
+		Workerid:   workerId,
+		Actionhash: xorActionHash(hash, unlinkedIds),
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not update worker actions hash: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, err
+	}
+
+	return len(unlinked), nil
+}
+
+// dedupeActionIds lower-cases action ids the way the "Action" table stores them and drops
+// duplicates and empty entries, so a bulk upsert never touches the same row twice.
+func dedupeActionIds(actionIds []string) []string {
+	seen := make(map[string]struct{}, len(actionIds))
+	out := make([]string, 0, len(actionIds))
+
+	for _, actionId := range actionIds {
+		actionId = strings.ToLower(actionId)
+
+		if actionId == "" {
+			continue
+		}
+
+		if _, ok := seen[actionId]; ok {
+			continue
+		}
+
+		seen[actionId] = struct{}{}
+		out = append(out, actionId)
+	}
+
+	return out
 }
 
 // UpdateWorker updates a worker.

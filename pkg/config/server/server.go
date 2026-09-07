@@ -310,6 +310,10 @@ type ConfigFileRuntime struct {
 	// orchestrates concurrently)
 	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
+	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
+	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
+	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
+
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -874,6 +878,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

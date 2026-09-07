@@ -206,7 +206,8 @@ INSERT INTO "Worker" (
     "languageVersion",
     "os",
     "runtimeExtra",
-    "actionHash"
+    "actionHash",
+    "operatorId"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -220,7 +221,9 @@ INSERT INTO "Worker" (
     $7::text,
     $8::text,
     $9::text,
-    $10::bytea
+    $10::bytea,
+    -- set for workers backing an operator connection; NULL for SDK workers
+    $11::uuid
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
 `
 
@@ -235,6 +238,7 @@ type CreateWorkerParams struct {
 	Os              pgtype.Text    `json:"os"`
 	RuntimeExtra    pgtype.Text    `json:"runtimeExtra"`
 	Actionhash      []byte         `json:"actionhash"`
+	OperatorId      *uuid.UUID     `json:"operatorId"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -249,6 +253,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Os,
 		arg.RuntimeExtra,
 		arg.Actionhash,
+		arg.OperatorId,
 	)
 	var i Worker
 	err := row.Scan(
@@ -636,7 +641,8 @@ SELECT
     w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
-    w."lastListenerEstablished" AS "lastListenerEstablished"
+    w."lastListenerEstablished" AS "lastListenerEstablished",
+    w."operatorId" AS "operatorId"
 FROM
     "Worker" w
 LEFT JOIN
@@ -659,6 +665,7 @@ type GetWorkerForEngineRow struct {
 	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
 	IsActive                  bool             `json:"isActive"`
 	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
+	OperatorId                *uuid.UUID       `json:"operatorId"`
 }
 
 func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorkerForEngineParams) (*GetWorkerForEngineRow, error) {
@@ -672,6 +679,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 		&i.DispatcherLastHeartbeatAt,
 		&i.IsActive,
 		&i.LastListenerEstablished,
+		&i.OperatorId,
 	)
 	return &i, err
 }
@@ -747,6 +755,44 @@ func (q *Queries) LinkActionsToWorker(ctx context.Context, db DBTX, arg LinkActi
 	return err
 }
 
+const linkActionsToWorkerReturning = `-- name: LinkActionsToWorkerReturning :many
+INSERT INTO "_ActionToWorker" (
+    "A",
+    "B"
+) SELECT
+    unnest($1::uuid[]),
+    $2::uuid
+ON CONFLICT DO NOTHING
+RETURNING "A"
+`
+
+type LinkActionsToWorkerReturningParams struct {
+	Actionids []uuid.UUID `json:"actionids"`
+	Workerid  uuid.UUID   `json:"workerid"`
+}
+
+// Returns the action row ids that were newly linked, so the caller can fold exactly those into
+// the worker's action hash.
+func (q *Queries) LinkActionsToWorkerReturning(ctx context.Context, db DBTX, arg LinkActionsToWorkerReturningParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, linkActionsToWorkerReturning, arg.Actionids, arg.Workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var A uuid.UUID
+		if err := rows.Scan(&A); err != nil {
+			return nil, err
+		}
+		items = append(items, A)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const linkServicesToWorker = `-- name: LinkServicesToWorker :exec
 INSERT INTO "_ServiceToWorker" (
     "A",
@@ -767,6 +813,45 @@ type LinkServicesToWorkerParams struct {
 func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkServicesToWorkerParams) error {
 	_, err := db.Exec(ctx, linkServicesToWorker, arg.Services, arg.Workerid)
 	return err
+}
+
+const listActionsByActionIds = `-- name: ListActionsByActionIds :many
+SELECT "id", "actionId"
+FROM "Action"
+WHERE
+    "tenantId" = $1::uuid
+    AND "actionId" = ANY($2::text[])
+`
+
+type ListActionsByActionIdsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Actionids []string  `json:"actionids"`
+}
+
+type ListActionsByActionIdsRow struct {
+	ID       uuid.UUID `json:"id"`
+	ActionId string    `json:"actionId"`
+}
+
+// Resolves action ids to their rows. @actionIds are compared as stored (lower-cased).
+func (q *Queries) ListActionsByActionIds(ctx context.Context, db DBTX, arg ListActionsByActionIdsParams) ([]*ListActionsByActionIdsRow, error) {
+	rows, err := db.Query(ctx, listActionsByActionIds, arg.Tenantid, arg.Actionids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActionsByActionIdsRow
+	for rows.Next() {
+		var i ListActionsByActionIdsRow
+		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listActiveSDKsPerTenant = `-- name: ListActiveSDKsPerTenant :many
@@ -1657,6 +1742,22 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 	return items, nil
 }
 
+const lockWorkerActionHash = `-- name: LockWorkerActionHash :one
+SELECT "actionHash"
+FROM "Worker"
+WHERE "id" = $1::uuid
+FOR UPDATE
+`
+
+// Serializes concurrent action set changes on one worker: the caller holds the row lock for the
+// rest of its transaction, so the hash it reads is the hash it updates.
+func (q *Queries) LockWorkerActionHash(ctx context.Context, db DBTX, workerid uuid.UUID) ([]byte, error) {
+	row := db.QueryRow(ctx, lockWorkerActionHash, workerid)
+	var actionHash []byte
+	err := row.Scan(&actionHash)
+	return actionHash, err
+}
+
 const pauseWorkers = `-- name: PauseWorkers :exec
 UPDATE
     "Worker"
@@ -1670,6 +1771,41 @@ WHERE
 func (q *Queries) PauseWorkers(ctx context.Context, db DBTX, ids []uuid.UUID) error {
 	_, err := db.Exec(ctx, pauseWorkers, ids)
 	return err
+}
+
+const unlinkActionsFromWorkerReturning = `-- name: UnlinkActionsFromWorkerReturning :many
+DELETE FROM "_ActionToWorker"
+WHERE
+    "B" = $1::uuid
+    AND "A" = ANY($2::uuid[])
+RETURNING "A"
+`
+
+type UnlinkActionsFromWorkerReturningParams struct {
+	Workerid  uuid.UUID   `json:"workerid"`
+	Actionids []uuid.UUID `json:"actionids"`
+}
+
+// Returns the action row ids that were actually unlinked, so the caller can fold exactly those
+// out of the worker's action hash.
+func (q *Queries) UnlinkActionsFromWorkerReturning(ctx context.Context, db DBTX, arg UnlinkActionsFromWorkerReturningParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, unlinkActionsFromWorkerReturning, arg.Workerid, arg.Actionids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var A uuid.UUID
+		if err := rows.Scan(&A); err != nil {
+			return nil, err
+		}
+		items = append(items, A)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateWorker = `-- name: UpdateWorker :one
@@ -1815,6 +1951,55 @@ type UpdateWorkerHeartbeatsParams struct {
 func (q *Queries) UpdateWorkerHeartbeats(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatsParams) error {
 	_, err := db.Exec(ctx, updateWorkerHeartbeats, arg.Lastheartbeatat, arg.Ids)
 	return err
+}
+
+const upsertActions = `-- name: UpsertActions :many
+INSERT INTO "Action" (
+    "id",
+    "actionId",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    LOWER(a.action),
+    $1::uuid
+FROM unnest($2::text[]) AS a(action)
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
+SET
+    "tenantId" = EXCLUDED."tenantId"
+RETURNING "id", "actionId"
+`
+
+type UpsertActionsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Actions  []string  `json:"actions"`
+}
+
+type UpsertActionsRow struct {
+	ID       uuid.UUID `json:"id"`
+	ActionId string    `json:"actionId"`
+}
+
+// Bulk form of UpsertAction. @actions must not contain duplicates after lower-casing: the same
+// row cannot be affected twice by one ON CONFLICT DO UPDATE statement.
+func (q *Queries) UpsertActions(ctx context.Context, db DBTX, arg UpsertActionsParams) ([]*UpsertActionsRow, error) {
+	rows, err := db.Query(ctx, upsertActions, arg.Tenantid, arg.Actions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpsertActionsRow
+	for rows.Next() {
+		var i UpsertActionsRow
+		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertService = `-- name: UpsertService :one

@@ -1498,6 +1498,7 @@ type V1OperatorKind string
 const (
 	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
 	V1OperatorKindDAG     V1OperatorKind = "DAG"
+	V1OperatorKindGRPC    V1OperatorKind = "GRPC"
 )
 
 func (e *V1OperatorKind) Scan(src interface{}) error {

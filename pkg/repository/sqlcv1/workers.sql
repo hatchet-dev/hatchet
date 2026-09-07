@@ -450,7 +450,8 @@ SELECT
     w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
-    w."lastListenerEstablished" AS "lastListenerEstablished"
+    w."lastListenerEstablished" AS "lastListenerEstablished",
+    w."operatorId" AS "operatorId"
 FROM
     "Worker" w
 LEFT JOIN
@@ -491,6 +492,61 @@ INSERT INTO "_ActionToWorker" (
     unnest(@actionIds::uuid[]),
     @workerId::uuid
 ON CONFLICT DO NOTHING;
+
+-- name: LockWorkerActionHash :one
+-- Serializes concurrent action set changes on one worker: the caller holds the row lock for the
+-- rest of its transaction, so the hash it reads is the hash it updates.
+SELECT "actionHash"
+FROM "Worker"
+WHERE "id" = @workerId::uuid
+FOR UPDATE;
+
+-- name: UpsertActions :many
+-- Bulk form of UpsertAction. @actions must not contain duplicates after lower-casing: the same
+-- row cannot be affected twice by one ON CONFLICT DO UPDATE statement.
+INSERT INTO "Action" (
+    "id",
+    "actionId",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    LOWER(a.action),
+    @tenantId::uuid
+FROM unnest(@actions::text[]) AS a(action)
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
+SET
+    "tenantId" = EXCLUDED."tenantId"
+RETURNING "id", "actionId";
+
+-- name: LinkActionsToWorkerReturning :many
+-- Returns the action row ids that were newly linked, so the caller can fold exactly those into
+-- the worker's action hash.
+INSERT INTO "_ActionToWorker" (
+    "A",
+    "B"
+) SELECT
+    unnest(@actionIds::uuid[]),
+    @workerId::uuid
+ON CONFLICT DO NOTHING
+RETURNING "A";
+
+-- name: ListActionsByActionIds :many
+-- Resolves action ids to their rows. @actionIds are compared as stored (lower-cased).
+SELECT "id", "actionId"
+FROM "Action"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "actionId" = ANY(@actionIds::text[]);
+
+-- name: UnlinkActionsFromWorkerReturning :many
+-- Returns the action row ids that were actually unlinked, so the caller can fold exactly those
+-- out of the worker's action hash.
+DELETE FROM "_ActionToWorker"
+WHERE
+    "B" = @workerId::uuid
+    AND "A" = ANY(@actionIds::uuid[])
+RETURNING "A";
 
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
@@ -636,7 +692,8 @@ INSERT INTO "Worker" (
     "languageVersion",
     "os",
     "runtimeExtra",
-    "actionHash"
+    "actionHash",
+    "operatorId"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -650,7 +707,9 @@ INSERT INTO "Worker" (
     sqlc.narg('languageVersion')::text,
     sqlc.narg('os')::text,
     sqlc.narg('runtimeExtra')::text,
-    @actionHash::bytea
+    @actionHash::bytea,
+    -- set for workers backing an operator connection; NULL for SDK workers
+    sqlc.narg('operatorId')::uuid
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

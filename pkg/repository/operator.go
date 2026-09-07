@@ -32,6 +32,13 @@ type OperatorRepository interface {
 	// UpdateOperatorWorkerActions updates the registered actions for the worker corresponding to the operator.
 	UpdateOperatorWorkerActions(ctx context.Context, tenantId, workerId uuid.UUID, actions []string) error
 
+	// UpsertGRPCOperator registers an out-of-process operator by (tenant, name) with kind GRPC,
+	// returning the existing row on repeat connects. GRPC operators never get a worker_id on the
+	// operator row: each connection owns its own worker, created through
+	// WorkerRepository.CreateNewWorker with CreateWorkerOpts.OperatorId and linked via
+	// "Worker"."operatorId".
+	UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
+
 	// ListDAGOrchestrationActions returns the orchestration action IDs ("{name}_orchestrator")
 	// for all DAG workflows of a tenant. The DAG operator polls this to keep its registered
 	// actions in sync with the tenant's DAGs.
@@ -279,4 +286,11 @@ func (r *operatorRepository) UpdateOperatorWorkerActions(ctx context.Context, te
 	}
 
 	return commit(ctx)
+}
+
+func (r *operatorRepository) UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return r.queries.UpsertGRPCOperator(ctx, r.pool, sqlcv1.UpsertGRPCOperatorParams{
+		Tenantid: tenantId,
+		Name:     name,
+	})
 }

@@ -37,9 +37,15 @@ WITH operators_on_inactive_dispatchers AS (
 )
 SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
 FROM v1_operator
-WHERE v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+WHERE
+    -- GRPC operators run out of process and register their own workers over OperatorService, so
+    -- the in-engine operator manager never claims or reconciles them.
+    v1_operator.kind <> 'GRPC'
+    AND (
+        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
+        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
+        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+    )
 ORDER BY v1_operator.id
 FOR UPDATE SKIP LOCKED
 `
@@ -449,4 +455,44 @@ type UpdateWorkerActionsHashParams struct {
 func (q *Queries) UpdateWorkerActionsHash(ctx context.Context, db DBTX, arg UpdateWorkerActionsHashParams) error {
 	_, err := db.Exec(ctx, updateWorkerActionsHash, arg.Actionhash, arg.Workerid)
 	return err
+}
+
+const upsertGRPCOperator = `-- name: UpsertGRPCOperator :one
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    config
+) VALUES (
+    $1::UUID,
+    $2::TEXT,
+    'GRPC',
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name) WHERE kind = 'GRPC' DO UPDATE
+SET updated_at = NOW()
+RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+`
+
+type UpsertGRPCOperatorParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Name     string    `json:"name"`
+}
+
+// Registers a GRPC operator by (tenant, name) on connect. The operator row carries no config and
+// no worker_id: each Listen stream creates its own worker linked back via "Worker"."operatorId".
+func (q *Queries) UpsertGRPCOperator(ctx context.Context, db DBTX, arg UpsertGRPCOperatorParams) (*V1Operator, error) {
+	row := db.QueryRow(ctx, upsertGRPCOperator, arg.Tenantid, arg.Name)
+	var i V1Operator
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Kind,
+		&i.Config,
+		&i.WorkerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
 }

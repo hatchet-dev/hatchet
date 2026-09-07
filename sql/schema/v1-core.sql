@@ -2788,7 +2788,7 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
 -- HTTP_API is retained only because Postgres cannot drop enum values; the engine never
 -- instantiates operators of that kind.
-CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG', 'GRPC');
 
 CREATE TABLE v1_operator (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -2801,6 +2801,10 @@ CREATE TABLE v1_operator (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
 );
+
+-- GRPC operators are upserted by name on connect, so the name must be unique within a tenant for
+-- that kind. Other kinds are created through the REST API and may share names.
+CREATE UNIQUE INDEX v1_operator_grpc_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'GRPC';
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,
