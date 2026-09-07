@@ -119,14 +119,14 @@ function extractRunIdFromNiceGrpcMetadata(metadata: NiceGrpcMetadata | undefined
   return '';
 }
 
-type DesiredWorkerLabelOpt = {
+export type DesiredWorkerLabelOpt = {
   value: string | number;
   required?: boolean;
   weight?: number;
   comparator?: WorkerLabelComparator;
 };
 
-function convertDesiredWorkerLabels(
+export function convertDesiredWorkerLabels(
   labels: Record<string, DesiredWorkerLabelOpt>
 ): Record<string, DesiredWorkerLabels> {
   return Object.fromEntries(

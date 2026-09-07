@@ -33,6 +33,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import { convertDesiredWorkerLabels } from '@hatchet/v1/client/admin';
 import { createHash } from 'crypto';
 import { z } from 'zod/v4';
 import { InternalWorker } from './worker-internal';
@@ -1209,7 +1210,9 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         : undefined,
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
-      desiredWorkerLabels: {},
+      desiredWorkerLabels: options?.desiredWorkerLabels
+        ? convertDesiredWorkerLabels(options.desiredWorkerLabels)
+        : {},
     };
 
     return { workflowName, triggerOpts };
