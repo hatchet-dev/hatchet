@@ -110,6 +110,18 @@ func (m *metrics) delivered(result string, d time.Duration) {
 	m.v.deliveryDuration.WithLabelValues(m.link).Observe(d.Seconds())
 }
 
+func (m *metrics) wsOpened() {
+	m.v.wsConnectionsOpen.WithLabelValues(m.link).Inc()
+}
+
+func (m *metrics) wsClosed() {
+	m.v.wsConnectionsOpen.WithLabelValues(m.link).Dec()
+}
+
+func (m *metrics) evicted(source string) {
+	m.v.evictions.WithLabelValues(m.link, source).Inc()
+}
+
 func (m *metrics) routingMiss() {
 	m.v.routingMisses.WithLabelValues(m.link).Inc()
 }

@@ -210,16 +210,18 @@ type endpointConfig struct {
 
 // cachedEndpoint is one endpoint of a served tenant. Identity fields never change; cfg is
 // swapped under the cache lock; workflows are what this process learned from the endpoint's
-// healthcheck (namespaced), also guarded by the cache lock. The limiter survives refreshes
-// so in-flight deliveries keep their slot.
+// healthcheck (namespaced), also guarded by the cache lock. The limiters survive refreshes
+// so in-flight deliveries keep their slot: limiter bounds non-durable deliveries,
+// durableLimiter bounds open durable websockets.
 type cachedEndpoint struct {
-	cfg       *endpointConfig
-	limiter   *slotLimiter
-	workflows []*v1.CreateWorkflowVersionRequest
-	id        uuid.UUID
-	tenantId  uuid.UUID
-	namespace uuid.UUID
-	shard     int32
+	cfg            *endpointConfig
+	limiter        *slotLimiter
+	durableLimiter *slotLimiter
+	workflows      []*v1.CreateWorkflowVersionRequest
+	id             uuid.UUID
+	tenantId       uuid.UUID
+	namespace      uuid.UUID
+	shard          int32
 }
 
 // routingCache is a served tenant's endpoints keyed by namespace and by id, with decrypted
@@ -327,11 +329,12 @@ func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
 
 	if !ok {
 		ep = &cachedEndpoint{
-			id:        row.ID,
-			tenantId:  row.TenantID,
-			namespace: row.Namespace,
-			shard:     row.Shard,
-			limiter:   newSlotLimiter(int(row.Slots)),
+			id:             row.ID,
+			tenantId:       row.TenantID,
+			namespace:      row.Namespace,
+			shard:          row.Shard,
+			limiter:        newSlotLimiter(int(row.Slots)),
+			durableLimiter: newSlotLimiter(int(row.DurableSlots)),
 		}
 
 		c.byId[row.ID] = ep
@@ -387,6 +390,10 @@ func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
 
 	if prev == nil || prev.slots != cfg.slots {
 		ep.limiter.resize(int(cfg.slots))
+	}
+
+	if prev == nil || prev.durableSlots != cfg.durableSlots {
+		ep.durableLimiter.resize(int(cfg.durableSlots))
 	}
 
 	ep.cfg = cfg

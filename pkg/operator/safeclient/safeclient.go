@@ -78,12 +78,14 @@ type httpDoer interface {
 // Sender delivers outbound HTTP requests under the SSRF policy. Construct one with New and
 // reuse it; it is safe for concurrent use.
 type Sender struct {
-	client       httpDoer
-	blocklist    *blocklist
-	l            *zerolog.Logger
-	allowedPorts []int
-	maxBytes     int64
-	insecure     bool
+	client         httpDoer
+	blocklist      *blocklist
+	l              *zerolog.Logger
+	allowedPorts   []int
+	maxBytes       int64
+	connectTimeout time.Duration
+	insecure       bool
+	enableIPv6     bool
 }
 
 // New validates cfg, builds the safeurl-backed client, and returns a Sender. It fails if
@@ -169,11 +171,13 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 	client := safeurl.Client(builder.Build())
 
 	return &Sender{
-		client:       client,
-		blocklist:    bl,
-		allowedPorts: ports,
-		maxBytes:     cfg.MaxResponseBytes,
-		l:            l,
+		client:         client,
+		blocklist:      bl,
+		allowedPorts:   ports,
+		maxBytes:       cfg.MaxResponseBytes,
+		connectTimeout: cfg.ConnectTimeout,
+		enableIPv6:     cfg.EnableIPv6,
+		l:              l,
 	}, nil
 }
 
@@ -192,11 +196,13 @@ func newInsecureSender(cfg Config, l *zerolog.Logger) *Sender {
 	}
 
 	return &Sender{
-		client:    &http.Client{Transport: transport, CheckRedirect: noRedirects},
-		blocklist: &blocklist{},
-		maxBytes:  cfg.MaxResponseBytes,
-		l:         l,
-		insecure:  true,
+		client:         &http.Client{Transport: transport, CheckRedirect: noRedirects},
+		blocklist:      &blocklist{},
+		maxBytes:       cfg.MaxResponseBytes,
+		connectTimeout: cfg.ConnectTimeout,
+		l:              l,
+		insecure:       true,
+		enableIPv6:     true,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
@@ -309,13 +310,8 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 		return
 	}
 
-	// TODO(phase 5): durable actions open a DurableChannel through the registration and are
-	// relayed over the endpoint websocket. Until then they fail retryably so the engine keeps
-	// them.
 	if action.DurableTaskInvocationCount != nil {
-		reg.r.m.delivered("durable_unsupported", time.Since(start))
-		reg.reportFailure(action, "durable delivery not implemented", true)
-
+		reg.deliverDurable(ctx, task, action, ep, cfg, start)
 		return
 	}
 
@@ -340,6 +336,111 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	}
 
 	if err := reg.events.report(action, out); err != nil {
+		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task outcome")
+	}
+}
+
+// deliverDurable relays a durable invocation over the endpoint websocket: take a durable
+// slot, report STARTED, open the invocation's channel through the registration and run the
+// relay, which owns the socket and the channel until the endpoint's done frame or a failure.
+func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time) {
+	invocation := *action.DurableTaskInvocationCount
+
+	dialer, ok := reg.r.sender.(durable.NetDialer)
+
+	if !ok {
+		reg.r.m.delivered("failed", time.Since(start))
+		reg.reportFailure(action, "durable delivery requires a request sender that dials under the SSRF policy", false)
+
+		return
+	}
+
+	if cfg.secretErr != nil {
+		reg.r.m.delivered("failed", time.Since(start))
+		reg.reportFailure(action, cfg.secretErr.Error(), false)
+
+		return
+	}
+
+	if err := ep.durableLimiter.acquire(ctx); err != nil {
+		reg.reportAborted(task, action)
+		return
+	}
+
+	defer ep.durableLimiter.release()
+
+	if err := reg.events.started(action); err != nil {
+		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
+	}
+
+	ch, err := reg.reg.OpenDurable(ctx, action.TaskRunExternalId, invocation)
+
+	if err != nil {
+		result := "retryable"
+
+		if errors.Is(err, link.ErrDurableNotSupported) {
+			result = "durable_unsupported"
+		}
+
+		reg.r.m.delivered(result, time.Since(start))
+		reg.reportFailure(action, err.Error(), true)
+
+		return
+	}
+
+	timeout := requestTimeout(cfg)
+
+	rctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	insecure := false
+
+	if ir, ok := reg.r.sender.(interface{ InsecureDestinations() bool }); ok {
+		insecure = ir.InsecureDestinations()
+	}
+
+	reg.r.m.wsOpened()
+
+	out := durable.Run(rctx, durable.Params{
+		Logger:             reg.r.l,
+		Dialer:             dialer,
+		Channel:            ch,
+		Action:             action,
+		Cancelled:          task.byEngine.Load,
+		TriggerURL:         cfg.triggerUrl,
+		Secret:             cfg.secret,
+		EndpointId:         ep.id.String(),
+		Namespace:          ep.namespace.String(),
+		TaskId:             action.TaskRunExternalId,
+		MaxFrameBytes:      reg.r.cfg.WSMaxFrameBytes,
+		PingInterval:       reg.r.cfg.WSPingInterval,
+		InlineWaitBudgetMs: cfg.inlineWaitBudgetMs,
+		Invocation:         invocation,
+		Insecure:           insecure,
+	})
+
+	reg.r.m.wsClosed()
+
+	if out.Kind == durable.KindEvicted {
+		reg.r.m.evicted(out.EvictionSource)
+	}
+
+	o, report := durableOutcome(out)
+
+	reg.r.m.delivered(o.result, time.Since(start))
+
+	reg.r.l.Debug().
+		Str("task_run_external_id", action.TaskRunExternalId).
+		Int32("invocation", invocation).
+		Str("result", o.result).
+		Int("close_code", out.CloseCode).
+		Msg("durable invocation relayed")
+
+	if !report {
+		return
+	}
+
+	if err := reg.events.report(action, o); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task outcome")
 	}
 }

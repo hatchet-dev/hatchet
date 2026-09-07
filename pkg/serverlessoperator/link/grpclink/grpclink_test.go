@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
@@ -128,19 +129,43 @@ func TestStaticExchange(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// fakeSession is the minimal OperatorSession the link needs.
+// fakeSession is the minimal OperatorSession the link needs. Durable listeners are built
+// over a fakeDurableStream (durable_test.go) and stopped on Close like the real session does.
 type fakeSession struct {
 	client.OperatorSession
-	workerId string
-	closed   bool
+	stream    *fakeDurableStream
+	listeners []*client.DurableTaskListener
+	workerId  string
+	closed    bool
 }
 
 func (f *fakeSession) Registration() client.OperatorRegistration {
 	return client.OperatorRegistration{WorkerId: f.workerId}
 }
 
+func (f *fakeSession) NewDurableTaskListener(opts ...client.DurableTaskListenerOpt) *client.DurableTaskListener {
+	if f.stream == nil {
+		f.stream = newFakeDurableStream()
+	}
+
+	stream := f.stream
+
+	listener := client.NewDurableTaskListener(f.workerId, func(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+		return stream, nil
+	}, nil, opts...)
+
+	f.listeners = append(f.listeners, listener)
+
+	return listener
+}
+
 func (f *fakeSession) Close() error {
 	f.closed = true
+
+	for _, l := range f.listeners {
+		l.Stop()
+	}
+
 	return nil
 }
 
@@ -223,8 +248,9 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	assert.Equal(t, "v", req.Labels["k"])
 	assert.Equal(t, 1, req.Labels["hatchet-serverless-shard"])
 
-	_, err = reg.OpenDurable(context.Background(), "task", 0)
-	assert.ErrorIs(t, err, link.ErrDurableNotSupported)
+	ch, err := reg.OpenDurable(context.Background(), "task", 0)
+	require.NoError(t, err)
+	require.NoError(t, ch.Close())
 
 	require.NoError(t, reg2.Close())
 	assert.True(t, built[0].operator.sessions[1].closed)

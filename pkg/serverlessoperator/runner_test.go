@@ -366,10 +366,12 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	durable.DurableTaskInvocationCount = &invocation
 	reg.actions <- durable
 
-	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
+	// STARTED goes out before the channel is opened, then the link's refusal is reported.
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 3 }, eventually, 10*time.Millisecond)
+	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, reg.eventTypes()[1])
 	ev := reg.lastEvent()
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType)
-	assert.Equal(t, "durable delivery not implemented", ev.EventPayload)
+	assert.Equal(t, link.ErrDurableNotSupported.Error(), ev.EventPayload)
 	assert.False(t, *ev.ShouldNotRetry)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -50,19 +51,21 @@ type putCall struct {
 }
 
 // fakeRegistration records what the core does with a registration and lets tests push
-// assigned actions.
+// assigned actions. openDurable, when set, backs OpenDurable; otherwise the link reports
+// durable delivery unsupported.
 type fakeRegistration struct {
-	actions  chan *contracts.AssignedAction
-	errs     chan error
-	putErr   error
-	workerId string
-	puts     []putCall
-	updates  [][]string
-	events   []*contracts.StepActionEvent
-	tenantId uuid.UUID
-	shard    int
-	mu       sync.Mutex
-	closed   bool
+	actions     chan *contracts.AssignedAction
+	errs        chan error
+	putErr      error
+	openDurable func(taskId string, invocation int32) (link.DurableChannel, error)
+	workerId    string
+	puts        []putCall
+	updates     [][]string
+	events      []*contracts.StepActionEvent
+	tenantId    uuid.UUID
+	shard       int
+	mu          sync.Mutex
+	closed      bool
 }
 
 func (f *fakeRegistration) WorkerId() string { return f.workerId }
@@ -102,8 +105,23 @@ func (f *fakeRegistration) SendStepActionEvent(_ context.Context, ev *contracts.
 	return nil
 }
 
-func (f *fakeRegistration) OpenDurable(_ context.Context, _ string, _ int32) (link.DurableChannel, error) {
-	return nil, link.ErrDurableNotSupported
+func (f *fakeRegistration) OpenDurable(_ context.Context, taskId string, invocation int32) (link.DurableChannel, error) {
+	f.mu.Lock()
+	open := f.openDurable
+	f.mu.Unlock()
+
+	if open == nil {
+		return nil, link.ErrDurableNotSupported
+	}
+
+	return open(taskId, invocation)
+}
+
+func (f *fakeRegistration) setOpenDurable(open func(taskId string, invocation int32) (link.DurableChannel, error)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.openDurable = open
 }
 
 func (f *fakeRegistration) Close() error {
@@ -284,6 +302,16 @@ func (f *fakeSender) Deliver(ctx context.Context, method, endpoint string, body 
 	}
 
 	return h(ctx, call)
+}
+
+// DialContext dials directly: tests only reach loopback servers. InsecureDestinations lets
+// the durable relay dial http test servers as ws.
+func (f *fakeSender) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return (&net.Dialer{}).DialContext(ctx, network, addr)
+}
+
+func (f *fakeSender) InsecureDestinations() bool {
+	return true
 }
 
 func (f *fakeSender) callsTo(endpoint string) []senderCall {

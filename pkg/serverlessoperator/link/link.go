@@ -24,6 +24,15 @@ var ErrNoToken = errors.New("no token for tenant")
 // actions with a retryable error.
 var ErrDurableNotSupported = errors.New("durable delivery not supported by this link")
 
+// ErrRequestInFlight is returned by DurableChannel.Send when an ack-bearing request (memo,
+// trigger_runs, wait_for, evict_invocation) is sent while another one is still waiting for
+// its ack. The engine keys pending acks by (task, invocation), so a second one would clobber
+// the first; the relay closes the socket with code 4006.
+var ErrRequestInFlight = errors.New("durable request already in flight for this invocation")
+
+// ErrChannelClosed is returned by DurableChannel.Recv once Close was called.
+var ErrChannelClosed = errors.New("durable channel closed")
+
 // OpenOpts is what a registration advertises to the engine when it opens: the tenant's known
 // workflows (already namespaced), the full action set (the union of registered_actions over the
 // tenant's enabled endpoints), the process-level slot config and the worker labels.

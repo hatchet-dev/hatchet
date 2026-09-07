@@ -182,9 +182,13 @@ func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts 
 	})
 }
 
-// registration adapts an OperatorSession to link.Registration.
+// registration adapts an OperatorSession to link.Registration. hub is created by the first
+// OpenDurable and holds the session's one DurableTaskListener.
 type registration struct {
 	session client.OperatorSession
+	hub     *durableHub
+	mu      sync.Mutex
+	closed  bool
 }
 
 func (r *registration) WorkerId() string {
@@ -209,12 +213,35 @@ func (r *registration) SendStepActionEvent(ctx context.Context, ev *contracts.St
 	return err
 }
 
-// OpenDurable is not implemented yet. Phase 5 backs it with the session's DurableTaskListener
-// (one per registration, multiplexed by task external id and invocation).
-func (r *registration) OpenDurable(_ context.Context, _ string, _ int32) (link.DurableChannel, error) {
-	return nil, link.ErrDurableNotSupported
+// OpenDurable implements link.Registration over the session's DurableTaskListener, one per
+// registration, multiplexed by task external id and invocation.
+func (r *registration) OpenDurable(_ context.Context, taskExternalId string, invocation int32) (link.DurableChannel, error) {
+	r.mu.Lock()
+
+	if r.closed {
+		r.mu.Unlock()
+		return nil, errors.New("registration closed")
+	}
+
+	if r.hub == nil {
+		r.hub = newDurableHub(r.session)
+	}
+
+	hub := r.hub
+	r.mu.Unlock()
+
+	return hub.open(taskExternalId, invocation)
 }
 
 func (r *registration) Close() error {
+	r.mu.Lock()
+	r.closed = true
+	hub := r.hub
+	r.mu.Unlock()
+
+	if hub != nil {
+		hub.closeAll()
+	}
+
 	return r.session.Close()
 }

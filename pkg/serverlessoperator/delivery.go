@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 )
 
 const (
@@ -50,6 +51,25 @@ func failedOutcome(msg string, retry bool) outcome {
 
 func cancelledOutcome() outcome {
 	return outcome{status: contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED, result: "cancelled"}
+}
+
+// durableOutcome maps a relay outcome onto the event to report. report is false when no
+// terminal event is due: an eviction (the engine re-invokes the task), an engine cancel
+// (CANCELLED was sent when the cancel arrived) and an operator shutdown (the engine
+// re-delivers when the worker goes away).
+func durableOutcome(out durable.Outcome) (o outcome, report bool) {
+	switch out.Kind {
+	case durable.KindCompleted:
+		return completedOutcome(out.Output), true
+	case durable.KindFailed:
+		return failedOutcome(out.Error, out.Retry), true
+	case durable.KindEvicted:
+		return outcome{result: "evicted"}, false
+	case durable.KindCancelled:
+		return cancelledOutcome(), false
+	default:
+		return outcome{result: "shutdown"}, false
+	}
 }
 
 // buildTriggerEnvelope serializes the trigger body. The action is protojson so new

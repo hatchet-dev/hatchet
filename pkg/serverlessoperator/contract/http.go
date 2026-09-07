@@ -1,6 +1,9 @@
 package contract
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Headers carried by every request the operator sends to an endpoint. Endpoints verify
 // SignatureHeader by recomputing the HMAC-SHA256 hex digest of the raw body with their
@@ -10,6 +13,24 @@ const (
 	EndpointIdHeader = "X-Hatchet-Endpoint-Id"
 	TimestampHeader  = "X-Hatchet-Timestamp"
 )
+
+// Headers carried only by the durable websocket upgrade, which has no body to sign. The
+// endpoint verifies SignatureHeader against UpgradeSigningPayload with its signing secret,
+// rejects timestamps older than UpgradeMaxAge, and may keep a nonce set against replay.
+const (
+	NonceHeader      = "X-Hatchet-Nonce"
+	TaskIdHeader     = "X-Hatchet-Task-Id"
+	InvocationHeader = "X-Hatchet-Invocation"
+)
+
+// UpgradeMaxAge is how old an upgrade timestamp may be before an endpoint rejects it.
+const UpgradeMaxAge = 5 * time.Minute
+
+// UpgradeSigningPayload is the string the durable upgrade signature covers:
+// timestamp "." nonce "." task_id "." invocation, each as it appears in its header.
+func UpgradeSigningPayload(timestamp, nonce, taskId, invocation string) string {
+	return timestamp + "." + nonce + "." + taskId + "." + invocation
+}
 
 // TriggerEnvelopeVersion is the version field of the non-durable trigger envelope.
 const TriggerEnvelopeVersion = 1
