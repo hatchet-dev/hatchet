@@ -1942,9 +1942,7 @@ func (r *sharedRepository) registerChildWorkflows(
 		}
 
 		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
-			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
 		})
@@ -1971,9 +1969,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			childExternalId = *event.ChildExternalID
 		} else {
 			payload, ok := payloads[RetrievePayloadOpts{
-				Id:         event.ID,
 				InsertedAt: event.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 				TenantId:   tenantId,
 				ExternalId: event.ExternalID,
 			}]
@@ -2973,9 +2969,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 
 	for _, row := range rows {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-			Id:         row.TaskEventID,
 			InsertedAt: row.TaskEventInsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.OutputEventExternalID,
 		})

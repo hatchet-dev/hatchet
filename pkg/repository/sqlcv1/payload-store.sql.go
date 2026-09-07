@@ -356,34 +356,25 @@ func (q *Queries) MarkCutoverJobAsCompleted(ctx context.Context, db DBTX, key pg
 const readPayloads = `-- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST($3::UUID[]) AS tenant_id,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::UUID[]) AS external_id
 )
 
 SELECT tenant_id, id, inserted_at, inserted_at_date, external_id, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
+WHERE
+    (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
+    AND inserted_at_date >= $1::DATE
 `
 
 type ReadPayloadsParams struct {
-	Ids         []int64              `json:"ids"`
-	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Tenantids   []uuid.UUID          `json:"tenantids"`
-	Types       []string             `json:"types"`
+	Mininsertedatdate pgtype.Date `json:"mininsertedatdate"`
+	Tenantids         []uuid.UUID `json:"tenantids"`
+	Externalids       []uuid.UUID `json:"externalids"`
 }
 
 func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
-	rows, err := db.Query(ctx, readPayloads,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Tenantids,
-		arg.Types,
-	)
+	rows, err := db.Query(ctx, readPayloads, arg.Mininsertedatdate, arg.Tenantids, arg.Externalids)
 	if err != nil {
 		return nil, err
 	}
@@ -459,12 +450,16 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (tenant_id, id, inserted_at, type)
+ON CONFLICT (external_id, inserted_at_date)
 DO UPDATE SET
     location = EXCLUDED.location,
     external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
+WHERE
+    v1_payload.location IS DISTINCT FROM EXCLUDED.location
+    OR v1_payload.external_location_key IS DISTINCT FROM EXCLUDED.external_location_key
+    OR v1_payload.inline_content IS DISTINCT FROM EXCLUDED.inline_content
 `
 
 type WritePayloadsParams struct {

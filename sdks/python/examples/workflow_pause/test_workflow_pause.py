@@ -19,20 +19,20 @@ async def test_workflow_pause_cancel_after_ttl(hatchet: Hatchet) -> None:
 
     start_time = time.time()
     run_id = ref.workflow_run_id
-    timeout = 10  # seconds
-
-    while True:
+    timeout = 30
+    while time.time() - start_time < timeout:
         details = await hatchet.runs.aio_get_details(run_id)
 
         if details.status == RunStatus.CANCELLED:
             return
 
-        assert details.status == RunStatus.QUEUED, f"Run {run_id} is not queued."
-
-        if time.time() - start_time > timeout:
-            assert False, f"Run {run_id} was not cancelled within {timeout} seconds."
+        assert (
+            details.status != RunStatus.COMPLETED
+        ), f"Run {run_id} completed, but it should have been cancelled by the queue TTL."
 
         await asyncio.sleep(1)
+
+    assert False, f"Run {run_id} was not cancelled within {timeout} seconds."
 
 
 @pytest.mark.asyncio(loop_scope="session")

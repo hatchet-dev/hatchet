@@ -2166,9 +2166,9 @@ CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
-    id BIGINT NOT NULL,
+    id BIGINT NOT NULL, -- deprecated
     inserted_at TIMESTAMPTZ NOT NULL,
-    inserted_at_date DATE NOT NULL DEFAULT CURRENT_TIMESTAMP::DATE,
+    inserted_at_date DATE NOT NULL,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
@@ -2176,15 +2176,13 @@ CREATE TABLE v1_payload (
     inline_content JSONB,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, inserted_at, id, type),
-    CHECK (
+    PRIMARY KEY (external_id, inserted_at_date),
+    CONSTRAINT v1_payload_location_check CHECK (
         location = 'INLINE'
         OR
         (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
     )
-) PARTITION BY RANGE(inserted_at);
-
-CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+) PARTITION BY RANGE(inserted_at_date);
 
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
@@ -2252,9 +2250,9 @@ BEGIN
         ALTER TABLE %I
         ADD CONSTRAINT %I
         CHECK (
-            inserted_at IS NOT NULL
-            AND inserted_at >= %L::TIMESTAMPTZ
-            AND inserted_at < %L::TIMESTAMPTZ
+            inserted_at_date IS NOT NULL
+            AND inserted_at_date >= %L::DATE
+            AND inserted_at_date < %L::DATE
         )
         ',
         target_table_name,
@@ -2268,9 +2266,9 @@ BEGIN
             LANGUAGE plpgsql AS $func$
         BEGIN
             IF TG_OP = ''INSERT'' THEN
-                INSERT INTO %I (tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at)
-                VALUES (NEW.tenant_id, NEW.id, NEW.inserted_at, NEW.external_id, NEW.type, NEW.location, NEW.external_location_key, NEW.inline_content, NEW.updated_at)
-                ON CONFLICT (tenant_id, id, inserted_at, type) DO UPDATE
+                INSERT INTO %I (tenant_id, id, inserted_at, inserted_at_date, external_id, type, location, external_location_key, inline_content, updated_at)
+                VALUES (NEW.tenant_id, NEW.id, NEW.inserted_at, NEW.inserted_at_date, NEW.external_id, NEW.type, NEW.location, NEW.external_location_key, NEW.inline_content, NEW.updated_at)
+                ON CONFLICT (external_id, inserted_at_date) DO UPDATE
                 SET
                     location = EXCLUDED.location,
                     external_location_key = EXCLUDED.external_location_key,
@@ -2285,18 +2283,14 @@ BEGIN
                     inline_content = NEW.inline_content,
                     updated_at = NEW.updated_at
                 WHERE
-                    tenant_id = NEW.tenant_id
-                    AND id = NEW.id
-                    AND inserted_at = NEW.inserted_at
-                    AND type = NEW.type;
+                    external_id = NEW.external_id
+                    AND inserted_at_date = NEW.inserted_at_date;
                 RETURN NEW;
             ELSIF TG_OP = ''DELETE'' THEN
                 DELETE FROM %I
                 WHERE
-                    tenant_id = OLD.tenant_id
-                    AND id = OLD.id
-                    AND inserted_at = OLD.inserted_at
-                    AND type = OLD.type;
+                    external_id = OLD.external_id
+                    AND inserted_at_date = OLD.inserted_at_date;
                 RETURN OLD;
             END IF;
             RETURN NULL;
@@ -2489,57 +2483,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION diff_payload_source_and_target_partitions(
-    partition_date date
-) RETURNS TABLE (
-    tenant_id UUID,
-    id BIGINT,
-    inserted_at TIMESTAMPTZ,
-    external_id UUID,
-    type v1_payload_type,
-    location v1_payload_location,
-    external_location_key TEXT,
-    inline_content JSONB,
-    updated_at TIMESTAMPTZ
-)
-    LANGUAGE plpgsql AS
-$$
-DECLARE
-    partition_date_str varchar;
-    source_partition_name varchar;
-    temp_partition_name varchar;
-    query text;
-BEGIN
-    IF partition_date IS NULL THEN
-        RAISE EXCEPTION 'partition_date parameter cannot be NULL';
-    END IF;
-
-    SELECT to_char(partition_date, 'YYYYMMDD') INTO partition_date_str;
-    SELECT format('v1_payload_%s', partition_date_str) INTO source_partition_name;
-    SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_partition_name;
-
-    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = source_partition_name) THEN
-        RAISE EXCEPTION 'Partition % does not exist', source_partition_name;
-    END IF;
-
-    query := format('
-        SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
-        FROM %I source
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM %I AS target
-            WHERE
-                source.tenant_id = target.tenant_id
-                AND source.inserted_at = target.inserted_at
-                AND source.id = target.id
-                AND source.type = target.type
-        )
-    ', source_partition_name, temp_partition_name);
-
-    RETURN QUERY EXECUTE query;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION swap_v1_payload_partition_with_temp(
     partition_date date
 ) RETURNS text
@@ -2551,8 +2494,6 @@ DECLARE
     temp_table_name varchar;
     old_pk_name varchar;
     new_pk_name varchar;
-    old_ext_id_idx_name varchar;
-    new_ext_id_idx_name varchar;
     partition_start date;
     partition_end date;
     trigger_function_name varchar;
@@ -2567,8 +2508,6 @@ BEGIN
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_table_name;
     SELECT format('v1_payload_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
     SELECT format('v1_payload_%s_pkey', partition_date_str) INTO new_pk_name;
-    SELECT format('v1_payload_offload_tmp_%s_external_id_idx', partition_date_str) INTO old_ext_id_idx_name;
-    SELECT format('v1_payload_%s_external_id_idx', partition_date_str) INTO new_ext_id_idx_name;
     SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
 
@@ -2608,9 +2547,6 @@ BEGIN
 
     RAISE NOTICE 'Renaming primary key % to %', old_pk_name, new_pk_name;
     EXECUTE format('ALTER INDEX %I RENAME TO %I', old_pk_name, new_pk_name);
-
-    RAISE NOTICE 'Renaming external_id index % to %', old_ext_id_idx_name, new_ext_id_idx_name;
-    EXECUTE format('ALTER INDEX %I RENAME TO %I', old_ext_id_idx_name, new_ext_id_idx_name);
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
