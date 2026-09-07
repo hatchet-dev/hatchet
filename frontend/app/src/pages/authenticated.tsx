@@ -579,6 +579,11 @@ function AuthenticatedInner() {
             <NewTenantSaverForm
               defaultOrganizationId={defaultOrganizationId}
               allTenantTags={newTenantAllTags}
+              onUpgradeNavigate={() => {
+                setDefaultOrganizationId(undefined);
+                setNewTenantAllTags([]);
+                setNewTenantModalOpen(false);
+              }}
               afterSave={(result) => {
                 setDefaultOrganizationId(undefined);
                 setNewTenantAllTags([]);

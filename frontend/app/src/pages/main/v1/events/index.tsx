@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -28,6 +29,7 @@ import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { VisibilityState } from '@tanstack/react-table';
 import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -76,10 +78,15 @@ function EventsTable() {
     timeRangeConfig,
     hasActiveFilters,
     isDefaultOneDayWindow,
-    setTimeWindow,
+    searchAllRetainedHistory,
+    retentionPeriod,
+    retentionGate,
   } = useEvents({
     key: 'table',
   });
+  const retainedLabel = retentionPeriod
+    ? formatRetentionPeriod(retentionPeriod)
+    : '1 day';
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:events', {
@@ -105,6 +112,11 @@ function EventsTable() {
 
   return (
     <>
+      <RetentionUpgradeDialog
+        attempt={retentionGate.attempt}
+        retentionPeriod={retentionPeriod}
+        onClose={retentionGate.close}
+      />
       <DataTable
         error={error}
         isLoading={isLoading}
@@ -180,15 +192,15 @@ function EventsTable() {
           ) : (
             <EmptyState
               title="No events found"
-              description="Events are payloads you push to Hatchet to trigger workflows. No events have been received yet."
+              description={`No events in the last ${retainedLabel}.`}
               docPage={docsPages.v1.events}
               docLabel="Learn about events"
               buttons={
                 isDefaultOneDayWindow
                   ? [
                       {
-                        label: 'Search past 7 days',
-                        onClick: () => setTimeWindow('7d'),
+                        label: 'Search all retained history',
+                        onClick: searchAllRetainedHistory,
                       },
                     ]
                   : undefined
