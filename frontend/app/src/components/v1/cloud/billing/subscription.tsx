@@ -12,10 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
-import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { Switch } from '@/components/v1/ui/switch';
 import {
   Tooltip,
   TooltipContent,
@@ -78,7 +76,11 @@ function formatPeriod(period?: string) {
 function isLegacySubscriptionPlan(plan?: SubscriptionPlanCode) {
   return (
     plan === SubscriptionPlanCode.Starter ||
-    plan === SubscriptionPlanCode.Growth
+    plan === SubscriptionPlanCode.Growth ||
+    plan === SubscriptionPlanCode.Developer ||
+    plan === SubscriptionPlanCode.Team ||
+    plan === SubscriptionPlanCode.Scale ||
+    plan === SubscriptionPlanCode.Migration
   );
 }
 
@@ -124,7 +126,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   coupons,
 }) => {
   const [loading, setLoading] = useState<string>();
-  const [showAnnual, setShowAnnual] = useState<boolean>(false);
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
     SubscriptionPlan | undefined
   >(undefined);
@@ -258,10 +259,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const activePlanCode = useMemo(() => {
     return resolveSubscriptionPlanCode(active, 'free') ?? 'free';
-  }, [active]);
-
-  useEffect(() => {
-    return setShowAnnual(active?.period?.includes('yearly') || false);
   }, [active]);
 
   const upcomingPlanCode = useMemo(() => {
@@ -596,29 +593,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </a>{' '}
                 for custom requirements.
               </p>
-
-              <div className="flex gap-2 items-center shrink-0 ml-4">
-                <Switch
-                  id="sa"
-                  checked={showAnnual}
-                  onClick={() => {
-                    setShowAnnual((checkedState) => !checkedState);
-                  }}
-                />
-                <Label htmlFor="sa" className="text-sm whitespace-nowrap">
-                  Annual Billing
-                  <Badge variant="inProgress" className="ml-2">
-                    Save up to 20%
-                  </Badge>
-                </Label>
-              </div>
             </div>
 
             <PlanSelector
               activePlanCode={activePlanCode}
               activePlanAmountCents={activePlanAmountCents}
               upcomingPlanCode={upcomingPlanCode}
-              showAnnual={showAnnual}
               onSelectPlan={(plan) => {
                 if (!billing?.hasPaymentMethods) {
                   subscriptionMutation.mutate({ plan_code: plan.planCode });

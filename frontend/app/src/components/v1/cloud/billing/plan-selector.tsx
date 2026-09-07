@@ -22,7 +22,6 @@ interface PlanSelectorProps {
   activePlanCode: string;
   activePlanAmountCents?: number;
   upcomingPlanCode: string | null;
-  showAnnual: boolean;
   onSelectPlan: (plan: SubscriptionPlan) => void;
   enterpriseContactUrl: string;
   loading?: string;
@@ -62,7 +61,6 @@ export function PlanSelector({
   activePlanCode,
   activePlanAmountCents,
   upcomingPlanCode,
-  showAnnual,
   onSelectPlan,
   enterpriseContactUrl,
   loading,
@@ -79,24 +77,13 @@ export function PlanSelector({
   const plans = plansQuery.data?.plans;
 
   const sortedPlans = useMemo(() => {
-    const nonLegacy = plans?.filter((v) => !v.legacy && v.planCode !== 'free');
-
-    const hasYearlyVariant = (planCode: string) =>
-      nonLegacy?.some(
-        (p) =>
-          p.planCode.startsWith(planCode.split('_')[0]) &&
-          p.period?.includes('yearly'),
-      );
-
-    return nonLegacy
-      ?.filter((v) => {
-        if (showAnnual) {
-          return v.period?.includes('yearly') || !hasYearlyVariant(v.planCode);
-        }
-        return v.period?.includes('monthly') || !v.period;
-      })
+    return plans
+      ?.filter(
+        (v) =>
+          !v.legacy && v.planCode !== 'free' && v.planCode !== activePlanCode,
+      )
       .sort((a, b) => a.amountCents - b.amountCents);
-  }, [plans, showAnnual]);
+  }, [plans, activePlanCode]);
 
   const isUpgrade = useCallback(
     (plan: SubscriptionPlan) => {
@@ -119,8 +106,14 @@ export function PlanSelector({
     );
   }
 
+  const cardCount = (visiblePlans?.length ?? 0) + 1;
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={`grid grid-cols-1 gap-4 ${
+        cardCount > 1 ? 'sm:grid-cols-2' : ''
+      }`}
+    >
       {visiblePlans?.map((plan) => {
         const isActive = plan.planCode === activePlanCode;
         const isUpcoming = plan.planCode === upcomingPlanCode;
@@ -143,7 +136,6 @@ export function PlanSelector({
                 ? couponLabel(activeCoupon)
                 : undefined
             }
-            showAnnual={showAnnual}
             featureGroups={plan.featureGroups}
             isUpgrade={isUpgrade(plan)}
             isActive={isActive}
@@ -158,14 +150,17 @@ export function PlanSelector({
         name="Enterprise"
         description="Have technical or compliance requirements?"
         enterpriseHighlights={[
-          '100M+ runs per month',
+          'Volume usage discounts',
           'Custom SLAs & uptime guarantees',
           'Dedicated support & onboarding',
           'SSO & audit logging',
+          'Prometheus metrics',
+          'HIPAA & BAAs',
+          'VPC peering',
           'Bring your own cloud',
         ]}
         onSelect={() => window.open(enterpriseContactUrl, '_blank')}
-        buttonLabel="Contact Us"
+        buttonLabel="Schedule a Sales Call"
       />
     </div>
   );
@@ -176,7 +171,6 @@ function PlanCard({
   price,
   originalPrice,
   couponBadge,
-  showAnnual,
   description,
   featureGroups,
   enterpriseHighlights,
@@ -192,7 +186,6 @@ function PlanCard({
   price?: string;
   originalPrice?: string;
   couponBadge?: string;
-  showAnnual?: boolean;
   description?: string;
   featureGroups?: SubscriptionPlanFeatureGroup[];
   enterpriseHighlights?: string[];
@@ -229,7 +222,7 @@ function PlanCard({
                 {price}
               </span>
               <span className="text-xs text-muted-foreground ml-1">
-                / mo {!showAnnual ? ' + usage' : ''}
+                / mo + usage
               </span>
               {couponBadge && (
                 <Badge
@@ -238,11 +231,6 @@ function PlanCard({
                 >
                   {couponBadge}
                 </Badge>
-              )}
-              {showAnnual && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  billed yearly + usage billed monthly
-                </p>
               )}
             </>
           ) : (

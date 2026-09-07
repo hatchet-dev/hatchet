@@ -46,6 +46,7 @@ export enum SubscriptionPlanCode {
   Developer = "developer",
   Team = "team",
   Scale = "scale",
+  PayAsYouGo = "pay-as-you-go",
   Dedicated = "dedicated",
 }
 

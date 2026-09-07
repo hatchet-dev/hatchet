@@ -56,7 +56,7 @@ export function WelcomeModal({
       const response = await controlPlaneApi.organizationSubscriptionUpdate(
         organizationId,
         {
-          plan: SubscriptionPlanCode.Developer,
+          plan: SubscriptionPlanCode.PayAsYouGo,
         },
       );
       return response.data;
@@ -108,7 +108,7 @@ export function WelcomeModal({
               >
                 {developerPlanMutation.isPending ? 'Redirecting…' : 'Upgrade'}
               </button>{' '}
-              to the pay-as-you-go (developer) plan to remove daily limits.
+              to the Pay as you Go plan to remove daily limits.
             </DialogDescription>
           </div>
           <Card
