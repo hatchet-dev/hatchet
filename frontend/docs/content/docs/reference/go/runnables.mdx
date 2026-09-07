@@ -775,7 +775,7 @@ Returns:
 
 ##### `WithToken`
 
-WithToken sets the API token used to authenticate with Hatchet. Defaults to the HATCHET\_CLIENT\_TOKEN environment variable.
+WithToken sets the API token used to authenticate with Hatchet. Defaults to the HATCHET_CLIENT_TOKEN environment variable.
 
 ```go
 func WithToken(token string) ClientOpt
@@ -1501,11 +1501,11 @@ Returns:
 
 EmitDeprecationNotice emits a time-aware deprecation notice.
 
-  - feature: a short identifier for deduplication (each feature logs once).
-  - message: the human-readable deprecation message.
-  - start:   the UTC time when the deprecation window began.
-  - logger:  the zerolog logger to write to.
-  - opts:    optional configuration; pass nil for defaults.
+- feature: a short identifier for deduplication (each feature logs once).
+- message: the human-readable deprecation message.
+- start: the UTC time when the deprecation window began.
+- logger: the zerolog logger to write to.
+- opts: optional configuration; pass nil for defaults.
 
 Returns a non-nil \*DeprecationError only in phase 3 (~20% chance).
 
