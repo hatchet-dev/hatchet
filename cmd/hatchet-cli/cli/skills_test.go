@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func managedSection(body string) string {
@@ -73,5 +76,107 @@ func TestReplaceManagedSection(t *testing.T) {
 	t.Run("entry without markers fails", func(t *testing.T) {
 		_, ok := replaceManagedSection(managedSection("old"), "no markers")
 		assert.False(t, ok)
+	})
+}
+
+func TestLinkSkillDir(t *testing.T) {
+	newSkillDir := func(t *testing.T) (baseDir, skillDir string) {
+		t.Helper()
+		baseDir = t.TempDir()
+		skillDir = filepath.Join(baseDir, ".agents", "skills", "hatchet-cli")
+		require.NoError(t, os.MkdirAll(skillDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("skill"), 0o600))
+		return baseDir, skillDir
+	}
+
+	t.Run("creates a relative symlink with parent dirs", func(t *testing.T) {
+		baseDir, skillDir := newSkillDir(t)
+		link := filepath.Join(baseDir, ".claude", "skills", "hatchet-cli")
+
+		skipped, err := linkSkillDir(link, skillDir)
+
+		require.NoError(t, err)
+		assert.False(t, skipped)
+
+		target, err := os.Readlink(link)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join("..", "..", ".agents", "skills", "hatchet-cli"), target)
+
+		data, err := os.ReadFile(filepath.Join(link, "SKILL.md"))
+		require.NoError(t, err)
+		assert.Equal(t, "skill", string(data))
+	})
+
+	t.Run("replaces an existing symlink", func(t *testing.T) {
+		baseDir, skillDir := newSkillDir(t)
+		link := filepath.Join(baseDir, ".claude", "skills", "hatchet-cli")
+		require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+		require.NoError(t, os.Symlink(filepath.Join(baseDir, "elsewhere"), link))
+
+		skipped, err := linkSkillDir(link, skillDir)
+
+		require.NoError(t, err)
+		assert.False(t, skipped)
+
+		_, err = os.Stat(filepath.Join(link, "SKILL.md"))
+		assert.NoError(t, err)
+	})
+
+	t.Run("skips a real directory without destroying it", func(t *testing.T) {
+		baseDir, skillDir := newSkillDir(t)
+		link := filepath.Join(baseDir, ".claude", "skills", "hatchet-cli")
+		require.NoError(t, os.MkdirAll(link, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(link, "custom.md"), []byte("user data"), 0o600))
+
+		skipped, err := linkSkillDir(link, skillDir)
+
+		require.NoError(t, err)
+		assert.True(t, skipped)
+
+		data, err := os.ReadFile(filepath.Join(link, "custom.md"))
+		require.NoError(t, err)
+		assert.Equal(t, "user data", string(data))
+	})
+}
+
+func TestRemoveLegacySkillDir(t *testing.T) {
+	t.Run("no legacy dir is a no-op", func(t *testing.T) {
+		removed, err := removeLegacySkillDir(t.TempDir())
+		require.NoError(t, err)
+		assert.False(t, removed)
+	})
+
+	t.Run("removes legacy dir and empty skills parent", func(t *testing.T) {
+		baseDir := t.TempDir()
+		legacy := filepath.Join(baseDir, "skills", "hatchet-cli")
+		require.NoError(t, os.MkdirAll(filepath.Join(legacy, "references"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(legacy, "SKILL.md"), []byte("skill"), 0o600))
+
+		removed, err := removeLegacySkillDir(baseDir)
+
+		require.NoError(t, err)
+		assert.True(t, removed)
+
+		_, err = os.Lstat(filepath.Join(baseDir, "skills"))
+		assert.True(t, os.IsNotExist(err), "empty skills/ parent should be pruned")
+	})
+
+	t.Run("keeps skills parent when it holds other content", func(t *testing.T) {
+		baseDir := t.TempDir()
+		legacy := filepath.Join(baseDir, "skills", "hatchet-cli")
+		require.NoError(t, os.MkdirAll(legacy, 0o755))
+		other := filepath.Join(baseDir, "skills", "other-skill")
+		require.NoError(t, os.MkdirAll(other, 0o755))
+
+		removed, err := removeLegacySkillDir(baseDir)
+
+		require.NoError(t, err)
+		assert.True(t, removed)
+
+		_, err = os.Lstat(legacy)
+		assert.True(t, os.IsNotExist(err))
+
+		_, err = os.Stat(other)
+		assert.NoError(t, err)
 	})
 }

@@ -48,9 +48,11 @@ var skillsInstallCmd = &cobra.Command{
 	Short: "Install the Hatchet CLI agent skill package into your project",
 	Long: `Install Hatchet CLI agent skills into your project.
 
-Creates the skill directory structure under {dir}/skills/hatchet-cli/ and
-appends a reference section to the project AGENTS.md file.`,
-	Example: `  # Install to current directory (creates ./skills/hatchet-cli/)
+Creates the skill directory structure under {dir}/.agents/skills/hatchet-cli/,
+links it from {dir}/.claude/skills/hatchet-cli and {dir}/.cursor/skills/hatchet-cli
+so agents that auto-discover skills can find it, and creates or updates a managed
+section in the project AGENTS.md file.`,
+	Example: `  # Install to current directory (creates ./.agents/skills/hatchet-cli/)
   hatchet skills install
 
   # Install to a custom base directory
@@ -67,7 +69,7 @@ func init() {
 	rootCmd.AddCommand(skillsCmd)
 	skillsCmd.AddCommand(skillsInstallCmd)
 
-	skillsInstallCmd.Flags().StringVarP(&skillsInstallDir, "dir", "d", ".", "Target base directory (skill installs under {dir}/skills/hatchet-cli/)")
+	skillsInstallCmd.Flags().StringVarP(&skillsInstallDir, "dir", "d", ".", "Target base directory (skill installs under {dir}/.agents/skills/hatchet-cli/, with symlinks under {dir}/.claude/ and {dir}/.cursor/)")
 	skillsInstallCmd.Flags().BoolVarP(&skillsInstallForce, "force", "f", false, "Skip confirmation prompts")
 }
 
@@ -82,7 +84,12 @@ func runSkillsInstall() {
 		cli.Logger.Fatalf("could not resolve directory: %v", err)
 	}
 
-	skillDir := filepath.Join(baseDir, "skills", "hatchet-cli")
+	skillDir := filepath.Join(baseDir, ".agents", "skills", "hatchet-cli")
+	legacySkillDir := filepath.Join(baseDir, "skills", "hatchet-cli")
+	symlinkPaths := []string{
+		filepath.Join(baseDir, ".claude", "skills", "hatchet-cli"),
+		filepath.Join(baseDir, ".cursor", "skills", "hatchet-cli"),
+	}
 	agentsFile := filepath.Join(baseDir, "AGENTS.md")
 
 	// 2. Print header and summary
@@ -99,9 +106,17 @@ func runSkillsInstall() {
 	fmt.Printf("  %s\n", skillDir+"/references/trigger-and-watch.md")
 	fmt.Printf("  %s\n", skillDir+"/references/debug-run.md")
 	fmt.Printf("  %s\n", skillDir+"/references/replay-run.md")
+	for _, link := range symlinkPaths {
+		fmt.Printf("  %s  (symlink → %s)\n", link, skillDir)
+	}
 	fmt.Println()
 	fmt.Printf("  %s  (managed section created or updated)\n", agentsFile)
 	fmt.Println()
+
+	if _, statErr := os.Lstat(legacySkillDir); statErr == nil {
+		fmt.Println(styles.InfoMessage("Found a legacy install at " + legacySkillDir + "; it will be removed after the new install succeeds."))
+		fmt.Println()
+	}
 
 	// 3. Check if skill directory already exists
 	if _, statErr := os.Stat(skillDir); statErr == nil {
@@ -228,7 +243,26 @@ func runSkillsInstall() {
 		fmt.Printf("  ⚠ Could not create CLAUDE.md symlink: %v\n", symlinkErr)
 	}
 
+	// Link the skill from agent-specific auto-discovery paths (.claude/, .cursor/)
+	for _, link := range symlinkPaths {
+		skipped, linkErr := linkSkillDir(link, skillDir)
+		if linkErr != nil {
+			fmt.Printf("  ⚠ Could not create symlink %s: %v\n", link, linkErr)
+			continue
+		}
+		if skipped {
+			fmt.Printf("  ⚠ %s already exists and is not a symlink; leaving it in place\n", link)
+		}
+	}
+
 	fmt.Println(styles.SuccessMessage("Skill installed to " + skillDir))
+
+	// Remove a legacy pre-.agents install now that the new one is in place
+	if removed, removeErr := removeLegacySkillDir(baseDir); removeErr != nil {
+		fmt.Printf("  ⚠ Could not remove legacy skill directory %s: %v\n", legacySkillDir, removeErr)
+	} else if removed {
+		fmt.Println(styles.SuccessMessage("Removed legacy skill directory " + legacySkillDir))
+	}
 
 	// 7. Create or update the managed section in the project AGENTS.md
 	if updateAgents {
@@ -283,7 +317,7 @@ func runSkillsInstall() {
 	fmt.Println(styles.Section("Next steps"))
 	fmt.Println()
 	fmt.Println("  • Run " + styles.Code.Render("hatchet docs install") + " to add the Hatchet MCP server to your AI editor")
-	fmt.Println("  • Commit " + styles.Code.Render("skills/") + " and " + styles.Code.Render("AGENTS.md") + " to version control")
+	fmt.Println("  • Commit " + styles.Code.Render(".agents/") + ", " + styles.Code.Render(".claude/") + ", " + styles.Code.Render(".cursor/") + ", and " + styles.Code.Render("AGENTS.md") + " to version control")
 	fmt.Println()
 }
 
@@ -342,6 +376,52 @@ func replaceManagedSection(existing, entry string) (string, bool) {
 	b.WriteString(rest)
 
 	return b.String(), true
+}
+
+// linkSkillDir creates a relative symlink at linkPath pointing to skillDir,
+// creating parent directories as needed. An existing symlink at linkPath is
+// replaced; any other existing file or directory is left untouched and
+// skipped=true is returned so the caller can warn without destroying data.
+func linkSkillDir(linkPath, skillDir string) (skipped bool, err error) {
+	if info, statErr := os.Lstat(linkPath); statErr == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return true, nil
+		}
+		if removeErr := os.Remove(linkPath); removeErr != nil {
+			return false, removeErr
+		}
+	}
+
+	if mkdirErr := os.MkdirAll(filepath.Dir(linkPath), 0o755); mkdirErr != nil {
+		return false, mkdirErr
+	}
+
+	target, relErr := filepath.Rel(filepath.Dir(linkPath), skillDir)
+	if relErr != nil {
+		target = skillDir
+	}
+
+	return false, os.Symlink(target, linkPath)
+}
+
+// removeLegacySkillDir removes a pre-.agents install at {baseDir}/skills/hatchet-cli
+// (its contents are fully generator-owned) and prunes {baseDir}/skills when that
+// leaves it empty. It reports whether the legacy directory was removed.
+func removeLegacySkillDir(baseDir string) (bool, error) {
+	legacyDir := filepath.Join(baseDir, "skills", "hatchet-cli")
+	if _, statErr := os.Lstat(legacyDir); statErr != nil {
+		return false, nil
+	}
+	if removeErr := os.RemoveAll(legacyDir); removeErr != nil {
+		return false, removeErr
+	}
+
+	parent := filepath.Dir(legacyDir)
+	if entries, readErr := os.ReadDir(parent); readErr == nil && len(entries) == 0 {
+		_ = os.Remove(parent)
+	}
+
+	return true, nil
 }
 
 // stripFrontmatter removes YAML frontmatter (content between leading --- delimiters)

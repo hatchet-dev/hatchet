@@ -38,7 +38,7 @@ Run the following command in your project root to install the skill package:
 hatchet skills install
 ```
 
-This creates a `skills/hatchet-cli/` directory with step-by-step reference files and appends a section to your project's `AGENTS.md` (and `CLAUDE.md`) pointing agents to the right file for each task.
+This creates a `.agents/skills/hatchet-cli/` directory with step-by-step reference files, links it from `.claude/skills/hatchet-cli` and `.cursor/skills/hatchet-cli` so agents that auto-discover skills pick it up, and adds a section to your project's `AGENTS.md` (and `CLAUDE.md`) pointing agents to the right file for each task.
 
 **Install to a custom directory:**
 
@@ -46,7 +46,9 @@ This creates a `skills/hatchet-cli/` directory with step-by-step reference files
 hatchet skills install --dir ./my-project
 ```
 
-After installation, commit the `skills/` directory and `AGENTS.md` to version control so all agents working in the repo benefit automatically.
+After installation, commit the `.agents/`, `.claude/`, and `.cursor/` directories along with `AGENTS.md` to version control so all agents working in the repo benefit automatically.
+
+If you installed an earlier version of the skill package to `skills/hatchet-cli/`, rerunning `hatchet skills install` moves the install to `.agents/skills/hatchet-cli/` and removes the old directory.
 
 ### Available references
 
