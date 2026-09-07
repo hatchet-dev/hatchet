@@ -56,7 +56,7 @@ export function RetentionUpgradeDialog({
         <UpgradeRequiredLayout
           title={
             isControlPlaneEnabled
-              ? `You've reached the ${tier}'s retention limit`
+              ? `You've reached the ${tier} retention limit`
               : 'Outside retention window'
           }
           description={

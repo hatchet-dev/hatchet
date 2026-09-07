@@ -155,7 +155,7 @@ export function UpgradeRequiredCard({
 
   return (
     <UpgradeRequiredLayout
-      title={`You've reached the ${tier}'s ${noun} limit`}
+      title={`You've reached the ${tier} ${noun} limit`}
       description={<p>{description(tier)}</p>}
       summary={
         showSummary ? (
