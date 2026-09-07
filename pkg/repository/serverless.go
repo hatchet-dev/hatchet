@@ -38,6 +38,9 @@ type ServerlessEndpointRepository interface {
 	// and its shard is derived from its id and the tenant's current shard_count.
 	Create(ctx context.Context, tenantId uuid.UUID, opts CreateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
+	// GetById resolves an endpoint by id alone, for the API's resource populator, which sees
+	// the endpoint id before the tenant and checks the returned tenant against the caller's.
+	GetById(ctx context.Context, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error)
 	// Update changes configuration only; namespace and shard are immutable.
 	Update(ctx context.Context, tenantId, endpointId uuid.UUID, opts UpdateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)

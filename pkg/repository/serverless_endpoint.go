@@ -189,6 +189,10 @@ func (r *serverlessEndpointRepository) Get(ctx context.Context, tenantId, endpoi
 	})
 }
 
+func (r *serverlessEndpointRepository) GetById(ctx context.Context, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
+	return r.queries.GetServerlessEndpointById(ctx, r.pool, endpointId)
+}
+
 func (r *serverlessEndpointRepository) List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err

@@ -48,6 +48,13 @@ WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID;
 
+-- name: GetServerlessEndpointById :one
+-- Resolves an endpoint before its tenant is known, for the API's resource populator, which
+-- checks the returned tenant_id against the caller's tenant.
+SELECT *
+FROM v1_serverless_endpoint
+WHERE id = @id::UUID;
+
 -- name: ListServerlessEndpoints :many
 SELECT *
 FROM v1_serverless_endpoint

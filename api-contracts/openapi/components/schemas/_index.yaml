@@ -132,6 +132,22 @@ V1WebhookAuthType:
   $ref: "./v1/webhook.yaml#/V1WebhookAuthType"
 V1WebhookResponse:
   $ref: "./v1/webhook.yaml#/V1WebhookResponse"
+V1ServerlessEndpointKind:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointKind"
+V1ServerlessEndpointStatus:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointStatus"
+V1ServerlessEndpoint:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpoint"
+V1ServerlessEndpointList:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointList"
+V1CreateServerlessEndpointRequest:
+  $ref: "./v1/serverless_endpoint.yaml#/V1CreateServerlessEndpointRequest"
+V1UpdateServerlessEndpointRequest:
+  $ref: "./v1/serverless_endpoint.yaml#/V1UpdateServerlessEndpointRequest"
+V1ServerlessTenantSettings:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessTenantSettings"
+V1UpdateServerlessTenantSettingsRequest:
+  $ref: "./v1/serverless_endpoint.yaml#/V1UpdateServerlessTenantSettingsRequest"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:

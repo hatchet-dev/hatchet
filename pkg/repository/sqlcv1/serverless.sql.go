@@ -315,6 +315,44 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 	return &i, err
 }
 
+const getServerlessEndpointById = `-- name: GetServerlessEndpointById :one
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+FROM v1_serverless_endpoint
+WHERE id = $1::UUID
+`
+
+// Resolves an endpoint before its tenant is known, for the API's resource populator, which
+// checks the returned tenant_id against the caller's tenant.
+func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uuid.UUID) (*V1ServerlessEndpoint, error) {
+	row := db.QueryRow(ctx, getServerlessEndpointById, id)
+	var i V1ServerlessEndpoint
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Namespace,
+		&i.Kind,
+		&i.HealthcheckUrl,
+		&i.TriggerUrl,
+		&i.SigningSecretEnc,
+		&i.Slots,
+		&i.DurableSlots,
+		&i.RequestTimeoutSeconds,
+		&i.PollIntervalSeconds,
+		&i.InlineWaitBudgetMs,
+		&i.Labels,
+		&i.Enabled,
+		&i.Shard,
+		&i.Healthy,
+		&i.StatusError,
+		&i.StatusChangedAt,
+		&i.RegisteredActions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
 const getServerlessTenant = `-- name: GetServerlessTenant :one
 SELECT tenant_id, shard_count
 FROM v1_serverless_tenant

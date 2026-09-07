@@ -81,6 +81,12 @@ paths:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
   /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceiveUpdate"
+  /api/v1/stable/tenants/{tenant}/serverless/endpoints:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointListCreate"
+  /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointGetUpdateDelete"
+  /api/v1/stable/tenants/{tenant}/serverless/settings:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessTenantSettingsGetUpdate"
   /api/v1/stable/tenants/{tenant}/cel/debug:
     $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
