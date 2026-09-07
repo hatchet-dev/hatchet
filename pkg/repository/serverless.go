@@ -1,0 +1,160 @@
+package repository
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
+)
+
+// ServerlessRepository is the data access layer of the serverless operator. Endpoints and tenant
+// settings are written by the API server; process rows and leases by the operator (out of
+// process or in-engine). Steady-state writes are one process heartbeat per process: lease rows
+// change only on ownership changes and endpoint rows only on status transitions and workflow
+// changes.
+type ServerlessRepository interface {
+	Endpoints() ServerlessEndpointRepository
+	Tenants() ServerlessTenantRepository
+	Processes() ServerlessProcessRepository
+	Leases() ServerlessLeaseRepository
+}
+
+// ServerlessUnit is one lease unit: the (tenant, shard) pair a process owns.
+type ServerlessUnit struct {
+	TenantId uuid.UUID
+	Shard    int32
+}
+
+type ServerlessEndpointRepository interface {
+	// Create inserts the endpoint and, in the same transaction, upserts the tenant's settings
+	// row, creates the endpoint's lease unit if it is the first endpoint on that unit, and
+	// increments the unit's endpoint_count. The endpoint's namespace is assigned by the database
+	// and its shard is derived from its id and the tenant's current shard_count.
+	Create(ctx context.Context, tenantId uuid.UUID, opts CreateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
+	Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
+	List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error)
+	// Update changes configuration only; namespace and shard are immutable.
+	Update(ctx context.Context, tenantId, endpointId uuid.UUID, opts UpdateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
+	// Delete removes the endpoint and decrements its lease unit's endpoint_count in the same
+	// transaction. The lease row itself is kept.
+	Delete(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
+
+	// ListForUnits returns the endpoints of the given units, keyset-paged by id: pass uuid.Nil
+	// for the first page and the last returned id afterwards.
+	ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// ListForTenant loads a tenant's routing cache.
+	ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// ListUpdatedSince refreshes a tenant's routing cache incrementally. Health flips do not bump
+	// updated_at and so never appear here; configuration and registered_actions changes do.
+	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error)
+
+	// UpdateStatus records a healthy/unhealthy transition. It is written by the owning process on
+	// transitions only, never per poll.
+	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error
+	// UpdateRegisteredActions records the namespaced action set the owner registered after a
+	// healthcheck changed the endpoint's workflows.
+	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions []string) error
+}
+
+type ServerlessTenantRepository interface {
+	// Upsert creates the tenant's settings row with defaults if absent and returns it.
+	Upsert(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error)
+	Get(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error)
+	// UpdateShardCount sets shard_count and creates lease rows for any new shards. Existing
+	// endpoints keep the shard they were inserted with; only new endpoints hash over the new
+	// count.
+	UpdateShardCount(ctx context.Context, tenantId uuid.UUID, shardCount int32) (*sqlcv1.V1ServerlessTenant, error)
+}
+
+type ServerlessProcessRepository interface {
+	// Upsert is the process heartbeat: one row write per process per interval.
+	Upsert(ctx context.Context, opts UpsertServerlessProcessOpts) error
+	// ListLive returns the processes whose row has not expired and the ids of those whose row
+	// has. Dead ids feed ServerlessLeaseRepository.Claim so their units can be taken over.
+	ListLive(ctx context.Context) (live []*sqlcv1.V1ServerlessProcess, dead []uuid.UUID, err error)
+	// DeleteExpired sweeps process rows that expired before cutoff and returns how many.
+	DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error)
+	// Delete removes the process's own row on graceful shutdown.
+	Delete(ctx context.Context, processId uuid.UUID) error
+}
+
+type ServerlessLeaseRepository interface {
+	// Claim takes up to limit units that are unowned or owned by one of deadIds, using
+	// FOR UPDATE SKIP LOCKED so concurrent claimers never block or double-claim.
+	Claim(ctx context.Context, processId uuid.UUID, deadIds []uuid.UUID, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error)
+	// Shed releases the given units if, and only if, processId still owns them.
+	Shed(ctx context.Context, processId uuid.UUID, units []ServerlessUnit) ([]*sqlcv1.ShedServerlessLeasesRow, error)
+	// ReleaseAll releases every unit processId owns and returns how many.
+	ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error)
+	ListOwned(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.V1ServerlessLease, error)
+	// CountUnowned returns the number of unowned units and the sum of their endpoint counts,
+	// the unowned half of the fair-share weight.
+	CountUnowned(ctx context.Context) (*sqlcv1.CountUnownedServerlessLeasesRow, error)
+	// InsertIfAbsent creates the lease row of a unit. Endpoint creation does this itself; it is
+	// exposed for callers that add shards.
+	InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error
+	// IncrementEndpointCount adjusts a unit's fair-share weight by delta.
+	IncrementEndpointCount(ctx context.Context, unit ServerlessUnit, delta int32) error
+}
+
+type serverlessRepository struct {
+	endpoints ServerlessEndpointRepository
+	tenants   ServerlessTenantRepository
+	processes ServerlessProcessRepository
+	leases    ServerlessLeaseRepository
+}
+
+func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
+	return &serverlessRepository{
+		endpoints: &serverlessEndpointRepository{sharedRepository: shared},
+		tenants:   &serverlessTenantRepository{sharedRepository: shared},
+		processes: &serverlessProcessRepository{sharedRepository: shared},
+		leases:    &serverlessLeaseRepository{sharedRepository: shared},
+	}
+}
+
+// NewServerlessRepositoryFromPool builds a ServerlessRepository on a pool the caller owns, for
+// the out-of-process operator binary. The returned cleanup releases the shared repository's
+// resources but not the pool.
+func NewServerlessRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger) (ServerlessRepository, func() error) {
+	v := validator.NewDefaultValidator()
+
+	shared, cleanupShared := newSharedRepository(pool, pool, v, l, PayloadStoreRepositoryOpts{}, limits.LimitConfigFile{}, false, time.Minute)
+
+	return newServerlessRepository(shared), cleanupShared
+}
+
+func (r *serverlessRepository) Endpoints() ServerlessEndpointRepository {
+	return r.endpoints
+}
+
+func (r *serverlessRepository) Tenants() ServerlessTenantRepository {
+	return r.tenants
+}
+
+func (r *serverlessRepository) Processes() ServerlessProcessRepository {
+	return r.processes
+}
+
+func (r *serverlessRepository) Leases() ServerlessLeaseRepository {
+	return r.leases
+}
+
+// unitArrays splits units into the parallel arrays the unnest-based queries take.
+func unitArrays(units []ServerlessUnit) ([]uuid.UUID, []int32) {
+	tenantIds := make([]uuid.UUID, len(units))
+	shards := make([]int32, len(units))
+
+	for i, u := range units {
+		tenantIds[i] = u.TenantId
+		shards[i] = u.Shard
+	}
+
+	return tenantIds, shards
+}

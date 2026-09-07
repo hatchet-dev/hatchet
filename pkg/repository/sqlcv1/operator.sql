@@ -86,9 +86,10 @@ WITH operators_on_inactive_dispatchers AS (
 SELECT *
 FROM v1_operator
 WHERE
-    -- GRPC operators run out of process and register their own workers over OperatorService, so
-    -- the in-engine operator manager never claims or reconciles them.
-    v1_operator.kind <> 'GRPC'
+    -- GRPC operators run out of process and register their own workers over OperatorService, and
+    -- SERVERLESS operators are leased through v1_serverless_lease and create a worker per owned
+    -- unit, so the in-engine operator manager never claims or reconciles either kind.
+    v1_operator.kind NOT IN ('GRPC', 'SERVERLESS')
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR
