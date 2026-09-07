@@ -829,14 +829,14 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		triggerWorkflows,
 	)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
-	}
-
 	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
 
 	for i, workflowRunId := range workflowRunIds {
 		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
+	}
+
+	if err != nil {
+		return createdWorkflows, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
 
 	return createdWorkflows, nil

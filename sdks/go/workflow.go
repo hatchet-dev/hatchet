@@ -1097,54 +1097,47 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	return workflowRefs, nil
 }
 
-// ponytail: fixed chunk size like the TS SDK; chunk by grpc message size like Python if payloads get large
-const runManyChunkSize = 500
-
 func runManyBulk(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
-	refs := make([]WorkflowRunRef, 0, len(inputs))
+	runs, err := triggerRunMany(ctx, otelCtx, v0, workflowName, inputs)
 
-	for start := 0; start < len(inputs); start += runManyChunkSize {
-		chunk := inputs[start:min(start+runManyChunkSize, len(inputs))]
+	refs := make([]WorkflowRunRef, len(runs))
+	for i, run := range runs {
+		refs[i] = WorkflowRunRef{RunId: run.RunId(), v0Workflow: run}
+	}
 
-		runs, err := triggerRunManyChunk(ctx, otelCtx, v0, workflowName, chunk)
-		for _, run := range runs {
-			refs = append(refs, WorkflowRunRef{RunId: run.RunId(), v0Workflow: run})
+	if err != nil {
+		var bulkErr *v0Client.BulkIdempotencyViolationErr
+		if !errors.As(err, &bulkErr) {
+			return refs, err
 		}
 
-		if err != nil {
-			var bulkErr *v0Client.BulkIdempotencyViolationErr
-			if !errors.As(err, &bulkErr) {
-				return refs, err
-			}
+		successfulIds := make([]string, 0, len(refs)+len(bulkErr.SuccessfulRunExternalIds))
+		for _, ref := range refs {
+			successfulIds = append(successfulIds, ref.RunId)
+		}
+		successfulIds = append(successfulIds, bulkErr.SuccessfulRunExternalIds...)
 
-			successfulIds := make([]string, 0, len(refs)+len(bulkErr.SuccessfulRunExternalIds))
-			for _, ref := range refs {
-				successfulIds = append(successfulIds, ref.RunId)
-			}
-			successfulIds = append(successfulIds, bulkErr.SuccessfulRunExternalIds...)
+		collisions := make([]*IdempotencyCollisionError, len(bulkErr.Collisions))
+		for i, c := range bulkErr.Collisions {
+			collisions[i] = &IdempotencyCollisionError{ExistingRunExternalId: c.ExistingRunExternalId}
+		}
 
-			collisions := make([]*IdempotencyCollisionError, len(bulkErr.Collisions))
-			for i, c := range bulkErr.Collisions {
-				collisions[i] = &IdempotencyCollisionError{ExistingRunExternalId: c.ExistingRunExternalId}
-			}
-
-			return refs, &BulkTriggerIdempotencyCollisionError{
-				SuccessfulRunExternalIds: successfulIds,
-				Collisions:               collisions,
-			}
+		return refs, &BulkTriggerIdempotencyCollisionError{
+			SuccessfulRunExternalIds: successfulIds,
+			Collisions:               collisions,
 		}
 	}
 
 	return refs, nil
 }
 
-func triggerRunManyChunk(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, chunk []RunManyOpt) ([]*v0Client.Workflow, error) {
+func triggerRunMany(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]*v0Client.Workflow, error) {
 	hCtx, inTask := ctx.(Context)
 
-	spawnOpts := make([]*worker.SpawnWorkflowsOpts, len(chunk))
-	bulkRuns := make([]*v0Client.WorkflowRun, len(chunk))
+	spawnOpts := make([]*worker.SpawnWorkflowsOpts, len(inputs))
+	bulkRuns := make([]*v0Client.WorkflowRun, len(inputs))
 
-	for i, input := range chunk {
+	for i, input := range inputs {
 		runOpts := &runOpts{}
 		for _, opt := range input.Opts {
 			opt(runOpts)
