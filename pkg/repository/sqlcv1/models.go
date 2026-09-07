@@ -3630,6 +3630,7 @@ type V1Payload struct {
 	TenantID            uuid.UUID          `json:"tenant_id"`
 	ID                  int64              `json:"id"`
 	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	InsertedAtDate      pgtype.Date        `json:"inserted_at_date"`
 	ExternalID          uuid.UUID          `json:"external_id"`
 	Type                V1PayloadType      `json:"type"`
 	Location            V1PayloadLocation  `json:"location"`

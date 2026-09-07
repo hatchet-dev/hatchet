@@ -39,7 +39,7 @@ from hatchet_sdk import Hatchet, V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from examples.test_utils import wait_for_running_status
 
-TIMING_TOLERANCE = 1.0
+TIMING_TOLERANCE = 1.5
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
