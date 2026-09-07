@@ -1,13 +1,11 @@
+import {
+  UpgradeRequiredLayout,
+  formatPlanTier,
+  useCurrentPlanName,
+} from '@/components/v1/cloud/billing/upgrade-required';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
+import { Dialog, DialogContent } from '@/components/v1/ui/dialog';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import type { RetentionAttempt } from '@/hooks/use-retention-gate';
@@ -34,6 +32,8 @@ export function RetentionUpgradeDialog({
 }: RetentionUpgradeDialogProps) {
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { organizationId } = useTenantDetails();
+  const currentPlanName = useCurrentPlanName(organizationId);
+  const tier = formatPlanTier(currentPlanName);
   const label = retentionPeriod
     ? formatRetentionPeriod(retentionPeriod)
     : 'your current window';
@@ -48,19 +48,20 @@ export function RetentionUpgradeDialog({
     : '';
 
   const keepLabel = `Keep last ${label}`;
+  const canUpgrade = isControlPlaneEnabled && canBill && !!organizationId;
 
   return (
     <Dialog open={!!attempt} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {isControlPlaneEnabled
-              ? 'Need more history?'
-              : 'Outside retention window'}
-          </DialogTitle>
-          <DialogDescription asChild>
-            <div className="space-y-2 text-left text-sm text-gray-700 dark:text-gray-300">
-              <p>{tried}</p>
+        <UpgradeRequiredLayout
+          title={
+            isControlPlaneEnabled
+              ? `You've reached the ${tier}'s retention limit`
+              : 'Outside retention window'
+          }
+          description={
+            <>
+              {tried ? <p>{tried}</p> : null}
               <p>
                 {`${isControlPlaneEnabled ? 'This tenant' : 'This instance'} keeps ${label} of data${
                   attempt?.kind === 'since' && boundary
@@ -76,19 +77,47 @@ export function RetentionUpgradeDialog({
                   config if you need a longer window.
                 </p>
               )}
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:justify-end">
-          <Button variant="ghost" onClick={onClose}>
-            {keepLabel}
-          </Button>
-          {isControlPlaneEnabled && canBill && organizationId ? (
+            </>
+          }
+          summary={
+            isControlPlaneEnabled && (currentPlanName || retentionPeriod) ? (
+              <>
+                {currentPlanName ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Current plan</span>
+                    <span className="font-medium text-foreground">
+                      {currentPlanName}
+                    </span>
+                  </div>
+                ) : null}
+                {retentionPeriod ? (
+                  <div
+                    className={
+                      currentPlanName
+                        ? 'mt-2 flex items-center justify-between'
+                        : 'flex items-center justify-between'
+                    }
+                  >
+                    <span className="text-muted-foreground">Retention</span>
+                    <span className="font-medium text-foreground">
+                      {label}
+                    </span>
+                  </div>
+                ) : null}
+              </>
+            ) : undefined
+          }
+        >
+          {canUpgrade ? (
             <Link
               to={appRoutes.organizationBillingRoute.to}
               params={{ organization: organizationId }}
+              className="w-full"
+              onClick={onClose}
             >
-              <Button>View plans</Button>
+              <Button size="lg" className="w-full">
+                View plans &amp; upgrade
+              </Button>
             </Link>
           ) : !isControlPlaneEnabled ? (
             <DocsButton
@@ -96,7 +125,10 @@ export function RetentionUpgradeDialog({
               label="Retention docs"
             />
           ) : null}
-        </DialogFooter>
+          <Button variant="ghost" className="mt-2 w-full" onClick={onClose}>
+            {keepLabel}
+          </Button>
+        </UpgradeRequiredLayout>
       </DialogContent>
     </Dialog>
   );

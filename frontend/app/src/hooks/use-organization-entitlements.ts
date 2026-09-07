@@ -23,8 +23,8 @@ export function useOrganizationEntitlements(organizationId?: string | null) {
   // Default to allowing the action while data is unknown (no org, not cloud, or
   // still loading) so non-cloud and in-flight states never block the form. The
   // backend is the source of truth and will reject if the limit is exceeded.
-  const canInviteUser = entitlements ? entitlements.users.canCreate : true;
-  const canCreateTenant = entitlements ? entitlements.tenants.canCreate : true;
+  const canInviteUser = entitlements?.users?.canCreate ?? true;
+  const canCreateTenant = entitlements?.tenants?.canCreate ?? true;
 
   return {
     entitlements,
