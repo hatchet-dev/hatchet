@@ -132,7 +132,9 @@ func (g *Link) ReleaseTenant(tenantId uuid.UUID) {
 
 // Open implements link.Link. An Unauthenticated connect drops the cached client and asks the
 // exchange once more, so a token rotated between two Opens is used without waiting for the
-// exchange's own reload.
+// exchange's own reload. The initial action set is streamed to the engine right after the
+// connect and flushed before the registration is returned; the session keeps it as the
+// desired set and replays it when a reconnect does not resume the worker.
 func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
 	session, err := g.connect(ctx, tenantId, shard, opts)
 
@@ -143,6 +145,15 @@ func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 
 	if err != nil {
 		return nil, err
+	}
+
+	if len(opts.Actions) > 0 {
+		session.AddActions(opts.Actions...)
+
+		if err := session.Flush(ctx); err != nil {
+			_ = session.Close()
+			return nil, fmt.Errorf("could not register initial actions for tenant %s shard %d: %w", tenantId, shard, err)
+		}
 	}
 
 	return &registration{session: session}, nil
@@ -175,8 +186,6 @@ func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts 
 
 	return c.Operator().Connect(ctx, &client.ConnectOperatorRequest{
 		Name:       g.name,
-		Workflows:  opts.Workflows,
-		Actions:    opts.Actions,
 		SlotConfig: opts.SlotConfig,
 		Labels:     labels,
 	})
@@ -199,13 +208,35 @@ func (r *registration) Actions(ctx context.Context) (<-chan *contracts.AssignedA
 	return r.session.Actions(ctx)
 }
 
-func (r *registration) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error {
-	_, err := r.session.PutWorkflow(ctx, wf, fullActions)
-	return err
+// PutWorkflow implements link.Registration over the admin service; the session derives the
+// action ids without touching the streamed action set.
+func (r *registration) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
+	_, actions, err := r.session.PutWorkflow(ctx, wf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return actions, nil
 }
 
-func (r *registration) UpdateActions(ctx context.Context, fullActions []string) error {
-	return r.session.UpdateActions(ctx, fullActions)
+// AddActions implements link.Registration. The session coalesces and chunks the delta onto
+// the Listen stream; nothing is sent until its flusher runs, so the call never blocks.
+func (r *registration) AddActions(_ context.Context, ids []string) error {
+	r.session.AddActions(ids...)
+	return nil
+}
+
+// RemoveActions implements link.Registration; see AddActions.
+func (r *registration) RemoveActions(_ context.Context, ids []string) error {
+	r.session.RemoveActions(ids...)
+	return nil
+}
+
+// Flush implements link.Registration: it waits until the session has sent every queued delta
+// and reports the last send failure.
+func (r *registration) Flush(ctx context.Context) error {
+	return r.session.Flush(ctx)
 }
 
 func (r *registration) SendStepActionEvent(ctx context.Context, ev *contracts.StepActionEvent) error {

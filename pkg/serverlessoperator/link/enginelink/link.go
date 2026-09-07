@@ -52,13 +52,15 @@ type tenantStore interface {
 
 type operatorStore interface {
 	UpsertServerlessOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
-	CreateOperatorConnectionWorker(ctx context.Context, dispatcherId uuid.UUID, op *sqlcv1.V1Operator, opts repository.CreateOperatorConnectionWorkerOpts) (*sqlcv1.Worker, error)
-	UpdateOperatorWorkerActions(ctx context.Context, tenantId, workerId uuid.UUID, actions []string) error
 }
 
 type workerStore interface {
+	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *repository.CreateWorkerOpts) (*sqlcv1.Worker, error)
+	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
+	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
+	ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
+	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 }
 
@@ -96,6 +98,10 @@ const (
 	// defaultSlotCount is the default slot config when the core passes none, as in
 	// grpcoperator.
 	defaultSlotCount = 100
+
+	// maxActionsPerDelta caps the ids one AddWorkerActions or RemoveWorkerActions call carries,
+	// the same chunk size the gRPC operator path applies per streamed delta.
+	maxActionsPerDelta = 1000
 
 	// shardLabel carries the shard on the worker, as grpclink does.
 	shardLabel = "hatchet-serverless-shard"
@@ -166,11 +172,11 @@ type registerOpts struct {
 	Actions []string `validate:"dive,actionId"`
 }
 
-// Open implements link.Link. It runs the registration steps of grpcoperator.Listen in
-// process: put every workflow, upsert the SERVERLESS operator row, create the worker with the
-// full action set and slot config, write labels, activate the worker, register the operator
-// session with the dispatcher and notify the scheduler. Heartbeats start with the
-// registration and stop on Close.
+// Open implements link.Link. It runs the registration steps of grpcoperator.Register and
+// Listen in process: upsert the SERVERLESS operator row, create the worker with the initial
+// action set and slot config, write labels, activate the worker under a fresh listener session
+// id, register the operator session with the dispatcher and notify the scheduler. Heartbeats
+// start with the registration and stop on Close.
 func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
 	tenant, err := e.tenants.GetTenantByID(ctx, tenantId)
 
@@ -178,29 +184,13 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 		return nil, fmt.Errorf("could not load tenant %s: %w", tenantId, err)
 	}
 
-	if err := e.v.Validate(registerOpts{Name: e.name, Actions: opts.Actions}); err != nil {
+	actions := unionActions(opts.Actions)
+
+	if err := e.v.Validate(registerOpts{Name: e.name, Actions: actions}); err != nil {
 		return nil, fmt.Errorf("invalid registration: %w", err)
 	}
 
 	tctx := withTenant(ctx, tenant)
-
-	derived := make([]string, 0)
-
-	for _, wf := range opts.Workflows {
-		actions, err := workflowActions(wf)
-
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := e.admin.PutWorkflow(tctx, wf); err != nil {
-			return nil, fmt.Errorf("could not put workflow %s: %w", wf.Name, err)
-		}
-
-		derived = append(derived, actions...)
-	}
-
-	actions := unionActions(derived, opts.Actions)
 
 	op, err := e.operators.UpsertServerlessOperator(ctx, tenantId, e.name)
 
@@ -214,10 +204,14 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 		slotConfig = map[string]int32{repository.SlotTypeDefault: defaultSlotCount}
 	}
 
-	worker, err := e.operators.CreateOperatorConnectionWorker(ctx, e.dispatcherId, op, repository.CreateOperatorConnectionWorkerOpts{
-		Name:       workerName(e.dispatcherId, shard),
-		Actions:    actions,
-		SlotConfig: slotConfig,
+	operatorId := op.ID
+
+	worker, err := e.workers.CreateNewWorker(ctx, tenantId, &repository.CreateWorkerOpts{
+		DispatcherId: e.dispatcherId,
+		Name:         workerName(e.dispatcherId, shard),
+		Actions:      actions,
+		SlotConfig:   slotConfig,
+		OperatorId:   &operatorId,
 	})
 
 	if err != nil {
@@ -230,11 +224,13 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 		return nil, fmt.Errorf("could not upsert worker labels: %w", err)
 	}
 
-	// truncated to milliseconds because "lastListenerEstablished" is a TIMESTAMP(3) column;
-	// see grpcoperator.Listen for why the stored value must satisfy the deactivation fence
-	sessionEstablished := time.Now().UTC().Truncate(time.Millisecond)
+	// The session id is the listener fence on the worker row: activation records it and the
+	// deactivation on Close only succeeds while it is still the id on the row, so a newer
+	// session on the same worker id is never marked inactive by an older one; see
+	// grpcoperator.Listen.
+	sessionId := uuid.New()
 
-	if _, err := e.workers.UpdateWorkerActiveStatus(ctx, tenantId, worker.ID, true, sessionEstablished); err != nil {
+	if _, err := e.workers.ActivateWorkerListener(ctx, tenantId, worker.ID, sessionId); err != nil {
 		return nil, fmt.Errorf("could not activate serverless worker %s: %w", worker.ID, err)
 	}
 
@@ -243,9 +239,10 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 		Int("shard", shard).
 		Str("operator_id", op.ID.String()).
 		Str("worker_id", worker.ID.String()).
+		Str("session_id", sessionId.String()).
 		Logger()
 
-	reg := newRegistration(e, tenant, worker.ID, sessionEstablished, slotBuffer(slotConfig), &l)
+	reg := newRegistration(e, tenant, worker.ID, sessionId, slotBuffer(slotConfig), &l)
 
 	reg.release = e.dispatcher.AddOperatorSession(worker.ID, sessionOperator{reg})
 
@@ -327,7 +324,7 @@ func labelOpts(labels map[string]interface{}, shard int) []repository.UpsertWork
 
 // workflowActions returns the action ids a worker must register to run every task of the
 // workflow, normalized with types.ParseActionID as the admin service stores them, the same
-// derivation grpcoperator applies on register and PutWorkflow.
+// derivation the operator client applies in PutWorkflow.
 func workflowActions(wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	if wf == nil {
 		return nil, errors.New("workflow is required")

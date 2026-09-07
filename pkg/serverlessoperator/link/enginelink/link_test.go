@@ -203,17 +203,9 @@ func (f *fakeTenants) GetTenantByID(_ context.Context, tenantId uuid.UUID) (*sql
 	return f.tenant, nil
 }
 
-type createCall struct {
-	dispatcherId uuid.UUID
-	op           *sqlcv1.V1Operator
-	opts         repository.CreateOperatorConnectionWorkerOpts
-}
-
 type fakeOperators struct {
 	mu       sync.Mutex
 	upserts  []string
-	creates  []createCall
-	actions  [][]string
 	operator *sqlcv1.V1Operator
 }
 
@@ -230,40 +222,64 @@ func (f *fakeOperators) UpsertServerlessOperator(_ context.Context, tenantId uui
 	return f.operator, nil
 }
 
-func (f *fakeOperators) CreateOperatorConnectionWorker(_ context.Context, dispatcherId uuid.UUID, op *sqlcv1.V1Operator, opts repository.CreateOperatorConnectionWorkerOpts) (*sqlcv1.Worker, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.creates = append(f.creates, createCall{dispatcherId: dispatcherId, op: op, opts: opts})
-
-	return &sqlcv1.Worker{ID: uuid.New(), TenantId: op.TenantID, Name: opts.Name}, nil
+type sessionWrite struct {
+	workerId  uuid.UUID
+	sessionId uuid.UUID
 }
 
-func (f *fakeOperators) UpdateOperatorWorkerActions(_ context.Context, _ uuid.UUID, _ uuid.UUID, actions []string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.actions = append(f.actions, actions)
-
-	return nil
-}
-
-type activeWrite struct {
-	workerId uuid.UUID
-	ts       time.Time
-	active   bool
-}
-
+// fakeWorkers records worker creation, action deltas and the listener session writes. Every
+// delta counts as changing len(ids) actions unless noop is set, in which case the engine
+// already had (or lacked) every id.
 type fakeWorkers struct {
-	mu         sync.Mutex
-	labels     map[uuid.UUID][]repository.UpsertWorkerLabelOpts
-	active     []activeWrite
-	heartbeats int
-	deactivate error
+	mu          sync.Mutex
+	creates     []*repository.CreateWorkerOpts
+	labels      map[uuid.UUID][]repository.UpsertWorkerLabelOpts
+	added       [][]string
+	removed     [][]string
+	activated   []sessionWrite
+	deactivated []sessionWrite
+	heartbeats  int
+	deactivate  error
+	noop        bool
 }
 
 func newFakeWorkers() *fakeWorkers {
 	return &fakeWorkers{labels: map[uuid.UUID][]repository.UpsertWorkerLabelOpts{}}
+}
+
+func (f *fakeWorkers) CreateNewWorker(_ context.Context, tenantId uuid.UUID, opts *repository.CreateWorkerOpts) (*sqlcv1.Worker, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.creates = append(f.creates, opts)
+
+	return &sqlcv1.Worker{ID: uuid.New(), TenantId: tenantId, Name: opts.Name}, nil
+}
+
+func (f *fakeWorkers) AddWorkerActions(_ context.Context, _ uuid.UUID, _ uuid.UUID, ids []string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.added = append(f.added, append([]string{}, ids...))
+
+	if f.noop {
+		return 0, nil
+	}
+
+	return len(ids), nil
+}
+
+func (f *fakeWorkers) RemoveWorkerActions(_ context.Context, _ uuid.UUID, _ uuid.UUID, ids []string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.removed = append(f.removed, append([]string{}, ids...))
+
+	if f.noop {
+		return 0, nil
+	}
+
+	return len(ids), nil
 }
 
 func (f *fakeWorkers) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
@@ -275,15 +291,24 @@ func (f *fakeWorkers) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, 
 	return nil, nil
 }
 
-func (f *fakeWorkers) UpdateWorkerActiveStatus(_ context.Context, _ uuid.UUID, workerId uuid.UUID, isActive bool, ts time.Time) (*sqlcv1.Worker, error) {
+func (f *fakeWorkers) ActivateWorkerListener(_ context.Context, _ uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if !isActive && f.deactivate != nil {
+	f.activated = append(f.activated, sessionWrite{workerId: workerId, sessionId: sessionId})
+
+	return &sqlcv1.Worker{ID: workerId}, nil
+}
+
+func (f *fakeWorkers) DeactivateWorkerListener(_ context.Context, _ uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.deactivate != nil {
 		return nil, f.deactivate
 	}
 
-	f.active = append(f.active, activeWrite{workerId: workerId, ts: ts, active: isActive})
+	f.deactivated = append(f.deactivated, sessionWrite{workerId: workerId, sessionId: sessionId})
 
 	return &sqlcv1.Worker{ID: workerId}, nil
 }
@@ -304,11 +329,11 @@ func (f *fakeWorkers) heartbeatCount() int {
 	return f.heartbeats
 }
 
-func (f *fakeWorkers) activeWrites() []activeWrite {
+func (f *fakeWorkers) sessions() (activated, deactivated []sessionWrite) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return append([]activeWrite(nil), f.active...)
+	return append([]sessionWrite(nil), f.activated...), append([]sessionWrite(nil), f.deactivated...)
 }
 
 type harness struct {
@@ -382,35 +407,31 @@ func tenantOf(t *testing.T, ctx context.Context) *sqlcv1.Tenant {
 func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	h := newHarness(t)
 
-	wf1 := workflow("ns_a", "ns_svc:Run", "ns_svc:Finish")
-	wf1.OnFailureTask = &v1.CreateTaskOpts{ReadableId: "fail", Action: "ns_svc:OnFailure"}
-	wf2 := workflow("ns_b", "ns_svc:Run")
-
 	opts := link.OpenOpts{
-		Workflows:  []*v1.CreateWorkflowVersionRequest{wf1, wf2},
-		Actions:    []string{"ns_other:Extra", "ns_svc:run"},
+		Actions:    []string{"ns_other:Extra", "ns_svc:run", "ns_svc:run", ""},
 		SlotConfig: map[string]int32{repository.SlotTypeDefault: 3, repository.SlotTypeDurable: 2},
 		Labels:     map[string]interface{}{"hatchet-serverless-process": "proc-1", "weight": 7},
 	}
 
 	reg, r := h.open(t, opts)
 
-	// workflows are put with the tenant on the context
-	require.Len(t, h.admin.puts, 2)
-	assert.Same(t, wf1, h.admin.puts[0].wf)
-	assert.Equal(t, h.tenant.ID, tenantOf(t, h.admin.puts[0].ctx).ID)
+	// nothing is put at open: workflows arrive through PutWorkflow
+	assert.Empty(t, h.admin.puts)
 
 	// one SERVERLESS operator row by name
 	assert.Equal(t, []string{DefaultOperatorName}, h.operators.upserts)
 
-	// the worker is pinned to the dispatcher, named per unit, and carries the derived union
-	require.Len(t, h.operators.creates, 1)
-	create := h.operators.creates[0]
-	assert.Equal(t, h.link.dispatcherId, create.dispatcherId)
-	assert.Equal(t, sqlcv1.V1OperatorKindSERVERLESS, create.op.Kind)
-	assert.Equal(t, fmt.Sprintf("serverless-%s-2", h.link.dispatcherId), create.opts.Name)
-	assert.Equal(t, []string{"ns_svc:run", "ns_svc:finish", "ns_svc:onfailure", "ns_other:Extra"}, create.opts.Actions)
-	assert.Equal(t, opts.SlotConfig, create.opts.SlotConfig)
+	// the worker is pinned to the dispatcher, named per unit, linked to the operator row and
+	// born with the deduplicated initial action set
+	require.Len(t, h.workers.creates, 1)
+	create := h.workers.creates[0]
+	assert.Equal(t, h.link.dispatcherId, create.DispatcherId)
+	assert.Equal(t, fmt.Sprintf("serverless-%s-2", h.link.dispatcherId), create.Name)
+	assert.Equal(t, []string{"ns_other:Extra", "ns_svc:run"}, create.Actions)
+	assert.Equal(t, opts.SlotConfig, create.SlotConfig)
+	require.NotNil(t, create.OperatorId)
+	assert.Equal(t, h.operators.operator.ID, *create.OperatorId)
+	assert.Empty(t, h.workers.added, "the initial set goes in with the worker, not as a delta")
 
 	workerId := r.workerId
 	assert.Equal(t, workerId.String(), reg.WorkerId())
@@ -428,12 +449,13 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	assert.Equal(t, int32(7), *byKey["weight"].IntValue)
 	assert.Equal(t, int32(2), *byKey[shardLabel].IntValue)
 
-	// activated with a millisecond-truncated timestamp
-	writes := h.workers.activeWrites()
-	require.Len(t, writes, 1)
-	assert.True(t, writes[0].active)
-	assert.Equal(t, workerId, writes[0].workerId)
-	assert.Equal(t, writes[0].ts, writes[0].ts.Truncate(time.Millisecond))
+	// activated under a fresh listener session id, which the registration remembers
+	activated, deactivated := h.workers.sessions()
+	require.Len(t, activated, 1)
+	assert.Empty(t, deactivated)
+	assert.Equal(t, workerId, activated[0].workerId)
+	assert.NotEqual(t, uuid.Nil, activated[0].sessionId)
+	assert.Equal(t, activated[0].sessionId, r.sessionId)
 
 	// session registered and scheduler notified
 	session := h.dispatcher.session(workerId)
@@ -449,10 +471,10 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{workerId}, h.dispatcher.released)
 	assert.Nil(t, h.dispatcher.session(workerId))
 
-	writes = h.workers.activeWrites()
-	require.Len(t, writes, 2)
-	assert.False(t, writes[1].active)
-	assert.Equal(t, writes[0].ts, writes[1].ts, "deactivation is fenced on the same session timestamp")
+	_, deactivated = h.workers.sessions()
+	require.Len(t, deactivated, 1)
+	assert.Equal(t, workerId, deactivated[0].workerId)
+	assert.Equal(t, activated[0].sessionId, deactivated[0].sessionId, "deactivation is fenced on the session id activation recorded")
 
 	count := h.workers.heartbeatCount()
 	time.Sleep(30 * time.Millisecond)
@@ -469,8 +491,8 @@ func TestOpenDefaultsAndFailures(t *testing.T) {
 
 		h.open(t, link.OpenOpts{})
 
-		require.Len(t, h.operators.creates, 1)
-		assert.Equal(t, map[string]int32{repository.SlotTypeDefault: defaultSlotCount}, h.operators.creates[0].opts.SlotConfig)
+		require.Len(t, h.workers.creates, 1)
+		assert.Equal(t, map[string]int32{repository.SlotTypeDefault: defaultSlotCount}, h.workers.creates[0].SlotConfig)
 	})
 
 	t.Run("unknown tenant", func(t *testing.T) {
@@ -479,19 +501,7 @@ func TestOpenDefaultsAndFailures(t *testing.T) {
 		_, err := h.link.Open(context.Background(), uuid.New(), 0, link.OpenOpts{})
 
 		require.ErrorIs(t, err, pgx.ErrNoRows)
-		assert.Empty(t, h.operators.creates)
-	})
-
-	t.Run("rejected workflow", func(t *testing.T) {
-		h := newHarness(t)
-		h.admin.err = errors.New("bad workflow")
-
-		_, err := h.link.Open(context.Background(), h.tenant.ID, 0, link.OpenOpts{
-			Workflows: []*v1.CreateWorkflowVersionRequest{workflow("ns_a", "svc:run")},
-		})
-
-		require.ErrorContains(t, err, "bad workflow")
-		assert.Empty(t, h.operators.upserts, "nothing is registered when a workflow is rejected")
+		assert.Empty(t, h.workers.creates)
 	})
 
 	t.Run("invalid action", func(t *testing.T) {
@@ -500,7 +510,7 @@ func TestOpenDefaultsAndFailures(t *testing.T) {
 		_, err := h.link.Open(context.Background(), h.tenant.ID, 0, link.OpenOpts{Actions: []string{"noverb"}})
 
 		require.ErrorContains(t, err, "invalid registration")
-		assert.Empty(t, h.admin.puts)
+		assert.Empty(t, h.operators.upserts, "nothing is registered with an invalid action")
 	})
 
 	t.Run("deactivation error surfaces on Close", func(t *testing.T) {
@@ -599,42 +609,79 @@ func TestActionsEndWithContext(t *testing.T) {
 	// Close still deactivates and releases after the stream ended on its own
 	require.NoError(t, reg.Close())
 	require.Len(t, h.dispatcher.released, 1)
-	require.Len(t, h.workers.activeWrites(), 2)
+
+	_, deactivated := h.workers.sessions()
+	require.Len(t, deactivated, 1)
 }
 
-func TestPutWorkflowAndUpdateActionsCallThrough(t *testing.T) {
+func TestPutWorkflowAndActionDeltasCallThrough(t *testing.T) {
 	h := newHarness(t)
 
-	reg, r := h.open(t, link.OpenOpts{Actions: []string{"ns_svc:run"}})
+	reg, _ := h.open(t, link.OpenOpts{Actions: []string{"ns_svc:run"}})
 
 	require.Equal(t, 1, h.dispatcher.notifyCount())
 
-	wf := workflow("ns_c", "ns_svc:Other")
+	wf := workflow("ns_c", "ns_svc:Other", "ns_svc:other")
+	wf.OnFailureTask = &v1.CreateTaskOpts{ReadableId: "fail", Action: "ns_svc:OnFailure"}
 
-	require.NoError(t, reg.PutWorkflow(context.Background(), wf, []string{"ns_svc:run", "ns_svc:other"}))
+	derived, err := reg.PutWorkflow(context.Background(), wf)
+	require.NoError(t, err)
 
 	require.Len(t, h.admin.puts, 1)
 	assert.Same(t, wf, h.admin.puts[0].wf)
 	assert.Equal(t, h.tenant.ID, tenantOf(t, h.admin.puts[0].ctx).ID)
+	assert.Equal(t, []string{"ns_svc:other", "ns_svc:other", "ns_svc:onfailure"}, derived, "derived ids are normalized like the engine stores them")
+	assert.Empty(t, h.workers.added, "a put does not touch the action set")
+	assert.Equal(t, 1, h.dispatcher.notifyCount())
 
-	require.Len(t, h.operators.actions, 1)
-	assert.Equal(t, []string{"ns_svc:other", "ns_svc:run"}, h.operators.actions[0], "the workflow's actions lead, then the full set without duplicates")
+	require.NoError(t, reg.AddActions(context.Background(), []string{"ns_svc:other", "ns_svc:other", ""}))
+	assert.Equal(t, [][]string{{"ns_svc:other"}}, h.workers.added, "duplicates and empties are dropped before the write")
 	assert.Equal(t, 2, h.dispatcher.notifyCount())
 
-	require.NoError(t, reg.UpdateActions(context.Background(), []string{"ns_svc:run", "ns_svc:run"}))
-
-	require.Len(t, h.operators.actions, 2)
-	assert.Equal(t, []string{"ns_svc:run"}, h.operators.actions[1])
+	require.NoError(t, reg.RemoveActions(context.Background(), []string{"ns_svc:run"}))
+	assert.Equal(t, [][]string{{"ns_svc:run"}}, h.workers.removed)
 	assert.Equal(t, 3, h.dispatcher.notifyCount())
 
-	require.Error(t, reg.UpdateActions(context.Background(), []string{"noverb"}))
-	require.Error(t, reg.UpdateActions(context.Background(), []string{"ns_svc:run", ""}), "empty entries fail validation like they do on the gRPC path")
-	require.Len(t, h.operators.actions, 2, "invalid actions are rejected before any write")
+	require.NoError(t, reg.Flush(context.Background()), "deltas are applied synchronously; Flush has nothing to wait for")
 
-	require.Error(t, reg.PutWorkflow(context.Background(), workflow("ns_d", ""), nil), "a task without an action is rejected")
+	// a delta the engine already had is not worth a scheduler reload
+	h.workers.noop = true
+	require.NoError(t, reg.AddActions(context.Background(), []string{"ns_svc:other"}))
+	assert.Equal(t, 3, h.dispatcher.notifyCount())
+	h.workers.noop = false
+
+	// empty deltas write nothing
+	require.NoError(t, reg.AddActions(context.Background(), nil))
+	require.NoError(t, reg.RemoveActions(context.Background(), []string{""}))
+	assert.Len(t, h.workers.added, 2)
+	assert.Len(t, h.workers.removed, 1)
+
+	require.Error(t, reg.AddActions(context.Background(), []string{"noverb"}))
+	require.Error(t, reg.RemoveActions(context.Background(), []string{"noverb"}))
+	assert.Len(t, h.workers.added, 2, "invalid actions are rejected before any write")
+	assert.Len(t, h.workers.removed, 1)
+
+	_, err = reg.PutWorkflow(context.Background(), workflow("ns_d", ""))
+	require.Error(t, err, "a task without an action is rejected")
 	require.Len(t, h.admin.puts, 1)
 
-	_ = r
+	h.admin.err = errors.New("bad workflow")
+	_, err = reg.PutWorkflow(context.Background(), workflow("ns_e", "ns_svc:e"))
+	require.ErrorContains(t, err, "bad workflow")
+
+	// large deltas are written in chunks of maxActionsPerDelta, with one notification
+	ids := make([]string, 0, maxActionsPerDelta+1)
+
+	for i := 0; i < maxActionsPerDelta+1; i++ {
+		ids = append(ids, fmt.Sprintf("ns_svc:a%d", i))
+	}
+
+	before := h.dispatcher.notifyCount()
+	require.NoError(t, reg.AddActions(context.Background(), ids))
+	require.Len(t, h.workers.added, 4)
+	assert.Len(t, h.workers.added[2], maxActionsPerDelta)
+	assert.Len(t, h.workers.added[3], 1)
+	assert.Equal(t, before+1, h.dispatcher.notifyCount())
 }
 
 func TestSendStepActionEventFillsWorkerAndTenant(t *testing.T) {

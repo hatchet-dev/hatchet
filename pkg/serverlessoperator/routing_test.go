@@ -166,10 +166,10 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.Equal(t, 1, repo.ListSinceCalls())
 
 	// SetHealthcheck replaces the endpoint's actions in the union immediately.
-	changed := cache.SetHealthcheck(a.ID, nil, []string{prefixed(a.Namespace, "svc:new")})
+	changed := cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")})
 	assert.True(t, changed)
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:new")}, cache.ActionUnion())
-	assert.False(t, cache.SetHealthcheck(a.ID, nil, []string{prefixed(a.Namespace, "svc:new")}), "same actions, no change")
+	assert.False(t, cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")}), "same actions, no change")
 
 	// A hard-deleted endpoint survives incremental refreshes and is dropped by a full load.
 	repo.RemoveEndpoint(a.ID)

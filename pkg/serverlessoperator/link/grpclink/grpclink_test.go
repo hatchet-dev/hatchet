@@ -131,16 +131,55 @@ func TestStaticExchange(t *testing.T) {
 
 // fakeSession is the minimal OperatorSession the link needs. Durable listeners are built
 // over a fakeDurableStream (durable_test.go) and stopped on Close like the real session does.
+// Action deltas and flushes are recorded in order; flushErr, when set, fails the next Flush.
 type fakeSession struct {
 	client.OperatorSession
 	stream    *fakeDurableStream
 	listeners []*client.DurableTaskListener
 	workerId  string
+	added     [][]string
+	removed   [][]string
+	puts      []*v1.CreateWorkflowVersionRequest
+	flushErr  error
+	flushes   int
 	closed    bool
 }
 
 func (f *fakeSession) Registration() client.OperatorRegistration {
 	return client.OperatorRegistration{WorkerId: f.workerId}
+}
+
+func (f *fakeSession) AddActions(ids ...string) {
+	f.added = append(f.added, append([]string{}, ids...))
+}
+
+func (f *fakeSession) RemoveActions(ids ...string) {
+	f.removed = append(f.removed, append([]string{}, ids...))
+}
+
+func (f *fakeSession) Flush(context.Context) error {
+	f.flushes++
+
+	if f.flushErr != nil {
+		err := f.flushErr
+		f.flushErr = nil
+
+		return err
+	}
+
+	return nil
+}
+
+func (f *fakeSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, []string, error) {
+	f.puts = append(f.puts, wf)
+
+	actions := make([]string, 0, len(wf.Tasks))
+
+	for _, task := range wf.Tasks {
+		actions = append(actions, task.Action)
+	}
+
+	return &v1.CreateWorkflowVersionResponse{Id: "v"}, actions, nil
 }
 
 func (f *fakeSession) NewDurableTaskListener(opts ...client.DurableTaskListenerOpt) *client.DurableTaskListener {
@@ -171,6 +210,7 @@ func (f *fakeSession) Close() error {
 
 type fakeOperatorClient struct {
 	connectErr error
+	flushErr   error
 	requests   []*client.ConnectOperatorRequest
 	sessions   []*fakeSession
 }
@@ -185,7 +225,8 @@ func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOpera
 		return nil, err
 	}
 
-	s := &fakeSession{workerId: "w" + req.Name}
+	s := &fakeSession{workerId: "w" + req.Name, flushErr: f.flushErr}
+	f.flushErr = nil
 	f.sessions = append(f.sessions, s)
 
 	return s, nil
@@ -243,17 +284,37 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 
 	req := built[0].operator.requests[1]
 	assert.Equal(t, "serverless", req.Name)
-	assert.Equal(t, opts.Actions, req.Actions)
 	assert.Equal(t, opts.SlotConfig, req.SlotConfig)
 	assert.Equal(t, "v", req.Labels["k"])
 	assert.Equal(t, 1, req.Labels["hatchet-serverless-shard"])
+
+	// the initial action set is streamed and flushed before Open returns
+	session := built[0].operator.sessions[1]
+	assert.Equal(t, [][]string{opts.Actions}, session.added)
+	assert.Equal(t, 1, session.flushes)
+
+	// deltas and puts pass straight through to the session
+	require.NoError(t, reg2.AddActions(context.Background(), []string{"ns_svc:other"}))
+	require.NoError(t, reg2.RemoveActions(context.Background(), []string{"ns_svc:run"}))
+	require.NoError(t, reg2.Flush(context.Background()))
+	assert.Equal(t, [][]string{opts.Actions, {"ns_svc:other"}}, session.added)
+	assert.Equal(t, [][]string{{"ns_svc:run"}}, session.removed)
+	assert.Equal(t, 2, session.flushes)
+
+	wf := &v1.CreateWorkflowVersionRequest{Name: "ns_wf", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "ns_svc:put"}}}
+	derived, err := reg2.PutWorkflow(context.Background(), wf)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ns_svc:put"}, derived)
+	require.Len(t, session.puts, 1)
+	assert.Same(t, wf, session.puts[0])
+	assert.Equal(t, 2, session.flushes, "a put does not touch the action set")
 
 	ch, err := reg.OpenDurable(context.Background(), "task", 0)
 	require.NoError(t, err)
 	require.NoError(t, ch.Close())
 
 	require.NoError(t, reg2.Close())
-	assert.True(t, built[0].operator.sessions[1].closed)
+	assert.True(t, session.closed)
 
 	// A rotated token rebuilds the client; a released tenant is evicted.
 	exchange[tenant] = "tok-2"
@@ -309,4 +370,30 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 
 	_, err = lnk2.Open(context.Background(), tenant, 0, link.OpenOpts{})
 	assert.Error(t, err)
+}
+
+// A registration whose initial actions the engine refused is closed rather than handed to
+// the core with an empty action set; an empty initial set is not flushed at all.
+func TestLinkOpenFlushesInitialActions(t *testing.T) {
+	tenant := uuid.New()
+	exchange := mapExchange{tenant: "tok"}
+
+	op := &fakeOperatorClient{flushErr: errors.New("invalid action")}
+
+	lnk := New(exchange, Options{
+		NewClient: func(token string) (client.Client, error) {
+			return &fakeClient{token: token, operator: op}, nil
+		},
+	})
+
+	_, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{Actions: []string{"bad"}})
+	require.ErrorContains(t, err, "invalid action")
+	require.Len(t, op.sessions, 1)
+	assert.True(t, op.sessions[0].closed, "the session is closed when the initial flush fails")
+
+	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	require.NoError(t, err)
+	assert.Empty(t, op.sessions[1].added)
+	assert.Equal(t, 0, op.sessions[1].flushes)
+	require.NoError(t, reg.Close())
 }

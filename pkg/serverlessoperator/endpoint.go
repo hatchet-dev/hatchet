@@ -28,12 +28,19 @@ type endpointPoller struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	// putHashes remembers the canonical hash of every workflow put through the current
-	// registration, by namespaced name, so a response change re-puts only what changed.
+	// putHashes remembers the canonical hash of every workflow this poller put, by
+	// namespaced name, so a response change re-puts only what changed. The engine keeps the
+	// workflows, so the memory outlives the registration they went through.
 	putHashes map[string]string
-	putReg    *registration
-	lastHash  string
-	failures  int
+
+	// registered is what this poller knows the endpoint row's registered_actions to be: the
+	// cached value when the first change is applied, then every set it wrote. The write is
+	// decided against it rather than the cache, since SetHealthcheck moves the cache ahead of
+	// the row before the write and a failed attempt must not leave the write skipped.
+	registered      []string
+	registeredKnown bool
+	lastHash        string
+	failures        int
 }
 
 func newEndpointPoller(r *runner, ts *tenantState, ep *cachedEndpoint) *endpointPoller {
@@ -144,38 +151,43 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 	p.lastHash = res.hash
 }
 
-// applyChange registers the endpoint's workflows through the unit's registration with the
-// tenant's full action set, records registered_actions when it changed, and pushes the new
-// union to every other registration for the tenant on this process. Other processes pick the
-// union up from the database on their next cache refresh.
+// applyChange puts the endpoint's changed workflows through the unit's registration, moves
+// the cached union to the new action set, pushes the resulting delta to the owner's
+// registration, records registered_actions when it changed, and pushes the delta to every
+// other registration for the tenant on this process. Other processes pick the union up from
+// the database on their next cache refresh.
 func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res *healthcheckResult) error {
-	before := p.ts.cache.Config(p.ep).registeredActions
-	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.workflows, res.actions)
-	union := p.ts.cache.ActionUnion()
-
-	// A registration opened after the last put carries the cached workflows itself, so the
-	// put memory is scoped to the registration that received them.
-	if p.putReg != reg {
-		p.putHashes = map[string]string{}
-		p.putReg = reg
-	}
-
 	for i, wf := range res.workflows {
 		if p.putHashes[wf.Name] == res.workflowHashes[i] {
 			continue
 		}
 
-		if err := reg.putWorkflow(ctx, wf, union); err != nil {
+		if _, err := reg.reg.PutWorkflow(ctx, wf); err != nil {
 			return fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)
 		}
 
 		p.putHashes[wf.Name] = res.workflowHashes[i]
 	}
 
-	if !stringsEqual(before, res.actions) {
+	if !p.registeredKnown {
+		p.registered = p.ts.cache.Config(p.ep).registeredActions
+		p.registeredKnown = true
+	}
+
+	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions)
+
+	// The owner's registration is the one that runs this endpoint's tasks, so its delta is
+	// part of the change: a failure here is retried on the next poll like a rejected put.
+	if err := reg.syncActions(ctx, p.ts.cache.ActionUnion()); err != nil {
+		return err
+	}
+
+	if !stringsEqual(p.registered, res.actions) {
 		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions); err != nil {
 			return fmt.Errorf("could not write registered actions: %w", err)
 		}
+
+		p.registered = res.actions
 	}
 
 	p.r.l.Info().

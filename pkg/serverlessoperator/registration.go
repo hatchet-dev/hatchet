@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
@@ -24,7 +23,7 @@ type inflightTask struct {
 
 // registration is one owned unit's engine registration: the link Registration, the action
 // loop that dispatches assigned actions, the in-flight deliveries and the action set it
-// last advertised.
+// last advertised, from which the next sync derives its delta.
 type registration struct {
 	r          *runner
 	ts         *tenantState
@@ -36,8 +35,11 @@ type registration struct {
 	advertised []string
 	shard      int32
 	mu         sync.Mutex
-	active     sync.WaitGroup
-	closed     bool
+	// syncMu serializes syncActions so two callers (maintenance pass and a poller) never
+	// derive and push the same delta twice.
+	syncMu sync.Mutex
+	active sync.WaitGroup
+	closed bool
 }
 
 func (ts *tenantState) registration(shard int32) *registration {
@@ -51,9 +53,8 @@ func (ts *tenantState) registration(shard int32) *registration {
 // not stall lease reconciliation for longer than this.
 const openTimeout = 30 * time.Second
 
-// openRegistration connects the unit with the tenant's known workflows and action union. A
-// connect rejected because of a workflow is retried without workflows, which are then put one
-// by one so a single bad endpoint marks itself unhealthy instead of blocking the tenant.
+// openRegistration connects the unit with the tenant's current action union. Workflows are
+// not part of opening: the pollers put them as they learn them, and the engine keeps them.
 func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard int32) error {
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
@@ -61,23 +62,12 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 	union := ts.cache.ActionUnion()
 
 	opts := link.OpenOpts{
-		Workflows:  ts.cache.Workflows(),
 		Actions:    union,
 		SlotConfig: r.slotConfig(),
 		Labels:     map[string]interface{}{workerLabelProcess: r.processId.String()},
 	}
 
 	reg, err := r.link.Open(ctx, ts.tenantId, int(shard), opts)
-
-	var rejected []*v1.CreateWorkflowVersionRequest
-
-	if err != nil && !errors.Is(err, link.ErrNoToken) && len(opts.Workflows) > 0 {
-		r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("registration open with workflows failed; retrying without them")
-
-		rejected = opts.Workflows
-		opts.Workflows = nil
-		reg, err = r.link.Open(ctx, ts.tenantId, int(shard), opts)
-	}
 
 	if err != nil {
 		if errors.Is(err, link.ErrNoToken) {
@@ -105,12 +95,6 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 		inflight:   map[string]*inflightTask{},
 		advertised: union,
 		loopDone:   make(chan struct{}),
-	}
-
-	for _, wf := range rejected {
-		if err := reg2.putWorkflow(ctx, wf, union); err != nil {
-			r.markWorkflowRejected(ctx, ts, wf, err)
-		}
 	}
 
 	// The action loop outlives ctx (the reconcile call) and ends with the runner's loop
@@ -151,21 +135,6 @@ func (r *runner) slotConfig() map[string]int32 {
 	return map[string]int32{
 		repository.SlotTypeDefault: r.cfg.DefaultSlots,
 		repository.SlotTypeDurable: r.cfg.DurableSlots,
-	}
-}
-
-// markWorkflowRejected flags the endpoint whose workflow the engine refused.
-func (r *runner) markWorkflowRejected(ctx context.Context, ts *tenantState, wf *v1.CreateWorkflowVersionRequest, err error) {
-	ns, ok := ParseNamespace(wf.Name)
-
-	if !ok {
-		return
-	}
-
-	for _, ep := range ts.ownedEndpoints() {
-		if ep.namespace == ns {
-			r.writeStatus(ctx, ts, ep, false, fmt.Sprintf("engine rejected workflow %s: %s", wf.Name, err.Error()))
-		}
 	}
 }
 
@@ -468,39 +437,79 @@ func (reg *registration) inFlight() int {
 	return len(reg.inflight)
 }
 
-// putWorkflow registers one workflow with the full action set and remembers the set as
-// advertised, since the engine applies it in the same call.
-func (reg *registration) putWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error {
-	if err := reg.reg.PutWorkflow(ctx, wf, fullActions); err != nil {
-		return err
-	}
-
-	reg.mu.Lock()
-	reg.advertised = fullActions
-	reg.mu.Unlock()
-
-	return nil
-}
-
-// syncActions calls UpdateActions when the union differs from what was last advertised.
+// syncActions pushes the difference between the last advertised set and union as add and
+// remove deltas, then flushes, so the engine sees the union. A failed push leaves advertised
+// unchanged and the next sync retries the same delta; both deltas are idempotent on the
+// engine, so a retry after a partial push is harmless.
 func (reg *registration) syncActions(ctx context.Context, union []string) error {
+	reg.syncMu.Lock()
+	defer reg.syncMu.Unlock()
+
 	reg.mu.Lock()
-	same := stringsEqual(reg.advertised, union)
+	prev := reg.advertised
 	reg.mu.Unlock()
 
-	if same {
+	added, removed := diffActions(prev, union)
+
+	if len(added) == 0 && len(removed) == 0 {
 		return nil
 	}
 
-	if err := reg.reg.UpdateActions(ctx, union); err != nil {
-		return err
+	if len(added) > 0 {
+		if err := reg.reg.AddActions(ctx, added); err != nil {
+			return fmt.Errorf("could not add actions: %w", err)
+		}
+	}
+
+	if len(removed) > 0 {
+		if err := reg.reg.RemoveActions(ctx, removed); err != nil {
+			return fmt.Errorf("could not remove actions: %w", err)
+		}
+	}
+
+	if err := reg.reg.Flush(ctx); err != nil {
+		return fmt.Errorf("could not flush actions: %w", err)
 	}
 
 	reg.mu.Lock()
 	reg.advertised = union
 	reg.mu.Unlock()
 
+	reg.r.l.Debug().
+		Str("tenant_id", reg.ts.tenantId.String()).
+		Int32("shard", reg.shard).
+		Int("added", len(added)).
+		Int("removed", len(removed)).
+		Msg("serverless registration actions synced")
+
 	return nil
+}
+
+// diffActions returns the ids in want but not in have (added) and in have but not in want
+// (removed), each in the order of the list they come from.
+func diffActions(have, want []string) (added, removed []string) {
+	haveSet := make(map[string]struct{}, len(have))
+	wantSet := make(map[string]struct{}, len(want))
+
+	for _, id := range have {
+		haveSet[id] = struct{}{}
+	}
+
+	for _, id := range want {
+		wantSet[id] = struct{}{}
+
+		if _, ok := haveSet[id]; !ok {
+			added = append(added, id)
+		}
+	}
+
+	for _, id := range have {
+		if _, ok := wantSet[id]; !ok {
+			removed = append(removed, id)
+		}
+	}
+
+	return added, removed
 }
 
 // drain stops reading actions and waits for in-flight deliveries up to timeout, then cancels

@@ -33,11 +33,11 @@ var ErrRequestInFlight = errors.New("durable request already in flight for this 
 // ErrChannelClosed is returned by DurableChannel.Recv once Close was called.
 var ErrChannelClosed = errors.New("durable channel closed")
 
-// OpenOpts is what a registration advertises to the engine when it opens: the tenant's known
-// workflows (already namespaced), the full action set (the union of registered_actions over the
-// tenant's enabled endpoints), the process-level slot config and the worker labels.
+// OpenOpts is what a registration advertises to the engine when it opens: the initial action
+// set (the union of registered_actions over the tenant's enabled endpoints), the process-level
+// slot config and the worker labels. Workflows are not part of opening a registration; they
+// are put through PutWorkflow as the endpoint pollers learn them.
 type OpenOpts struct {
-	Workflows  []*v1.CreateWorkflowVersionRequest
 	Actions    []string
 	SlotConfig map[string]int32
 	Labels     map[string]interface{}
@@ -45,6 +45,8 @@ type OpenOpts struct {
 
 // Link opens registrations for a tenant. One Link per process; one Registration per owned unit.
 type Link interface {
+	// Open registers a worker for the unit and adds opts.Actions to it before returning, so a
+	// registration is never observable with an empty action set.
 	Open(ctx context.Context, tenantId uuid.UUID, shard int, opts OpenOpts) (Registration, error)
 }
 
@@ -58,12 +60,22 @@ type Registration interface {
 	// failure is reported on the error channel.
 	Actions(ctx context.Context) (<-chan *contracts.AssignedAction, <-chan error, error)
 
-	// PutWorkflow registers or updates one namespaced workflow and sets the worker's full
-	// action set in the same call.
-	PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error
+	// PutWorkflow registers or updates one namespaced workflow and returns the action ids its
+	// tasks derive, normalized the way the engine stores them. It does not touch the worker's
+	// action set: the caller adds the derived ids with AddActions.
+	PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error)
 
-	// UpdateActions replaces the worker's action set. fullActions is the full set, not a delta.
-	UpdateActions(ctx context.Context, fullActions []string) error
+	// AddActions adds ids to the worker's action set. Ids already in the set are ignored. A
+	// link may apply the delta asynchronously; Flush waits for it.
+	AddActions(ctx context.Context, ids []string) error
+
+	// RemoveActions removes ids from the worker's action set. Ids not in the set are ignored. A
+	// link may apply the delta asynchronously; Flush waits for it.
+	RemoveActions(ctx context.Context, ids []string) error
+
+	// Flush blocks until every delta issued so far has been applied by the engine and reports
+	// the failure, if any. Links that apply deltas synchronously return immediately.
+	Flush(ctx context.Context) error
 
 	// SendStepActionEvent reports task progress (STARTED, COMPLETED, FAILED, CANCELLED).
 	SendStepActionEvent(ctx context.Context, ev *contracts.StepActionEvent) error

@@ -45,25 +45,29 @@ func (fakeEnc) DecryptString(ciphertext string, dataId string) (string, error) {
 	return strings.TrimPrefix(ciphertext, "enc:"), nil
 }
 
-type putCall struct {
-	wf      *v1.CreateWorkflowVersionRequest
-	actions []string
+// actionDelta is one AddActions or RemoveActions call recorded by fakeRegistration.
+type actionDelta struct {
+	add    []string
+	remove []string
 }
 
 // fakeRegistration records what the core does with a registration and lets tests push
 // assigned actions. openDurable, when set, backs OpenDurable; otherwise the link reports
-// durable delivery unsupported.
+// durable delivery unsupported. deltas records every add and remove in order; flushes counts
+// Flush calls.
 type fakeRegistration struct {
 	actions     chan *contracts.AssignedAction
 	errs        chan error
 	putErr      error
+	deltaErr    error
 	openDurable func(taskId string, invocation int32) (link.DurableChannel, error)
 	workerId    string
-	puts        []putCall
-	updates     [][]string
+	puts        []*v1.CreateWorkflowVersionRequest
+	deltas      []actionDelta
 	events      []*contracts.StepActionEvent
 	tenantId    uuid.UUID
 	shard       int
+	flushes     int
 	mu          sync.Mutex
 	closed      bool
 }
@@ -74,24 +78,50 @@ func (f *fakeRegistration) Actions(_ context.Context) (<-chan *contracts.Assigne
 	return f.actions, f.errs, nil
 }
 
-func (f *fakeRegistration) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error {
+func (f *fakeRegistration) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.putErr != nil {
-		return f.putErr
+		return nil, f.putErr
 	}
 
-	f.puts = append(f.puts, putCall{wf: wf, actions: append([]string{}, fullActions...)})
+	f.puts = append(f.puts, wf)
+
+	return actionsForWorkflow(wf)
+}
+
+func (f *fakeRegistration) AddActions(_ context.Context, ids []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.deltaErr != nil {
+		return f.deltaErr
+	}
+
+	f.deltas = append(f.deltas, actionDelta{add: append([]string{}, ids...)})
 
 	return nil
 }
 
-func (f *fakeRegistration) UpdateActions(_ context.Context, fullActions []string) error {
+func (f *fakeRegistration) RemoveActions(_ context.Context, ids []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.updates = append(f.updates, append([]string{}, fullActions...))
+	if f.deltaErr != nil {
+		return f.deltaErr
+	}
+
+	f.deltas = append(f.deltas, actionDelta{remove: append([]string{}, ids...)})
+
+	return nil
+}
+
+func (f *fakeRegistration) Flush(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.flushes++
 
 	return nil
 }
@@ -171,11 +201,45 @@ func (f *fakeRegistration) putCount() int {
 	return len(f.puts)
 }
 
-func (f *fakeRegistration) updateCount() int {
+func (f *fakeRegistration) deltaCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return len(f.updates)
+	return len(f.deltas)
+}
+
+// added and removed flatten the recorded deltas, in order.
+func (f *fakeRegistration) added() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]string, 0)
+
+	for _, d := range f.deltas {
+		out = append(out, d.add...)
+	}
+
+	return out
+}
+
+func (f *fakeRegistration) removed() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]string, 0)
+
+	for _, d := range f.deltas {
+		out = append(out, d.remove...)
+	}
+
+	return out
+}
+
+func (f *fakeRegistration) flushCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.flushes
 }
 
 type openCall struct {

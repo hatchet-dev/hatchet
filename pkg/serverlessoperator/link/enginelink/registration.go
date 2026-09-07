@@ -67,20 +67,23 @@ type registration struct {
 	closeOnce sync.Once
 	closeErr  error
 
-	workerId           uuid.UUID
-	sessionEstablished time.Time
+	workerId uuid.UUID
+
+	// sessionId is the listener session recorded on the worker row by Open; Close deactivates
+	// the worker fenced on it.
+	sessionId uuid.UUID
 }
 
-func newRegistration(l *Link, tenant *sqlcv1.Tenant, workerId uuid.UUID, sessionEstablished time.Time, buffer int, logger *zerolog.Logger) *registration {
+func newRegistration(l *Link, tenant *sqlcv1.Tenant, workerId uuid.UUID, sessionId uuid.UUID, buffer int, logger *zerolog.Logger) *registration {
 	return &registration{
-		link:               l,
-		l:                  logger,
-		tenant:             tenant,
-		actions:            make(chan *contracts.AssignedAction, buffer),
-		errCh:              make(chan error, 1),
-		done:               make(chan struct{}),
-		workerId:           workerId,
-		sessionEstablished: sessionEstablished,
+		link:      l,
+		l:         logger,
+		tenant:    tenant,
+		actions:   make(chan *contracts.AssignedAction, buffer),
+		errCh:     make(chan error, 1),
+		done:      make(chan struct{}),
+		workerId:  workerId,
+		sessionId: sessionId,
 	}
 }
 
@@ -175,45 +178,77 @@ func (r *registration) endStream() {
 	close(r.done)
 }
 
-// PutWorkflow implements link.Registration the way grpcoperator.PutWorkflow does: put the
-// workflow, then replace the worker's action set with the union of fullActions and the
-// workflow's own actions, and notify the scheduler.
-func (r *registration) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest, fullActions []string) error {
+// PutWorkflow implements link.Registration: put the workflow through the admin service with
+// the tenant on the context and return its derived action ids. The worker's action set is
+// untouched; the core adds the ids with AddActions.
+func (r *registration) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	derived, err := workflowActions(wf)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := r.link.v.Validate(registerOpts{Name: r.link.name, Actions: fullActions}); err != nil {
+	if _, err := r.link.admin.PutWorkflow(withTenant(ctx, r.tenant), wf); err != nil {
+		return nil, fmt.Errorf("could not put workflow %s: %w", wf.Name, err)
+	}
+
+	return derived, nil
+}
+
+// AddActions implements link.Registration: the ids are linked to the worker in chunks, and
+// the scheduler is notified once when the set grew. The write is synchronous, so Flush has
+// nothing to wait for.
+func (r *registration) AddActions(ctx context.Context, ids []string) error {
+	return r.applyDelta(ctx, ids, r.link.workers.AddWorkerActions, "add")
+}
+
+// RemoveActions implements link.Registration; see AddActions.
+func (r *registration) RemoveActions(ctx context.Context, ids []string) error {
+	return r.applyDelta(ctx, ids, r.link.workers.RemoveWorkerActions, "remove")
+}
+
+// Flush implements link.Registration. Deltas are applied synchronously by AddActions and
+// RemoveActions, so there is never anything pending.
+func (r *registration) Flush(context.Context) error {
+	return nil
+}
+
+type deltaFn func(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
+
+// applyDelta validates ids and applies them with fn in chunks of maxActionsPerDelta. The
+// scheduler reloads the worker's action set on notify, so one notification covers every
+// chunk and is skipped when nothing changed.
+func (r *registration) applyDelta(ctx context.Context, ids []string, fn deltaFn, verb string) error {
+	ids = unionActions(ids)
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	if err := r.link.v.Validate(registerOpts{Name: r.link.name, Actions: ids}); err != nil {
 		return fmt.Errorf("invalid actions: %w", err)
 	}
 
 	tctx := withTenant(ctx, r.tenant)
+	changed := 0
 
-	if _, err := r.link.admin.PutWorkflow(tctx, wf); err != nil {
-		return fmt.Errorf("could not put workflow %s: %w", wf.Name, err)
+	for start := 0; start < len(ids); start += maxActionsPerDelta {
+		end := min(start+maxActionsPerDelta, len(ids))
+
+		n, err := fn(tctx, r.tenant.ID, r.workerId, ids[start:end])
+
+		if err != nil {
+			return fmt.Errorf("could not %s actions for worker %s: %w", verb, r.workerId, err)
+		}
+
+		changed += n
 	}
 
-	return r.setActions(tctx, unionActions(derived, fullActions))
-}
-
-// UpdateActions implements link.Registration. fullActions is the full set: an action left out
-// is unlinked and the scheduler stops assigning it.
-func (r *registration) UpdateActions(ctx context.Context, fullActions []string) error {
-	if err := r.link.v.Validate(registerOpts{Name: r.link.name, Actions: fullActions}); err != nil {
-		return fmt.Errorf("invalid actions: %w", err)
+	if changed > 0 {
+		r.link.dispatcher.NotifyNewWorker(tctx, r.tenant, r.workerId)
 	}
 
-	return r.setActions(withTenant(ctx, r.tenant), unionActions(fullActions))
-}
-
-func (r *registration) setActions(tctx context.Context, actions []string) error {
-	if err := r.link.operators.UpdateOperatorWorkerActions(tctx, r.tenant.ID, r.workerId, actions); err != nil {
-		return fmt.Errorf("could not update actions for worker %s: %w", r.workerId, err)
-	}
-
-	r.link.dispatcher.NotifyNewWorker(tctx, r.tenant, r.workerId)
+	r.l.Debug().Str("op", verb).Int("ids", len(ids)).Int("changed", changed).Msg("applied serverless worker actions delta")
 
 	return nil
 }
@@ -231,8 +266,9 @@ func (r *registration) SendStepActionEvent(ctx context.Context, ev *contracts.St
 }
 
 // Close implements link.Registration: end the action stream, remove the dispatcher session,
-// stop heartbeats and deactivate the worker, fenced on the session's establishment time so a
-// newer session on the same worker id is never clobbered.
+// stop heartbeats and deactivate the worker, fenced on the session id so a newer session on
+// the same worker id is never clobbered. A superseded session (pgx.ErrNoRows) has nothing to
+// do.
 func (r *registration) Close() error {
 	r.closeOnce.Do(func() {
 		r.endStream()
@@ -246,7 +282,7 @@ func (r *registration) Close() error {
 		ctx, cancel := context.WithTimeout(context.Background(), deactivateTimeout)
 		defer cancel()
 
-		_, err := r.link.workers.UpdateWorkerActiveStatus(ctx, r.tenant.ID, r.workerId, false, r.sessionEstablished)
+		_, err := r.link.workers.DeactivateWorkerListener(ctx, r.tenant.ID, r.workerId, r.sessionId)
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			r.closeErr = fmt.Errorf("could not deactivate serverless worker %s: %w", r.workerId, err)

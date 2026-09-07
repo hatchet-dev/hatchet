@@ -209,15 +209,13 @@ type endpointConfig struct {
 }
 
 // cachedEndpoint is one endpoint of a served tenant. Identity fields never change; cfg is
-// swapped under the cache lock; workflows are what this process learned from the endpoint's
-// healthcheck (namespaced), also guarded by the cache lock. The limiters survive refreshes
-// so in-flight deliveries keep their slot: limiter bounds non-durable deliveries,
-// durableLimiter bounds open durable websockets.
+// swapped under the cache lock. The limiters survive refreshes so in-flight deliveries keep
+// their slot: limiter bounds non-durable deliveries, durableLimiter bounds open durable
+// websockets.
 type cachedEndpoint struct {
 	cfg            *endpointConfig
 	limiter        *slotLimiter
 	durableLimiter *slotLimiter
-	workflows      []*v1.CreateWorkflowVersionRequest
 	id             uuid.UUID
 	tenantId       uuid.UUID
 	namespace      uuid.UUID
@@ -442,23 +440,6 @@ func (c *routingCache) ActionUnion() []string {
 	return append([]string{}, c.union...)
 }
 
-// Workflows returns the namespaced workflows this process knows for the tenant's enabled
-// endpoints, for the Open call of a new registration.
-func (c *routingCache) Workflows() []*v1.CreateWorkflowVersionRequest {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	out := make([]*v1.CreateWorkflowVersionRequest, 0)
-
-	for _, ep := range c.byId {
-		if ep.cfg.enabled {
-			out = append(out, ep.workflows...)
-		}
-	}
-
-	return out
-}
-
 // Endpoints snapshots the tenant's endpoints (enabled or not).
 func (c *routingCache) Endpoints() []*cachedEndpoint {
 	c.mu.RLock()
@@ -531,11 +512,10 @@ func (c *routingCache) Route(ctx context.Context, actionId string) (*cachedEndpo
 	return nil, nil, fmt.Errorf("%w: %s", errEndpointNotFound, ns)
 }
 
-// SetHealthcheck records what an owned endpoint's healthcheck produced: its namespaced
-// workflows and action set. The action set replaces registered_actions in the cache so the
-// union changes here as soon as the owner writes it, without waiting for a refresh. It
-// returns whether the union changed.
-func (c *routingCache) SetHealthcheck(id uuid.UUID, workflows []*v1.CreateWorkflowVersionRequest, actions []string) bool {
+// SetHealthcheck records the action set an owned endpoint's healthcheck produced. It
+// replaces registered_actions in the cache so the union changes here as soon as the owner
+// learns it, without waiting for a refresh. It returns whether the union changed.
+func (c *routingCache) SetHealthcheck(id uuid.UUID, actions []string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -544,8 +524,6 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, workflows []*v1.CreateWorkfl
 	if !ok {
 		return false
 	}
-
-	ep.workflows = workflows
 
 	cfg := *ep.cfg
 	cfg.registeredActions = append([]string{}, actions...)

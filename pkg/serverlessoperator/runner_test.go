@@ -57,7 +57,6 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 	assert.Equal(t, sortedUnion(a.RegisteredActions, b.RegisteredActions), open.opts.Actions, "the union covers every enabled endpoint of the tenant, not only the owned ones")
 	assert.Equal(t, map[string]int32{repository.SlotTypeDefault: 10, repository.SlotTypeDurable: 5}, open.opts.SlotConfig)
 	assert.Equal(t, env.r.processId.String(), open.opts.Labels[workerLabelProcess])
-	assert.Empty(t, open.opts.Workflows, "no workflow is known before the first healthcheck")
 
 	// Both endpoints are on the owned unit, so both are polled once and nothing changes.
 	require.Eventually(t, func() bool {
@@ -70,7 +69,7 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 
 	assert.Empty(t, env.repo.ActionWrites(), "an unchanged action set is not rewritten")
 	assert.Empty(t, env.repo.StatusWrites(), "a healthy endpoint that stays healthy writes nothing")
-	assert.Equal(t, 0, env.link.reg(0).updateCount())
+	assert.Equal(t, 0, env.link.reg(0).deltaCount(), "the open carried the union; nothing to push")
 }
 
 func TestUnitLostClosesRegistrationWithoutTouchingActions(t *testing.T) {
@@ -92,7 +91,7 @@ func TestUnitLostClosesRegistrationWithoutTouchingActions(t *testing.T) {
 	assert.Nil(t, env.poller(a), "the poller stopped")
 	assert.Nil(t, env.tenant(tenant), "the tenant is forgotten with its last unit")
 	assert.Eventually(t, func() bool { return len(env.link.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
-	assert.Equal(t, 0, reg.updateCount())
+	assert.Equal(t, 0, reg.deltaCount())
 	assert.Equal(t, 0, reg.putCount())
 	assert.Empty(t, env.repo.ActionWrites())
 	assert.Equal(t, 1, env.link.openCount())
@@ -132,28 +131,32 @@ func TestHealthcheckChangeUpdatesActionsAndEveryRegistration(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	wantA := []string{prefixed(a.Namespace, "svc:echo")}
-	wantUnion := sortedUnion(wantA, b.RegisteredActions)
 
 	require.Equal(t, 1, regA.putCount(), "the owner's registration puts the changed workflow")
-	assert.Equal(t, prefixed(a.Namespace, "echo"), regA.puts[0].wf.Name)
-	assert.Equal(t, wantUnion, regA.puts[0].actions, "put with the tenant's full action set")
+	assert.Equal(t, prefixed(a.Namespace, "echo"), regA.puts[0].Name)
 
 	require.Len(t, env.repo.ActionWrites(), 1)
 	assert.Equal(t, a.ID, env.repo.ActionWrites()[0].EndpointId)
 	assert.Equal(t, wantA, env.repo.ActionWrites()[0].Actions)
 
-	require.Equal(t, 1, regB.updateCount(), "the other registration of the tenant is updated")
-	assert.Equal(t, wantUnion, regB.updates[0])
-	assert.Equal(t, 0, regA.updateCount(), "the put already carried the set for the owner")
+	// Both registrations of the tenant receive the same delta: the workflow's action in,
+	// the bare action out, flushed once each.
+	for _, reg := range []*fakeRegistration{regA, regB} {
+		assert.Equal(t, wantA, reg.added())
+		assert.Equal(t, a.RegisteredActions, reg.removed())
+		assert.Equal(t, 1, reg.flushCount())
+	}
+
 	assert.Equal(t, 0, regB.putCount())
 
 	// The same response again changes nothing.
 	poller.pollOnce(context.Background())
 	assert.Equal(t, 1, regA.putCount())
 	assert.Len(t, env.repo.ActionWrites(), 1)
-	assert.Equal(t, 1, regB.updateCount())
+	assert.Equal(t, 1, regA.flushCount())
+	assert.Equal(t, 1, regB.flushCount())
 
-	// Adding a second workflow puts only the new one.
+	// Adding a second workflow puts only the new one and adds only its action.
 	wf2 := &v1.CreateWorkflowVersionRequest{
 		Name:  "other",
 		Tasks: []*v1.CreateTaskOpts{{ReadableId: "run", Action: "svc:other"}},
@@ -163,23 +166,67 @@ func TestHealthcheckChangeUpdatesActionsAndEveryRegistration(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Equal(t, 2, regA.putCount(), "the unchanged workflow is not re-put")
-	assert.Equal(t, prefixed(a.Namespace, "other"), regA.puts[1].wf.Name)
+	assert.Equal(t, prefixed(a.Namespace, "other"), regA.puts[1].Name)
 	assert.Len(t, env.repo.ActionWrites(), 2)
-	assert.Equal(t, 2, regB.updateCount())
-	wantUnion = sortedUnion([]string{prefixed(a.Namespace, "svc:echo"), prefixed(a.Namespace, "svc:other")}, b.RegisteredActions)
-	assert.Equal(t, wantUnion, regB.updates[1])
 
-	// A fresh registration for the tenant opens with the known workflow.
+	wantA = []string{prefixed(a.Namespace, "svc:echo"), prefixed(a.Namespace, "svc:other")}
+	wantUnion := sortedUnion(wantA, b.RegisteredActions)
+
+	for _, reg := range []*fakeRegistration{regA, regB} {
+		assert.Equal(t, wantA, reg.added(), "only the new action is added")
+		assert.Equal(t, a.RegisteredActions, reg.removed(), "nothing else is removed")
+		assert.Equal(t, 2, reg.flushCount())
+	}
+
+	// A fresh registration for the tenant opens with the current union and needs no delta.
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(b)})
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(b)})
 
 	require.Equal(t, 3, env.link.openCount())
 	reopened := env.link.opens[2]
-	require.Len(t, reopened.opts.Workflows, 2)
-
-	names := []string{reopened.opts.Workflows[0].Name, reopened.opts.Workflows[1].Name}
-	assert.ElementsMatch(t, []string{prefixed(a.Namespace, "echo"), prefixed(a.Namespace, "other")}, names)
 	assert.Equal(t, wantUnion, reopened.opts.Actions)
+	assert.Equal(t, 0, env.link.reg(2).deltaCount())
+}
+
+func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	reg := env.link.reg(0)
+	reg.mu.Lock()
+	reg.deltaErr = assert.AnError
+	reg.mu.Unlock()
+
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a", "svc:b"))
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.StatusWrites(), 1, "a delta the engine refused marks the endpoint")
+	assert.False(t, env.repo.StatusWrites()[0].Healthy)
+	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not add actions")
+	assert.Empty(t, env.repo.ActionWrites(), "registered_actions is not written while the engine does not have the actions")
+
+	// The engine accepts again: the same delta is pushed and the endpoint recovers.
+	reg.mu.Lock()
+	reg.deltaErr = nil
+	reg.mu.Unlock()
+
+	poller.pollOnce(context.Background())
+
+	assert.Equal(t, []string{prefixed(a.Namespace, "svc:b")}, reg.added())
+	assert.Empty(t, reg.removed())
+	assert.Equal(t, 1, reg.flushCount())
+	require.Len(t, env.repo.ActionWrites(), 1)
+	require.Len(t, env.repo.StatusWrites(), 2)
+	assert.True(t, env.repo.StatusWrites()[1].Healthy)
 }
 
 func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
@@ -477,8 +524,9 @@ func TestMaintainStartsPollerForNewEndpointAndStopsForDeleted(t *testing.T) {
 
 	require.NotNil(t, env.poller(b))
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(b.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
-	require.Equal(t, 1, reg.updateCount(), "the union grew")
-	assert.Equal(t, sortedUnion(a.RegisteredActions, b.RegisteredActions), reg.updates[0])
+	require.Equal(t, 1, reg.deltaCount(), "the union grew")
+	assert.Equal(t, b.RegisteredActions, reg.added())
+	assert.Equal(t, 1, reg.flushCount())
 
 	// Deleting it is only visible to a full reload.
 	env.repo.RemoveEndpoint(b.ID)
@@ -489,6 +537,7 @@ func TestMaintainStartsPollerForNewEndpointAndStopsForDeleted(t *testing.T) {
 	env.r.maintainOnce(context.Background())
 
 	assert.Nil(t, env.poller(b))
-	require.Equal(t, 2, reg.updateCount())
-	assert.Equal(t, a.RegisteredActions, reg.updates[1])
+	require.Equal(t, 2, reg.deltaCount())
+	assert.Equal(t, b.RegisteredActions, reg.removed())
+	assert.Equal(t, 2, reg.flushCount())
 }
