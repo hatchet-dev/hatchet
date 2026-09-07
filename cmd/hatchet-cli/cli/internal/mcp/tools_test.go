@@ -335,7 +335,41 @@ func TestHandleEngineStatusNothingGranted(t *testing.T) {
 	assert.NotContains(t, text, `"local"`)
 }
 
+// clearPosthogKey empties the baked-in capture key for the test's duration so
+// the engine-fallback and no-key paths can be exercised deterministically.
+func clearPosthogKey(t *testing.T) {
+	t.Helper()
+
+	orig := PosthogAPIKey
+	PosthogAPIKey = ""
+	t.Cleanup(func() { PosthogAPIKey = orig })
+}
+
+func TestHandleSubmitFeedbackUsesBakedKey(t *testing.T) {
+	require.NotEmpty(t, PosthogAPIKey, "a public capture key should be baked into the build")
+
+	engineKey := "phc_from_engine"
+	engine := &fakeEngine{
+		tenantID: "tenant-local",
+		meta:     &rest.APIMeta{Posthog: &rest.APIMetaPosthog{ApiKey: &engineKey}},
+	}
+	sender := &fakeFeedbackSender{}
+	server := newTestServer(t, engine, sender, "local")
+
+	_, _, err := server.handleSubmitFeedback(context.Background(), nil, submitFeedbackArgs{
+		Category: "bug",
+		Summary:  "x",
+		Detail:   "y",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, sender.sent)
+	assert.Equal(t, PosthogAPIKey, sender.target.APIKey, "the baked-in key takes precedence over the engine-served key")
+}
+
 func TestHandleSubmitFeedback(t *testing.T) {
+	clearPosthogKey(t)
+
 	apiKey := "phc_from_engine"
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
@@ -376,6 +410,8 @@ func TestHandleSubmitFeedbackInvalidCategory(t *testing.T) {
 }
 
 func TestHandleSubmitFeedbackNoKeyAvailable(t *testing.T) {
+	clearPosthogKey(t)
+
 	sender := &fakeFeedbackSender{}
 	server := newTestServer(t, &fakeEngine{tenantID: "t"}, sender, "local")
 

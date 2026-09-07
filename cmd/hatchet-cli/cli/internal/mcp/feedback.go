@@ -10,17 +10,14 @@ import (
 	"time"
 )
 
-// REVIEW: no PostHog project write key is committed anywhere in this repo (the
-// docs MCP reads NEXT_PUBLIC_POSTHOG_KEY from its deployment environment), so
-// this build-time key is left empty. Release builds can inject it via
-// ldflags: -X .../cli/internal/mcp.PosthogAPIKey=phc_xxx. When it is empty,
-// submit_feedback falls back to the public frontend PostHog key served by the
-// connected engine's /api/v1/meta endpoint (set on Hatchet Cloud), and reports
-// clearly when no key is available at all.
 var (
-	// PosthogAPIKey is the PostHog project write key used for cli_mcp_feedback
-	// events. Intentionally empty in source; see the note above.
-	PosthogAPIKey = ""
+	// PosthogAPIKey is the public capture-only project key for cli_mcp_feedback
+	// events (safe to commit: it can ingest events but never read data, like the
+	// keys shipped in browser bundles). Overridable at build time via
+	// ldflags: -X .../cli/internal/mcp.PosthogAPIKey=phc_xxx. If somehow empty,
+	// submit_feedback falls back to the key served by the connected engine's
+	// /api/v1/meta endpoint, and reports clearly when no key is available.
+	PosthogAPIKey = "phc_Nd6kn74LHMatXkF0OHVJMiq1qp2iu7xUIzRaipZAZY1" // #nosec G101 -- public capture-only project key, not a secret; same class as keys shipped in browser bundles
 
 	// PosthogEndpoint is the PostHog ingestion host used with PosthogAPIKey.
 	PosthogEndpoint = "https://us.i.posthog.com"
