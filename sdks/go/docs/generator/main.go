@@ -134,7 +134,13 @@ func run() error {
 		fmt.Println("wrote", path)
 	}
 
-	return runPrettier(repoRoot, outDir)
+	if err := runPrettier(repoRoot, outDir); err != nil {
+		return err
+	}
+
+	// Keep the "Documentation for agents" block in the package doc comment
+	// (rendered on pkg.go.dev) in sync with the same mapping.
+	return updateAgentDocs(sdkDir, repoRoot, refMap)
 }
 
 // runPrettier formats the emitted files with the docs repo's own prettier so the
@@ -1325,7 +1331,25 @@ type refMapFeature struct {
 	Slugs       map[string]string `json:"slugs"`
 }
 
+type agentDocsLink struct {
+	Title string   `json:"title"`
+	Path  string   `json:"path"`
+	Langs []string `json:"langs"`
+}
+
+type agentDocsSection struct {
+	Title string          `json:"title"`
+	Links []agentDocsLink `json:"links"`
+}
+
+type agentDocsMap struct {
+	BaseURL  string             `json:"baseUrl"`
+	Lead     string             `json:"lead"`
+	Sections []agentDocsSection `json:"sections"`
+}
+
 type refMap struct {
+	AgentDocs      agentDocsMap              `json:"agentDocs"`
 	CorePages      map[string]refMapCorePage `json:"corePages"`
 	FeatureClients map[string]refMapFeature  `json:"featureClients"`
 }
