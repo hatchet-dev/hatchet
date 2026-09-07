@@ -1,3 +1,4 @@
+import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import {
   OrganizationInviteStatus,
   OrganizationMemberRoleType,
@@ -38,6 +40,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
@@ -75,7 +78,9 @@ export const OrganizationInviteMemberModal = ({
   const [selectedUserGroupIds, setSelectedUserGroupIds] = useState<string[]>(
     [],
   );
+  const [limitReached, setLimitReached] = useState(false);
   const { isControlPlaneEnabled } = useControlPlane();
+  const { canInviteUser } = useOrganizationEntitlements(organizationId);
 
   // Route API errors to an inline banner instead of a toast (which renders
   // behind the modal overlay).
@@ -210,16 +215,45 @@ export const OrganizationInviteMemberModal = ({
       queryClient.invalidateQueries({
         queryKey: ['organization-invites:list', organizationId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ['organization:entitlements:get', organizationId],
+      });
       reset();
       setSelectedTenants([]);
       setSelectedUserGroupIds([]);
       onCreated(request);
       onClose();
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (error instanceof AxiosError && error.response?.status === 403) {
+        setLimitReached(true);
+        return;
+      }
+      handleApiError(error as AxiosError);
+    },
   });
 
   const emailError = errors.email?.message?.toString();
+
+  if (limitReached || !canInviteUser) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlusIcon className="h-5 w-5" />
+              Invite Member
+            </DialogTitle>
+          </DialogHeader>
+          <UpgradeRequiredCard
+            resource="users"
+            organizationId={organizationId}
+            onNavigate={onClose}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

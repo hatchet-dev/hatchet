@@ -937,6 +937,33 @@ export interface OrganizationEntitlements {
   prometheusMetrics: boolean;
   /** @example false */
   auditLogs: boolean;
+  users: OrganizationResourceLimit;
+  tenants: OrganizationResourceLimit;
+}
+
+export interface OrganizationResourceLimit {
+  /**
+   * The maximum number of this resource allowed. -1 when unlimited.
+   * @format int64
+   * @example 1
+   */
+  limit: number;
+  /**
+   * The current number of this resource counted toward the limit.
+   * @format int64
+   * @example 1
+   */
+  used: number;
+  /**
+   * Whether this resource has no limit.
+   * @example false
+   */
+  unlimited: boolean;
+  /**
+   * Whether another resource of this type can be created or invited.
+   * @example false
+   */
+  canCreate: boolean;
 }
 
 /**
