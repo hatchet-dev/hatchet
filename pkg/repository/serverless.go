@@ -80,7 +80,7 @@ type ServerlessProcessRepository interface {
 	Upsert(ctx context.Context, opts UpsertServerlessProcessOpts) error
 	// ListLive returns the processes whose row has not expired and the ids of those whose row
 	// has. Dead ids feed ServerlessLeaseRepository.Claim so their units can be taken over.
-	ListLive(ctx context.Context) (live []*sqlcv1.V1ServerlessProcess, dead []uuid.UUID, err error)
+	ListLive(ctx context.Context) (live []*sqlcv1.V1ServerlessProcess, dead []*sqlcv1.V1ServerlessProcess, err error)
 	// DeleteExpired sweeps process rows that expired before cutoff and returns how many.
 	DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error)
 	// Delete removes the process's own row on graceful shutdown.
@@ -96,9 +96,11 @@ type ServerlessLeaseRepository interface {
 	// ReleaseAll releases every unit processId owns and returns how many.
 	ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error)
 	ListOwned(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.V1ServerlessLease, error)
-	// CountUnowned returns the number of unowned units and the sum of their endpoint counts,
-	// the unowned half of the fair-share weight.
-	CountUnowned(ctx context.Context) (*sqlcv1.CountUnownedServerlessLeasesRow, error)
+	// CountUnowned returns the number of claimable units and the sum of their endpoint
+	// counts: units with no owner plus units held by the given dead processes. The claiming
+	// process passes the ids of processes whose heartbeat row has expired so its fair share
+	// covers their work.
+	CountUnowned(ctx context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error)
 	// InsertIfAbsent creates the lease row of a unit. Endpoint creation does this itself; it is
 	// exposed for callers that add shards.
 	InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error

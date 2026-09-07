@@ -80,7 +80,7 @@ SELECT
     COUNT(*)::BIGINT AS unit_count,
     COALESCE(SUM(endpoint_count), 0)::BIGINT AS endpoint_count
 FROM v1_serverless_lease
-WHERE process_id IS NULL
+WHERE process_id IS NULL OR process_id = ANY($1::UUID[])
 `
 
 type CountUnownedServerlessLeasesRow struct {
@@ -88,9 +88,11 @@ type CountUnownedServerlessLeasesRow struct {
 	EndpointCount int64 `json:"endpoint_count"`
 }
 
-// Served by v1_serverless_lease_unowned_idx (partial on process_id IS NULL).
-func (q *Queries) CountUnownedServerlessLeases(ctx context.Context, db DBTX) (*CountUnownedServerlessLeasesRow, error) {
-	row := db.QueryRow(ctx, countUnownedServerlessLeases)
+// Counts the units a process may claim: unowned units (v1_serverless_lease_unowned_idx) plus
+// units still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx),
+// so a survivor's fair share includes the work of dead processes.
+func (q *Queries) CountUnownedServerlessLeases(ctx context.Context, db DBTX, deadids []uuid.UUID) (*CountUnownedServerlessLeasesRow, error) {
+	row := db.QueryRow(ctx, countUnownedServerlessLeases, deadids)
 	var i CountUnownedServerlessLeasesRow
 	err := row.Scan(&i.UnitCount, &i.EndpointCount)
 	return &i, err

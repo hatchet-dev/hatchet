@@ -259,12 +259,14 @@ WHERE process_id = @processId::UUID
 ORDER BY tenant_id, shard;
 
 -- name: CountUnownedServerlessLeases :one
--- Served by v1_serverless_lease_unowned_idx (partial on process_id IS NULL).
+-- Counts the units a process may claim: unowned units (v1_serverless_lease_unowned_idx) plus
+-- units still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx),
+-- so a survivor's fair share includes the work of dead processes.
 SELECT
     COUNT(*)::BIGINT AS unit_count,
     COALESCE(SUM(endpoint_count), 0)::BIGINT AS endpoint_count
 FROM v1_serverless_lease
-WHERE process_id IS NULL;
+WHERE process_id IS NULL OR process_id = ANY(@deadIds::UUID[]);
 
 -- name: IncrementServerlessLeaseEndpointCount :exec
 UPDATE v1_serverless_lease

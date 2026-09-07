@@ -110,7 +110,7 @@ func (c Config) withDefaults() Config {
 		c.DefaultSlots = d.DefaultSlots
 	}
 
-	if c.DurableSlots < 0 {
+	if c.DurableSlots <= 0 {
 		c.DurableSlots = d.DurableSlots
 	}
 

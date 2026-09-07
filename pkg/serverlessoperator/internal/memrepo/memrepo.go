@@ -404,25 +404,26 @@ func (p *processes) Upsert(_ context.Context, opts repository.UpsertServerlessPr
 	return nil
 }
 
-func (p *processes) ListLive(_ context.Context) ([]*sqlcv1.V1ServerlessProcess, []uuid.UUID, error) {
+func (p *processes) ListLive(_ context.Context) ([]*sqlcv1.V1ServerlessProcess, []*sqlcv1.V1ServerlessProcess, error) {
 	p.r.mu.Lock()
 	defer p.r.mu.Unlock()
 
 	live := make([]*sqlcv1.V1ServerlessProcess, 0)
-	dead := make([]uuid.UUID, 0)
+	dead := make([]*sqlcv1.V1ServerlessProcess, 0)
 
-	for id, proc := range p.r.processes {
+	for _, proc := range p.r.processes {
+		row := proc.row
+
 		if proc.expired {
-			dead = append(dead, id)
+			dead = append(dead, &row)
 			continue
 		}
 
-		row := proc.row
 		live = append(live, &row)
 	}
 
 	sort.Slice(live, func(i, j int) bool { return live[i].ProcessID.String() < live[j].ProcessID.String() })
-	sort.Slice(dead, func(i, j int) bool { return dead[i].String() < dead[j].String() })
+	sort.Slice(dead, func(i, j int) bool { return dead[i].ProcessID.String() < dead[j].ProcessID.String() })
 
 	return live, dead, nil
 }
@@ -578,14 +579,26 @@ func (l *leases) ListOwned(_ context.Context, processId uuid.UUID) ([]*sqlcv1.V1
 	return out, nil
 }
 
-func (l *leases) CountUnowned(_ context.Context) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
+func (l *leases) CountUnowned(_ context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
 	l.r.mu.Lock()
 	defer l.r.mu.Unlock()
+
+	dead := make(map[uuid.UUID]struct{}, len(deadIds))
+
+	for _, id := range deadIds {
+		dead[id] = struct{}{}
+	}
 
 	row := &sqlcv1.CountUnownedServerlessLeasesRow{}
 
 	for _, lease := range l.r.leases {
-		if lease.ProcessID == nil {
+		claimable := lease.ProcessID == nil
+
+		if lease.ProcessID != nil {
+			_, claimable = dead[*lease.ProcessID]
+		}
+
+		if claimable {
 			row.UnitCount++
 			row.EndpointCount += int64(lease.EndpointCount)
 		}

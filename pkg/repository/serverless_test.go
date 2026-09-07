@@ -441,7 +441,8 @@ func TestServerlessRepository(t *testing.T) {
 		require.Len(t, live, 1)
 		assert.Equal(t, longLived, live[0].ProcessID)
 		assert.Equal(t, int32(7), live[0].EndpointCount)
-		assert.Equal(t, []uuid.UUID{shortLived}, dead)
+		require.Len(t, dead, 1)
+		assert.Equal(t, shortLived, dead[0].ProcessID)
 
 		// a heartbeat revives an expired row; the counts follow the latest heartbeat
 		require.NoError(t, repo.Processes().Upsert(ctx, UpsertServerlessProcessOpts{
@@ -481,7 +482,7 @@ func TestServerlessRepository(t *testing.T) {
 		const numUnits = 20
 		units := seedServerlessUnits(t, ctx, repo, numUnits)
 
-		unowned, err := repo.Leases().CountUnowned(ctx)
+		unowned, err := repo.Leases().CountUnowned(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int64(numUnits), unowned.UnitCount)
 		// endpoint counts were seeded as 1..20
@@ -537,7 +538,7 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, numUnits, len(ownedA)+len(ownedB))
 
-		unowned, err = repo.Leases().CountUnowned(ctx)
+		unowned, err = repo.Leases().CountUnowned(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), unowned.UnitCount)
 		assert.Equal(t, int64(0), unowned.EndpointCount)
@@ -625,7 +626,7 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, owned, numUnits-5)
 
-		unowned, err := repo.Leases().CountUnowned(ctx)
+		unowned, err := repo.Leases().CountUnowned(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int64(5), unowned.UnitCount)
 
@@ -660,7 +661,7 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, ownedOther, 5, "release all touches only the caller's units")
 
-		unowned, err = repo.Leases().CountUnowned(ctx)
+		unowned, err = repo.Leases().CountUnowned(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int64(numUnits-5), unowned.UnitCount)
 

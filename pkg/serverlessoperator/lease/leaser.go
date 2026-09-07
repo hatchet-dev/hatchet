@@ -265,10 +265,19 @@ func (s *Leaser) Tick(ctx context.Context) error {
 		return fmt.Errorf("list live processes: %w", err)
 	}
 
-	unowned, err := s.repo.Leases().CountUnowned(ctx)
+	// Units still held by dead processes are claimable, so they count toward what the live
+	// processes share; without them a process that already owns its fair share has no budget
+	// to take a crashed process's units over.
+	deadIds := make([]uuid.UUID, 0, len(dead))
+
+	for _, p := range dead {
+		deadIds = append(deadIds, p.ProcessID)
+	}
+
+	unowned, err := s.repo.Leases().CountUnowned(ctx, deadIds)
 
 	if err != nil {
-		return fmt.Errorf("count unowned leases: %w", err)
+		return fmt.Errorf("count claimable leases: %w", err)
 	}
 
 	myWeight := weightOf(current)
@@ -307,7 +316,7 @@ func (s *Leaser) Tick(ctx context.Context) error {
 				limit = int32(min(int64(s.cfg.ClaimBatch), budget)) // #nosec G115 -- bounded by ClaimBatch
 			}
 
-			rows, err := s.repo.Leases().Claim(ctx, s.cfg.ProcessId, dead, limit)
+			rows, err := s.repo.Leases().Claim(ctx, s.cfg.ProcessId, deadIds, limit)
 
 			if err != nil {
 				return fmt.Errorf("claim leases: %w", err)

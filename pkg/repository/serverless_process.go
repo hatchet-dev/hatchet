@@ -43,7 +43,7 @@ func (r *serverlessProcessRepository) Upsert(ctx context.Context, opts UpsertSer
 	})
 }
 
-func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V1ServerlessProcess, []uuid.UUID, error) {
+func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V1ServerlessProcess, []*sqlcv1.V1ServerlessProcess, error) {
 	rows, err := r.queries.ListServerlessProcesses(ctx, r.pool)
 
 	if err != nil {
@@ -51,15 +51,16 @@ func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V
 	}
 
 	live := make([]*sqlcv1.V1ServerlessProcess, 0, len(rows))
-	dead := make([]uuid.UUID, 0)
+	dead := make([]*sqlcv1.V1ServerlessProcess, 0)
 
 	for _, row := range rows {
+		process := row.V1ServerlessProcess
+
 		if row.Expired {
-			dead = append(dead, row.V1ServerlessProcess.ProcessID)
+			dead = append(dead, &process)
 			continue
 		}
 
-		process := row.V1ServerlessProcess
 		live = append(live, &process)
 	}
 

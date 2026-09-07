@@ -40,9 +40,25 @@ type durableChannel struct {
 	taskExternalId string
 	invocation     int32
 
+	// The in-process engine delivers entry_completed for an already satisfied entry as soon
+	// as the invocation registers, which on a replay is before the endpoint has sent the
+	// wait_for (or trigger_runs) that names it. The endpoint expects the ack first, so an
+	// entry is held until the ack carrying its ref has been returned; wanted records refs
+	// whose ack went out before their entry arrived. This is what the gRPC listener's
+	// completion buffer does for out-of-process links.
+	held   map[entryRef][]*v1.DurableTaskResponse
+	wanted map[entryRef]struct{}
+	ready  []*v1.DurableTaskResponse
+
 	closeOnce sync.Once
 	mu        sync.Mutex
 	inflight  bool
+}
+
+// entryRef identifies one durable event log entry within the invocation.
+type entryRef struct {
+	branchId int64
+	nodeId   int64
 }
 
 // openDurable registers the session and runs the register-worker handshake: the first request
@@ -67,6 +83,8 @@ func openDurable(ctx context.Context, d Dispatcher, tenant *sqlcv1.Tenant, worke
 		closed:         make(chan struct{}),
 		taskExternalId: taskId.String(),
 		invocation:     invocation,
+		held:           make(map[entryRef][]*v1.DurableTaskResponse),
+		wanted:         make(map[entryRef]struct{}),
 	}
 
 	register := &v1.DurableTaskRequest{
@@ -191,29 +209,82 @@ func (c *durableChannel) Send(req *v1.DurableTaskRequest) error {
 // Recv implements link.DurableChannel. It returns link.ErrChannelClosed once Close was
 // called and errSessionEnded when the engine ended the session on its own.
 func (c *durableChannel) Recv() (*v1.DurableTaskResponse, error) {
-	select {
-	case <-c.closed:
-		return nil, link.ErrChannelClosed
-	case resp, ok := <-c.respCh:
-		if !ok {
-			if c.isClosed() {
-				return nil, link.ErrChannelClosed
+	for {
+		c.mu.Lock()
+		if len(c.ready) > 0 {
+			resp := c.ready[0]
+			c.ready = c.ready[1:]
+			c.mu.Unlock()
+
+			return resp, nil
+		}
+		c.mu.Unlock()
+
+		select {
+		case <-c.closed:
+			return nil, link.ErrChannelClosed
+		case resp, ok := <-c.respCh:
+			if !ok {
+				if c.isClosed() {
+					return nil, link.ErrChannelClosed
+				}
+
+				return nil, errSessionEnded
 			}
 
-			return nil, errSessionEnded
+			if c.deliverable(resp) {
+				return resp, nil
+			}
 		}
-
-		switch resp.GetMessage().(type) {
-		case *v1.DurableTaskResponse_MemoAck,
-			*v1.DurableTaskResponse_TriggerRunsAck,
-			*v1.DurableTaskResponse_WaitForAck,
-			*v1.DurableTaskResponse_EvictionAck,
-			*v1.DurableTaskResponse_Error:
-			c.release()
-		}
-
-		return resp, nil
 	}
+}
+
+// deliverable applies the ack-before-entry ordering: an entry_completed is returned only if
+// the ack naming its ref already went out, otherwise it is held; an ack releases the in-flight
+// slot and queues any held entries for the refs it names.
+func (c *durableChannel) deliverable(resp *v1.DurableTaskResponse) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	switch m := resp.GetMessage().(type) {
+	case *v1.DurableTaskResponse_EntryCompleted:
+		ref := entryRef{branchId: m.EntryCompleted.GetRef().GetBranchId(), nodeId: m.EntryCompleted.GetRef().GetNodeId()}
+
+		if _, ok := c.wanted[ref]; ok {
+			delete(c.wanted, ref)
+			return true
+		}
+
+		c.held[ref] = append(c.held[ref], resp)
+
+		return false
+	case *v1.DurableTaskResponse_WaitForAck:
+		c.inflight = false
+		c.expect(entryRef{branchId: m.WaitForAck.GetRef().GetBranchId(), nodeId: m.WaitForAck.GetRef().GetNodeId()})
+	case *v1.DurableTaskResponse_TriggerRunsAck:
+		c.inflight = false
+
+		for _, entry := range m.TriggerRunsAck.GetRunEntries() {
+			c.expect(entryRef{branchId: entry.GetBranchId(), nodeId: entry.GetNodeId()})
+		}
+	case *v1.DurableTaskResponse_MemoAck, *v1.DurableTaskResponse_EvictionAck, *v1.DurableTaskResponse_Error:
+		c.inflight = false
+	}
+
+	return true
+}
+
+// expect marks ref as acknowledged: a held entry for it is queued behind the ack, a future
+// one is returned as it arrives. Must be called with mu held.
+func (c *durableChannel) expect(ref entryRef) {
+	if entries, ok := c.held[ref]; ok {
+		c.ready = append(c.ready, entries...)
+		delete(c.held, ref)
+
+		return
+	}
+
+	c.wanted[ref] = struct{}{}
 }
 
 // Close implements link.DurableChannel: it cancels the session, unblocks Send and Recv, and

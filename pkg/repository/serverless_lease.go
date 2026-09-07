@@ -50,8 +50,12 @@ func (r *serverlessLeaseRepository) ListOwned(ctx context.Context, processId uui
 	return r.queries.ListOwnedServerlessLeases(ctx, r.pool, processId)
 }
 
-func (r *serverlessLeaseRepository) CountUnowned(ctx context.Context) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
-	return r.queries.CountUnownedServerlessLeases(ctx, r.pool)
+func (r *serverlessLeaseRepository) CountUnowned(ctx context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
+	if deadIds == nil {
+		deadIds = []uuid.UUID{}
+	}
+
+	return r.queries.CountUnownedServerlessLeases(ctx, r.pool, deadIds)
 }
 
 func (r *serverlessLeaseRepository) InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error {
