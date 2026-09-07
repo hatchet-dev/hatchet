@@ -1,6 +1,7 @@
 import atexit
 import contextlib
 import hashlib
+import logging
 import os
 import platform
 import subprocess
@@ -10,6 +11,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -18,6 +20,49 @@ from pydantic import BaseModel, ValidationError
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
+
+_SLOW_NOTICE_DELAY_SECONDS = 2.0
+_HEARTBEAT_INTERVAL_SECONDS = 30.0
+
+# first-contact progress goes to stderr (the SDK logger writes to stdout) in
+# the SDK's log format, so it never corrupts program output; warm starts print
+# at most one line
+_progress_logger = logging.getLogger("hatchet.embedded")
+_progress_logger.setLevel(logging.INFO)
+_progress_handler = logging.StreamHandler(sys.stderr)
+_progress_handler.setFormatter(
+    logging.Formatter("[%(levelname)s]\t🪓 -- %(asctime)s - %(message)s")
+)
+_progress_logger.addHandler(_progress_handler)
+_progress_logger.propagate = False
+
+
+@contextlib.contextmanager
+def _slow_notice(start_msg: str, done_msg: str) -> Iterator[None]:
+    """
+    Print `start_msg` only if the wrapped block is still running after
+    `_SLOW_NOTICE_DELAY_SECONDS` (and `done_msg` once it finishes), so fast
+    warm-start network calls stay quiet while a blocked one explains what the
+    process is waiting on.
+    """
+    noticed = threading.Event()
+
+    def emit() -> None:
+        noticed.set()
+        _progress_logger.info(start_msg)
+
+    timer = threading.Timer(_SLOW_NOTICE_DELAY_SECONDS, emit)
+    timer.daemon = True
+    timer.start()
+
+    try:
+        yield
+    finally:
+        timer.cancel()
+
+    # only reached when the wrapped block succeeded
+    if noticed.is_set():
+        _progress_logger.info(done_msg)
 
 
 class Handshake(BaseModel):
@@ -119,10 +164,14 @@ def _resolve_version(version: str | None) -> str:
     opener = urllib.request.build_opener(_NoRedirectHandler)
     location = ""
 
-    try:
-        opener.open(f"{REPO_URL}/releases/latest")
-    except urllib.error.HTTPError as e:
-        location = e.headers.get("Location") or ""
+    with _slow_notice(
+        f"resolving the latest hatchet-embedded release from {REPO_URL}",
+        "resolved the latest hatchet-embedded release",
+    ):
+        try:
+            opener.open(f"{REPO_URL}/releases/latest")
+        except urllib.error.HTTPError as e:
+            location = e.headers.get("Location") or ""
 
     tag = location.rstrip("/").rsplit("/", 1)[-1]
     if not tag.startswith("v"):
@@ -152,7 +201,11 @@ def _resolve_expected_checksum(tag: str, asset: str, bin_path: Path) -> str:
     # fall back to the checksum cached at download time so a pinned, already
     # verified binary still starts when GitHub is unreachable
     try:
-        expected = _expected_checksum(tag, asset)
+        with _slow_notice(
+            f"fetching the release checksums for {tag} (they verify the cached sidecar on every start)",
+            "release checksums fetched",
+        ):
+            expected = _expected_checksum(tag, asset)
     except (urllib.error.URLError, OSError):
         if bin_path.exists() and checksum_file.exists():
             return checksum_file.read_text().strip()
@@ -182,6 +235,13 @@ def _ensure_sidecar_binary(version: str | None, checksum: str | None) -> Path:
 
     if bin_path.exists() and _sha256_file(bin_path) == expected:
         return bin_path
+
+    _progress_logger.info(
+        "downloading the embedded engine sidecar %s to %s (tens of MB, cached for later runs)",
+        tag,
+        bin_path,
+    )
+
     url = f"{REPO_URL}/releases/download/{tag}/{asset}"
     # unique temp file per call (not per process) so concurrent downloads of
     # the same version never clobber each other, even across threads; the
@@ -206,7 +266,57 @@ def _ensure_sidecar_binary(version: str | None, checksum: str | None) -> Path:
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    _progress_logger.info("sidecar %s downloaded", tag)
+
     return bin_path
+
+
+# the ambient-token warning is printed at most once per process
+_warned_ambient_token = False
+
+
+def _ambient_client_token_source() -> str | None:
+    """
+    Return where an ambient `HATCHET_CLIENT_TOKEN` would be loaded from (the
+    environment, or one of the `.env` files `ClientConfig` reads), or `None`
+    if there is none.
+    """
+    if os.environ.get("HATCHET_CLIENT_TOKEN"):
+        return "the environment"
+
+    for name in (".env", ".env.hatchet", ".env.dev", ".env.local"):
+        try:
+            content = Path(name).read_text()
+        except OSError:
+            continue
+
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("export "):
+                stripped = stripped.removeprefix("export ").lstrip()
+            key, sep, value = stripped.partition("=")
+            if sep and key.strip() == "HATCHET_CLIENT_TOKEN" and value.strip():
+                return name
+
+    return None
+
+
+def _warn_on_ambient_client_token() -> None:
+    global _warned_ambient_token
+    if _warned_ambient_token:
+        return
+
+    source = _ambient_client_token_source()
+    if source is None:
+        return
+
+    _warned_ambient_token = True
+    _progress_logger.warning(
+        "HATCHET_CLIENT_TOKEN is set in %s. Hatchet clients created with the "
+        "standard constructor in this process will NOT use the embedded engine; "
+        "unset HATCHET_CLIENT_TOKEN for embedded runs.",
+        source,
+    )
 
 
 def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
@@ -216,6 +326,8 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     exits. Use `Hatchet.from_embedded()` unless you need the raw connection
     details.
     """
+    _warn_on_ambient_client_token()
+
     if options.binary_path:
         if options.checksum:
             actual = _sha256_file(Path(options.binary_path))
@@ -252,6 +364,12 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
     atexit.register(process.terminate)
 
+    _progress_logger.info(
+        "starting the embedded engine"
+        if options.database_url
+        else "starting the embedded engine (first run initializes a bundled Postgres and can take a minute)"
+    )
+
     try:
         handshake = _wait_for_handshake(
             process, handshake_path, options.ready_timeout_seconds
@@ -268,13 +386,22 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
 def _wait_for_handshake(
     process: subprocess.Popen[bytes], handshake_path: Path, timeout_seconds: float
 ) -> Handshake:
-    deadline = time.monotonic() + timeout_seconds
+    start = time.monotonic()
+    deadline = start + timeout_seconds
+    next_heartbeat = start + _HEARTBEAT_INTERVAL_SECONDS
 
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(
                 f"hatchet embedded sidecar exited with code {process.returncode} before becoming ready"
             )
+
+        if time.monotonic() >= next_heartbeat:
+            elapsed = round(time.monotonic() - start)
+            _progress_logger.info(
+                "still waiting for the embedded engine (%ss elapsed)", elapsed
+            )
+            next_heartbeat += _HEARTBEAT_INTERVAL_SECONDS
 
         try:
             return Handshake.model_validate_json(handshake_path.read_text())
