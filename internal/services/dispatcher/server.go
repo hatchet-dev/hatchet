@@ -297,7 +297,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
-	sessionId := uuid.New().String()
+	sessionId := uuid.New()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
@@ -332,28 +332,23 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		}
 	}
 
-	sessionEstablished := time.Now().UTC()
-
-	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, true, sessionEstablished)
+	// Activation records this session's id on the worker; deactivation below only succeeds
+	// while that id is still the one on the row, so a session that has been superseded by a
+	// newer listener can never mark the live session's worker inactive.
+	_, err = s.repov1.Workers().ActivateWorkerListener(ctx, tenantId, workerId, sessionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
 
-		lastSessionEstablished := "NULL"
-
-		if worker.LastListenerEstablished.Valid {
-			lastSessionEstablished = worker.LastListenerEstablished.Time.String()
-		}
-
-		s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to true (session established %s, last session established %s)", request.WorkerId, sessionEstablished.String(), lastSessionEstablished)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not activate worker %s for listener session %s", request.WorkerId, sessionId)
 		return err
 	}
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newGRPCSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	s.workers.Add(workerId, sessionId.String(), newGRPCSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
 
 	defer func() {
 		// non-blocking send
@@ -362,7 +357,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		s.workers.DeleteForSession(workerId, sessionId)
+		s.workers.DeleteForSession(workerId, sessionId.String())
 	}()
 
 	// Keep the connection alive for sending messages
@@ -371,30 +366,37 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
-				return err
-			}
-
-			return nil
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker stream closing")
 		case <-ctx.Done():
 			s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
 
+			// The stream context is already done, so the deactivation runs on a detached
+			// context with its own deadline.
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
-				return err
-			}
-
-			return nil
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker disconnecting")
 		}
 	}
+}
+
+// deactivateWorkerListener marks the worker inactive on behalf of the given listener
+// session. A superseded session (one whose id is no longer recorded on the worker) has
+// nothing to do, because the newer session owns the worker's active flag.
+func (s *DispatcherImpl) deactivateWorkerListener(ctx context.Context, tenantId, workerId, sessionId uuid.UUID, reason string) error {
+	_, err := s.repov1.Workers().DeactivateWorkerListener(ctx, tenantId, workerId, sessionId)
+
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		s.l.Debug().Ctx(ctx).Msgf("listener session %s for worker %s was superseded by a newer session, leaving worker active (%s)", sessionId, workerId, reason)
+		return nil
+	}
+
+	s.l.Error().Ctx(ctx).Err(err).Msgf("could not deactivate worker %s for listener session %s due to %s", workerId, sessionId, reason)
+	return err
 }
 
 const HeartbeatInterval = 4 * time.Second

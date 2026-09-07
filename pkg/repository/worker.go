@@ -144,7 +144,15 @@ type WorkerRepository interface {
 
 	GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error)
 
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
+	// ActivateWorkerListener marks the worker active on behalf of the listener session
+	// identified by sessionId and records that id on the worker, so only this session can
+	// later deactivate it.
+	ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
+
+	// DeactivateWorkerListener marks the worker inactive if sessionId is still the session
+	// recorded by ActivateWorkerListener. It returns pgx.ErrNoRows when a newer session has
+	// superseded this one, in which case the worker is left untouched.
+	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
@@ -845,15 +853,29 @@ func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID,
 	return err
 }
 
-func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
-	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, sqlcv1.UpdateWorkerActiveStatusParams{
-		ID:                      workerId,
-		Isactive:                isActive,
-		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
+func (w *workerRepository) ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.ActivateWorkerListener(ctx, w.pool, sqlcv1.ActivateWorkerListenerParams{
+		ID:        workerId,
+		Tenantid:  tenantId,
+		Sessionid: sessionId,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update worker active status: %w", err)
+		return nil, fmt.Errorf("could not activate worker listener: %w", err)
+	}
+
+	return worker, nil
+}
+
+func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.DeactivateWorkerListener(ctx, w.pool, sqlcv1.DeactivateWorkerListenerParams{
+		ID:        workerId,
+		Tenantid:  tenantId,
+		Sessionid: sessionId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not deactivate worker listener: %w", err)
 	}
 
 	return worker, nil
