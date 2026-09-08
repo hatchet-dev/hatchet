@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,29 +20,24 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
 
-// namespaceSeparator joins the endpoint namespace to the names it prefixes, the way the SDK's
-// HATCHET_CLIENT_NAMESPACE does (client.WithNamespace appends the same underscore).
-const namespaceSeparator = "_"
-
 // namespaceLen is the length of the prefix without its separator: a hyphenated uuid.
 const namespaceLen = 36
 
 var errEndpointNotFound = errors.New("endpoint not found for namespace")
 
+// namespacePrefix is what prefixName prepends: contract.NamespacePrefix over the endpoint's
+// namespace, joined by the separator the SDK's HATCHET_CLIENT_NAMESPACE uses.
 func namespacePrefix(ns uuid.UUID) string {
-	return ns.String() + namespaceSeparator
+	return contract.NamespacePrefix(ns.String())
 }
 
-// prefixName applies the namespace to a workflow name or event key. Already-prefixed names
-// are left alone so applying twice is harmless, as clientconfig.ApplyNamespace does.
+// prefixName applies the namespace to a workflow name, action service or event key through
+// contract.ApplyNamespace, the rule the durable relay applies to the names an endpoint
+// references in nested requests, so what the operator registers and what the relay confines
+// an endpoint to are prefixed by one implementation. Already-prefixed names are left alone,
+// so applying twice is harmless.
 func prefixName(ns uuid.UUID, name string) string {
-	prefix := namespacePrefix(ns)
-
-	if strings.HasPrefix(name, prefix) {
-		return name
-	}
-
-	return prefix + name
+	return contract.ApplyNamespace(ns.String(), name)
 }
 
 // prefixAction normalizes an action id the way the engine stores it (types.ParseActionID:
@@ -153,7 +147,7 @@ func actionsForWorkflow(wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 // ParseNamespace extracts the endpoint namespace from a registered action id of the form
 // <uuid>_<service>:<verb>.
 func ParseNamespace(actionId string) (uuid.UUID, bool) {
-	if len(actionId) <= namespaceLen || actionId[namespaceLen:namespaceLen+1] != namespaceSeparator {
+	if len(actionId) <= namespaceLen || actionId[namespaceLen:namespaceLen+1] != contract.NamespaceSeparator {
 		return uuid.Nil, false
 	}
 
