@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -128,14 +130,15 @@ type WorkerRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
-	// AddWorkerActions links actionIds to the worker and folds the newly linked ones into its
-	// action hash. Actions the worker already has are skipped. It returns the number of actions
-	// actually linked.
+	// AddWorkerActions links actionIds to the worker and recomputes its action hash from the
+	// resulting set. Actions the worker already has are skipped. It returns the number of
+	// actions actually linked. The worker must belong to tenantId; otherwise nothing is
+	// mutated and an error wrapping pgx.ErrNoRows is returned.
 	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (added int, err error)
 
-	// RemoveWorkerActions unlinks actionIds from the worker and folds the unlinked ones out of
-	// its action hash. Actions the worker does not have are skipped. It returns the number of
-	// actions actually unlinked.
+	// RemoveWorkerActions unlinks actionIds from the worker and recomputes its action hash
+	// from the resulting set. Actions the worker does not have are skipped. It returns the
+	// number of actions actually unlinked. The tenant check is the same as AddWorkerActions.
 	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (removed int, err error)
 
 	// UpdateWorker updates a worker for a given tenant.
@@ -549,37 +552,27 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 	})
 }
 
+// hashActions is the canonical digest of an action set: sha256 over the ids sorted by byte
+// order, each followed by ";" so ["ab", "c"] and ["a", "bc"] differ, after the same
+// lower-casing and deduplication the "Action" table applies. It is a function of the final set
+// alone, so a worker created with an initial set and a worker built by deltas hash equal for
+// the same set, and it is not a combination of per-action digests that could be solved for a
+// chosen value. ComputeWorkerActionHash in workers.sql computes the same digest from the
+// linked rows; the two must stay in step because GetWorkerActionsByWorkerActionHash treats
+// equal hashes as equal sets.
 func hashActions(actions []string) []byte {
+	ids := dedupeActionIds(actions)
+
+	sort.Strings(ids)
+
 	h := sha256.New()
 
-	for _, action := range actions {
+	for _, action := range ids {
 		h.Write([]byte(action))
-		h.Write([]byte(";")) // separator to avoid collisions (e.g. ["ab", "c"] vs ["a", "bc"])
+		h.Write([]byte(";"))
 	}
 
 	return h.Sum(nil)
-}
-
-// xorActionHash folds actionIds into hash by XOR-ing each action's sha256 digest into it. It
-// is the incremental form of the worker action hash: XOR is commutative and its own inverse,
-// so folding an action in and out again restores the hash, and equal sets hash equal whatever
-// order they were built in (which is what GetWorkerActionsByWorkerActionHash relies on when it
-// reads one representative worker per hash). A delta therefore costs O(len(actionIds)) rather
-// than O(size of the set). The seed is whatever the worker row holds, so two workers created
-// with the same initial hash that build the same set in any order end with the same hash.
-func xorActionHash(hash []byte, actionIds []string) []byte {
-	out := make([]byte, sha256.Size)
-	copy(out, hash)
-
-	for _, actionId := range actionIds {
-		digest := sha256.Sum256([]byte(actionId))
-
-		for i := range out {
-			out[i] ^= digest[i]
-		}
-	}
-
-	return out
 }
 
 // workerSDKFromContract maps the SDK reported by a worker at registration to the "Worker"."language"
@@ -787,34 +780,22 @@ func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.U
 
 	defer rollback()
 
-	// the row lock is held until commit, so the hash read here is the one updated below even
-	// when another delta for the same worker runs concurrently
-	hash, err := w.queries.LockWorkerActionHash(ctx, tx, workerId)
-
-	if err != nil {
-		return 0, fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	// the row lock is held until commit, so concurrent deltas for the same worker apply one
+	// after the other and each recomputes the hash from the links it leaves behind
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return 0, err
 	}
 
-	actions, err := w.queries.UpsertActions(ctx, tx, sqlcv1.UpsertActionsParams{
-		Tenantid: tenantId,
-		Actions:  actionIds,
-	})
+	actionUUIDs, err := w.resolveActionIds(ctx, tx, tenantId, actionIds)
 
 	if err != nil {
-		return 0, fmt.Errorf("could not upsert actions: %w", err)
-	}
-
-	actionUUIDs := make([]uuid.UUID, 0, len(actions))
-	actionIdByUUID := make(map[uuid.UUID]string, len(actions))
-
-	for _, action := range actions {
-		actionUUIDs = append(actionUUIDs, action.ID)
-		actionIdByUUID[action.ID] = action.ActionId
+		return 0, err
 	}
 
 	linked, err := w.queries.LinkActionsToWorkerReturning(ctx, tx, sqlcv1.LinkActionsToWorkerReturningParams{
-		Actionids: actionUUIDs,
 		Workerid:  workerId,
+		Tenantid:  tenantId,
+		Actionids: actionUUIDs,
 	})
 
 	if err != nil {
@@ -825,19 +806,8 @@ func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.U
 		return 0, nil
 	}
 
-	linkedIds := make([]string, 0, len(linked))
-
-	for _, id := range linked {
-		linkedIds = append(linkedIds, actionIdByUUID[id])
-	}
-
-	err = w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
-		Workerid:   workerId,
-		Actionhash: xorActionHash(hash, linkedIds),
-	})
-
-	if err != nil {
-		return 0, fmt.Errorf("could not update worker actions hash: %w", err)
+	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return 0, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -862,10 +832,8 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 
 	defer rollback()
 
-	hash, err := w.queries.LockWorkerActionHash(ctx, tx, workerId)
-
-	if err != nil {
-		return 0, fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return 0, err
 	}
 
 	actions, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
@@ -882,15 +850,14 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 	}
 
 	actionUUIDs := make([]uuid.UUID, 0, len(actions))
-	actionIdByUUID := make(map[uuid.UUID]string, len(actions))
 
 	for _, action := range actions {
 		actionUUIDs = append(actionUUIDs, action.ID)
-		actionIdByUUID[action.ID] = action.ActionId
 	}
 
 	unlinked, err := w.queries.UnlinkActionsFromWorkerReturning(ctx, tx, sqlcv1.UnlinkActionsFromWorkerReturningParams{
 		Workerid:  workerId,
+		Tenantid:  tenantId,
 		Actionids: actionUUIDs,
 	})
 
@@ -902,19 +869,8 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 		return 0, nil
 	}
 
-	unlinkedIds := make([]string, 0, len(unlinked))
-
-	for _, id := range unlinked {
-		unlinkedIds = append(unlinkedIds, actionIdByUUID[id])
-	}
-
-	err = w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
-		Workerid:   workerId,
-		Actionhash: xorActionHash(hash, unlinkedIds),
-	})
-
-	if err != nil {
-		return 0, fmt.Errorf("could not update worker actions hash: %w", err)
+	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return 0, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -922,6 +878,134 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 	}
 
 	return len(unlinked), nil
+}
+
+// lockWorkerActions takes the worker's row lock for the rest of tx. A worker that does not
+// belong to tenantId is reported as an error wrapping pgx.ErrNoRows before anything is
+// mutated.
+func (w *workerRepository) lockWorkerActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID) error {
+	if _, err := w.queries.LockWorkerActionHash(ctx, tx, sqlcv1.LockWorkerActionHashParams{
+		Workerid: workerId,
+		Tenantid: tenantId,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("worker %s does not belong to tenant %s: %w", workerId, tenantId, err)
+		}
+
+		return fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	}
+
+	return nil
+}
+
+// resolveActionIds returns the "Action" row ids for actionIds, creating the rows that are
+// missing. Existing rows are read, not upserted, so a delta that repeats actions the tenant
+// already has takes no lock on them and writes nothing; the missing ones are inserted in
+// sorted order so concurrent transactions creating overlapping sets lock in one order.
+// actionIds must already be deduplicated and lower-cased.
+func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, actionIds []string) ([]uuid.UUID, error) {
+	existing, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+		Tenantid:  tenantId,
+		Actionids: actionIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list actions: %w", err)
+	}
+
+	uuidByActionId := make(map[string]uuid.UUID, len(actionIds))
+
+	for _, action := range existing {
+		uuidByActionId[action.ActionId] = action.ID
+	}
+
+	missing := make([]string, 0, len(actionIds)-len(existing))
+
+	for _, actionId := range actionIds {
+		if _, ok := uuidByActionId[actionId]; !ok {
+			missing = append(missing, actionId)
+		}
+	}
+
+	if len(missing) > 0 {
+		sort.Strings(missing)
+
+		inserted, err := w.queries.InsertMissingActions(ctx, tx, sqlcv1.InsertMissingActionsParams{
+			Tenantid: tenantId,
+			Actions:  missing,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not insert actions: %w", err)
+		}
+
+		for _, action := range inserted {
+			uuidByActionId[action.ActionId] = action.ID
+		}
+
+		// an action a concurrent transaction created after the read above is skipped by the
+		// insert and resolved here, once that transaction has committed
+		if len(inserted) < len(missing) {
+			raced := make([]string, 0, len(missing)-len(inserted))
+
+			for _, actionId := range missing {
+				if _, ok := uuidByActionId[actionId]; !ok {
+					raced = append(raced, actionId)
+				}
+			}
+
+			concurrent, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+				Tenantid:  tenantId,
+				Actionids: raced,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not list actions: %w", err)
+			}
+
+			for _, action := range concurrent {
+				uuidByActionId[action.ActionId] = action.ID
+			}
+		}
+	}
+
+	actionUUIDs := make([]uuid.UUID, 0, len(actionIds))
+
+	for _, actionId := range actionIds {
+		id, ok := uuidByActionId[actionId]
+
+		if !ok {
+			return nil, fmt.Errorf("could not resolve action %s for tenant %s", actionId, tenantId)
+		}
+
+		actionUUIDs = append(actionUUIDs, id)
+	}
+
+	sort.Slice(actionUUIDs, func(i, j int) bool {
+		return bytes.Compare(actionUUIDs[i][:], actionUUIDs[j][:]) < 0
+	})
+
+	return actionUUIDs, nil
+}
+
+// refreshWorkerActionHash recomputes the worker's action hash from its linked rows inside tx.
+// The caller holds the worker's row lock, so the digest written here is the digest of the
+// links this transaction leaves behind.
+func (w *workerRepository) refreshWorkerActionHash(ctx context.Context, tx pgx.Tx, workerId uuid.UUID) error {
+	hash, err := w.queries.ComputeWorkerActionHash(ctx, tx, workerId)
+
+	if err != nil {
+		return fmt.Errorf("could not compute worker actions hash: %w", err)
+	}
+
+	if err := w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
+		Workerid:   workerId,
+		Actionhash: hash,
+	}); err != nil {
+		return fmt.Errorf("could not update worker actions hash: %w", err)
+	}
+
+	return nil
 }
 
 // dedupeActionIds lower-cases action ids the way the "Action" table stores them and drops
@@ -1012,6 +1096,12 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 
 		if err != nil {
 			return nil, fmt.Errorf("could not link actions to worker: %w", err)
+		}
+
+		// links are only ever added here, so the stored hash is recomputed from the rows
+		// rather than from opts.Actions alone
+		if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+			return nil, err
 		}
 	}
 

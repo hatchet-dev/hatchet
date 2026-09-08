@@ -90,6 +90,27 @@ func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, arg CleanupOld
 	return db.Exec(ctx, cleanupOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Batchsize)
 }
 
+const computeWorkerActionHash = `-- name: ComputeWorkerActionHash :one
+SELECT sha256(convert_to(
+    coalesce(string_agg(a."actionId" || ';', '' ORDER BY a."actionId" COLLATE "C"), ''),
+    'UTF8'
+))::bytea AS "hash"
+FROM "_ActionToWorker" aw
+JOIN "Action" a ON a."id" = aw."A"
+WHERE aw."B" = $1::uuid
+`
+
+// The canonical digest of the worker's linked action set: sha256 over the action ids sorted
+// by byte order, each followed by ";". It is the same function hashActions computes in Go, so
+// a worker created with an initial set and a worker built by deltas hash equal for the same
+// set. The empty set hashes to sha256 of the empty string.
+func (q *Queries) ComputeWorkerActionHash(ctx context.Context, db DBTX, workerid uuid.UUID) ([]byte, error) {
+	row := db.QueryRow(ctx, computeWorkerActionHash, workerid)
+	var hash []byte
+	err := row.Scan(&hash)
+	return hash, err
+}
+
 const countWorkers = `-- name: CountWorkers :one
 SELECT count(*)
 FROM
@@ -735,6 +756,57 @@ func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const insertMissingActions = `-- name: InsertMissingActions :many
+INSERT INTO "Action" (
+    "id",
+    "actionId",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    a.action,
+    $1::uuid
+FROM unnest($2::text[]) AS a(action)
+ON CONFLICT ("tenantId", "actionId") DO NOTHING
+RETURNING "id", "actionId"
+`
+
+type InsertMissingActionsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Actions  []string  `json:"actions"`
+}
+
+type InsertMissingActionsRow struct {
+	ID       uuid.UUID `json:"id"`
+	ActionId string    `json:"actionId"`
+}
+
+// Creates the Action rows in @actions that do not exist yet and returns the rows it created.
+// Existing rows are left untouched (no lock, no rewrite), so concurrent transactions that
+// reference the same actions do not contend on them. @actions must be lower-cased, free of
+// duplicates and sorted: two transactions creating overlapping sets then take their row locks
+// in the same order and cannot deadlock. An action another transaction creates concurrently is
+// absent from the result; the caller resolves it with ListActionsByActionIds afterwards.
+func (q *Queries) InsertMissingActions(ctx context.Context, db DBTX, arg InsertMissingActionsParams) ([]*InsertMissingActionsRow, error) {
+	rows, err := db.Query(ctx, insertMissingActions, arg.Tenantid, arg.Actions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*InsertMissingActionsRow
+	for rows.Next() {
+		var i InsertMissingActionsRow
+		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const linkActionsToWorker = `-- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
     "A",
@@ -760,21 +832,30 @@ INSERT INTO "_ActionToWorker" (
     "A",
     "B"
 ) SELECT
-    unnest($1::uuid[]),
-    $2::uuid
+    a."id",
+    w."id"
+FROM "Worker" w
+JOIN "Action" a ON a."tenantId" = w."tenantId"
+WHERE
+    w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+    AND a."id" = ANY($3::uuid[])
+ORDER BY a."id"
 ON CONFLICT DO NOTHING
 RETURNING "A"
 `
 
 type LinkActionsToWorkerReturningParams struct {
-	Actionids []uuid.UUID `json:"actionids"`
 	Workerid  uuid.UUID   `json:"workerid"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Actionids []uuid.UUID `json:"actionids"`
 }
 
-// Returns the action row ids that were newly linked, so the caller can fold exactly those into
-// the worker's action hash.
+// Links the worker to the given action rows and returns the action row ids that were newly
+// linked, so the caller knows whether the set changed. The Worker and Action rows are joined
+// on the tenant: an action of another tenant, or a worker of another tenant, is never linked.
 func (q *Queries) LinkActionsToWorkerReturning(ctx context.Context, db DBTX, arg LinkActionsToWorkerReturningParams) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, linkActionsToWorkerReturning, arg.Actionids, arg.Workerid)
+	rows, err := db.Query(ctx, linkActionsToWorkerReturning, arg.Workerid, arg.Tenantid, arg.Actionids)
 	if err != nil {
 		return nil, err
 	}
@@ -1745,14 +1826,22 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 const lockWorkerActionHash = `-- name: LockWorkerActionHash :one
 SELECT "actionHash"
 FROM "Worker"
-WHERE "id" = $1::uuid
+WHERE
+    "id" = $1::uuid
+    AND "tenantId" = $2::uuid
 FOR UPDATE
 `
 
+type LockWorkerActionHashParams struct {
+	Workerid uuid.UUID `json:"workerid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
 // Serializes concurrent action set changes on one worker: the caller holds the row lock for the
-// rest of its transaction, so the hash it reads is the hash it updates.
-func (q *Queries) LockWorkerActionHash(ctx context.Context, db DBTX, workerid uuid.UUID) ([]byte, error) {
-	row := db.QueryRow(ctx, lockWorkerActionHash, workerid)
+// rest of its transaction. The tenant is part of the predicate so a caller that pairs a tenant
+// with another tenant's worker finds no row and mutates nothing.
+func (q *Queries) LockWorkerActionHash(ctx context.Context, db DBTX, arg LockWorkerActionHashParams) ([]byte, error) {
+	row := db.QueryRow(ctx, lockWorkerActionHash, arg.Workerid, arg.Tenantid)
 	var actionHash []byte
 	err := row.Scan(&actionHash)
 	return actionHash, err
@@ -1774,22 +1863,29 @@ func (q *Queries) PauseWorkers(ctx context.Context, db DBTX, ids []uuid.UUID) er
 }
 
 const unlinkActionsFromWorkerReturning = `-- name: UnlinkActionsFromWorkerReturning :many
-DELETE FROM "_ActionToWorker"
+DELETE FROM "_ActionToWorker" aw
+USING "Worker" w, "Action" a
 WHERE
-    "B" = $1::uuid
-    AND "A" = ANY($2::uuid[])
-RETURNING "A"
+    aw."B" = w."id"
+    AND aw."A" = a."id"
+    AND w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+    AND a."tenantId" = w."tenantId"
+    AND a."id" = ANY($3::uuid[])
+RETURNING aw."A"
 `
 
 type UnlinkActionsFromWorkerReturningParams struct {
 	Workerid  uuid.UUID   `json:"workerid"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
 	Actionids []uuid.UUID `json:"actionids"`
 }
 
-// Returns the action row ids that were actually unlinked, so the caller can fold exactly those
-// out of the worker's action hash.
+// Unlinks the given action rows from the worker and returns the action row ids that were
+// actually unlinked. The Worker and Action rows are joined on the tenant, as in
+// LinkActionsToWorkerReturning.
 func (q *Queries) UnlinkActionsFromWorkerReturning(ctx context.Context, db DBTX, arg UnlinkActionsFromWorkerReturningParams) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, unlinkActionsFromWorkerReturning, arg.Workerid, arg.Actionids)
+	rows, err := db.Query(ctx, unlinkActionsFromWorkerReturning, arg.Workerid, arg.Tenantid, arg.Actionids)
 	if err != nil {
 		return nil, err
 	}
@@ -1951,55 +2047,6 @@ type UpdateWorkerHeartbeatsParams struct {
 func (q *Queries) UpdateWorkerHeartbeats(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatsParams) error {
 	_, err := db.Exec(ctx, updateWorkerHeartbeats, arg.Lastheartbeatat, arg.Ids)
 	return err
-}
-
-const upsertActions = `-- name: UpsertActions :many
-INSERT INTO "Action" (
-    "id",
-    "actionId",
-    "tenantId"
-)
-SELECT
-    gen_random_uuid(),
-    LOWER(a.action),
-    $1::uuid
-FROM unnest($2::text[]) AS a(action)
-ON CONFLICT ("tenantId", "actionId") DO UPDATE
-SET
-    "tenantId" = EXCLUDED."tenantId"
-RETURNING "id", "actionId"
-`
-
-type UpsertActionsParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Actions  []string  `json:"actions"`
-}
-
-type UpsertActionsRow struct {
-	ID       uuid.UUID `json:"id"`
-	ActionId string    `json:"actionId"`
-}
-
-// Bulk form of UpsertAction. @actions must not contain duplicates after lower-casing: the same
-// row cannot be affected twice by one ON CONFLICT DO UPDATE statement.
-func (q *Queries) UpsertActions(ctx context.Context, db DBTX, arg UpsertActionsParams) ([]*UpsertActionsRow, error) {
-	rows, err := db.Query(ctx, upsertActions, arg.Tenantid, arg.Actions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*UpsertActionsRow
-	for rows.Next() {
-		var i UpsertActionsRow
-		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const upsertService = `-- name: UpsertService :one
