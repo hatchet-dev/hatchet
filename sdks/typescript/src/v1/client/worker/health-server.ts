@@ -74,9 +74,8 @@ export class HealthServer {
       nodeVersion: process.version,
     };
 
-    // Unconditionally 200: this endpoint predates /readyz and /livez below
-    // and existing consumers may already depend on that. Use /readyz for a
-    // Kubernetes-compatible readiness signal instead.
+    // Always return 200 for compatibility with consumers that inspect the JSON
+    // status. Use /readyz when the HTTP status must indicate readiness.
     res.writeHead(200, { 'Content-Type': 'application/json' });
     await res.end(JSON.stringify(response));
   }
