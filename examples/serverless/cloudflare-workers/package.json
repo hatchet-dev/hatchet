@@ -9,6 +9,9 @@
     "tail": "wrangler tail --format pretty",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250906.0",
     "typescript": "^5.6.0",
