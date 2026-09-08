@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
@@ -43,16 +44,18 @@ type localTokenEntry struct {
 
 const defaultLocalExchangePollInterval = 10 * time.Second
 
-// LocalExchange reads tokens from a YAML file and reloads it when its mtime changes. The
-// mtime is polled by a background goroutine so a rotated file is picked up without a
-// restart; a reload that fails keeps the previous mapping.
+// LocalExchange reads tokens from a YAML file and reloads it when the file or any token_file
+// it references changes. The mtimes are polled by a background goroutine so a rotated file
+// or mounted secret is picked up without a restart; a reload that fails keeps the previous
+// mapping and is logged when a logger is configured.
 type LocalExchange struct {
 	tokens   map[uuid.UUID]string
+	modTimes map[string]time.Time
 	stop     chan struct{}
+	l        *zerolog.Logger
 	path     string
 	mu       sync.RWMutex
 	wg       sync.WaitGroup
-	modTime  time.Time
 	interval time.Duration
 	closed   bool
 }
@@ -60,12 +63,19 @@ type LocalExchange struct {
 // LocalExchangeOpt configures NewLocalExchange.
 type LocalExchangeOpt func(*LocalExchange)
 
-// WithPollInterval overrides how often the file's mtime is checked.
+// WithPollInterval overrides how often the files' mtimes are checked.
 func WithPollInterval(d time.Duration) LocalExchangeOpt {
 	return func(e *LocalExchange) {
 		if d > 0 {
 			e.interval = d
 		}
+	}
+}
+
+// WithLogger reports reload failures; tokens are never logged.
+func WithLogger(l *zerolog.Logger) LocalExchangeOpt {
+	return func(e *LocalExchange) {
+		e.l = l
 	}
 }
 
@@ -75,6 +85,7 @@ func NewLocalExchange(path string, opts ...LocalExchangeOpt) (*LocalExchange, er
 	e := &LocalExchange{
 		path:     path,
 		tokens:   map[uuid.UUID]string{},
+		modTimes: map[string]time.Time{},
 		stop:     make(chan struct{}),
 		interval: defaultLocalExchangePollInterval,
 	}
@@ -93,15 +104,15 @@ func NewLocalExchange(path string, opts ...LocalExchangeOpt) (*LocalExchange, er
 	return e, nil
 }
 
-// Reload re-reads the file unconditionally.
+// Reload re-reads the file and every token_file it references unconditionally.
 func (e *LocalExchange) Reload() error {
-	info, err := os.Stat(e.path)
+	tokens, files, err := loadLocalTokenFile(e.path)
 
 	if err != nil {
-		return fmt.Errorf("could not stat token file: %w", err)
+		return err
 	}
 
-	tokens, err := loadLocalTokenFile(e.path)
+	modTimes, err := statAll(files)
 
 	if err != nil {
 		return err
@@ -111,25 +122,54 @@ func (e *LocalExchange) Reload() error {
 	defer e.mu.Unlock()
 
 	e.tokens = tokens
-	e.modTime = info.ModTime()
+	e.modTimes = modTimes
 
 	return nil
 }
 
-// reloadIfChanged reloads when the file's mtime differs from the last successful load. Errors
-// are returned so the poller can log them; the previous mapping stays in place.
-func (e *LocalExchange) reloadIfChanged() (bool, error) {
-	info, err := os.Stat(e.path)
+// statAll records the mtime of each file; the mtimes are read before the contents so a
+// write between the two is caught by the next check.
+func statAll(files []string) (map[string]time.Time, error) {
+	out := make(map[string]time.Time, len(files))
 
-	if err != nil {
-		return false, fmt.Errorf("could not stat token file: %w", err)
+	for _, path := range files {
+		info, err := os.Stat(path)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not stat token file: %w", err)
+		}
+
+		out[path] = info.ModTime()
 	}
 
+	return out, nil
+}
+
+// reloadIfChanged reloads when the mtime of the YAML or of any referenced token file differs
+// from the last successful load, or when a file went missing. Errors are returned so the
+// poller can log them; the previous mapping stays in place.
+func (e *LocalExchange) reloadIfChanged() (bool, error) {
 	e.mu.RLock()
-	unchanged := info.ModTime().Equal(e.modTime)
+	known := make(map[string]time.Time, len(e.modTimes))
+
+	for path, modTime := range e.modTimes {
+		known[path] = modTime
+	}
+
 	e.mu.RUnlock()
 
-	if unchanged {
+	changed := false
+
+	for path, modTime := range known {
+		info, err := os.Stat(path)
+
+		if err != nil || !info.ModTime().Equal(modTime) {
+			changed = true
+			break
+		}
+	}
+
+	if !changed {
 		return false, nil
 	}
 
@@ -147,9 +187,10 @@ func (e *LocalExchange) poll() {
 		case <-e.stop:
 			return
 		case <-ticker.C:
-			// Reload failures are deliberately silent here: the exchange has no logger, and a
-			// half-written file is retried on the next tick.
-			_, _ = e.reloadIfChanged()
+			// A half-written file is retried on the next tick; the previous mapping stays.
+			if _, err := e.reloadIfChanged(); err != nil && e.l != nil {
+				e.l.Warn().Err(err).Str("path", e.path).Msg("could not reload the tenant token file; keeping the previous tokens")
+			}
 		}
 	}
 }
@@ -184,26 +225,29 @@ func (e *LocalExchange) Close() {
 	e.wg.Wait()
 }
 
-func loadLocalTokenFile(path string) (map[uuid.UUID]string, error) {
+// loadLocalTokenFile parses the YAML and returns the tokens and every file the mapping was
+// read from: the YAML itself and each referenced token_file.
+func loadLocalTokenFile(path string) (map[uuid.UUID]string, []string, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
 
 	if err != nil {
-		return nil, fmt.Errorf("could not read token file: %w", err)
+		return nil, nil, fmt.Errorf("could not read token file: %w", err)
 	}
 
 	var file localTokenFile
 
 	if err := yaml.Unmarshal(raw, &file); err != nil {
-		return nil, fmt.Errorf("could not parse token file: %w", err)
+		return nil, nil, fmt.Errorf("could not parse token file: %w", err)
 	}
 
 	tokens := make(map[uuid.UUID]string, len(file.Tenants))
+	files := []string{path}
 
 	for key, entry := range file.Tenants {
 		tenantId, err := uuid.Parse(key)
 
 		if err != nil {
-			return nil, fmt.Errorf("token file: tenant %q is not a uuid", key)
+			return nil, nil, fmt.Errorf("token file: tenant %q is not a uuid", key)
 		}
 
 		tok := strings.TrimSpace(entry.Token)
@@ -218,20 +262,21 @@ func loadLocalTokenFile(path string) (map[uuid.UUID]string, error) {
 			b, err := os.ReadFile(tokenPath) // #nosec G304 -- path comes from the operator's own token file
 
 			if err != nil {
-				return nil, fmt.Errorf("token file: could not read token_file for tenant %s: %w", tenantId, err)
+				return nil, nil, fmt.Errorf("token file: could not read token_file for tenant %s: %w", tenantId, err)
 			}
 
 			tok = strings.TrimSpace(string(b))
+			files = append(files, tokenPath)
 		}
 
 		if tok == "" {
-			return nil, fmt.Errorf("token file: tenant %s has neither token nor token_file", tenantId)
+			return nil, nil, fmt.Errorf("token file: tenant %s has neither token nor token_file", tenantId)
 		}
 
 		tokens[tenantId] = tok
 	}
 
-	return tokens, nil
+	return tokens, files, nil
 }
 
 // StaticExchange serves a single tenant from one token, the tenant being the token's sub

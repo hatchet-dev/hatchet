@@ -2850,8 +2850,9 @@ CREATE TABLE v1_serverless_endpoint (
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
 
--- incremental refresh of the routing cache
-CREATE INDEX v1_serverless_endpoint_updated_idx ON v1_serverless_endpoint (tenant_id, updated_at);
+-- incremental refresh of the routing cache, keyed by row version: the later of updated_at
+-- (configuration and registered_actions writes) and status_changed_at (health transitions)
+CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
 
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,
@@ -2890,7 +2891,8 @@ CREATE TABLE v1_serverless_lease (
 
 CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, shard);
 
-CREATE UNIQUE INDEX v1_serverless_lease_unowned_idx ON v1_serverless_lease (tenant_id, shard) WHERE process_id IS NULL;
+-- claims walk unowned units in key order from a random start; covering so the claimable count is index only
+CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, shard) INCLUDE (endpoint_count) WHERE process_id IS NULL;
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,

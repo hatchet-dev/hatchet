@@ -314,6 +314,17 @@ type ConfigFileRuntime struct {
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
 	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
 
+	// GRPCOperatorMaxListenStreamsPerOperator caps the Listen streams one operator holds open on this replica
+	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker exempt from the
+	// worker and slot metering; a stream over the cap is refused with ResourceExhausted before its worker is
+	// activated. Zero disables the cap.
+	GRPCOperatorMaxListenStreamsPerOperator int `mapstructure:"grpcOperatorMaxListenStreamsPerOperator" json:"grpcOperatorMaxListenStreamsPerOperator,omitempty" default:"100"`
+
+	// GRPCOperatorMaxActionsPerOperator caps the action links held across all workers of one operator
+	// (SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR). A delta that would newly link actions over the cap is
+	// refused with ResourceExhausted and links nothing. Zero disables the cap.
+	GRPCOperatorMaxActionsPerOperator int64 `mapstructure:"grpcOperatorMaxActionsPerOperator" json:"grpcOperatorMaxActionsPerOperator,omitempty" default:"1000000"`
+
 	// ServerlessOperatorEnabled runs the serverless operator core inside the engine's dispatcher process
 	// (SERVER_SERVERLESS_OPERATOR_ENABLED). Registrations then go straight to the local dispatcher instead
 	// of over the OperatorService API. Off by default. Deliveries go through pkg/operator/safeclient, so
@@ -678,9 +689,24 @@ type ServerlessOperatorConfigFile struct {
 	// RoutingRefreshInterval is the incremental routing cache refresh cadence.
 	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" json:"routingRefreshInterval,omitempty" default:"10s"`
 
-	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide.
-	HealthcheckTimeout     time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
-	HealthcheckConcurrency int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide and
+	// HealthcheckTenantConcurrency per tenant within that limit.
+	HealthcheckTimeout           time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
+	HealthcheckConcurrency       int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+	HealthcheckTenantConcurrency int           `mapstructure:"healthcheckTenantConcurrency" json:"healthcheckTenantConcurrency,omitempty" default:"32"`
+
+	// HealthcheckApplyTimeout bounds the registration of one changed endpoint catalog.
+	HealthcheckApplyTimeout time.Duration `mapstructure:"healthcheckApplyTimeout" json:"healthcheckApplyTimeout,omitempty" default:"60s"`
+
+	// MaxWorkflowsPerEndpoint and MaxActionsPerEndpoint cap what one healthcheck may advertise.
+	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" json:"maxWorkflowsPerEndpoint,omitempty" default:"200"`
+	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" json:"maxActionsPerEndpoint,omitempty" default:"500"`
+
+	// MaintenanceConcurrency is how many tenants a maintenance pass refreshes at once.
+	MaintenanceConcurrency int `mapstructure:"maintenanceConcurrency" json:"maintenanceConcurrency,omitempty" default:"8"`
+
+	// LeaseMaxClaimPerTick caps how many lease units one rebalance tick claims.
+	LeaseMaxClaimPerTick int32 `mapstructure:"leaseMaxClaimPerTick" json:"leaseMaxClaimPerTick,omitempty" default:"1024"`
 
 	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay.
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" json:"wsMaxFrameBytes,omitempty" default:"4194304"`
@@ -693,6 +719,21 @@ type ServerlessOperatorConfigFile struct {
 	// InsecureDestinations disables the delivery SSRF policy (plain http, any port, private ranges) for local
 	// development and e2e runs only.
 	InsecureDestinations bool `mapstructure:"insecureDestinations" json:"insecureDestinations,omitempty" default:"false"`
+
+	// Relay resource limits (SERVER_SERVERLESS_OPERATOR_WS_*).
+
+	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is parsed before
+	// WSMaxFrameBytes applies.
+	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" json:"wsMaxUpgradeHeaderBytes,omitempty" default:"65536"`
+
+	// WSMaxQueuedBytes bounds the encoded frames one durable relay retains for a slow endpoint.
+	WSMaxQueuedBytes int64 `mapstructure:"wsMaxQueuedBytes" json:"wsMaxQueuedBytes,omitempty" default:"16777216"`
+
+	// HTTPMaxIdleConns, HTTPMaxIdleConnsPerHost and HTTPIdleConnTimeout bound the delivery client's idle
+	// connection pool (SERVER_SERVERLESS_OPERATOR_HTTP_*).
+	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" json:"httpMaxIdleConns,omitempty" default:"256"`
+	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" json:"httpMaxIdleConnsPerHost,omitempty" default:"4"`
+	HTTPIdleConnTimeout     time.Duration `mapstructure:"httpIdleConnTimeout" json:"httpIdleConnTimeout,omitempty" default:"90s"`
 }
 
 type ConfigFileMonitoring struct {
@@ -932,6 +973,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
+	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
+	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")
 	_ = v.BindEnv("runtime.serverlessOperatorEnabled", "SERVER_SERVERLESS_OPERATOR_ENABLED")
 	_ = v.BindEnv("runtime.serverlessOperator.operatorName", "SERVER_SERVERLESS_OPERATOR_OPERATOR_NAME")
 	_ = v.BindEnv("runtime.serverlessOperator.defaultSlots", "SERVER_SERVERLESS_OPERATOR_DEFAULT_SLOTS")
@@ -944,10 +987,23 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.routingRefreshInterval", "SERVER_SERVERLESS_OPERATOR_ROUTING_REFRESH_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
 	_ = v.BindEnv("runtime.serverlessOperator.healthcheckConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTenantConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TENANT_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckApplyTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxWorkflowsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxActionsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maintenanceConcurrency", "SERVER_SERVERLESS_OPERATOR_MAINTENANCE_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.leaseMaxClaimPerTick", "SERVER_SERVERLESS_OPERATOR_LEASE_MAX_CLAIM_PER_TICK")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxFrameBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsPingInterval", "SERVER_SERVERLESS_OPERATOR_WS_PING_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.allowEmptyInfraCidrs", "SERVER_SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
 	_ = v.BindEnv("runtime.serverlessOperator.insecureDestinations", "SERVER_SERVERLESS_OPERATOR_INSECURE_DESTINATIONS")
+
+	// serverless operator relay resource limits
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConns", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConnsPerHost", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
+	_ = v.BindEnv("runtime.serverlessOperator.httpIdleConnTimeout", "SERVER_SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

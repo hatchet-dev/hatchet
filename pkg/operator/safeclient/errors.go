@@ -2,8 +2,12 @@ package safeclient
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 
 	"github.com/doyensec/safeurl"
 )
@@ -81,4 +85,137 @@ func mapSafeurlError(err error) (blockReason, error) {
 
 	// Everything else is a transient/network failure: retryable.
 	return "", err
+}
+
+// Stage is the step of an outbound request at which a transport failure happened.
+type Stage string
+
+const (
+	StageResolve Stage = "resolve"
+	StageConnect Stage = "connect"
+	StageTLS     Stage = "tls"
+	StageRead    Stage = "read"
+	StageRequest Stage = "request"
+)
+
+// EndpointError is a transport failure on the way to an endpoint, worded for the tenant:
+// it names the endpoint host and the stage that failed and nothing else, because the
+// message ends up in task errors and endpoint status. Resolved addresses, ports, resolver
+// and socket detail stay in the operator log, where the Sender writes them. The cause is
+// still reachable through errors.Is and errors.As for classification (context errors,
+// net.Error timeouts).
+type EndpointError struct {
+	cause error
+	Host  string
+	Stage Stage
+}
+
+func (e *EndpointError) Error() string {
+	switch e.Stage {
+	case StageResolve:
+		return fmt.Sprintf("safeclient: could not resolve endpoint host %s", e.Host)
+	case StageConnect:
+		return fmt.Sprintf("safeclient: could not connect to endpoint host %s", e.Host)
+	case StageTLS:
+		msg := fmt.Sprintf("safeclient: TLS handshake with endpoint host %s failed", e.Host)
+
+		// Certificate verification failures describe the endpoint's own certificate, which
+		// is what the tenant needs to fix.
+		if detail := certificateDetail(e.cause); detail != "" {
+			msg += ": " + detail
+		}
+
+		return msg
+	case StageRead:
+		return fmt.Sprintf("safeclient: connection to endpoint host %s failed while reading the response", e.Host)
+	default:
+		return fmt.Sprintf("safeclient: request to endpoint host %s failed", e.Host)
+	}
+}
+
+func (e *EndpointError) Unwrap() error {
+	return e.cause
+}
+
+// PublicError wraps a transport error for the tenant (see EndpointError). Policy errors and
+// errors that are already public are returned as they are; nil stays nil.
+func PublicError(host string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var public *EndpointError
+
+	if errors.As(err, &public) {
+		return err
+	}
+
+	if errors.Is(err, ErrBlockedDestination) || errors.Is(err, ErrBadScheme) || errors.Is(err, ErrBadPort) || errors.Is(err, ErrResponseTooLarge) {
+		return err
+	}
+
+	return &EndpointError{Host: host, Stage: stageOf(err), cause: err}
+}
+
+// stageOf classifies a transport error by its innermost cause.
+func stageOf(err error) Stage {
+	var dnsErr *net.DNSError
+
+	if errors.As(err, &dnsErr) {
+		return StageResolve
+	}
+
+	if certificateDetail(err) != "" {
+		return StageTLS
+	}
+
+	var (
+		recordErr tls.RecordHeaderError
+		alertErr  tls.AlertError
+	)
+
+	if errors.As(err, &recordErr) || errors.As(err, &alertErr) {
+		return StageTLS
+	}
+
+	var opErr *net.OpError
+
+	if errors.As(err, &opErr) {
+		switch opErr.Op {
+		case "dial":
+			return StageConnect
+		case "read", "write":
+			return StageRead
+		}
+	}
+
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return StageRead
+	}
+
+	return StageRequest
+}
+
+// certificateDetail returns the message of a certificate verification failure in err, or
+// the empty string when err is not one.
+func certificateDetail(err error) string {
+	var (
+		verifyErr *tls.CertificateVerificationError
+		authErr   x509.UnknownAuthorityError
+		hostErr   x509.HostnameError
+		invalid   x509.CertificateInvalidError
+	)
+
+	switch {
+	case errors.As(err, &verifyErr):
+		return verifyErr.Error()
+	case errors.As(err, &authErr):
+		return authErr.Error()
+	case errors.As(err, &hostErr):
+		return hostErr.Error()
+	case errors.As(err, &invalid):
+		return invalid.Error()
+	}
+
+	return ""
 }

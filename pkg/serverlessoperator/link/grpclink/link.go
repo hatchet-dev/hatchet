@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
@@ -40,9 +41,16 @@ type cachedClient struct {
 	token  string
 }
 
+// closeClient closes the client's gRPC connection. Dropping the reference alone would leave
+// the connection's goroutines behind.
+func closeClient(c client.Client) { //nolint:staticcheck // see import
+	_ = c.Close()
+}
+
 // Link caches one engine client per tenant. The token is asked from the exchange on every
-// Open so a rotated token replaces the cached client; the client is dropped when the core
-// reports the tenant is no longer served.
+// Open so a rotated token replaces the cached client, and the client is closed when it is
+// replaced or when the core reports the tenant is no longer served, after every registration
+// for the tenant is closed.
 type Link struct {
 	exchange  TenantTokenExchange
 	l         *zerolog.Logger
@@ -102,7 +110,9 @@ func (g *Link) clientFor(tenantId uuid.UUID, token string) (client.Client, error
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if cached, ok := g.clients[tenantId]; ok && cached.token == token {
+	cached, ok := g.clients[tenantId]
+
+	if ok && cached.token == token {
 		return cached.client, nil
 	}
 
@@ -110,6 +120,10 @@ func (g *Link) clientFor(tenantId uuid.UUID, token string) (client.Client, error
 
 	if err != nil {
 		return nil, err
+	}
+
+	if ok {
+		closeClient(cached.client)
 	}
 
 	g.clients[tenantId] = &cachedClient{client: c, token: token}
@@ -121,8 +135,10 @@ func (g *Link) evict(tenantId uuid.UUID) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// client.Client has no Close; the gRPC connection is dropped with the reference.
-	delete(g.clients, tenantId)
+	if cached, ok := g.clients[tenantId]; ok {
+		closeClient(cached.client)
+		delete(g.clients, tenantId)
+	}
 }
 
 // ReleaseTenant implements link.TenantReleaser.
@@ -135,16 +151,24 @@ func (g *Link) ReleaseTenant(tenantId uuid.UUID) {
 // exchange's own reload. The initial action set is streamed to the engine right after the
 // connect and flushed before the registration is returned; the session keeps it as the
 // desired set and replays it when a reconnect does not resume the worker.
-func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
-	session, err := g.connect(ctx, tenantId, shard, opts)
+func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
+	session, err := g.connect(ctx, tenantId, opts)
 
 	if err != nil && status.Code(err) == codes.Unauthenticated {
 		g.evict(tenantId)
-		session, err = g.connect(ctx, tenantId, shard, opts)
+		session, err = g.connect(ctx, tenantId, opts)
 	}
 
 	if err != nil {
 		return nil, err
+	}
+
+	// The engine reports the tenant it authenticated the token as; a unit's registration
+	// must belong to the unit's tenant, whatever the exchange handed out.
+	if got := session.Registration().TenantId; got != tenantId.String() {
+		_ = session.Close()
+
+		return nil, fmt.Errorf("registration for tenant %s was authenticated as tenant %s; the token exchange is misconfigured", tenantId, got)
 	}
 
 	if len(opts.Actions) > 0 {
@@ -152,14 +176,14 @@ func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 
 		if err := session.Flush(ctx); err != nil {
 			_ = session.Close()
-			return nil, fmt.Errorf("could not register initial actions for tenant %s shard %d: %w", tenantId, shard, err)
+			return nil, fmt.Errorf("could not register initial actions for tenant %s: %w", tenantId, err)
 		}
 	}
 
 	return &registration{session: session}, nil
 }
 
-func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (client.OperatorSession, error) {
+func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (client.OperatorSession, error) {
 	token, err := g.exchange.Token(ctx, tenantId)
 
 	if err != nil {
@@ -170,19 +194,23 @@ func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts 
 		return nil, fmt.Errorf("could not resolve token for tenant %s: %w", tenantId, err)
 	}
 
+	// A token whose tenant claim names another tenant is refused before a client is built;
+	// the engine's own answer is checked again after connecting.
+	if claims, err := loaderutils.GetConfFromJWT(token); err == nil && claims.TenantId != "" && claims.TenantId != tenantId.String() {
+		return nil, fmt.Errorf("token for tenant %s carries the tenant claim %s; the token exchange is misconfigured", tenantId, claims.TenantId)
+	}
+
 	c, err := g.clientFor(tenantId, token)
 
 	if err != nil {
 		return nil, fmt.Errorf("tenant %s: %w", tenantId, err)
 	}
 
-	labels := make(map[string]interface{}, len(opts.Labels)+1)
+	labels := make(map[string]interface{}, len(opts.Labels))
 
 	for k, v := range opts.Labels {
 		labels[k] = v
 	}
-
-	labels["hatchet-serverless-shard"] = shard
 
 	return c.Operator().Connect(ctx, &client.ConnectOperatorRequest{
 		Name:       g.name,

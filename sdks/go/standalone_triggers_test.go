@@ -31,6 +31,7 @@ func (s *stubV0Client) TenantId() string                         { return "00000
 func (s *stubV0Client) Namespace() string                        { return "" }
 func (s *stubV0Client) CloudRegisterID() *string                 { return nil }
 func (s *stubV0Client) RunnableActions() []string                { return nil }
+func (s *stubV0Client) Close() error                             { return nil }
 
 // newTestClient returns a Client backed by a stub, suitable for
 // offline tests with no server

@@ -391,3 +391,52 @@ func TestDurableChannelCloseCleansUp(t *testing.T) {
 	_, err = reg.OpenDurable(context.Background(), "task-3", 0)
 	assert.Error(t, err)
 }
+
+// A server-evict notice reaches the named task's channels at or below the named invocation
+// and no other task's, through the hub's per-task index.
+func TestOnServerEvictReachesOnlyTheNamedTask(t *testing.T) {
+	session := &fakeSession{workerId: "w"}
+	hub := newDurableHubOver(session.NewDurableTaskListener())
+	defer hub.closeAll()
+
+	older, err := hub.open("task-a", 1)
+	require.NoError(t, err)
+	current, err := hub.open("task-a", 2)
+	require.NoError(t, err)
+	newer, err := hub.open("task-a", 3)
+	require.NoError(t, err)
+	other, err := hub.open("task-b", 1)
+	require.NoError(t, err)
+
+	hub.onServerEvict("task-a", 2, "superseded")
+
+	for _, ch := range []*durableChannel{older, current} {
+		notice := recvOne(t, ch).GetServerEvict()
+		require.NotNil(t, notice)
+		assert.Equal(t, "task-a", notice.GetDurableTaskExternalId())
+		assert.Equal(t, int32(2), notice.GetInvocationCount())
+		assert.Equal(t, "superseded", notice.GetReason())
+	}
+
+	for _, ch := range []*durableChannel{newer, other} {
+		select {
+		case item := <-ch.queue:
+			t.Fatalf("channel for task %s invocation %d received %v", ch.taskId, ch.invocation, item.resp)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	// closing every channel of a task drops the task from the index
+	require.NoError(t, older.Close())
+	require.NoError(t, current.Close())
+	require.NoError(t, newer.Close())
+
+	hub.mu.Lock()
+	_, stillIndexed := hub.channels["task-a"]
+	assert.Len(t, hub.channels["task-b"], 1)
+	hub.mu.Unlock()
+	assert.False(t, stillIndexed)
+
+	// a notice for a task with no channels is a no-op
+	hub.onServerEvict("task-a", 5, "gone")
+}

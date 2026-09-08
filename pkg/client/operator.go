@@ -60,7 +60,9 @@ type OperatorRegistration struct {
 }
 
 // OperatorSession is one registered operator worker. Actions may be called
-// once; the other methods are safe to call concurrently until Close.
+// once; the other methods are safe to call concurrently until Close. The
+// session reads its Listen stream from Connect on, so Flush observes delta
+// acknowledgements whether or not Actions has been called.
 type OperatorSession interface {
 	// Actions starts the receive and heartbeat loops and returns the assigned
 	// action stream. The channels close when ctx is cancelled, the session is
@@ -91,10 +93,12 @@ type OperatorSession interface {
 	// It never blocks; see AddActions.
 	RemoveActions(ids ...string)
 
-	// Flush waits until every queued delta has been handed to the Listen
-	// stream and reports the error of the last send if it failed. The engine
-	// applies deltas asynchronously: an action takes effect once the
-	// scheduler observes it, within about a second.
+	// Flush waits until every queued delta has been acknowledged by the
+	// engine, which acknowledges a delta once it is committed to the worker's
+	// action set. A delta whose send failed and has not been retried yet is
+	// reported as the send error; it stays queued and is replayed by the next
+	// reconnect. The scheduler observes a committed change within about a
+	// second.
 	Flush(ctx context.Context) error
 
 	// NewDurableTaskListener builds a durable task listener bound to this
@@ -159,7 +163,7 @@ func (o *operatorClientImpl) Connect(ctx context.Context, req *ConnectOperatorRe
 
 	session := newOperatorSession(o.client, o.admin, o.ctx, o.l, register, resume)
 
-	if err := session.stream.connectSync(ctx); err != nil {
+	if err := session.connect(ctx); err != nil {
 		_ = session.Close()
 		return nil, fmt.Errorf("could not connect operator %s: %w", req.Name, err)
 	}

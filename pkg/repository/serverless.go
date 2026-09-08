@@ -53,13 +53,15 @@ type ServerlessEndpointRepository interface {
 	ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
 	// ListForTenant loads a tenant's routing cache.
 	ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
-	// ListUpdatedSince refreshes a tenant's routing cache incrementally. Health flips do not bump
-	// updated_at and so never appear here; configuration and registered_actions changes do.
-	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// ListUpdatedSince refreshes a tenant's routing cache incrementally: the rows whose version
+	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
+	// keyset, in that order. Configuration, registered_actions and status changes all surface.
+	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
 
-	// UpdateStatus records a healthy/unhealthy transition. It is written by the owning process on
-	// transitions only, never per poll.
-	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error
+	// UpdateStatus records a healthy/unhealthy transition and returns the database's
+	// status_changed_at of the write. It is written by the owning process on transitions only,
+	// never per poll.
+	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error)
 	// UpdateRegisteredActions records the namespaced action set the owner registered after a
 	// healthcheck changed the endpoint's workflows.
 	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions []string) error
@@ -81,26 +83,30 @@ type ServerlessProcessRepository interface {
 	// ListLive returns the processes whose row has not expired and the ids of those whose row
 	// has. Dead ids feed ServerlessLeaseRepository.Claim so their units can be taken over.
 	ListLive(ctx context.Context) (live []*sqlcv1.V1ServerlessProcess, dead []*sqlcv1.V1ServerlessProcess, err error)
-	// DeleteExpired sweeps process rows that expired before cutoff and returns how many.
-	DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error)
-	// Delete removes the process's own row on graceful shutdown.
+	// DeleteExpired sweeps process rows that expired before cutoff, releasing in the same
+	// statement every unit those rows still own, and returns both counts.
+	DeleteExpired(ctx context.Context, cutoff time.Time) (deletedProcesses, releasedUnits int64, err error)
+	// Delete removes the process's own row on graceful shutdown, releasing in the same
+	// statement any unit the row still owns.
 	Delete(ctx context.Context, processId uuid.UUID) error
 }
 
 type ServerlessLeaseRepository interface {
-	// Claim takes up to limit units that are unowned or owned by one of deadIds, using
+	// Claim takes up to limit units for processId: units with no owner, walked in (tenant,
+	// shard) order from after (exclusive; pass the zero unit to start from the beginning),
+	// then units owned by processes whose heartbeat row has expired. The statement decides
+	// liveness in its own snapshot and requires processId to be live itself, and uses
 	// FOR UPDATE SKIP LOCKED so concurrent claimers never block or double-claim.
-	Claim(ctx context.Context, processId uuid.UUID, deadIds []uuid.UUID, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error)
+	Claim(ctx context.Context, processId uuid.UUID, after ServerlessUnit, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error)
 	// Shed releases the given units if, and only if, processId still owns them.
 	Shed(ctx context.Context, processId uuid.UUID, units []ServerlessUnit) ([]*sqlcv1.ShedServerlessLeasesRow, error)
 	// ReleaseAll releases every unit processId owns and returns how many.
 	ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error)
 	ListOwned(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.V1ServerlessLease, error)
-	// CountUnowned returns the number of claimable units and the sum of their endpoint
-	// counts: units with no owner plus units held by the given dead processes. The claiming
-	// process passes the ids of processes whose heartbeat row has expired so its fair share
-	// covers their work.
-	CountUnowned(ctx context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error)
+	// CountClaimable returns the number of units Claim would consider and the sum of their
+	// endpoint counts, under Claim's liveness rule, each side counted over at most limit
+	// units. The claiming process sizes its fair share from it.
+	CountClaimable(ctx context.Context, limit int64) (*sqlcv1.CountClaimableServerlessLeasesRow, error)
 	// InsertIfAbsent creates the lease row of a unit. Endpoint creation does this itself; it is
 	// exposed for callers that add shards.
 	InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error

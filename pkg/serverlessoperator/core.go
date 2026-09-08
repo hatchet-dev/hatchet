@@ -78,6 +78,7 @@ func Run(ctx context.Context, deps Deps) error {
 		SweepInterval:     processSweepInterval,
 		SweepCutoff:       processExpiryCutoff,
 		ShedHysteresis:    cfg.ShedHysteresis,
+		MaxClaimPerTick:   cfg.LeaseMaxClaimPerTick,
 	}, &l, lease.Hooks{
 		Claimed:    m.claimed,
 		Shed:       m.shed,

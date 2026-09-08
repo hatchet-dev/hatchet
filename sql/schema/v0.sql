@@ -1483,6 +1483,9 @@ CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "las
 CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHash");
 
 -- CreateIndex
+CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
+
+-- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
 
 -- CreateIndex

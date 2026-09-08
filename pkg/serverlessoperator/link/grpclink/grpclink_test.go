@@ -41,9 +41,15 @@ func testJWT(t *testing.T, tenantId uuid.UUID) string {
 	return enc.EncodeToString(header) + "." + enc.EncodeToString(claims) + ".sig"
 }
 
+// writeFile replaces path atomically, through a temporary file and a rename, the way a
+// rotated secret or a mounted file is swapped. The exchange's poller stats the file between
+// writes, so a truncate-then-write could be observed as an empty (valid, tenantless) file.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+	tmp := path + ".tmp"
+	require.NoError(t, os.WriteFile(tmp, []byte(content), 0o600))
+	require.NoError(t, os.Rename(tmp, path))
 }
 
 func TestLocalExchangeLoadsAndReloads(t *testing.T) {
@@ -137,6 +143,7 @@ type fakeSession struct {
 	stream    *fakeDurableStream
 	listeners []*client.DurableTaskListener
 	workerId  string
+	tenantId  string
 	added     [][]string
 	removed   [][]string
 	puts      []*v1.CreateWorkflowVersionRequest
@@ -146,7 +153,7 @@ type fakeSession struct {
 }
 
 func (f *fakeSession) Registration() client.OperatorRegistration {
-	return client.OperatorRegistration{WorkerId: f.workerId}
+	return client.OperatorRegistration{WorkerId: f.workerId, TenantId: f.tenantId}
 }
 
 func (f *fakeSession) AddActions(ids ...string) {
@@ -208,9 +215,11 @@ func (f *fakeSession) Close() error {
 	return nil
 }
 
+// fakeOperatorClient connects sessions the engine authenticated as tenantId.
 type fakeOperatorClient struct {
 	connectErr error
 	flushErr   error
+	tenantId   string
 	requests   []*client.ConnectOperatorRequest
 	sessions   []*fakeSession
 }
@@ -225,7 +234,7 @@ func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOpera
 		return nil, err
 	}
 
-	s := &fakeSession{workerId: "w" + req.Name, flushErr: f.flushErr}
+	s := &fakeSession{workerId: "w" + req.Name, tenantId: f.tenantId, flushErr: f.flushErr}
 	f.flushErr = nil
 	f.sessions = append(f.sessions, s)
 
@@ -241,6 +250,8 @@ type fakeClient struct {
 func (f *fakeClient) Operator() client.OperatorClient {
 	return f.operator
 }
+
+func (f *fakeClient) Close() error { return nil }
 
 type mapExchange map[uuid.UUID]string
 
@@ -263,7 +274,7 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	lnk := New(exchange, Options{
 		OperatorName: "serverless",
 		NewClient: func(token string) (client.Client, error) {
-			c := &fakeClient{token: token, operator: &fakeOperatorClient{}}
+			c := &fakeClient{token: token, operator: &fakeOperatorClient{tenantId: tenant.String()}}
 			built = append(built, c)
 
 			return c, nil
@@ -272,11 +283,11 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 
 	opts := link.OpenOpts{Actions: []string{"ns_svc:run"}, SlotConfig: map[string]int32{"default": 1}, Labels: map[string]interface{}{"k": "v"}}
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, opts)
+	reg, err := lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	assert.Equal(t, "wserverless", reg.WorkerId())
 
-	reg2, err := lnk.Open(context.Background(), tenant, 1, opts)
+	reg2, err := lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 
 	require.Len(t, built, 1, "one client per tenant")
@@ -286,7 +297,7 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	assert.Equal(t, "serverless", req.Name)
 	assert.Equal(t, opts.SlotConfig, req.SlotConfig)
 	assert.Equal(t, "v", req.Labels["k"])
-	assert.Equal(t, 1, req.Labels["hatchet-serverless-shard"])
+	assert.Len(t, req.Labels, 1, "only the core's labels are sent")
 
 	// the initial action set is streamed and flushed before Open returns
 	session := built[0].operator.sessions[1]
@@ -319,18 +330,18 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	// A rotated token rebuilds the client; a released tenant is evicted.
 	exchange[tenant] = "tok-2"
 
-	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	_, err = lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	require.Len(t, built, 2)
 	assert.Equal(t, "tok-2", built[1].token)
 
 	lnk.ReleaseTenant(tenant)
 
-	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	_, err = lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	assert.Len(t, built, 3)
 
-	_, err = lnk.Open(context.Background(), uuid.New(), 0, opts)
+	_, err = lnk.Open(context.Background(), uuid.New(), opts)
 	assert.ErrorIs(t, err, link.ErrNoToken)
 	assert.Len(t, built, 3, "no client is built without a token")
 }
@@ -343,7 +354,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 
 	lnk := New(exchange, Options{
 		NewClient: func(token string) (client.Client, error) {
-			op := &fakeOperatorClient{}
+			op := &fakeOperatorClient{tenantId: tenant.String()}
 
 			if len(built) == 0 {
 				op.connectErr = status.Error(codes.Unauthenticated, "expired")
@@ -356,7 +367,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 		},
 	})
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	reg, err := lnk.Open(context.Background(), tenant, link.OpenOpts{})
 	require.NoError(t, err)
 	assert.NotNil(t, reg)
 	assert.Len(t, built, 2, "the cached client is dropped and rebuilt after Unauthenticated")
@@ -368,7 +379,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 		},
 	})
 
-	_, err = lnk2.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	_, err = lnk2.Open(context.Background(), tenant, link.OpenOpts{})
 	assert.Error(t, err)
 }
 
@@ -378,7 +389,7 @@ func TestLinkOpenFlushesInitialActions(t *testing.T) {
 	tenant := uuid.New()
 	exchange := mapExchange{tenant: "tok"}
 
-	op := &fakeOperatorClient{flushErr: errors.New("invalid action")}
+	op := &fakeOperatorClient{tenantId: tenant.String(), flushErr: errors.New("invalid action")}
 
 	lnk := New(exchange, Options{
 		NewClient: func(token string) (client.Client, error) {
@@ -386,12 +397,12 @@ func TestLinkOpenFlushesInitialActions(t *testing.T) {
 		},
 	})
 
-	_, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{Actions: []string{"bad"}})
+	_, err := lnk.Open(context.Background(), tenant, link.OpenOpts{Actions: []string{"bad"}})
 	require.ErrorContains(t, err, "invalid action")
 	require.Len(t, op.sessions, 1)
 	assert.True(t, op.sessions[0].closed, "the session is closed when the initial flush fails")
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	reg, err := lnk.Open(context.Background(), tenant, link.OpenOpts{})
 	require.NoError(t, err)
 	assert.Empty(t, op.sessions[1].added)
 	assert.Equal(t, 0, op.sessions[1].flushes)

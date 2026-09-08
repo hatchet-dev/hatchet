@@ -480,6 +480,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				grpcoperator.WithLogger(sc.Logger),
 				grpcoperator.WithAnalytics(sc.Analytics),
 				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
 			)
 
 			if err != nil {
@@ -491,10 +493,16 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
 		// unless enabled
-		stopServerlessOperator, err := startServerlessOperator(sc, d, adminv1Svc)
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, adminv1Svc)
 
 		if err != nil {
 			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
+		// readiness observes the in-engine operator: while its core is down and waiting to
+		// restart, the replica reports not ready
+		if healthProbes && serverlessRunning != nil {
+			h.AddReadinessCheck("serverless-operator", serverlessRunning)
 		}
 
 		// create the grpc server
@@ -968,6 +976,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				grpcoperator.WithLogger(sc.Logger),
 				grpcoperator.WithAnalytics(sc.Analytics),
 				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
 			)
 
 			if err != nil {
@@ -979,10 +989,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
 		// unless enabled
-		stopServerlessOperator, err := startServerlessOperator(sc, d, adminv1Svc)
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, adminv1Svc)
 
 		if err != nil {
 			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
+		// readiness observes the in-engine operator: while its core is down and waiting to
+		// restart, the replica reports not ready
+		if healthProbes && serverlessRunning != nil {
+			h.AddReadinessCheck("serverless-operator", serverlessRunning)
 		}
 
 		// create the grpc server

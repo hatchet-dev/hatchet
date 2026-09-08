@@ -67,8 +67,14 @@ func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V
 	return live, dead, nil
 }
 
-func (r *serverlessProcessRepository) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error) {
-	return r.queries.DeleteExpiredServerlessProcesses(ctx, r.pool, sqlchelpers.TimestamptzFromTime(cutoff))
+func (r *serverlessProcessRepository) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, int64, error) {
+	row, err := r.queries.DeleteExpiredServerlessProcesses(ctx, r.pool, sqlchelpers.TimestamptzFromTime(cutoff))
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return row.DeletedProcesses, row.ReleasedUnits, nil
 }
 
 func (r *serverlessProcessRepository) Delete(ctx context.Context, processId uuid.UUID) error {

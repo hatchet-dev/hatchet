@@ -304,19 +304,26 @@ func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenant
 	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, tenantId)
 }
 
-func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	return r.queries.ListServerlessEndpointsUpdatedSince(ctx, r.pool, sqlcv1.ListServerlessEndpointsUpdatedSinceParams{
 		Tenantid: tenantId,
 		Since:    sqlchelpers.TimestamptzFromTime(since),
+		Sinceid:  sinceId,
 	})
 }
 
-func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error {
-	return r.queries.UpdateServerlessEndpointStatus(ctx, r.pool, sqlcv1.UpdateServerlessEndpointStatusParams{
+func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error) {
+	changedAt, err := r.queries.UpdateServerlessEndpointStatus(ctx, r.pool, sqlcv1.UpdateServerlessEndpointStatusParams{
 		ID:          endpointId,
 		Healthy:     healthy,
 		StatusError: sqlchelpers.TextFromMaybeStr(statusError),
 	})
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return changedAt.Time, nil
 }
 
 func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions []string) error {

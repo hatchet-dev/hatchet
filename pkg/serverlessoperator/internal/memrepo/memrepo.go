@@ -41,11 +41,13 @@ type process struct {
 
 // Repo is the in-memory repository. Every method is safe for concurrent use.
 type Repo struct {
-	endpoints  map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint
-	processes  map[uuid.UUID]*process
-	leases     map[Unit]*sqlcv1.V1ServerlessLease
-	Now        func() time.Time
-	FailWrites error
+	endpoints map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint
+	processes map[uuid.UUID]*process
+	leases    map[Unit]*sqlcv1.V1ServerlessLease
+	Now       func() time.Time
+
+	// failWrites, when set, fails every write; SetFailWrites changes it under the lock.
+	failWrites error
 
 	// Recorded calls. Read them through the snapshot accessors below, which take the lock.
 	statusWrites  []StatusWrite
@@ -123,6 +125,14 @@ func (r *Repo) ListSinceCalls() int {
 	defer r.mu.Unlock()
 
 	return r.listSince
+}
+
+// SetFailWrites makes every write fail with err until called with nil.
+func (r *Repo) SetFailWrites(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.failWrites = err
 }
 
 func New() *Repo {
@@ -314,7 +324,17 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	return out, nil
 }
 
-func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+// version is the row version the incremental refresh orders by, as the database computes
+// it: the later of updated_at and status_changed_at.
+func version(ep *sqlcv1.V1ServerlessEndpoint) time.Time {
+	if ep.StatusChangedAt.Valid && ep.StatusChangedAt.Time.After(ep.UpdatedAt.Time) {
+		return ep.StatusChangedAt.Time
+	}
+
+	return ep.UpdatedAt.Time
+}
+
+func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
@@ -323,44 +343,61 @@ func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, sinc
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId && ep.UpdatedAt.Time.After(since) {
+		if ep.TenantID != tenantId {
+			continue
+		}
+
+		v := version(ep)
+
+		if v.After(since) || (v.Equal(since) && ep.ID.String() > sinceId.String()) {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
 
-	sortEndpoints(out)
+	sort.Slice(out, func(i, j int) bool {
+		vi, vj := version(out[i]), version(out[j])
+
+		if !vi.Equal(vj) {
+			return vi.Before(vj)
+		}
+
+		return out[i].ID.String() < out[j].ID.String()
+	})
 
 	return out, nil
 }
 
-func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error {
+func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
-	if e.r.FailWrites != nil {
-		return e.r.FailWrites
+	if e.r.failWrites != nil {
+		return time.Time{}, e.r.failWrites
 	}
 
 	e.r.statusWrites = append(e.r.statusWrites, StatusWrite{EndpointId: endpointId, Healthy: healthy, Error: statusError})
 
+	now := e.r.Now()
+
 	if ep, ok := e.r.endpoints[endpointId]; ok {
 		ep.Healthy = pgtype.Bool{Bool: healthy, Valid: true}
 		ep.StatusError = pgtype.Text{}
+		ep.StatusChangedAt = pgtype.Timestamptz{Time: now, Valid: true}
 
 		if statusError != nil {
 			ep.StatusError = pgtype.Text{String: *statusError, Valid: true}
 		}
 	}
 
-	return nil
+	return now, nil
 }
 
 func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions []string) error {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
-	if e.r.FailWrites != nil {
-		return e.r.FailWrites
+	if e.r.failWrites != nil {
+		return e.r.failWrites
 	}
 
 	e.r.actionWrites = append(e.r.actionWrites, ActionWrite{EndpointId: endpointId, Actions: append([]string{}, actions...)})
@@ -386,8 +423,8 @@ func (p *processes) Upsert(_ context.Context, opts repository.UpsertServerlessPr
 	p.r.mu.Lock()
 	defer p.r.mu.Unlock()
 
-	if p.r.FailWrites != nil {
-		return p.r.FailWrites
+	if p.r.failWrites != nil {
+		return p.r.failWrites
 	}
 
 	p.r.heartbeats = append(p.r.heartbeats, opts)
@@ -428,20 +465,37 @@ func (p *processes) ListLive(_ context.Context) ([]*sqlcv1.V1ServerlessProcess, 
 	return live, dead, nil
 }
 
-func (p *processes) DeleteExpired(_ context.Context, _ time.Time) (int64, error) {
-	p.r.mu.Lock()
-	defer p.r.mu.Unlock()
-
+// releaseOwnedLocked releases every lease processId owns, as the database does in the same
+// statement that deletes a process row.
+func (r *Repo) releaseOwnedLocked(processId uuid.UUID) int64 {
 	var n int64
 
-	for id, proc := range p.r.processes {
-		if proc.expired {
-			delete(p.r.processes, id)
+	for _, lease := range r.leases {
+		if lease.ProcessID != nil && *lease.ProcessID == processId {
+			lease.ProcessID = nil
+			lease.ClaimedAt = pgtype.Timestamptz{}
 			n++
 		}
 	}
 
-	return n, nil
+	return n
+}
+
+func (p *processes) DeleteExpired(_ context.Context, _ time.Time) (int64, int64, error) {
+	p.r.mu.Lock()
+	defer p.r.mu.Unlock()
+
+	var deleted, released int64
+
+	for id, proc := range p.r.processes {
+		if proc.expired {
+			delete(p.r.processes, id)
+			deleted++
+			released += p.r.releaseOwnedLocked(id)
+		}
+	}
+
+	return deleted, released, nil
 }
 
 func (p *processes) Delete(_ context.Context, processId uuid.UUID) error {
@@ -450,6 +504,7 @@ func (p *processes) Delete(_ context.Context, processId uuid.UUID) error {
 
 	p.r.deletedProcs = append(p.r.deletedProcs, processId)
 	delete(p.r.processes, processId)
+	p.r.releaseOwnedLocked(processId)
 
 	return nil
 }
@@ -467,53 +522,90 @@ func sortedUnits(m map[Unit]*sqlcv1.V1ServerlessLease) []Unit {
 	}
 
 	sort.Slice(out, func(i, j int) bool {
-		if out[i].TenantId != out[j].TenantId {
-			return out[i].TenantId.String() < out[j].TenantId.String()
-		}
-
-		return out[i].Shard < out[j].Shard
+		return lessUnit(out[i], out[j])
 	})
 
 	return out
 }
 
-// Claim takes claimable units in deterministic order (the database randomizes).
-func (l *leases) Claim(_ context.Context, processId uuid.UUID, deadIds []uuid.UUID, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error) {
+// liveLocked reports whether processId has a heartbeat row that has not expired.
+func (r *Repo) liveLocked(processId uuid.UUID) bool {
+	proc, ok := r.processes[processId]
+
+	return ok && !proc.expired
+}
+
+// claimableLocked applies the database's rule: a unit is claimable when it has no owner or
+// its owner's heartbeat row exists and has expired. A missing owner row is not claimable;
+// row deletions release their units instead.
+func (r *Repo) claimableLocked(lease *sqlcv1.V1ServerlessLease) bool {
+	if lease.ProcessID == nil {
+		return true
+	}
+
+	proc, ok := r.processes[*lease.ProcessID]
+
+	return ok && proc.expired
+}
+
+func lessUnit(a, b Unit) bool {
+	if a.TenantId != b.TenantId {
+		return a.TenantId.String() < b.TenantId.String()
+	}
+
+	return a.Shard < b.Shard
+}
+
+// Claim takes claimable units in key order, unowned first from after (the database starts at
+// the caller's random key; here the order is deterministic), then units of expired processes.
+// Like the database it refuses a claimer without a live heartbeat row.
+func (l *leases) Claim(_ context.Context, processId uuid.UUID, after Unit, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error) {
 	l.r.mu.Lock()
 	defer l.r.mu.Unlock()
 
 	l.r.claimCalls = append(l.r.claimCalls, limit)
 
-	dead := map[uuid.UUID]struct{}{}
-
-	for _, id := range deadIds {
-		dead[id] = struct{}{}
-	}
-
 	out := make([]*sqlcv1.ClaimServerlessLeasesRow, 0)
 
-	for _, unit := range sortedUnits(l.r.leases) {
+	if !l.r.liveLocked(processId) {
+		return out, nil
+	}
+
+	take := func(unit Unit) {
+		lease := l.r.leases[unit]
+		owner := processId
+		lease.ProcessID = &owner
+		lease.ClaimedAt = pgtype.Timestamptz{Time: l.r.Now(), Valid: true}
+
+		out = append(out, &sqlcv1.ClaimServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+	}
+
+	units := sortedUnits(l.r.leases)
+
+	for _, unit := range units {
+		if int32(len(out)) >= limit { // #nosec G115 -- bounded by limit
+			break
+		}
+
+		if l.r.leases[unit].ProcessID != nil || !lessUnit(after, unit) {
+			continue
+		}
+
+		take(unit)
+	}
+
+	for _, unit := range units {
 		if int32(len(out)) >= limit { // #nosec G115 -- bounded by limit
 			break
 		}
 
 		lease := l.r.leases[unit]
 
-		claimable := lease.ProcessID == nil
-
-		if lease.ProcessID != nil {
-			_, claimable = dead[*lease.ProcessID]
-		}
-
-		if !claimable {
+		if lease.ProcessID == nil || !l.r.claimableLocked(lease) {
 			continue
 		}
 
-		owner := processId
-		lease.ProcessID = &owner
-		lease.ClaimedAt = pgtype.Timestamptz{Time: l.r.Now(), Valid: true}
-
-		out = append(out, &sqlcv1.ClaimServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+		take(unit)
 	}
 
 	return out, nil
@@ -579,26 +671,20 @@ func (l *leases) ListOwned(_ context.Context, processId uuid.UUID) ([]*sqlcv1.V1
 	return out, nil
 }
 
-func (l *leases) CountUnowned(_ context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
+func (l *leases) CountClaimable(_ context.Context, limit int64) (*sqlcv1.CountClaimableServerlessLeasesRow, error) {
 	l.r.mu.Lock()
 	defer l.r.mu.Unlock()
 
-	dead := make(map[uuid.UUID]struct{}, len(deadIds))
+	row := &sqlcv1.CountClaimableServerlessLeasesRow{}
 
-	for _, id := range deadIds {
-		dead[id] = struct{}{}
-	}
-
-	row := &sqlcv1.CountUnownedServerlessLeasesRow{}
-
+	// The database caps each side of the count at limit; the fake counts unowned and
+	// abandoned units together against the same cap, which is what the leaser observes.
 	for _, lease := range l.r.leases {
-		claimable := lease.ProcessID == nil
-
-		if lease.ProcessID != nil {
-			_, claimable = dead[*lease.ProcessID]
+		if row.UnitCount >= limit {
+			break
 		}
 
-		if claimable {
+		if l.r.claimableLocked(lease) {
 			row.UnitCount++
 			row.EndpointCount += int64(lease.EndpointCount)
 		}

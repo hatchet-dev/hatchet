@@ -57,11 +57,28 @@ type configFile struct {
 
 	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" default:"10s"`
 
-	HealthcheckTimeout     time.Duration `mapstructure:"healthcheckTimeout" default:"10s"`
-	HealthcheckConcurrency int           `mapstructure:"healthcheckConcurrency" default:"256"`
+	HealthcheckTimeout           time.Duration `mapstructure:"healthcheckTimeout" default:"10s"`
+	HealthcheckConcurrency       int           `mapstructure:"healthcheckConcurrency" default:"256"`
+	HealthcheckTenantConcurrency int           `mapstructure:"healthcheckTenantConcurrency" default:"32"`
+	HealthcheckApplyTimeout      time.Duration `mapstructure:"healthcheckApplyTimeout" default:"60s"`
+
+	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" default:"200"`
+	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" default:"500"`
+
+	MaintenanceConcurrency int   `mapstructure:"maintenanceConcurrency" default:"8"`
+	LeaseMaxClaimPerTick   int32 `mapstructure:"leaseMaxClaimPerTick" default:"1024"`
 
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" default:"4194304"`
 	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" default:"15s"`
+
+	// Relay resource limits.
+	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" default:"65536"`
+	WSMaxQueuedBytes        int64 `mapstructure:"wsMaxQueuedBytes" default:"16777216"`
+
+	// Outbound HTTP idle connection pool.
+	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" default:"256"`
+	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" default:"4"`
+	HTTPIdleConnTimeout     time.Duration `mapstructure:"httpIdleConnTimeout" default:"90s"`
 
 	// InfraBlockedCIDRs is a comma-separated list of CIDRs added to safeclient's denylist.
 	InfraBlockedCIDRs    string `mapstructure:"infraBlockedCidrs"`
@@ -104,9 +121,22 @@ func bindEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("healthcheckTimeout", "SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
 	_ = v.BindEnv("healthcheckConcurrency", "SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("healthcheckTenantConcurrency", "SERVERLESS_OPERATOR_HEALTHCHECK_TENANT_CONCURRENCY")
+	_ = v.BindEnv("healthcheckApplyTimeout", "SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
+	_ = v.BindEnv("maxWorkflowsPerEndpoint", "SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
+	_ = v.BindEnv("maxActionsPerEndpoint", "SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
+	_ = v.BindEnv("maintenanceConcurrency", "SERVERLESS_OPERATOR_MAINTENANCE_CONCURRENCY")
+	_ = v.BindEnv("leaseMaxClaimPerTick", "SERVERLESS_OPERATOR_LEASE_MAX_CLAIM_PER_TICK")
 
 	_ = v.BindEnv("wsMaxFrameBytes", "SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("wsPingInterval", "SERVERLESS_OPERATOR_WS_PING_INTERVAL")
+
+	_ = v.BindEnv("wsMaxUpgradeHeaderBytes", "SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
+	_ = v.BindEnv("wsMaxQueuedBytes", "SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
+
+	_ = v.BindEnv("httpMaxIdleConns", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
+	_ = v.BindEnv("httpMaxIdleConnsPerHost", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
+	_ = v.BindEnv("httpIdleConnTimeout", "SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
 
 	_ = v.BindEnv("infraBlockedCidrs", "SERVERLESS_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("allowEmptyInfraCidrs", "SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
@@ -233,11 +263,16 @@ func run(ctx context.Context, cf *configFile) error {
 		InfraBlockedCIDRs:    infraCIDRs,
 		AllowEmptyInfraCIDRs: cf.AllowEmptyInfraCIDRs || cf.InsecureDestinations,
 		InsecureDestinations: cf.InsecureDestinations,
+		MaxIdleConns:         cf.HTTPMaxIdleConns,
+		MaxIdleConnsPerHost:  cf.HTTPMaxIdleConnsPerHost,
+		IdleConnTimeout:      cf.HTTPIdleConnTimeout,
 	}, &l)
 
 	if err != nil {
 		return fmt.Errorf("could not build request sender: %w", err)
 	}
+
+	defer sender.CloseIdleConnections()
 
 	hostname, _ := os.Hostname()
 
@@ -256,21 +291,29 @@ func run(ctx context.Context, cf *configFile) error {
 		Hostname:   hostname,
 		ProcessId:  uuid.New(),
 		Config: serverlessoperator.Config{
-			OperatorName:           cf.OperatorName,
-			LinkName:               serverlessoperator.DefaultLinkName,
-			DefaultSlots:           cf.DefaultSlots,
-			DurableSlots:           cf.DurableSlots,
-			LeaseTTL:               cf.LeaseTTL,
-			HeartbeatInterval:      cf.HeartbeatInterval,
-			RebalanceInterval:      cf.RebalanceInterval,
-			ShedHysteresis:         cf.ShedHysteresis,
-			DrainTimeout:           cf.DrainTimeout,
-			RoutingRefreshInterval: cf.RoutingRefreshInterval,
-			HealthcheckTimeout:     cf.HealthcheckTimeout,
-			HealthcheckConcurrency: cf.HealthcheckConcurrency,
-			WSMaxFrameBytes:        cf.WSMaxFrameBytes,
-			WSPingInterval:         cf.WSPingInterval,
-			HealthPort:             cf.HealthPort,
+			OperatorName:                 cf.OperatorName,
+			LinkName:                     serverlessoperator.DefaultLinkName,
+			DefaultSlots:                 cf.DefaultSlots,
+			DurableSlots:                 cf.DurableSlots,
+			LeaseTTL:                     cf.LeaseTTL,
+			HeartbeatInterval:            cf.HeartbeatInterval,
+			RebalanceInterval:            cf.RebalanceInterval,
+			ShedHysteresis:               cf.ShedHysteresis,
+			DrainTimeout:                 cf.DrainTimeout,
+			RoutingRefreshInterval:       cf.RoutingRefreshInterval,
+			HealthcheckTimeout:           cf.HealthcheckTimeout,
+			HealthcheckConcurrency:       cf.HealthcheckConcurrency,
+			HealthcheckTenantConcurrency: cf.HealthcheckTenantConcurrency,
+			HealthcheckApplyTimeout:      cf.HealthcheckApplyTimeout,
+			MaxWorkflowsPerEndpoint:      cf.MaxWorkflowsPerEndpoint,
+			MaxActionsPerEndpoint:        cf.MaxActionsPerEndpoint,
+			MaintenanceConcurrency:       cf.MaintenanceConcurrency,
+			LeaseMaxClaimPerTick:         cf.LeaseMaxClaimPerTick,
+			WSMaxFrameBytes:              cf.WSMaxFrameBytes,
+			WSPingInterval:               cf.WSPingInterval,
+			HealthPort:                   cf.HealthPort,
+			WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
+			WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		},
 	})
 }

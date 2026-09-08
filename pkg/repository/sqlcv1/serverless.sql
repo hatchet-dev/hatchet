@@ -117,26 +117,28 @@ WHERE tenant_id = @tenantId::UUID
 ORDER BY id;
 
 -- name: ListServerlessEndpointsUpdatedSince :many
--- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_updated_idx.
--- Every write the cache needs to see (config changes, registered_actions) bumps updated_at;
--- health flips do not, so they never appear here.
+-- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.
+-- A row's version is the later of updated_at (configuration and registered_actions writes)
+-- and status_changed_at (health transitions written by the owner), so every write the cache
+-- needs to see surfaces here. Keyset on (version, id) from the last row the caller applied.
 SELECT *
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
-    AND updated_at > @since::TIMESTAMPTZ
-ORDER BY updated_at, id;
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@since::TIMESTAMPTZ, @sinceId::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id;
 
--- name: UpdateServerlessEndpointStatus :exec
+-- name: UpdateServerlessEndpointStatus :one
 -- Written by the owner on a healthy/unhealthy transition only. Deliberately leaves updated_at
--- alone: a health flip is not a routing change, so the routing caches of other processes must
--- not reload the endpoint for it.
+-- alone: a health flip is not a routing change. The write's own timestamp is returned so the
+-- writer's cache can order it against rows read before or after it.
 UPDATE v1_serverless_endpoint
 SET
     healthy = @healthy::BOOLEAN,
     status_error = sqlc.narg('statusError')::TEXT,
     status_changed_at = NOW()
-WHERE id = @id::UUID;
+WHERE id = @id::UUID
+RETURNING status_changed_at;
 
 -- name: UpdateServerlessEndpointRegisteredActions :exec
 -- Written by the owner when a healthcheck changes the endpoint's workflows. Bumps updated_at so
@@ -193,13 +195,34 @@ SELECT
 FROM v1_serverless_process p
 ORDER BY p.process_id;
 
--- name: DeleteExpiredServerlessProcesses :execrows
+-- name: DeleteExpiredServerlessProcesses :one
 -- Sweeps rows of processes that expired before the cutoff. Rows are kept for a while after
--- expiry so ClaimServerlessLeases can still see the dead ids of recently crashed processes.
-DELETE FROM v1_serverless_process
-WHERE expires_at < @cutoff::TIMESTAMPTZ;
+-- expiry so ClaimServerlessLeases takes their units over first; whatever a swept process still
+-- owns is released in the same statement, so deleting an owner row never strands its units.
+WITH deleted AS (
+    DELETE FROM v1_serverless_process
+    WHERE expires_at < @cutoff::TIMESTAMPTZ
+    RETURNING process_id
+), released AS (
+    UPDATE v1_serverless_lease l
+    SET process_id = NULL, claimed_at = NULL
+    FROM deleted d
+    WHERE l.process_id = d.process_id
+    RETURNING l.tenant_id
+)
+SELECT
+    (SELECT COUNT(*) FROM deleted)::BIGINT AS deleted_processes,
+    (SELECT COUNT(*) FROM released)::BIGINT AS released_units;
 
 -- name: DeleteServerlessProcess :exec
+-- The last step of a graceful shutdown. The process released its leases beforehand; any it
+-- still holds after a failed release are released here so the row deletion cannot strand them.
+WITH released AS (
+    UPDATE v1_serverless_lease
+    SET process_id = NULL, claimed_at = NULL
+    WHERE process_id = @processId::UUID
+    RETURNING tenant_id
+)
 DELETE FROM v1_serverless_process
 WHERE process_id = @processId::UUID;
 
@@ -209,20 +232,55 @@ VALUES (@tenantId::UUID, @shard::INT)
 ON CONFLICT (tenant_id, shard) DO NOTHING;
 
 -- name: ClaimServerlessLeases :many
--- Claims up to @claimLimit units that are unowned or owned by a dead process. FOR UPDATE SKIP LOCKED
--- lets concurrent claimers race without blocking; a unit is claimed by exactly one of them.
-WITH claimable AS (
-    SELECT l.tenant_id, l.shard, l.endpoint_count
+-- Claims up to @claimLimit units for @processId. Unowned units come first, walked in
+-- (tenant_id, shard) order from @afterTenantId/@afterShard through
+-- v1_serverless_lease_claimable_idx (the caller starts at a random key and wraps around), then
+-- units of processes whose heartbeat row has expired, walked per dead process through
+-- v1_serverless_lease_owner_idx. Neither walk sorts the candidate population. Liveness is
+-- decided here, in the statement's own snapshot, never from a process list read earlier: an
+-- owner that heartbeated since the caller looked is live and keeps its units, and the caller
+-- must itself be live to claim at all, so a process whose row expired or was swept cannot take
+-- units until its next heartbeat. FOR UPDATE SKIP LOCKED lets concurrent claimers race without
+-- blocking; a unit is claimed by exactly one of them.
+WITH unowned AS (
+    SELECT l.tenant_id, l.shard
     FROM v1_serverless_lease l
-    WHERE l.process_id IS NULL OR l.process_id = ANY(@deadIds::UUID[])
-    ORDER BY random()
+    WHERE
+        l.process_id IS NULL
+        AND (l.tenant_id, l.shard) > (@afterTenantId::UUID, @afterShard::INT)
+    ORDER BY l.tenant_id, l.shard
     LIMIT @claimLimit::INT
     FOR UPDATE SKIP LOCKED
+), abandoned AS (
+    SELECT a.tenant_id, a.shard
+    FROM v1_serverless_process p
+    CROSS JOIN LATERAL (
+        SELECT l.tenant_id, l.shard
+        FROM v1_serverless_lease l
+        WHERE l.process_id = p.process_id
+        ORDER BY l.tenant_id, l.shard
+        LIMIT @claimLimit::INT
+        FOR UPDATE SKIP LOCKED
+    ) a
+    WHERE p.expires_at < now()
+    LIMIT @claimLimit::INT
+), claimable AS (
+    SELECT tenant_id, shard FROM unowned
+    UNION ALL
+    SELECT tenant_id, shard FROM abandoned
+    LIMIT @claimLimit::INT
 )
 UPDATE v1_serverless_lease l
 SET process_id = @processId::UUID, claimed_at = now()
 FROM claimable c
-WHERE l.tenant_id = c.tenant_id AND l.shard = c.shard
+WHERE
+    l.tenant_id = c.tenant_id
+    AND l.shard = c.shard
+    AND EXISTS (
+        SELECT 1
+        FROM v1_serverless_process me
+        WHERE me.process_id = @processId::UUID AND me.expires_at >= now()
+    )
 RETURNING l.tenant_id, l.shard, l.endpoint_count;
 
 -- name: ShedServerlessLeases :many
@@ -252,15 +310,39 @@ FROM v1_serverless_lease
 WHERE process_id = @processId::UUID
 ORDER BY tenant_id, shard;
 
--- name: CountUnownedServerlessLeases :one
--- Counts the units a process may claim: unowned units (v1_serverless_lease_unowned_idx) plus
--- units still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx),
--- so a survivor's fair share includes the work of dead processes.
+-- name: CountClaimableServerlessLeases :one
+-- Counts what a process may claim under the liveness rule of ClaimServerlessLeases: unowned
+-- units (v1_serverless_lease_claimable_idx, index only) plus units still held by processes
+-- whose heartbeat row has expired (v1_serverless_lease_owner_idx), so a survivor's fair share
+-- includes the work of dead processes. Each side is counted over at most @countLimit units: a
+-- caller only needs the claimable population up to the fleet's claim budget for one tick, and
+-- the weight beyond the window is discovered on later ticks as the population shrinks.
+WITH unowned AS (
+    SELECT COUNT(*) AS n, COALESCE(SUM(u.endpoint_count), 0) AS w
+    FROM (
+        SELECT endpoint_count
+        FROM v1_serverless_lease
+        WHERE process_id IS NULL
+        LIMIT @countLimit::BIGINT
+    ) u
+), abandoned AS (
+    SELECT COALESCE(SUM(a.n), 0) AS n, COALESCE(SUM(a.w), 0) AS w
+    FROM v1_serverless_process p
+    CROSS JOIN LATERAL (
+        SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
+        FROM (
+            SELECT l.endpoint_count
+            FROM v1_serverless_lease l
+            WHERE l.process_id = p.process_id
+            LIMIT @countLimit::BIGINT
+        ) o
+    ) a
+    WHERE p.expires_at < now()
+)
 SELECT
-    COUNT(*)::BIGINT AS unit_count,
-    COALESCE(SUM(endpoint_count), 0)::BIGINT AS endpoint_count
-FROM v1_serverless_lease
-WHERE process_id IS NULL OR process_id = ANY(@deadIds::UUID[]);
+    (unowned.n + abandoned.n)::BIGINT AS unit_count,
+    (unowned.w + abandoned.w)::BIGINT AS endpoint_count
+FROM unowned, abandoned;
 
 -- name: IncrementServerlessLeaseEndpointCount :exec
 UPDATE v1_serverless_lease

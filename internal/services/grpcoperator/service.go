@@ -6,11 +6,15 @@ package grpcoperator
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -26,6 +30,17 @@ import (
 // OperatorIdMetadataKey is the incoming gRPC metadata key that carries the operator id on every
 // RPC after Register (Listen, SendStepActionEvent, DurableTask).
 const OperatorIdMetadataKey = "hatchet-operator-id"
+
+const (
+	// DefaultMaxListenStreamsPerOperator caps the Listen streams one operator may hold open on
+	// this engine replica at once. Every stream is a live worker with its own session and
+	// action set, so the cap bounds what one tenant token can allocate here.
+	DefaultMaxListenStreamsPerOperator = 100
+
+	// DefaultMaxActionsPerOperator caps the action links held across all workers of one
+	// operator. Deltas that would exceed it are refused with ResourceExhausted.
+	DefaultMaxActionsPerOperator = 1_000_000
+)
 
 type OperatorService interface {
 	v1contracts.OperatorServiceServer
@@ -48,23 +63,36 @@ type workerStore interface {
 	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
-	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
+	AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error)
 	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
+	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 }
 
 // dispatcherBackend is what the service needs from the local dispatcher: session registration
 // for the Listen stream, scheduler notification, and the two delegated RPCs.
 type dispatcherBackend interface {
-	AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream) (fin <-chan bool, release func())
+	AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) operatorStreamSession
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error
+}
+
+// operatorStreamSession is the dispatcher session handle for one Listen stream; see
+// dispatcher.OperatorStreamSession.
+type operatorStreamSession interface {
+	Fin() <-chan bool
+	Send(ctx context.Context, msg proto.Message) error
+	Release()
 }
 
 // dispatcherAdapter presents *dispatcher.DispatcherImpl as a dispatcherBackend; the durable
 // task stream lives on the dispatcher's V1 service.
 type dispatcherAdapter struct {
 	*dispatcher.DispatcherImpl
+}
+
+func (a dispatcherAdapter) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) operatorStreamSession {
+	return a.DispatcherImpl.AddOperatorStreamSession(workerId, sessionId, stream, wrap)
 }
 
 func (a dispatcherAdapter) DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error {
@@ -90,6 +118,15 @@ type OperatorServiceImpl struct {
 	// notifyInterval throttles scheduler notifications while action deltas keep arriving on a
 	// Listen stream; see defaultNotifyInterval.
 	notifyInterval time.Duration
+
+	// maxListenStreamsPerOperator and maxActionsPerOperator are the admission limits; see the
+	// Default constants. Zero disables the limit.
+	maxListenStreamsPerOperator int
+	maxActionsPerOperator       int64
+
+	// listenStreams counts the open Listen streams per operator on this replica.
+	listenStreams   map[uuid.UUID]int
+	listenStreamsMu sync.Mutex
 }
 
 type OperatorServiceOpt func(*OperatorServiceOpts)
@@ -101,15 +138,36 @@ type OperatorServiceOpts struct {
 
 	dispatcher *dispatcher.DispatcherImpl
 	l          *zerolog.Logger
+
+	maxListenStreamsPerOperator int
+	maxActionsPerOperator       int64
 }
 
 func defaultOperatorServiceOpts() *OperatorServiceOpts {
 	l := logger.NewDefaultLogger("grpc_operator_service")
 
 	return &OperatorServiceOpts{
-		v:         validator.NewDefaultValidator(),
-		analytics: analytics.NoOpAnalytics{},
-		l:         &l,
+		v:                           validator.NewDefaultValidator(),
+		analytics:                   analytics.NoOpAnalytics{},
+		l:                           &l,
+		maxListenStreamsPerOperator: DefaultMaxListenStreamsPerOperator,
+		maxActionsPerOperator:       DefaultMaxActionsPerOperator,
+	}
+}
+
+// WithMaxListenStreamsPerOperator caps the Listen streams one operator may hold open on this
+// replica; zero disables the cap.
+func WithMaxListenStreamsPerOperator(n int) OperatorServiceOpt {
+	return func(opts *OperatorServiceOpts) {
+		opts.maxListenStreamsPerOperator = n
+	}
+}
+
+// WithMaxActionsPerOperator caps the action links held across all workers of one operator;
+// zero disables the cap.
+func WithMaxActionsPerOperator(n int64) OperatorServiceOpt {
+	return func(opts *OperatorServiceOpts) {
+		opts.maxActionsPerOperator = n
 	}
 }
 
@@ -170,8 +228,50 @@ func New(fs ...OperatorServiceOpt) (*OperatorServiceImpl, error) {
 		analytics:    opts.analytics,
 		v:            opts.v,
 
-		notifyInterval: defaultNotifyInterval,
+		notifyInterval:              defaultNotifyInterval,
+		maxListenStreamsPerOperator: opts.maxListenStreamsPerOperator,
+		maxActionsPerOperator:       opts.maxActionsPerOperator,
+		listenStreams:               map[uuid.UUID]int{},
 	}, nil
+}
+
+// acquireListenStream admits one more Listen stream for the operator, or refuses it with
+// ResourceExhausted at the cap. The returned release gives the slot back and must be called
+// exactly once. The count is per engine replica: a client that spreads its streams over
+// replicas is bounded by the cap times the replica count.
+func (s *OperatorServiceImpl) acquireListenStream(operatorId uuid.UUID) (release func(), err error) {
+	s.listenStreamsMu.Lock()
+	defer s.listenStreamsMu.Unlock()
+
+	if s.listenStreams == nil {
+		s.listenStreams = map[uuid.UUID]int{}
+	}
+
+	if s.maxListenStreamsPerOperator > 0 && s.listenStreams[operatorId] >= s.maxListenStreamsPerOperator {
+		return nil, status.Errorf(codes.ResourceExhausted, "operator %s already holds %d Listen streams, the limit is %d", operatorId, s.listenStreams[operatorId], s.maxListenStreamsPerOperator)
+	}
+
+	s.listenStreams[operatorId]++
+
+	return func() {
+		s.listenStreamsMu.Lock()
+		defer s.listenStreamsMu.Unlock()
+
+		if s.listenStreams[operatorId] <= 1 {
+			delete(s.listenStreams, operatorId)
+			return
+		}
+
+		s.listenStreams[operatorId]--
+	}, nil
+}
+
+// listenStreamCount reports the open Listen streams of the operator on this replica.
+func (s *OperatorServiceImpl) listenStreamCount(operatorId uuid.UUID) int {
+	s.listenStreamsMu.Lock()
+	defer s.listenStreamsMu.Unlock()
+
+	return s.listenStreams[operatorId]
 }
 
 // Cleanup stops the operator cache's expiry goroutine.

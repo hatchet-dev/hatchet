@@ -4,8 +4,11 @@ package lease
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -52,18 +55,30 @@ var (
 	tenantD = uuid.MustParse("00000000-0000-0000-0000-00000000000d")
 )
 
+// newLeaser builds a leaser with small claim batches and heartbeats it once, as Run does
+// before its first tick: the database refuses claims from a process without a live row.
 func newLeaser(t *testing.T, repo *memrepo.Repo, rec *fakeReconciler, processId uuid.UUID) *Leaser {
 	t.Helper()
 
-	l := zerolog.Nop()
+	return newLeaserWithConfig(t, repo, rec, Config{ProcessId: processId, ClaimBatch: 4})
+}
 
-	return New(repo, rec, Config{ProcessId: processId, ClaimBatch: 4}, &l, Hooks{})
+func newLeaserWithConfig(t *testing.T, repo *memrepo.Repo, rec *fakeReconciler, cfg Config) *Leaser {
+	t.Helper()
+
+	l := zerolog.Nop()
+	s := New(repo, rec, cfg, &l, Hooks{})
+
+	require.NoError(t, s.Heartbeat(context.Background()))
+
+	return s
 }
 
 func TestHeartbeatWritesOnlyTheProcessRow(t *testing.T) {
 	repo := memrepo.New()
 	pid := uuid.New()
-	s := newLeaser(t, repo, &fakeReconciler{}, pid)
+	l := zerolog.Nop()
+	s := New(repo, &fakeReconciler{}, Config{ProcessId: pid}, &l, Hooks{})
 
 	require.NoError(t, s.Heartbeat(context.Background()))
 
@@ -77,15 +92,14 @@ func TestHeartbeatWritesOnlyTheProcessRow(t *testing.T) {
 	assert.Empty(t, repo.ShedCalls())
 }
 
-func TestTickClaimsUpToFairShare(t *testing.T) {
+func TestTickClaimsItsShareOfUnitsUpToFairWeight(t *testing.T) {
 	repo := memrepo.New()
 	pid := uuid.New()
 	other := uuid.New()
 
 	// Another live process already holds 4 endpoints' worth; 4 unowned units of weight 2
-	// each. Total 12 over 2 processes: fair share 6, budget 6. With a claim batch of 4 the
-	// first batch is capped at 4 units (budget 6 units at most) and claims all four, then
-	// budget is spent; so the batch cap is exercised by a batch of 2 below instead.
+	// each. Two live processes share the 4 claimable units, so a tick claims at most 2, and
+	// the weight fair share is 6 (total 12 over 2), so the weight budget is 6.
 	repo.SetProcess(other, 2, 4, false)
 	repo.SetLease(unit(tenantA, 0), nil, 2)
 	repo.SetLease(unit(tenantB, 0), nil, 2)
@@ -93,42 +107,219 @@ func TestTickClaimsUpToFairShare(t *testing.T) {
 	repo.SetLease(unit(tenantD, 0), nil, 2)
 
 	rec := &fakeReconciler{}
-	l := zerolog.Nop()
-	s := New(repo, rec, Config{ProcessId: pid, ClaimBatch: 2}, &l, Hooks{})
+	s := newLeaser(t, repo, rec, pid)
 
 	require.NoError(t, s.Tick(context.Background()))
 
-	// Batches of 2: A and B (budget 2 left), then a batch capped at 2 claims C and D. The
-	// overshoot is at most one batch; the next tick sheds back to fair share if it crosses
-	// the hysteresis threshold.
-	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantB, 0), unit(tenantC, 0), unit(tenantD, 0)}, rec.gained)
-	assert.Equal(t, []int32{2, 2}, repo.ClaimCalls(), "claims run in small batches until the budget is spent")
+	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantB, 0)}, rec.gained, "the unit budget is the claimable count divided by the live processes")
+
+	// The walk starts at a random key and wraps around once, so at most two statements, each
+	// asking for the whole budget.
+	assert.LessOrEqual(t, len(repo.ClaimCalls()), 2)
+
+	for _, n := range repo.ClaimCalls() {
+		assert.Equal(t, int32(2), n, "each statement asks for the remaining budget")
+	}
+
 	assert.True(t, s.Ready())
 	assert.Empty(t, rec.lost)
+
+	// Next tick: 2 claimable units over 2 processes is a budget of 1; the weight fair share is
+	// still 6 with 4 held, so C is claimed and D is left for the other process.
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantB, 0), unit(tenantC, 0)}, rec.gained)
+
+	// Now holding 6 of a fair share of 6: nothing more is claimed.
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Len(t, rec.gained, 3)
+	assert.Nil(t, repo.Lease(unit(tenantD, 0)).ProcessID, "the unit beyond the weight budget stays unowned")
 }
 
-func TestTickStopsClaimingWhenBudgetIsSpent(t *testing.T) {
+func TestTickClaimsInBatchesBoundedByClaimBatch(t *testing.T) {
 	repo := memrepo.New()
 	pid := uuid.New()
-	other := uuid.New()
 
-	// Fair share 6 with batches of 1: A, B, C are claimed (budget 6, 4, 2, 0) and D stays.
-	repo.SetProcess(other, 2, 4, false)
-	repo.SetLease(unit(tenantA, 0), nil, 2)
-	repo.SetLease(unit(tenantB, 0), nil, 2)
-	repo.SetLease(unit(tenantC, 0), nil, 2)
-	repo.SetLease(unit(tenantD, 0), nil, 2)
+	// Alone with 10 claimable units: the budget is all 10, taken in statements of 4.
+	units := make([]Unit, 0, 10)
+
+	for i := 0; i < 10; i++ {
+		u := unit(uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012x", i+1)), 0)
+		units = append(units, u)
+		repo.SetLease(u, nil, 1)
+	}
 
 	rec := &fakeReconciler{}
-	l := zerolog.Nop()
-	s := New(repo, rec, Config{ProcessId: pid, ClaimBatch: 1}, &l, Hooks{})
+	s := newLeaser(t, repo, rec, pid)
 
 	require.NoError(t, s.Tick(context.Background()))
 
-	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantB, 0), unit(tenantC, 0)}, rec.gained)
-	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantB, 0), unit(tenantC, 0)}, s.Owned())
-	assert.Nil(t, repo.Lease(unit(tenantD, 0)).ProcessID, "unit beyond the budget stays unowned")
-	assert.Equal(t, []int32{1, 1, 1}, repo.ClaimCalls())
+	assert.Equal(t, units, s.Owned())
+	assert.Len(t, rec.gained, 10)
+
+	for _, n := range repo.ClaimCalls() {
+		assert.LessOrEqual(t, n, int32(4), "no statement asks for more than ClaimBatch units")
+	}
+
+	// The walk starts at a random key and wraps around once, so at most one statement per
+	// batch of 4 plus one for the wrap.
+	assert.LessOrEqual(t, len(repo.ClaimCalls()), 4)
+}
+
+func TestTickCapsClaimsPerTick(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+
+	for i := 0; i < 12; i++ {
+		repo.SetLease(unit(uuid.New(), 0), nil, 1)
+	}
+
+	rec := &fakeReconciler{}
+	s := newLeaserWithConfig(t, repo, rec, Config{ProcessId: pid, ClaimBatch: 4, MaxClaimPerTick: 5})
+
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Len(t, s.Owned(), 5, "a tick never claims more than MaxClaimPerTick")
+
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Len(t, s.Owned(), 10)
+}
+
+func TestExpiredClaimerCannotClaimUntilItHeartbeats(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+
+	repo.SetLease(unit(tenantA, 0), nil, 1)
+
+	rec := &fakeReconciler{}
+	l := zerolog.Nop()
+	s := New(repo, rec, Config{ProcessId: pid, ClaimBatch: 4}, &l, Hooks{})
+
+	// The process row expired (or was swept): the claim statement refuses the claimer.
+	repo.SetProcess(pid, 0, 0, true)
+
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Empty(t, rec.gained, "a process without a live row cannot take units")
+	assert.Nil(t, repo.Lease(unit(tenantA, 0)).ProcessID)
+
+	require.NoError(t, s.Heartbeat(context.Background()))
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.gained)
+}
+
+func TestRevivedOwnerKeepsItsUnits(t *testing.T) {
+	repo := memrepo.New()
+	a := uuid.New()
+	b := uuid.New()
+
+	repo.SetLease(unit(tenantA, 0), nil, 1)
+
+	recA := &fakeReconciler{}
+	leaserA := newLeaser(t, repo, recA, a)
+	require.NoError(t, leaserA.Tick(context.Background()))
+	require.Equal(t, []Unit{unit(tenantA, 0)}, recA.gained)
+
+	// A's row expires, B is about to take over, then A heartbeats first: the claim decides
+	// liveness in its own snapshot and leaves A's unit alone.
+	repo.SetProcess(a, 1, 1, true)
+
+	recB := &fakeReconciler{}
+	leaserB := newLeaser(t, repo, recB, b)
+
+	require.NoError(t, leaserA.Heartbeat(context.Background()))
+	require.NoError(t, leaserB.Tick(context.Background()))
+
+	assert.Empty(t, recB.gained, "a live owner's unit is not transferred")
+	assert.Equal(t, a, *repo.Lease(unit(tenantA, 0)).ProcessID)
+
+	// Once A is really dead, B takes the unit and A learns the loss on its next tick.
+	repo.SetProcess(a, 1, 1, true)
+	require.NoError(t, leaserB.Tick(context.Background()))
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, recB.gained)
+
+	require.NoError(t, leaserA.Heartbeat(context.Background()))
+	require.NoError(t, leaserA.Tick(context.Background()))
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, recA.lost)
+	assert.Empty(t, leaserA.Owned())
+}
+
+func TestSweptOwnerUnitsAreClaimable(t *testing.T) {
+	repo := memrepo.New()
+	dead := uuid.New()
+	pid := uuid.New()
+
+	repo.SetLease(unit(tenantA, 0), nil, 1)
+
+	leaserDead := newLeaser(t, repo, &fakeReconciler{}, dead)
+	require.NoError(t, leaserDead.Tick(context.Background()))
+	require.Equal(t, dead, *repo.Lease(unit(tenantA, 0)).ProcessID)
+
+	// The dead process's row expires and is swept before anyone took its unit over.
+	repo.SetProcess(dead, 1, 1, true)
+
+	rec := &fakeReconciler{}
+	s := newLeaser(t, repo, rec, pid)
+	require.NoError(t, s.sweep(context.Background()))
+
+	assert.Nil(t, repo.Lease(unit(tenantA, 0)).ProcessID, "the sweep released the unit")
+
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.gained)
+}
+
+func TestHeartbeatLapseKicksAReconcile(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+
+	l := zerolog.Nop()
+	s := New(repo, &fakeReconciler{}, Config{ProcessId: pid, TTL: 20 * time.Millisecond}, &l, Hooks{})
+
+	require.NoError(t, s.Heartbeat(context.Background()))
+
+	select {
+	case <-s.kick:
+		t.Fatal("a first heartbeat is not a lapse")
+	default:
+	}
+
+	time.Sleep(40 * time.Millisecond)
+	require.NoError(t, s.Heartbeat(context.Background()))
+
+	select {
+	case <-s.kick:
+	default:
+		t.Fatal("a heartbeat later than the TTL after the previous one must kick a reconcile")
+	}
+}
+
+func TestRunRetriesTheInitialHeartbeat(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+	repo.SetFailWrites(errors.New("database unreachable"))
+
+	l := zerolog.Nop()
+	s := New(repo, &fakeReconciler{}, Config{ProcessId: pid, HeartbeatInterval: time.Hour, RebalanceInterval: time.Hour, SweepInterval: time.Hour}, &l, Hooks{})
+	s.initialBackoff = 5 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+
+	go func() { done <- s.Run(ctx) }()
+
+	time.Sleep(30 * time.Millisecond)
+
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned while the database was unreachable: %v", err)
+	default:
+	}
+
+	repo.SetFailWrites(nil)
+
+	require.Eventually(t, s.Ready, 3*time.Second, 5*time.Millisecond, "the process becomes ready once the database answers")
+
+	cancel()
+	require.NoError(t, <-done)
 }
 
 func TestTickClaimsOneUnitWhenHoldingNothing(t *testing.T) {

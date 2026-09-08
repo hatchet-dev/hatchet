@@ -646,7 +646,6 @@ func TestRelayDoneMapping(t *testing.T) {
 		{name: "empty output string", done: `{"output":""}`, kind: KindCompleted, output: `{}`},
 		{name: "error retry", done: `{"error":"boom","retry":true}`, kind: KindFailed, errMsg: "boom", retry: true},
 		{name: "error no retry", done: `{"error":"bad input","retry":false}`, kind: KindFailed, errMsg: "bad input"},
-		{name: "evicted", done: `{"status":"evicted"}`, kind: KindEvicted},
 	}
 
 	for _, tt := range tests {
@@ -664,10 +663,6 @@ func TestRelayDoneMapping(t *testing.T) {
 
 			if tt.output != "" {
 				assert.JSONEq(t, tt.output, string(out.Output))
-			}
-
-			if tt.kind == KindEvicted {
-				assert.Equal(t, EvictionSourceEndpoint, out.EvictionSource)
 			}
 
 			assert.Equal(t, CloseNormal, ep.closed(t))
@@ -1006,4 +1001,43 @@ func TestSignedUpgradeHeaders(t *testing.T) {
 	other, err := newNonce()
 	require.NoError(t, err)
 	assert.NotEqual(t, nonce, other)
+}
+
+// TestRelayBackpressureBytes is the performance F11 regression: the send queue is bounded
+// by retained bytes as well as by frame count, so a slow endpoint cannot hold sendQueueSize
+// large frames in memory.
+func TestRelayBackpressureBytes(t *testing.T) {
+	setT(t)
+
+	ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) {})
+
+	ch := newFakeChannel()
+	p := testParams(ep, ch)
+	p.writeGate = make(chan struct{})
+	p.MaxQueuedBytes = 64 * 1024
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	out := run(ctx, p)
+
+	// Eight 16 KiB frames: far under the frame count limit, over the byte budget (the writer
+	// holds one frame on the gate, so the queue retains the rest).
+	payload := strings.Repeat("A", 16*1024)
+
+	for i := 0; i < 8; i++ {
+		ch.reply(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{
+				Ref:     &v1.DurableEventLogEntryRef{NodeId: int64(i)},
+				Payload: []byte(payload),
+			},
+		}})
+	}
+
+	o := await(t, out)
+	assert.Equal(t, KindFailed, o.Kind)
+	assert.True(t, o.Retry)
+	assert.Equal(t, CloseBackpressure, o.CloseCode)
+	assert.Contains(t, o.Error, "bytes behind")
+	assert.Equal(t, CloseBackpressure, ep.closed(t))
 }

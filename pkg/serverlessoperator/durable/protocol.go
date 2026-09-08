@@ -3,6 +3,8 @@
 // The socket is the invocation's single request: the core sends the assigned action as the
 // first frame, forwards the endpoint's DurableTaskRequests to the engine and the engine's
 // DurableTaskResponses back, and reads the outcome from the endpoint's final done frame.
+// What an exit means depends on what the engine has already committed to (an acknowledged
+// eviction, a reported error); outcome.go holds that table.
 //
 // Every frame is one protojson v1.ServerlessDurableFrame (api-contracts/v1/serverless.proto),
 // encoded and decoded through the contract package.
@@ -20,8 +22,9 @@ const (
 	// CloseInvocationMismatch means a request carried another task id or invocation count.
 	CloseInvocationMismatch = 4004
 	// CloseForbiddenMessage means the endpoint sent a link-internal request
-	// (register_worker, worker_status), a frame that is not a request or done, or a done
-	// frame whose output is not JSON.
+	// (register_worker, worker_status), a frame that is not a request or done, a done
+	// frame whose output is not JSON, or a done frame with status evicted before the engine
+	// acknowledged an eviction.
 	CloseForbiddenMessage = 4005
 	// CloseRequestInFlight means a second ack-bearing request was sent before the first
 	// was acknowledged.
@@ -30,7 +33,8 @@ const (
 	CloseTimeout = 4007
 	// CloseUnresponsive means two consecutive pings went unanswered.
 	CloseUnresponsive = 4008
-	// CloseBackpressure means the endpoint fell more than sendQueueSize frames behind.
+	// CloseBackpressure means the endpoint fell more than sendQueueSize frames or
+	// Params.MaxQueuedBytes behind.
 	CloseBackpressure = 1013
 	// CloseNormal is sent after a done frame.
 	CloseNormal = 1000

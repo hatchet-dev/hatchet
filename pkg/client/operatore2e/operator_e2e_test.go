@@ -435,7 +435,9 @@ func TestDurableMemo(t *testing.T) {
 		if ack.Ref == nil {
 			return "", fmt.Errorf("memo ack carried no event log ref")
 		}
-		durable.SendMemoCompleted(ack.Ref, memoKey, memoPayload)
+		if err := durable.SendMemoCompleted(ctx, ack.Ref, memoKey, memoPayload); err != nil {
+			return "", fmt.Errorf("memo completion: %w", err)
+		}
 
 		out, _ := json.Marshal(map[string]any{
 			"invocation": invocation,

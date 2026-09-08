@@ -65,7 +65,6 @@ type fakeRegistration struct {
 	deltas      []actionDelta
 	events      []*contracts.StepActionEvent
 	tenantId    uuid.UUID
-	shard       int
 	flushes     int
 	mu          sync.Mutex
 	closed      bool
@@ -244,7 +243,6 @@ func (f *fakeRegistration) flushCount() int {
 type openCall struct {
 	opts     link.OpenOpts
 	tenantId uuid.UUID
-	shard    int
 }
 
 // fakeLink hands out fakeRegistrations and records Opens and tenant releases.
@@ -256,11 +254,11 @@ type fakeLink struct {
 	mu       sync.Mutex
 }
 
-func (f *fakeLink) Open(_ context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
+func (f *fakeLink) Open(_ context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.opens = append(f.opens, openCall{tenantId: tenantId, shard: shard, opts: opts})
+	f.opens = append(f.opens, openCall{tenantId: tenantId, opts: opts})
 
 	if f.openErr != nil {
 		return nil, f.openErr
@@ -268,7 +266,6 @@ func (f *fakeLink) Open(_ context.Context, tenantId uuid.UUID, shard int, opts l
 
 	reg := &fakeRegistration{
 		tenantId: tenantId,
-		shard:    shard,
 		workerId: fmt.Sprintf("worker-%d", len(f.regs)),
 		actions:  make(chan *contracts.AssignedAction, 16),
 		errs:     make(chan error, 1),

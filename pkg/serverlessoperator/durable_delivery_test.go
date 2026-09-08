@@ -201,7 +201,7 @@ func (f *fakeRegistration) inflightCount(env *testEnv) int {
 		return 0
 	}
 
-	reg := ts.registration(int32(f.shard))
+	reg := ts.registration()
 
 	if reg == nil {
 		return 0
