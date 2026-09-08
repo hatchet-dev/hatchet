@@ -314,6 +314,17 @@ type ConfigFileRuntime struct {
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
 	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
 
+	// GRPCOperatorMaxListenStreamsPerOperator caps the Listen streams one operator holds open on this replica
+	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker exempt from the
+	// worker and slot metering; a stream over the cap is refused with ResourceExhausted before its worker is
+	// activated. Zero disables the cap.
+	GRPCOperatorMaxListenStreamsPerOperator int `mapstructure:"grpcOperatorMaxListenStreamsPerOperator" json:"grpcOperatorMaxListenStreamsPerOperator,omitempty" default:"100"`
+
+	// GRPCOperatorMaxActionsPerOperator caps the action links held across all workers of one operator
+	// (SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR). A delta that would newly link actions over the cap is
+	// refused with ResourceExhausted and links nothing. Zero disables the cap.
+	GRPCOperatorMaxActionsPerOperator int64 `mapstructure:"grpcOperatorMaxActionsPerOperator" json:"grpcOperatorMaxActionsPerOperator,omitempty" default:"1000000"`
+
 	// ServerlessOperatorEnabled runs the serverless operator core inside the engine's dispatcher process
 	// (SERVER_SERVERLESS_OPERATOR_ENABLED). Registrations then go straight to the local dispatcher instead
 	// of over the OperatorService API. Off by default. Deliveries go through pkg/operator/safeclient, so
@@ -956,6 +967,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
 	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
+	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
+	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")
 	_ = v.BindEnv("runtime.serverlessOperatorEnabled", "SERVER_SERVERLESS_OPERATOR_ENABLED")
 	_ = v.BindEnv("runtime.serverlessOperator.operatorName", "SERVER_SERVERLESS_OPERATOR_OPERATOR_NAME")
 	_ = v.BindEnv("runtime.serverlessOperator.defaultSlots", "SERVER_SERVERLESS_OPERATOR_DEFAULT_SLOTS")
