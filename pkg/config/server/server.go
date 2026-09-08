@@ -693,6 +693,12 @@ type ServerlessOperatorConfigFile struct {
 	// InsecureDestinations disables the delivery SSRF policy (plain http, any port, private ranges) for local
 	// development and e2e runs only.
 	InsecureDestinations bool `mapstructure:"insecureDestinations" json:"insecureDestinations,omitempty" default:"false"`
+
+	// Relay resource limits (SERVER_SERVERLESS_OPERATOR_WS_*).
+
+	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is parsed before
+	// WSMaxFrameBytes applies.
+	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" json:"wsMaxUpgradeHeaderBytes,omitempty" default:"65536"`
 }
 
 type ConfigFileMonitoring struct {
@@ -948,6 +954,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.wsPingInterval", "SERVER_SERVERLESS_OPERATOR_WS_PING_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.allowEmptyInfraCidrs", "SERVER_SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
 	_ = v.BindEnv("runtime.serverlessOperator.insecureDestinations", "SERVER_SERVERLESS_OPERATOR_INSECURE_DESTINATIONS")
+
+	// serverless operator relay resource limits
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

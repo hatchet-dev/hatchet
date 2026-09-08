@@ -29,9 +29,10 @@ const (
 	// missedPongLimit is how many pings may go unanswered before the socket is closed.
 	missedPongLimit = 2
 
-	defaultHandshakeTimeout = 30 * time.Second
-	defaultPingInterval     = 15 * time.Second
-	defaultMaxFrameBytes    = 4 * 1024 * 1024
+	defaultHandshakeTimeout      = 30 * time.Second
+	defaultPingInterval          = 15 * time.Second
+	defaultMaxFrameBytes         = 4 * 1024 * 1024
+	defaultMaxUpgradeHeaderBytes = 64 * 1024
 
 	// closeWriteTimeout bounds writing the close frame at teardown.
 	closeWriteTimeout = 5 * time.Second
@@ -110,7 +111,12 @@ type Params struct {
 	Namespace  string
 	TaskId     string
 
-	MaxFrameBytes    int64
+	MaxFrameBytes int64
+
+	// MaxUpgradeHeaderBytes bounds the endpoint's upgrade response head (status line and
+	// headers); 64 KiB by default.
+	MaxUpgradeHeaderBytes int64
+
 	PingInterval     time.Duration
 	HandshakeTimeout time.Duration
 
@@ -131,6 +137,10 @@ type Params struct {
 func (p *Params) withDefaults() {
 	if p.MaxFrameBytes <= 0 {
 		p.MaxFrameBytes = defaultMaxFrameBytes
+	}
+
+	if p.MaxUpgradeHeaderBytes <= 0 {
+		p.MaxUpgradeHeaderBytes = defaultMaxUpgradeHeaderBytes
 	}
 
 	if p.PingInterval <= 0 {
@@ -288,6 +298,10 @@ func classifyDialError(ctx context.Context, p *Params, err error) Outcome {
 
 	if errors.Is(err, ErrNoSecret) {
 		return failed(0, err.Error(), false)
+	}
+
+	if errors.Is(err, ErrUpgradeHeadersTooLarge) {
+		return failed(0, fmt.Sprintf("endpoint upgrade response headers exceeded the %d byte limit", p.MaxUpgradeHeaderBytes), false)
 	}
 
 	return failed(0, fmt.Sprintf("could not open websocket: %s", err.Error()), true)

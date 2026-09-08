@@ -42,6 +42,12 @@ type Config struct {
 
 	// HealthPort serves /healthz, /readyz and /metrics. Zero disables the server.
 	HealthPort int
+
+	// Relay resource limits (durable websocket).
+
+	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is
+	// parsed before WSMaxFrameBytes applies.
+	WSMaxUpgradeHeaderBytes int64
 }
 
 const (
@@ -61,6 +67,9 @@ const (
 	DefaultWSMaxFrameBytes           int64 = 4 * 1024 * 1024
 	DefaultWSPingInterval                  = 15 * time.Second
 	DefaultHealthPort                      = 8080
+
+	// Relay resource limit defaults.
+	DefaultWSMaxUpgradeHeaderBytes int64 = 64 * 1024
 
 	// processSweepInterval and processExpiryCutoff drive the expired process row sweep every
 	// process runs.
@@ -90,6 +99,7 @@ func DefaultConfig() Config {
 		WSMaxFrameBytes:           DefaultWSMaxFrameBytes,
 		WSPingInterval:            DefaultWSPingInterval,
 		HealthPort:                DefaultHealthPort,
+		WSMaxUpgradeHeaderBytes:   DefaultWSMaxUpgradeHeaderBytes,
 	}
 }
 
@@ -156,6 +166,10 @@ func (c Config) withDefaults() Config {
 
 	if c.WSPingInterval <= 0 {
 		c.WSPingInterval = d.WSPingInterval
+	}
+
+	if c.WSMaxUpgradeHeaderBytes <= 0 {
+		c.WSMaxUpgradeHeaderBytes = d.WSMaxUpgradeHeaderBytes
 	}
 
 	return c

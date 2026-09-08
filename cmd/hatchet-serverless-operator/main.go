@@ -63,6 +63,9 @@ type configFile struct {
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" default:"4194304"`
 	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" default:"15s"`
 
+	// Relay resource limits.
+	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" default:"65536"`
+
 	// InfraBlockedCIDRs is a comma-separated list of CIDRs added to safeclient's denylist.
 	InfraBlockedCIDRs    string `mapstructure:"infraBlockedCidrs"`
 	AllowEmptyInfraCIDRs bool   `mapstructure:"allowEmptyInfraCidrs"`
@@ -107,6 +110,8 @@ func bindEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("wsMaxFrameBytes", "SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("wsPingInterval", "SERVERLESS_OPERATOR_WS_PING_INTERVAL")
+
+	_ = v.BindEnv("wsMaxUpgradeHeaderBytes", "SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 
 	_ = v.BindEnv("infraBlockedCidrs", "SERVERLESS_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("allowEmptyInfraCidrs", "SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
@@ -271,6 +276,8 @@ func run(ctx context.Context, cf *configFile) error {
 			WSMaxFrameBytes:        cf.WSMaxFrameBytes,
 			WSPingInterval:         cf.WSPingInterval,
 			HealthPort:             cf.HealthPort,
+
+			WSMaxUpgradeHeaderBytes: cf.WSMaxUpgradeHeaderBytes,
 		},
 	})
 }
