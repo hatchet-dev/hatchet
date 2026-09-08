@@ -5,7 +5,6 @@ Hatchet v0.106.3 headlines new concurrency features: dynamic per-group max runs 
 ### Highlights
 
 - Concurrency strategies can now be shared across workflows, so runs of different workflows count against a single tenant-scoped limit ([#4845](https://github.com/hatchet-dev/hatchet/pull/4845), [#4873](https://github.com/hatchet-dev/hatchet/pull/4873)).
-- Durable task throughput: durable event ingestion is now buffered, durable child signal events are upserted in bulk, and the durable flush interval was lowered ([#4854](https://github.com/hatchet-dev/hatchet/pull/4854), [#4860](https://github.com/hatchet-dev/hatchet/pull/4860), [#4858](https://github.com/hatchet-dev/hatchet/pull/4858)).
 
 ### Security
 
