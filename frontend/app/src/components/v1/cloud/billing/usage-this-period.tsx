@@ -1,3 +1,7 @@
+import {
+  UpgradeGate,
+  UpgradeGateDialog,
+} from './upgrade-gate-dialog';
 import { ZoomableChart } from '@/components/v1/molecules/charts/zoomable';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
@@ -25,6 +29,8 @@ import { Skeleton } from '@/components/v1/ui/skeleton';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data-contracts';
+import { cn } from '@/lib/utils';
+import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
@@ -43,6 +49,53 @@ function usagePercent(feature: OrganizationUsageFeature) {
   }
   return Math.min(100, (feature.usage / feature.includedUsage) * 100);
 }
+
+type UsageSeverity = 'ok' | 'warn' | 'critical';
+
+function usageSeverity(feature: OrganizationUsageFeature): UsageSeverity {
+  if (feature.unlimited || feature.includedUsage <= 0) {
+    return 'ok';
+  }
+  const percent = usagePercent(feature);
+  if (percent > 95) {
+    return 'critical';
+  }
+  if (percent > 75) {
+    return 'warn';
+  }
+  return 'ok';
+}
+
+function gateForFeature(featureId: string): UpgradeGate {
+  if (featureId === 'tenants') {
+    return 'tenants';
+  }
+  if (featureId === 'users') {
+    return 'users';
+  }
+  if (featureId === 'data_retention_days') {
+    return 'retention';
+  }
+  return 'usage';
+}
+
+const severityStyles: Record<
+  UsageSeverity,
+  { value: string; bar: string }
+> = {
+  ok: {
+    value: 'text-muted-foreground',
+    bar: 'bg-foreground',
+  },
+  warn: {
+    value: 'text-yellow-500 dark:text-yellow-400',
+    bar: 'bg-yellow-500 dark:bg-yellow-400',
+  },
+  critical: {
+    value: 'text-red-500 dark:text-red-400',
+    bar: 'bg-red-500 dark:bg-red-400',
+  },
+};
 
 function formatUsageLabel(feature: OrganizationUsageFeature) {
   if (feature.unlimited) {
@@ -120,25 +173,47 @@ function UsageMeter({
   sparkline,
   selectable,
   onSelect,
+  onUpgrade,
 }: {
   feature: OrganizationUsageFeature;
   sparkline?: number[];
   selectable: boolean;
   onSelect: () => void;
+  onUpgrade: () => void;
 }) {
   const percent = usagePercent(feature);
+  const severity = usageSeverity(feature);
+  const styles = severityStyles[severity];
   const content = (
     <>
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="flex items-baseline justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <p className="text-sm font-medium text-foreground">{feature.name}</p>
-          <p className="text-sm tabular-nums text-muted-foreground">
-            {formatUsageLabel(feature)}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className={cn('text-sm tabular-nums', styles.value)}>
+              {formatUsageLabel(feature)}
+            </p>
+            {severity !== 'ok' ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpgrade();
+                }}
+                className={cn(
+                  'rounded-sm p-0.5 transition-opacity hover:opacity-80',
+                  styles.value,
+                )}
+                aria-label={`Upgrade to raise the ${feature.name} limit`}
+              >
+                <ArrowUpCircleIcon className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-foreground"
+            className={cn('h-full rounded-full', styles.bar)}
             style={{ width: `${feature.unlimited ? 0 : percent}%` }}
           />
         </div>
@@ -149,13 +224,20 @@ function UsageMeter({
 
   if (selectable) {
     return (
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
-        className="flex w-full items-center gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect();
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40"
       >
         {content}
-      </button>
+      </div>
     );
   }
 
@@ -171,6 +253,7 @@ export function UsageThisPeriod({
 }) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const [detailFeatureId, setDetailFeatureId] = useState<string | null>(null);
+  const [upgradeGate, setUpgradeGate] = useState<UpgradeGate | null>(null);
   const [rangePreset, setRangePreset] = useState<RangePreset>('period');
   const [tenantId, setTenantId] = useState('all');
   const [tenantOptions, setTenantOptions] = useState<
@@ -182,7 +265,11 @@ export function UsageThisPeriod({
     enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
 
-  const features = usage.data?.features ?? [];
+  const features = useMemo(
+    () =>
+      [...(usage.data?.features ?? [])].sort((a, b) => b.usage - a.usage),
+    [usage.data?.features],
+  );
   const detailFeature = features.find(
     (feature) => feature.featureId === detailFeatureId,
   );
@@ -346,6 +433,9 @@ export function UsageThisPeriod({
                     sparkline={sparkline}
                     selectable={graphable}
                     onSelect={() => setDetailFeatureId(feature.featureId)}
+                    onUpgrade={() =>
+                      setUpgradeGate(gateForFeature(feature.featureId))
+                    }
                   />
                 );
               })}
@@ -357,6 +447,15 @@ export function UsageThisPeriod({
           )}
         </CardContent>
       </Card>
+
+      {organizationId && upgradeGate ? (
+        <UpgradeGateDialog
+          open
+          gate={upgradeGate}
+          organizationId={organizationId}
+          onDismiss={() => setUpgradeGate(null)}
+        />
+      ) : null}
 
       <Dialog
         open={!!detailFeatureId}

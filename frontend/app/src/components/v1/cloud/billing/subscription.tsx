@@ -5,10 +5,9 @@ import {
   resolveSubscriptionPlanCode,
 } from './subscription-plan-code';
 import { UpcomingInvoiceDialog } from './upcoming-invoice-dialog';
+import { UpgradeGateDialog } from './upgrade-gate-dialog';
 import { usePylon } from '@/components/support-chat';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -26,10 +25,6 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
-import {
-  getPlanChangeErrorMessage,
-  useSubscriptionUpgrade,
-} from '@/hooks/use-subscription-upgrade';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
@@ -42,9 +37,8 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { useApiError } from '@/lib/hooks';
-import queryClient from '@/query-client';
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: OrganizationBillingStateSubscription;
@@ -101,15 +95,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   coupons,
   invoicePreviews,
 }) => {
-  const [loading, setLoading] = useState<string>();
-  const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
-    SubscriptionPlan | undefined
-  >(undefined);
-  const [planChangeError, setPlanChangeError] = useState<string>();
-  const [submittedPlanCode, setSubmittedPlanCode] = useState<string>();
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
-  const { tenantId, tenant, billing, organizationId } = useTenantDetails();
+  const { tenantId, tenant, organizationId } = useTenantDetails();
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { handleApiError } = useApiError({});
   const pylon = usePylon();
@@ -172,62 +161,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     }
   };
 
-  const subscriptionUpgrade = useSubscriptionUpgrade(organizationId);
-
-  const changePlan = (plan_code: string) => {
-    setLoading(plan_code);
-    setPlanChangeError(undefined);
-    setSubmittedPlanCode(undefined);
-    subscriptionUpgrade.mutate(plan_code, {
-      onSuccess: (data) => {
-        if (data.checkoutUrl) {
-          return;
-        }
-        setSubmittedPlanCode(plan_code);
-      },
-      onError: (error) => {
-        setPlanChangeError(getPlanChangeErrorMessage(error));
-        setSubmittedPlanCode(undefined);
-        setLoading(undefined);
-
-        if (!isChangeConfirmOpen) {
-          handleApiError(error as any);
-        }
-
-        if (organizationId) {
-          void queryClient.invalidateQueries({
-            queryKey: queries.controlPlane.billing(organizationId).queryKey,
-          });
-        }
-      },
-    });
-  };
-
   const activePlanCode = useMemo(() => {
     return resolveSubscriptionPlanCode(active, 'free') ?? 'free';
   }, [active]);
-
-  const upcomingPlanCode = useMemo(() => {
-    return resolveSubscriptionPlanCode(upcoming, null);
-  }, [upcoming]);
-
-  useEffect(() => {
-    if (!submittedPlanCode) {
-      return;
-    }
-
-    if (
-      activePlanCode !== submittedPlanCode &&
-      upcomingPlanCode !== submittedPlanCode
-    ) {
-      return;
-    }
-
-    setLoading(undefined);
-    setSubmittedPlanCode(undefined);
-    setPlanChangeError(undefined);
-    setChangeConfirmOpen(undefined);
-  }, [activePlanCode, submittedPlanCode, upcomingPlanCode]);
 
   const formattedEndDate = useMemo(() => {
     if (!active?.endsAt) {
@@ -279,63 +215,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const isUsageBasedCurrentPlan = isPayAsYouGoPlanCode(activePlanCode);
   const showPlanSelector =
     !isDedicatedPlan && !isPayAsYouGoPlanCode(activePlanCode);
-  const selectedPlanIsUsageBased = isChangeConfirmOpen
-    ? isPayAsYouGoPlanCode(isChangeConfirmOpen.planCode) ||
-      isChangeConfirmOpen.amountCents === 0
-    : false;
-
-  const openChangeConfirm = (plan: SubscriptionPlan) => {
-    setPlanChangeError(undefined);
-    setSubmittedPlanCode(undefined);
-    setChangeConfirmOpen(plan);
-  };
-
-  const closeChangeConfirm = () => {
-    if (loading || submittedPlanCode) {
-      return;
-    }
-
-    setPlanChangeError(undefined);
-    setChangeConfirmOpen(undefined);
-  };
 
   return (
     <>
-      <ConfirmDialog
-        isOpen={!!isChangeConfirmOpen}
-        title={'Confirm Plan Change'}
-        submitVariant="default"
-        description={
-          <>
-            Are you sure you'd like to change to the{' '}
-            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{' '}
-            plan?
-            <br />
-            <br />
-            {selectedPlanIsUsageBased
-              ? "You'll only be charged for what you use, billed monthly."
-              : 'Upgrades will be prorated and downgrades will take effect at the end of the billing period.'}
-            {planChangeError && (
-              <Alert variant="destructive" className="mt-4">
-                <AlertTitle>Plan change failed</AlertTitle>
-                <AlertDescription>{planChangeError}</AlertDescription>
-              </Alert>
-            )}
-          </>
-        }
-        submitLabel={'Change Plan'}
-        onSubmit={() => {
-          if (!isChangeConfirmOpen) {
-            return;
-          }
-
-          changePlan(isChangeConfirmOpen.planCode);
-        }}
-        onCancel={closeChangeConfirm}
-        cancelDisabled={!!loading || !!submittedPlanCode}
-        isLoading={!!loading}
-      />
-
       <div>
         {isDedicatedPlan ? (
           <div className="space-y-6">
@@ -570,22 +452,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      size="sm"
-                      disabled={!!loading}
-                      onClick={() => {
-                        const plan = payAsYouGoPlan(plans);
-                        if (!plan) {
-                          return;
-                        }
-                        if (!billing?.hasPaymentMethods) {
-                          changePlan(plan.planCode);
-                        } else {
-                          openChangeConfirm(plan);
-                        }
-                      }}
-                    >
-                      {loading ? <Spinner /> : 'Upgrade'}
+                    <Button size="sm" onClick={() => setUpgradeOpen(true)}>
+                      Upgrade
                     </Button>
                     <Button
                       variant="outline"
@@ -633,6 +501,15 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         open={invoicePreviewOpen && !!nextInvoice}
         onOpenChange={setInvoicePreviewOpen}
       />
+
+      {organizationId ? (
+        <UpgradeGateDialog
+          open={upgradeOpen}
+          gate="usage"
+          organizationId={organizationId}
+          onDismiss={() => setUpgradeOpen(false)}
+        />
+      ) : null}
     </>
   );
 };
