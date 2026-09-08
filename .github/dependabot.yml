@@ -1,0 +1,53 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 30
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 2
+    groups:
+      go-modules:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/frontend/app"
+      - "/frontend/docs"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      # TODO(gregfurman): Many of these require require manual intervention, so let's skip for now.
+      # See https://github.com/hatchet-dev/hatchet/pull/3748
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 3
+    groups:
+      npm-deps:
+        dependency-type: "production"
+        patterns: ["*"]
+      npm-dev-deps:
+        patterns: ["*"]
