@@ -2014,7 +2014,6 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
-	tuplesToSkip = make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
