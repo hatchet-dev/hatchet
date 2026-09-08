@@ -4,7 +4,6 @@ package serverlessoperator
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -13,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
@@ -115,15 +114,18 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	assert.NotEmpty(t, call.headers.Get(contract.TimestampHeader))
 	assert.True(t, signature.Verify(string(call.body), "s3cret", call.headers.Get(contract.SignatureHeader)))
 
-	var envelope contract.TriggerEnvelope
-	require.NoError(t, json.Unmarshal(call.body, &envelope))
-	assert.Equal(t, contract.TriggerEnvelopeVersion, envelope.Version)
+	// The body is protojson: lowerCamelCase field names, the action nested as a message.
+	assert.Contains(t, string(call.body), `"endpointId"`)
+
+	envelope := &v1.ServerlessTriggerRequest{}
+	require.NoError(t, contract.Unmarshal(call.body, envelope))
+	assert.Equal(t, int32(contract.TriggerEnvelopeVersion), envelope.Version)
 	assert.Equal(t, ep.id.String(), envelope.EndpointId)
 	assert.Equal(t, ep.namespace.String(), envelope.Namespace)
 	assert.NotZero(t, envelope.Timestamp)
 
-	var delivered contracts.AssignedAction
-	require.NoError(t, protojson.Unmarshal(envelope.Action, &delivered))
+	delivered := envelope.GetAction()
+	require.NotNil(t, delivered)
 	assert.Equal(t, action.ActionId, delivered.ActionId, "the action id is delivered with its namespace prefix")
 	assert.Equal(t, action.TaskRunExternalId, delivered.TaskRunExternalId)
 }
@@ -149,10 +151,10 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	assert.Equal(t, []string{prefixed(ns, "svc:one"), prefixed(ns, "svc:two")}, legacy.actions)
 
 	full, err := parseHealthcheckResponse([]byte(`{
-		"workflows": [{"name": "echo", "tasks": [{"readable_id": "t", "action": "svc:echo"}], "unknown_field": 1}],
+		"workflows": [{"name": "echo", "tasks": [{"readableId": "t", "action": "svc:echo"}], "unknownField": 1}],
 		"actions": ["svc:extra"],
 		"durable": {"supported": true},
-		"runtime": {"name": "cloudflare-workers", "sdk_version": "0.1.0"}
+		"runtime": {"name": "cloudflare-workers", "sdkVersion": "0.1.0"}
 	}`), ns)
 	require.NoError(t, err)
 	require.Len(t, full.workflows, 1)
@@ -160,11 +162,13 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	assert.Equal(t, prefixed(ns, "svc:echo"), full.workflows[0].Tasks[0].Action)
 	assert.Equal(t, []string{prefixed(ns, "svc:echo"), prefixed(ns, "svc:extra")}, full.actions)
 	assert.True(t, full.durable)
-	assert.Equal(t, "cloudflare-workers", full.runtime.Name)
+	assert.Equal(t, "cloudflare-workers", full.runtime.GetName())
+	assert.Equal(t, "0.1.0", full.runtime.GetSdkVersion())
+	assert.Nil(t, legacy.runtime)
 	assert.NotEqual(t, legacy.hash, full.hash)
 
 	// Formatting differences do not change the hash; content does.
-	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readable_id":"t"}],"name":"echo"}]}`), ns)
+	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readableId":"t"}],"name":"echo"}]}`), ns)
 	require.NoError(t, err)
 	assert.Equal(t, full.hash, same.hash)
 

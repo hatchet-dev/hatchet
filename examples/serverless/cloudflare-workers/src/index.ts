@@ -17,10 +17,10 @@ import {
   type DoneOutcome,
   DurableClient,
   Evicted,
-  type FirstFrame,
   type HealthcheckRequest,
+  type OutboundFrame,
   SIGNATURE_HEADER,
-  type TriggerEnvelope,
+  type TriggerRequest,
   type WorkflowDefinition,
   healthcheckResponse,
   json,
@@ -118,7 +118,7 @@ export default {
 };
 
 /**
- * POST healthcheck_url. Body {"endpoint_id", "namespace", "timestamp"} signed with
+ * POST healthcheck_url. Body {"endpointId", "namespace", "timestamp"} signed with
  * X-Hatchet-Signature. The response lists the workflows; the operator registers them on change.
  */
 async function handleHealthcheck(request: Request, env: Env): Promise<Response> {
@@ -135,7 +135,7 @@ async function handleHealthcheck(request: Request, env: Env): Promise<Response> 
 
   const req = JSON.parse(body) as HealthcheckRequest;
 
-  console.log(`healthcheck endpoint=${req.endpoint_id} namespace=${req.namespace}`);
+  console.log(`healthcheck endpoint=${req.endpointId} namespace=${req.namespace}`);
 
   return json(healthcheckResponse(WORKFLOWS));
 }
@@ -159,7 +159,7 @@ async function handleTrigger(request: Request, env: Env): Promise<Response> {
     return triggerError(401, "bad signature", false);
   }
 
-  const envelope = JSON.parse(body) as TriggerEnvelope;
+  const envelope = JSON.parse(body) as TriggerRequest;
   const action = envelope.action;
   const actionId = stripNamespace(action.actionId, envelope.namespace);
 
@@ -224,17 +224,24 @@ async function handleDurableUpgrade(request: Request, env: Env, ctx: ExecutionCo
       return;
     }
 
-    // The first frame: {"action", "namespace", "invocation_count", "inline_wait_budget_ms"}.
-    let first: FirstFrame;
+    // The first frame: {"first": {"action", "namespace", "invocationCount", "inlineWaitBudgetMs"}}.
+    let first: OutboundFrame["first"];
 
     try {
-      first = JSON.parse(event.data) as FirstFrame;
+      first = (JSON.parse(event.data) as OutboundFrame).first;
     } catch {
       server.close(1003, "malformed first frame");
       return;
     }
 
-    durable = new DurableClient(server, first, (msg) => console.log(`durable ${first.action.taskRunExternalId}: ${msg}`));
+    if (!first) {
+      server.close(1003, "expected a first frame");
+      return;
+    }
+
+    const taskId = first.action.taskRunExternalId;
+
+    durable = new DurableClient(server, first, (msg) => console.log(`durable ${taskId}: ${msg}`));
 
     console.log(
       `durable first frame task=${durable.taskId} invocation=${durable.invocation} budget=${durable.inlineWaitBudgetMs}ms`,
@@ -275,7 +282,7 @@ async function runDurable(durable: DurableClient): Promise<void> {
 
   try {
     const output = await task(durable, parseActionInput<EchoInput>(durable.action).input as EchoInput);
-    const outcome: DoneOutcome = { output: output ?? {} };
+    const outcome: DoneOutcome = { output: JSON.stringify(output ?? {}) };
 
     console.log(`durable ${durable.taskId}: done invocation=${durable.invocation}`);
     durable.done(outcome);

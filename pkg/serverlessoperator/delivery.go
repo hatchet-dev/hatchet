@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
@@ -72,22 +71,15 @@ func durableOutcome(out durable.Outcome) (o outcome, report bool) {
 	}
 }
 
-// buildTriggerEnvelope serializes the trigger body. The action is protojson so new
-// AssignedAction fields flow through without a hand-maintained struct; action_id and
-// workflow_name are delivered as registered, namespace prefix included.
+// buildTriggerEnvelope serializes the trigger body. The nested action is delivered as
+// registered: action id and workflow name carry the namespace prefix.
 func buildTriggerEnvelope(action *contracts.AssignedAction, ep *cachedEndpoint, timestamp int64) ([]byte, error) {
-	raw, err := protojson.Marshal(action)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not encode action: %w", err)
-	}
-
-	return json.Marshal(contract.TriggerEnvelope{
+	return contract.Marshal(&v1.ServerlessTriggerRequest{
 		Version:    contract.TriggerEnvelopeVersion,
 		EndpointId: ep.id.String(),
 		Namespace:  ep.namespace.String(),
 		Timestamp:  timestamp,
-		Action:     raw,
+		Action:     action,
 	})
 }
 
@@ -191,15 +183,15 @@ func classifyResponse(res *safeclient.DeliveryResult) outcome {
 		msg = fmt.Sprintf("endpoint returned redirect status %d; redirects are not followed", code)
 	}
 
-	var override contract.TriggerErrorResponse
+	override := &v1.ServerlessTriggerError{}
 
-	if len(res.BodyPrefix) > 0 && json.Unmarshal(res.BodyPrefix, &override) == nil {
-		if override.Error != "" {
-			msg = override.Error
+	if len(res.BodyPrefix) > 0 && contract.Unmarshal(res.BodyPrefix, override) == nil {
+		if override.GetError() != "" {
+			msg = override.GetError()
 		}
 
 		if override.Retry != nil {
-			retry = *override.Retry
+			retry = override.GetRetry()
 		}
 	}
 

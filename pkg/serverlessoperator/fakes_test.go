@@ -4,7 +4,6 @@ package serverlessoperator
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -393,29 +392,17 @@ func (f *fakeSender) callsTo(endpoint string) []senderCall {
 	return out
 }
 
-// healthcheckBody builds a legacy-shape healthcheck response advertising extra actions.
+// healthcheckBody builds a healthcheck response advertising only explicit actions.
 func healthcheckBody(actions ...string) string {
-	b, _ := json.Marshal(contract.HealthcheckResponse{Actions: actions})
+	b, _ := contract.Marshal(&v1.ServerlessHealthcheckResponse{Actions: actions})
 	return string(b)
 }
 
-// healthcheckWithWorkflows builds a response carrying protojson workflows.
+// healthcheckWithWorkflows builds a response carrying workflows.
 func healthcheckWithWorkflows(t *testing.T, workflows ...*v1.CreateWorkflowVersionRequest) string {
 	t.Helper()
 
-	raws := make([]json.RawMessage, 0, len(workflows))
-
-	for _, wf := range workflows {
-		raw, err := protojsonMarshal(wf)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		raws = append(raws, raw)
-	}
-
-	b, err := json.Marshal(contract.HealthcheckResponse{Workflows: raws})
+	b, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{Workflows: workflows})
 
 	if err != nil {
 		t.Fatal(err)

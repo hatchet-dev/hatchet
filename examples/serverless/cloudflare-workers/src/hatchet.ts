@@ -2,15 +2,18 @@
  * A small, dependency-free shim for the Hatchet serverless endpoint contract on Cloudflare
  * Workers. Every wire detail mirrors the operator's Go side, which is authoritative:
  *
- *   pkg/serverlessoperator/contract/http.go    header names, request/response envelopes
+ *   api-contracts/v1/serverless.proto          every request, response and websocket frame
+ *   pkg/serverlessoperator/contract/http.go    header names, upgrade signature payload
  *   internal/signature/sign.go                 hex(hmac_sha256(secret, data))
- *   pkg/serverlessoperator/durable/protocol.go websocket frames and close codes
- *   pkg/serverlessoperator/durable/dial.go     upgrade headers and signature payload
- *   api-contracts/v1/workflows.proto           CreateWorkflowVersionRequest (protojson names)
+ *   pkg/serverlessoperator/durable/protocol.go websocket close codes
+ *   pkg/serverlessoperator/durable/dial.go     upgrade headers
+ *   api-contracts/v1/workflows.proto           CreateWorkflowVersionRequest
  *   api-contracts/v1/dispatcher.proto          DurableTaskRequest / DurableTaskResponse
  *
- * Protojson conventions that matter here: field names are lowerCamelCase, `bytes` fields are
- * standard base64 strings, int64 fields arrive as strings, enums are their names.
+ * Every message travels as protojson: field names are lowerCamelCase, `bytes` fields are
+ * standard base64 strings, int64 fields arrive as strings, enums are their names, and unknown
+ * fields are ignored on both sides. The interfaces below are hand-written mirrors of the
+ * protobuf messages; the @hatchet-dev/serverless package generates them instead.
  */
 
 // ---------------------------------------------------------------------------------------
@@ -184,13 +187,14 @@ export function applyNamespace(name: string, namespace: string): string {
 }
 
 // ---------------------------------------------------------------------------------------
-// Healthcheck (contract/http.go HealthcheckRequest / HealthcheckResponse)
+// Healthcheck (serverless.proto ServerlessHealthcheckRequest / ServerlessHealthcheckResponse)
 // ---------------------------------------------------------------------------------------
 
 export interface HealthcheckRequest {
-  endpoint_id: string;
+  endpointId: string;
   namespace: string;
-  timestamp: number;
+  /** Unix seconds; an int64, so a decimal string on the wire. */
+  timestamp: string;
 }
 
 /** protojson subset of v1.CreateTaskOpts (workflows.proto). */
@@ -225,10 +229,10 @@ export interface WorkflowDefinition {
 
 export interface HealthcheckResponse {
   workflows: WorkflowDefinition[];
-  /** extra action ids not derived from a workflow */
+  /** action ids served in addition to the ones derived from workflows */
   actions?: string[];
   durable: { supported: boolean };
-  runtime: { name: string; sdk_version: string };
+  runtime: { name: string; sdkVersion: string };
 }
 
 export const SDK_VERSION = "0.1.0";
@@ -246,7 +250,7 @@ export function healthcheckResponse(
     workflows,
     ...(opts.actions ? { actions: opts.actions } : {}),
     durable: { supported: opts.durable ?? true },
-    runtime: { name: "cloudflare-workers", sdk_version: SDK_VERSION },
+    runtime: { name: "cloudflare-workers", sdkVersion: SDK_VERSION },
   };
 }
 
@@ -283,17 +287,18 @@ export interface AssignedAction {
   triggeringEventKey?: string;
 }
 
-/** The non-durable trigger body (contract/http.go TriggerEnvelope). */
-export interface TriggerEnvelope {
+/** The non-durable trigger body (serverless.proto ServerlessTriggerRequest). */
+export interface TriggerRequest {
   version: number;
-  endpoint_id: string;
+  endpointId: string;
   namespace: string;
-  timestamp: number;
+  /** Unix seconds; an int64, so a decimal string on the wire. */
+  timestamp: string;
   action: AssignedAction;
 }
 
-/** The optional non-2xx body that overrides the status mapping. */
-export interface TriggerErrorResponse {
+/** The optional non-2xx body that overrides the status mapping (ServerlessTriggerError). */
+export interface TriggerError {
   error: string;
   retry?: boolean;
 }
@@ -315,15 +320,18 @@ export function parseActionInput<T = unknown>(action: AssignedAction): ActionInp
 }
 
 // ---------------------------------------------------------------------------------------
-// Durable protocol (durable/protocol.go)
+// Durable protocol (serverless.proto ServerlessDurableFrame and its payloads)
 // ---------------------------------------------------------------------------------------
 
-/** First frame, core to endpoint, sent right after the 101. */
+/**
+ * ServerlessFirstFrame: the payload of the first frame the operator sends after the 101,
+ * as {"first": FirstFrame}.
+ */
 export interface FirstFrame {
   action: AssignedAction;
   namespace: string;
-  invocation_count: number;
-  inline_wait_budget_ms: number;
+  invocationCount: number;
+  inlineWaitBudgetMs: number;
 }
 
 /** dispatcher.proto DurableEventLogEntryRef; branchId and nodeId are int64, so strings. */
@@ -390,18 +398,24 @@ export interface DurableTaskResponse {
   triggerRunsAck?: unknown;
 }
 
-/** Core to endpoint frames: {"response": ...} or {"error": {"code", "message"}}. */
+/**
+ * A frame the operator sends: exactly one of first (once, right after the upgrade), response
+ * or error ({"code", "message"}; "nondeterminism" when a replay diverged from the log).
+ */
 export interface OutboundFrame {
+  first?: FirstFrame;
   response?: DurableTaskResponse;
   error?: { code: string; message: string };
 }
 
 /**
- * The terminal frame. Checked by the relay in this order: status "evicted" (no terminal
- * event), error (FAILED; retry decides), otherwise output (COMPLETED, {} when absent).
+ * ServerlessDoneFrame, sent as {"done": ...}. Checked by the relay in this order: status
+ * "evicted" (no terminal event), error (FAILED; retry decides), otherwise output (COMPLETED,
+ * {} when absent). The output is the task's result as JSON text, so any JSON value works and
+ * the operator hands it to the engine byte for byte.
  */
 export type DoneOutcome =
-  | { output: unknown }
+  | { output: string }
   | { error: string; retry: boolean }
   | { status: "evicted" };
 
@@ -503,8 +517,8 @@ export class DurableClient {
     this.action = first.action;
     this.namespace = first.namespace;
     this.taskId = first.action.taskRunExternalId;
-    this.invocation = first.invocation_count;
-    this.inlineWaitBudgetMs = first.inline_wait_budget_ms;
+    this.invocation = first.invocationCount;
+    this.inlineWaitBudgetMs = first.inlineWaitBudgetMs;
   }
 
   /** Feed every text frame after the first one here. */
@@ -604,9 +618,9 @@ export class DurableClient {
   }
 
   /**
-   * Registers a wait_for and blocks up to inline_wait_budget_ms for entry_completed. When the
+   * Registers a wait_for and blocks up to inlineWaitBudgetMs for entry_completed. When the
    * budget elapses the invocation evicts itself (evict_invocation, eviction_ack, done evicted)
-   * and this throws Evicted; the engine re-invokes the task with invocation_count + 1 once the
+   * and this throws Evicted; the engine re-invokes the task with invocationCount + 1 once the
    * entry is satisfied, and the replayed wait_for resolves immediately.
    */
   async waitFor(conditions: DurableEventListenerConditions, label?: string): Promise<EntryCompleted> {
@@ -773,5 +787,5 @@ export function json(body: unknown, status = 200): Response {
 
 /** A non-2xx trigger response with the {"error", "retry"} override body. */
 export function triggerError(status: number, error: string, retry: boolean): Response {
-  return json({ error, retry } satisfies TriggerErrorResponse, status);
+  return json({ error, retry } satisfies TriggerError, status);
 }

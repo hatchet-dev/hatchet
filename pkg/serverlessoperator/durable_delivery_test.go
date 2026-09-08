@@ -90,7 +90,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	secret := "secret-a"
 
 	type seen struct {
-		first durable.FirstFrame
+		first *v1.ServerlessFirstFrame
 		memo  map[string]json.RawMessage
 	}
 
@@ -121,9 +121,17 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 
 		_, data, err := conn.ReadMessage()
 
-		if err != nil || json.Unmarshal(data, &s.first) != nil {
+		if err != nil {
 			return
 		}
+
+		frame, err := contract.UnmarshalFrame(data)
+
+		if err != nil || frame.GetFirst() == nil {
+			return
+		}
+
+		s.first = frame.GetFirst()
 
 		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"id":1,"request":{"memo":{"key":"aw=="}}}`))
 
@@ -133,7 +141,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 			return
 		}
 
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"done":{"output":{"memo":"done"}}}`))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"done":{"output":"{\"memo\":\"done\"}"}}`))
 
 		got <- s
 	}))

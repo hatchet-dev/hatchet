@@ -16,13 +16,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
@@ -227,9 +224,9 @@ func (f *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
-	var req contract.HealthcheckRequest
+	req := &v1.ServerlessHealthcheckRequest{}
 
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := contract.Unmarshal(body, req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -240,35 +237,32 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 	workflows := f.workflows
 	f.mu.Unlock()
 
-	resp := contract.HealthcheckResponse{Durable: &contract.HealthcheckDurable{Supported: true}}
+	out, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
+		Workflows: workflows,
+		Durable:   &v1.ServerlessDurableSupport{Supported: true},
+	})
 
-	for _, wf := range workflows {
-		raw, err := protojson.Marshal(wf)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		resp.Workflows = append(resp.Workflows, raw)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	_, _ = w.Write(out)
 }
 
 func (f *fakeEndpoint) serveTrigger(w http.ResponseWriter, body []byte) {
-	var env contract.TriggerEnvelope
+	env := &v1.ServerlessTriggerRequest{}
 
-	if err := json.Unmarshal(body, &env); err != nil {
+	if err := contract.Unmarshal(body, env); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	action := &contracts.AssignedAction{}
+	action := env.GetAction()
 
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(env.Action, action); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if action == nil {
+		http.Error(w, "trigger request without an action", http.StatusBadRequest)
 		return
 	}
 
@@ -384,19 +378,21 @@ func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
 		return
 	}
 
-	var first durable.FirstFrame
+	frame, err := contract.UnmarshalFrame(data)
 
-	if err := json.Unmarshal(data, &first); err != nil {
+	if err != nil {
 		f.t.Errorf("fake %s: malformed first frame: %v", f.name, err)
 		return
 	}
 
-	action := &contracts.AssignedAction{}
+	first := frame.GetFirst()
 
-	if err := durable.UnmarshalProto(first.Action, action); err != nil {
-		f.t.Errorf("fake %s: malformed action in first frame: %v", f.name, err)
+	if first == nil || first.GetAction() == nil {
+		f.t.Errorf("fake %s: first frame carried no action: %s", f.name, string(data))
 		return
 	}
+
+	action := first.GetAction()
 
 	f.record(recordedRequest{
 		kind:         "upgrade",
@@ -451,7 +447,7 @@ func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
 
 			run.evicted = true
 
-			s.done(durable.DoneFrame{Status: durable.StatusEvicted})
+			s.done(&v1.ServerlessDoneFrame{Status: contract.DoneStatusEvicted})
 
 			return
 		}
@@ -464,7 +460,8 @@ func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
 		return
 	}
 
-	s.done(durable.DoneFrame{Output: raw})
+	encoded := string(raw)
+	s.done(&v1.ServerlessDoneFrame{Output: &encoded})
 }
 
 // durableSession is the endpoint side of one durable websocket: it sends requests as the
@@ -510,16 +507,13 @@ func newDurableSession(f *fakeEndpoint, conn *websocket.Conn) *durableSession {
 }
 
 func (s *durableSession) send(req *v1.DurableTaskRequest) error {
-	raw, err := durable.MarshalProto(req)
-
-	if err != nil {
-		return err
-	}
-
 	s.seq++
 	id := s.seq
 
-	frame, err := json.Marshal(durable.InboundFrame{Id: &id, Request: raw})
+	frame, err := contract.MarshalFrame(&v1.ServerlessDurableFrame{
+		Frame: &v1.ServerlessDurableFrame_Request{Request: req},
+		Id:    &id,
+	})
 
 	if err != nil {
 		return err
@@ -552,22 +546,20 @@ func (s *durableSession) recv(wait time.Duration) (*v1.DurableTaskResponse, erro
 		return nil, errReadTimeout
 	}
 
-	var errFrame durable.ErrorFrame
+	frame, err := contract.UnmarshalFrame(data)
 
-	if json.Unmarshal(data, &errFrame) == nil && errFrame.Error.Message != "" {
-		return nil, fmt.Errorf("engine error %s: %s", errFrame.Error.Code, errFrame.Error.Message)
-	}
-
-	var frame durable.ResponseFrame
-
-	if err := json.Unmarshal(data, &frame); err != nil || len(frame.Response) == 0 {
-		return nil, fmt.Errorf("unexpected frame %s", string(data))
-	}
-
-	resp := &v1.DurableTaskResponse{}
-
-	if err := durable.UnmarshalProto(frame.Response, resp); err != nil {
+	if err != nil {
 		return nil, err
+	}
+
+	if engineErr := frame.GetError(); engineErr != nil {
+		return nil, fmt.Errorf("engine error %s: %s", engineErr.Code, engineErr.Message)
+	}
+
+	resp := frame.GetResponse()
+
+	if resp == nil {
+		return nil, fmt.Errorf("unexpected frame %s", string(data))
 	}
 
 	return resp, nil
@@ -676,15 +668,10 @@ func (s *durableSession) evict() error {
 }
 
 // done sends the terminal frame and waits for the relay's close frame.
-func (s *durableSession) done(frame durable.DoneFrame) {
-	raw, err := json.Marshal(frame)
-
-	if err != nil {
-		s.f.t.Errorf("fake %s: could not encode done frame: %v", s.f.name, err)
-		return
-	}
-
-	out, err := json.Marshal(durable.InboundFrame{Done: raw})
+func (s *durableSession) done(done *v1.ServerlessDoneFrame) {
+	out, err := contract.MarshalFrame(&v1.ServerlessDurableFrame{
+		Frame: &v1.ServerlessDurableFrame_Done{Done: done},
+	})
 
 	if err != nil {
 		s.f.t.Errorf("fake %s: could not encode done frame: %v", s.f.name, err)

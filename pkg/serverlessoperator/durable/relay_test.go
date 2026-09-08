@@ -4,7 +4,6 @@ package durable
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -36,7 +35,7 @@ const (
 
 // scenario is what the fake endpoint does once the socket is up and the first frame was
 // read. Whatever it leaves unread is read afterwards to capture the relay's close code.
-type scenario func(t *testing.T, conn *websocket.Conn, first FirstFrame)
+type scenario func(t *testing.T, conn *websocket.Conn, first *v1.ServerlessFirstFrame)
 
 // fakeEndpoint is an in-process websocket endpoint that verifies the signed upgrade the way
 // a real endpoint SDK would: endpoint id, timestamp age, nonce replay and HMAC.
@@ -125,10 +124,16 @@ func (ep *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var first FirstFrame
+	frame, err := contract.UnmarshalFrame(data)
 
-	if err := json.Unmarshal(data, &first); err != nil {
+	if err != nil {
 		panic(err)
+	}
+
+	first := frame.GetFirst()
+
+	if first == nil {
+		panic("first frame is not a first frame")
 	}
 
 	// Scenarios run under the test's *testing.T; a failed assertion there fails the test.
@@ -326,32 +331,42 @@ func writeFrame(t *testing.T, conn *websocket.Conn, frame string) {
 	require.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(frame)))
 }
 
-func readFrame(t *testing.T, conn *websocket.Conn) map[string]json.RawMessage {
+func readFrame(t *testing.T, conn *websocket.Conn) *v1.ServerlessDurableFrame {
 	t.Helper()
 
 	_, data, err := conn.ReadMessage()
 	require.NoError(t, err)
 
-	var frame map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(data, &frame))
+	frame, err := contract.UnmarshalFrame(data)
+	require.NoError(t, err)
 
 	return frame
+}
+
+// readResponse reads the next frame and requires it to carry an engine response.
+func readResponse(t *testing.T, conn *websocket.Conn) *v1.DurableTaskResponse {
+	t.Helper()
+
+	resp := readFrame(t, conn).GetResponse()
+	require.NotNil(t, resp, "expected a response frame")
+
+	return resp
 }
 
 func TestRelayCompletesAndDropsLateFrames(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, first FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, first *v1.ServerlessFirstFrame) {
 		assert.Equal(t, "ns", first.Namespace)
 		assert.Equal(t, int32(3), first.InvocationCount)
 		assert.Equal(t, int32(5000), first.InlineWaitBudgetMs)
 
-		action := &contracts.AssignedAction{}
-		require.NoError(t, UnmarshalProto(first.Action, action))
+		action := first.GetAction()
+		require.NotNil(t, action)
 		assert.Equal(t, "ns_svc:run", action.ActionId)
 		assert.Equal(t, int32(3), action.GetDurableTaskInvocationCount())
 
-		writeFrame(t, conn, `{"done":{"output":{"ok":true}}}`)
+		writeFrame(t, conn, `{"done":{"output":"{\"ok\":true}"}}`)
 		// A frame after done is dropped, not forwarded.
 		writeFrame(t, conn, `{"id":9,"request":{"memo":{"key":"aw=="}}}`)
 	})
@@ -369,31 +384,25 @@ func TestRelayCompletesAndDropsLateFrames(t *testing.T) {
 func TestRelayForwardsRequestsAndResponses(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 		// Ids left empty are stamped; a zero invocation means unset.
 		writeFrame(t, conn, `{"id":1,"request":{"memo":{"key":"aw=="}}}`)
 
-		frame := readFrame(t, conn)
-		require.Contains(t, frame, "response")
-
-		resp := &v1.DurableTaskResponse{}
-		require.NoError(t, UnmarshalProto(frame["response"], resp))
+		resp := readResponse(t, conn)
 		require.NotNil(t, resp.GetMemoAck())
 		assert.True(t, resp.GetMemoAck().MemoAlreadyExisted)
 
 		// The wait_for ack and its entry_completed both arrive as response frames.
 		writeFrame(t, conn, fmt.Sprintf(`{"id":2,"request":{"waitFor":{"durableTaskExternalId":%q,"invocationCount":3}}}`, testTaskId))
 
-		ack := &v1.DurableTaskResponse{}
-		require.NoError(t, UnmarshalProto(readFrame(t, conn)["response"], ack))
+		ack := readResponse(t, conn)
 		require.NotNil(t, ack.GetWaitForAck())
 
-		completed := &v1.DurableTaskResponse{}
-		require.NoError(t, UnmarshalProto(readFrame(t, conn)["response"], completed))
+		completed := readResponse(t, conn)
 		require.NotNil(t, completed.GetEntryCompleted())
 		assert.Equal(t, `{"slept":1}`, string(completed.GetEntryCompleted().Payload))
 
-		writeFrame(t, conn, `{"done":{"output":{"ok":1}}}`)
+		writeFrame(t, conn, `{"done":{"output":"{\"ok\":1}"}}`)
 	})
 
 	ch := newFakeChannel()
@@ -427,8 +436,8 @@ func TestRelayForwardsRequestsAndResponses(t *testing.T) {
 func TestRelayUpgradeRejected(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
-		writeFrame(t, conn, `{"done":{"output":{}}}`)
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+		writeFrame(t, conn, `{"done":{"output":"{}"}}`)
 	})
 
 	t.Run("bad hmac", func(t *testing.T) {
@@ -580,7 +589,7 @@ func TestRelayProtocolViolations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			setT(t)
 
-			ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+			ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 				writeFrame(t, conn, tt.frame)
 			})
 
@@ -599,7 +608,7 @@ func TestRelayProtocolViolations(t *testing.T) {
 func TestRelayBackpressure(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) {})
+	ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) {})
 
 	ch := newFakeChannel()
 	p := testParams(ep, ch)
@@ -632,8 +641,9 @@ func TestRelayDoneMapping(t *testing.T) {
 		errMsg string
 		retry  bool
 	}{
-		{name: "output", done: `{"output":[1,2]}`, kind: KindCompleted, output: `[1,2]`},
+		{name: "output", done: `{"output":"[1,2]"}`, kind: KindCompleted, output: `[1,2]`},
 		{name: "empty output", done: `{}`, kind: KindCompleted, output: `{}`},
+		{name: "empty output string", done: `{"output":""}`, kind: KindCompleted, output: `{}`},
 		{name: "error retry", done: `{"error":"boom","retry":true}`, kind: KindFailed, errMsg: "boom", retry: true},
 		{name: "error no retry", done: `{"error":"bad input","retry":false}`, kind: KindFailed, errMsg: "bad input"},
 		{name: "evicted", done: `{"status":"evicted"}`, kind: KindEvicted},
@@ -643,7 +653,7 @@ func TestRelayDoneMapping(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			setT(t)
 
-			ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+			ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 				writeFrame(t, conn, `{"done":`+tt.done+`}`)
 			})
 
@@ -665,11 +675,25 @@ func TestRelayDoneMapping(t *testing.T) {
 	}
 }
 
+func TestRelayDoneNonJSONOutput(t *testing.T) {
+	setT(t)
+
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+		writeFrame(t, conn, `{"done":{"output":"not json"}}`)
+	})
+
+	out := await(t, run(context.Background(), testParams(ep, newFakeChannel())))
+	assert.Equal(t, KindFailed, out.Kind)
+	assert.False(t, out.Retry)
+	assert.Equal(t, CloseForbiddenMessage, out.CloseCode)
+	assert.Equal(t, CloseForbiddenMessage, ep.closed(t))
+}
+
 func TestRelayCloseWithoutDone(t *testing.T) {
 	t.Run("close frame", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 			msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
 			require.NoError(t, conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(time.Second)))
 		})
@@ -683,7 +707,7 @@ func TestRelayCloseWithoutDone(t *testing.T) {
 	t.Run("tcp reset", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 			require.NoError(t, conn.NetConn().Close())
 		})
 
@@ -695,9 +719,9 @@ func TestRelayCloseWithoutDone(t *testing.T) {
 	t.Run("after eviction ack is evicted", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 			writeFrame(t, conn, `{"id":1,"request":{"evictInvocation":{}}}`)
-			require.Contains(t, readFrame(t, conn), "response")
+			require.NotNil(t, readFrame(t, conn).GetResponse())
 			require.NoError(t, conn.NetConn().Close())
 		})
 
@@ -717,15 +741,12 @@ func TestRelayCloseWithoutDone(t *testing.T) {
 	t.Run("after engine error is permanent", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 			writeFrame(t, conn, `{"id":1,"request":{"memo":{"key":"aw=="}}}`)
 
-			frame := readFrame(t, conn)
-			require.Contains(t, frame, "error")
-
-			var body ErrorBody
-			require.NoError(t, json.Unmarshal(frame["error"], &body))
-			assert.Equal(t, ErrorCodeNonDeterminism, body.Code)
+			body := readFrame(t, conn).GetError()
+			require.NotNil(t, body, "expected an error frame")
+			assert.Equal(t, contract.ErrorCodeNonDeterminism, body.Code)
 			assert.Equal(t, "replay diverged", body.Message)
 
 			require.NoError(t, conn.NetConn().Close())
@@ -752,15 +773,14 @@ func TestRelayCloseWithoutDone(t *testing.T) {
 func TestRelayEndpointEviction(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 		writeFrame(t, conn, `{"id":1,"request":{"waitFor":{}}}`)
-		require.Contains(t, readFrame(t, conn), "response")
+		require.NotNil(t, readResponse(t, conn).GetWaitForAck())
 
 		// The inline budget elapsed without entry_completed: evict and finish.
 		writeFrame(t, conn, `{"id":2,"request":{"evictInvocation":{"reason":"budget"}}}`)
 
-		ack := &v1.DurableTaskResponse{}
-		require.NoError(t, UnmarshalProto(readFrame(t, conn)["response"], ack))
+		ack := readResponse(t, conn)
 		require.NotNil(t, ack.GetEvictionAck())
 
 		writeFrame(t, conn, `{"done":{"status":"evicted"}}`)
@@ -792,9 +812,8 @@ func TestRelayEndpointEviction(t *testing.T) {
 func TestRelayServerEvict(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
-		notice := &v1.DurableTaskResponse{}
-		require.NoError(t, UnmarshalProto(readFrame(t, conn)["response"], notice))
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+		notice := readResponse(t, conn)
 		require.NotNil(t, notice.GetServerEvict())
 		assert.Equal(t, "superseded", notice.GetServerEvict().Reason)
 	})
@@ -818,7 +837,7 @@ func TestRelayContextEnds(t *testing.T) {
 		setT(t)
 
 		ready := make(chan struct{})
-		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) { close(ready) })
+		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) { close(ready) })
 
 		ctx, cancel := context.WithCancel(context.Background())
 		p := testParams(ep, newFakeChannel())
@@ -837,7 +856,7 @@ func TestRelayContextEnds(t *testing.T) {
 		setT(t)
 
 		ready := make(chan struct{})
-		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) { close(ready) })
+		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) { close(ready) })
 
 		ctx, cancel := context.WithCancel(context.Background())
 		out := run(ctx, testParams(ep, newFakeChannel()))
@@ -852,7 +871,7 @@ func TestRelayContextEnds(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) {})
+		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) {})
 
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
@@ -867,7 +886,7 @@ func TestRelayContextEnds(t *testing.T) {
 	t.Run("cancel before dial", func(t *testing.T) {
 		setT(t)
 
-		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) {})
+		ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) {})
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -880,7 +899,7 @@ func TestRelayContextEnds(t *testing.T) {
 func TestRelayPingTimeout(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 		// Swallow pings so no pong ever goes back.
 		conn.SetPingHandler(func(string) error { return nil })
 	})
@@ -898,7 +917,7 @@ func TestRelayPingTimeout(t *testing.T) {
 func TestRelayPongsKeepTheSocketOpen(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 		// The default ping handler answers with pongs while the endpoint reads.
 		deadline := time.Now().Add(150 * time.Millisecond)
 
@@ -911,7 +930,7 @@ func TestRelayPongsKeepTheSocketOpen(t *testing.T) {
 		}
 
 		require.NoError(t, conn.SetReadDeadline(time.Time{}))
-		writeFrame(t, conn, `{"done":{"output":{}}}`)
+		writeFrame(t, conn, `{"done":{"output":"{}"}}`)
 	})
 
 	p := testParams(ep, newFakeChannel())
@@ -924,7 +943,7 @@ func TestRelayPongsKeepTheSocketOpen(t *testing.T) {
 func TestRelayFrameCap(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ FirstFrame) {
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
 		writeFrame(t, conn, `{"id":1,"request":{"memo":{"key":"`+strings.Repeat("A", 2048)+`"}}}`)
 	})
 
@@ -950,7 +969,7 @@ func TestRelayFrameCap(t *testing.T) {
 func TestRelayLinkFailure(t *testing.T) {
 	setT(t)
 
-	ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, FirstFrame) {})
+	ep := newFakeEndpoint(t, func(*testing.T, *websocket.Conn, *v1.ServerlessFirstFrame) {})
 
 	ch := newFakeChannel()
 	out := run(context.Background(), testParams(ep, ch))

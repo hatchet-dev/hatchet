@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -31,7 +29,8 @@ type RequestSender interface {
 // per-workflow canonical hashes, parallel to workflows, so a poller can put only the
 // workflows that changed; hash covers the whole response.
 type healthcheckResult struct {
-	runtime        contract.HealthcheckRuntime
+	// runtime is nil when the endpoint did not report one.
+	runtime        *v1.ServerlessRuntime
 	hash           string
 	workflows      []*v1.CreateWorkflowVersionRequest
 	workflowHashes []string
@@ -69,7 +68,7 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 
 	now := time.Now().Unix()
 
-	body, err := json.Marshal(contract.HealthcheckRequest{
+	body, err := contract.Marshal(&v1.ServerlessHealthcheckRequest{
 		Timestamp:  now,
 		EndpointId: ep.id.String(),
 		Namespace:  ep.namespace.String(),
@@ -99,29 +98,23 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 }
 
 // parseHealthcheckResponse applies the namespace to the advertised workflows, derives the
-// action set and hashes the canonical (namespaced, deterministic) form so an unchanged
-// response, however the endpoint formats it, produces the same hash.
+// action set (the workflows' actions plus any the endpoint lists explicitly) and hashes the
+// canonical (namespaced, deterministic) form so an unchanged response, however the endpoint
+// formats it, produces the same hash.
 func parseHealthcheckResponse(body []byte, ns uuid.UUID) (*healthcheckResult, error) {
-	var resp contract.HealthcheckResponse
+	resp := &v1.ServerlessHealthcheckResponse{}
 
-	if err := json.Unmarshal(body, &resp); err != nil {
+	if err := contract.Unmarshal(body, resp); err != nil {
 		return nil, fmt.Errorf("could not parse healthcheck response: %w", err)
 	}
 
-	unmarshal := protojson.UnmarshalOptions{DiscardUnknown: true}
 	hasher := sha256.New()
 
 	workflows := make([]*v1.CreateWorkflowVersionRequest, 0, len(resp.Workflows))
 	workflowHashes := make([]string, 0, len(resp.Workflows))
 	actionLists := make([][]string, 0, len(resp.Workflows)+1)
 
-	for i, raw := range resp.Workflows {
-		wf := &v1.CreateWorkflowVersionRequest{}
-
-		if err := unmarshal.Unmarshal(raw, wf); err != nil {
-			return nil, fmt.Errorf("could not parse workflow at index %d: %w", i, err)
-		}
-
+	for _, wf := range resp.Workflows {
 		namespaced, err := applyNamespace(wf, ns)
 
 		if err != nil {
@@ -171,22 +164,14 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID) (*healthcheckResult, er
 
 	hasher.Write([]byte(strings.Join(actions, "\n")))
 
-	result := &healthcheckResult{
+	return &healthcheckResult{
 		workflows:      workflows,
 		workflowHashes: workflowHashes,
 		actions:        actions,
 		hash:           hex.EncodeToString(hasher.Sum(nil)),
-	}
-
-	if resp.Durable != nil {
-		result.durable = resp.Durable.Supported
-	}
-
-	if resp.Runtime != nil {
-		result.runtime = *resp.Runtime
-	}
-
-	return result, nil
+		durable:        resp.GetDurable().GetSupported(),
+		runtime:        resp.Runtime,
+	}, nil
 }
 
 // pollInterval spreads polls of endpoints created together by up to 10 percent either way.

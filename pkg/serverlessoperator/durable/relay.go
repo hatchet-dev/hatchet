@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
@@ -243,18 +244,17 @@ func Run(ctx context.Context, p Params) Outcome {
 	return r.result
 }
 
+// buildFirstFrame encodes the first frame: the assigned action (action id and workflow name
+// namespaced as registered), the endpoint's namespace, the invocation count and the inline
+// wait budget.
 func buildFirstFrame(p *Params) ([]byte, error) {
-	raw, err := MarshalProto(p.Action)
-
-	if err != nil {
-		return nil, err
-	}
-
-	frame, err := json.Marshal(FirstFrame{
-		Action:             raw,
-		Namespace:          p.Namespace,
-		InvocationCount:    p.Invocation,
-		InlineWaitBudgetMs: p.InlineWaitBudgetMs,
+	frame, err := contract.MarshalFrame(&v1.ServerlessDurableFrame{
+		Frame: &v1.ServerlessDurableFrame_First{First: &v1.ServerlessFirstFrame{
+			Action:             p.Action,
+			Namespace:          p.Namespace,
+			InvocationCount:    p.Invocation,
+			InlineWaitBudgetMs: p.InlineWaitBudgetMs,
+		}},
 	})
 
 	if err != nil {
@@ -431,62 +431,57 @@ func (r *relay) closedWithoutDone(msg string) {
 	r.finish(failed(0, msg, true))
 }
 
-// handleFrame processes one endpoint frame and reports whether reading should continue.
+// handleFrame processes one endpoint frame and reports whether reading should continue. An
+// endpoint may only send request and done frames; anything else is a protocol violation.
 func (r *relay) handleFrame(data []byte) bool {
 	if r.done.Load() {
 		r.l.Debug().Str("task_id", r.p.TaskId).Msg("dropping durable frame received after done")
 		return true
 	}
 
-	var frame InboundFrame
+	frame, err := contract.UnmarshalFrame(data)
 
-	if err := json.Unmarshal(data, &frame); err != nil {
+	if err != nil {
 		r.finish(failed(CloseForbiddenMessage, "endpoint sent a malformed frame", false))
 		return false
 	}
 
-	switch {
-	case len(frame.Done) > 0:
-		r.handleDone(frame.Done)
+	switch f := frame.Frame.(type) {
+	case *v1.ServerlessDurableFrame_Done:
+		r.handleDone(f.Done)
 		return false
-	case len(frame.Request) > 0:
-		return r.handleRequest(frame.Request)
+	case *v1.ServerlessDurableFrame_Request:
+		return r.handleRequest(f.Request)
 	default:
 		r.finish(failed(CloseForbiddenMessage, "endpoint sent a frame with neither request nor done", false))
 		return false
 	}
 }
 
-func (r *relay) handleDone(raw json.RawMessage) {
+// handleDone maps the terminal frame: status evicted first, then error, then output.
+func (r *relay) handleDone(done *v1.ServerlessDoneFrame) {
 	r.done.Store(true)
 
-	var done DoneFrame
-
-	if err := json.Unmarshal(raw, &done); err != nil {
-		r.finish(failed(CloseForbiddenMessage, "endpoint sent a malformed done frame", false))
-		return
-	}
-
 	switch {
-	case done.Status == StatusEvicted:
+	case done.GetStatus() == contract.DoneStatusEvicted:
 		r.evicted.Store(true)
 		r.finish(evicted(CloseNormal, EvictionSourceEndpoint))
 	case done.Error != nil:
-		r.finish(failed(CloseNormal, *done.Error, done.Retry))
+		r.finish(failed(CloseNormal, done.GetError(), done.GetRetry()))
 	default:
-		r.finish(completed(done.Output))
+		output := []byte(done.GetOutput())
+
+		if len(output) > 0 && !json.Valid(output) {
+			r.finish(failed(CloseForbiddenMessage, "endpoint sent a done frame whose output is not JSON", false))
+			return
+		}
+
+		r.finish(completed(output))
 	}
 }
 
 // handleRequest stamps, validates and forwards one DurableTaskRequest.
-func (r *relay) handleRequest(raw json.RawMessage) bool {
-	req := &v1.DurableTaskRequest{}
-
-	if err := UnmarshalProto(raw, req); err != nil {
-		r.finish(failed(CloseForbiddenMessage, "endpoint sent an undecodable durable request", false))
-		return false
-	}
-
+func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 	if err := r.stamp(req); err != nil {
 		var mismatch *mismatchError
 
@@ -597,7 +592,12 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 	case *v1.DurableTaskResponse_Error:
 		msg := m.Error.GetErrorMessage()
 		r.lastError.Store(&msg)
-		frame, err = json.Marshal(ErrorFrame{Error: ErrorBody{Code: errorCode(m.Error.GetErrorType()), Message: msg}})
+		frame, err = contract.MarshalFrame(&v1.ServerlessDurableFrame{
+			Frame: &v1.ServerlessDurableFrame_Error{Error: &v1.ServerlessErrorFrame{
+				Code:    errorCode(m.Error.GetErrorType()),
+				Message: msg,
+			}},
+		})
 	case *v1.DurableTaskResponse_EvictionAck:
 		r.evicted.Store(true)
 		frame, err = responseFrame(resp)
@@ -633,21 +633,17 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 }
 
 func responseFrame(resp *v1.DurableTaskResponse) ([]byte, error) {
-	raw, err := MarshalProto(resp)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return json.Marshal(ResponseFrame{Response: raw})
+	return contract.MarshalFrame(&v1.ServerlessDurableFrame{
+		Frame: &v1.ServerlessDurableFrame_Response{Response: resp},
+	})
 }
 
 func errorCode(t v1.DurableTaskErrorType) string {
 	switch t {
 	case v1.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
-		return ErrorCodeNonDeterminism
+		return contract.ErrorCodeNonDeterminism
 	default:
-		return "unspecified"
+		return contract.ErrorCodeUnspecified
 	}
 }
 

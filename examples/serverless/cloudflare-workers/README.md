@@ -18,9 +18,11 @@ over signed HTTPS requests; durable tasks run over a websocket the operator dial
 | `src/index.ts` | The fetch handler: `POST /hatchet/healthcheck`, `POST /hatchet/trigger` (non-durable), websocket upgrade on `/hatchet/trigger` (durable). |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
-The wire contract is defined by the operator's Go code and mirrored in `src/hatchet.ts`:
-`pkg/serverlessoperator/contract/http.go` (headers, envelopes), `pkg/serverlessoperator/durable/protocol.go`
-(websocket frames and close codes) and `api-contracts/v1/{workflows,dispatcher}.proto` (protojson shapes).
+The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
+frame, carried as protojson), plus `pkg/serverlessoperator/contract/http.go` (headers, the upgrade
+signature payload) and `pkg/serverlessoperator/durable/protocol.go` (websocket close codes).
+`src/hatchet.ts` mirrors it by hand so the example stays dependency-free; the
+`@hatchet-dev/serverless` package generates the same types from the proto.
 
 ## Deploy
 
