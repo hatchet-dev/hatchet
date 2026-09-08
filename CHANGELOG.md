@@ -1,6 +1,6 @@
-## [0.106.4] - 2026-09-08
+## [0.106.5] - 2026-09-08
 
-Hatchet v0.106.4 is a concurrency-focused release, adding support for dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.
+Hatchet v0.106.5 is a concurrency-focused release, adding support for dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.
 
 ### Highlights
 
