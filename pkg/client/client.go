@@ -45,6 +45,10 @@ type Client interface {
 	Namespace() string
 	CloudRegisterID() *string
 	RunnableActions() []string
+
+	// Close closes the client's gRPC connection. Streams and calls in flight on it fail, so
+	// call it once the workers and listeners built on the client are stopped.
+	Close() error
 }
 
 type clientImpl struct {
@@ -465,6 +469,15 @@ func (c *clientImpl) TenantId() string {
 
 func (c *clientImpl) Namespace() string {
 	return c.namespace
+}
+
+// Close implements Client.
+func (c *clientImpl) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+
+	return c.conn.Close()
 }
 
 func (c *clientImpl) CloudRegisterID() *string {
