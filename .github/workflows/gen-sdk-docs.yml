@@ -104,7 +104,16 @@ jobs:
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
-            UNEXPECTED_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^frontend/docs/content/docs/reference/" | grep -v "^sdks/.*/docs/" || true)
+            # The generators also own the "Documentation for agents" blocks in the
+            # published READMEs and the Go package doc comment.
+            UNEXPECTED_CHANGES=$(echo "$CHANGED_FILES" \
+              | grep -v "^frontend/docs/content/docs/reference/" \
+              | grep -v "^sdks/.*/docs/" \
+              | grep -v "^sdks/typescript/README.md$" \
+              | grep -v "^sdks/python/README.md$" \
+              | grep -v "^sdks/ruby/src/README.md$" \
+              | grep -v "^sdks/go/hatchet.go$" \
+              || true)
 
             if [ -n "$UNEXPECTED_CHANGES" ]; then
               echo "Error: Changes detected outside of reference docs:"
@@ -125,7 +134,8 @@ jobs:
           git config --local user.name "GitHub Action"
           BRANCH_NAME="regenerate-sdk-docs-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
-          git add -A frontend/docs/content/docs/reference/ sdks/*/docs/
+          git add -A frontend/docs/content/docs/reference/ sdks/*/docs/ \
+            sdks/typescript/README.md sdks/python/README.md sdks/ruby/src/README.md sdks/go/hatchet.go
           git commit -m "chore: regenerate SDK reference docs"
           git push origin "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
