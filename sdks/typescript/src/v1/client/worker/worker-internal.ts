@@ -37,12 +37,17 @@ import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/share
 import { Duration, durationToString, durationToMs } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
+import { installAsyncLocalParentRunContext } from '../../parent-run-context-storage';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 import { SlotConfig } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
 import { DurableRunRecord } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
+
+// Tasks read the parent run context across awaits; the worker is the only place that
+// enters it, so it installs the AsyncLocalStorage store before any task can run.
+installAsyncLocalParentRunContext();
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type ActionRegistry = Record<Action['actionId'], Function>;
