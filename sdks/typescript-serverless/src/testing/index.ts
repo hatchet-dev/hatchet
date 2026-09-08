@@ -26,8 +26,24 @@ import {
   TRIGGER_ENVELOPE_VERSION,
   namespacePrefix,
 } from '../handler/contract';
-import { ServerlessLimitationError } from '../handler/errors';
 import { signHex } from '../handler/signature';
+import {
+  DurableOperator,
+  type DurableInvokeOptions,
+  type DurableResult,
+  type DurableRun,
+  type VirtualClock,
+} from './durable-operator';
+
+export type {
+  DurableInvokeOptions,
+  DurableResult,
+  DurableRun,
+  RecordedFrame,
+  VirtualClock,
+} from './durable-operator';
+export { createSocketPair } from './socket-pair';
+export type { SocketPair } from './socket-pair';
 
 export interface TestOperatorOptions extends Omit<
   HandlerOptions,
@@ -41,6 +57,11 @@ export interface TestOperatorOptions extends Omit<
   endpointId?: string;
   /** The runtime name reported in the healthcheck. Defaults to "test". */
   runtimeName?: string;
+  /**
+   * Whether the test operator dials durable tasks over the relay, which is what an adapter
+   * with an upgrade hook does. Defaults to true; false reproduces an adapter without one.
+   */
+  durable?: boolean;
 }
 
 export interface InvokeOptions {
@@ -92,8 +113,25 @@ export interface TestOperator {
   deliver(target: InvokeTarget, input: unknown, options?: InvokeOptions): Promise<DeliveryOutcome>;
   /** Sends a raw request to the handler; the body is signed unless `sign` is false. */
   request(path: string, init?: RequestInit & { sign?: boolean }): Promise<Response>;
-  /** Placeholder for the durable relay, which a later version provides. */
-  invokeDurable(target: InvokeTarget, input: unknown, options?: InvokeOptions): Promise<never>;
+  /**
+   * Dials the handler over the durable relay for one invocation and returns its outcome:
+   * completed with the output, evicted after an eviction ack, or failed.
+   */
+  invokeDurable(
+    target: InvokeTarget,
+    input: unknown,
+    options?: DurableInvokeOptions
+  ): Promise<DurableResult>;
+  /** Like `invokeDurable`, but returns the invocation in progress for mid-flight actions. */
+  startDurable(target: InvokeTarget, input: unknown, options?: DurableInvokeOptions): DurableRun;
+  /** Re-invokes an evicted invocation against the same event log with the next count. */
+  resume(previous: DurableResult, options?: DurableInvokeOptions): Promise<DurableResult>;
+  /** The virtual clock durable sleeps are measured against. */
+  clock: VirtualClock;
+  /** Delivers a user event to every durable wait on the key. */
+  emit(eventKey: string, payload?: Record<string, unknown>): void;
+  /** Signed upgrade headers for the task and invocation, with optional overrides. */
+  upgradeHeaders: DurableOperator['upgradeHeaders'];
 }
 
 const ORIGIN = 'https://endpoint.test';
@@ -104,9 +142,16 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     namespace = crypto.randomUUID(),
     endpointId = crypto.randomUUID(),
     runtimeName = 'test',
+    durable = true,
     ...rest
   } = options;
-  const handler = createHandler({ ...rest, secret, endpointId, runtime: { name: runtimeName } });
+  const handler = createHandler({
+    ...rest,
+    secret,
+    endpointId,
+    durable,
+    runtime: { name: runtimeName },
+  });
   const prefix = namespacePrefix(namespace);
 
   const request: TestOperator['request'] = async (path, init = {}) => {
@@ -168,10 +213,48 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     return classifyResponse(response);
   };
 
+  const durableOperator = new DurableOperator({
+    handler,
+    secret,
+    namespace,
+    endpointId,
+    runChild: async (workflowName, input) => {
+      const workflow = handler
+        .healthcheck()
+        .workflows.find((candidate) => candidate.name === workflowName);
+
+      if (!workflow || workflow.tasks.length !== 1) {
+        throw new Error(
+          `child workflow "${workflowName}" must be a single non-durable task to run in the test operator`
+        );
+      }
+
+      const outcome = await deliver(workflow.tasks[0].action, input);
+
+      if (outcome.status === 'failed') {
+        throw new Error(outcome.error);
+      }
+
+      return outcome.output;
+    },
+  });
+
+  const startDurable: TestOperator['startDurable'] = (target, input, durableOptions) => {
+    const { workflowName, taskName } = resolveTarget(target);
+    return durableOperator.start(workflowName, taskName, input, durableOptions);
+  };
+
+  // What each durable task run was started with, so `resume` re-sends the same action.
+  const started = new Map<string, { target: InvokeTarget; input: unknown }>();
+
   return {
     handler,
     namespace,
     endpointId,
+    clock: durableOperator.clock,
+    emit: (eventKey, payload) => durableOperator.emit(eventKey, payload),
+    upgradeHeaders: (taskRunExternalId, invocationCount, overrides) =>
+      durableOperator.upgradeHeaders(taskRunExternalId, invocationCount, overrides),
 
     async healthcheck() {
       const body = JSON.stringify(
@@ -217,11 +300,28 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
 
     request,
 
-    async invokeDurable() {
-      throw new ServerlessLimitationError(
-        'durable invocations in the test operator',
-        'The durable relay is not available in this version'
-      );
+    startDurable(target, input, durableOptions) {
+      const run = startDurable(target, input, durableOptions);
+      started.set(run.taskRunExternalId, { target, input });
+      return run;
+    },
+
+    invokeDurable(target, input, durableOptions) {
+      return this.startDurable(target, input, durableOptions).result;
+    },
+
+    resume(previous, durableOptions = {}) {
+      const origin = started.get(previous.taskRunExternalId);
+
+      if (!origin) {
+        throw new Error(`no durable invocation known for task ${previous.taskRunExternalId}`);
+      }
+
+      return this.invokeDurable(origin.target, origin.input, {
+        ...durableOptions,
+        taskRunExternalId: previous.taskRunExternalId,
+        invocationCount: previous.invocationCount + 1,
+      });
     },
   };
 }

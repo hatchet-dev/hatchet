@@ -44,8 +44,8 @@ describe('healthcheck', () => {
       action: 'sleep-then-echo:sleep-then-echo',
       isDurable: true,
     });
-    // `supported: false` is a default, so protojson writes an empty message.
-    expect(raw.durable).toEqual({});
+    // The test operator dials durable tasks, so support is advertised for the durable one.
+    expect(raw.durable).toEqual({ supported: true });
     expect(raw.runtime).toEqual({ name: 'test', sdkVersion: version });
     expect(raw.actions).toEqual([
       'echo:echo',
