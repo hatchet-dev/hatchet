@@ -5,9 +5,9 @@ same API as the Hatchet TypeScript SDK, hand them to a runtime adapter, and regi
 endpoint with Hatchet. The Hatchet serverless operator polls the endpoint for the workflows it
 serves and delivers runs to it over signed HTTPS requests.
 
-Status: preview, not yet published. This version serves non-durable tasks on Cloudflare Workers.
-Durable tasks over the operator's websocket relay, the Vercel adapter, the
-`hatchet serverless` CLI commands and the management module are the next phases.
+Status: preview, not yet published. This version serves non-durable and durable tasks on
+Cloudflare Workers. The Vercel adapter, the `hatchet serverless` CLI commands and the
+management module are the next phases.
 
 ## There is no Hatchet client in the serverless runtime
 
@@ -20,21 +20,23 @@ handler reports as a permanent failure (no retry, since retrying cannot help).
 
 `ctx` members that throw `ServerlessLimitationError`:
 
-| Member                                                                   | Reason                                                                                      |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `ctx.runChild`, `ctx.runNoWaitChild`, `ctx.spawnWorkflow`                | child runs need a client                                                                    |
-| `ctx.bulkRunChildren`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflows` | same                                                                                        |
-| `ctx.putStream`                                                          | streaming needs a client                                                                    |
-| `ctx.cancel`                                                             | cancellation is the operator's: it drops the request and the task's `abortController` fires |
-| `ctx.refreshTimeout`, `ctx.releaseSlot`                                  | there is no worker slot to release or timeout to extend                                     |
-| `ctx.worker.labels`, `ctx.worker.upsertLabels`                           | there is no worker                                                                          |
+| Member                                                                   | Reason                                                                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `ctx.runChild`, `ctx.runNoWaitChild`, `ctx.spawnWorkflow`                | child runs need a client; durable tasks use `ctx.spawnChild` over the relay instead                              |
+| `ctx.bulkRunChildren`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflows` | same; durable tasks use `ctx.spawnChildren`                                                                      |
+| `ctx.putStream`                                                          | streaming needs a client                                                                                         |
+| `ctx.cancel`                                                             | cancellation is the operator's: it drops the request or closes the socket and the task's `abortController` fires |
+| `ctx.refreshTimeout`, `ctx.releaseSlot`                                  | there is no worker slot to release or timeout to extend                                                          |
+| `ctx.worker.labels`, `ctx.worker.upsertLabels`                           | there is no worker                                                                                               |
 
 `ctx` members that work unchanged: `input`, `parentOutput`, `retryCount`, `workflowRunId`,
 `taskRunExternalId`, `workflowNameV1`, `taskName`, `additionalMetadata`, `triggers`, `errors`,
 `priority`, `triggeringEventId`, `triggeringEventKey`, `abortController` and `cancelled`.
 `ctx.logger.*` and `ctx.log` print to the console only; no log line reaches the engine.
 `ctx.worker.id()` is `undefined` and `ctx.worker.hasWorkflow(name)` answers from the
-declarations you handed to the adapter.
+declarations you handed to the adapter. In a durable task, `ctx.now`, `ctx.sleepFor`,
+`ctx.sleepUntil`, `ctx.waitFor`, `ctx.waitForEvent`, `ctx.spawnChild` and `ctx.spawnChildren`
+work: the operator relays them to the engine over the invocation's websocket.
 
 Declarations cannot run themselves either: `echo.run(...)`, `echo.schedule(...)` and
 `echo.cron(...)` throw. Trigger runs from a process that has the regular SDK
@@ -71,6 +73,17 @@ export const echo = hatchet.task({
   }),
 });
 
+export const sleepThenEcho = hatchet.durableTask({
+  name: 'sleep-then-echo',
+  executionTimeout: '5m',
+  fn: async (input: { message: string }, ctx) => {
+    const startedAt = await ctx.now(); // memoized: replays after an eviction
+    await ctx.sleepFor('3s'); // longer than the inline budget: evicts, re-invoked later
+    const child = await ctx.spawnChild(echo, { message: 'from durable' }); // over the relay
+    return { echo: input.message, startedAt, child, finishedAt: new Date().toISOString() };
+  },
+});
+
 export const pipeline = hatchet.workflow<{ url: string }>({ name: 'pipeline' });
 const fetchStep = pipeline.task({
   name: 'fetch',
@@ -82,13 +95,13 @@ pipeline.task({
   fn: async (_, ctx) => ({ words: (await ctx.parentOutput(fetchStep)).body.split(' ').length }),
 });
 
-export const workflows = [echo, pipeline];
+export const workflows = [echo, sleepThenEcho, pipeline];
 ```
 
 `hatchet` is the SDK's `task`, `durableTask`, `workflow` and `batchTask` factories bound to no
-client. Durable tasks can be declared and are advertised to Hatchet, but this version cannot
-serve them: the healthcheck reports `durable.supported: false`, so the operator never assigns
-them to the endpoint.
+client. A durable task runs on a websocket the operator dials; it may wait inline for the
+endpoint's `inlineWaitBudgetMs` (5000 by default) and evicts itself past that, to be re-invoked
+when the awaited sleep, event or child run completes. See LIMITATIONS.md for the rules.
 
 ## Cloudflare Workers
 
@@ -112,9 +125,11 @@ wrangler secret put HATCHET_SIGNING_SECRET   # 32+ characters; keep the value fo
 wrangler deploy
 ```
 
-`cloudflare({ workflows })` returns an `ExportedHandler<Env>` serving `POST /hatchet/healthcheck`
-and `POST /hatchet/trigger`. It reads `HATCHET_SIGNING_SECRET` and the optional
-`HATCHET_ENDPOINT_ID` from `env`. Every other path gets a 404 unless you pass a `fetch` option.
+`cloudflare({ workflows })` returns an `ExportedHandler<Env>` serving `POST /hatchet/healthcheck`,
+`POST /hatchet/trigger` and the durable websocket upgrade on `/hatchet/trigger`. It reads
+`HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID` from `env`, and keeps the isolate
+alive with `ctx.waitUntil` while a durable invocation is on its socket. Every other path gets a
+404 unless you pass a `fetch` option.
 
 ```ts
 export default cloudflare({
@@ -176,22 +191,60 @@ test('healthcheck is protojson', async () => {
 with the message and retry decision) instead of throwing; `op.request(path, init)` sends a raw
 signed request to the handler.
 
+Durable tasks run against an in-memory operator with a virtual clock and an event log:
+
+```ts
+test('sleep-then-echo evicts and resumes', async () => {
+  const first = await op.invokeDurable(
+    sleepThenEcho,
+    { message: 'hi' },
+    { inlineWaitBudgetMs: 100 }
+  );
+  expect(first.status).toBe('evicted');
+  expect(first.endpointFrames).toEqual([
+    'memo',
+    'completeMemo',
+    'waitFor',
+    'evictInvocation',
+    'done:evicted',
+  ]);
+
+  op.clock.advance('3s');
+
+  const second = await op.resume(first);
+  expect(second.status).toBe('completed');
+  expect(second.output).toMatchObject({ echo: 'hi' });
+});
+```
+
+`op.startDurable(...)` returns the invocation in progress, with `frame(kind)` to wait for a
+frame the endpoint sent, and `serverEvict()`, `sendError()` and `close()` to act as the operator
+mid-flight; `op.emit(eventKey, payload)` satisfies a `waitForEvent`. The fake enforces the
+operator's protocol rules (one ack-bearing request in flight, nothing after the done frame,
+`done: evicted` only after an eviction ack), so a violation fails the test.
+
 ## How a trigger maps onto a response
 
 The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
 `{"error", "retry"}` body overrides its message and retry decision.
 
-| Task outcome                       | Response                                                              |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| returns a value                    | `200`, the value as JSON                                              |
-| returns `undefined`                | `204`                                                                 |
-| throws `NonRetryableError`         | `422 {"error", "retry": false}`                                       |
-| throws `ServerlessLimitationError` | `422 {"error", "retry": false}`                                       |
-| throws anything else               | `500 {"error", "retry": true}`                                        |
-| action not served here             | `404 {"error", "retry": false}`                                       |
-| durable action sent as a POST      | `422 {"error", "retry": false}`                                       |
-| bad signature                      | `401 {"error", "retry": false}`                                       |
-| durable websocket upgrade          | `426 {"error", "retry": false}` (relay not available in this version) |
+| Task outcome                                            | Response                           |
+| ------------------------------------------------------- | ---------------------------------- |
+| returns a value                                         | `200`, the value as JSON           |
+| returns `undefined`                                     | `204`                              |
+| throws `NonRetryableError`                              | `422 {"error", "retry": false}`    |
+| throws `ServerlessLimitationError`                      | `422 {"error", "retry": false}`    |
+| throws anything else                                    | `500 {"error", "retry": true}`     |
+| action not served here                                  | `404 {"error", "retry": false}`    |
+| durable action sent as a POST                           | `422 {"error", "retry": false}`    |
+| bad signature                                           | `401 {"error", "retry": false}`    |
+| durable upgrade with a bad signature or stale timestamp | `401`; a foreign endpoint id `403` |
+| durable upgrade on an adapter without the relay         | `426 {"error", "retry": false}`    |
+
+On the durable websocket the outcome travels in the final `done` frame: `{ output }` completes
+the task, `{ error, retry }` fails it (retry is false for `NonRetryableError` and after an engine
+error frame), and `{ status: "evicted" }` after an eviction ack means the engine re-invokes the
+task later.
 
 ## Development
 
