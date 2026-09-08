@@ -119,7 +119,7 @@ func (payload *Payload) validateTimestamp() error {
 		return fmt.Errorf("invalid message timestamp: %w", err)
 	}
 
-	if d := time.Since(t); d > maxTimestampSkew || d < -maxTimestampSkew {
+	if time.Since(t).Abs() > maxTimestampSkew {
 		return errors.New("message timestamp is outside the allowed window")
 	}
 
