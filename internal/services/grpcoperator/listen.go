@@ -167,10 +167,12 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 		}
 	}()
 
-	fin, release := s.dispatcher.AddOperatorStreamSession(worker.ID, sessionId, stream)
-	// release runs before the deferred deactivation so the session is gone before the handler
-	// stops selecting on fin, which the dispatcher's shutdown drain blocks on
-	defer release()
+	session := s.dispatcher.AddOperatorStreamSession(worker.ID, sessionId, stream, nil)
+	// the release runs before the deferred deactivation so the session is gone from the
+	// dispatcher before the worker is marked inactive
+	defer session.Release()
+
+	fin := session.Fin()
 
 	// the session notify goes through the notifier so a burst of deltas right after start folds
 	// into the same throttle window

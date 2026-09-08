@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -267,6 +268,9 @@ type fakeDispatcher struct {
 	notifies   []uuid.UUID
 	fin        chan bool
 	stepCalls  []*contracts.StepActionEvent
+	// sent records the messages Listen sent through the session handle
+	sent    []proto.Message
+	sendErr error
 	// durableRegister records the first message the delegated durable stream received
 	durableRegister *v1contracts.DurableTaskRequest
 	durableErr      error
@@ -276,18 +280,41 @@ func newFakeDispatcher() *fakeDispatcher {
 	return &fakeDispatcher{fin: make(chan bool)}
 }
 
-func (f *fakeDispatcher) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, _ grpc.ServerStream) (<-chan bool, func()) {
+func (f *fakeDispatcher) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, _ grpc.ServerStream, _ func(*contracts.AssignedAction) proto.Message) operatorStreamSession {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.sessions = append(f.sessions, workerId)
 	f.sessionIds = append(f.sessionIds, sessionId)
 
-	return f.fin, func() {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.released++
+	return &fakeStreamSession{d: f}
+}
+
+// fakeStreamSession is the session handle the fake dispatcher hands to Listen. Sent messages
+// are recorded on the dispatcher.
+type fakeStreamSession struct {
+	d *fakeDispatcher
+}
+
+func (s *fakeStreamSession) Fin() <-chan bool { return s.d.fin }
+
+func (s *fakeStreamSession) Send(_ context.Context, msg proto.Message) error {
+	s.d.mu.Lock()
+	defer s.d.mu.Unlock()
+
+	if s.d.sendErr != nil {
+		return s.d.sendErr
 	}
+
+	s.d.sent = append(s.d.sent, msg)
+
+	return nil
+}
+
+func (s *fakeStreamSession) Release() {
+	s.d.mu.Lock()
+	defer s.d.mu.Unlock()
+	s.d.released++
 }
 
 func (f *fakeDispatcher) NotifyNewWorker(_ context.Context, _ *sqlcv1.Tenant, workerId uuid.UUID) {
