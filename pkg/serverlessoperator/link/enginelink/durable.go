@@ -22,6 +22,10 @@ var errSessionEnded = errors.New("engine durable session ended")
 // side after the session is cancelled.
 const durableCloseDrainTimeout = 5 * time.Second
 
+// handshakeHoldLimit bounds the invocation responses held while the register-worker ack is
+// awaited.
+const handshakeHoldLimit = 256
+
 // durableChannel is one durable invocation's pipe over the dispatcher's channel-backed
 // session (the in-engine equivalent of the DurableTask stream). The session lives until Close
 // cancels it; the engine then deregisters the invocation and closes the response channel.
@@ -63,8 +67,11 @@ type entryRef struct {
 
 // openDurable registers the session and runs the register-worker handshake: the first request
 // names the worker running the invocation, and the engine's ack is consumed here so Recv only
-// ever returns invocation traffic. ctx bounds the handshake; the session itself is detached
-// from it and ends on Close.
+// ever returns invocation traffic. The engine routes responses to the task as soon as it is
+// registered, before the ack, so invocation traffic that arrives during the handshake (a
+// completion restored for a resumed invocation, for instance) is held for the channel, under
+// the same ack-before-entry ordering, up to handshakeHoldLimit responses. ctx bounds the
+// handshake; the session itself is detached from it and ends on Close.
 func openDurable(ctx context.Context, d Dispatcher, tenant *sqlcv1.Tenant, workerId uuid.UUID, taskId uuid.UUID, invocation int32) (link.DurableChannel, error) {
 	sctx, cancel := context.WithCancel(withTenant(context.WithoutCancel(ctx), tenant))
 
@@ -100,28 +107,48 @@ func openDurable(ctx context.Context, d Dispatcher, tenant *sqlcv1.Tenant, worke
 		return nil, fmt.Errorf("durable session interrupted before the register worker request was sent: %w", ctx.Err())
 	}
 
-	select {
-	case resp, ok := <-respCh:
-		if !ok {
-			_ = ch.Close()
-			return nil, errors.New("durable session closed while waiting for the register worker ack")
-		}
+	held := 0
 
-		if resp.GetRegisterWorker() == nil {
-			_ = ch.Close()
+	for {
+		select {
+		case resp, ok := <-respCh:
+			if !ok {
+				_ = ch.Close()
+				return nil, errors.New("durable session closed while waiting for the register worker ack")
+			}
+
+			if resp.GetRegisterWorker() != nil {
+				return ch, nil
+			}
 
 			if e := resp.GetError(); e != nil {
+				_ = ch.Close()
 				return nil, fmt.Errorf("engine rejected the register worker request: %s", e.ErrorMessage)
 			}
 
-			return nil, fmt.Errorf("unexpected first durable response %T, want the register worker ack", resp.GetMessage())
-		}
-	case <-ctx.Done():
-		_ = ch.Close()
-		return nil, fmt.Errorf("durable session interrupted waiting for the register worker ack: %w", ctx.Err())
-	}
+			held++
 
-	return ch, nil
+			if held > handshakeHoldLimit {
+				_ = ch.Close()
+				return nil, fmt.Errorf("durable handshake for task %s received %d responses before the register worker ack; the limit is %d", taskId, held, handshakeHoldLimit)
+			}
+
+			ch.hold(resp)
+		case <-ctx.Done():
+			_ = ch.Close()
+			return nil, fmt.Errorf("durable session interrupted waiting for the register worker ack: %w", ctx.Err())
+		}
+	}
+}
+
+// hold keeps a response that arrived before the handshake completed: entries wait for the
+// ack naming their ref, anything else is queued for the first Recv.
+func (c *durableChannel) hold(resp *v1.DurableTaskResponse) {
+	if c.deliverable(resp) {
+		c.mu.Lock()
+		c.ready = append(c.ready, resp)
+		c.mu.Unlock()
+	}
 }
 
 func (c *durableChannel) isClosed() bool {

@@ -170,10 +170,12 @@ type registerOpts struct {
 }
 
 // Open implements link.Link. It runs the registration steps of grpcoperator.Register and
-// Listen in process: upsert the SERVERLESS operator row, create the worker with the initial
-// action set and slot config, write labels, activate the worker under a fresh listener session
-// id, register the operator session with the dispatcher and notify the scheduler. Heartbeats
-// start with the registration and stop on Close.
+// Listen in process: upsert the SERVERLESS operator row, create the worker with its slot
+// config, link the initial action set in bulk chunks (the same path a streamed delta takes,
+// not one upsert per action), write labels, activate the worker under a fresh listener
+// session id, register the operator session with the dispatcher and notify the scheduler.
+// The worker is activated only once its actions are linked. Heartbeats start with the
+// registration and stop on Close.
 func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
 	tenant, err := e.tenants.GetTenantByID(ctx, tenantId)
 
@@ -206,7 +208,6 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts)
 	worker, err := e.workers.CreateNewWorker(ctx, tenantId, &repository.CreateWorkerOpts{
 		DispatcherId: e.dispatcherId,
 		Name:         workerName(e.dispatcherId),
-		Actions:      actions,
 		SlotConfig:   slotConfig,
 		OperatorId:   &operatorId,
 	})
@@ -215,21 +216,11 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts)
 		return nil, fmt.Errorf("could not create serverless worker: %w", err)
 	}
 
-	labels := labelOpts(opts.Labels)
-
-	if _, err := e.workers.UpsertWorkerLabels(ctx, worker.ID, labels); err != nil {
-		return nil, fmt.Errorf("could not upsert worker labels: %w", err)
-	}
-
 	// The session id is the listener fence on the worker row: activation records it and the
 	// deactivation on Close only succeeds while it is still the id on the row, so a newer
 	// session on the same worker id is never marked inactive by an older one; see
 	// grpcoperator.Listen.
 	sessionId := uuid.New()
-
-	if _, err := e.workers.ActivateWorkerListener(ctx, tenantId, worker.ID, sessionId); err != nil {
-		return nil, fmt.Errorf("could not activate serverless worker %s: %w", worker.ID, err)
-	}
 
 	l := e.l.With().
 		Str("tenant_id", tenantId.String()).
@@ -239,6 +230,20 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts)
 		Logger()
 
 	reg := newRegistration(e, tenant, worker.ID, sessionId, slotBuffer(slotConfig), &l)
+
+	if err := reg.applyDelta(ctx, actions, e.workers.AddWorkerActions, "add"); err != nil {
+		return nil, fmt.Errorf("could not link the initial actions of serverless worker %s: %w", worker.ID, err)
+	}
+
+	labels := labelOpts(opts.Labels)
+
+	if _, err := e.workers.UpsertWorkerLabels(ctx, worker.ID, labels); err != nil {
+		return nil, fmt.Errorf("could not upsert worker labels: %w", err)
+	}
+
+	if _, err := e.workers.ActivateWorkerListener(ctx, tenantId, worker.ID, sessionId); err != nil {
+		return nil, fmt.Errorf("could not activate serverless worker %s: %w", worker.ID, err)
+	}
 
 	reg.release = e.dispatcher.AddOperatorSession(worker.ID, sessionOperator{reg})
 

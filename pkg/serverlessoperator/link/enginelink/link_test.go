@@ -34,15 +34,29 @@ type fakeDispatcher struct {
 	events   []*contracts.StepActionEvent
 	eventCtx []context.Context
 
-	// durableFirstResponse replaces the register worker ack when set.
-	durableFirstResponse *v1.DurableTaskResponse
-	durableRegistered    []uuid.UUID
-	durableRequests      []*v1.DurableTaskRequest
-	durableCtx           []context.Context
+	// durableFirstResponse replaces the register worker ack when set;
+	// durableEarlyResponses are sent before the ack, as the engine routes restored
+	// completions to a registered task before its handshake completes;
+	// durableStallAfterHandshake stops reading requests after the ack, as an engine that is
+	// not draining the request channel does.
+	durableFirstResponse       *v1.DurableTaskResponse
+	durableEarlyResponses      []*v1.DurableTaskResponse
+	durableStallAfterHandshake bool
+	durableRegistered          []uuid.UUID
+	durableRequests            []*v1.DurableTaskRequest
+	durableCtx                 []context.Context
+
+	// inject delivers a response to the most recent durable session out of band.
+	inject chan *v1.DurableTaskResponse
 }
 
 func newFakeDispatcher() *fakeDispatcher {
-	return &fakeDispatcher{sessions: map[uuid.UUID]operator.Operator{}}
+	return &fakeDispatcher{sessions: map[uuid.UUID]operator.Operator{}, inject: make(chan *v1.DurableTaskResponse, 16)}
+}
+
+// respond pushes a response into the open durable session.
+func (f *fakeDispatcher) respond(resp *v1.DurableTaskResponse) {
+	f.inject <- resp
 }
 
 func (f *fakeDispatcher) AddOperatorSession(workerId uuid.UUID, op operator.Operator) func() {
@@ -82,6 +96,8 @@ func (f *fakeDispatcher) RegisterDurableTask(ctx context.Context, externalId uui
 	f.durableRegistered = append(f.durableRegistered, externalId)
 	f.durableCtx = append(f.durableCtx, ctx)
 	first := f.durableFirstResponse
+	early := f.durableEarlyResponses
+	stall := f.durableStallAfterHandshake
 	f.mu.Unlock()
 
 	reqCh := make(chan *v1.DurableTaskRequest)
@@ -103,6 +119,10 @@ func (f *fakeDispatcher) RegisterDurableTask(ctx context.Context, externalId uui
 			select {
 			case <-ctx.Done():
 				return
+			case resp := <-f.inject:
+				if !send(resp) {
+					return
+				}
 			case req := <-reqCh:
 				f.mu.Lock()
 				f.durableRequests = append(f.durableRequests, req)
@@ -112,12 +132,28 @@ func (f *fakeDispatcher) RegisterDurableTask(ctx context.Context, externalId uui
 
 				switch m := req.GetMessage().(type) {
 				case *v1.DurableTaskRequest_RegisterWorker:
+					for _, e := range early {
+						if !send(e) {
+							return
+						}
+					}
+
 					resp = first
 
 					if resp == nil {
 						resp = &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_RegisterWorker{
 							RegisterWorker: &v1.DurableTaskResponseRegisterWorker{},
 						}}
+					}
+
+					if stall {
+						if !send(resp) {
+							return
+						}
+
+						<-ctx.Done()
+
+						return
 					}
 				case *v1.DurableTaskRequest_Memo:
 					resp = &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_MemoAck{
@@ -241,6 +277,9 @@ type fakeWorkers struct {
 	heartbeats  int
 	deactivate  error
 	noop        bool
+
+	// activateHook runs on ActivateWorkerListener, outside the lock.
+	activateHook func()
 }
 
 func newFakeWorkers() *fakeWorkers {
@@ -292,6 +331,10 @@ func (f *fakeWorkers) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, 
 }
 
 func (f *fakeWorkers) ActivateWorkerListener(_ context.Context, _ uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	if f.activateHook != nil {
+		f.activateHook()
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -421,17 +464,18 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	// one SERVERLESS operator row by name
 	assert.Equal(t, []string{DefaultOperatorName}, h.operators.upserts)
 
-	// the worker is pinned to the dispatcher, named per unit, linked to the operator row and
-	// born with the deduplicated initial action set
+	// the worker is pinned to the dispatcher, named per process, linked to the operator row and
+	// created without actions: the deduplicated initial set is linked through the bulk delta
+	// path before the worker is activated
 	require.Len(t, h.workers.creates, 1)
 	create := h.workers.creates[0]
 	assert.Equal(t, h.link.dispatcherId, create.DispatcherId)
 	assert.Equal(t, fmt.Sprintf("serverless-%s", h.link.dispatcherId), create.Name)
-	assert.Equal(t, []string{"ns_other:Extra", "ns_svc:run"}, create.Actions)
+	assert.Empty(t, create.Actions, "the initial set is not created one upsert per action")
 	assert.Equal(t, opts.SlotConfig, create.SlotConfig)
 	require.NotNil(t, create.OperatorId)
 	assert.Equal(t, h.operators.operator.ID, *create.OperatorId)
-	assert.Empty(t, h.workers.added, "the initial set goes in with the worker, not as a delta")
+	assert.Equal(t, [][]string{{"ns_other:Extra", "ns_svc:run"}}, h.workers.added, "the initial set is linked as one bulk delta")
 
 	workerId := r.workerId
 	assert.Equal(t, workerId.String(), reg.WorkerId())
@@ -456,11 +500,12 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	assert.NotEqual(t, uuid.Nil, activated[0].sessionId)
 	assert.Equal(t, activated[0].sessionId, r.sessionId)
 
-	// session registered and scheduler notified
+	// session registered and scheduler notified: once for the linked initial set, once for
+	// the session
 	session := h.dispatcher.session(workerId)
 	require.NotNil(t, session)
 	assert.Equal(t, workerId, session.WorkerId())
-	assert.Equal(t, 1, h.dispatcher.notifyCount())
+	assert.Equal(t, 2, h.dispatcher.notifyCount())
 
 	// heartbeats run until Close
 	assert.Eventually(t, func() bool { return h.workers.heartbeatCount() >= 2 }, time.Second, time.Millisecond)
@@ -618,7 +663,10 @@ func TestPutWorkflowAndActionDeltasCallThrough(t *testing.T) {
 
 	reg, _ := h.open(t, link.OpenOpts{Actions: []string{"ns_svc:run"}})
 
-	require.Equal(t, 1, h.dispatcher.notifyCount())
+	// the initial set is linked at open (one notification) and the session added (another)
+	initial := [][]string{{"ns_svc:run"}}
+	require.Equal(t, initial, h.workers.added)
+	require.Equal(t, 2, h.dispatcher.notifyCount())
 
 	wf := workflow("ns_c", "ns_svc:Other", "ns_svc:other")
 	wf.OnFailureTask = &v1.CreateTaskOpts{ReadableId: "fail", Action: "ns_svc:OnFailure"}
@@ -630,34 +678,34 @@ func TestPutWorkflowAndActionDeltasCallThrough(t *testing.T) {
 	assert.Same(t, wf, h.admin.puts[0].wf)
 	assert.Equal(t, h.tenant.ID, tenantOf(t, h.admin.puts[0].ctx).ID)
 	assert.Equal(t, []string{"ns_svc:other", "ns_svc:other", "ns_svc:onfailure"}, derived, "derived ids are normalized like the engine stores them")
-	assert.Empty(t, h.workers.added, "a put does not touch the action set")
-	assert.Equal(t, 1, h.dispatcher.notifyCount())
+	assert.Equal(t, initial, h.workers.added, "a put does not touch the action set")
+	assert.Equal(t, 2, h.dispatcher.notifyCount())
 
 	require.NoError(t, reg.AddActions(context.Background(), []string{"ns_svc:other", "ns_svc:other", ""}))
-	assert.Equal(t, [][]string{{"ns_svc:other"}}, h.workers.added, "duplicates and empties are dropped before the write")
-	assert.Equal(t, 2, h.dispatcher.notifyCount())
+	assert.Equal(t, [][]string{{"ns_svc:run"}, {"ns_svc:other"}}, h.workers.added, "duplicates and empties are dropped before the write")
+	assert.Equal(t, 3, h.dispatcher.notifyCount())
 
 	require.NoError(t, reg.RemoveActions(context.Background(), []string{"ns_svc:run"}))
 	assert.Equal(t, [][]string{{"ns_svc:run"}}, h.workers.removed)
-	assert.Equal(t, 3, h.dispatcher.notifyCount())
+	assert.Equal(t, 4, h.dispatcher.notifyCount())
 
 	require.NoError(t, reg.Flush(context.Background()), "deltas are applied synchronously; Flush has nothing to wait for")
 
 	// a delta the engine already had is not worth a scheduler reload
 	h.workers.noop = true
 	require.NoError(t, reg.AddActions(context.Background(), []string{"ns_svc:other"}))
-	assert.Equal(t, 3, h.dispatcher.notifyCount())
+	assert.Equal(t, 4, h.dispatcher.notifyCount())
 	h.workers.noop = false
 
 	// empty deltas write nothing
 	require.NoError(t, reg.AddActions(context.Background(), nil))
 	require.NoError(t, reg.RemoveActions(context.Background(), []string{""}))
-	assert.Len(t, h.workers.added, 2)
+	assert.Len(t, h.workers.added, 3)
 	assert.Len(t, h.workers.removed, 1)
 
 	require.Error(t, reg.AddActions(context.Background(), []string{"noverb"}))
 	require.Error(t, reg.RemoveActions(context.Background(), []string{"noverb"}))
-	assert.Len(t, h.workers.added, 2, "invalid actions are rejected before any write")
+	assert.Len(t, h.workers.added, 3, "invalid actions are rejected before any write")
 	assert.Len(t, h.workers.removed, 1)
 
 	_, err = reg.PutWorkflow(context.Background(), workflow("ns_d", ""))
@@ -677,9 +725,9 @@ func TestPutWorkflowAndActionDeltasCallThrough(t *testing.T) {
 
 	before := h.dispatcher.notifyCount()
 	require.NoError(t, reg.AddActions(context.Background(), ids))
-	require.Len(t, h.workers.added, 4)
-	assert.Len(t, h.workers.added[2], maxActionsPerDelta)
-	assert.Len(t, h.workers.added[3], 1)
+	require.Len(t, h.workers.added, 5)
+	assert.Len(t, h.workers.added[3], maxActionsPerDelta)
+	assert.Len(t, h.workers.added[4], 1)
 	assert.Equal(t, before+1, h.dispatcher.notifyCount())
 }
 
@@ -797,17 +845,21 @@ func TestOpenDurableRejectsBadAck(t *testing.T) {
 		require.Error(t, h.dispatcher.durableCtx[0].Err(), "the session is torn down after a failed handshake")
 	})
 
-	t.Run("unexpected message", func(t *testing.T) {
+	t.Run("invocation traffic before the ack is held", func(t *testing.T) {
 		h := newHarness(t)
-		h.dispatcher.durableFirstResponse = &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_MemoAck{
+		h.dispatcher.durableEarlyResponses = []*v1.DurableTaskResponse{{Message: &v1.DurableTaskResponse_MemoAck{
 			MemoAck: &v1.DurableTaskEventMemoAckResponse{},
-		}}
+		}}}
 
 		reg, _ := h.open(t, link.OpenOpts{})
 
-		_, err := reg.OpenDurable(context.Background(), uuid.NewString(), 1)
+		ch, err := reg.OpenDurable(context.Background(), uuid.NewString(), 1)
+		require.NoError(t, err, "a message the engine routed before the ack does not fail the handshake")
 
-		require.ErrorContains(t, err, "register worker ack")
+		t.Cleanup(func() { _ = ch.Close() })
+
+		first := recvWithin(t, ch)
+		assert.NotNil(t, first.GetMemoAck(), "the held message is the first the relay receives")
 	})
 
 	t.Run("handshake context cancelled", func(t *testing.T) {
