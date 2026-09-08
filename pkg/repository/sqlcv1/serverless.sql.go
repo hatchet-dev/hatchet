@@ -691,20 +691,22 @@ SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signi
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
-    AND updated_at > $2::TIMESTAMPTZ
-ORDER BY updated_at, id
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > ($2::TIMESTAMPTZ, $3::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
 `
 
 type ListServerlessEndpointsUpdatedSinceParams struct {
 	Tenantid uuid.UUID          `json:"tenantid"`
 	Since    pgtype.Timestamptz `json:"since"`
+	Sinceid  uuid.UUID          `json:"sinceid"`
 }
 
-// Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_updated_idx.
-// Every write the cache needs to see (config changes, registered_actions) bumps updated_at;
-// health flips do not, so they never appear here.
+// Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.
+// A row's version is the later of updated_at (configuration and registered_actions writes)
+// and status_changed_at (health transitions written by the owner), so every write the cache
+// needs to see surfaces here. Keyset on (version, id) from the last row the caller applied.
 func (q *Queries) ListServerlessEndpointsUpdatedSince(ctx context.Context, db DBTX, arg ListServerlessEndpointsUpdatedSinceParams) ([]*V1ServerlessEndpoint, error) {
-	rows, err := db.Query(ctx, listServerlessEndpointsUpdatedSince, arg.Tenantid, arg.Since)
+	rows, err := db.Query(ctx, listServerlessEndpointsUpdatedSince, arg.Tenantid, arg.Since, arg.Sinceid)
 	if err != nil {
 		return nil, err
 	}
@@ -950,13 +952,14 @@ func (q *Queries) UpdateServerlessEndpointRegisteredActions(ctx context.Context,
 	return err
 }
 
-const updateServerlessEndpointStatus = `-- name: UpdateServerlessEndpointStatus :exec
+const updateServerlessEndpointStatus = `-- name: UpdateServerlessEndpointStatus :one
 UPDATE v1_serverless_endpoint
 SET
     healthy = $1::BOOLEAN,
     status_error = $2::TEXT,
     status_changed_at = NOW()
 WHERE id = $3::UUID
+RETURNING status_changed_at
 `
 
 type UpdateServerlessEndpointStatusParams struct {
@@ -966,11 +969,13 @@ type UpdateServerlessEndpointStatusParams struct {
 }
 
 // Written by the owner on a healthy/unhealthy transition only. Deliberately leaves updated_at
-// alone: a health flip is not a routing change, so the routing caches of other processes must
-// not reload the endpoint for it.
-func (q *Queries) UpdateServerlessEndpointStatus(ctx context.Context, db DBTX, arg UpdateServerlessEndpointStatusParams) error {
-	_, err := db.Exec(ctx, updateServerlessEndpointStatus, arg.Healthy, arg.StatusError, arg.ID)
-	return err
+// alone: a health flip is not a routing change. The write's own timestamp is returned so the
+// writer's cache can order it against rows read before or after it.
+func (q *Queries) UpdateServerlessEndpointStatus(ctx context.Context, db DBTX, arg UpdateServerlessEndpointStatusParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, updateServerlessEndpointStatus, arg.Healthy, arg.StatusError, arg.ID)
+	var status_changed_at pgtype.Timestamptz
+	err := row.Scan(&status_changed_at)
+	return status_changed_at, err
 }
 
 const updateServerlessTenantShardCount = `-- name: UpdateServerlessTenantShardCount :one

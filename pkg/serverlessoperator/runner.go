@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
@@ -120,16 +121,23 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, units []lease.Unit) erro
 			return err
 		}
 
+		// A page is applied under one lock and publishes one union revision; rows the
+		// initial tenant load already brought in are skipped by version.
+		byTenant := map[uuid.UUID][]*sqlcv1.V1ServerlessEndpoint{}
+
 		for _, row := range rows {
-			ts, err := r.ensureTenant(ctx, row.TenantID)
+			byTenant[row.TenantID] = append(byTenant[row.TenantID], row)
+		}
+
+		for tenantId, tenantRows := range byTenant {
+			ts, err := r.ensureTenant(ctx, tenantId)
 
 			if err != nil {
 				return err
 			}
 
 			ts.cache.mu.Lock()
-			ts.cache.upsertLocked(row)
-			ts.cache.recomputeUnionLocked()
+			ts.cache.applyRowsLocked(tenantRows)
 			ts.cache.mu.Unlock()
 		}
 
@@ -299,10 +307,8 @@ func (r *runner) maintainOnce(ctx context.Context) {
 }
 
 // syncTenantActions pushes the cached union to every registration for the tenant whose
-// advertised set differs.
+// advertised revision is behind.
 func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
-	union := ts.cache.ActionUnion()
-
 	ts.mu.Lock()
 	regs := make([]*registration, 0, len(ts.regs))
 
@@ -313,7 +319,7 @@ func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
 	ts.mu.Unlock()
 
 	for _, reg := range regs {
-		if err := reg.syncActions(ctx, union); err != nil {
+		if err := reg.syncActions(ctx, ts.cache); err != nil {
 			r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Int32("shard", reg.shard).Msg("could not update registration actions")
 		}
 	}

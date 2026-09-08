@@ -2,6 +2,7 @@ package serverlessoperator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,8 +30,8 @@ type endpointPoller struct {
 	done   chan struct{}
 
 	// putHashes remembers the canonical hash of every workflow this poller put, by
-	// namespaced name, so a response change re-puts only what changed. The engine keeps the
-	// workflows, so the memory outlives the registration they went through.
+	// namespaced name, so a response change re-puts only what changed. It is pruned to the
+	// last accepted catalog, so a stream of new names cannot grow it without bound.
 	putHashes map[string]string
 
 	// registered is what this poller knows the endpoint row's registered_actions to be: the
@@ -40,8 +41,27 @@ type endpointPoller struct {
 	registered      []string
 	registeredKnown bool
 	lastHash        string
+
+	// rejectedHash is the response hash the engine or the link last refused, with the
+	// backoff before the same catalog is tried again; an unchanged rejected catalog is not
+	// re-put on every poll.
+	rejectedHash    string
+	rejectedErr     string
+	rejectedRetryAt time.Time
+	rejectedBackoff time.Duration
 	failures        int
 }
+
+// rejectedBackoffMax caps how long an unchanged rejected catalog waits before a retry.
+const rejectedBackoffMax = time.Hour
+
+// catalogRejected marks an error the engine gave for the catalog itself, which the same
+// catalog will get again: it backs off. Transport and link failures are retried on the next
+// poll.
+type catalogRejected struct{ err error }
+
+func (e catalogRejected) Error() string { return e.err.Error() }
+func (e catalogRejected) Unwrap() error { return e.err }
 
 func newEndpointPoller(r *runner, ts *tenantState, ep *cachedEndpoint) *endpointPoller {
 	return &endpointPoller{r: r, ts: ts, ep: ep, done: make(chan struct{}), putHashes: map[string]string{}}
@@ -81,6 +101,15 @@ func (p *endpointPoller) run(ctx context.Context) {
 	}
 }
 
+// pollStatus is the outcome of one poll: the health the endpoint row should show.
+type pollStatus struct {
+	err     string
+	healthy bool
+}
+
+// pollOnce runs one healthcheck and applies its result, then writes the endpoint's status
+// once if the outcome differs from what the row shows. An endpoint whose catalog the engine
+// keeps rejecting is unhealthy with the engine's error and stays so without further writes.
 func (p *endpointPoller) pollOnce(ctx context.Context) {
 	cfg := p.ts.cache.Config(p.ep)
 
@@ -92,14 +121,13 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 		return
 	}
 
-	defer p.r.releaseHealthcheckSlot()
-
 	hctx, cancel := context.WithTimeout(ctx, p.r.cfg.HealthcheckTimeout)
-	defer cancel()
-
 	start := time.Now()
 
 	res, err := pollHealthcheck(hctx, p.r.sender, p.ep, cfg)
+
+	cancel()
+	p.r.releaseHealthcheckSlot()
 
 	if ctx.Err() != nil {
 		return
@@ -113,8 +141,8 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 			p.r.l.Warn().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("serverless endpoint unhealthy")
 		}
 
-		if p.failures >= unhealthyAfterFailures && (cfg.healthy || !cfg.healthKnown) {
-			p.r.writeStatus(ctx, p.ts, p.ep, false, err.Error())
+		if p.failures >= unhealthyAfterFailures {
+			p.writeStatusIfChanged(ctx, cfg, pollStatus{healthy: false, err: err.Error()})
 		}
 
 		return
@@ -123,12 +151,18 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 	p.r.m.healthcheck("ok", time.Since(start))
 	p.failures = 0
 
-	if !cfg.healthy || !cfg.healthKnown {
-		p.r.writeStatus(ctx, p.ts, p.ep, true, "")
+	p.writeStatusIfChanged(ctx, cfg, p.apply(ctx, res))
+}
+
+// apply registers a changed catalog and returns the resulting status: healthy when the
+// catalog is unchanged or was accepted, unhealthy with the error when it was refused.
+func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) pollStatus {
+	if res.hash == p.lastHash {
+		return pollStatus{healthy: true}
 	}
 
-	if res.hash == p.lastHash {
-		return
+	if res.hash == p.rejectedHash && time.Now().Before(p.rejectedRetryAt) {
+		return pollStatus{healthy: false, err: p.rejectedErr}
 	}
 
 	reg := p.ts.registration(p.ep.shard)
@@ -137,25 +171,55 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 		// The unit's registration is not open (no token, engine unreachable): the change is
 		// retried on the next poll once it is. Not a health transition of the endpoint.
 		p.r.l.Debug().Str("endpoint_id", p.ep.id.String()).Msg("healthcheck changed but no registration is open yet")
-		return
+		return pollStatus{healthy: true}
 	}
 
 	if err := p.applyChange(ctx, reg, res); err != nil {
-		// lastHash stays unset so the next poll retries the registration.
 		p.r.l.Error().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("could not register serverless endpoint workflows")
-		p.r.writeStatus(ctx, p.ts, p.ep, false, err.Error())
 
-		return
+		var rejection catalogRejected
+
+		if errors.As(err, &rejection) {
+			p.rejected(res.hash, err.Error())
+		}
+
+		return pollStatus{healthy: false, err: err.Error()}
 	}
 
 	p.lastHash = res.hash
+	p.rejectedHash = ""
+
+	return pollStatus{healthy: true}
+}
+
+// rejected records a refused catalog and doubles the backoff for the same hash.
+func (p *endpointPoller) rejected(hash, errMsg string) {
+	if p.rejectedHash != hash {
+		p.rejectedBackoff = 0
+	}
+
+	interval := pollInterval(p.ts.cache.Config(p.ep).pollIntervalSeconds)
+	p.rejectedBackoff = max(min(p.rejectedBackoff*2, rejectedBackoffMax), interval)
+	p.rejectedHash = hash
+	p.rejectedErr = errMsg
+	p.rejectedRetryAt = time.Now().Add(p.rejectedBackoff)
+}
+
+// writeStatusIfChanged writes the status when it differs from the cached row.
+func (p *endpointPoller) writeStatusIfChanged(ctx context.Context, cfg *endpointConfig, status pollStatus) {
+	if cfg.healthKnown && cfg.healthy == status.healthy && cfg.statusError == status.err {
+		return
+	}
+
+	p.r.writeStatus(ctx, p.ts, p.ep, status.healthy, status.err)
 }
 
 // applyChange puts the endpoint's changed workflows through the unit's registration, moves
 // the cached union to the new action set, pushes the resulting delta to the owner's
 // registration, records registered_actions when it changed, and pushes the delta to every
 // other registration for the tenant on this process. Other processes pick the union up from
-// the database on their next cache refresh.
+// the database on their next cache refresh. A refused delta restores the endpoint's previous
+// contribution, so a rejected catalog never stays in the shared union.
 func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res *healthcheckResult) error {
 	for i, wf := range res.workflows {
 		if p.putHashes[wf.Name] == res.workflowHashes[i] {
@@ -163,7 +227,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		}
 
 		if _, err := reg.reg.PutWorkflow(ctx, wf); err != nil {
-			return fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)
+			return catalogRejected{err: fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)}
 		}
 
 		p.putHashes[wf.Name] = res.workflowHashes[i]
@@ -174,11 +238,13 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		p.registeredKnown = true
 	}
 
+	previous := p.ts.cache.Config(p.ep).registeredActions
 	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions)
 
 	// The owner's registration is the one that runs this endpoint's tasks, so its delta is
 	// part of the change: a failure here is retried on the next poll like a rejected put.
-	if err := reg.syncActions(ctx, p.ts.cache.ActionUnion()); err != nil {
+	if err := reg.syncActions(ctx, p.ts.cache); err != nil {
+		p.ts.cache.SetHealthcheck(p.ep.id, previous)
 		return err
 	}
 
@@ -189,6 +255,8 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 
 		p.registered = res.actions
 	}
+
+	p.prunePutHashes(res)
 
 	p.r.l.Info().
 		Str("endpoint_id", p.ep.id.String()).
@@ -203,8 +271,24 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	return nil
 }
 
-// writeStatus records a health transition: one row write, mirrored into the cache so a
-// refresh cannot resurrect the previous value.
+// prunePutHashes forgets workflows the accepted catalog no longer names.
+func (p *endpointPoller) prunePutHashes(res *healthcheckResult) {
+	keep := make(map[string]struct{}, len(res.workflows))
+
+	for _, wf := range res.workflows {
+		keep[wf.Name] = struct{}{}
+	}
+
+	for name := range p.putHashes {
+		if _, ok := keep[name]; !ok {
+			delete(p.putHashes, name)
+		}
+	}
+}
+
+// writeStatus records a health transition: one row write, mirrored into the cache with the
+// write's database timestamp so a refresh returning an older row cannot resurrect the
+// previous value.
 func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEndpoint, healthy bool, statusError string) {
 	var errPtr *string
 
@@ -212,12 +296,14 @@ func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEnd
 		errPtr = &statusError
 	}
 
-	if err := r.repo.Endpoints().UpdateStatus(ctx, ep.id, healthy, errPtr); err != nil {
+	changedAt, err := r.repo.Endpoints().UpdateStatus(ctx, ep.id, healthy, errPtr)
+
+	if err != nil {
 		r.l.Error().Err(err).Str("endpoint_id", ep.id.String()).Msg("could not write serverless endpoint status")
 		return
 	}
 
-	ts.cache.SetStatus(ep.id, healthy, statusError)
+	ts.cache.SetStatus(ep.id, healthy, statusError, changedAt)
 }
 
 // markNoToken writes the no-token status error on the tenant's owned endpoints that do not
@@ -247,17 +333,10 @@ func (r *runner) releaseHealthcheckSlot() {
 	<-r.hcSem
 }
 
-// ownedEndpoints are the tenant's endpoints on shards this process owns.
+// ownedEndpoints are the tenant's endpoints on shards this process owns, in no particular
+// order: a snapshot of the tenant is never sorted just to filter it.
 func (ts *tenantState) ownedEndpoints() []*cachedEndpoint {
-	out := make([]*cachedEndpoint, 0)
-
-	for _, ep := range ts.cache.Endpoints() {
-		if _, ok := ts.units[ep.shard]; ok {
-			out = append(out, ep)
-		}
-	}
-
-	return out
+	return ts.cache.endpointsOnShards(ts.units)
 }
 
 // reconcilePollers starts pollers for owned, enabled endpoints without one and stops pollers

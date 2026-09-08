@@ -32,9 +32,13 @@ type registration struct {
 	loopCancel context.CancelFunc
 	loopDone   chan struct{}
 	inflight   map[string]*inflightTask
-	advertised []string
-	shard      int32
-	mu         sync.Mutex
+	// advertised is the union the engine holds for this registration (the cache's shared
+	// sorted slice, never modified) and advertisedRev its revision: a sync is free while the
+	// cache is at the same revision.
+	advertised    []string
+	advertisedRev uint64
+	shard         int32
+	mu            sync.Mutex
 	// syncMu serializes syncActions so two callers (maintenance pass and a poller) never
 	// derive and push the same delta twice.
 	syncMu sync.Mutex
@@ -59,7 +63,7 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
 
-	union := ts.cache.ActionUnion()
+	union, rev := ts.cache.ActionUnion()
 
 	opts := link.OpenOpts{
 		Actions:    union,
@@ -87,14 +91,15 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 	ts.noToken = false
 
 	reg2 := &registration{
-		r:          r,
-		ts:         ts,
-		reg:        reg,
-		events:     &eventSender{reg: reg},
-		shard:      shard,
-		inflight:   map[string]*inflightTask{},
-		advertised: union,
-		loopDone:   make(chan struct{}),
+		r:             r,
+		ts:            ts,
+		reg:           reg,
+		events:        &eventSender{reg: reg},
+		shard:         shard,
+		inflight:      map[string]*inflightTask{},
+		advertised:    union,
+		advertisedRev: rev,
+		loopDone:      make(chan struct{}),
 	}
 
 	// The action loop outlives ctx (the reconcile call) and ends with the runner's loop
@@ -423,21 +428,45 @@ func (reg *registration) inFlight() int {
 	return len(reg.inflight)
 }
 
-// syncActions pushes the difference between the last advertised set and union as add and
-// remove deltas, then flushes, so the engine sees the union. A failed push leaves advertised
-// unchanged and the next sync retries the same delta; both deltas are idempotent on the
-// engine, so a retry after a partial push is harmless.
-func (reg *registration) syncActions(ctx context.Context, union []string) error {
+// syncActions brings the registration to the cache's union revision: the delta since the
+// advertised revision comes from the cache's log, or from a diff against the full union when
+// the log no longer reaches back, and is pushed as add and remove deltas, then flushed, so the
+// engine sees the union. A failed push leaves the advertised revision unchanged and the next
+// sync retries the same delta; both deltas are idempotent on the engine, so a retry after a
+// partial push is harmless. A registration at the current revision returns at once.
+func (reg *registration) syncActions(ctx context.Context, cache *routingCache) error {
+	reg.mu.Lock()
+	prevRev := reg.advertisedRev
+	reg.mu.Unlock()
+
+	if cache.Revision() == prevRev {
+		return nil
+	}
+
 	reg.syncMu.Lock()
 	defer reg.syncMu.Unlock()
 
 	reg.mu.Lock()
-	prev := reg.advertised
+	prev, prevRev := reg.advertised, reg.advertisedRev
 	reg.mu.Unlock()
 
-	added, removed := diffActions(prev, union)
+	union, rev := cache.ActionUnion()
+
+	if rev == prevRev {
+		return nil
+	}
+
+	added, removed, ok := cache.DeltasSince(prevRev)
+
+	if !ok {
+		added, removed = diffActions(prev, union)
+	}
 
 	if len(added) == 0 && len(removed) == 0 {
+		reg.mu.Lock()
+		reg.advertised, reg.advertisedRev = union, rev
+		reg.mu.Unlock()
+
 		return nil
 	}
 
@@ -458,7 +487,7 @@ func (reg *registration) syncActions(ctx context.Context, union []string) error 
 	}
 
 	reg.mu.Lock()
-	reg.advertised = union
+	reg.advertised, reg.advertisedRev = union, rev
 	reg.mu.Unlock()
 
 	reg.r.l.Debug().

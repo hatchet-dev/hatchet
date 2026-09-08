@@ -117,26 +117,28 @@ WHERE tenant_id = @tenantId::UUID
 ORDER BY id;
 
 -- name: ListServerlessEndpointsUpdatedSince :many
--- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_updated_idx.
--- Every write the cache needs to see (config changes, registered_actions) bumps updated_at;
--- health flips do not, so they never appear here.
+-- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.
+-- A row's version is the later of updated_at (configuration and registered_actions writes)
+-- and status_changed_at (health transitions written by the owner), so every write the cache
+-- needs to see surfaces here. Keyset on (version, id) from the last row the caller applied.
 SELECT *
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
-    AND updated_at > @since::TIMESTAMPTZ
-ORDER BY updated_at, id;
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@since::TIMESTAMPTZ, @sinceId::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id;
 
--- name: UpdateServerlessEndpointStatus :exec
+-- name: UpdateServerlessEndpointStatus :one
 -- Written by the owner on a healthy/unhealthy transition only. Deliberately leaves updated_at
--- alone: a health flip is not a routing change, so the routing caches of other processes must
--- not reload the endpoint for it.
+-- alone: a health flip is not a routing change. The write's own timestamp is returned so the
+-- writer's cache can order it against rows read before or after it.
 UPDATE v1_serverless_endpoint
 SET
     healthy = @healthy::BOOLEAN,
     status_error = sqlc.narg('statusError')::TEXT,
     status_changed_at = NOW()
-WHERE id = @id::UUID;
+WHERE id = @id::UUID
+RETURNING status_changed_at;
 
 -- name: UpdateServerlessEndpointRegisteredActions :exec
 -- Written by the owner when a healthcheck changes the endpoint's workflows. Bumps updated_at so

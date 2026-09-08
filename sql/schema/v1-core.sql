@@ -2850,8 +2850,9 @@ CREATE TABLE v1_serverless_endpoint (
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
 
--- incremental refresh of the routing cache
-CREATE INDEX v1_serverless_endpoint_updated_idx ON v1_serverless_endpoint (tenant_id, updated_at);
+-- incremental refresh of the routing cache, keyed by row version: the later of updated_at
+-- (configuration and registered_actions writes) and status_changed_at (health transitions)
+CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
 
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,

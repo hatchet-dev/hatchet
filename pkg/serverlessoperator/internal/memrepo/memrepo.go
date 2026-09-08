@@ -324,7 +324,17 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	return out, nil
 }
 
-func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+// version is the row version the incremental refresh orders by, as the database computes
+// it: the later of updated_at and status_changed_at.
+func version(ep *sqlcv1.V1ServerlessEndpoint) time.Time {
+	if ep.StatusChangedAt.Valid && ep.StatusChangedAt.Time.After(ep.UpdatedAt.Time) {
+		return ep.StatusChangedAt.Time
+	}
+
+	return ep.UpdatedAt.Time
+}
+
+func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
@@ -333,36 +343,53 @@ func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, sinc
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId && ep.UpdatedAt.Time.After(since) {
+		if ep.TenantID != tenantId {
+			continue
+		}
+
+		v := version(ep)
+
+		if v.After(since) || (v.Equal(since) && ep.ID.String() > sinceId.String()) {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
 
-	sortEndpoints(out)
+	sort.Slice(out, func(i, j int) bool {
+		vi, vj := version(out[i]), version(out[j])
+
+		if !vi.Equal(vj) {
+			return vi.Before(vj)
+		}
+
+		return out[i].ID.String() < out[j].ID.String()
+	})
 
 	return out, nil
 }
 
-func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error {
+func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
 	if e.r.failWrites != nil {
-		return e.r.failWrites
+		return time.Time{}, e.r.failWrites
 	}
 
 	e.r.statusWrites = append(e.r.statusWrites, StatusWrite{EndpointId: endpointId, Healthy: healthy, Error: statusError})
 
+	now := e.r.Now()
+
 	if ep, ok := e.r.endpoints[endpointId]; ok {
 		ep.Healthy = pgtype.Bool{Bool: healthy, Valid: true}
 		ep.StatusError = pgtype.Text{}
+		ep.StatusChangedAt = pgtype.Timestamptz{Time: now, Valid: true}
 
 		if statusError != nil {
 			ep.StatusError = pgtype.Text{String: *statusError, Valid: true}
 		}
 	}
 
-	return nil
+	return now, nil
 }
 
 func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions []string) error {

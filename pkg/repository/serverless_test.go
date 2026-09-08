@@ -202,15 +202,21 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, created.Shard, updated.Shard)
 		assert.True(t, updated.UpdatedAt.Time.After(created.UpdatedAt.Time))
 
-		// the incremental refresh sees the config change
-		changed, err := repo.Endpoints().ListUpdatedSince(ctx, tenantId, created.UpdatedAt.Time)
+		// the incremental refresh sees the config change, keyed after the created row's version
+		changed, err := repo.Endpoints().ListUpdatedSince(ctx, tenantId, created.UpdatedAt.Time, created.ID)
 		require.NoError(t, err)
 		require.Len(t, changed, 1)
 		assert.Equal(t, created.ID, changed[0].ID)
 
-		// a health flip is recorded without bumping updated_at
+		// the row at the watermark itself is not returned again
+		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, updated.UpdatedAt.Time, updated.ID)
+		require.NoError(t, err)
+		assert.Empty(t, changed, "the keyset excludes the last applied row")
+
+		// a health flip is recorded without bumping updated_at, and returns its own timestamp
 		statusError := "healthcheck returned 500"
-		require.NoError(t, repo.Endpoints().UpdateStatus(ctx, created.ID, false, &statusError))
+		changedAt, err := repo.Endpoints().UpdateStatus(ctx, created.ID, false, &statusError)
+		require.NoError(t, err)
 
 		afterStatus, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
 		require.NoError(t, err)
@@ -218,11 +224,14 @@ func TestServerlessRepository(t *testing.T) {
 		assert.False(t, afterStatus.Healthy.Bool)
 		assert.Equal(t, statusError, afterStatus.StatusError.String)
 		assert.True(t, afterStatus.StatusChangedAt.Valid)
+		assert.Equal(t, afterStatus.StatusChangedAt.Time, changedAt, "the status write returns the row's status_changed_at")
 		assert.Equal(t, updated.UpdatedAt.Time, afterStatus.UpdatedAt.Time, "health flip must not bump updated_at")
 
-		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, updated.UpdatedAt.Time)
+		// the health flip surfaces in the incremental refresh through the row version
+		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, updated.UpdatedAt.Time, updated.ID)
 		require.NoError(t, err)
-		assert.Empty(t, changed, "health flip must not surface in the incremental refresh")
+		require.Len(t, changed, 1, "a health flip surfaces in the incremental refresh")
+		assert.False(t, changed[0].Healthy.Bool)
 
 		// a workflow change is recorded and does bump updated_at
 		actions := []string{created.Namespace.String() + "_svc:run"}
@@ -233,7 +242,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, actions, afterActions.RegisteredActions)
 		assert.True(t, afterActions.UpdatedAt.Time.After(updated.UpdatedAt.Time), "registered_actions change must bump updated_at")
 
-		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, updated.UpdatedAt.Time)
+		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, changedAt, created.ID)
 		require.NoError(t, err)
 		require.Len(t, changed, 1)
 		assert.Equal(t, actions, changed[0].RegisteredActions)

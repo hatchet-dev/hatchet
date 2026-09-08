@@ -198,12 +198,33 @@ type endpointConfig struct {
 	statusError           string
 	registeredActions     []string
 	updatedAt             time.Time
+	statusChangedAt       time.Time
 	requestTimeoutSeconds int32
 	pollIntervalSeconds   int32
 	inlineWaitBudgetMs    int32
 	enabled               bool
 	healthy               bool
 	healthKnown           bool
+}
+
+// version is the row version the cache orders refreshes by: the later of updated_at and
+// status_changed_at, the same expression ListUpdatedSince keys on.
+func (cfg *endpointConfig) version() time.Time {
+	if cfg.statusChangedAt.After(cfg.updatedAt) {
+		return cfg.statusChangedAt
+	}
+
+	return cfg.updatedAt
+}
+
+// contribution is what the endpoint adds to the tenant's action union: its registered
+// actions while enabled, nothing otherwise.
+func (cfg *endpointConfig) contribution() []string {
+	if cfg == nil || !cfg.enabled {
+		return nil
+	}
+
+	return cfg.registeredActions
 }
 
 // cachedEndpoint is one endpoint of a served tenant. Identity fields never change; cfg is
@@ -216,21 +237,49 @@ type cachedEndpoint struct {
 	shard     int32
 }
 
+// unionDelta is one published change of the union: the actions that entered it and the ones
+// that left it between revision rev-1 and rev.
+type unionDelta struct {
+	added   []string
+	removed []string
+	rev     uint64
+}
+
+// unionLogSize bounds the delta log; a registration further behind than that diffs against
+// the full union instead.
+const unionLogSize = 64
+
 // routingCache is a served tenant's endpoints keyed by namespace and by id, with decrypted
-// secrets and the union of registered_actions over enabled endpoints. Load reads every row;
-// Refresh reads rows updated since the last read. Health flips do not bump updated_at, so
-// the cache's health view is whatever the owner last wrote plus this process's own writes.
+// secrets and the union of registered_actions over enabled endpoints.
+//
+// The union is a reference count per action: how many enabled endpoints advertise it. An
+// action enters the union on the 0 to 1 transition and leaves it on 1 to 0, so a change to
+// one endpoint costs that endpoint's actions, whatever the tenant's size. Every batch of row
+// changes (a load, a refresh, a page of a gained unit) publishes at most one revision, with
+// its delta appended to a bounded log; registrations catch up from the log by revision and
+// only fall back to a full diff when they are further behind than the log reaches. The sorted
+// form is built on demand, once per revision.
+//
+// Load reads every row; Refresh reads rows whose version (the later of updated_at and
+// status_changed_at) is past the watermark, so configuration, registered_actions and status
+// changes all surface. Rows already applied at the same version are skipped.
 type routingCache struct {
 	byNamespace map[uuid.UUID]*cachedEndpoint
 	byId        map[uuid.UUID]*cachedEndpoint
 	repo        repository.ServerlessEndpointRepository
 	enc         encryption.EncryptionService
 	l           *zerolog.Logger
-	union       []string
-	since       time.Time
-	lastLoad    time.Time
-	tenantId    uuid.UUID
-	mu          sync.RWMutex
+
+	counts    map[string]int
+	sorted    []string
+	log       []unionDelta
+	since     time.Time
+	lastLoad  time.Time
+	tenantId  uuid.UUID
+	sinceId   uuid.UUID
+	rev       uint64
+	sortedRev uint64
+	mu        sync.RWMutex
 }
 
 func newRoutingCache(tenantId uuid.UUID, repo repository.ServerlessEndpointRepository, enc encryption.EncryptionService, l *zerolog.Logger) *routingCache {
@@ -241,7 +290,129 @@ func newRoutingCache(tenantId uuid.UUID, repo repository.ServerlessEndpointRepos
 		l:           l,
 		byNamespace: map[uuid.UUID]*cachedEndpoint{},
 		byId:        map[uuid.UUID]*cachedEndpoint{},
+		counts:      map[string]int{},
 	}
+}
+
+// batch accumulates the union delta of one group of row changes; publishLocked turns it
+// into a revision.
+type batch struct {
+	added   map[string]struct{}
+	removed map[string]struct{}
+}
+
+func newBatch() *batch {
+	return &batch{added: map[string]struct{}{}, removed: map[string]struct{}{}}
+}
+
+// enter counts one more enabled endpoint advertising action.
+func (b *batch) enter(c *routingCache, action string) {
+	c.counts[action]++
+
+	if c.counts[action] != 1 {
+		return
+	}
+
+	if _, ok := b.removed[action]; ok {
+		delete(b.removed, action)
+		return
+	}
+
+	b.added[action] = struct{}{}
+}
+
+// leave counts one fewer enabled endpoint advertising action.
+func (b *batch) leave(c *routingCache, action string) {
+	c.counts[action]--
+
+	if c.counts[action] > 0 {
+		return
+	}
+
+	delete(c.counts, action)
+
+	if _, ok := b.added[action]; ok {
+		delete(b.added, action)
+		return
+	}
+
+	b.removed[action] = struct{}{}
+}
+
+// move replaces an endpoint's contribution from prev to next.
+func (b *batch) move(c *routingCache, prev, next []string) {
+	if len(prev) == 0 && len(next) == 0 {
+		return
+	}
+
+	if stringsEqual(prev, next) {
+		return
+	}
+
+	nextSet := make(map[string]struct{}, len(next))
+
+	for _, action := range next {
+		if action == "" {
+			continue
+		}
+
+		if _, dup := nextSet[action]; dup {
+			continue
+		}
+
+		nextSet[action] = struct{}{}
+	}
+
+	prevSet := make(map[string]struct{}, len(prev))
+
+	for _, action := range prev {
+		if action == "" {
+			continue
+		}
+
+		if _, dup := prevSet[action]; dup {
+			continue
+		}
+
+		prevSet[action] = struct{}{}
+
+		if _, keep := nextSet[action]; !keep {
+			b.leave(c, action)
+		}
+	}
+
+	for action := range nextSet {
+		if _, had := prevSet[action]; !had {
+			b.enter(c, action)
+		}
+	}
+}
+
+// publishLocked bumps the revision when the batch changed the union and records the delta.
+func (c *routingCache) publishLocked(b *batch) bool {
+	if len(b.added) == 0 && len(b.removed) == 0 {
+		return false
+	}
+
+	c.rev++
+
+	delta := unionDelta{rev: c.rev, added: make([]string, 0, len(b.added)), removed: make([]string, 0, len(b.removed))}
+
+	for action := range b.added {
+		delta.added = append(delta.added, action)
+	}
+
+	for action := range b.removed {
+		delta.removed = append(delta.removed, action)
+	}
+
+	c.log = append(c.log, delta)
+
+	if len(c.log) > unionLogSize {
+		c.log = c.log[len(c.log)-unionLogSize:]
+	}
+
+	return true
 }
 
 // Load replaces the cache with the tenant's current rows, dropping endpoints that vanished.
@@ -255,11 +426,12 @@ func (c *routingCache) Load(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	b := newBatch()
 	seen := make(map[uuid.UUID]struct{}, len(rows))
 
 	for _, row := range rows {
 		seen[row.ID] = struct{}{}
-		c.upsertLocked(row)
+		c.upsertLocked(b, row)
 	}
 
 	for id, ep := range c.byId {
@@ -267,26 +439,26 @@ func (c *routingCache) Load(ctx context.Context) error {
 			continue
 		}
 
+		b.move(c, ep.cfg.contribution(), nil)
 		delete(c.byId, id)
 		delete(c.byNamespace, ep.namespace)
 	}
 
 	c.lastLoad = time.Now()
-	c.recomputeUnionLocked()
+	c.publishLocked(b)
 
 	return nil
 }
 
-// Refresh applies rows updated since the last Load or Refresh. Deleted endpoints are not
-// visible here; Load drops them.
+// Refresh applies rows versioned past the watermark. Deleted endpoints are not visible here;
+// Load drops them. A row whose commit lands after a refresh read past its version is caught
+// by the next full load.
 func (c *routingCache) Refresh(ctx context.Context) error {
 	c.mu.RLock()
-	since := c.since
+	since, sinceId := c.since, c.sinceId
 	c.mu.RUnlock()
 
-	// Overlap by a second so a row committed with the same updated_at as the previous
-	// watermark is not skipped; re-applying a row is idempotent.
-	rows, err := c.repo.ListUpdatedSince(ctx, c.tenantId, since.Add(-time.Second))
+	rows, err := c.repo.ListUpdatedSince(ctx, c.tenantId, since, sinceId)
 
 	if err != nil {
 		return fmt.Errorf("could not refresh endpoints for tenant %s: %w", c.tenantId, err)
@@ -299,13 +471,20 @@ func (c *routingCache) Refresh(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for _, row := range rows {
-		c.upsertLocked(row)
-	}
-
-	c.recomputeUnionLocked()
+	c.applyRowsLocked(rows)
 
 	return nil
+}
+
+// applyRowsLocked upserts a batch of rows and publishes once.
+func (c *routingCache) applyRowsLocked(rows []*sqlcv1.V1ServerlessEndpoint) {
+	b := newBatch()
+
+	for _, row := range rows {
+		c.upsertLocked(b, row)
+	}
+
+	c.publishLocked(b)
 }
 
 // LastLoad is when the cache was last fully loaded; the runner schedules full reloads on it.
@@ -316,7 +495,7 @@ func (c *routingCache) LastLoad() time.Time {
 	return c.lastLoad
 }
 
-func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
+func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) {
 	ep, ok := c.byId[row.ID]
 
 	if !ok {
@@ -344,7 +523,7 @@ func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
 		enabled:               row.Enabled,
 		healthKnown:           row.Healthy.Valid,
 		healthy:               row.Healthy.Valid && row.Healthy.Bool,
-		registeredActions:     append([]string{}, row.RegisteredActions...),
+		registeredActions:     row.RegisteredActions,
 	}
 
 	if row.StatusError.Valid {
@@ -353,6 +532,18 @@ func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
 
 	if row.UpdatedAt.Valid {
 		cfg.updatedAt = row.UpdatedAt.Time
+	}
+
+	if row.StatusChangedAt.Valid {
+		cfg.statusChangedAt = row.StatusChangedAt.Time
+	}
+
+	c.advanceWatermarkLocked(cfg.version(), row.ID)
+
+	// A row already applied at this version changes nothing; the refresh window and the
+	// full reload both return rows the cache has seen.
+	if prev != nil && prev.updatedAt.Equal(cfg.updatedAt) && prev.statusChangedAt.Equal(cfg.statusChangedAt) && stringsEqual(prev.registeredActions, cfg.registeredActions) {
+		return
 	}
 
 	// Decrypt only when the ciphertext changed: decryption is the expensive part of a
@@ -368,18 +559,25 @@ func (c *routingCache) upsertLocked(row *sqlcv1.V1ServerlessEndpoint) {
 		}
 	}
 
-	// A status this process wrote itself is newer than a row read before the write landed
-	// only when updated_at did not move; keep the local health view in that case.
-	if prev != nil && prev.healthKnown && cfg.updatedAt.Equal(prev.updatedAt) {
+	// A status this process wrote after the row was read is newer than the row's; the
+	// database timestamps of both writes decide, so clock skew plays no part.
+	if prev != nil && prev.healthKnown && prev.statusChangedAt.After(cfg.statusChangedAt) {
 		cfg.healthKnown = prev.healthKnown
 		cfg.healthy = prev.healthy
 		cfg.statusError = prev.statusError
+		cfg.statusChangedAt = prev.statusChangedAt
 	}
 
-	ep.cfg = cfg
+	b.move(c, prev.contribution(), cfg.contribution())
 
-	if cfg.updatedAt.After(c.since) {
-		c.since = cfg.updatedAt
+	ep.cfg = cfg
+}
+
+// advanceWatermarkLocked moves the refresh keyset to (version, id) when it is later.
+func (c *routingCache) advanceWatermarkLocked(version time.Time, id uuid.UUID) {
+	if version.After(c.since) || (version.Equal(c.since) && id.String() > c.sinceId.String()) {
+		c.since = version
+		c.sinceId = id
 	}
 }
 
@@ -401,28 +599,124 @@ func (c *routingCache) decryptSecret(enc string) (string, error) {
 	return secret, nil
 }
 
-func (c *routingCache) recomputeUnionLocked() {
-	lists := make([][]string, 0, len(c.byId))
-
-	for _, ep := range c.byId {
-		if ep.cfg.enabled {
-			lists = append(lists, ep.cfg.registeredActions)
-		}
-	}
-
-	c.union = sortedUnion(lists...)
-}
-
-// ActionUnion is the sorted union of registered_actions over the tenant's enabled endpoints:
-// the action set every registration for the tenant advertises.
-func (c *routingCache) ActionUnion() []string {
+// Revision is the union's current revision; it changes exactly when the union does.
+func (c *routingCache) Revision() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return append([]string{}, c.union...)
+	return c.rev
 }
 
-// Endpoints snapshots the tenant's endpoints (enabled or not).
+// ActionUnion is the sorted union of registered_actions over the tenant's enabled endpoints,
+// the action set every registration for the tenant advertises, with its revision. The slice
+// is shared and must not be modified; it is rebuilt once per revision.
+func (c *routingCache) ActionUnion() ([]string, uint64) {
+	c.mu.RLock()
+
+	if c.sortedRev == c.rev && c.sorted != nil {
+		sorted, rev := c.sorted, c.rev
+		c.mu.RUnlock()
+
+		return sorted, rev
+	}
+
+	c.mu.RUnlock()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.sortedRev != c.rev || c.sorted == nil {
+		sorted := make([]string, 0, len(c.counts))
+
+		for action := range c.counts {
+			sorted = append(sorted, action)
+		}
+
+		sort.Strings(sorted)
+
+		c.sorted = sorted
+		c.sortedRev = c.rev
+	}
+
+	return c.sorted, c.rev
+}
+
+// DeltasSince coalesces the union changes after revision rev. ok is false when the log no
+// longer reaches back to rev, in which case the caller diffs against the full union.
+func (c *routingCache) DeltasSince(rev uint64) (added, removed []string, ok bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if rev == c.rev {
+		return nil, nil, true
+	}
+
+	if rev > c.rev || len(c.log) == 0 || c.log[0].rev > rev+1 {
+		return nil, nil, false
+	}
+
+	addedSet := map[string]struct{}{}
+	removedSet := map[string]struct{}{}
+
+	for _, delta := range c.log {
+		if delta.rev <= rev {
+			continue
+		}
+
+		for _, action := range delta.added {
+			if _, ok := removedSet[action]; ok {
+				delete(removedSet, action)
+				continue
+			}
+
+			addedSet[action] = struct{}{}
+		}
+
+		for _, action := range delta.removed {
+			if _, ok := addedSet[action]; ok {
+				delete(addedSet, action)
+				continue
+			}
+
+			removedSet[action] = struct{}{}
+		}
+	}
+
+	added = make([]string, 0, len(addedSet))
+	removed = make([]string, 0, len(removedSet))
+
+	for action := range addedSet {
+		added = append(added, action)
+	}
+
+	for action := range removedSet {
+		removed = append(removed, action)
+	}
+
+	sort.Strings(added)
+	sort.Strings(removed)
+
+	return added, removed, true
+}
+
+// endpointsOnShards snapshots the endpoints on the given shards, in no particular order.
+func (c *routingCache) endpointsOnShards(shards map[int32]struct{}) []*cachedEndpoint {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	out := make([]*cachedEndpoint, 0)
+
+	for _, ep := range c.byId {
+		if _, ok := shards[ep.shard]; ok {
+			out = append(out, ep)
+		}
+	}
+
+	return out
+}
+
+// Endpoints snapshots the tenant's endpoints (enabled or not), sorted by id for callers that
+// need a stable order, such as tests.
 func (c *routingCache) Endpoints() []*cachedEndpoint {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -509,17 +803,18 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions []string) bool {
 
 	cfg := *ep.cfg
 	cfg.registeredActions = append([]string{}, actions...)
+
+	b := newBatch()
+	b.move(c, ep.cfg.contribution(), cfg.contribution())
 	ep.cfg = &cfg
 
-	before := c.union
-	c.recomputeUnionLocked()
-
-	return !stringsEqual(before, c.union)
+	return c.publishLocked(b)
 }
 
-// SetStatus records a status transition this process wrote, so a later refresh that returns
-// the row unchanged does not resurrect the old value.
-func (c *routingCache) SetStatus(id uuid.UUID, healthy bool, statusError string) {
+// SetStatus records a status transition this process wrote, stamped with the database's
+// status_changed_at of the write, so a refresh returning an older row cannot resurrect the
+// previous value.
+func (c *routingCache) SetStatus(id uuid.UUID, healthy bool, statusError string, changedAt time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -533,6 +828,7 @@ func (c *routingCache) SetStatus(id uuid.UUID, healthy bool, statusError string)
 	cfg.healthKnown = true
 	cfg.healthy = healthy
 	cfg.statusError = statusError
+	cfg.statusChangedAt = changedAt
 	ep.cfg = &cfg
 }
 

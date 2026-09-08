@@ -53,13 +53,15 @@ type ServerlessEndpointRepository interface {
 	ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
 	// ListForTenant loads a tenant's routing cache.
 	ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
-	// ListUpdatedSince refreshes a tenant's routing cache incrementally. Health flips do not bump
-	// updated_at and so never appear here; configuration and registered_actions changes do.
-	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// ListUpdatedSince refreshes a tenant's routing cache incrementally: the rows whose version
+	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
+	// keyset, in that order. Configuration, registered_actions and status changes all surface.
+	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
 
-	// UpdateStatus records a healthy/unhealthy transition. It is written by the owning process on
-	// transitions only, never per poll.
-	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) error
+	// UpdateStatus records a healthy/unhealthy transition and returns the database's
+	// status_changed_at of the write. It is written by the owning process on transitions only,
+	// never per poll.
+	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error)
 	// UpdateRegisteredActions records the namespaced action set the owner registered after a
 	// healthcheck changed the endpoint's workflows.
 	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions []string) error
