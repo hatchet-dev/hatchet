@@ -159,8 +159,9 @@ func (p *Params) newNonce() (string, error) {
 	return p.nonce()
 }
 
-// relay is the per-socket state. finish records the first terminal outcome and closes stop,
-// which every goroutine watches; later outcomes are dropped.
+// relay is the per-socket state. finish records the first exit, resolves it against the
+// phase (see outcome.go) and closes stop, which every goroutine watches; later exits are
+// dropped.
 type relay struct {
 	p          *Params
 	conn       *websocket.Conn
@@ -168,13 +169,13 @@ type relay struct {
 	sendQ      chan []byte
 	stop       chan struct{}
 	writerDone chan struct{}
-	lastError  atomic.Pointer[string]
+	engineErr  atomic.Pointer[string]
 	result     Outcome
 	once       sync.Once
 	wg         sync.WaitGroup
+	phase      atomic.Int32
 	missed     atomic.Int32
 	done       atomic.Bool
-	evicted    atomic.Bool
 	peerClosed atomic.Bool
 }
 
@@ -221,7 +222,7 @@ func Run(ctx context.Context, p Params) Outcome {
 	})
 
 	if err := r.write(first); err != nil {
-		r.result = failed(CloseInternalError, fmt.Sprintf("could not send action frame: %s", err.Error()), true)
+		r.finish(exit{kind: exitClosedWithoutDone, closeCode: CloseInternalError, msg: fmt.Sprintf("could not send action frame: %s", err.Error())})
 		_ = conn.Close()
 
 		return r.result
@@ -236,7 +237,7 @@ func Run(ctx context.Context, p Params) Outcome {
 	select {
 	case <-r.stop:
 	case <-ctx.Done():
-		r.finish(r.abortOutcome(ctx))
+		r.finish(abortExit(ctx, &p))
 	}
 
 	r.teardown()
@@ -272,7 +273,7 @@ func buildFirstFrame(p *Params) ([]byte, error) {
 // not retried; a refused upgrade follows the status rule; anything else is transient.
 func classifyDialError(ctx context.Context, p *Params, err error) Outcome {
 	if ctx.Err() != nil {
-		return abortOutcome(ctx, p)
+		return resolve(phaseRunning, "", abortExit(ctx, p))
 	}
 
 	var upgrade *UpgradeError
@@ -292,29 +293,39 @@ func classifyDialError(ctx context.Context, p *Params, err error) Outcome {
 	return failed(0, fmt.Sprintf("could not open websocket: %s", err.Error()), true)
 }
 
-// abortOutcome maps a done delivery context: deadline (the request timeout), engine cancel,
+// abortExit maps a done delivery context: deadline (the request timeout), engine cancel,
 // or operator shutdown.
-func abortOutcome(ctx context.Context, p *Params) Outcome {
+func abortExit(ctx context.Context, p *Params) exit {
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return failed(CloseTimeout, "durable invocation timed out without a done frame", true)
+		return exit{kind: exitTimeout, closeCode: CloseTimeout, msg: "durable invocation timed out without a done frame"}
 	}
 
 	if p.Cancelled != nil && p.Cancelled() {
-		return Outcome{Kind: KindCancelled, CloseCode: CloseCancelled}
+		return exit{kind: exitCancelled, closeCode: CloseCancelled}
 	}
 
-	return Outcome{Kind: KindShutdown, CloseCode: CloseShuttingDown}
+	return exit{kind: exitShutdown, closeCode: CloseShuttingDown}
 }
 
-func (r *relay) abortOutcome(ctx context.Context) Outcome {
-	return abortOutcome(ctx, r.p)
-}
-
-func (r *relay) finish(out Outcome) {
+// finish records the first exit. The phase is read at this point: transitions happen on
+// the pump goroutine before the frame that announces them is queued, so an endpoint that
+// reacts to an eviction_ack or error frame is always seen in the phase it reacted to.
+func (r *relay) finish(e exit) {
 	r.once.Do(func() {
-		r.result = out
+		var engineErr string
+
+		if msg := r.engineErr.Load(); msg != nil {
+			engineErr = *msg
+		}
+
+		r.result = resolve(phase(r.phase.Load()), engineErr, e)
 		close(r.stop)
 	})
+}
+
+// enterPhase moves the relay out of phaseRunning; the first transition wins.
+func (r *relay) enterPhase(ph phase) {
+	r.phase.CompareAndSwap(int32(phaseRunning), int32(ph))
 }
 
 func (r *relay) stopped() bool {
@@ -398,7 +409,7 @@ func (r *relay) onReadError(err error) {
 	if errors.Is(err, websocket.ErrReadLimit) {
 		// The library already sent close 1009.
 		r.peerClosed.Store(true)
-		r.finish(failed(0, fmt.Sprintf("endpoint frame exceeded the %d byte limit", r.p.MaxFrameBytes), false))
+		r.finish(exit{kind: exitProtocolViolation, msg: fmt.Sprintf("endpoint frame exceeded the %d byte limit", r.p.MaxFrameBytes)})
 
 		return
 	}
@@ -415,20 +426,9 @@ func (r *relay) onReadError(err error) {
 }
 
 // closedWithoutDone is the crash rule: a socket that ends without done is a retryable
-// failure, unless the invocation was already evicted (the engine re-invokes it) or the
-// engine reported an error for it (non-determinism is permanent).
+// failure, unless the phase says otherwise (see resolve).
 func (r *relay) closedWithoutDone(msg string) {
-	if r.evicted.Load() {
-		r.finish(evicted(0, EvictionSourceEndpoint))
-		return
-	}
-
-	if engineErr := r.lastError.Load(); engineErr != nil {
-		r.finish(failed(0, *engineErr, false))
-		return
-	}
-
-	r.finish(failed(0, msg, true))
+	r.finish(exit{kind: exitClosedWithoutDone, msg: msg})
 }
 
 // handleFrame processes one endpoint frame and reports whether reading should continue. An
@@ -442,7 +442,7 @@ func (r *relay) handleFrame(data []byte) bool {
 	frame, err := contract.UnmarshalFrame(data)
 
 	if err != nil {
-		r.finish(failed(CloseForbiddenMessage, "endpoint sent a malformed frame", false))
+		r.violation(CloseForbiddenMessage, "endpoint sent a malformed frame")
 		return false
 	}
 
@@ -453,30 +453,35 @@ func (r *relay) handleFrame(data []byte) bool {
 	case *v1.ServerlessDurableFrame_Request:
 		return r.handleRequest(f.Request)
 	default:
-		r.finish(failed(CloseForbiddenMessage, "endpoint sent a frame with neither request nor done", false))
+		r.violation(CloseForbiddenMessage, "endpoint sent a frame with neither request nor done")
 		return false
 	}
 }
 
-// handleDone maps the terminal frame: status evicted first, then error, then output.
+func (r *relay) violation(closeCode int, msg string) {
+	r.finish(exit{kind: exitProtocolViolation, closeCode: closeCode, msg: msg})
+}
+
+// handleDone maps the terminal frame: status evicted first, then error, then output. What
+// the frame means depends on the phase: done evicted is only valid after an eviction_ack
+// (see resolve).
 func (r *relay) handleDone(done *v1.ServerlessDoneFrame) {
 	r.done.Store(true)
 
 	switch {
 	case done.GetStatus() == contract.DoneStatusEvicted:
-		r.evicted.Store(true)
-		r.finish(evicted(CloseNormal, EvictionSourceEndpoint))
+		r.finish(exit{kind: exitDoneEvicted, closeCode: CloseNormal})
 	case done.Error != nil:
-		r.finish(failed(CloseNormal, done.GetError(), done.GetRetry()))
+		r.finish(exit{kind: exitDoneError, closeCode: CloseNormal, msg: done.GetError(), retry: done.GetRetry()})
 	default:
 		output := []byte(done.GetOutput())
 
 		if len(output) > 0 && !json.Valid(output) {
-			r.finish(failed(CloseForbiddenMessage, "endpoint sent a done frame whose output is not JSON", false))
+			r.violation(CloseForbiddenMessage, "endpoint sent a done frame whose output is not JSON")
 			return
 		}
 
-		r.finish(completed(output))
+		r.finish(exit{kind: exitDoneOutput, closeCode: CloseNormal, output: output})
 	}
 }
 
@@ -486,9 +491,9 @@ func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 		var mismatch *mismatchError
 
 		if errors.As(err, &mismatch) {
-			r.finish(failed(CloseInvocationMismatch, err.Error(), false))
+			r.violation(CloseInvocationMismatch, err.Error())
 		} else {
-			r.finish(failed(CloseForbiddenMessage, err.Error(), false))
+			r.violation(CloseForbiddenMessage, err.Error())
 		}
 
 		return false
@@ -496,9 +501,9 @@ func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 
 	if err := r.p.Channel.Send(req); err != nil {
 		if errors.Is(err, link.ErrRequestInFlight) {
-			r.finish(failed(CloseRequestInFlight, "endpoint sent a durable request while another was awaiting its ack", false))
+			r.violation(CloseRequestInFlight, "endpoint sent a durable request while another was awaiting its ack")
 		} else {
-			r.finish(failed(CloseInternalError, fmt.Sprintf("engine link failed: %s", err.Error()), true))
+			r.linkFailed(err)
 		}
 
 		return false
@@ -568,7 +573,7 @@ func (r *relay) pumpLoop() {
 
 		if err != nil {
 			if !r.stopped() && !errors.Is(err, link.ErrChannelClosed) {
-				r.finish(failed(CloseInternalError, fmt.Sprintf("engine link failed: %s", err.Error()), true))
+				r.linkFailed(err)
 			}
 
 			return
@@ -590,8 +595,11 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 
 	switch m := resp.Message.(type) {
 	case *v1.DurableTaskResponse_Error:
+		// The phase moves before the frame is queued so the endpoint's reaction to it is
+		// resolved in the errored phase.
 		msg := m.Error.GetErrorMessage()
-		r.lastError.Store(&msg)
+		r.engineErr.Store(&msg)
+		r.enterPhase(phaseEngineErrored)
 		frame, err = contract.MarshalFrame(&v1.ServerlessDurableFrame{
 			Frame: &v1.ServerlessDurableFrame_Error{Error: &v1.ServerlessErrorFrame{
 				Code:    errorCode(m.Error.GetErrorType()),
@@ -599,17 +607,14 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 			}},
 		})
 	case *v1.DurableTaskResponse_EvictionAck:
-		r.evicted.Store(true)
-		frame, err = responseFrame(resp)
-	case *v1.DurableTaskResponse_ServerEvict:
-		r.evicted.Store(true)
+		r.enterPhase(phaseEvictionAcked)
 		frame, err = responseFrame(resp)
 	default:
 		frame, err = responseFrame(resp)
 	}
 
 	if err != nil {
-		r.finish(failed(CloseInternalError, err.Error(), true))
+		r.linkFailed(err)
 		return false
 	}
 
@@ -618,18 +623,26 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 	case <-r.stop:
 		return false
 	default:
-		r.finish(failed(CloseBackpressure, fmt.Sprintf("endpoint fell more than %d frames behind", sendQueueSize), true))
+		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d frames behind", sendQueueSize)})
 		return false
 	}
 
 	if _, isEvict := resp.Message.(*v1.DurableTaskResponse_ServerEvict); isEvict {
 		// The eviction frame is queued ahead of the close; writeLoop drains the queue
 		// before the close frame goes out.
-		r.finish(evicted(CloseEvicted, EvictionSourceServer))
+		r.finish(exit{kind: exitServerEvict, closeCode: CloseEvicted})
 		return false
 	}
 
 	return true
+}
+
+// linkFailed ends the relay on an engine-side failure. The detail stays in the operator
+// log: the endpoint sees the close reason and the tenant sees the task error, and neither
+// should carry engine addresses or transport internals.
+func (r *relay) linkFailed(err error) {
+	r.l.Warn().Err(err).Str("task_id", r.p.TaskId).Int32("invocation", r.p.Invocation).Msg("durable engine link failed")
+	r.finish(exit{kind: exitLinkFailure, closeCode: CloseInternalError, msg: "engine link failed"})
 }
 
 func responseFrame(resp *v1.DurableTaskResponse) ([]byte, error) {
@@ -667,7 +680,7 @@ func (r *relay) writeLoop() {
 			}
 		case <-ticker.C:
 			if r.missed.Add(1) > missedPongLimit {
-				r.finish(failed(CloseUnresponsive, fmt.Sprintf("endpoint missed %d pings", missedPongLimit), true))
+				r.finish(exit{kind: exitUnresponsive, closeCode: CloseUnresponsive, msg: fmt.Sprintf("endpoint missed %d pings", missedPongLimit)})
 				return
 			}
 

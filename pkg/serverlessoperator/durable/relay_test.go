@@ -646,7 +646,6 @@ func TestRelayDoneMapping(t *testing.T) {
 		{name: "empty output string", done: `{"output":""}`, kind: KindCompleted, output: `{}`},
 		{name: "error retry", done: `{"error":"boom","retry":true}`, kind: KindFailed, errMsg: "boom", retry: true},
 		{name: "error no retry", done: `{"error":"bad input","retry":false}`, kind: KindFailed, errMsg: "bad input"},
-		{name: "evicted", done: `{"status":"evicted"}`, kind: KindEvicted},
 	}
 
 	for _, tt := range tests {
@@ -664,10 +663,6 @@ func TestRelayDoneMapping(t *testing.T) {
 
 			if tt.output != "" {
 				assert.JSONEq(t, tt.output, string(out.Output))
-			}
-
-			if tt.kind == KindEvicted {
-				assert.Equal(t, EvictionSourceEndpoint, out.EvictionSource)
 			}
 
 			assert.Equal(t, CloseNormal, ep.closed(t))
