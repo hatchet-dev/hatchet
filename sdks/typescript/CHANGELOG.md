@@ -5,6 +5,22 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-09-08
+
+### Added
+
+- Added the `@hatchet-dev/typescript-sdk/edge` entry point: the declaration factories and classes, `Context`, `DurableContext`, conditions, durations, errors and the wire types needed to declare and run tasks from a runtime without a Hatchet client (Cloudflare Workers, Vercel Functions). It imports nothing from Node, which `scripts/check-edge-entry.mjs` enforces in CI, and ships a `declarations()` factory that returns `task`, `durableTask`, `workflow` and `batchTask` bound to no client.
+- Added an `exports` map to `package.json` with explicit entries for the root, `./edge`, `./v1`, `./v1/embedded` and every directory index, plus a `./*` passthrough so existing deep imports such as `@hatchet-dev/typescript-sdk/util/sleep` keep resolving. `main` and `types` now point at the published layout.
+- Added `workflowToProto(definition, { namespace })`, a pure function that builds the `CreateWorkflowVersionRequest` a workflow registers under, lifted out of the worker together with `normalizeWorkflowDefinition` and the mapping helpers. The worker registers through it.
+- Added the `ContextRuntime` and `DurableTransport` interfaces. `Context` and `DurableContext` now perform every engine-facing operation through them; a worker supplies adapters over its client and durable listener, and the existing `(action, client, worker)` constructors keep working.
+- Added `createActionId(workflowName, taskName)` and `ParentRunContextManager.useStorage(...)` so runtimes without `AsyncLocalStorage` can still declare and serve tasks.
+
+### Changed
+
+- Action ids are registered fully lowercased (`<workflow>:<task>`), matching the ids the worker keys its registries by and the form the engine stores. Task names with uppercase letters previously registered with their case preserved.
+- Memo keys for `ctx.now()` are computed with WebCrypto (`crypto.subtle.digest`) instead of `crypto.createHash`. The bytes are unchanged, so recorded durable event logs keep replaying; `globalThis.crypto` (Node 20 or newer) is required for durable tasks.
+- `bindAbortSignalHandler` moved from `util/abort-error` to `util/abort-signal`, keeping the abort helpers free of Node imports.
+
 ## [1.31.1] - 2026-09-03
 
 ### Security

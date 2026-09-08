@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.31.1",
+  "version": "1.32.0",
   "description": "Background task orchestration & visibility for developers",
   "main": "index.js",
   "types": "index.d.ts",
