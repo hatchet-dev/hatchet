@@ -44,7 +44,13 @@ export function isBeforeRetention(
     return false;
   }
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d.getTime() < boundary.getTime() - RETENTION_TOLERANCE_MS;
+  const t = d.getTime();
+  // Invalid or pre-epoch timestamps (e.g. Go's zero time "0001-01-01T00:00:00Z"
+  // from an unset field) mean the data is missing, not that the run is old.
+  if (Number.isNaN(t) || t <= 0) {
+    return false;
+  }
+  return t < boundary.getTime() - RETENTION_TOLERANCE_MS;
 }
 
 /**
