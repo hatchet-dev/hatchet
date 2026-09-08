@@ -23,10 +23,16 @@ WHERE
 CREATE INDEX IF NOT EXISTS v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
 
 DROP INDEX IF EXISTS v1_serverless_endpoint_updated_idx;
+
+-- The gRPC operator service counts the action links of every worker of an operator once per
+-- Listen stream (CountOperatorWorkerActions); the workers are found by (tenant, operator).
+CREATE INDEX IF NOT EXISTS "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX IF EXISTS "Worker_tenantId_operatorId_idx";
+
 CREATE INDEX IF NOT EXISTS v1_serverless_endpoint_updated_idx ON v1_serverless_endpoint (tenant_id, updated_at);
 
 DROP INDEX IF EXISTS v1_serverless_endpoint_version_idx;
