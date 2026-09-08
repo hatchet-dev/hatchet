@@ -1,3 +1,24 @@
+## [0.106.3] - 2026-09-08
+
+Hatchet v0.106.3 headlines new concurrency features: dynamic per-group max runs and concurrency strategies shared across workflows.
+
+### Highlights
+
+- Concurrency strategies can now be shared across workflows, so runs of different workflows count against a single tenant-scoped limit ([#4845](https://github.com/hatchet-dev/hatchet/pull/4845), [#4873](https://github.com/hatchet-dev/hatchet/pull/4873)).
+- Durable task throughput: durable event ingestion is now buffered, durable child signal events are upserted in bulk, and the durable flush interval was lowered ([#4854](https://github.com/hatchet-dev/hatchet/pull/4854), [#4860](https://github.com/hatchet-dev/hatchet/pull/4860), [#4858](https://github.com/hatchet-dev/hatchet/pull/4858)).
+
+### Security
+
+- Engine: satisfied durable event lookups are now filtered by tenant, enforcing tenant isolation on the durable event log ([15bc7923d](https://github.com/hatchet-dev/hatchet/commit/15bc7923d3a8ebfeb0d88c19160dd24828921e85)).
+
+### Fixed
+
+- Engine: partitions are pruned in `UpdateDurableEventLogEntriesSatisfied` ([#4891](https://github.com/hatchet-dev/hatchet/pull/4891)).
+- Engine: CEL evaluation inconsistencies ([#4864](https://github.com/hatchet-dev/hatchet/pull/4864)).
+- Engine: duplicate rows no longer cause an on-conflict error during task assignment ([#4829](https://github.com/hatchet-dev/hatchet/pull/4829)).
+- Engine: allocated crons are counted against the latest workflow version only ([#4859](https://github.com/hatchet-dev/hatchet/pull/4859)).
+- Go SDK: all required symbols are exported and deprecated constructs are no longer depended on ([#4875](https://github.com/hatchet-dev/hatchet/pull/4875)).
+
 ## [0.105.16] - 2026-08-31
 
 Hatchet v0.105.16 adds two new concurrency strategies and a batch of engine fixes around pausing, durable DAGs, and task eviction.
