@@ -437,7 +437,27 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            {showPlanSelector && payAsYouGoPlan(plans) ? (
+            {showPlanSelector && currentPlanSummary?.legacy ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-medium text-foreground">
+                    Talk to sales to change your plan
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      window.open(enterpriseContactUrl, '_blank', 'noreferrer')
+                    }
+                  >
+                    Talk to sales
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : showPlanSelector && payAsYouGoPlan(plans) ? (
               <Card
                 variant="light"
                 className="bg-transparent ring-1 ring-border/50 border-none"
