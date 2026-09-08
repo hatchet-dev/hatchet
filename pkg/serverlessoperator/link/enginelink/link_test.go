@@ -937,3 +937,29 @@ func TestSlotBuffer(t *testing.T) {
 	assert.Equal(t, 1, slotBuffer(map[string]int32{"a": -1}))
 	assert.Equal(t, 30, slotBuffer(map[string]int32{"a": 10, "b": 20}))
 }
+
+// recvWithin receives one response or fails the test after a bound.
+func recvWithin(t *testing.T, ch link.DurableChannel) *v1.DurableTaskResponse {
+	t.Helper()
+
+	type result struct {
+		resp *v1.DurableTaskResponse
+		err  error
+	}
+
+	out := make(chan result, 1)
+
+	go func() {
+		resp, err := ch.Recv()
+		out <- result{resp, err}
+	}()
+
+	select {
+	case r := <-out:
+		require.NoError(t, r.err)
+		return r.resp
+	case <-time.After(3 * time.Second):
+		t.Fatal("Recv returned nothing")
+		return nil
+	}
+}

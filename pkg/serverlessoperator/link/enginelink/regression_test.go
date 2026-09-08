@@ -146,28 +146,3 @@ func TestOpenLinksInitialActionsInChunks(t *testing.T) {
 	assert.Equal(t, actions, linked)
 	assert.Equal(t, 2, h.dispatcher.notifyCount(), "one notification for the bulk link, one for the session")
 }
-
-func recvWithin(t *testing.T, ch link.DurableChannel) *v1.DurableTaskResponse {
-	t.Helper()
-
-	type result struct {
-		resp *v1.DurableTaskResponse
-		err  error
-	}
-
-	out := make(chan result, 1)
-
-	go func() {
-		resp, err := ch.Recv()
-		out <- result{resp, err}
-	}()
-
-	select {
-	case r := <-out:
-		require.NoError(t, r.err)
-		return r.resp
-	case <-time.After(3 * time.Second):
-		t.Fatal("Recv returned nothing")
-		return nil
-	}
-}
