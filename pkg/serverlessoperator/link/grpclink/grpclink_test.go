@@ -137,6 +137,7 @@ type fakeSession struct {
 	stream    *fakeDurableStream
 	listeners []*client.DurableTaskListener
 	workerId  string
+	tenantId  string
 	added     [][]string
 	removed   [][]string
 	puts      []*v1.CreateWorkflowVersionRequest
@@ -146,7 +147,7 @@ type fakeSession struct {
 }
 
 func (f *fakeSession) Registration() client.OperatorRegistration {
-	return client.OperatorRegistration{WorkerId: f.workerId}
+	return client.OperatorRegistration{WorkerId: f.workerId, TenantId: f.tenantId}
 }
 
 func (f *fakeSession) AddActions(ids ...string) {
@@ -208,9 +209,11 @@ func (f *fakeSession) Close() error {
 	return nil
 }
 
+// fakeOperatorClient connects sessions the engine authenticated as tenantId.
 type fakeOperatorClient struct {
 	connectErr error
 	flushErr   error
+	tenantId   string
 	requests   []*client.ConnectOperatorRequest
 	sessions   []*fakeSession
 }
@@ -225,7 +228,7 @@ func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOpera
 		return nil, err
 	}
 
-	s := &fakeSession{workerId: "w" + req.Name, flushErr: f.flushErr}
+	s := &fakeSession{workerId: "w" + req.Name, tenantId: f.tenantId, flushErr: f.flushErr}
 	f.flushErr = nil
 	f.sessions = append(f.sessions, s)
 
@@ -263,7 +266,7 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	lnk := New(exchange, Options{
 		OperatorName: "serverless",
 		NewClient: func(token string) (client.Client, error) {
-			c := &fakeClient{token: token, operator: &fakeOperatorClient{}}
+			c := &fakeClient{token: token, operator: &fakeOperatorClient{tenantId: tenant.String()}}
 			built = append(built, c)
 
 			return c, nil
@@ -343,7 +346,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 
 	lnk := New(exchange, Options{
 		NewClient: func(token string) (client.Client, error) {
-			op := &fakeOperatorClient{}
+			op := &fakeOperatorClient{tenantId: tenant.String()}
 
 			if len(built) == 0 {
 				op.connectErr = status.Error(codes.Unauthenticated, "expired")
@@ -378,7 +381,7 @@ func TestLinkOpenFlushesInitialActions(t *testing.T) {
 	tenant := uuid.New()
 	exchange := mapExchange{tenant: "tok"}
 
-	op := &fakeOperatorClient{flushErr: errors.New("invalid action")}
+	op := &fakeOperatorClient{tenantId: tenant.String(), flushErr: errors.New("invalid action")}
 
 	lnk := New(exchange, Options{
 		NewClient: func(token string) (client.Client, error) {
