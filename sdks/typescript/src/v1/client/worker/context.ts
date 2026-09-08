@@ -33,7 +33,6 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
-import { createHash } from 'crypto';
 import { z } from 'zod/v4';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
@@ -1313,7 +1312,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return fn();
     }
 
-    const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
+    const memoKey = await computeMemoKey(this.action.taskRunExternalId, deps);
 
     const ack = await this._serializeSendEvent(() =>
       this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
@@ -1350,9 +1349,22 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 }
 
-function computeMemoKey(taskRunExternalId: string, args: readonly unknown[]): Uint8Array {
-  const h = createHash('sha256');
-  h.update(taskRunExternalId);
-  h.update(JSON.stringify(args));
-  return new Uint8Array(h.digest());
+/**
+ * Derives the memo key for a task run and its dependency values: the SHA-256 of the task
+ * run id followed by the JSON-serialised dependencies, over WebCrypto so it works in
+ * every runtime. The bytes are identical to the previous Node `createHash` version, so
+ * event logs recorded by older SDKs keep replaying.
+ */
+export async function computeMemoKey(
+  taskRunExternalId: string,
+  args: readonly unknown[]
+): Promise<Uint8Array> {
+  const { subtle } = globalThis.crypto ?? {};
+  if (!subtle) {
+    throw new HatchetError(
+      'WebCrypto is not available in this runtime. Durable tasks need globalThis.crypto.subtle (Node 20 or newer).'
+    );
+  }
+  const data = new TextEncoder().encode(taskRunExternalId + JSON.stringify(args));
+  return new Uint8Array(await subtle.digest('SHA-256', data));
 }
