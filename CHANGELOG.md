@@ -1,10 +1,12 @@
 ## [0.106.4] - 2026-09-08
 
-Hatchet v0.106.4 headlines new concurrency features: dynamic per-group max runs and concurrency strategies shared across workflows.
+Hatchet v0.106.4 is a concurrency release: dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.
 
 ### Highlights
 
-- Concurrency strategies can now be shared across workflows, so runs of different workflows count against a single tenant-scoped limit ([#4845](https://github.com/hatchet-dev/hatchet/pull/4845), [#4873](https://github.com/hatchet-dev/hatchet/pull/4873)).
+- **Dynamic concurrency limits**: set concurrency limits on a per-key basis using a CEL expression. For example, let premium-tier users run 10 workflows simultaneously while other users run one: `input.tier == 'premium' ? 10 : 1` ([#4863](https://github.com/hatchet-dev/hatchet/pull/4863), [#4873](https://github.com/hatchet-dev/hatchet/pull/4873)).
+- **Shared concurrency across workflows**: create concurrency rules that many tasks and workflows consume simultaneously, e.g. limiting `workflow_a` and `workflow_b` to 10 concurrent runs per user total. Previously this pattern required a parent router task; shared concurrency replaces it ([#4845](https://github.com/hatchet-dev/hatchet/pull/4845), [#4873](https://github.com/hatchet-dev/hatchet/pull/4873)).
+- **Two new concurrency strategies**, `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST`: configure the queue depth for each concurrency key, keeping only the most or least recent queued item until in-progress runs complete — conceptually similar to debouncing ([#4793](https://github.com/hatchet-dev/hatchet/pull/4793)).
 
 ### Security
 
