@@ -57,8 +57,13 @@ type configFile struct {
 
 	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" default:"10s"`
 
-	HealthcheckTimeout     time.Duration `mapstructure:"healthcheckTimeout" default:"10s"`
-	HealthcheckConcurrency int           `mapstructure:"healthcheckConcurrency" default:"256"`
+	HealthcheckTimeout           time.Duration `mapstructure:"healthcheckTimeout" default:"10s"`
+	HealthcheckConcurrency       int           `mapstructure:"healthcheckConcurrency" default:"256"`
+	HealthcheckTenantConcurrency int           `mapstructure:"healthcheckTenantConcurrency" default:"32"`
+	HealthcheckApplyTimeout      time.Duration `mapstructure:"healthcheckApplyTimeout" default:"60s"`
+
+	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" default:"200"`
+	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" default:"500"`
 
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" default:"4194304"`
 	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" default:"15s"`
@@ -113,6 +118,10 @@ func bindEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("healthcheckTimeout", "SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
 	_ = v.BindEnv("healthcheckConcurrency", "SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("healthcheckTenantConcurrency", "SERVERLESS_OPERATOR_HEALTHCHECK_TENANT_CONCURRENCY")
+	_ = v.BindEnv("healthcheckApplyTimeout", "SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
+	_ = v.BindEnv("maxWorkflowsPerEndpoint", "SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
+	_ = v.BindEnv("maxActionsPerEndpoint", "SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
 
 	_ = v.BindEnv("wsMaxFrameBytes", "SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("wsPingInterval", "SERVERLESS_OPERATOR_WS_PING_INTERVAL")
@@ -277,24 +286,27 @@ func run(ctx context.Context, cf *configFile) error {
 		Hostname:   hostname,
 		ProcessId:  uuid.New(),
 		Config: serverlessoperator.Config{
-			OperatorName:           cf.OperatorName,
-			LinkName:               serverlessoperator.DefaultLinkName,
-			DefaultSlots:           cf.DefaultSlots,
-			DurableSlots:           cf.DurableSlots,
-			LeaseTTL:               cf.LeaseTTL,
-			HeartbeatInterval:      cf.HeartbeatInterval,
-			RebalanceInterval:      cf.RebalanceInterval,
-			ShedHysteresis:         cf.ShedHysteresis,
-			DrainTimeout:           cf.DrainTimeout,
-			RoutingRefreshInterval: cf.RoutingRefreshInterval,
-			HealthcheckTimeout:     cf.HealthcheckTimeout,
-			HealthcheckConcurrency: cf.HealthcheckConcurrency,
-			WSMaxFrameBytes:        cf.WSMaxFrameBytes,
-			WSPingInterval:         cf.WSPingInterval,
-			HealthPort:             cf.HealthPort,
-
-			WSMaxUpgradeHeaderBytes: cf.WSMaxUpgradeHeaderBytes,
-			WSMaxQueuedBytes:        cf.WSMaxQueuedBytes,
+			OperatorName:                 cf.OperatorName,
+			LinkName:                     serverlessoperator.DefaultLinkName,
+			DefaultSlots:                 cf.DefaultSlots,
+			DurableSlots:                 cf.DurableSlots,
+			LeaseTTL:                     cf.LeaseTTL,
+			HeartbeatInterval:            cf.HeartbeatInterval,
+			RebalanceInterval:            cf.RebalanceInterval,
+			ShedHysteresis:               cf.ShedHysteresis,
+			DrainTimeout:                 cf.DrainTimeout,
+			RoutingRefreshInterval:       cf.RoutingRefreshInterval,
+			HealthcheckTimeout:           cf.HealthcheckTimeout,
+			HealthcheckConcurrency:       cf.HealthcheckConcurrency,
+			HealthcheckTenantConcurrency: cf.HealthcheckTenantConcurrency,
+			HealthcheckApplyTimeout:      cf.HealthcheckApplyTimeout,
+			MaxWorkflowsPerEndpoint:      cf.MaxWorkflowsPerEndpoint,
+			MaxActionsPerEndpoint:        cf.MaxActionsPerEndpoint,
+			WSMaxFrameBytes:              cf.WSMaxFrameBytes,
+			WSPingInterval:               cf.WSPingInterval,
+			HealthPort:                   cf.HealthPort,
+			WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
+			WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		},
 	})
 }

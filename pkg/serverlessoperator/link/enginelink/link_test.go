@@ -387,7 +387,7 @@ func workflow(name string, actions ...string) *v1.CreateWorkflowVersionRequest {
 func (h *harness) open(t *testing.T, opts link.OpenOpts) (link.Registration, *registration) {
 	t.Helper()
 
-	reg, err := h.link.Open(context.Background(), h.tenant.ID, 2, opts)
+	reg, err := h.link.Open(context.Background(), h.tenant.ID, opts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { _ = reg.Close() })
@@ -426,7 +426,7 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	require.Len(t, h.workers.creates, 1)
 	create := h.workers.creates[0]
 	assert.Equal(t, h.link.dispatcherId, create.DispatcherId)
-	assert.Equal(t, fmt.Sprintf("serverless-%s-2", h.link.dispatcherId), create.Name)
+	assert.Equal(t, fmt.Sprintf("serverless-%s", h.link.dispatcherId), create.Name)
 	assert.Equal(t, []string{"ns_other:Extra", "ns_svc:run"}, create.Actions)
 	assert.Equal(t, opts.SlotConfig, create.SlotConfig)
 	require.NotNil(t, create.OperatorId)
@@ -444,10 +444,9 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 		byKey[l.Key] = l
 	}
 
-	require.Len(t, byKey, 3)
+	require.Len(t, byKey, 2)
 	assert.Equal(t, "proc-1", *byKey["hatchet-serverless-process"].StrValue)
 	assert.Equal(t, int32(7), *byKey["weight"].IntValue)
-	assert.Equal(t, int32(2), *byKey[shardLabel].IntValue)
 
 	// activated under a fresh listener session id, which the registration remembers
 	activated, deactivated := h.workers.sessions()
@@ -498,7 +497,7 @@ func TestOpenDefaultsAndFailures(t *testing.T) {
 	t.Run("unknown tenant", func(t *testing.T) {
 		h := newHarness(t)
 
-		_, err := h.link.Open(context.Background(), uuid.New(), 0, link.OpenOpts{})
+		_, err := h.link.Open(context.Background(), uuid.New(), link.OpenOpts{})
 
 		require.ErrorIs(t, err, pgx.ErrNoRows)
 		assert.Empty(t, h.workers.creates)
@@ -507,7 +506,7 @@ func TestOpenDefaultsAndFailures(t *testing.T) {
 	t.Run("invalid action", func(t *testing.T) {
 		h := newHarness(t)
 
-		_, err := h.link.Open(context.Background(), h.tenant.ID, 0, link.OpenOpts{Actions: []string{"noverb"}})
+		_, err := h.link.Open(context.Background(), h.tenant.ID, link.OpenOpts{Actions: []string{"noverb"}})
 
 		require.ErrorContains(t, err, "invalid registration")
 		assert.Empty(t, h.operators.upserts, "nothing is registered with an invalid action")

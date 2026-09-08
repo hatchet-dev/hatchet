@@ -48,12 +48,18 @@ func prefixName(ns uuid.UUID, name string) string {
 
 // prefixAction normalizes an action id the way the engine stores it (types.ParseActionID:
 // service first letter lowered, verb lowered) and prefixes the service part. Re-parsing the
-// result is a no-op because the prefix starts with a hex digit.
+// result is a no-op because the prefix starts with a hex digit. The engine's rule that both
+// parts are non-empty is checked before the prefix, which would otherwise hide an empty
+// service.
 func prefixAction(ns uuid.UUID, action string) (string, error) {
 	parsed, err := types.ParseActionID(action)
 
 	if err != nil {
 		return "", err
+	}
+
+	if parsed.Service == "" || parsed.Verb == "" {
+		return "", fmt.Errorf("invalid action %q: service and verb are required", action)
 	}
 
 	parsed.Service = prefixName(ns, parsed.Service)

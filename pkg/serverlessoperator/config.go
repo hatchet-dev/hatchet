@@ -32,8 +32,24 @@ type Config struct {
 	RoutingRefreshInterval    time.Duration
 	RoutingFullReloadInterval time.Duration
 
-	HealthcheckTimeout     time.Duration
-	HealthcheckConcurrency int
+	// HealthcheckTimeout bounds one healthcheck request; HealthcheckConcurrency caps
+	// healthchecks process-wide and HealthcheckTenantConcurrency caps them per tenant inside
+	// that limit, so one tenant's slow endpoints cannot hold every slot.
+	HealthcheckTimeout           time.Duration
+	HealthcheckConcurrency       int
+	HealthcheckTenantConcurrency int
+
+	// HealthcheckApplyTimeout bounds the application of one changed catalog: the workflow
+	// puts, the action delta and the registered_actions write.
+	HealthcheckApplyTimeout time.Duration
+
+	// MaxWorkflowsPerEndpoint and MaxActionsPerEndpoint cap what one healthcheck may
+	// advertise; a catalog over either cap is refused and the endpoint marked with the error.
+	MaxWorkflowsPerEndpoint int
+	MaxActionsPerEndpoint   int
+
+	// MaintenanceConcurrency is how many tenants a maintenance pass refreshes at once.
+	MaintenanceConcurrency int
 
 	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay (a later
 	// phase); they are carried here so the binary's env binding is complete.
@@ -55,22 +71,27 @@ type Config struct {
 }
 
 const (
-	DefaultOperatorName                    = "serverless"
-	DefaultLinkName                        = "grpc"
-	DefaultDefaultSlots              int32 = 10000
-	DefaultDurableSlots              int32 = 10000
-	DefaultLeaseTTL                        = 15 * time.Second
-	DefaultHeartbeatInterval               = 5 * time.Second
-	DefaultRebalanceInterval               = 5 * time.Second
-	DefaultShedHysteresis                  = 0.2
-	DefaultDrainTimeout                    = 60 * time.Second
-	DefaultRoutingRefreshInterval          = 10 * time.Second
-	DefaultRoutingFullReloadInterval       = 60 * time.Second
-	DefaultHealthcheckTimeout              = 10 * time.Second
-	DefaultHealthcheckConcurrency          = 256
-	DefaultWSMaxFrameBytes           int64 = 4 * 1024 * 1024
-	DefaultWSPingInterval                  = 15 * time.Second
-	DefaultHealthPort                      = 8080
+	DefaultOperatorName                       = "serverless"
+	DefaultLinkName                           = "grpc"
+	DefaultDefaultSlots                 int32 = 10000
+	DefaultDurableSlots                 int32 = 10000
+	DefaultLeaseTTL                           = 15 * time.Second
+	DefaultHeartbeatInterval                  = 5 * time.Second
+	DefaultRebalanceInterval                  = 5 * time.Second
+	DefaultShedHysteresis                     = 0.2
+	DefaultDrainTimeout                       = 60 * time.Second
+	DefaultRoutingRefreshInterval             = 10 * time.Second
+	DefaultRoutingFullReloadInterval          = 60 * time.Second
+	DefaultHealthcheckTimeout                 = 10 * time.Second
+	DefaultHealthcheckConcurrency             = 256
+	DefaultHealthcheckTenantConcurrency       = 32
+	DefaultHealthcheckApplyTimeout            = 60 * time.Second
+	DefaultMaxWorkflowsPerEndpoint            = 200
+	DefaultMaxActionsPerEndpoint              = 500
+	DefaultMaintenanceConcurrency             = 8
+	DefaultWSMaxFrameBytes              int64 = 4 * 1024 * 1024
+	DefaultWSPingInterval                     = 15 * time.Second
+	DefaultHealthPort                         = 8080
 
 	// Relay resource limit defaults.
 	DefaultWSMaxUpgradeHeaderBytes int64 = 64 * 1024
@@ -88,24 +109,29 @@ const (
 // DefaultConfig returns the plan's defaults.
 func DefaultConfig() Config {
 	return Config{
-		OperatorName:              DefaultOperatorName,
-		LinkName:                  DefaultLinkName,
-		DefaultSlots:              DefaultDefaultSlots,
-		DurableSlots:              DefaultDurableSlots,
-		LeaseTTL:                  DefaultLeaseTTL,
-		HeartbeatInterval:         DefaultHeartbeatInterval,
-		RebalanceInterval:         DefaultRebalanceInterval,
-		ShedHysteresis:            DefaultShedHysteresis,
-		DrainTimeout:              DefaultDrainTimeout,
-		RoutingRefreshInterval:    DefaultRoutingRefreshInterval,
-		RoutingFullReloadInterval: DefaultRoutingFullReloadInterval,
-		HealthcheckTimeout:        DefaultHealthcheckTimeout,
-		HealthcheckConcurrency:    DefaultHealthcheckConcurrency,
-		WSMaxFrameBytes:           DefaultWSMaxFrameBytes,
-		WSPingInterval:            DefaultWSPingInterval,
-		HealthPort:                DefaultHealthPort,
-		WSMaxUpgradeHeaderBytes:   DefaultWSMaxUpgradeHeaderBytes,
-		WSMaxQueuedBytes:          DefaultWSMaxQueuedBytes,
+		OperatorName:                 DefaultOperatorName,
+		LinkName:                     DefaultLinkName,
+		DefaultSlots:                 DefaultDefaultSlots,
+		DurableSlots:                 DefaultDurableSlots,
+		LeaseTTL:                     DefaultLeaseTTL,
+		HeartbeatInterval:            DefaultHeartbeatInterval,
+		RebalanceInterval:            DefaultRebalanceInterval,
+		ShedHysteresis:               DefaultShedHysteresis,
+		DrainTimeout:                 DefaultDrainTimeout,
+		RoutingRefreshInterval:       DefaultRoutingRefreshInterval,
+		RoutingFullReloadInterval:    DefaultRoutingFullReloadInterval,
+		HealthcheckTimeout:           DefaultHealthcheckTimeout,
+		HealthcheckConcurrency:       DefaultHealthcheckConcurrency,
+		HealthcheckTenantConcurrency: DefaultHealthcheckTenantConcurrency,
+		HealthcheckApplyTimeout:      DefaultHealthcheckApplyTimeout,
+		MaxWorkflowsPerEndpoint:      DefaultMaxWorkflowsPerEndpoint,
+		MaxActionsPerEndpoint:        DefaultMaxActionsPerEndpoint,
+		MaintenanceConcurrency:       DefaultMaintenanceConcurrency,
+		WSMaxFrameBytes:              DefaultWSMaxFrameBytes,
+		WSPingInterval:               DefaultWSPingInterval,
+		HealthPort:                   DefaultHealthPort,
+		WSMaxUpgradeHeaderBytes:      DefaultWSMaxUpgradeHeaderBytes,
+		WSMaxQueuedBytes:             DefaultWSMaxQueuedBytes,
 	}
 }
 
@@ -164,6 +190,30 @@ func (c Config) withDefaults() Config {
 
 	if c.HealthcheckConcurrency <= 0 {
 		c.HealthcheckConcurrency = d.HealthcheckConcurrency
+	}
+
+	if c.HealthcheckTenantConcurrency <= 0 {
+		c.HealthcheckTenantConcurrency = d.HealthcheckTenantConcurrency
+	}
+
+	if c.HealthcheckTenantConcurrency > c.HealthcheckConcurrency {
+		c.HealthcheckTenantConcurrency = c.HealthcheckConcurrency
+	}
+
+	if c.HealthcheckApplyTimeout <= 0 {
+		c.HealthcheckApplyTimeout = d.HealthcheckApplyTimeout
+	}
+
+	if c.MaxWorkflowsPerEndpoint <= 0 {
+		c.MaxWorkflowsPerEndpoint = d.MaxWorkflowsPerEndpoint
+	}
+
+	if c.MaxActionsPerEndpoint <= 0 {
+		c.MaxActionsPerEndpoint = d.MaxActionsPerEndpoint
+	}
+
+	if c.MaintenanceConcurrency <= 0 {
+		c.MaintenanceConcurrency = d.MaintenanceConcurrency
 	}
 
 	if c.WSMaxFrameBytes <= 0 {

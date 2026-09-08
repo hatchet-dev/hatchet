@@ -678,9 +678,18 @@ type ServerlessOperatorConfigFile struct {
 	// RoutingRefreshInterval is the incremental routing cache refresh cadence.
 	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" json:"routingRefreshInterval,omitempty" default:"10s"`
 
-	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide.
-	HealthcheckTimeout     time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
-	HealthcheckConcurrency int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide and
+	// HealthcheckTenantConcurrency per tenant within that limit.
+	HealthcheckTimeout           time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
+	HealthcheckConcurrency       int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+	HealthcheckTenantConcurrency int           `mapstructure:"healthcheckTenantConcurrency" json:"healthcheckTenantConcurrency,omitempty" default:"32"`
+
+	// HealthcheckApplyTimeout bounds the registration of one changed endpoint catalog.
+	HealthcheckApplyTimeout time.Duration `mapstructure:"healthcheckApplyTimeout" json:"healthcheckApplyTimeout,omitempty" default:"60s"`
+
+	// MaxWorkflowsPerEndpoint and MaxActionsPerEndpoint cap what one healthcheck may advertise.
+	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" json:"maxWorkflowsPerEndpoint,omitempty" default:"200"`
+	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" json:"maxActionsPerEndpoint,omitempty" default:"500"`
 
 	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay.
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" json:"wsMaxFrameBytes,omitempty" default:"4194304"`

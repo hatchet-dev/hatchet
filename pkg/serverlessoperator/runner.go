@@ -3,6 +3,7 @@ package serverlessoperator
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
@@ -19,21 +19,86 @@ import (
 const endpointPageSize int64 = 500
 
 // tenantState is everything the process keeps for a served tenant: the routing cache, the
-// registration per owned shard, the pollers of owned endpoints and whether the link could
-// authenticate. mu guards regs; the rest is only touched from the runner's serialized
-// reconcile paths (lease tick and maintenance loop share runner.mu).
+// one registration the tenant's owned units share, the pollers of owned endpoints and whether
+// the link could authenticate.
+//
+// opMu serializes the operations on the tenant (gaining and losing units, maintenance,
+// shutdown), which include network work and poller shutdown waits; it is never held together
+// with the runner's lock. mu guards the fields read from outside those operations: reg,
+// units and loaded.
 type tenantState struct {
 	cache    *routingCache
-	regs     map[int32]*registration
+	reg      *registration
 	pollers  map[uuid.UUID]*endpointPoller
 	units    map[int32]struct{}
+	hcSem    chan struct{}
 	tenantId uuid.UUID
+	opMu     sync.Mutex
 	mu       sync.Mutex
-	noToken  bool
+	noToken  atomic.Bool
+	loaded   bool
+	removed  bool
+}
+
+func (ts *tenantState) registration() *registration {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	return ts.reg
+}
+
+// setRegistration installs reg and returns the one it replaced.
+func (ts *tenantState) setRegistration(reg *registration) *registration {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	prev := ts.reg
+	ts.reg = reg
+
+	return prev
+}
+
+// detachRegistration removes reg if it is the current one and reports whether it was.
+func (ts *tenantState) detachRegistration(reg *registration) bool {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	if ts.reg != reg {
+		return false
+	}
+
+	ts.reg = nil
+
+	return true
+}
+
+// ownedShards snapshots the owned shard set.
+func (ts *tenantState) ownedShards() map[int32]struct{} {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	out := make(map[int32]struct{}, len(ts.units))
+
+	for shard := range ts.units {
+		out[shard] = struct{}{}
+	}
+
+	return out
+}
+
+func (ts *tenantState) unitCount() int {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	return len(ts.units)
 }
 
 // runner turns owned units into registrations and endpoint pollers and routes assigned
 // actions to endpoints. It implements lease.Reconciler.
+//
+// mu guards tenants and pending only and is held for map operations, never across network
+// work: each tenant's work runs under its own opMu, so a hung engine or a slow poller
+// shutdown on one tenant does not stall the others or the lease tick.
 type runner struct {
 	repo         repository.ServerlessRepository
 	link         link.Link
@@ -42,6 +107,7 @@ type runner struct {
 	l            *zerolog.Logger
 	m            *metrics
 	tenants      map[uuid.UUID]*tenantState
+	pending      map[lease.Unit]struct{}
 	hcSem        chan struct{}
 	loopCtx      context.Context
 	stopLoops    context.CancelFunc
@@ -69,6 +135,7 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 		cfg:          cfg,
 		processId:    deps.ProcessId,
 		tenants:      map[uuid.UUID]*tenantState{},
+		pending:      map[lease.Unit]struct{}{},
 		hcSem:        make(chan struct{}, cfg.HealthcheckConcurrency),
 		loopCtx:      loopCtx,
 		stopLoops:    stopLoops,
@@ -77,41 +144,180 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 	}
 }
 
-// UnitsGained implements lease.Reconciler: load the units' endpoints, ensure the tenant's
-// routing cache, open the registration and start pollers. Failures are logged; the
-// maintenance loop retries registrations still missing.
-func (r *runner) UnitsGained(ctx context.Context, units []lease.Unit) {
+// groupUnits splits units by tenant.
+func groupUnits(units []lease.Unit) map[uuid.UUID][]int32 {
+	out := map[uuid.UUID][]int32{}
+
+	for _, unit := range units {
+		out[unit.TenantId] = append(out[unit.TenantId], unit.Shard)
+	}
+
+	return out
+}
+
+// tenantFor returns the tenant's state, creating an unloaded one on first use.
+func (r *runner) tenantFor(tenantId uuid.UUID) *tenantState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if err := r.loadUnitEndpoints(ctx, units); err != nil {
-		r.l.Error().Err(err).Msg("could not load endpoints for gained units")
+	if ts, ok := r.tenants[tenantId]; ok {
+		return ts
 	}
 
-	for _, unit := range units {
-		ts, err := r.ensureTenant(ctx, unit.TenantId)
+	ts := &tenantState{
+		tenantId: tenantId,
+		cache:    newRoutingCache(tenantId, r.repo.Endpoints(), r.enc, r.l),
+		pollers:  map[uuid.UUID]*endpointPoller{},
+		units:    map[int32]struct{}{},
+		hcSem:    make(chan struct{}, r.cfg.HealthcheckTenantConcurrency),
+	}
 
-		if err != nil {
-			r.l.Error().Err(err).Str("tenant_id", unit.TenantId.String()).Msg("could not load tenant routing cache")
+	r.tenants[tenantId] = ts
+
+	return ts
+}
+
+func (r *runner) tenant(tenantId uuid.UUID) *tenantState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.tenants[tenantId]
+}
+
+// forgetTenant drops ts from the served tenants if it is still the registered state.
+func (r *runner) forgetTenant(ts *tenantState) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.tenants[ts.tenantId] == ts {
+		delete(r.tenants, ts.tenantId)
+	}
+}
+
+// deferUnits records gained units whose tenant could not be loaded; maintenance retries
+// them, so a claimed unit is never left owned but unserved.
+func (r *runner) deferUnits(tenantId uuid.UUID, shards []int32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, shard := range shards {
+		r.pending[lease.Unit{TenantId: tenantId, Shard: shard}] = struct{}{}
+	}
+}
+
+func (r *runner) clearPending(tenantId uuid.UUID, shards []int32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, shard := range shards {
+		delete(r.pending, lease.Unit{TenantId: tenantId, Shard: shard})
+	}
+}
+
+func (r *runner) pendingUnits() []lease.Unit {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := make([]lease.Unit, 0, len(r.pending))
+
+	for unit := range r.pending {
+		out = append(out, unit)
+	}
+
+	return out
+}
+
+// UnitsGained implements lease.Reconciler: for each tenant, load its routing cache (or the
+// gained units' endpoints when it is already served), open its registration if it has none
+// and start pollers. A tenant whose load fails keeps its units pending for maintenance to
+// retry; a registration that fails to open is retried by maintenance as well.
+func (r *runner) UnitsGained(ctx context.Context, units []lease.Unit) {
+	for tenantId, shards := range groupUnits(units) {
+		r.gainUnits(ctx, tenantId, shards)
+	}
+
+	r.updateGauges()
+}
+
+func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int32) {
+	for {
+		ts := r.tenantFor(tenantId)
+
+		ts.opMu.Lock()
+
+		if ts.removed {
+			// The tenant's last unit was lost while this gain waited; start over with a
+			// fresh state.
+			ts.opMu.Unlock()
 			continue
 		}
 
-		ts.units[unit.Shard] = struct{}{}
+		r.gainUnitsLocked(ctx, ts, shards)
+		ts.opMu.Unlock()
 
-		if err := r.openRegistration(ctx, ts, unit.Shard); err != nil {
-			r.l.Warn().Err(err).Str("tenant_id", unit.TenantId.String()).Int32("shard", unit.Shard).Msg("registration not opened; will retry")
-		}
-
-		r.reconcilePollers(ts)
+		return
 	}
-
-	r.updateGaugesLocked()
 }
 
-// loadUnitEndpoints pages through the gained units' endpoints and seeds their tenants'
-// caches, so a tenant with many endpoints outside these units is not reloaded in full for
-// every gained shard.
-func (r *runner) loadUnitEndpoints(ctx context.Context, units []lease.Unit) error {
+// gainUnitsLocked runs under ts.opMu.
+func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, shards []int32) {
+	if err := r.loadTenant(ctx, ts, shards); err != nil {
+		r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("could not load tenant routing cache; the gained units are retried by maintenance")
+		r.deferUnits(ts.tenantId, shards)
+
+		if !ts.loaded && ts.unitCount() == 0 {
+			r.forgetTenant(ts)
+		}
+
+		return
+	}
+
+	r.clearPending(ts.tenantId, shards)
+
+	ts.mu.Lock()
+
+	for _, shard := range shards {
+		ts.units[shard] = struct{}{}
+	}
+
+	ts.mu.Unlock()
+
+	if ts.registration() == nil {
+		if err := r.openRegistration(ctx, ts); err != nil {
+			r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("registration not opened; will retry")
+		}
+	}
+
+	r.reconcilePollers(ts)
+}
+
+// loadTenant loads the tenant's routing cache on first use, and afterwards refreshes the
+// gained units' endpoints so their pollers start from current rows. Runs under ts.opMu.
+func (r *runner) loadTenant(ctx context.Context, ts *tenantState, shards []int32) error {
+	if !ts.loaded {
+		if err := ts.cache.Load(ctx); err != nil {
+			return err
+		}
+
+		ts.mu.Lock()
+		ts.loaded = true
+		ts.mu.Unlock()
+
+		return nil
+	}
+
+	units := make([]lease.Unit, 0, len(shards))
+
+	for _, shard := range shards {
+		units = append(units, lease.Unit{TenantId: ts.tenantId, Shard: shard})
+	}
+
+	return r.loadUnitEndpoints(ctx, ts, units)
+}
+
+// loadUnitEndpoints pages through the units' endpoints; a page is applied under one cache
+// lock and publishes at most one union revision.
+func (r *runner) loadUnitEndpoints(ctx context.Context, ts *tenantState, units []lease.Unit) error {
 	after := uuid.Nil
 
 	for {
@@ -121,25 +327,9 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, units []lease.Unit) erro
 			return err
 		}
 
-		// A page is applied under one lock and publishes one union revision; rows the
-		// initial tenant load already brought in are skipped by version.
-		byTenant := map[uuid.UUID][]*sqlcv1.V1ServerlessEndpoint{}
-
-		for _, row := range rows {
-			byTenant[row.TenantID] = append(byTenant[row.TenantID], row)
-		}
-
-		for tenantId, tenantRows := range byTenant {
-			ts, err := r.ensureTenant(ctx, tenantId)
-
-			if err != nil {
-				return err
-			}
-
-			ts.cache.mu.Lock()
-			ts.cache.applyRowsLocked(tenantRows)
-			ts.cache.mu.Unlock()
-		}
+		ts.cache.mu.Lock()
+		ts.cache.applyRowsLocked(rows)
+		ts.cache.mu.Unlock()
 
 		if int64(len(rows)) < endpointPageSize {
 			return nil
@@ -149,83 +339,64 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, units []lease.Unit) erro
 	}
 }
 
-// ensureTenant returns the tenant's state, loading the routing cache on first use.
-func (r *runner) ensureTenant(ctx context.Context, tenantId uuid.UUID) (*tenantState, error) {
-	if ts, ok := r.tenants[tenantId]; ok {
-		return ts, nil
-	}
-
-	ts := &tenantState{
-		tenantId: tenantId,
-		cache:    newRoutingCache(tenantId, r.repo.Endpoints(), r.enc, r.l),
-		regs:     map[int32]*registration{},
-		pollers:  map[uuid.UUID]*endpointPoller{},
-		units:    map[int32]struct{}{},
-	}
-
-	if err := ts.cache.Load(ctx); err != nil {
-		return nil, err
-	}
-
-	r.tenants[tenantId] = ts
-
-	return ts, nil
-}
-
-// UnitsLost implements lease.Reconciler: stop the unit's pollers, then drain and close its
-// registration in the background so the lease tick is not held for DrainTimeout. Action
-// sets are untouched. A tenant with no owned units left is forgotten and released on the
-// link once its last registration closes.
+// UnitsLost implements lease.Reconciler: stop the lost units' pollers; the tenant's
+// registration stays while it still owns units. A tenant with no owned units left is
+// forgotten, its registration drained and closed in the background so the lease tick is not
+// held for DrainTimeout, and released on the link once that is done. Action sets are
+// untouched.
 func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	for tenantId, shards := range groupUnits(units) {
+		r.clearPending(tenantId, shards)
 
-	for _, unit := range units {
-		ts, ok := r.tenants[unit.TenantId]
+		ts := r.tenant(tenantId)
 
-		if !ok {
+		if ts == nil {
 			continue
 		}
 
-		delete(ts.units, unit.Shard)
+		ts.opMu.Lock()
+
+		if ts.removed {
+			ts.opMu.Unlock()
+			continue
+		}
 
 		ts.mu.Lock()
-		reg := ts.regs[unit.Shard]
-		delete(ts.regs, unit.Shard)
+
+		for _, shard := range shards {
+			delete(ts.units, shard)
+		}
+
+		remaining := len(ts.units)
 		ts.mu.Unlock()
 
 		r.reconcilePollers(ts)
 
-		var onClosed func()
-
-		if len(ts.units) == 0 {
-			delete(r.tenants, unit.TenantId)
-			onClosed = func() { r.releaseTenant(unit.TenantId) }
-		}
-
-		if reg == nil {
-			if onClosed != nil {
-				onClosed()
-			}
-
+		if remaining > 0 {
+			ts.opMu.Unlock()
 			continue
 		}
+
+		ts.removed = true
+		r.forgetTenant(ts)
+		reg := ts.setRegistration(nil)
+		ts.opMu.Unlock()
 
 		r.wg.Add(1)
 
 		go func() {
 			defer r.wg.Done()
 
-			reg.drain(r.cfg.DrainTimeout)
-			reg.close()
-
-			if onClosed != nil {
-				onClosed()
+			if reg != nil {
+				reg.drain(r.cfg.DrainTimeout)
+				reg.close()
 			}
+
+			r.releaseTenant(tenantId)
 		}()
 	}
 
-	r.updateGaugesLocked()
+	r.updateGauges()
 }
 
 func (r *runner) releaseTenant(tenantId uuid.UUID) {
@@ -234,17 +405,17 @@ func (r *runner) releaseTenant(tenantId uuid.UUID) {
 	}
 }
 
-// InFlight implements lease.Reconciler.
+// InFlight implements lease.Reconciler. Deliveries are tracked per tenant registration, so
+// every unit of a tenant reports the tenant's in-flight count: shedding then leaves a busy
+// tenant's units alone, which is the conservative reading.
 func (r *runner) InFlight(unit lease.Unit) int {
-	r.mu.Lock()
-	ts, ok := r.tenants[unit.TenantId]
-	r.mu.Unlock()
+	ts := r.tenant(unit.TenantId)
 
-	if !ok {
+	if ts == nil {
 		return 0
 	}
 
-	reg := ts.registration(unit.Shard)
+	reg := ts.registration()
 
 	if reg == nil {
 		return 0
@@ -255,8 +426,8 @@ func (r *runner) InFlight(unit lease.Unit) int {
 
 // maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (a full
 // reload every RoutingFullReloadInterval, which drops deleted endpoints), reconcile pollers,
-// reopen registrations that are missing (never opened, no token, stream failed) and push a
-// changed action union to every registration for the tenant.
+// reopen registrations that are missing (never opened, no token, stream failed), push a
+// changed action union to the registration, and retry units whose tenant failed to load.
 func (r *runner) maintain(ctx context.Context) {
 	ticker := time.NewTicker(r.cfg.RoutingRefreshInterval)
 	defer ticker.Stop()
@@ -273,55 +444,91 @@ func (r *runner) maintain(ctx context.Context) {
 
 func (r *runner) maintainOnce(ctx context.Context) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	tenants := make([]*tenantState, 0, len(r.tenants))
 
-	for tenantId, ts := range r.tenants {
-		var err error
-
-		if time.Since(ts.cache.LastLoad()) >= r.cfg.RoutingFullReloadInterval {
-			err = ts.cache.Load(ctx)
-		} else {
-			err = ts.cache.Refresh(ctx)
-		}
-
-		if err != nil {
-			r.l.Error().Err(err).Str("tenant_id", tenantId.String()).Msg("could not refresh serverless routing cache")
-			continue
-		}
-
-		for shard := range ts.units {
-			if ts.registration(shard) != nil {
-				continue
-			}
-
-			if err := r.openRegistration(ctx, ts, shard); err != nil {
-				r.l.Debug().Err(err).Str("tenant_id", tenantId.String()).Int32("shard", shard).Msg("registration still not open")
-			}
-		}
-
-		r.reconcilePollers(ts)
-		r.syncTenantActions(ctx, ts)
+	for _, ts := range r.tenants {
+		tenants = append(tenants, ts)
 	}
 
-	r.updateGaugesLocked()
+	r.mu.Unlock()
+
+	sem := make(chan struct{}, r.cfg.MaintenanceConcurrency)
+
+	var wg sync.WaitGroup
+
+	for _, ts := range tenants {
+		wg.Add(1)
+
+		go func(ts *tenantState) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			r.maintainTenant(ctx, ts)
+		}(ts)
+	}
+
+	wg.Wait()
+
+	for tenantId, shards := range groupUnits(r.pendingUnits()) {
+		r.gainUnits(ctx, tenantId, shards)
+	}
+
+	r.updateGauges()
 }
 
-// syncTenantActions pushes the cached union to every registration for the tenant whose
-// advertised revision is behind.
-func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
-	ts.mu.Lock()
-	regs := make([]*registration, 0, len(ts.regs))
+func (r *runner) maintainTenant(ctx context.Context, ts *tenantState) {
+	ts.opMu.Lock()
+	defer ts.opMu.Unlock()
 
-	for _, reg := range ts.regs {
-		regs = append(regs, reg)
+	if ts.removed || ts.unitCount() == 0 {
+		return
 	}
 
-	ts.mu.Unlock()
+	var err error
 
-	for _, reg := range regs {
-		if err := reg.syncActions(ctx, ts.cache); err != nil {
-			r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Int32("shard", reg.shard).Msg("could not update registration actions")
+	switch {
+	case !ts.loaded:
+		err = ts.cache.Load(ctx)
+
+		if err == nil {
+			ts.mu.Lock()
+			ts.loaded = true
+			ts.mu.Unlock()
 		}
+	case time.Since(ts.cache.LastLoad()) >= r.cfg.RoutingFullReloadInterval:
+		err = ts.cache.Load(ctx)
+	default:
+		err = ts.cache.Refresh(ctx)
+	}
+
+	if err != nil {
+		r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("could not refresh serverless routing cache")
+		return
+	}
+
+	if ts.registration() == nil {
+		if err := r.openRegistration(ctx, ts); err != nil {
+			r.l.Debug().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("registration still not open")
+		}
+	}
+
+	r.reconcilePollers(ts)
+	r.syncTenantActions(ctx, ts)
+}
+
+// syncTenantActions pushes the cached union to the tenant's registration when its
+// advertised revision is behind.
+func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
+	reg := ts.registration()
+
+	if reg == nil {
+		return
+	}
+
+	if err := reg.syncActions(ctx, ts.cache); err != nil {
+		r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("could not update registration actions")
 	}
 }
 
@@ -331,23 +538,25 @@ func (r *runner) Shutdown() {
 	r.mu.Lock()
 	tenants := r.tenants
 	r.tenants = map[uuid.UUID]*tenantState{}
+	r.pending = map[lease.Unit]struct{}{}
 	r.mu.Unlock()
 
-	regs := make([]*registration, 0)
+	regs := make([]*registration, 0, len(tenants))
 
 	for _, ts := range tenants {
-		for _, poller := range ts.pollers {
+		ts.opMu.Lock()
+		ts.removed = true
+
+		for id, poller := range ts.pollers {
+			delete(ts.pollers, id)
 			poller.stop()
 		}
 
-		ts.mu.Lock()
-
-		for _, reg := range ts.regs {
+		if reg := ts.setRegistration(nil); reg != nil {
 			regs = append(regs, reg)
 		}
 
-		ts.regs = map[int32]*registration{}
-		ts.mu.Unlock()
+		ts.opMu.Unlock()
 	}
 
 	var wg sync.WaitGroup
@@ -373,24 +582,31 @@ func (r *runner) Shutdown() {
 	r.stopDelivery()
 	r.wg.Wait()
 
-	r.mu.Lock()
-	r.updateGaugesLocked()
-	r.mu.Unlock()
+	r.updateGauges()
 }
 
-// updateGaugesLocked recomputes the registration, health and token gauges. Callers hold
-// r.mu; paths that cannot (pollers, action loops) leave it to the next maintenance pass.
-func (r *runner) updateGaugesLocked() {
+// updateGauges recomputes the registration, health and token gauges from a snapshot of the
+// served tenants.
+func (r *runner) updateGauges() {
+	r.mu.Lock()
+	tenants := make([]*tenantState, 0, len(r.tenants))
+
+	for _, ts := range r.tenants {
+		tenants = append(tenants, ts)
+	}
+
+	r.mu.Unlock()
+
 	registrations := 0
 	unhealthy := 0
 	noToken := 0
 
-	for _, ts := range r.tenants {
-		ts.mu.Lock()
-		registrations += len(ts.regs)
-		ts.mu.Unlock()
+	for _, ts := range tenants {
+		if ts.registration() != nil {
+			registrations++
+		}
 
-		if ts.noToken {
+		if ts.noToken.Load() {
 			noToken++
 		}
 

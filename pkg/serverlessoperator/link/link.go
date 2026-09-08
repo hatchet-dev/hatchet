@@ -43,11 +43,12 @@ type OpenOpts struct {
 	Labels     map[string]interface{}
 }
 
-// Link opens registrations for a tenant. One Link per process; one Registration per owned unit.
+// Link opens registrations for a tenant. One Link per process; one Registration per tenant the
+// process owns units of, whatever the number of units.
 type Link interface {
-	// Open registers a worker for the unit and adds opts.Actions to it before returning, so a
+	// Open registers a worker for the tenant and adds opts.Actions to it before returning, so a
 	// registration is never observable with an empty action set.
-	Open(ctx context.Context, tenantId uuid.UUID, shard int, opts OpenOpts) (Registration, error)
+	Open(ctx context.Context, tenantId uuid.UUID, opts OpenOpts) (Registration, error)
 }
 
 // Registration is one engine Worker row's worth of traffic.

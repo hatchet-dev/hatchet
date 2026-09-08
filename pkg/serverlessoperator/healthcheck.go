@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 // RequestSender is the outbound HTTP seam: safeclient.Sender in production, a fake in tests.
@@ -59,9 +60,23 @@ func signedHeaders(secret string, endpointId uuid.UUID, timestamp int64, body []
 	return headers, nil
 }
 
+// catalogLimits caps what one healthcheck may advertise.
+type catalogLimits struct {
+	maxWorkflows int
+	maxActions   int
+}
+
+// actionRules is the engine's own action id validation, applied to every advertised action
+// before it can enter a tenant's shared union.
+var actionRules = validator.NewDefaultValidator()
+
+type advertisedActions struct {
+	Actions []string `validate:"dive,actionId"`
+}
+
 // pollHealthcheck issues one signed healthcheck and parses the response. The caller owns the
-// deadline and the process-wide concurrency limit.
-func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoint, cfg *endpointConfig) (*healthcheckResult, error) {
+// deadline and the concurrency limits.
+func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoint, cfg *endpointConfig, limits catalogLimits) (*healthcheckResult, error) {
 	if cfg.secretErr != nil {
 		return nil, cfg.secretErr
 	}
@@ -94,18 +109,27 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 		return nil, fmt.Errorf("healthcheck returned status %d", res.StatusCode)
 	}
 
-	return parseHealthcheckResponse(res.BodyPrefix, ep.namespace)
+	return parseHealthcheckResponse(res.BodyPrefix, ep.namespace, limits)
 }
 
 // parseHealthcheckResponse applies the namespace to the advertised workflows, derives the
-// action set (the workflows' actions plus any the endpoint lists explicitly) and hashes the
-// canonical (namespaced, deterministic) form so an unchanged response, however the endpoint
-// formats it, produces the same hash.
-func parseHealthcheckResponse(body []byte, ns uuid.UUID) (*healthcheckResult, error) {
+// action set (the workflows' actions plus any the endpoint lists explicitly), validates every
+// action with the engine's rules, enforces the catalog caps, and hashes the canonical
+// (namespaced, deterministic) form so an unchanged response, however the endpoint formats it,
+// produces the same hash.
+func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (*healthcheckResult, error) {
 	resp := &v1.ServerlessHealthcheckResponse{}
 
 	if err := contract.Unmarshal(body, resp); err != nil {
 		return nil, fmt.Errorf("could not parse healthcheck response: %w", err)
+	}
+
+	if limits.maxWorkflows > 0 && len(resp.Workflows) > limits.maxWorkflows {
+		return nil, fmt.Errorf("healthcheck advertises %d workflows, more than the limit of %d", len(resp.Workflows), limits.maxWorkflows)
+	}
+
+	if limits.maxActions > 0 && len(resp.Actions) > limits.maxActions {
+		return nil, fmt.Errorf("healthcheck advertises %d actions, more than the limit of %d", len(resp.Actions), limits.maxActions)
 	}
 
 	hasher := sha256.New()
@@ -162,6 +186,14 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID) (*healthcheckResult, er
 	actionLists = append(actionLists, extra)
 	actions := sortedUnion(actionLists...)
 
+	if limits.maxActions > 0 && len(actions) > limits.maxActions {
+		return nil, fmt.Errorf("healthcheck advertises %d actions, more than the limit of %d", len(actions), limits.maxActions)
+	}
+
+	if err := actionRules.Validate(advertisedActions{Actions: actions}); err != nil {
+		return nil, fmt.Errorf("healthcheck advertises an invalid action: %w", err)
+	}
+
 	hasher.Write([]byte(strings.Join(actions, "\n")))
 
 	return &healthcheckResult{
@@ -176,12 +208,24 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID) (*healthcheckResult, er
 
 // pollInterval spreads polls of endpoints created together by up to 10 percent either way.
 func pollInterval(seconds int32) time.Duration {
+	base := pollBase(seconds)
+	jitter := 0.9 + rand.Float64()*0.2 // #nosec G404 -- jitter, not security
+
+	return time.Duration(float64(base) * jitter)
+}
+
+// firstPollDelay spreads the first polls of a gained unit over up to a tenth of the interval,
+// at most one second, so registration is not delayed for long.
+func firstPollDelay(seconds int32) time.Duration {
+	spread := min(pollBase(seconds)/10, time.Second)
+
+	return time.Duration(rand.Float64() * float64(spread)) // #nosec G404 -- jitter, not security
+}
+
+func pollBase(seconds int32) time.Duration {
 	if seconds <= 0 {
 		seconds = 30
 	}
 
-	base := time.Duration(seconds) * time.Second
-	jitter := 0.9 + rand.Float64()*0.2 // #nosec G404 -- jitter, not security
-
-	return time.Duration(float64(base) * jitter)
+	return time.Duration(seconds) * time.Second
 }

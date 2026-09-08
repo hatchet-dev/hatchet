@@ -135,12 +135,12 @@ func (g *Link) ReleaseTenant(tenantId uuid.UUID) {
 // exchange's own reload. The initial action set is streamed to the engine right after the
 // connect and flushed before the registration is returned; the session keeps it as the
 // desired set and replays it when a reconnect does not resume the worker.
-func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
-	session, err := g.connect(ctx, tenantId, shard, opts)
+func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
+	session, err := g.connect(ctx, tenantId, opts)
 
 	if err != nil && status.Code(err) == codes.Unauthenticated {
 		g.evict(tenantId)
-		session, err = g.connect(ctx, tenantId, shard, opts)
+		session, err = g.connect(ctx, tenantId, opts)
 	}
 
 	if err != nil {
@@ -152,14 +152,14 @@ func (g *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 
 		if err := session.Flush(ctx); err != nil {
 			_ = session.Close()
-			return nil, fmt.Errorf("could not register initial actions for tenant %s shard %d: %w", tenantId, shard, err)
+			return nil, fmt.Errorf("could not register initial actions for tenant %s: %w", tenantId, err)
 		}
 	}
 
 	return &registration{session: session}, nil
 }
 
-func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (client.OperatorSession, error) {
+func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (client.OperatorSession, error) {
 	token, err := g.exchange.Token(ctx, tenantId)
 
 	if err != nil {
@@ -176,13 +176,11 @@ func (g *Link) connect(ctx context.Context, tenantId uuid.UUID, shard int, opts 
 		return nil, fmt.Errorf("tenant %s: %w", tenantId, err)
 	}
 
-	labels := make(map[string]interface{}, len(opts.Labels)+1)
+	labels := make(map[string]interface{}, len(opts.Labels))
 
 	for k, v := range opts.Labels {
 		labels[k] = v
 	}
-
-	labels["hatchet-serverless-shard"] = shard
 
 	return c.Operator().Connect(ctx, &client.ConnectOperatorRequest{
 		Name:       g.name,

@@ -88,6 +88,13 @@ func (p *endpointPoller) stop() {
 }
 
 func (p *endpointPoller) run(ctx context.Context) {
+	// The first poll is spread out too: a gained unit starts every poller at once.
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(firstPollDelay(p.ts.cache.Config(p.ep).pollIntervalSeconds)):
+	}
+
 	for {
 		p.pollOnce(ctx)
 
@@ -117,17 +124,17 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 		return
 	}
 
-	if err := p.r.acquireHealthcheckSlot(ctx); err != nil {
+	if err := p.acquireSlots(ctx); err != nil {
 		return
 	}
 
 	hctx, cancel := context.WithTimeout(ctx, p.r.cfg.HealthcheckTimeout)
 	start := time.Now()
 
-	res, err := pollHealthcheck(hctx, p.r.sender, p.ep, cfg)
+	res, err := pollHealthcheck(hctx, p.r.sender, p.ep, cfg, p.r.catalogLimits())
 
 	cancel()
-	p.r.releaseHealthcheckSlot()
+	p.releaseSlots()
 
 	if ctx.Err() != nil {
 		return
@@ -165,7 +172,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 		return pollStatus{healthy: false, err: p.rejectedErr}
 	}
 
-	reg := p.ts.registration(p.ep.shard)
+	reg := p.ts.registration()
 
 	if reg == nil {
 		// The unit's registration is not open (no token, engine unreachable): the change is
@@ -174,7 +181,12 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 		return pollStatus{healthy: true}
 	}
 
-	if err := p.applyChange(ctx, reg, res); err != nil {
+	// Applying a catalog is bounded on its own: the workflow puts and the action delta must
+	// not run on the lifecycle context alone.
+	actx, cancel := context.WithTimeout(ctx, p.r.cfg.HealthcheckApplyTimeout)
+	defer cancel()
+
+	if err := p.applyChange(actx, reg, res); err != nil {
 		p.r.l.Error().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("could not register serverless endpoint workflows")
 
 		var rejection catalogRejected
@@ -320,31 +332,46 @@ func (r *runner) markNoToken(ctx context.Context, ts *tenantState) {
 	}
 }
 
-func (r *runner) acquireHealthcheckSlot(ctx context.Context) error {
+// acquireSlots takes the tenant's healthcheck slot, then a process-wide one, so a tenant
+// with many slow endpoints holds at most its own share of the process limit.
+func (p *endpointPoller) acquireSlots(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case r.hcSem <- struct{}{}:
+	case p.ts.hcSem <- struct{}{}:
+	}
+
+	select {
+	case <-ctx.Done():
+		<-p.ts.hcSem
+		return ctx.Err()
+	case p.r.hcSem <- struct{}{}:
 		return nil
 	}
 }
 
-func (r *runner) releaseHealthcheckSlot() {
-	<-r.hcSem
+func (p *endpointPoller) releaseSlots() {
+	<-p.r.hcSem
+	<-p.ts.hcSem
+}
+
+func (r *runner) catalogLimits() catalogLimits {
+	return catalogLimits{maxWorkflows: r.cfg.MaxWorkflowsPerEndpoint, maxActions: r.cfg.MaxActionsPerEndpoint}
 }
 
 // ownedEndpoints are the tenant's endpoints on shards this process owns, in no particular
 // order: a snapshot of the tenant is never sorted just to filter it.
 func (ts *tenantState) ownedEndpoints() []*cachedEndpoint {
-	return ts.cache.endpointsOnShards(ts.units)
+	return ts.cache.endpointsOnShards(ts.ownedShards())
 }
 
 // reconcilePollers starts pollers for owned, enabled endpoints without one and stops pollers
 // whose endpoint is no longer owned, enabled or present. With no token nothing is polled.
+// Runs under ts.opMu; stopping a poller waits for its current poll.
 func (r *runner) reconcilePollers(ts *tenantState) {
 	desired := map[uuid.UUID]*cachedEndpoint{}
 
-	if !ts.noToken {
+	if !ts.noToken.Load() {
 		for _, ep := range ts.ownedEndpoints() {
 			if ts.cache.Config(ep).enabled {
 				desired[ep.id] = ep

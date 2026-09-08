@@ -272,11 +272,11 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 
 	opts := link.OpenOpts{Actions: []string{"ns_svc:run"}, SlotConfig: map[string]int32{"default": 1}, Labels: map[string]interface{}{"k": "v"}}
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, opts)
+	reg, err := lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	assert.Equal(t, "wserverless", reg.WorkerId())
 
-	reg2, err := lnk.Open(context.Background(), tenant, 1, opts)
+	reg2, err := lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 
 	require.Len(t, built, 1, "one client per tenant")
@@ -286,7 +286,7 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	assert.Equal(t, "serverless", req.Name)
 	assert.Equal(t, opts.SlotConfig, req.SlotConfig)
 	assert.Equal(t, "v", req.Labels["k"])
-	assert.Equal(t, 1, req.Labels["hatchet-serverless-shard"])
+	assert.Len(t, req.Labels, 1, "only the core's labels are sent")
 
 	// the initial action set is streamed and flushed before Open returns
 	session := built[0].operator.sessions[1]
@@ -319,18 +319,18 @@ func TestLinkOpenCachesClientPerTenant(t *testing.T) {
 	// A rotated token rebuilds the client; a released tenant is evicted.
 	exchange[tenant] = "tok-2"
 
-	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	_, err = lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	require.Len(t, built, 2)
 	assert.Equal(t, "tok-2", built[1].token)
 
 	lnk.ReleaseTenant(tenant)
 
-	_, err = lnk.Open(context.Background(), tenant, 0, opts)
+	_, err = lnk.Open(context.Background(), tenant, opts)
 	require.NoError(t, err)
 	assert.Len(t, built, 3)
 
-	_, err = lnk.Open(context.Background(), uuid.New(), 0, opts)
+	_, err = lnk.Open(context.Background(), uuid.New(), opts)
 	assert.ErrorIs(t, err, link.ErrNoToken)
 	assert.Len(t, built, 3, "no client is built without a token")
 }
@@ -356,7 +356,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 		},
 	})
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	reg, err := lnk.Open(context.Background(), tenant, link.OpenOpts{})
 	require.NoError(t, err)
 	assert.NotNil(t, reg)
 	assert.Len(t, built, 2, "the cached client is dropped and rebuilt after Unauthenticated")
@@ -368,7 +368,7 @@ func TestLinkRetriesOnceOnUnauthenticated(t *testing.T) {
 		},
 	})
 
-	_, err = lnk2.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	_, err = lnk2.Open(context.Background(), tenant, link.OpenOpts{})
 	assert.Error(t, err)
 }
 
@@ -386,12 +386,12 @@ func TestLinkOpenFlushesInitialActions(t *testing.T) {
 		},
 	})
 
-	_, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{Actions: []string{"bad"}})
+	_, err := lnk.Open(context.Background(), tenant, link.OpenOpts{Actions: []string{"bad"}})
 	require.ErrorContains(t, err, "invalid action")
 	require.Len(t, op.sessions, 1)
 	assert.True(t, op.sessions[0].closed, "the session is closed when the initial flush fails")
 
-	reg, err := lnk.Open(context.Background(), tenant, 0, link.OpenOpts{})
+	reg, err := lnk.Open(context.Background(), tenant, link.OpenOpts{})
 	require.NoError(t, err)
 	assert.Empty(t, op.sessions[1].added)
 	assert.Equal(t, 0, op.sessions[1].flushes)

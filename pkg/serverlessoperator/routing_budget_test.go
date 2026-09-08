@@ -162,9 +162,14 @@ func TestLoadUnitEndpointsBudget(t *testing.T) {
 	repo := &budgetRepo{rows: budgetRows(endpoints, 10)}
 	r := &runner{repo: budgetRootRepo{ep: repo}, enc: budgetEnc{}, l: &l, tenants: map[uuid.UUID]*tenantState{}}
 	units := []lease.Unit{{TenantId: budgetTenant}}
+	ctx := context.Background()
 
+	// Gaining the tenant's first unit loads the tenant in full; gaining another unit later
+	// pages that unit's endpoints over the loaded cache. Both are measured.
 	elapsed, allocated := measure(func() {
-		require.NoError(t, r.loadUnitEndpoints(context.Background(), units))
+		ts := r.tenantFor(budgetTenant)
+		require.NoError(t, r.loadTenant(ctx, ts, []int32{0}))
+		require.NoError(t, r.loadUnitEndpoints(ctx, ts, units))
 	})
 
 	t.Logf("endpoints=%d elapsed=%s allocated=%d", endpoints, elapsed, allocated)
@@ -174,8 +179,9 @@ func TestLoadUnitEndpointsBudget(t *testing.T) {
 
 	ts := r.tenants[budgetTenant]
 	require.NotNil(t, ts)
-	union, _ := ts.cache.ActionUnion()
+	union, rev := ts.cache.ActionUnion()
 	assert.Len(t, union, endpoints*10)
+	assert.Equal(t, uint64(1), rev, "the load published one revision and the unit pages none")
 }
 
 // A refresh with nothing changed must read nothing and leave the watermark alone: the review
@@ -222,7 +228,7 @@ func TestUnchangedUnionSyncIsFree(t *testing.T) {
 	reg := &registration{reg: fake, advertised: union, advertisedRev: rev}
 	l := zerolog.Nop()
 	reg.r = &runner{l: &l}
-	ts := &tenantState{cache: c, tenantId: budgetTenant, regs: map[int32]*registration{0: reg}}
+	ts := &tenantState{cache: c, tenantId: budgetTenant, reg: reg}
 	reg.ts = ts
 
 	elapsed, allocated := measure(func() {
@@ -271,12 +277,12 @@ func TestRecoveryWriteAfterOwnershipTransfer(t *testing.T) {
 	env.addEndpoint(row)
 
 	ctx := context.Background()
-	ts, err := env.r.ensureTenant(ctx, row.TenantID)
-	require.NoError(t, err)
+	ts := env.r.tenantFor(row.TenantID)
+	require.NoError(t, ts.cache.Load(ctx))
 
 	// The previous owner marks the endpoint unhealthy; this process refreshes and then takes
 	// the unit over.
-	_, err = env.repo.Endpoints().UpdateStatus(ctx, row.ID, false, nil)
+	_, err := env.repo.Endpoints().UpdateStatus(ctx, row.ID, false, nil)
 	require.NoError(t, err)
 	require.NoError(t, ts.cache.Load(ctx))
 
@@ -312,10 +318,10 @@ func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 	c, repo := budgetCache(t, 1, 0)
 	ep := c.byId[repo.rows[0].ID]
 
-	ts := &tenantState{cache: c, regs: map[int32]*registration{0: {reg: rejectingRegistration{}}}}
+	ts := &tenantState{cache: c, reg: &registration{reg: rejectingRegistration{}}, hcSem: make(chan struct{}, 4)}
 	l := zerolog.Nop()
 	r := &runner{repo: budgetRootRepo{ep: repo}, cfg: DefaultConfig(), sender: validHealthSender{}, l: &l, m: newMetrics("budget-status"), hcSem: make(chan struct{}, 256)}
-	ts.regs[0].r = r
+	ts.reg.r = r
 	p := newEndpointPoller(r, ts, ep)
 
 	for i := 0; i < 3; i++ {

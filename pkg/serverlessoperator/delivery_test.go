@@ -145,7 +145,7 @@ func TestDeliverActionWithoutSecretFails(t *testing.T) {
 func TestParseHealthcheckResponse(t *testing.T) {
 	ns := uuid.New()
 
-	legacy, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:One","svc:two",""]}`), ns)
+	legacy, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:One","svc:two",""]}`), ns, catalogLimits{})
 	require.NoError(t, err)
 	assert.Empty(t, legacy.workflows)
 	assert.Equal(t, []string{prefixed(ns, "svc:one"), prefixed(ns, "svc:two")}, legacy.actions)
@@ -155,7 +155,7 @@ func TestParseHealthcheckResponse(t *testing.T) {
 		"actions": ["svc:extra"],
 		"durable": {"supported": true},
 		"runtime": {"name": "cloudflare-workers", "sdkVersion": "0.1.0"}
-	}`), ns)
+	}`), ns, catalogLimits{})
 	require.NoError(t, err)
 	require.Len(t, full.workflows, 1)
 	assert.Equal(t, prefixed(ns, "echo"), full.workflows[0].Name)
@@ -168,13 +168,13 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	assert.NotEqual(t, legacy.hash, full.hash)
 
 	// Formatting differences do not change the hash; content does.
-	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readableId":"t"}],"name":"echo"}]}`), ns)
+	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readableId":"t"}],"name":"echo"}]}`), ns, catalogLimits{})
 	require.NoError(t, err)
 	assert.Equal(t, full.hash, same.hash)
 
-	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"bad","tasks":[{"action":"noverb"}]}]}`), ns)
+	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"bad","tasks":[{"action":"noverb"}]}]}`), ns, catalogLimits{})
 	assert.Error(t, err)
 
-	_, err = parseHealthcheckResponse([]byte(`not json`), ns)
+	_, err = parseHealthcheckResponse([]byte(`not json`), ns, catalogLimits{})
 	assert.Error(t, err)
 }

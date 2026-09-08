@@ -14,6 +14,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
+// attemptKey identifies one delivery attempt of a task: the engine retries a task with a
+// new retry count and re-invokes a durable task with a new invocation count, and either can
+// overlap the previous attempt's cleanup.
+type attemptKey struct {
+	retry      int32
+	invocation int32
+}
+
+// noInvocation is the invocation part of a non-durable attempt's key.
+const noInvocation = -1
+
+func attemptOf(action *contracts.AssignedAction) attemptKey {
+	key := attemptKey{retry: action.RetryCount, invocation: noInvocation}
+
+	if action.DurableTaskInvocationCount != nil {
+		key.invocation = *action.DurableTaskInvocationCount
+	}
+
+	return key
+}
+
 // inflightTask is one delivery in progress. byEngine records that a CANCEL_STEP_RUN, not a
 // drain, cancelled it, so the delivery goroutine knows the terminal event was already sent.
 type inflightTask struct {
@@ -21,9 +42,9 @@ type inflightTask struct {
 	byEngine atomic.Bool
 }
 
-// registration is one owned unit's engine registration: the link Registration, the action
-// loop that dispatches assigned actions, the in-flight deliveries and the action set it
-// last advertised, from which the next sync derives its delta.
+// registration is a tenant's engine registration on this process: the link Registration,
+// the action loop that dispatches assigned actions, the in-flight deliveries keyed by task
+// and attempt, and the action union revision it last advertised.
 type registration struct {
 	r          *runner
 	ts         *tenantState
@@ -31,13 +52,12 @@ type registration struct {
 	events     *eventSender
 	loopCancel context.CancelFunc
 	loopDone   chan struct{}
-	inflight   map[string]*inflightTask
+	inflight   map[string]map[attemptKey]*inflightTask
 	// advertised is the union the engine holds for this registration (the cache's shared
 	// sorted slice, never modified) and advertisedRev its revision: a sync is free while the
 	// cache is at the same revision.
 	advertised    []string
 	advertisedRev uint64
-	shard         int32
 	mu            sync.Mutex
 	// syncMu serializes syncActions so two callers (maintenance pass and a poller) never
 	// derive and push the same delta twice.
@@ -46,20 +66,14 @@ type registration struct {
 	closed bool
 }
 
-func (ts *tenantState) registration(shard int32) *registration {
-	ts.mu.Lock()
-	defer ts.mu.Unlock()
-
-	return ts.regs[shard]
-}
-
-// openTimeout bounds one Link.Open. Open runs under the runner lock, so a hung engine must
-// not stall lease reconciliation for longer than this.
+// openTimeout bounds one Link.Open, so a hung engine cannot hold a tenant's operations for
+// longer than this.
 const openTimeout = 30 * time.Second
 
-// openRegistration connects the unit with the tenant's current action union. Workflows are
-// not part of opening: the pollers put them as they learn them, and the engine keeps them.
-func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard int32) error {
+// openRegistration connects the tenant with its current action union. Workflows are not part
+// of opening: the pollers put them as they learn them, and the engine keeps them. Runs under
+// ts.opMu.
+func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
 
@@ -71,32 +85,31 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 		Labels:     map[string]interface{}{workerLabelProcess: r.processId.String()},
 	}
 
-	reg, err := r.link.Open(ctx, ts.tenantId, int(shard), opts)
+	reg, err := r.link.Open(ctx, ts.tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, link.ErrNoToken) {
-			if !ts.noToken {
+			if !ts.noToken.Load() {
 				r.l.Warn().Str("tenant_id", ts.tenantId.String()).Msg("no token for tenant; endpoints are not polled or registered")
 			}
 
-			ts.noToken = true
+			ts.noToken.Store(true)
 			r.markNoToken(ctx, ts)
 
 			return err
 		}
 
-		return fmt.Errorf("could not open registration for tenant %s shard %d: %w", ts.tenantId, shard, err)
+		return fmt.Errorf("could not open registration for tenant %s: %w", ts.tenantId, err)
 	}
 
-	ts.noToken = false
+	ts.noToken.Store(false)
 
 	reg2 := &registration{
 		r:             r,
 		ts:            ts,
 		reg:           reg,
 		events:        &eventSender{reg: reg},
-		shard:         shard,
-		inflight:      map[string]*inflightTask{},
+		inflight:      map[string]map[attemptKey]*inflightTask{},
 		advertised:    union,
 		advertisedRev: rev,
 		loopDone:      make(chan struct{}),
@@ -108,13 +121,8 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 	loopCtx, cancel := context.WithCancel(r.loopCtx)
 	reg2.loopCancel = cancel
 
-	ts.mu.Lock()
-	prev := ts.regs[shard]
-	ts.regs[shard] = reg2
-	ts.mu.Unlock()
-
-	if prev != nil {
-		// A stale registration for the shard is closed without draining; its deliveries
+	if prev := ts.setRegistration(reg2); prev != nil {
+		// A stale registration for the tenant is closed without draining; its deliveries
 		// report through the closed link and the engine retries them.
 		go prev.close()
 	}
@@ -128,7 +136,6 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState, shard in
 
 	r.l.Info().
 		Str("tenant_id", ts.tenantId.String()).
-		Int32("shard", shard).
 		Str("worker_id", reg.WorkerId()).
 		Int("actions", len(union)).
 		Msg("serverless registration opened")
@@ -152,7 +159,7 @@ func (reg *registration) run(ctx context.Context) {
 	ch, errCh, err := reg.reg.Actions(ctx)
 
 	if err != nil {
-		reg.r.l.Error().Err(err).Int32("shard", reg.shard).Msg("could not start serverless action stream")
+		reg.r.l.Error().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not start serverless action stream")
 		reg.failed()
 
 		return
@@ -181,7 +188,7 @@ func (reg *registration) run(ctx context.Context) {
 			}
 
 			if err != nil && ctx.Err() == nil {
-				reg.r.l.Error().Err(err).Int32("shard", reg.shard).Msg("serverless action stream failed")
+				reg.r.l.Error().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("serverless action stream failed")
 				reg.failed()
 
 				return
@@ -192,14 +199,7 @@ func (reg *registration) run(ctx context.Context) {
 
 // failed detaches a broken registration so the maintenance loop opens a fresh one.
 func (reg *registration) failed() {
-	reg.ts.mu.Lock()
-
-	if reg.ts.regs[reg.shard] == reg {
-		delete(reg.ts.regs, reg.shard)
-	}
-
-	reg.ts.mu.Unlock()
-
+	reg.ts.detachRegistration(reg)
 	reg.r.m.sessionReconnect()
 
 	go reg.close()
@@ -219,7 +219,12 @@ func (reg *registration) handle(action *contracts.AssignedAction) {
 	}
 }
 
+// startDelivery records the attempt and delivers it. A second start for an attempt already
+// in flight is a duplicate assignment and is ignored; a new attempt of a task whose previous
+// attempt is still cleaning up gets its own record.
 func (reg *registration) startDelivery(action *contracts.AssignedAction) {
+	key := attemptOf(action)
+
 	reg.mu.Lock()
 
 	if reg.closed {
@@ -227,9 +232,27 @@ func (reg *registration) startDelivery(action *contracts.AssignedAction) {
 		return
 	}
 
+	attempts, ok := reg.inflight[action.TaskRunExternalId]
+
+	if !ok {
+		attempts = map[attemptKey]*inflightTask{}
+		reg.inflight[action.TaskRunExternalId] = attempts
+	}
+
+	if _, dup := attempts[key]; dup {
+		reg.mu.Unlock()
+		reg.r.l.Warn().
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Int32("retry", key.retry).
+			Int32("invocation", key.invocation).
+			Msg("duplicate assignment for an attempt already in flight; ignored")
+
+		return
+	}
+
 	ctx, cancel := context.WithCancel(reg.r.deliveryCtx)
 	task := &inflightTask{cancel: cancel}
-	reg.inflight[action.TaskRunExternalId] = task
+	attempts[key] = task
 	reg.active.Add(1)
 	reg.mu.Unlock()
 
@@ -238,28 +261,53 @@ func (reg *registration) startDelivery(action *contracts.AssignedAction) {
 	go func() {
 		defer reg.r.wg.Done()
 		defer reg.active.Done()
-		defer reg.finish(action.TaskRunExternalId, cancel)
+		defer reg.finish(action.TaskRunExternalId, key, task)
 
 		reg.deliver(ctx, task, action)
 	}()
 }
 
-func (reg *registration) finish(taskRunExternalId string, cancel context.CancelFunc) {
+// finish removes the attempt's own record only: a newer attempt of the same task keeps its
+// record and stays cancellable.
+func (reg *registration) finish(taskRunExternalId string, key attemptKey, task *inflightTask) {
 	reg.mu.Lock()
-	delete(reg.inflight, taskRunExternalId)
+
+	if attempts, ok := reg.inflight[taskRunExternalId]; ok && attempts[key] == task {
+		delete(attempts, key)
+
+		if len(attempts) == 0 {
+			delete(reg.inflight, taskRunExternalId)
+		}
+	}
+
 	reg.mu.Unlock()
 
-	cancel()
+	task.cancel()
 }
 
-// cancelTask interrupts the in-flight delivery, if any, and reports CANCELLED; the
+// cancelTask interrupts the in-flight delivery of the attempt the cancel names, or of every
+// attempt of the task when the named one is not in flight, and reports CANCELLED; the
 // delivery goroutine then stays quiet.
 func (reg *registration) cancelTask(action *contracts.AssignedAction) {
+	key := attemptOf(action)
+
 	reg.mu.Lock()
-	task, ok := reg.inflight[action.TaskRunExternalId]
+
+	var targets []*inflightTask
+
+	if attempts, ok := reg.inflight[action.TaskRunExternalId]; ok {
+		if task, ok := attempts[key]; ok {
+			targets = append(targets, task)
+		} else {
+			for _, task := range attempts {
+				targets = append(targets, task)
+			}
+		}
+	}
+
 	reg.mu.Unlock()
 
-	if ok {
+	for _, task := range targets {
 		task.byEngine.Store(true)
 		task.cancel()
 	}
@@ -269,8 +317,8 @@ func (reg *registration) cancelTask(action *contracts.AssignedAction) {
 	}
 }
 
-// deliver routes the action to its endpoint by namespace, takes an endpoint slot, reports
-// STARTED, delivers, and reports the outcome.
+// deliver routes the action to its endpoint by namespace, reports STARTED, delivers, and
+// reports the outcome.
 func (reg *registration) deliver(ctx context.Context, task *inflightTask, action *contracts.AssignedAction) {
 	start := time.Now()
 
@@ -309,7 +357,8 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 
 // deliverDurable relays a durable invocation over the endpoint websocket: report STARTED,
 // open the invocation's channel through the registration and run the relay, which owns the
-// socket and the channel until the endpoint's done frame or a failure.
+// socket and the channel until the endpoint's done frame or a failure. The endpoint's request
+// timeout bounds the whole invocation, the link's handshake included.
 func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time) {
 	invocation := *action.DurableTaskInvocationCount
 
@@ -333,7 +382,12 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
 
-	ch, err := reg.reg.OpenDurable(ctx, action.TaskRunExternalId, invocation)
+	timeout := requestTimeout(cfg)
+
+	rctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ch, err := reg.reg.OpenDurable(rctx, action.TaskRunExternalId, invocation)
 
 	if err != nil {
 		result := "retryable"
@@ -347,11 +401,6 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 
 		return
 	}
-
-	timeout := requestTimeout(cfg)
-
-	rctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	insecure := false
 
@@ -421,11 +470,18 @@ func (reg *registration) reportFailure(action *contracts.AssignedAction, msg str
 	}
 }
 
+// inFlight counts every delivery in progress, every attempt included.
 func (reg *registration) inFlight() int {
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
-	return len(reg.inflight)
+	n := 0
+
+	for _, attempts := range reg.inflight {
+		n += len(attempts)
+	}
+
+	return n
 }
 
 // syncActions brings the registration to the cache's union revision: the delta since the
@@ -492,7 +548,6 @@ func (reg *registration) syncActions(ctx context.Context, cache *routingCache) e
 
 	reg.r.l.Debug().
 		Str("tenant_id", reg.ts.tenantId.String()).
-		Int32("shard", reg.shard).
 		Int("added", len(added)).
 		Int("removed", len(removed)).
 		Msg("serverless registration actions synced")
@@ -549,8 +604,10 @@ func (reg *registration) drain(timeout time.Duration) {
 	reg.mu.Lock()
 	tasks := make([]*inflightTask, 0, len(reg.inflight))
 
-	for _, task := range reg.inflight {
-		tasks = append(tasks, task)
+	for _, attempts := range reg.inflight {
+		for _, task := range attempts {
+			tasks = append(tasks, task)
+		}
 	}
 
 	reg.mu.Unlock()
@@ -578,6 +635,6 @@ func (reg *registration) close() {
 	}
 
 	if err := reg.reg.Close(); err != nil {
-		reg.r.l.Warn().Err(err).Int32("shard", reg.shard).Msg("could not close serverless registration")
+		reg.r.l.Warn().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not close serverless registration")
 	}
 }

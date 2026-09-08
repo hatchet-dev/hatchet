@@ -102,9 +102,6 @@ const (
 	// maxActionsPerDelta caps the ids one AddWorkerActions or RemoveWorkerActions call carries,
 	// the same chunk size the gRPC operator path applies per streamed delta.
 	maxActionsPerDelta = 1000
-
-	// shardLabel carries the shard on the worker, as grpclink does.
-	shardLabel = "hatchet-serverless-shard"
 )
 
 // Link opens in-engine registrations.
@@ -177,7 +174,7 @@ type registerOpts struct {
 // action set and slot config, write labels, activate the worker under a fresh listener session
 // id, register the operator session with the dispatcher and notify the scheduler. Heartbeats
 // start with the registration and stop on Close.
-func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts link.OpenOpts) (link.Registration, error) {
+func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
 	tenant, err := e.tenants.GetTenantByID(ctx, tenantId)
 
 	if err != nil {
@@ -208,7 +205,7 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 
 	worker, err := e.workers.CreateNewWorker(ctx, tenantId, &repository.CreateWorkerOpts{
 		DispatcherId: e.dispatcherId,
-		Name:         workerName(e.dispatcherId, shard),
+		Name:         workerName(e.dispatcherId),
 		Actions:      actions,
 		SlotConfig:   slotConfig,
 		OperatorId:   &operatorId,
@@ -218,7 +215,7 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 		return nil, fmt.Errorf("could not create serverless worker: %w", err)
 	}
 
-	labels := labelOpts(opts.Labels, shard)
+	labels := labelOpts(opts.Labels)
 
 	if _, err := e.workers.UpsertWorkerLabels(ctx, worker.ID, labels); err != nil {
 		return nil, fmt.Errorf("could not upsert worker labels: %w", err)
@@ -236,7 +233,6 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, shard int, opts lin
 
 	l := e.l.With().
 		Str("tenant_id", tenantId.String()).
-		Int("shard", shard).
 		Str("operator_id", op.ID.String()).
 		Str("worker_id", worker.ID.String()).
 		Str("session_id", sessionId.String()).
@@ -260,9 +256,10 @@ func withTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
 	return context.WithValue(ctx, tenantContextKey, tenant) //nolint:staticcheck // key must match the gRPC auth middleware's
 }
 
-// workerName is "serverless-<dispatcher id>-<shard>": one worker per owned unit per process.
-func workerName(dispatcherId uuid.UUID, shard int) string {
-	return fmt.Sprintf("serverless-%s-%d", dispatcherId, shard)
+// workerName is "serverless-<dispatcher id>": one worker per tenant per process, whatever the
+// number of the tenant's units the process owns.
+func workerName(dispatcherId uuid.UUID) string {
+	return fmt.Sprintf("serverless-%s", dispatcherId)
 }
 
 // slotBuffer sizes the registration's action buffer: the worker can never be assigned more
@@ -284,10 +281,9 @@ func slotBuffer(slotConfig map[string]int32) int {
 }
 
 // labelOpts converts the core's labels to repository label opts the way the SDK client maps
-// them onto WorkerLabels: ints become int labels, everything else a string. The shard label
-// is added like grpclink does.
-func labelOpts(labels map[string]interface{}, shard int) []repository.UpsertWorkerLabelOpts {
-	out := make([]repository.UpsertWorkerLabelOpts, 0, len(labels)+1)
+// them onto WorkerLabels: ints become int labels, everything else a string.
+func labelOpts(labels map[string]interface{}) []repository.UpsertWorkerLabelOpts {
+	out := make([]repository.UpsertWorkerLabelOpts, 0, len(labels))
 
 	add := func(key string, value interface{}) {
 		opt := repository.UpsertWorkerLabelOpts{Key: key}
@@ -316,8 +312,6 @@ func labelOpts(labels map[string]interface{}, shard int) []repository.UpsertWork
 	for key, value := range labels {
 		add(key, value)
 	}
-
-	add(shardLabel, shard)
 
 	return out
 }
