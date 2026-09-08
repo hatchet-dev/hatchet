@@ -1,6 +1,6 @@
-## [0.106.3] - 2026-09-08
+## [0.106.4] - 2026-09-08
 
-Hatchet v0.106.3 headlines new concurrency features: dynamic per-group max runs and concurrency strategies shared across workflows.
+Hatchet v0.106.4 headlines new concurrency features: dynamic per-group max runs and concurrency strategies shared across workflows.
 
 ### Highlights
 
