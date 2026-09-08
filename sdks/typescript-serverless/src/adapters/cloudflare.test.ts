@@ -97,17 +97,14 @@ describe('cloudflare adapter', () => {
     expect((await call(bare, new Request('https://worker.test/hatchet/other'))).status).toBe(404);
   });
 
-  it('answers 426 to a durable upgrade in this version', async () => {
+  it('verifies the upgrade signature before accepting a durable socket', async () => {
     const worker = cloudflare({ workflows: [echo] });
     const request = new Request('https://worker.test/hatchet/trigger', {
       headers: { upgrade: 'websocket', connection: 'upgrade' },
     });
     const response = await call(worker, request);
 
-    expect(response.status).toBe(426);
-    expect(await response.json()).toMatchObject({
-      retry: false,
-      error: expect.stringMatching(/durable/),
-    });
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/timestamp/) });
   });
 });
