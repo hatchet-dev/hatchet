@@ -66,6 +66,14 @@ recorded by the first invocation and `finishedAt` by the second.
 Optional: `pnpm wrangler secret put HATCHET_ENDPOINT_ID` with the endpoint id makes the Worker
 refuse durable upgrades carrying another endpoint id.
 
+## What the Worker verifies
+
+The package checks every request from the operator: the HMAC over the body or the upgrade
+headers, the signed timestamp against a five minute window, the endpoint id when
+`HATCHET_ENDPOINT_ID` is set, the upgrade nonce against a bounded per-isolate set, and the
+first durable frame against the signed upgrade. The package README's "What the package
+verifies" section has the details and the production advice for nonces.
+
 ## Watch it run
 
 ```sh

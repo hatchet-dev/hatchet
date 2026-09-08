@@ -223,6 +223,26 @@ mid-flight; `op.emit(eventKey, payload)` satisfies a `waitForEvent`. The fake en
 operator's protocol rules (one ack-bearing request in flight, nothing after the done frame,
 `done: evicted` only after an eviction ack), so a violation fails the test.
 
+## What the package verifies
+
+Every request from the operator is signed with the endpoint's secret (`X-Hatchet-Signature`,
+hex HMAC-SHA256). The handler checks, in this order:
+
+- **POST bodies** (healthcheck, non-durable trigger): the HMAC over the raw body, then the
+  `timestamp` field the signature covers, which must be within five minutes of the handler's
+  clock in either direction (`REQUEST_MAX_AGE_SECONDS`), then the `endpointId` when the
+  handler is configured with one (`HATCHET_ENDPOINT_ID` on Cloudflare). A captured request is
+  therefore only replayable for five minutes; a task with side effects should treat
+  `(endpointId, taskRunExternalId, retryCount)` as its idempotency key.
+- **Websocket upgrades** (durable trigger): the `endpointId` when configured, the same five
+  minute window on `X-Hatchet-Timestamp`, the HMAC over `timestamp.nonce.taskId.invocation`,
+  then the nonce, consumed from a bounded in-memory set only after the signature verified
+  (`NonceSet`, 4096 entries, expiring with the window). That set is per isolate; a production
+  endpoint should consume nonces in a Durable Object or an expiring KV key through the
+  `seenNonce` option, so a replay that lands in another isolate is caught too.
+- **The first frame**: its task id and invocation must match the verified upgrade headers,
+  otherwise the socket is closed with 1008 before any task code runs.
+
 ## How a trigger maps onto a response
 
 The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
@@ -237,7 +257,8 @@ The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
 | throws anything else                                    | `500 {"error", "retry": true}`     |
 | action not served here                                  | `404 {"error", "retry": false}`    |
 | durable action sent as a POST                           | `422 {"error", "retry": false}`    |
-| bad signature                                           | `401 {"error", "retry": false}`    |
+| bad signature, or a timestamp outside the window        | `401 {"error", "retry": false}`    |
+| endpoint id mismatch                                    | `403 {"error", "retry": false}`    |
 | durable upgrade with a bad signature or stale timestamp | `401`; a foreign endpoint id `403` |
 | durable upgrade on an adapter without the relay         | `426 {"error", "retry": false}`    |
 
