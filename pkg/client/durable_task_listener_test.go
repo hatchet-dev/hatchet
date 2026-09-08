@@ -283,14 +283,14 @@ func TestConnectFailurePreservesPendingAcksAndQueuedRequests(t *testing.T) {
 
 	key := PendingAckKey{TaskID: "task1", SignalKey: 1}
 	ackCh := listener.AddPendingEventAck(key)
-	listener.SendRequest(&v1.DurableTaskRequest{
+	require.NoError(t, listener.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_TriggerRuns{
 			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
 				DurableTaskExternalId: key.TaskID,
 				InvocationCount:       int32(key.SignalKey),
 			},
 		},
-	})
+	}))
 
 	listener.Start(ctx)
 	defer listener.Stop()
@@ -654,4 +654,44 @@ func TestDurableTaskListenerCancellationDuringSleep(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !listener.IsRunning()
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// SendRequest returns when its context ends or the listener is stopped, so a caller is never
+// held on a stopped listener's full queue.
+func TestSendRequestReturnsOnContextOrStop(t *testing.T) {
+	l := zerolog.Nop()
+	listener := NewDurableTaskListener("test-worker", func(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+		return nil, status.Error(codes.Unavailable, "down")
+	}, &l)
+
+	req := &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_WaitFor{WaitFor: &v1.DurableTaskWaitForRequest{DurableTaskExternalId: "task"}}}
+
+	// fill the bounded queue; the listener is not started so nothing drains it
+	for i := 0; i < cap(listener.requestQueue); i++ {
+		require.NoError(t, listener.SendRequest(context.Background(), req))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, listener.SendRequest(ctx, req), context.DeadlineExceeded)
+
+	blocked := make(chan error, 1)
+	go func() { blocked <- listener.SendRequest(context.Background(), req) }()
+
+	select {
+	case err := <-blocked:
+		t.Fatalf("send returned early: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	listener.Stop()
+
+	select {
+	case err := <-blocked:
+		require.ErrorIs(t, err, errDurableTaskListenerStopped)
+	case <-time.After(time.Second):
+		t.Fatal("send stayed blocked after Stop")
+	}
+
+	require.ErrorIs(t, listener.SendRequest(context.Background(), req), errDurableTaskListenerStopped)
 }

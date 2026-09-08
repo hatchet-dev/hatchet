@@ -53,6 +53,11 @@ type durableHub struct {
 	stopOnce sync.Once
 	mu       sync.Mutex
 	closed   bool
+
+	// pumpCtx bounds the pump's hand-off to the listener; closeAll cancels it so a pump
+	// blocked on the listener's full queue returns.
+	pumpCtx    context.Context
+	pumpCancel context.CancelFunc
 }
 
 // outboundRequest is one queued request and the channel it belongs to; the pump drops
@@ -76,12 +81,16 @@ func newDurableHub(session client.OperatorSession) *durableHub { //nolint:static
 
 // newDurableHubOver builds a hub over a listener the caller starts and stops.
 func newDurableHubOver(listener *client.DurableTaskListener) *durableHub { //nolint:staticcheck // see import
+	pumpCtx, pumpCancel := context.WithCancel(context.Background())
+
 	hub := &durableHub{
-		listener: listener,
-		channels: map[channelKey]*durableChannel{},
-		outbound: make(chan outboundRequest, sendQueueSize),
-		stopped:  make(chan struct{}),
-		pumpDone: make(chan struct{}),
+		listener:   listener,
+		channels:   map[channelKey]*durableChannel{},
+		outbound:   make(chan outboundRequest, sendQueueSize),
+		stopped:    make(chan struct{}),
+		pumpDone:   make(chan struct{}),
+		pumpCtx:    pumpCtx,
+		pumpCancel: pumpCancel,
 	}
 
 	go hub.pump()
@@ -91,7 +100,9 @@ func newDurableHubOver(listener *client.DurableTaskListener) *durableHub { //nol
 
 // pump hands queued requests to the shared listener. A listener that is no longer running
 // would never drain its queue, so requests are dropped instead of blocking on it; the
-// channels they belong to are being closed with the registration.
+// channels they belong to are being closed with the registration. The hand-off itself is
+// bounded by pumpCtx and by the listener's own stop, so a full listener queue (an
+// unreachable engine) cannot hold the pump past closeAll.
 func (h *durableHub) pump() {
 	defer close(h.pumpDone)
 
@@ -104,7 +115,9 @@ func (h *durableHub) pump() {
 				continue
 			}
 
-			h.listener.SendRequest(item.req)
+			if err := h.listener.SendRequest(h.pumpCtx, item.req); err != nil && h.pumpCtx.Err() != nil {
+				return
+			}
 		}
 	}
 }
@@ -207,7 +220,10 @@ func (h *durableHub) closeAll() {
 		_ = ch.Close()
 	}
 
-	h.stopOnce.Do(func() { close(h.stopped) })
+	h.stopOnce.Do(func() {
+		close(h.stopped)
+		h.pumpCancel()
+	})
 }
 
 type recvItem struct {

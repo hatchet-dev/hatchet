@@ -41,12 +41,10 @@ type cachedClient struct {
 	token  string
 }
 
-// closeClient closes the client's connection when the client exposes one. The SDK client
-// owns a gRPC connection; dropping the reference alone would leave its goroutines behind.
+// closeClient closes the client's gRPC connection. Dropping the reference alone would leave
+// the connection's goroutines behind.
 func closeClient(c client.Client) { //nolint:staticcheck // see import
-	if closer, ok := c.(interface{ Close() error }); ok {
-		_ = closer.Close()
-	}
+	_ = c.Close()
 }
 
 // Link caches one engine client per tenant. The token is asked from the exchange on every

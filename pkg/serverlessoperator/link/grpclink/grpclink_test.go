@@ -245,6 +245,8 @@ func (f *fakeClient) Operator() client.OperatorClient {
 	return f.operator
 }
 
+func (f *fakeClient) Close() error { return nil }
+
 type mapExchange map[uuid.UUID]string
 
 func (m mapExchange) Token(_ context.Context, tenantId uuid.UUID) (string, error) {

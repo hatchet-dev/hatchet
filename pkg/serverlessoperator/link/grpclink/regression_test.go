@@ -190,16 +190,6 @@ func TestEvictedClientsAreClosed(t *testing.T) {
 func TestReleasedRealClientsLeakNoGoroutines(t *testing.T) {
 	lnk := New(nil, Options{})
 
-	probe, err := lnk.newClient(testJWT(t, uuid.New()))
-	require.NoError(t, err)
-
-	if _, ok := probe.(interface{ Close() error }); !ok {
-		closeClient(probe)
-		t.Skip("pkg/client does not expose Close on its client; real gRPC connections cannot be closed on eviction until it does")
-	}
-
-	closeClient(probe)
-
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	for i := 0; i < 3; i++ {
@@ -235,6 +225,8 @@ type tenantClient struct {
 }
 
 func (c *tenantClient) Operator() client.OperatorClient { return c.operator } //nolint:staticcheck // see import
+
+func (c *tenantClient) Close() error { return nil }
 
 // A registration the engine authenticated as another tenant than the one the unit belongs to
 // is refused before any action, workflow or delivery touches it, and so is a token whose
