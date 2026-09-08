@@ -6,7 +6,7 @@ title: "Platform & Go SDK"
 
 ## v0.106.4 - 2026-09-08
 
-Hatchet v0.106.4 is a concurrency release: dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.
+Hatchet v0.106.4 is a concurrency-focused release, adding support for dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.
 
 ### Highlights
 
@@ -16,7 +16,7 @@ Hatchet v0.106.4 is a concurrency release: dynamic concurrency limits, shared co
 
 ### Security
 
-- Engine: satisfied durable event lookups are now filtered by tenant, enforcing tenant isolation on the durable event log ([15bc7923d](https://github.com/hatchet-dev/hatchet/commit/15bc7923d3a8ebfeb0d88c19160dd24828921e85)).
+- Engine: satisfied durable event lookups are now filtered by tenant, enforcing tenant isolation on the durable event log ([GHSA-992g-9cr3-vm5x](https://github.com/hatchet-dev/hatchet/security/advisories/GHSA-992g-9cr3-vm5x)).
 
 ### Fixed
 
