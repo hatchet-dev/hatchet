@@ -91,6 +91,13 @@ type IngestTriggerRunsEntry struct {
 	AlreadyExisted        bool
 
 	ChildNeedsReplay bool
+
+	// ReExecuted is true when the child actually runs during this invocation rather than being
+	// satisfied from a cached log entry. This is not the same as !AlreadyExisted: an entry can
+	// already exist but have a null triggered_at (its run was never spawned, e.g. a crash between
+	// committing the entry and triggering the run), in which case this ingest re-publishes the
+	// run and children of the step must be treated as having a re-executed parent on replay.
+	ReExecuted bool
 }
 
 type IngestTriggerRunsResult struct {
@@ -1519,6 +1526,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
 				ChildTaskErrorMessage: childTaskErrorMessage,
 				ChildNeedsReplay:      childNeedsReplay,
+				ReExecuted:            !entry.Entry.TriggeredAt.Valid,
 			}
 		}
 
