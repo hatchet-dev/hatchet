@@ -5,11 +5,10 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { docsPages } from '@/lib/generated/docs';
-import { appRoutes } from '@/router';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 
 function SectionHeader({
   title,
@@ -40,7 +39,7 @@ export function AuditLogSettings({ orgId }: { orgId: string }) {
   }
 
   if (entitlementsQuery.data?.auditLogs !== true) {
-    return <AuditLogUpgrade orgId={orgId} />;
+    return <AuditLogUpgrade />;
   }
 
   return <AuditLogEnabled orgId={orgId} />;
@@ -121,9 +120,7 @@ function AuditLogEnabled({ orgId }: { orgId: string }) {
   );
 }
 
-function AuditLogUpgrade({ orgId }: { orgId: string }) {
-  const navigate = useNavigate();
-
+function AuditLogUpgrade() {
   return (
     <div className="py-12">
       <EmptyState
@@ -133,15 +130,12 @@ function AuditLogUpgrade({ orgId }: { orgId: string }) {
           </div>
         }
         title="Unlock Audit Logs"
-        description="Audit logs give you an immutable record of actions taken across your organization's tenants for compliance and security review. Upgrade your plan to enable this feature."
+        description="Audit logs give you an immutable record of actions taken across your organization's tenants for compliance and security review. Talk to sales to enable this feature for your organization."
         buttons={[
           {
-            label: 'View plans',
+            label: 'Talk to Sales',
             onClick: () =>
-              navigate({
-                to: appRoutes.organizationBillingRoute.to,
-                params: { organization: orgId },
-              }),
+              window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
           },
         ]}
       />

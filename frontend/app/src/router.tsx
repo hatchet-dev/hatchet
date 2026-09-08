@@ -193,6 +193,15 @@ const organizationAuditLogRoute = createRoute({
   ),
 });
 
+const organizationComplianceRoute = createRoute({
+  getParentRoute: () => organizationSettingsLayoutRoute,
+  path: 'compliance',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/$organization/sections'),
+    'OrganizationCompliancePage',
+  ),
+});
+
 const organizationUserGroupsRoute = createRoute({
   getParentRoute: () => organizationSettingsLayoutRoute,
   path: 'user-groups',
@@ -1111,6 +1120,7 @@ const routeTree = rootRoute.addChildren([
         organizationRegionsRoute,
         organizationSsoRoute,
         organizationAuditLogRoute,
+        organizationComplianceRoute,
         organizationUserGroupsRoute,
       ]),
       organizationsIndexRedirectRoute,
@@ -1164,6 +1174,7 @@ export const appRoutes = {
   organizationRegionsRoute,
   organizationSsoRoute,
   organizationAuditLogRoute,
+  organizationComplianceRoute,
   organizationUserGroupsRoute,
   organizationsIndexRedirectRoute,
   organizationLegacyBillingRoute,

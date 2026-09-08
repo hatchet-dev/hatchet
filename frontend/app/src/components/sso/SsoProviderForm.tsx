@@ -50,7 +50,7 @@ export function SsoProviderForm() {
   if (form.provider === 'Okta') {
     return (
       <>
-        <SsoField label="SSO Domain" htmlFor="ssoDomain" required>
+        <SsoField label="Single Sign On Domain" htmlFor="ssoDomain" required>
           <SsoFormInput
             id="ssoDomain"
             placeholder="example.okta.com"

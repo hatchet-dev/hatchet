@@ -80,8 +80,8 @@ function SsoSetupDialogWrapper() {
           {loading
             ? 'Loading...'
             : hasExistingConfig
-              ? 'Edit SSO Config'
-              : 'Set up SSO'}
+              ? 'Edit Single Sign On Config'
+              : 'Set up Single Sign On'}
         </Button>
       </DialogTrigger>
       <DialogContent className="!max-w-[80vw] max-h-[90vh] overflow-y-auto sm:!max-w-[600px]">

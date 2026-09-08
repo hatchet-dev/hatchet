@@ -111,7 +111,7 @@ export function settingsNavGroups(opts: {
           ? [
               {
                 key: 'organization-sso',
-                name: 'SSO',
+                name: 'Single Sign On',
                 to: appRoutes.organizationSsoRoute.to,
                 params,
               },
@@ -123,6 +123,12 @@ export function settingsNavGroups(opts: {
                 key: 'organization-audit-log',
                 name: 'Audit Log',
                 to: appRoutes.organizationAuditLogRoute.to,
+                params,
+              },
+              {
+                key: 'organization-compliance',
+                name: 'Compliance',
+                to: appRoutes.organizationComplianceRoute.to,
                 params,
               },
             ]

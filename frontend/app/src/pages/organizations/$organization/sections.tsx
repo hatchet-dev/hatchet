@@ -40,3 +40,7 @@ export function OrganizationSsoPage() {
 export function OrganizationAuditLogPage() {
   return <OrganizationSectionPage section="audit-log" />;
 }
+
+export function OrganizationCompliancePage() {
+  return <OrganizationSectionPage section="compliance" />;
+}

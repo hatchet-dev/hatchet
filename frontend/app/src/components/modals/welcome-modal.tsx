@@ -92,7 +92,7 @@ export function WelcomeModal({
               Welcome to Hatchet
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              You&apos;re on the free plan with daily limits.{' '}
+              You&apos;re on the free tier with limits. <br />
               <button
                 type="button"
                 className="text-primary/70 underline underline-offset-4 hover:text-primary disabled:opacity-50"
@@ -108,7 +108,7 @@ export function WelcomeModal({
               >
                 {developerPlanMutation.isPending ? 'Redirecting…' : 'Upgrade'}
               </button>{' '}
-              to the Pay as you Go plan to remove daily limits.
+              to the Pay as you Go tier to remove these limits.
             </DialogDescription>
           </div>
           <Card
@@ -117,7 +117,7 @@ export function WelcomeModal({
           >
             <CardHeader className="p-4 border-b border-border/50">
               <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
-                Free Plan Limits
+                Free Tier Limits
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
@@ -140,38 +140,40 @@ export function WelcomeModal({
             </CardContent>
           </Card>
           <div className="flex w-full flex-col gap-2">
+            <p className="text-center text-xs text-muted-foreground">
+              Add a credit card to prevent service interruption.
+              <br />
+              Pay only for what you use. No monthly fee, cancel anytime.
+            </p>
             <Button
               className="w-full"
+              disabled={developerPlanMutation.isPending}
               onClick={() => {
-                capture('welcome_modal_dismissed', {
+                capture('welcome_modal_add_payment', {
                   tenant_id: tenantId,
                   organization_id: organizationId,
-                  cta: 'get_started',
+                  cta: 'upgrade_button',
                 });
-                dismiss();
+                developerPlanMutation.mutate();
               }}
             >
-              Get started
+              {developerPlanMutation.isPending
+                ? 'Redirecting…'
+                : 'Upgrade to Pay as you Go'}
             </Button>
             <Button
               variant="ghost"
               className="w-full"
               onClick={() => {
-                capture('welcome_modal_view_plans', {
+                capture('welcome_modal_dismissed', {
                   tenant_id: tenantId,
                   organization_id: organizationId,
-                  cta: 'view_plan_options',
+                  cta: 'skip_for_now',
                 });
                 dismiss();
-                if (tenantId) {
-                  navigate({
-                    to: appRoutes.organizationSettingsBillingRoute.to,
-                    params: { organization: organizationId ?? '' },
-                  });
-                }
               }}
             >
-              View Plan Options
+              Continue with limits for now
             </Button>
           </div>
         </div>

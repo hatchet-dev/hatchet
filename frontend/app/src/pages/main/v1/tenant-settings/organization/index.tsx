@@ -54,7 +54,7 @@ import {
   OrganizationTenant as ControlPlaneOrganizationTenant,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
-import { OFFICE_HOURS_URL } from '@/lib/external-links';
+import { OFFICE_HOURS_URL, TRUST_CENTER_URL } from '@/lib/external-links';
 import { globalEmitter } from '@/lib/global-emitter';
 import {
   formatShardDeploymentKey,
@@ -83,9 +83,12 @@ import {
   PlusIcon,
   ArrowRightIcon,
   ArrowsRightLeftIcon,
+  ArrowTopRightOnSquareIcon,
   CheckIcon,
+  DocumentTextIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
+  KeyIcon,
   PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
@@ -148,7 +151,14 @@ type ManagementTokenWithTags = ManagementToken & {
 };
 
 export type OrganizationSettingsSection =
-  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'audit-log';
+  | 'general'
+  | 'tenants'
+  | 'team'
+  | 'tokens'
+  | 'regions'
+  | 'sso'
+  | 'audit-log'
+  | 'compliance';
 
 const SECTION_HEADERS: Record<
   OrganizationSettingsSection,
@@ -156,7 +166,7 @@ const SECTION_HEADERS: Record<
 > = {
   general: {
     title: 'General',
-    description: 'Update the organization name and inactivity timeout.',
+    description: 'Update the organization name.',
   },
   tenants: {
     title: 'Tenants',
@@ -178,14 +188,34 @@ const SECTION_HEADERS: Record<
       'Review the regions where new tenants can be deployed for this organization.',
   },
   sso: {
-    title: 'SSO',
-    description: 'Configure single sign-on for this organization.',
+    title: 'Single Sign On',
+    description: 'Configure Single Sign On for this organization.',
   },
   'audit-log': {
     title: 'Audit Log',
     description: 'Review administrative actions taken in this organization.',
   },
+  compliance: {
+    title: 'Compliance',
+    description:
+      'Manage compliance settings and access compliance documents for this organization.',
+  },
 };
+
+const COMPLIANCE_DOCUMENTS = [
+  {
+    label: 'SOC 2 Type II',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=soc2_v1`,
+  },
+  {
+    label: 'HIPAA',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=hipaa_business_associate_v1`,
+  },
+  {
+    label: 'GDPR',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=gdpr_v1`,
+  },
+];
 
 function InviteTenantBadges({
   tenants,
@@ -840,99 +870,6 @@ export function CloudOrganizationSettings({
                 </div>
               )}
             </SettingRow>
-
-            {isControlPlaneEnabled && (
-              <SettingRow
-                label="Inactivity Timeout"
-                description="Automatically sign out members of this organization after this period of inactivity. Maximum 14 days."
-              >
-                {isEditingTimeout ? (
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        value={editedTimeout}
-                        onChange={(e) => setEditedTimeout(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveTimeout();
-                          }
-                          if (e.key === 'Escape') {
-                            handleCancelEditingTimeout();
-                          }
-                        }}
-                        className="w-[220px]"
-                        placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
-                        disabled={updateOrganizationLoading}
-                        autoFocus
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCancelEditingTimeout}
-                        disabled={updateOrganizationLoading}
-                        hoverText="Cancel editing"
-                        aria-label="Cancel editing"
-                        className="shrink-0"
-                      >
-                        <XMarkIcon className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleSaveTimeout}
-                        disabled={
-                          updateOrganizationLoading ||
-                          parsedEditedTimeout === null ||
-                          editedTimeoutExceedsMax
-                        }
-                        hoverText="Save inactivity timeout"
-                        aria-label="Save inactivity timeout"
-                        className="shrink-0"
-                      >
-                        {updateOrganizationLoading ? (
-                          <Spinner />
-                        ) : (
-                          <CheckIcon className="size-4" />
-                        )}
-                      </Button>
-                    </div>
-                    {editedTimeout.trim() !== '' && (
-                      <p
-                        className={`text-xs ${
-                          parsedEditedTimeout === null ||
-                          editedTimeoutExceedsMax
-                            ? 'text-destructive'
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        {parsedEditedTimeout === null
-                          ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                          : editedTimeoutExceedsMax
-                            ? 'Inactivity timeout cannot exceed 14 days'
-                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="max-w-[220px] truncate text-sm">
-                      {formatTimeoutMs(currentInactivityTimeoutMs)}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleStartEditingTimeout}
-                      hoverText="Edit inactivity timeout"
-                      aria-label="Edit inactivity timeout"
-                      className="shrink-0"
-                    >
-                      <PencilSquareIcon className="size-4" />
-                    </Button>
-                  </div>
-                )}
-              </SettingRow>
-            )}
           </div>
         )}
 
@@ -1148,10 +1085,12 @@ export function CloudOrganizationSettings({
                 {isOrganizationOwner && (
                   <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Force SSO</p>
+                      <p className="text-sm font-medium">
+                        Force Single Sign On
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        Require all organization members to sign in with SSO.
-                        All other login methods will be disabled.
+                        Require all organization members to sign in with Single
+                        Sign On. All other login methods will be disabled.
                       </p>
                     </div>
                     <Switch
@@ -1171,11 +1110,13 @@ export function CloudOrganizationSettings({
                 {/* SSO Domains */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-base font-semibold">SSO Domains</h3>
+                    <h3 className="text-base font-semibold">
+                      Single Sign On Domains
+                    </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Domains associated with your organization for SSO login.
-                      Members signing in with a verified domain will be
-                      automatically directed to your identity provider.
+                      Domains associated with your organization for Single Sign
+                      On login. Members signing in with a verified domain will
+                      be automatically directed to your identity provider.
                     </p>
                   </div>
                   {ssoIsConfigured &&
@@ -1186,12 +1127,14 @@ export function CloudOrganizationSettings({
                         <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
                         <div>
                           <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                            SSO is configured but no domains are set up.
+                            Single Sign On is configured but no domains are set
+                            up.
                           </p>
                           <p className="mt-0.5 text-muted-foreground">
                             Without a verified domain, members will not be
                             automatically redirected to your identity provider.
-                            Add a domain below to complete your SSO setup.
+                            Add a domain below to complete your Single Sign On
+                            setup.
                           </p>
                         </div>
                       </div>
@@ -1259,13 +1202,18 @@ export function CloudOrganizationSettings({
             ) : (
               <div className="py-12">
                 <EmptyState
-                  title="SSO is not enabled"
-                  description="Single sign-on is not enabled for this organization. Contact us to get access."
-                  links={[
+                  graphic={
+                    <div className="rounded-full bg-primary/10 p-3">
+                      <KeyIcon className="h-8 w-8 text-primary" />
+                    </div>
+                  }
+                  title="Unlock Single Sign On"
+                  description="Single Sign On lets your team log in with your identity provider. Talk to sales to enable this feature for your organization."
+                  buttons={[
                     {
-                      href: OFFICE_HOURS_URL,
-                      label: 'Schedule office hours',
-                      external: true,
+                      label: 'Talk to Sales',
+                      onClick: () =>
+                        window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
                     },
                   ]}
                 />
@@ -1275,6 +1223,153 @@ export function CloudOrganizationSettings({
           {section === 'audit-log' &&
             (isControlPlaneEnabled ? (
               <AuditLogSettings orgId={orgId} />
+            ) : (
+              <SectionUnavailable />
+            ))}
+
+          {section === 'compliance' &&
+            (isControlPlaneEnabled ? (
+              <div className="space-y-8">
+                {isOrganizationOwner && (
+                  <div className="divide-y divide-border">
+                    <SettingRow
+                      label="Inactivity Timeout"
+                      description="Automatically sign out members of this organization after this period of inactivity. Maximum 14 days."
+                    >
+                      {isEditingTimeout ? (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              value={editedTimeout}
+                              onChange={(e) => setEditedTimeout(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveTimeout();
+                                }
+                                if (e.key === 'Escape') {
+                                  handleCancelEditingTimeout();
+                                }
+                              }}
+                              className="w-[220px]"
+                              placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
+                              disabled={updateOrganizationLoading}
+                              autoFocus
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={handleCancelEditingTimeout}
+                              disabled={updateOrganizationLoading}
+                              hoverText="Cancel editing"
+                              aria-label="Cancel editing"
+                              className="shrink-0"
+                            >
+                              <XMarkIcon className="size-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={handleSaveTimeout}
+                              disabled={
+                                updateOrganizationLoading ||
+                                parsedEditedTimeout === null ||
+                                editedTimeoutExceedsMax
+                              }
+                              hoverText="Save inactivity timeout"
+                              aria-label="Save inactivity timeout"
+                              className="shrink-0"
+                            >
+                              {updateOrganizationLoading ? (
+                                <Spinner />
+                              ) : (
+                                <CheckIcon className="size-4" />
+                              )}
+                            </Button>
+                          </div>
+                          {editedTimeout.trim() !== '' && (
+                            <p
+                              className={`text-xs ${
+                                parsedEditedTimeout === null ||
+                                editedTimeoutExceedsMax
+                                  ? 'text-destructive'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {parsedEditedTimeout === null
+                                ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
+                                : editedTimeoutExceedsMax
+                                  ? 'Inactivity timeout cannot exceed 14 days'
+                                  : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="max-w-[220px] truncate text-sm">
+                            {formatTimeoutMs(currentInactivityTimeoutMs)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleStartEditingTimeout}
+                            hoverText="Edit inactivity timeout"
+                            aria-label="Edit inactivity timeout"
+                            className="shrink-0"
+                          >
+                            <PencilSquareIcon className="size-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </SettingRow>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-base font-semibold">
+                      Compliance Documents
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Review our certifications and request compliance reports
+                      from the Hatchet Trust Center.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {COMPLIANCE_DOCUMENTS.map((doc) => (
+                      <a
+                        key={doc.label}
+                        href={doc.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/10 px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/30"
+                      >
+                        <DocumentTextIcon className="size-4 text-muted-foreground" />
+                        {doc.label}
+                        <ArrowTopRightOnSquareIcon className="size-3.5 text-muted-foreground" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border/50 bg-muted/10 p-4">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">Need a BAA or DPA?</p>
+                    <p className="text-sm text-muted-foreground">
+                      We offer Business Associate Agreements and Data Processing
+                      Agreements for teams with regulatory requirements.
+                    </p>
+                  </div>
+                  <Button
+                    className="shrink-0"
+                    onClick={() =>
+                      window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer')
+                    }
+                  >
+                    Talk to Sales
+                  </Button>
+                </div>
+              </div>
             ) : (
               <SectionUnavailable />
             ))}

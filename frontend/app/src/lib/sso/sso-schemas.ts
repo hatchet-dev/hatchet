@@ -20,7 +20,7 @@ const editBaseSchema = z.object({
 // Create schemas (all fields required)
 const createOktaSchema = createBaseSchema.extend({
   provider: z.literal('Okta'),
-  ssoDomain: z.string().min(1, 'SSO Domain is required'),
+  ssoDomain: z.string().min(1, 'Single Sign On Domain is required'),
 });
 
 const createEntraSchema = createBaseSchema.extend({
@@ -57,7 +57,7 @@ const createJumpCloudSchema = createBaseSchema.extend({
 // Edit schemas (clientSecret optional)
 const editOktaSchema = editBaseSchema.extend({
   provider: z.literal('Okta'),
-  ssoDomain: z.string().min(1, 'SSO Domain is required'),
+  ssoDomain: z.string().min(1, 'Single Sign On Domain is required'),
 });
 
 const editEntraSchema = editBaseSchema.extend({
