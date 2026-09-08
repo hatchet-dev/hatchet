@@ -22,14 +22,15 @@ import (
 )
 
 // fakeOperatorListenStream is one Listen stream as the client sees it. It
-// records every request, delivers actions through deliver, and models the
-// ways a stream dies: breakRecv (server hangup, Recv fails with Unavailable)
-// and breakSend (transport failure, Send fails too). CloseSend ends Recv with
-// EOF the way a server does after the client half-closes.
+// records every request, delivers actions through deliver, acknowledges
+// every sequenced delta the way the engine does unless noAck is set, and
+// models the ways a stream dies: breakRecv (server hangup, Recv fails with
+// Unavailable) and breakSend (transport failure, Send fails too). CloseSend
+// ends Recv with EOF the way a server does after the client half-closes.
 type fakeOperatorListenStream struct {
 	ctx       context.Context
 	recvDead  chan struct{}
-	responses chan *dispatchercontracts.AssignedAction
+	responses chan *v1.OperatorListenResponse
 	recvErr   error
 	requests  []*v1.OperatorListenRequest
 	// operatorId is the hatchet-operator-id metadata the stream was opened with
@@ -38,6 +39,7 @@ type fakeOperatorListenStream struct {
 	mu         sync.Mutex
 	recvOnce   sync.Once
 	sendDead   atomic.Bool
+	noAck      atomic.Bool
 }
 
 func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
@@ -49,10 +51,16 @@ func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
 	s.requests = append(s.requests, req)
 	s.mu.Unlock()
 
+	if delta := req.GetActions(); delta != nil && delta.Sequence != 0 && !s.noAck.Load() {
+		s.responses <- &v1.OperatorListenResponse{
+			Message: &v1.OperatorListenResponse_Ack{Ack: &v1.OperatorActionsAck{Sequence: delta.Sequence}},
+		}
+	}
+
 	return nil
 }
 
-func (s *fakeOperatorListenStream) Recv() (*dispatchercontracts.AssignedAction, error) {
+func (s *fakeOperatorListenStream) Recv() (*v1.OperatorListenResponse, error) {
 	select {
 	case resp := <-s.responses:
 		return resp, nil
@@ -64,7 +72,14 @@ func (s *fakeOperatorListenStream) Recv() (*dispatchercontracts.AssignedAction, 
 }
 
 func (s *fakeOperatorListenStream) deliver(action *dispatchercontracts.AssignedAction) {
-	s.responses <- action
+	s.responses <- &v1.OperatorListenResponse{Message: &v1.OperatorListenResponse_Action{Action: action}}
+}
+
+// ack acknowledges seq explicitly, for streams created with noAck.
+func (s *fakeOperatorListenStream) ack(seq uint64) {
+	s.responses <- &v1.OperatorListenResponse{
+		Message: &v1.OperatorListenResponse_Ack{Ack: &v1.OperatorActionsAck{Sequence: seq}},
+	}
 }
 
 func (s *fakeOperatorListenStream) breakRecvWith(err error) {
@@ -152,6 +167,8 @@ type fakeOperatorServiceClient struct {
 	registerErr         error
 	listenErr           error
 	mu                  sync.Mutex
+	// noAck makes every new stream withhold delta acks
+	noAck bool
 }
 
 func (f *fakeOperatorServiceClient) Register(ctx context.Context, in *v1.OperatorRegisterRequest, opts ...grpc.CallOption) (*v1.OperatorRegisterResponse, error) {
@@ -186,7 +203,10 @@ func (f *fakeOperatorServiceClient) Listen(ctx context.Context, opts ...grpc.Cal
 		ctx:        ctx,
 		operatorId: outgoingOperatorId(ctx),
 		recvDead:   make(chan struct{}),
-		responses:  make(chan *dispatchercontracts.AssignedAction, 8),
+		responses:  make(chan *v1.OperatorListenResponse, 1024),
+	}
+	if f.noAck {
+		s.noAck.Store(true)
 	}
 	f.streams = append(f.streams, s)
 	return s, nil
@@ -289,7 +309,7 @@ func connectTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient,
 	t.Helper()
 
 	s, admin := newTestOperatorSession(t, client, resume)
-	require.NoError(t, s.stream.connectSync(context.Background()))
+	require.NoError(t, s.connect(context.Background()))
 	t.Cleanup(func() { _ = s.Close() })
 	return s, admin
 }
@@ -591,7 +611,9 @@ func TestOperatorSessionFlushReportsLastSendError(t *testing.T) {
 	s, _ := connectTestOperatorSession(t, client, true)
 
 	client.stream(0).breakSend()
+	client.mu.Lock()
 	client.listenErr = status.Error(codes.Unavailable, "engine down")
+	client.mu.Unlock()
 
 	s.AddActions("svc:one")
 

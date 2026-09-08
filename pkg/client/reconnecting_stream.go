@@ -274,6 +274,21 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 	return fmt.Errorf("could not send to %s after %d attempts: %w", s.name, retry.StreamSyncMaxAttempts, lastErr)
 }
 
+// sendOnce performs one send on the current client under sendMu and never
+// reconnects. Callers that keep their own record of what was sent use it so
+// a reconnect's replay is the only path that sends the same message again.
+func (s *reconnectingStream[C]) sendOnce(send func(C) error) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+
+	client, _, ok := s.snapshot()
+	if !ok {
+		return errStreamNotConnected
+	}
+
+	return send(client)
+}
+
 func (s *reconnectingStream[C]) closeStream() error {
 	client, _, ok := s.snapshot()
 	if !ok || s.closeSend == nil {

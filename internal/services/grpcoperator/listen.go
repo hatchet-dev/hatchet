@@ -11,7 +11,9 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -49,9 +51,17 @@ type recvResult struct {
 	err error
 }
 
+// wrapAssignedAction converts a dispatcher action into the Listen stream's server message.
+func wrapAssignedAction(action *contracts.AssignedAction) proto.Message {
+	return &v1contracts.OperatorListenResponse{
+		Message: &v1contracts.OperatorListenResponse_Action{Action: action},
+	}
+}
+
 // Listen activates a registered worker for the lifetime of the stream and fans assigned actions
-// out to it. The handler never sends: the dispatcher session owns the send side, and this
-// goroutine only consumes heartbeats and action deltas.
+// out to it. The dispatcher session owns the send side of the stream: actions go out through
+// its fan-out and delta acks go out through the session handle, so the two never overlap. This
+// goroutine consumes heartbeats and action deltas.
 func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenServer) (err error) {
 	ctx := stream.Context()
 
@@ -167,7 +177,7 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 		}
 	}()
 
-	session := s.dispatcher.AddOperatorStreamSession(worker.ID, sessionId, stream, nil)
+	session := s.dispatcher.AddOperatorStreamSession(worker.ID, sessionId, stream, wrapAssignedAction)
 	// the release runs before the deferred deactivation so the session is gone from the
 	// dispatcher before the worker is marked inactive
 	defer session.Release()
@@ -227,6 +237,18 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 
 				if changed {
 					notifier.request()
+				}
+
+				// the ack is the client's signal that the delta is committed; a client that never
+				// receives it resends the delta after its next reconnect, so an ack that cannot be
+				// written ends the stream rather than leaving the delta unconfirmed
+				if seq := msg.Actions.Sequence; seq != 0 {
+					if err := session.Send(ctx, &v1contracts.OperatorListenResponse{
+						Message: &v1contracts.OperatorListenResponse_Ack{Ack: &v1contracts.OperatorActionsAck{Sequence: seq}},
+					}); err != nil {
+						l.Error().Ctx(ctx).Err(err).Uint64("sequence", seq).Msg("could not acknowledge operator actions delta")
+						return status.Errorf(codes.Unavailable, "could not acknowledge actions delta %d: %s", seq, err.Error())
+					}
 				}
 			case *v1contracts.OperatorListenRequest_Start:
 				return status.Error(codes.InvalidArgument, "the Listen stream is already started")

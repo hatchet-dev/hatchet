@@ -22,8 +22,7 @@ const (
 	operatorHeartbeatInterval = 4 * time.Second
 
 	// operatorRegisterTimeout caps how long one handshake (Register call,
-	// Listen opened, start sent, replay done) may take, on top of the
-	// constructor ctx.
+	// Listen opened, start sent) may take, on top of the constructor ctx.
 	operatorRegisterTimeout = 30 * time.Second
 
 	// operatorCloseFlushTimeout bounds the flush Close performs before it
@@ -35,8 +34,8 @@ var errOperatorActionsStarted = errors.New("operator session actions already sta
 
 // operatorListenClient is one Listen stream plus the cancel for its own
 // context. The stream context is a child of the reconnecting stream's
-// lifecycle context so that Close releases every stream; cancel is only
-// invoked directly when the handshake fails and the stream is never
+// lifecycle context so that Close releases every stream; cancel is invoked
+// directly when the handshake or the replay fails and the stream is never
 // published. Retired streams are half-closed with CloseSend and left to the
 // server to end, so the receive loop hands off on EOF like the other
 // listeners in this package.
@@ -62,15 +61,64 @@ func (c *operatorDurableTaskClient) Send(req *v1.DurableTaskRequest) error {
 	return c.OperatorService_DurableTaskClient.Send(req)
 }
 
+// actionInbox buffers assigned actions between the session's receive loop
+// and the consumer Actions starts. The receive loop must never block on a
+// consumer: delta acks share the stream with actions, and Flush may wait on
+// an ack before Actions has been called.
+type actionInbox struct {
+	items []*dispatchercontracts.AssignedAction
+	ready chan struct{}
+	mu    sync.Mutex
+}
+
+func newActionInbox() *actionInbox {
+	return &actionInbox{ready: make(chan struct{}, 1)}
+}
+
+func (b *actionInbox) push(action *dispatchercontracts.AssignedAction) {
+	b.mu.Lock()
+	b.items = append(b.items, action)
+	b.mu.Unlock()
+
+	select {
+	case b.ready <- struct{}{}:
+	default:
+	}
+}
+
+// pop returns the oldest buffered action, or nil when the inbox is empty.
+func (b *actionInbox) pop() *dispatchercontracts.AssignedAction {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if len(b.items) == 0 {
+		return nil
+	}
+
+	action := b.items[0]
+	b.items[0] = nil
+	b.items = b.items[1:]
+
+	if len(b.items) == 0 {
+		b.items = nil
+	}
+
+	return action
+}
+
 // operatorSession is the OperatorSession implementation. It owns one
 // reconnecting Listen stream whose constructor performs the Register call and
-// the start handshake, a heartbeat goroutine that sends through retrySend so a
-// dead stream reconnects, the receive loop driven by listenStream, and the
-// action delta queue (operator_actions.go).
+// the start handshake and whose replay callback resends unacknowledged
+// action deltas, a heartbeat goroutine that sends through retrySend so a
+// dead stream reconnects, the receive loop that demultiplexes assigned
+// actions and delta acks, and the action delta queue (operator_actions.go).
+// The receive and heartbeat loops run from connect until Close so that
+// Flush can observe acks before Actions is called; Actions only attaches a
+// consumer to the inbox.
 // NOTE: field order follows govet fieldalignment (enforced by the pre-commit
-// autofixer); mu guards register, reg, durables, loopCancel, and closed. Lock
-// order is stream.sendMu → mu, never reverse: mu is only taken in short
-// critical sections that do no stream I/O.
+// autofixer); mu guards register, reg, durables, loopErr, started, consuming
+// and closed. Lock order is stream.sendMu → mu, never reverse: mu is only
+// taken in short critical sections that do no stream I/O.
 type operatorSession struct {
 	client     v1.OperatorServiceClient
 	admin      v1.AdminServiceClient
@@ -78,7 +126,11 @@ type operatorSession struct {
 	l          *zerolog.Logger
 	stream     *reconnectingStream[*operatorListenClient]
 	register   *v1.OperatorRegisterRequest
+	inbox      *actionInbox
+	loopCtx    context.Context
 	loopCancel context.CancelFunc
+	loopDone   chan struct{}
+	loopErr    error
 	durables   []*DurableTaskListener
 	reg        OperatorRegistration
 	actions    *actionDeltaQueue
@@ -88,6 +140,8 @@ type operatorSession struct {
 	wg           sync.WaitGroup
 	mu           sync.Mutex
 	resumeWorker bool
+	started      bool
+	consuming    bool
 	closed       bool
 }
 
@@ -101,6 +155,8 @@ func newOperatorSession(
 ) *operatorSession {
 	sl := l.With().Str("operator", register.Name).Logger()
 
+	loopCtx, loopCancel := context.WithCancel(context.Background())
+
 	s := &operatorSession{
 		client:            client,
 		admin:             admin,
@@ -109,6 +165,10 @@ func newOperatorSession(
 		register:          register,
 		resumeWorker:      resumeWorker,
 		heartbeatInterval: operatorHeartbeatInterval,
+		inbox:             newActionInbox(),
+		loopCtx:           loopCtx,
+		loopCancel:        loopCancel,
+		loopDone:          make(chan struct{}),
 	}
 
 	s.stream = newReconnectingStreamWithLifecycle(
@@ -119,7 +179,7 @@ func newOperatorSession(
 		func(c *operatorListenClient) error {
 			return c.CloseSend()
 		},
-		nil,
+		s.replayActions,
 	)
 
 	s.actions = newActionDeltaQueue(&sl, s.stream, actionDeltaFlushInterval, maxActionsPerDelta)
@@ -127,12 +187,48 @@ func newOperatorSession(
 	return s
 }
 
+// connect opens the first stream and starts the session loops.
+func (s *operatorSession) connect(ctx context.Context) error {
+	if err := s.stream.connectSync(ctx); err != nil {
+		return err
+	}
+
+	s.start()
+
+	return nil
+}
+
+// start launches the receive and heartbeat loops once. The WaitGroup is
+// incremented under mu, in the same critical section that checks closed, so
+// Close never waits on a count that a concurrent start is still adding to.
+func (s *operatorSession) start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed || s.started {
+		return
+	}
+
+	s.started = true
+	s.wg.Add(2)
+
+	go func() {
+		defer s.wg.Done()
+		s.heartbeatLoop(s.loopCtx)
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		s.receiveLoop(s.loopCtx)
+	}()
+}
+
 // openListenStream is the reconnecting stream constructor: it calls Register
-// (resuming the previous worker when enabled), opens Listen, sends the start
-// message and, when the registration did not resume the previous worker,
-// replays the desired action set before returning. The handshake is bounded
-// by ctx and operatorRegisterTimeout; the stream itself outlives ctx and is
-// bound to the lifecycle context.
+// (resuming the previous worker when enabled), opens Listen and sends the
+// start message. The handshake is bounded by ctx and
+// operatorRegisterTimeout; the stream itself outlives ctx and is bound to
+// the lifecycle context. Action deltas are replayed by replayActions once
+// the stream is constructed.
 func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListenClient, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -176,16 +272,6 @@ func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListen
 		return fail(fmt.Errorf("could not send operator start message: %w", err))
 	}
 
-	// A new worker starts with no actions, so the engine only learns the
-	// desired set through a replay. A resumed worker kept its set, and any
-	// delta that was in flight when the previous stream died is retried by
-	// the flusher.
-	if !registered.Resumed {
-		if err := s.actions.replay(listen); err != nil {
-			return fail(fmt.Errorf("could not replay operator actions: %w", err))
-		}
-	}
-
 	if !stopAfter() {
 		// The handshake deadline fired between the last send and here, so the
 		// stream context is already cancelled and the stream is unusable.
@@ -200,6 +286,20 @@ func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListen
 		Msg("operator registered")
 
 	return &operatorListenClient{OperatorService_ListenClient: listen, cancel: cancelStream}, nil
+}
+
+// replayActions is the reconnecting stream's replay callback: it runs under
+// sendMu on every new stream before the stream is published and brings the
+// engine's view of the action set up to date (see actionDeltaQueue.replay).
+// A stream whose replay fails is cancelled here because it is never
+// published.
+func (s *operatorSession) replayActions(_ context.Context, c *operatorListenClient) error {
+	if err := s.actions.replay(c, s.Registration().Resumed); err != nil {
+		c.cancel()
+		return fmt.Errorf("could not replay operator actions: %w", err)
+	}
+
+	return nil
 }
 
 // registerRequest snapshots the register template and, when resuming, sets
@@ -250,27 +350,24 @@ func (s *operatorSession) Actions(ctx context.Context) (<-chan *dispatchercontra
 		s.mu.Unlock()
 		return nil, nil, errListenerClosed
 	}
-	if s.loopCancel != nil {
+	if s.consuming {
 		s.mu.Unlock()
 		return nil, nil, errOperatorActionsStarted
 	}
-	loopCtx, cancel := context.WithCancel(ctx)
-	s.loopCancel = cancel
+	s.consuming = true
+	// the count is added under mu so a concurrent Close either sees the
+	// consumer or is seen by it
+	s.wg.Add(1)
 	s.mu.Unlock()
 
 	ch := make(chan *dispatchercontracts.AssignedAction)
 	errCh := make(chan error, 1)
 
-	s.l.Debug().Ctx(ctx).Msg("starting operator listener")
+	s.l.Debug().Ctx(ctx).Msg("starting operator action consumer")
 
-	s.wg.Add(2)
 	go func() {
 		defer s.wg.Done()
-		s.heartbeatLoop(loopCtx)
-	}()
-	go func() {
-		defer s.wg.Done()
-		s.actionLoop(loopCtx, cancel, ch, errCh)
+		s.deliverLoop(ctx, ch, errCh)
 	}()
 
 	return ch, errCh, nil
@@ -307,51 +404,100 @@ func (s *operatorSession) heartbeatLoop(ctx context.Context) {
 	}
 }
 
-// actionLoop runs the receive loop. Leaving it, for any reason, ends the
-// session's stream and the heartbeat loop: a session without a receive loop
-// cannot run actions, so keeping the worker alive would only attract work.
-func (s *operatorSession) actionLoop(ctx context.Context, cancelLoops context.CancelFunc, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
-	defer close(ch)
-	defer close(errCh)
+// receiveLoop runs the stream's receive side for the life of the session:
+// acks go to the delta queue and actions to the inbox. Leaving it, for any
+// reason, ends the session's stream and the heartbeat loop: a session
+// without a receive loop cannot run actions or confirm deltas, so keeping
+// the worker alive would only attract work.
+func (s *operatorSession) receiveLoop(ctx context.Context) {
+	defer close(s.loopDone)
 	defer func() {
-		cancelLoops()
+		s.loopCancel()
+		s.actions.stop()
 		if err := s.stream.Close(); err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("failed to close operator listener stream")
 		}
 	}()
-
-	// Recv is bound to the stream's lifecycle context, not ctx, so cancelling
-	// ctx has to end the stream for the loop to observe it and exit.
-	stopOnCancel := context.AfterFunc(ctx, func() {
-		_ = s.stream.Close()
-	})
-	defer stopOnCancel()
 
 	classify := newStreamClassifier(func(ctx context.Context) bool {
 		return ctx.Err() == nil
 	})
 
 	err := listenStream(ctx, s.stream,
-		func(c *operatorListenClient) (*dispatchercontracts.AssignedAction, error) {
+		func(c *operatorListenClient) (*v1.OperatorListenResponse, error) {
 			return c.Recv()
 		},
-		func(action *dispatchercontracts.AssignedAction) error {
-			s.l.Debug().Ctx(ctx).
-				Str("action_type", action.ActionType.String()).
-				Str("action_id", action.ActionId).
-				Msg("received operator action")
+		func(resp *v1.OperatorListenResponse) error {
+			switch msg := resp.Message.(type) {
+			case *v1.OperatorListenResponse_Ack:
+				s.actions.ack(msg.Ack.Sequence)
+			case *v1.OperatorListenResponse_Action:
+				s.l.Debug().Ctx(ctx).
+					Str("action_type", msg.Action.ActionType.String()).
+					Str("action_id", msg.Action.ActionId).
+					Msg("received operator action")
 
-			select {
-			case ch <- action:
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
+				s.inbox.push(msg.Action)
+			default:
+				s.l.Warn().Ctx(ctx).Msgf("ignoring unexpected message on the operator listener stream: %T", msg)
 			}
+
+			return nil
 		},
 		classify,
 	)
 	if err != nil && ctx.Err() == nil {
-		sendListenerError(ctx, errCh, err)
+		s.mu.Lock()
+		s.loopErr = err
+		s.mu.Unlock()
+	}
+}
+
+// terminalErr reports why the receive loop ended, if it ended on an error.
+func (s *operatorSession) terminalErr() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.loopErr
+}
+
+// deliverLoop hands buffered actions to the consumer until ctx ends, the
+// session closes, or the receive loop exits. Cancelling ctx ends the
+// session's stream, as a consumer that has stopped taking actions must not
+// keep its worker active.
+func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
+	defer close(ch)
+	defer close(errCh)
+
+	stopOnCancel := context.AfterFunc(ctx, func() {
+		s.loopCancel()
+		_ = s.stream.Close()
+	})
+	defer stopOnCancel()
+
+	for {
+		if action := s.inbox.pop(); action != nil {
+			select {
+			case ch <- action:
+				continue
+			case <-ctx.Done():
+				return
+			case <-s.loopDone:
+			}
+		}
+
+		select {
+		case <-s.inbox.ready:
+			continue
+		case <-ctx.Done():
+			return
+		case <-s.loopDone:
+		}
+
+		if err := s.terminalErr(); err != nil && ctx.Err() == nil {
+			sendListenerError(ctx, errCh, err)
+		}
+
+		return
 	}
 }
 
@@ -391,6 +537,9 @@ func (s *operatorSession) Flush(ctx context.Context) error {
 	return s.actions.flush(ctx)
 }
 
+// NewDurableTaskListener builds a listener bound to this session's worker. A
+// listener created after Close is stopped before it is returned: the
+// session no longer has a worker for it to register.
 func (s *operatorSession) NewDurableTaskListener(opts ...DurableTaskListenerOpt) *DurableTaskListener {
 	currentWorkerId := func() string {
 		return s.Registration().WorkerId
@@ -410,8 +559,15 @@ func (s *operatorSession) NewDurableTaskListener(opts ...DurableTaskListenerOpt)
 	)
 
 	s.mu.Lock()
-	s.durables = append(s.durables, listener)
+	closed := s.closed
+	if !closed {
+		s.durables = append(s.durables, listener)
+	}
 	s.mu.Unlock()
+
+	if closed {
+		listener.Stop()
+	}
 
 	return listener
 }
@@ -441,22 +597,20 @@ func (s *operatorSession) Close() error {
 		return nil
 	}
 	s.closed = true
-	cancel := s.loopCancel
 	durables := s.durables
 	s.mu.Unlock()
 
 	// Deltas queued before Close still belong to the worker the engine will
-	// deactivate, so they are given a short window to land before the stream
-	// goes away; a flush that does not make it is logged, not fatal.
+	// deactivate, so they are given a short window to be acknowledged before
+	// the stream goes away; a flush that does not make it is logged, not
+	// fatal. The receive loop is still running here, so acks are observed.
 	flushCtx, cancelFlush := context.WithTimeout(context.Background(), operatorCloseFlushTimeout)
 	if err := s.actions.flush(flushCtx); err != nil {
 		s.l.Warn().Err(err).Msg("operator action deltas were not flushed before close")
 	}
 	cancelFlush()
 
-	if cancel != nil {
-		cancel()
-	}
+	s.loopCancel()
 
 	// Close cancels the lifecycle context, which releases every stream context
 	// and unblocks any in-flight Send or Recv before the loops are awaited.
