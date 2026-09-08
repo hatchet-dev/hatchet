@@ -480,6 +480,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				grpcoperator.WithLogger(sc.Logger),
 				grpcoperator.WithAnalytics(sc.Analytics),
 				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
 			)
 
 			if err != nil {
@@ -954,6 +956,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				grpcoperator.WithLogger(sc.Logger),
 				grpcoperator.WithAnalytics(sc.Analytics),
 				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
 			)
 
 			if err != nil {
