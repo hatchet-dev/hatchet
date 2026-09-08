@@ -186,15 +186,3 @@ func TestWorkerActionDeltas(t *testing.T) {
 		assert.Equal(t, workerActionHash(t, ctx, pool, first), workerActionHash(t, ctx, pool, second), "removing the same action from both restores equality")
 	})
 }
-
-func TestXorActionHash(t *testing.T) {
-	seed := hashActions(nil)
-
-	ab := xorActionHash(seed, []string{"svc:a", "svc:b"})
-	ba := xorActionHash(seed, []string{"svc:b", "svc:a"})
-	assert.Equal(t, ab, ba)
-
-	assert.Equal(t, ab, xorActionHash(xorActionHash(seed, []string{"svc:a"}), []string{"svc:b"}), "folding one at a time matches folding at once")
-	assert.Equal(t, seed, xorActionHash(ab, []string{"svc:a", "svc:b"}), "XOR is its own inverse")
-	assert.NotEqual(t, seed, ab)
-}

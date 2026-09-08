@@ -495,15 +495,22 @@ ON CONFLICT DO NOTHING;
 
 -- name: LockWorkerActionHash :one
 -- Serializes concurrent action set changes on one worker: the caller holds the row lock for the
--- rest of its transaction, so the hash it reads is the hash it updates.
+-- rest of its transaction. The tenant is part of the predicate so a caller that pairs a tenant
+-- with another tenant's worker finds no row and mutates nothing.
 SELECT "actionHash"
 FROM "Worker"
-WHERE "id" = @workerId::uuid
+WHERE
+    "id" = @workerId::uuid
+    AND "tenantId" = @tenantId::uuid
 FOR UPDATE;
 
--- name: UpsertActions :many
--- Bulk form of UpsertAction. @actions must not contain duplicates after lower-casing: the same
--- row cannot be affected twice by one ON CONFLICT DO UPDATE statement.
+-- name: InsertMissingActions :many
+-- Creates the Action rows in @actions that do not exist yet and returns the rows it created.
+-- Existing rows are left untouched (no lock, no rewrite), so concurrent transactions that
+-- reference the same actions do not contend on them. @actions must be lower-cased, free of
+-- duplicates and sorted: two transactions creating overlapping sets then take their row locks
+-- in the same order and cannot deadlock. An action another transaction creates concurrently is
+-- absent from the result; the caller resolves it with ListActionsByActionIds afterwards.
 INSERT INTO "Action" (
     "id",
     "actionId",
@@ -511,23 +518,29 @@ INSERT INTO "Action" (
 )
 SELECT
     gen_random_uuid(),
-    LOWER(a.action),
+    a.action,
     @tenantId::uuid
 FROM unnest(@actions::text[]) AS a(action)
-ON CONFLICT ("tenantId", "actionId") DO UPDATE
-SET
-    "tenantId" = EXCLUDED."tenantId"
+ON CONFLICT ("tenantId", "actionId") DO NOTHING
 RETURNING "id", "actionId";
 
 -- name: LinkActionsToWorkerReturning :many
--- Returns the action row ids that were newly linked, so the caller can fold exactly those into
--- the worker's action hash.
+-- Links the worker to the given action rows and returns the action row ids that were newly
+-- linked, so the caller knows whether the set changed. The Worker and Action rows are joined
+-- on the tenant: an action of another tenant, or a worker of another tenant, is never linked.
 INSERT INTO "_ActionToWorker" (
     "A",
     "B"
 ) SELECT
-    unnest(@actionIds::uuid[]),
-    @workerId::uuid
+    a."id",
+    w."id"
+FROM "Worker" w
+JOIN "Action" a ON a."tenantId" = w."tenantId"
+WHERE
+    w."id" = @workerId::uuid
+    AND w."tenantId" = @tenantId::uuid
+    AND a."id" = ANY(@actionIds::uuid[])
+ORDER BY a."id"
 ON CONFLICT DO NOTHING
 RETURNING "A";
 
@@ -540,13 +553,32 @@ WHERE
     AND "actionId" = ANY(@actionIds::text[]);
 
 -- name: UnlinkActionsFromWorkerReturning :many
--- Returns the action row ids that were actually unlinked, so the caller can fold exactly those
--- out of the worker's action hash.
-DELETE FROM "_ActionToWorker"
+-- Unlinks the given action rows from the worker and returns the action row ids that were
+-- actually unlinked. The Worker and Action rows are joined on the tenant, as in
+-- LinkActionsToWorkerReturning.
+DELETE FROM "_ActionToWorker" aw
+USING "Worker" w, "Action" a
 WHERE
-    "B" = @workerId::uuid
-    AND "A" = ANY(@actionIds::uuid[])
-RETURNING "A";
+    aw."B" = w."id"
+    AND aw."A" = a."id"
+    AND w."id" = @workerId::uuid
+    AND w."tenantId" = @tenantId::uuid
+    AND a."tenantId" = w."tenantId"
+    AND a."id" = ANY(@actionIds::uuid[])
+RETURNING aw."A";
+
+-- name: ComputeWorkerActionHash :one
+-- The canonical digest of the worker's linked action set: sha256 over the action ids sorted
+-- by byte order, each followed by ";". It is the same function hashActions computes in Go, so
+-- a worker created with an initial set and a worker built by deltas hash equal for the same
+-- set. The empty set hashes to sha256 of the empty string.
+SELECT sha256(convert_to(
+    coalesce(string_agg(a."actionId" || ';', '' ORDER BY a."actionId" COLLATE "C"), ''),
+    'UTF8'
+))::bytea AS "hash"
+FROM "_ActionToWorker" aw
+JOIN "Action" a ON a."id" = aw."A"
+WHERE aw."B" = @workerId::uuid;
 
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
