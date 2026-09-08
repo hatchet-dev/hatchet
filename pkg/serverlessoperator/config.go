@@ -48,6 +48,10 @@ type Config struct {
 	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is
 	// parsed before WSMaxFrameBytes applies.
 	WSMaxUpgradeHeaderBytes int64
+
+	// WSMaxQueuedBytes bounds the encoded frames one relay retains for an endpoint that reads
+	// slower than the engine answers; crossing it closes the socket with backpressure.
+	WSMaxQueuedBytes int64
 }
 
 const (
@@ -70,6 +74,7 @@ const (
 
 	// Relay resource limit defaults.
 	DefaultWSMaxUpgradeHeaderBytes int64 = 64 * 1024
+	DefaultWSMaxQueuedBytes        int64 = 16 * 1024 * 1024
 
 	// processSweepInterval and processExpiryCutoff drive the expired process row sweep every
 	// process runs.
@@ -100,6 +105,7 @@ func DefaultConfig() Config {
 		WSPingInterval:            DefaultWSPingInterval,
 		HealthPort:                DefaultHealthPort,
 		WSMaxUpgradeHeaderBytes:   DefaultWSMaxUpgradeHeaderBytes,
+		WSMaxQueuedBytes:          DefaultWSMaxQueuedBytes,
 	}
 }
 
@@ -170,6 +176,10 @@ func (c Config) withDefaults() Config {
 
 	if c.WSMaxUpgradeHeaderBytes <= 0 {
 		c.WSMaxUpgradeHeaderBytes = d.WSMaxUpgradeHeaderBytes
+	}
+
+	if c.WSMaxQueuedBytes <= 0 {
+		c.WSMaxQueuedBytes = d.WSMaxQueuedBytes
 	}
 
 	return c

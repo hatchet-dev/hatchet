@@ -33,7 +33,8 @@ const (
 	CloseTimeout = 4007
 	// CloseUnresponsive means two consecutive pings went unanswered.
 	CloseUnresponsive = 4008
-	// CloseBackpressure means the endpoint fell more than sendQueueSize frames behind.
+	// CloseBackpressure means the endpoint fell more than sendQueueSize frames or
+	// Params.MaxQueuedBytes behind.
 	CloseBackpressure = 1013
 	// CloseNormal is sent after a done frame.
 	CloseNormal = 1000

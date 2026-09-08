@@ -33,6 +33,7 @@ const (
 	defaultPingInterval          = 15 * time.Second
 	defaultMaxFrameBytes         = 4 * 1024 * 1024
 	defaultMaxUpgradeHeaderBytes = 64 * 1024
+	defaultMaxQueuedBytes        = 16 * 1024 * 1024
 
 	// closeWriteTimeout bounds writing the close frame at teardown.
 	closeWriteTimeout = 5 * time.Second
@@ -117,6 +118,11 @@ type Params struct {
 	// headers); 64 KiB by default.
 	MaxUpgradeHeaderBytes int64
 
+	// MaxQueuedBytes bounds the encoded frames waiting for the endpoint, in addition to the
+	// sendQueueSize frame count; crossing it closes the socket with CloseBackpressure. 16 MiB
+	// by default. A single frame larger than the budget trips it on its own.
+	MaxQueuedBytes int64
+
 	PingInterval     time.Duration
 	HandshakeTimeout time.Duration
 
@@ -141,6 +147,10 @@ func (p *Params) withDefaults() {
 
 	if p.MaxUpgradeHeaderBytes <= 0 {
 		p.MaxUpgradeHeaderBytes = defaultMaxUpgradeHeaderBytes
+	}
+
+	if p.MaxQueuedBytes <= 0 {
+		p.MaxQueuedBytes = defaultMaxQueuedBytes
 	}
 
 	if p.PingInterval <= 0 {
@@ -183,6 +193,7 @@ type relay struct {
 	result     Outcome
 	once       sync.Once
 	wg         sync.WaitGroup
+	queued     atomic.Int64
 	phase      atomic.Int32
 	missed     atomic.Int32
 	done       atomic.Bool
@@ -632,6 +643,13 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 		return false
 	}
 
+	// The byte budget is charged before the frame is queued and released by the writer once
+	// the frame left the queue, so it bounds what the relay retains for a slow endpoint.
+	if r.queued.Add(int64(len(frame))) > r.p.MaxQueuedBytes {
+		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d bytes behind", r.p.MaxQueuedBytes)})
+		return false
+	}
+
 	select {
 	case r.sendQ <- frame:
 	case <-r.stop:
@@ -689,7 +707,10 @@ func (r *relay) writeLoop() {
 			r.drainQueue()
 			return
 		case frame := <-r.sendQ:
-			if !r.writeQueued(frame) {
+			ok := r.writeQueued(frame)
+			r.queued.Add(-int64(len(frame)))
+
+			if !ok {
 				return
 			}
 		case <-ticker.C:
@@ -740,7 +761,10 @@ func (r *relay) drainQueue() {
 	for {
 		select {
 		case frame := <-r.sendQ:
-			if err := r.write(frame); err != nil {
+			err := r.write(frame)
+			r.queued.Add(-int64(len(frame)))
+
+			if err != nil {
 				return
 			}
 		default:

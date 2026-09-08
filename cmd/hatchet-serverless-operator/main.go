@@ -65,6 +65,7 @@ type configFile struct {
 
 	// Relay resource limits.
 	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" default:"65536"`
+	WSMaxQueuedBytes        int64 `mapstructure:"wsMaxQueuedBytes" default:"16777216"`
 
 	// InfraBlockedCIDRs is a comma-separated list of CIDRs added to safeclient's denylist.
 	InfraBlockedCIDRs    string `mapstructure:"infraBlockedCidrs"`
@@ -112,6 +113,7 @@ func bindEnv(v *viper.Viper) {
 	_ = v.BindEnv("wsPingInterval", "SERVERLESS_OPERATOR_WS_PING_INTERVAL")
 
 	_ = v.BindEnv("wsMaxUpgradeHeaderBytes", "SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
+	_ = v.BindEnv("wsMaxQueuedBytes", "SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
 
 	_ = v.BindEnv("infraBlockedCidrs", "SERVERLESS_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("allowEmptyInfraCidrs", "SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
@@ -278,6 +280,7 @@ func run(ctx context.Context, cf *configFile) error {
 			HealthPort:             cf.HealthPort,
 
 			WSMaxUpgradeHeaderBytes: cf.WSMaxUpgradeHeaderBytes,
+			WSMaxQueuedBytes:        cf.WSMaxQueuedBytes,
 		},
 	})
 }

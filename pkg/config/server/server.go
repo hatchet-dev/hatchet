@@ -699,6 +699,9 @@ type ServerlessOperatorConfigFile struct {
 	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is parsed before
 	// WSMaxFrameBytes applies.
 	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" json:"wsMaxUpgradeHeaderBytes,omitempty" default:"65536"`
+
+	// WSMaxQueuedBytes bounds the encoded frames one durable relay retains for a slow endpoint.
+	WSMaxQueuedBytes int64 `mapstructure:"wsMaxQueuedBytes" json:"wsMaxQueuedBytes,omitempty" default:"16777216"`
 }
 
 type ConfigFileMonitoring struct {
@@ -957,6 +960,7 @@ func BindAllEnv(v *viper.Viper) {
 
 	// serverless operator relay resource limits
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
