@@ -1,13 +1,12 @@
-import {
-  PayAsYouGoSummaryRow,
-  UpgradeRequiredLayout,
-  formatPlanTier,
-  useCurrentPlanName,
-  useOrganizationBilling,
-} from '@/components/v1/cloud/billing/upgrade-required';
+import { UpgradeGateDialog } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Button } from '@/components/v1/ui/button';
-import { Dialog, DialogContent } from '@/components/v1/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import useControlPlane from '@/hooks/use-control-plane';
 import type { RetentionAttempt } from '@/hooks/use-retention-gate';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -18,8 +17,6 @@ import {
   formatShortDate,
   getRetentionBoundary,
 } from '@/lib/utils/retention';
-import { appRoutes } from '@/router';
-import { Link } from '@tanstack/react-router';
 
 type RetentionUpgradeDialogProps = {
   attempt: RetentionAttempt | null;
@@ -32,11 +29,8 @@ export function RetentionUpgradeDialog({
   retentionPeriod,
   onClose,
 }: RetentionUpgradeDialogProps) {
-  const { isControlPlaneEnabled, canBill } = useControlPlane();
+  const { isControlPlaneEnabled } = useControlPlane();
   const { organizationId } = useTenantDetails();
-  const currentPlanName = useCurrentPlanName(organizationId);
-  const billingState = useOrganizationBilling(organizationId);
-  const tier = formatPlanTier(currentPlanName);
   const label = retentionPeriod
     ? formatRetentionPeriod(retentionPeriod)
     : 'your current window';
@@ -50,91 +44,44 @@ export function RetentionUpgradeDialog({
       : `You tried to look back to ${formatShortDate(attempt.date)}.`
     : '';
 
-  const keepLabel = `Keep last ${label}`;
-  const canUpgrade = isControlPlaneEnabled && canBill && !!organizationId;
+  if (isControlPlaneEnabled && organizationId) {
+    return (
+      <UpgradeGateDialog
+        open={!!attempt}
+        gate="retention"
+        organizationId={organizationId}
+        onDismiss={onClose}
+        retentionAttempt={attempt}
+        retentionPeriod={retentionPeriod}
+      />
+    );
+  }
 
   return (
     <Dialog open={!!attempt} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
-        <UpgradeRequiredLayout
-          title={
-            isControlPlaneEnabled
-              ? `You've reached the ${tier} retention limit`
-              : 'Outside retention window'
-          }
-          description={
-            <>
-              {tried ? <p>{tried}</p> : null}
-              <p>
-                {`${isControlPlaneEnabled ? 'This tenant' : 'This instance'} keeps ${label} of data${
-                  attempt?.kind === 'since' && boundary
-                    ? ` (since ${formatShortDate(boundary)})`
-                    : ''
-                }.`}
-              </p>
-              {isControlPlaneEnabled ? (
-                <p>Upgrade to search further back.</p>
-              ) : (
-                <p>
-                  Raise SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD in your
-                  config if you need a longer window.
-                </p>
-              )}
-            </>
-          }
-          summary={
-            isControlPlaneEnabled && (currentPlanName || retentionPeriod) ? (
-              <>
-                {currentPlanName ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Current plan</span>
-                    <span className="font-medium text-foreground">
-                      {currentPlanName}
-                    </span>
-                  </div>
-                ) : null}
-                {retentionPeriod ? (
-                  <div
-                    className={
-                      currentPlanName
-                        ? 'mt-2 flex items-center justify-between'
-                        : 'flex items-center justify-between'
-                    }
-                  >
-                    <span className="text-muted-foreground">Retention</span>
-                    <span className="font-medium text-foreground">{label}</span>
-                  </div>
-                ) : null}
-                <PayAsYouGoSummaryRow plans={billingState.data?.plans} />
-              </>
-            ) : undefined
-          }
-        >
-          {canUpgrade ? (
-            <Link
-              to={appRoutes.organizationBillingRoute.to}
-              params={{ organization: organizationId }}
-              hash="plan-selector"
-              className="w-full"
-              onClick={onClose}
-            >
-              <Button size="lg" className="w-full">
-                Upgrade to Pay as you Go
-              </Button>
-              <p className="mt-2 text-center text-xs text-muted-foreground">
-                No monthly fee. Cancel anytime.
-              </p>
-            </Link>
-          ) : !isControlPlaneEnabled ? (
-            <DocsButton
-              doc={docsPages['self-hosting']['data-retention']}
-              label="Retention docs"
-            />
-          ) : null}
-          <Button variant="ghost" className="mt-2 w-full" onClick={onClose}>
-            {keepLabel}
-          </Button>
-        </UpgradeRequiredLayout>
+        <DialogTitle>Outside retention window</DialogTitle>
+        <DialogDescription className="space-y-2">
+          {tried ? <p>{tried}</p> : null}
+          <p>
+            {`This instance keeps ${label} of data${
+              attempt?.kind === 'since' && boundary
+                ? ` (since ${formatShortDate(boundary)})`
+                : ''
+            }.`}
+          </p>
+          <p>
+            Raise SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD in your config
+            if you need a longer window.
+          </p>
+        </DialogDescription>
+        <DocsButton
+          doc={docsPages['self-hosting']['data-retention']}
+          label="Retention docs"
+        />
+        <Button variant="ghost" className="w-full" onClick={onClose}>
+          {`Keep last ${label}`}
+        </Button>
       </DialogContent>
     </Dialog>
   );

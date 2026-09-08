@@ -26,6 +26,10 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
+import {
+  getPlanChangeErrorMessage,
+  useSubscriptionUpgrade,
+} from '@/hooks/use-subscription-upgrade';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
@@ -33,14 +37,13 @@ import {
   Coupon,
   OrganizationBillingStateSubscription,
   OrganizationInvoicePreview,
-  SubscriptionPeriod,
   SubscriptionPlan,
   SubscriptionPlanCode,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
@@ -89,41 +92,6 @@ function isLegacySubscriptionPlan(plan?: SubscriptionPlanCode) {
     plan === SubscriptionPlanCode.Scale ||
     plan === SubscriptionPlanCode.Migration
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
-}
-
-function getPlanChangeErrorMessage(error: unknown) {
-  const fallback =
-    'We could not change your plan. Please try again or contact us if this keeps happening.';
-
-  if (isRecord(error)) {
-    const response = error.response;
-    if (isRecord(response)) {
-      const data = response.data;
-      if (isRecord(data)) {
-        if (data.code === 'plan_already_attached') {
-          return 'This plan is already attached to your organization. Refreshing billing details should show the current plan.';
-        }
-
-        if (typeof data.message === 'string') {
-          return data.message;
-        }
-
-        if (typeof data.description === 'string') {
-          return data.description;
-        }
-      }
-    }
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
@@ -204,67 +172,36 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     }
   };
 
-  const subscriptionMutation = useMutation({
-    mutationKey: ['organization-subscription:update'],
-    onMutate: ({ plan_code }: { plan_code: string }) => {
-      setLoading(plan_code);
-      setPlanChangeError(undefined);
-      setSubmittedPlanCode(undefined);
-    },
-    mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split('_');
-      if (!organizationId) {
-        throw new Error('Organization not found for billing');
-      }
-      const response = await controlPlaneApi.organizationSubscriptionUpdate(
-        organizationId,
-        {
-          plan: plan as SubscriptionPlanCode,
-          period: period as SubscriptionPeriod,
-        },
-      );
-      return response.data;
-    },
-    onSuccess: async (data, variables) => {
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
+  const subscriptionUpgrade = useSubscriptionUpgrade(organizationId);
 
-      setSubmittedPlanCode(variables.plan_code);
+  const changePlan = (plan_code: string) => {
+    setLoading(plan_code);
+    setPlanChangeError(undefined);
+    setSubmittedPlanCode(undefined);
+    subscriptionUpgrade.mutate(plan_code, {
+      onSuccess: (data) => {
+        if (data.checkoutUrl) {
+          return;
+        }
+        setSubmittedPlanCode(plan_code);
+      },
+      onError: (error) => {
+        setPlanChangeError(getPlanChangeErrorMessage(error));
+        setSubmittedPlanCode(undefined);
+        setLoading(undefined);
 
-      const invalidations = [
-        queryClient.invalidateQueries({
-          queryKey: queries.controlPlane.billing(organizationId).queryKey,
-        }),
-      ];
+        if (!isChangeConfirmOpen) {
+          handleApiError(error as any);
+        }
 
-      if (tenantId) {
-        invalidations.push(
-          queryClient.invalidateQueries({
-            queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
-          }),
-        );
-      }
-
-      await Promise.all(invalidations);
-    },
-    onError: (error) => {
-      setPlanChangeError(getPlanChangeErrorMessage(error));
-      setSubmittedPlanCode(undefined);
-      setLoading(undefined);
-
-      if (!isChangeConfirmOpen) {
-        handleApiError(error as any);
-      }
-
-      if (organizationId) {
-        void queryClient.invalidateQueries({
-          queryKey: queries.controlPlane.billing(organizationId).queryKey,
-        });
-      }
-    },
-  });
+        if (organizationId) {
+          void queryClient.invalidateQueries({
+            queryKey: queries.controlPlane.billing(organizationId).queryKey,
+          });
+        }
+      },
+    });
+  };
 
   const activePlanCode = useMemo(() => {
     return resolveSubscriptionPlanCode(active, 'free') ?? 'free';
@@ -392,9 +329,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             return;
           }
 
-          subscriptionMutation.mutate({
-            plan_code: isChangeConfirmOpen!.planCode,
-          });
+          changePlan(isChangeConfirmOpen.planCode);
         }}
         onCancel={closeChangeConfirm}
         cancelDisabled={!!loading || !!submittedPlanCode}
@@ -644,9 +579,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                           return;
                         }
                         if (!billing?.hasPaymentMethods) {
-                          subscriptionMutation.mutate({
-                            plan_code: plan.planCode,
-                          });
+                          changePlan(plan.planCode);
                         } else {
                           openChangeConfirm(plan);
                         }

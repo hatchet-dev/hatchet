@@ -87,6 +87,7 @@ function AuthenticatedInner() {
     }
   });
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
+  const [newTenantUpgradeOpen, setNewTenantUpgradeOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
@@ -570,18 +571,34 @@ function AuthenticatedInner() {
         <OutletWithContext context={ctx} />
       </AppLayout>
 
-      <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
-        <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
-          <DialogHeader>
-            <DialogTitle>Create New Tenant</DialogTitle>
+      <Dialog
+        open={newTenantModalOpen}
+        onOpenChange={(open) => {
+          setNewTenantModalOpen(open);
+          if (!open) {
+            setNewTenantUpgradeOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="w-fit min-w-[500px] max-w-2xl">
+          <DialogHeader
+            className={newTenantUpgradeOpen ? 'sr-only' : undefined}
+          >
+            <DialogTitle>
+              {newTenantUpgradeOpen
+                ? 'Upgrade to Pay as you Go'
+                : 'Create New Tenant'}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex justify-center">
             <NewTenantSaverForm
               defaultOrganizationId={defaultOrganizationId}
               allTenantTags={newTenantAllTags}
+              onGateChange={setNewTenantUpgradeOpen}
               onUpgradeNavigate={() => {
                 setDefaultOrganizationId(undefined);
                 setNewTenantAllTags([]);
+                setNewTenantUpgradeOpen(false);
                 setNewTenantModalOpen(false);
               }}
               afterSave={(result) => {

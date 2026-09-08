@@ -1,4 +1,4 @@
-import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
+import { UpgradeGateDialog } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -237,21 +237,12 @@ export const OrganizationInviteMemberModal = ({
 
   if (limitReached || !canInviteUser) {
     return (
-      <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlusIcon className="h-5 w-5" />
-              Invite Member
-            </DialogTitle>
-          </DialogHeader>
-          <UpgradeRequiredCard
-            resource="users"
-            organizationId={organizationId}
-            onNavigate={onClose}
-          />
-        </DialogContent>
-      </Dialog>
+      <UpgradeGateDialog
+        open
+        gate="users"
+        organizationId={organizationId}
+        onDismiss={onClose}
+      />
     );
   }
 

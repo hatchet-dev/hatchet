@@ -4,7 +4,7 @@ import {
   WELCOME_KEY,
   WELCOME_TRIGGER,
 } from '@/components/modals/welcome-modal-state';
-import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
+import { UpgradeGateContent } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
@@ -29,6 +29,7 @@ type NewTenantSaverFormProps = {
       | { type: 'regular'; tenant: Tenant },
   ) => void;
   onUpgradeNavigate?: () => void;
+  onGateChange?: (gated: boolean) => void;
 };
 
 const useSaveTenant = ({
@@ -115,6 +116,7 @@ export function NewTenantSaverForm({
   allTenantTags,
   afterSave,
   onUpgradeNavigate,
+  onGateChange,
 }: NewTenantSaverFormProps) {
   const { organizations, isLoaded: isUserUniverseLoaded } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
@@ -128,6 +130,15 @@ export function NewTenantSaverForm({
   }, [defaultOrganizationId]);
 
   const { canCreateTenant } = useOrganizationEntitlements(selectedOrgId);
+  const isGated =
+    isControlPlaneEnabled &&
+    !!selectedOrgId &&
+    (limitReached || !canCreateTenant);
+
+  useEffect(() => {
+    onGateChange?.(isGated);
+    return () => onGateChange?.(false);
+  }, [isGated, onGateChange]);
 
   const shardsQuery = useQuery({
     queryKey: ['organization:available-shards', selectedOrgId ?? ''] as const,
@@ -163,10 +174,10 @@ export function NewTenantSaverForm({
 
   if (selectedOrgId && (limitReached || !canCreateTenant)) {
     return (
-      <UpgradeRequiredCard
-        resource="tenants"
+      <UpgradeGateContent
+        gate="tenants"
         organizationId={selectedOrgId}
-        onNavigate={onUpgradeNavigate}
+        onDismiss={onUpgradeNavigate}
       />
     );
   }
