@@ -129,6 +129,14 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 		return err
 	}
 
+	releaseStream, err := s.acquireListenStream(op.ID)
+
+	if err != nil {
+		return err
+	}
+
+	defer releaseStream()
+
 	l := s.l.With().
 		Str("tenant_id", tenant.ID.String()).
 		Str("operator_name", op.Name).
@@ -191,7 +199,18 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 
 	notifier.fire()
 
-	l.Info().Ctx(ctx).Msg("operator worker listening")
+	// The action budget is read once per stream and then tracked from the deltas this stream
+	// applies. Streams of the same operator that run concurrently on this or another replica
+	// do not see each other's changes until they reconnect, so the cap is exact per stream
+	// and approximate across streams, by at most one chunk per stream.
+	budget, err := s.newActionBudget(ctx, tenant.ID, op.ID)
+
+	if err != nil {
+		l.Error().Ctx(ctx).Err(err).Msg("could not count operator worker actions")
+		return err
+	}
+
+	l.Info().Ctx(ctx).Int64("linked_actions", budget.linked).Msg("operator worker listening")
 
 	var lastHeartbeatWrite time.Time
 
@@ -229,7 +248,7 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 					l.Error().Ctx(ctx).Err(err).Msg("could not update worker heartbeat")
 				}
 			case *v1contracts.OperatorListenRequest_Actions:
-				changed, err := s.applyActionsDelta(ctx, &l, tenant.ID, worker.ID, msg.Actions)
+				changed, err := s.applyActionsDelta(ctx, &l, tenant.ID, worker.ID, msg.Actions, budget)
 
 				if err != nil {
 					return err
@@ -278,10 +297,50 @@ func (s *OperatorServiceImpl) deactivateWorkerListener(ctx context.Context, l *z
 	return err
 }
 
+// actionBudget tracks the action links of one operator against the per-operator cap for the
+// life of a Listen stream.
+type actionBudget struct {
+	linked int64
+	limit  int64
+}
+
+func (s *OperatorServiceImpl) newActionBudget(ctx context.Context, tenantId, operatorId uuid.UUID) (*actionBudget, error) {
+	budget := &actionBudget{limit: s.maxActionsPerOperator}
+
+	if budget.limit <= 0 {
+		return budget, nil
+	}
+
+	linked, err := s.workers.CountOperatorWorkerActions(ctx, tenantId, operatorId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	budget.linked = linked
+
+	return budget, nil
+}
+
+// remaining is how many more links the operator may take, or -1 when unlimited. Adds that
+// repeat actions the worker already has never consume budget: the repository only counts the
+// links it creates, and rolls the delta back when they exceed this.
+func (b *actionBudget) remaining() int64 {
+	if b.limit <= 0 {
+		return -1
+	}
+
+	return max(b.limit-b.linked, 0)
+}
+
+func (b *actionBudget) apply(added, removed int) {
+	b.linked += int64(added) - int64(removed)
+}
+
 // applyActionsDelta validates and applies one delta to the worker's action set. It reports
 // whether the set changed; a delta that only repeats what the worker already has needs no
 // scheduler notification.
-func (s *OperatorServiceImpl) applyActionsDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, delta *v1contracts.OperatorActionsDelta) (bool, error) {
+func (s *OperatorServiceImpl) applyActionsDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, delta *v1contracts.OperatorActionsDelta, budget *actionBudget) (bool, error) {
 	if n := len(delta.Add) + len(delta.Remove); n > MaxActionsPerDelta {
 		return false, status.Errorf(codes.InvalidArgument, "actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta)
 	}
@@ -293,13 +352,18 @@ func (s *OperatorServiceImpl) applyActionsDelta(ctx context.Context, l *zerolog.
 	changed := false
 
 	if len(delta.Add) > 0 {
-		added, err := s.workers.AddWorkerActions(ctx, tenantId, workerId, delta.Add)
+		added, err := s.workers.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, delta.Add, budget.remaining())
 
 		if err != nil {
+			if errors.Is(err, repository.ErrWorkerActionBudgetExceeded) {
+				return false, status.Errorf(codes.ResourceExhausted, "operator holds %d actions and the delta adds more than the limit of %d allows", budget.linked, budget.limit)
+			}
+
 			l.Error().Ctx(ctx).Err(err).Msg("could not add worker actions")
 			return false, err
 		}
 
+		budget.apply(added, 0)
 		changed = changed || added > 0
 	}
 
@@ -311,6 +375,7 @@ func (s *OperatorServiceImpl) applyActionsDelta(ctx context.Context, l *zerolog.
 			return false, err
 		}
 
+		budget.apply(0, removed)
 		changed = changed || removed > 0
 	}
 

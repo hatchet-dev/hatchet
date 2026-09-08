@@ -580,6 +580,16 @@ FROM "_ActionToWorker" aw
 JOIN "Action" a ON a."id" = aw."A"
 WHERE aw."B" = @workerId::uuid;
 
+-- name: CountOperatorWorkerActions :one
+-- Counts the action links held by every worker of the operator, for the per-operator action
+-- budget the gRPC operator service enforces at admission.
+SELECT count(*)
+FROM "_ActionToWorker" aw
+JOIN "Worker" w ON w."id" = aw."B"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."operatorId" = @operatorId::uuid;
+
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
     "Worker"

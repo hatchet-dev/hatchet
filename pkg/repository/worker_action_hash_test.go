@@ -146,6 +146,40 @@ func TestWorkerActionsRejectTenantWorkerMismatch(t *testing.T) {
 	assert.Zero(t, cross)
 }
 
+// A budgeted add links nothing when the newly linked actions would exceed the budget, and
+// repeated actions never count against it.
+func TestAddWorkerActionsWithinBudget(t *testing.T) {
+	pool := workerActionsPool(t)
+	repo := createWorkerActionsRepositoryForTest(pool)
+	ctx := context.Background()
+	tenantId := seedTenantForActions(t, ctx, pool)
+	worker := seedWorkerForActions(t, ctx, pool, tenantId)
+	initial := workerActionHash(t, ctx, pool, worker)
+
+	added, err := repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 1)
+	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
+	assert.Zero(t, added)
+	assert.Empty(t, linkedActions(t, ctx, pool, worker), "a refused delta links nothing")
+	assert.Equal(t, initial, workerActionHash(t, ctx, pool, worker))
+
+	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 2)
+	require.NoError(t, err)
+	assert.Equal(t, 2, added)
+
+	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 0)
+	require.NoError(t, err, "repeated actions do not consume budget")
+	assert.Zero(t, added)
+
+	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:b", "svc:c"}, 0)
+	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
+	assert.Zero(t, added)
+	assert.Equal(t, []string{"svc:a", "svc:b"}, linkedActions(t, ctx, pool, worker))
+
+	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:b", "svc:c"}, -1)
+	require.NoError(t, err, "a negative budget is unlimited")
+	assert.Equal(t, 1, added)
+}
+
 func actionRowVersions(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantId uuid.UUID) []string {
 	t.Helper()
 
