@@ -188,7 +188,7 @@ func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBuffe
 type durableTaskId int64
 
 type appendDurableEventLogResult struct {
-	logEntries                   []*EventLogEntryWithPayloads
+	logEntries                   []*EventLogEntryWithResultPayload
 	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
 	childrenToReplay             map[uuid.UUID]bool
 }
@@ -658,11 +658,9 @@ type GetOrCreateLogEntryOpt struct {
 	ResultPayload       []byte
 	NodeId              int64
 	BranchId            int64
-	InvocationCount     int32
 	IsSatisfied         bool
 	UserMessage         *string
 	WaitData            string // JSON-encoded WaitData, empty string means no wait data
-	SatisfiedAt         *time.Time
 	ChildTaskExternalId uuid.UUID
 	ShouldSkip          bool
 }
@@ -675,9 +673,8 @@ type GetOrCreateLogEntryOpts struct {
 	DurableTaskExternalId uuid.UUID
 }
 
-type EventLogEntryWithPayloads struct {
+type EventLogEntryWithResultPayload struct {
 	Entry          *sqlcv1.BulkGetDurableEventLogEntriesRow
-	InputPayload   []byte
 	ResultPayload  []byte
 	AlreadyExisted bool
 }
@@ -981,7 +978,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
 	batch []GetOrCreateLogEntryOpts,
-) (map[durableTaskId][]*EventLogEntryWithPayloads, []StorePayloadOpts, map[durableTaskId]error, error) {
+) (map[durableTaskId][]*EventLogEntryWithResultPayload, []StorePayloadOpts, map[durableTaskId]error, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-or-create-durable-event-log-entries")
 	defer span.End()
 
@@ -996,7 +993,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	)
 
 	taskErrors := make(map[durableTaskId]error)
-	resultsByTaskId := make(map[durableTaskId][]*EventLogEntryWithPayloads, len(batch))
+	resultsByTaskId := make(map[durableTaskId][]*EventLogEntryWithResultPayload, len(batch))
 
 	states := make([]*taskLogEntryState, 0, len(batch))
 	stateByTaskId := make(map[durableTaskId]*taskLogEntryState, len(batch))
@@ -1286,20 +1283,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	}
 
 	for _, state := range survivingStates {
-		var results []*EventLogEntryWithPayloads
+		var results []*EventLogEntryWithResultPayload
 
 		for _, o := range state.nonSkipOpts {
 			key := NodeIdBranchIdTuple{o.NodeId, o.BranchId}
 			if e, ok := state.existedEntries[key]; ok {
-				results = append(results, &EventLogEntryWithPayloads{
+				results = append(results, &EventLogEntryWithResultPayload{
 					Entry:          e,
-					InputPayload:   o.InputPayload,
 					ResultPayload:  resultPayload(state.opts.TenantId, e),
 					AlreadyExisted: true,
 				})
 			} else {
 				created := state.createdEntryByKey[key]
-				results = append(results, &EventLogEntryWithPayloads{
+				results = append(results, &EventLogEntryWithResultPayload{
 					Entry: &sqlcv1.BulkGetDurableEventLogEntriesRow{
 						TenantID:              created.TenantID,
 						ExternalID:            created.ExternalID,
@@ -1314,7 +1310,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 						IsSatisfied:           created.IsSatisfied,
 						InvocationCount:       created.InvocationCount,
 					},
-					InputPayload:   o.InputPayload,
 					ResultPayload:  o.ResultPayload,
 					AlreadyExisted: false,
 				})
@@ -1323,14 +1318,14 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 
 		for _, o := range state.skipOpts {
 			e := state.skipEntryByChildId[o.ChildTaskExternalId]
-			results = append(results, &EventLogEntryWithPayloads{
+			results = append(results, &EventLogEntryWithResultPayload{
 				Entry:          e,
 				AlreadyExisted: true,
 				ResultPayload:  resultPayload(state.opts.TenantId, e),
 			})
 		}
 
-		slices.SortFunc(results, func(i, j *EventLogEntryWithPayloads) int {
+		slices.SortFunc(results, func(i, j *EventLogEntryWithResultPayload) int {
 			if i.Entry.NodeID != j.Entry.NodeID {
 				return int(i.Entry.NodeID - j.Entry.NodeID)
 			}
@@ -2112,7 +2107,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				NodeId:              nodeId,
 				BranchId:            branchId,
 				ChildTaskExternalId: triggerOpts.ExternalId,
-				InvocationCount:     opts.InvocationCount,
 				IdempotencyKey:      idempotencyKey,
 				InputPayload:        inputPayload,
 				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
@@ -2147,14 +2141,13 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
-				NodeId:          baseNodeId,
-				BranchId:        branchId,
-				InvocationCount: opts.InvocationCount,
-				IdempotencyKey:  idempotencyKey,
-				InputPayload:    inputPayload,
-				UserMessage:     opts.WaitFor.Label,
-				WaitData:        marshalWaitData(waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)),
+				Kind:           sqlcv1.V1DurableEventLogKindWAITFOR,
+				NodeId:         baseNodeId,
+				BranchId:       branchId,
+				IdempotencyKey: idempotencyKey,
+				InputPayload:   inputPayload,
+				UserMessage:    opts.WaitFor.Label,
+				WaitData:       marshalWaitData(waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)),
 			}},
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
@@ -2173,13 +2166,12 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:            sqlcv1.V1DurableEventLogKindMEMO,
-				NodeId:          baseNodeId,
-				BranchId:        branchId,
-				InvocationCount: opts.InvocationCount,
-				IdempotencyKey:  opts.Memo.MemoKey,
-				IsSatisfied:     isSatisfied,
-				ResultPayload:   resultPayload,
+				Kind:           sqlcv1.V1DurableEventLogKindMEMO,
+				NodeId:         baseNodeId,
+				BranchId:       branchId,
+				IdempotencyKey: opts.Memo.MemoKey,
+				IsSatisfied:    isSatisfied,
+				ResultPayload:  resultPayload,
 			}},
 		}
 	default:
