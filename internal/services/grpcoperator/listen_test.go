@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -53,7 +52,7 @@ func (f *fakeListenStream) Recv() (*v1contracts.OperatorListenRequest, error) {
 	}
 }
 
-func (f *fakeListenStream) Send(*contracts.AssignedAction) error { return nil }
+func (f *fakeListenStream) Send(*v1contracts.OperatorListenResponse) error { return nil }
 
 func (f *fakeListenStream) push(msg *v1contracts.OperatorListenRequest) { f.recv <- msg }
 
