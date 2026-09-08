@@ -1900,10 +1900,6 @@ func (r *sharedRepository) registerChildWorkflows(
 			continue
 		}
 
-		if spawnsAsOperatorRun(tuple, steps) {
-			continue
-		}
-
 		for stepIndex, step := range orderSteps(steps) {
 			stepId := step.ID
 			stepExternalId, hasExternalId := stepsToExternalIds[i][stepId]
