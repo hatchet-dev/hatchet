@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,14 +28,19 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-// fakeOperatorStore serves operators from memory and upserts by (tenant, name).
+// fakeOperatorStore serves operators from memory and upserts by (tenant, name). Listen
+// handlers authorize concurrently, so the store is safe for concurrent use.
 type fakeOperatorStore struct {
+	mu        sync.Mutex
 	operators map[uuid.UUID]*sqlcv1.V1Operator
-	getCalls  int
+	getCalls  atomic.Int64
 }
 
 func (f *fakeOperatorStore) GetOperatorById(_ context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
-	f.getCalls++
+	f.getCalls.Add(1)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	op, ok := f.operators[operatorId]
 
@@ -46,6 +52,9 @@ func (f *fakeOperatorStore) GetOperatorById(_ context.Context, operatorId uuid.U
 }
 
 func (f *fakeOperatorStore) UpsertGRPCOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	for _, op := range f.operators {
 		if op.TenantID == tenantId && op.Name == name && op.Kind == sqlcv1.V1OperatorKindGRPC {
 			return op, nil
@@ -548,7 +557,7 @@ func TestAuthorizeOperatorCachesLookups(t *testing.T) {
 		assert.Equal(t, grpcOp.ID, op.ID)
 	}
 
-	assert.Equal(t, 1, store.getCalls, "cache hit should avoid a second repository call")
+	assert.Equal(t, int64(1), store.getCalls.Load(), "cache hit should avoid a second repository call")
 }
 
 func TestAuthorizeOperatorDoesNotCacheMisses(t *testing.T) {
@@ -569,7 +578,7 @@ func TestAuthorizeOperatorDoesNotCacheMisses(t *testing.T) {
 	op, err := svc.authorizeOperator(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, grpcOp.ID, op.ID)
-	assert.Equal(t, 2, store.getCalls)
+	assert.Equal(t, int64(2), store.getCalls.Load())
 }
 
 func TestAuthorizeOperatorWorker(t *testing.T) {
