@@ -285,7 +285,12 @@ func dialTLS(ctx context.Context, p *Params, base *tls.Config, serverName, netwo
 
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		_ = raw.Close()
-		return nil, err
+
+		// The handshake error reaches the tenant as the task error: name the host and
+		// the certificate problem, nothing about the connection.
+		p.Logger.Warn().Err(err).Str("host", serverName).Str("endpoint_id", p.EndpointId).Msg("durable upgrade TLS handshake failed")
+
+		return nil, safeclient.PublicError(serverName, err)
 	}
 
 	return newHeaderLimitConn(tlsConn, p.MaxUpgradeHeaderBytes), nil

@@ -702,6 +702,12 @@ type ServerlessOperatorConfigFile struct {
 
 	// WSMaxQueuedBytes bounds the encoded frames one durable relay retains for a slow endpoint.
 	WSMaxQueuedBytes int64 `mapstructure:"wsMaxQueuedBytes" json:"wsMaxQueuedBytes,omitempty" default:"16777216"`
+
+	// HTTPMaxIdleConns, HTTPMaxIdleConnsPerHost and HTTPIdleConnTimeout bound the delivery client's idle
+	// connection pool (SERVER_SERVERLESS_OPERATOR_HTTP_*).
+	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" json:"httpMaxIdleConns,omitempty" default:"256"`
+	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" json:"httpMaxIdleConnsPerHost,omitempty" default:"4"`
+	HTTPIdleConnTimeout     time.Duration `mapstructure:"httpIdleConnTimeout" json:"httpIdleConnTimeout,omitempty" default:"90s"`
 }
 
 type ConfigFileMonitoring struct {
@@ -961,6 +967,9 @@ func BindAllEnv(v *viper.Viper) {
 	// serverless operator relay resource limits
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConns", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConnsPerHost", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
+	_ = v.BindEnv("runtime.serverlessOperator.httpIdleConnTimeout", "SERVER_SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

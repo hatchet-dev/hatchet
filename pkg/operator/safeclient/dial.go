@@ -2,7 +2,6 @@ package safeclient
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -59,10 +58,6 @@ func (s *Sender) DialContext(ctx context.Context, network, addr string) (net.Con
 	ips, err := s.resolveAllowed(ctx, host)
 
 	if err != nil {
-		if errors.Is(err, ErrBlockedDestination) {
-			s.recordBlocked(host, reasonDestination, err)
-		}
-
 		return nil, err
 	}
 
@@ -82,12 +77,13 @@ func (s *Sender) DialContext(ctx context.Context, network, addr string) (net.Con
 		}
 	}
 
-	return nil, lastErr
+	return nil, s.publicError(host, lastErr)
 }
 
 // resolveAllowed resolves host and returns its addresses that pass the policy. A host with
 // any blocked address is rejected as a whole: a name that mixes public and private answers
-// is the DNS rebinding shape, not a legitimate endpoint.
+// is the DNS rebinding shape, not a legitimate endpoint. The blocked address is logged, not
+// returned: the error reaches the tenant.
 func (s *Sender) resolveAllowed(ctx context.Context, host string) ([]net.IP, error) {
 	var ips []net.IP
 
@@ -97,7 +93,7 @@ func (s *Sender) resolveAllowed(ctx context.Context, host string) ([]net.IP, err
 		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 
 		if err != nil {
-			return nil, fmt.Errorf("safeclient: could not resolve %s: %w", host, err)
+			return nil, s.publicError(host, err)
 		}
 
 		for _, a := range addrs {
@@ -113,14 +109,19 @@ func (s *Sender) resolveAllowed(ctx context.Context, host string) ([]net.IP, err
 		}
 
 		if s.blocklist.isBlockedIP(ip) {
-			return nil, fmt.Errorf("%w: %s resolves to %s", ErrBlockedDestination, host, ip)
+			s.recordBlocked(host, reasonDestination, fmt.Errorf("%w: %s resolves to %s", ErrBlockedDestination, host, ip))
+
+			return nil, fmt.Errorf("%w: %s resolves to a blocked address", ErrBlockedDestination, host)
 		}
 
 		allowed = append(allowed, ip)
 	}
 
 	if len(allowed) == 0 {
-		return nil, fmt.Errorf("%w: %s has no allowed address", ErrBlockedDestination, host)
+		err := fmt.Errorf("%w: %s has no allowed address", ErrBlockedDestination, host)
+		s.recordBlocked(host, reasonDestination, err)
+
+		return nil, err
 	}
 
 	return allowed, nil

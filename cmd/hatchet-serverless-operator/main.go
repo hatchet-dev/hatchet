@@ -67,6 +67,11 @@ type configFile struct {
 	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" default:"65536"`
 	WSMaxQueuedBytes        int64 `mapstructure:"wsMaxQueuedBytes" default:"16777216"`
 
+	// Outbound HTTP idle connection pool.
+	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" default:"256"`
+	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" default:"4"`
+	HTTPIdleConnTimeout     time.Duration `mapstructure:"httpIdleConnTimeout" default:"90s"`
+
 	// InfraBlockedCIDRs is a comma-separated list of CIDRs added to safeclient's denylist.
 	InfraBlockedCIDRs    string `mapstructure:"infraBlockedCidrs"`
 	AllowEmptyInfraCIDRs bool   `mapstructure:"allowEmptyInfraCidrs"`
@@ -114,6 +119,10 @@ func bindEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("wsMaxUpgradeHeaderBytes", "SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 	_ = v.BindEnv("wsMaxQueuedBytes", "SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
+
+	_ = v.BindEnv("httpMaxIdleConns", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
+	_ = v.BindEnv("httpMaxIdleConnsPerHost", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
+	_ = v.BindEnv("httpIdleConnTimeout", "SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
 
 	_ = v.BindEnv("infraBlockedCidrs", "SERVERLESS_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("allowEmptyInfraCidrs", "SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
@@ -240,11 +249,16 @@ func run(ctx context.Context, cf *configFile) error {
 		InfraBlockedCIDRs:    infraCIDRs,
 		AllowEmptyInfraCIDRs: cf.AllowEmptyInfraCIDRs || cf.InsecureDestinations,
 		InsecureDestinations: cf.InsecureDestinations,
+		MaxIdleConns:         cf.HTTPMaxIdleConns,
+		MaxIdleConnsPerHost:  cf.HTTPMaxIdleConnsPerHost,
+		IdleConnTimeout:      cf.HTTPIdleConnTimeout,
 	}, &l)
 
 	if err != nil {
 		return fmt.Errorf("could not build request sender: %w", err)
 	}
+
+	defer sender.CloseIdleConnections()
 
 	hostname, _ := os.Hostname()
 

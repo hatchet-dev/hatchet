@@ -8,7 +8,11 @@
 //   - all internal/reserved IP space is blocked, plus any caller-supplied
 //     Config.InfraBlockedCIDRs;
 //   - redirects are never followed (3xx is surfaced to the caller as the result status);
-//   - the response body is capped at Config.MaxResponseBytes;
+//   - the response body is capped at Config.MaxResponseBytes, and reading stops there;
+//   - idle connections are bounded globally, per host and in time (Config.MaxIdleConns,
+//     MaxIdleConnsPerHost, IdleConnTimeout); CloseIdleConnections releases them;
+//   - transport errors are returned as EndpointError, worded for the tenant, with the
+//     detail in the operator log;
 //   - the overall request deadline is owned by the CALLER via context.Context — this
 //     package imposes no overall request timeout.
 package safeclient
@@ -17,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +42,13 @@ const (
 	defaultMaxResponseBytes = 4 * 1024 * 1024 // 4 MiB
 	allowedScheme           = "https"
 	allowedPort             = 443
+
+	// Idle pool defaults. One operator process talks to many distinct origins, most of them
+	// rarely, so the pool is bounded globally and expires quickly; per host a few
+	// connections cover a burst of deliveries to one endpoint.
+	defaultMaxIdleConns        = 256
+	defaultMaxIdleConnsPerHost = 4
+	defaultIdleConnTimeout     = 90 * time.Second
 )
 
 // Config controls the SSRF policy and resource limits of a Sender.
@@ -46,6 +58,13 @@ type Config struct {
 	testAllowedIPs       []string
 	ConnectTimeout       time.Duration
 	MaxResponseBytes     int64
+
+	// MaxIdleConns, MaxIdleConnsPerHost and IdleConnTimeout bound the transport's idle
+	// connection pool; zero values take the package defaults (256, 4, 90s).
+	MaxIdleConns        int
+	MaxIdleConnsPerHost int
+	IdleConnTimeout     time.Duration
+
 	MaxRedirects         int
 	AllowEmptyInfraCIDRs bool
 	EnableIPv6           bool
@@ -79,6 +98,7 @@ type httpDoer interface {
 // reuse it; it is safe for concurrent use.
 type Sender struct {
 	client         httpDoer
+	transport      *http.Transport
 	blocklist      *blocklist
 	l              *zerolog.Logger
 	allowedPorts   []int
@@ -92,15 +112,9 @@ type Sender struct {
 // InfraBlockedCIDRs is empty (unless AllowEmptyInfraCIDRs) or if any blocked CIDR — default
 // or infra — fails to parse. l may be nil (logging is then disabled).
 func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
+	cfg = cfg.withDefaults()
+
 	if cfg.InsecureDestinations {
-		if cfg.ConnectTimeout <= 0 {
-			cfg.ConnectTimeout = defaultConnectTimeout
-		}
-
-		if cfg.MaxResponseBytes <= 0 {
-			cfg.MaxResponseBytes = defaultMaxResponseBytes
-		}
-
 		return newInsecureSender(cfg, l), nil
 	}
 
@@ -112,14 +126,6 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("safeclient: could not parse blocked CIDRs: %w", err)
-	}
-
-	if cfg.ConnectTimeout <= 0 {
-		cfg.ConnectTimeout = defaultConnectTimeout
-	}
-
-	if cfg.MaxResponseBytes <= 0 {
-		cfg.MaxResponseBytes = defaultMaxResponseBytes
 	}
 
 	ports := []int{allowedPort}
@@ -136,18 +142,7 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 		bl = &blocklist{}
 	}
 
-	transport := &http.Transport{
-		// Backstop for a hung TLS handshake; see Config.ConnectTimeout caveat.
-		TLSHandshakeTimeout: cfg.ConnectTimeout,
-		// Never pick up HTTP_PROXY / HTTPS_PROXY from the environment.
-		Proxy: nil,
-		// safeurl installs a custom DialContext, which makes net/http conservatively
-		// disable HTTP/2. Force it back on so we negotiate HTTP/2 via ALPN with servers
-		// that speak it; otherwise the client reads h2 frames with the HTTP/1
-		// parser and fails with "malformed HTTP response". The SSRF dial-time check runs at
-		// the TCP layer regardless of the negotiated HTTP version.
-		ForceAttemptHTTP2: true,
-	}
+	transport := cfg.newTransport()
 
 	if cfg.testInsecureTLS {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- test-only
@@ -170,8 +165,13 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 
 	client := safeurl.Client(builder.Build())
 
+	// safeurl clones the transport it is given; the clone is the one that pools
+	// connections, so that is the one CloseIdleConnections has to reach.
+	effective, _ := client.Client.Transport.(*http.Transport)
+
 	return &Sender{
 		client:         client,
+		transport:      effective,
 		blocklist:      bl,
 		allowedPorts:   ports,
 		maxBytes:       cfg.MaxResponseBytes,
@@ -185,11 +185,7 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 // checks, no proxy, no redirects. The response cap and the caller-owned deadline still
 // apply.
 func newInsecureSender(cfg Config, l *zerolog.Logger) *Sender {
-	transport := &http.Transport{
-		TLSHandshakeTimeout: cfg.ConnectTimeout,
-		Proxy:               nil,
-		ForceAttemptHTTP2:   true,
-	}
+	transport := cfg.newTransport()
 
 	if l != nil {
 		l.Warn().Msg("safeclient: SSRF policy disabled by InsecureDestinations; never run this way in production")
@@ -197,12 +193,66 @@ func newInsecureSender(cfg Config, l *zerolog.Logger) *Sender {
 
 	return &Sender{
 		client:         &http.Client{Transport: transport, CheckRedirect: noRedirects},
+		transport:      transport,
 		blocklist:      &blocklist{},
 		maxBytes:       cfg.MaxResponseBytes,
 		connectTimeout: cfg.ConnectTimeout,
 		l:              l,
 		insecure:       true,
 		enableIPv6:     true,
+	}
+}
+
+// withDefaults fills the zero limits.
+func (cfg Config) withDefaults() Config {
+	if cfg.ConnectTimeout <= 0 {
+		cfg.ConnectTimeout = defaultConnectTimeout
+	}
+
+	if cfg.MaxResponseBytes <= 0 {
+		cfg.MaxResponseBytes = defaultMaxResponseBytes
+	}
+
+	if cfg.MaxIdleConns <= 0 {
+		cfg.MaxIdleConns = defaultMaxIdleConns
+	}
+
+	if cfg.MaxIdleConnsPerHost <= 0 {
+		cfg.MaxIdleConnsPerHost = defaultMaxIdleConnsPerHost
+	}
+
+	if cfg.IdleConnTimeout <= 0 {
+		cfg.IdleConnTimeout = defaultIdleConnTimeout
+	}
+
+	return cfg
+}
+
+// newTransport builds the transport both policy modes share: no proxy, HTTP/2 on, a hung
+// TLS handshake backstopped by ConnectTimeout and a bounded idle pool.
+func (cfg Config) newTransport() *http.Transport {
+	return &http.Transport{
+		// Backstop for a hung TLS handshake; see Config.ConnectTimeout caveat.
+		TLSHandshakeTimeout: cfg.ConnectTimeout,
+		// Never pick up HTTP_PROXY / HTTPS_PROXY from the environment.
+		Proxy: nil,
+		// safeurl installs a custom DialContext, which makes net/http conservatively
+		// disable HTTP/2. Force it back on so we negotiate HTTP/2 via ALPN with servers
+		// that speak it; otherwise the client reads h2 frames with the HTTP/1
+		// parser and fails with "malformed HTTP response". The SSRF dial-time check runs at
+		// the TCP layer regardless of the negotiated HTTP version.
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        cfg.MaxIdleConns,
+		MaxIdleConnsPerHost: cfg.MaxIdleConnsPerHost,
+		IdleConnTimeout:     cfg.IdleConnTimeout,
+	}
+}
+
+// CloseIdleConnections drops every pooled connection. Call it when the Sender is retired
+// or when the origins it served are gone.
+func (s *Sender) CloseIdleConnections() {
+	if s.transport != nil {
+		s.transport.CloseIdleConnections()
 	}
 }
 
@@ -227,8 +277,9 @@ func noRedirects(_ *http.Request, _ []*http.Request) error {
 //
 // It returns a *DeliveryResult on a completed request (including 3xx), or a typed error:
 // ErrBadScheme, ErrBadPort, ErrBlockedDestination (do not retry — surface to the user),
-// ErrResponseTooLarge, or a wrapped context/network error (retryable). Use errors.Is to
-// distinguish them.
+// ErrResponseTooLarge, or an *EndpointError wrapping the context/network error
+// (retryable). Use errors.Is to distinguish them; an EndpointError's message is safe to
+// show the tenant and the wrapped detail is logged here.
 func (s *Sender) Deliver(ctx context.Context, method, endpoint string, body []byte, headers http.Header) (*DeliveryResult, error) {
 	start := time.Now()
 
@@ -257,32 +308,36 @@ func (s *Sender) Deliver(ctx context.Context, method, endpoint string, body []by
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	host := req.URL.Hostname()
+
 	resp, err := s.client.Do(req)
 
 	if err != nil {
 		reason, mapped := mapSafeurlError(err)
 
 		if reason != "" {
-			s.recordBlocked(req.URL.Hostname(), reason, mapped)
+			s.recordBlocked(host, reason, mapped)
+			return nil, mapped
 		}
 
-		return nil, mapped
+		return nil, s.publicError(host, mapped)
 	}
 
 	defer resp.Body.Close()
 
+	// Read one byte past the cap to tell "exactly the cap" from "over it", and nothing
+	// more: an oversize response is rejected as soon as the cap is crossed and the body is
+	// closed unread, which drops the connection instead of draining a stream the endpoint
+	// controls.
 	limited := io.LimitReader(resp.Body, s.maxBytes+1)
 
 	prefix, err := io.ReadAll(limited)
 
 	if err != nil {
-		return nil, fmt.Errorf("safeclient: could not read response body: %w", err)
+		return nil, s.publicError(host, err)
 	}
 
 	if int64(len(prefix)) > s.maxBytes {
-		// Discard the rest and close so the connection isn't reused mid-stream.
-		_, _ = io.Copy(io.Discard, resp.Body)
-
 		return nil, ErrResponseTooLarge
 	}
 
@@ -316,6 +371,24 @@ func (s *Sender) validate(endpoint string) (blockReason, error) {
 	}
 
 	return "", nil
+}
+
+// publicError logs the transport failure in full and returns its tenant-facing form.
+func (s *Sender) publicError(host string, err error) error {
+	public := PublicError(host, err)
+
+	var endpointErr *EndpointError
+
+	if s.l != nil && errors.As(public, &endpointErr) {
+		// Never log request bodies. Host, stage and the transport error only.
+		s.l.Warn().
+			Str("host", host).
+			Str("stage", string(endpointErr.Stage)).
+			Err(err).
+			Msg("outbound request failed")
+	}
+
+	return public
 }
 
 func (s *Sender) recordBlocked(host string, reason blockReason, err error) {
