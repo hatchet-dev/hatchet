@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -55,16 +56,28 @@ type workerStore interface {
 // dispatcherBackend is what the service needs from the local dispatcher: session registration
 // for the Listen stream, scheduler notification, and the two delegated RPCs.
 type dispatcherBackend interface {
-	AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream) (fin <-chan bool, release func())
+	AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) operatorStreamSession
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error
+}
+
+// operatorStreamSession is the dispatcher session handle for one Listen stream; see
+// dispatcher.OperatorStreamSession.
+type operatorStreamSession interface {
+	Fin() <-chan bool
+	Send(ctx context.Context, msg proto.Message) error
+	Release()
 }
 
 // dispatcherAdapter presents *dispatcher.DispatcherImpl as a dispatcherBackend; the durable
 // task stream lives on the dispatcher's V1 service.
 type dispatcherAdapter struct {
 	*dispatcher.DispatcherImpl
+}
+
+func (a dispatcherAdapter) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) operatorStreamSession {
+	return a.DispatcherImpl.AddOperatorStreamSession(workerId, sessionId, stream, wrap)
 }
 
 func (a dispatcherAdapter) DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error {

@@ -455,7 +455,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 					return true
 				}
 
-				w.finished <- true
+				w.requestFin()
 
 				return true
 			})

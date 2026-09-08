@@ -48,13 +48,13 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 	}
 
 	handler := func(srv any, stream grpc.ServerStream) error {
-		fin, release := h.d.AddOperatorStreamSession(workerId, uuid.New(), stream)
-		defer release()
+		session := h.d.AddOperatorStreamSession(workerId, uuid.New(), stream, nil)
+		defer session.Release()
 
 		close(h.ready)
 
 		select {
-		case <-fin:
+		case <-session.Fin():
 			return nil
 		case <-stream.Context().Done():
 			return stream.Context().Err()
