@@ -1,0 +1,4 @@
+dist/
+node_modules/
+src/generated/
+pnpm-lock.yaml
