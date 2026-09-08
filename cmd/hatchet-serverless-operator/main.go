@@ -65,6 +65,9 @@ type configFile struct {
 	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" default:"200"`
 	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" default:"500"`
 
+	MaintenanceConcurrency int   `mapstructure:"maintenanceConcurrency" default:"8"`
+	LeaseMaxClaimPerTick   int32 `mapstructure:"leaseMaxClaimPerTick" default:"1024"`
+
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" default:"4194304"`
 	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" default:"15s"`
 
@@ -122,6 +125,8 @@ func bindEnv(v *viper.Viper) {
 	_ = v.BindEnv("healthcheckApplyTimeout", "SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
 	_ = v.BindEnv("maxWorkflowsPerEndpoint", "SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
 	_ = v.BindEnv("maxActionsPerEndpoint", "SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
+	_ = v.BindEnv("maintenanceConcurrency", "SERVERLESS_OPERATOR_MAINTENANCE_CONCURRENCY")
+	_ = v.BindEnv("leaseMaxClaimPerTick", "SERVERLESS_OPERATOR_LEASE_MAX_CLAIM_PER_TICK")
 
 	_ = v.BindEnv("wsMaxFrameBytes", "SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("wsPingInterval", "SERVERLESS_OPERATOR_WS_PING_INTERVAL")
@@ -302,6 +307,8 @@ func run(ctx context.Context, cf *configFile) error {
 			HealthcheckApplyTimeout:      cf.HealthcheckApplyTimeout,
 			MaxWorkflowsPerEndpoint:      cf.MaxWorkflowsPerEndpoint,
 			MaxActionsPerEndpoint:        cf.MaxActionsPerEndpoint,
+			MaintenanceConcurrency:       cf.MaintenanceConcurrency,
+			LeaseMaxClaimPerTick:         cf.LeaseMaxClaimPerTick,
 			WSMaxFrameBytes:              cf.WSMaxFrameBytes,
 			WSPingInterval:               cf.WSPingInterval,
 			HealthPort:                   cf.HealthPort,

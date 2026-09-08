@@ -30,6 +30,8 @@ func ConfigFromServer(cf server.ServerlessOperatorConfigFile) serverlessoperator
 		HealthcheckApplyTimeout:      cf.HealthcheckApplyTimeout,
 		MaxWorkflowsPerEndpoint:      cf.MaxWorkflowsPerEndpoint,
 		MaxActionsPerEndpoint:        cf.MaxActionsPerEndpoint,
+		MaintenanceConcurrency:       cf.MaintenanceConcurrency,
+		LeaseMaxClaimPerTick:         cf.LeaseMaxClaimPerTick,
 		WSMaxFrameBytes:              cf.WSMaxFrameBytes,
 		WSPingInterval:               cf.WSPingInterval,
 		WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,

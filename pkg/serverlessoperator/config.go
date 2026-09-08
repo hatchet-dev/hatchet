@@ -51,6 +51,11 @@ type Config struct {
 	// MaintenanceConcurrency is how many tenants a maintenance pass refreshes at once.
 	MaintenanceConcurrency int
 
+	// LeaseMaxClaimPerTick caps how many lease units one rebalance tick claims; the process's
+	// share of the claimable units is taken up to this many, in statements of the leaser's
+	// claim batch.
+	LeaseMaxClaimPerTick int32
+
 	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay (a later
 	// phase); they are carried here so the binary's env binding is complete.
 	WSMaxFrameBytes int64
@@ -89,6 +94,7 @@ const (
 	DefaultMaxWorkflowsPerEndpoint            = 200
 	DefaultMaxActionsPerEndpoint              = 500
 	DefaultMaintenanceConcurrency             = 8
+	DefaultLeaseMaxClaimPerTick         int32 = 1024
 	DefaultWSMaxFrameBytes              int64 = 4 * 1024 * 1024
 	DefaultWSPingInterval                     = 15 * time.Second
 	DefaultHealthPort                         = 8080
@@ -127,6 +133,7 @@ func DefaultConfig() Config {
 		MaxWorkflowsPerEndpoint:      DefaultMaxWorkflowsPerEndpoint,
 		MaxActionsPerEndpoint:        DefaultMaxActionsPerEndpoint,
 		MaintenanceConcurrency:       DefaultMaintenanceConcurrency,
+		LeaseMaxClaimPerTick:         DefaultLeaseMaxClaimPerTick,
 		WSMaxFrameBytes:              DefaultWSMaxFrameBytes,
 		WSPingInterval:               DefaultWSPingInterval,
 		HealthPort:                   DefaultHealthPort,
@@ -214,6 +221,10 @@ func (c Config) withDefaults() Config {
 
 	if c.MaintenanceConcurrency <= 0 {
 		c.MaintenanceConcurrency = d.MaintenanceConcurrency
+	}
+
+	if c.LeaseMaxClaimPerTick <= 0 {
+		c.LeaseMaxClaimPerTick = d.LeaseMaxClaimPerTick
 	}
 
 	if c.WSMaxFrameBytes <= 0 {

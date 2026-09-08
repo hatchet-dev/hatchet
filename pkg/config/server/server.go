@@ -702,6 +702,12 @@ type ServerlessOperatorConfigFile struct {
 	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" json:"maxWorkflowsPerEndpoint,omitempty" default:"200"`
 	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" json:"maxActionsPerEndpoint,omitempty" default:"500"`
 
+	// MaintenanceConcurrency is how many tenants a maintenance pass refreshes at once.
+	MaintenanceConcurrency int `mapstructure:"maintenanceConcurrency" json:"maintenanceConcurrency,omitempty" default:"8"`
+
+	// LeaseMaxClaimPerTick caps how many lease units one rebalance tick claims.
+	LeaseMaxClaimPerTick int32 `mapstructure:"leaseMaxClaimPerTick" json:"leaseMaxClaimPerTick,omitempty" default:"1024"`
+
 	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay.
 	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" json:"wsMaxFrameBytes,omitempty" default:"4194304"`
 	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" json:"wsPingInterval,omitempty" default:"15s"`
@@ -981,6 +987,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.routingRefreshInterval", "SERVER_SERVERLESS_OPERATOR_ROUTING_REFRESH_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
 	_ = v.BindEnv("runtime.serverlessOperator.healthcheckConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTenantConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TENANT_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckApplyTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxWorkflowsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxActionsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maintenanceConcurrency", "SERVER_SERVERLESS_OPERATOR_MAINTENANCE_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.leaseMaxClaimPerTick", "SERVER_SERVERLESS_OPERATOR_LEASE_MAX_CLAIM_PER_TICK")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxFrameBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsPingInterval", "SERVER_SERVERLESS_OPERATOR_WS_PING_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.allowEmptyInfraCidrs", "SERVER_SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
