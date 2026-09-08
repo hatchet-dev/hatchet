@@ -5,11 +5,16 @@
 import type { BaseWorkflowDeclaration } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import type { ServerlessHealthcheckResponse } from '../generated/proto/v1/serverless';
 import { SIGNATURE_HEADER } from './contract';
+import type { ConsoleLike } from './context';
+import { runDurableInvocation } from './durable/invocation';
+import type { DurableHooks } from './durable/socket';
 import { buildHealthcheck, serializeHealthcheck } from './healthcheck';
 import { json, jsonText, triggerError } from './http';
 import { buildRegistry, type ServeEntry } from './registry';
-import { verifyBodySignature } from './signature';
+import { verifyBodySignature, verifyUpgradeSignature } from './signature';
 import { handleTrigger } from './trigger';
+
+export type { DurableHooks, DurableSocket } from './durable/socket';
 
 /** Resolves a value from the runtime's environment object, whatever shape it has. */
 export type EnvResolver<T> = T | ((env: unknown) => T | undefined);
@@ -32,29 +37,15 @@ export interface HandlerOptions {
   /** When set, durable upgrades carrying another endpoint id are refused. */
   endpointId?: EnvResolver<string>;
   runtime: { name: ServerlessRuntimeName };
+  /**
+   * Whether the adapter supplies `DurableHooks.upgrade` on every fetch. Only then does
+   * the healthcheck advertise durable support, and only for handlers with a durable task.
+   */
+  durable?: boolean;
+  /** Replay protection for durable upgrades: returns true when the nonce was seen before. */
+  seenNonce?: (nonce: string) => boolean;
   /** Where warnings and task logs go; defaults to the global console. */
-  console?: Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
-}
-
-/** What a durable websocket looks like to the relay. Cloudflare's server-side WebSocket, `ws` and Bun's sockets all fit. */
-export interface DurableSocket {
-  send(text: string): void;
-  close(code?: number, reason?: string): void;
-  onMessage(listener: (text: string) => void): void;
-  onClose(listener: (code: number, reason: string) => void): void;
-}
-
-/**
- * How an adapter lets the handler run the durable relay. Without `upgrade` the handler
- * answers durable upgrades with 426, and the healthcheck already reports
- * `durable.supported: false` so the operator never dials.
- */
-export interface DurableHooks {
-  upgrade?(
-    request: Request,
-    run: (socket: DurableSocket) => Promise<void>
-  ): Response | Promise<Response>;
-  waitUntil?(promise: Promise<unknown>): void;
+  console?: ConsoleLike;
 }
 
 export interface ServerlessHandler {
@@ -87,7 +78,8 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
   const out = options.console ?? console;
   const registry = buildRegistry(options.workflows, options.serve, (message) => out.warn(message));
   const basePath = normalizeBasePath(options.basePath);
-  const healthcheck = buildHealthcheck(registry, options.runtime);
+  const durableSupported = options.durable === true && registry.durableActions.size > 0;
+  const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
   const healthcheckBody = serializeHealthcheck(healthcheck);
 
   const routeOf = (pathname: string): Route | undefined => {
@@ -151,12 +143,25 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
       }
 
       if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
-        // The durable relay is the next phase; `hooks.upgrade` is the seam it will use.
-        void hooks;
-        return triggerError(
-          426,
-          'the durable websocket relay is not available in this version of @hatchet-dev/serverless',
-          false
+        if (!hooks?.upgrade) {
+          return triggerError(
+            426,
+            'this endpoint does not accept the durable websocket relay; its adapter provides no upgrade hook',
+            false
+          );
+        }
+
+        const verified = await verifyUpgradeSignature(request.headers, secret, {
+          endpointId: resolve(options.endpointId, env),
+          seenNonce: options.seenNonce,
+        });
+
+        if (!verified.ok) {
+          return json({ error: verified.reason }, verified.status);
+        }
+
+        return hooks.upgrade(request, (socket) =>
+          runDurableInvocation({ socket, registry, console: options.console })
         );
       }
 

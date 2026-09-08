@@ -15,20 +15,22 @@ import type {
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import { ServerlessLimitationError } from './errors';
 
+export type ConsoleLike = Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
+
 export interface ServerlessRuntimeOptions {
   /** The namespace the operator registered the workflows under, with its separator. */
   namespace?: string;
   /** Whether the handler serves the given workflow (un-namespaced name). */
   hasWorkflow: (workflowName: string) => boolean;
   /** Where task logs go; defaults to the global console. */
-  console?: Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
+  console?: ConsoleLike;
 }
 
 /** A `Logger` over the console. */
 export class ConsoleLogger implements Logger {
   constructor(
     private readonly name: string,
-    private readonly out: Pick<Console, 'debug' | 'info' | 'warn' | 'error'> = console
+    private readonly out: ConsoleLike = console
   ) {}
 
   debug(message: string, extra?: LogExtra) {

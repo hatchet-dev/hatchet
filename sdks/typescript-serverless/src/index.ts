@@ -30,7 +30,12 @@ export type {
 } from './handler';
 export { ServerlessLimitationError, isServerlessLimitationError } from './handler/errors';
 export { ServerlessRuntime, ConsoleLogger } from './handler/context';
-export type { ServerlessRuntimeOptions } from './handler/context';
+export type { ConsoleLike, ServerlessRuntimeOptions } from './handler/context';
+export { FrameTransport } from './handler/durable/transport';
+export type { FrameTransportOptions } from './handler/durable/transport';
+export { runDurableInvocation } from './handler/durable/invocation';
+export type { DurableInvocationOptions } from './handler/durable/invocation';
+export { decodeFrame, encodeFrame, frameKind } from './handler/durable/frames';
 export type { ServeEntry } from './handler/registry';
 export {
   constantTimeEqual,

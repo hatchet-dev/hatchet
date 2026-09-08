@@ -3,13 +3,8 @@
  * the envelope, strip the namespace, look the task up, run it under a `Context` and map the
  * outcome onto the status codes pkg/serverlessoperator/delivery.go classifyResponse reads.
  */
-import {
-  AssignedAction as SdkAssignedAction,
-  Context,
-  NonRetryableError,
-  createAction,
-} from '@hatchet-dev/typescript-sdk/edge/index.js';
-import { ActionType, AssignedAction } from '../generated/proto/dispatcher';
+import { Context, NonRetryableError } from '@hatchet-dev/typescript-sdk/edge/index.js';
+import { ActionType } from '../generated/proto/dispatcher';
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
 import {
   SIGNATURE_HEADER,
@@ -17,7 +12,8 @@ import {
   namespacePrefix,
   stripNamespace,
 } from './contract';
-import { ServerlessRuntime } from './context';
+import { toSdkAction } from './action';
+import { ServerlessRuntime, type ConsoleLike } from './context';
 import { isServerlessLimitationError } from './errors';
 import { errorMessage, json, triggerError } from './http';
 import type { Registry } from './registry';
@@ -26,7 +22,7 @@ import { verifyBodySignature } from './signature';
 export interface TriggerOptions {
   registry: Registry;
   secret: string;
-  console?: Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
+  console?: ConsoleLike;
 }
 
 export async function handleTrigger(request: Request, options: TriggerOptions): Promise<Response> {
@@ -128,22 +124,4 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
 
     return triggerError(500, errorMessage(err), true);
   }
-}
-
-/**
- * Re-reads the package's AssignedAction as the SDK's (two generated copies of the same
- * message) and strips the namespace from the names user code sees: `ctx.workflowName()`,
- * `ctx.workflowNameV1()` and the action id are the ones the user declared.
- */
-function toSdkAction(action: AssignedAction, namespace: string) {
-  const sdkAction = SdkAssignedAction.fromJSON(AssignedAction.toJSON(action));
-
-  sdkAction.actionId = stripNamespace(action.actionId, namespace);
-  sdkAction.jobName = stripNamespace(action.jobName, namespace);
-
-  if (!sdkAction.actionPayload) {
-    sdkAction.actionPayload = '{}';
-  }
-
-  return createAction(sdkAction);
 }

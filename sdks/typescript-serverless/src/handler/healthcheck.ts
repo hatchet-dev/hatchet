@@ -16,7 +16,8 @@ export interface HealthcheckRuntime {
 
 export function buildHealthcheck(
   registry: Registry,
-  runtime: HealthcheckRuntime
+  runtime: HealthcheckRuntime,
+  durableSupported: boolean
 ): ServerlessHealthcheckResponse {
   return {
     // The SDK's generated CreateWorkflowVersionRequest and the package's are two copies
@@ -26,7 +27,7 @@ export function buildHealthcheck(
       CreateWorkflowVersionRequest.fromJSON(SdkCreateWorkflowVersionRequest.toJSON(workflow.proto))
     ),
     actions: [...registry.served].sort(),
-    durable: { supported: false },
+    durable: { supported: durableSupported },
     runtime: { name: runtime.name, sdkVersion },
   };
 }

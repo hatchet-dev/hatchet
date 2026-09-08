@@ -13,10 +13,12 @@ import type {
   BaseWorkflowDeclaration,
   Context,
   CreateWorkflowVersionRequest,
+  DurableContext,
   WorkflowDefinition,
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
 
 export type TaskRunner = (ctx: Context<any, any>) => unknown;
+export type DurableTaskRunner = (ctx: DurableContext<any, any>) => unknown;
 
 export interface RegisteredWorkflow {
   /** The workflow name as registered, lowercased and without a namespace. */
@@ -36,6 +38,8 @@ export interface Registry {
   runners: Map<string, TaskRunner>;
   /** Action ids of durable tasks; served over the relay, never over a POST. */
   durableActions: Set<string>;
+  /** Task functions by action id, for every durable task. */
+  durableRunners: Map<string, DurableTaskRunner>;
   /** Action ids this endpoint serves. */
   served: Set<string>;
   hasWorkflow(workflowName: string): boolean;
@@ -76,6 +80,7 @@ export function buildRegistry(
   const registered: RegisteredWorkflow[] = [];
   const runners = new Map<string, TaskRunner>();
   const durableActions = new Set<string>();
+  const durableRunners = new Map<string, DurableTaskRunner>();
   const seenNames = new Set<string>();
 
   for (const declaration of workflows) {
@@ -105,6 +110,11 @@ export function buildRegistry(
       const actionId = createActionId(name, task.name);
       actions.push(actionId);
       durableActions.add(actionId);
+
+      if (task.fn) {
+        const { fn } = task;
+        durableRunners.set(actionId, (ctx) => fn(ctx.input, ctx));
+      }
     }
 
     const onFailureFn = definition.onFailure
@@ -131,6 +141,7 @@ export function buildRegistry(
     workflows: registered,
     runners,
     durableActions,
+    durableRunners,
     served: servedActions(registered, serve),
     hasWorkflow: (workflowName) => seenNames.has(workflowName.toLowerCase()),
   };
