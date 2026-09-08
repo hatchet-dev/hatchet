@@ -32,6 +32,8 @@ func ConfigFromServer(cf server.ServerlessOperatorConfigFile) serverlessoperator
 		MaxActionsPerEndpoint:        cf.MaxActionsPerEndpoint,
 		WSMaxFrameBytes:              cf.WSMaxFrameBytes,
 		WSPingInterval:               cf.WSPingInterval,
+		WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
+		WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		HealthPort:                   0,
 	}
 }

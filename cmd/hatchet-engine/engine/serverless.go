@@ -50,6 +50,9 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 		InfraBlockedCIDRs:    sc.Runtime.OperatorInfraBlockedCIDRs,
 		AllowEmptyInfraCIDRs: cf.AllowEmptyInfraCIDRs || cf.InsecureDestinations,
 		InsecureDestinations: cf.InsecureDestinations,
+		MaxIdleConns:         cf.HTTPMaxIdleConns,
+		MaxIdleConnsPerHost:  cf.HTTPMaxIdleConnsPerHost,
+		IdleConnTimeout:      cf.HTTPIdleConnTimeout,
 	}, &l)
 
 	if err != nil {
@@ -84,7 +87,14 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 		})
 	})
 
-	return sup.stop, nil
+	return func() error {
+		err := sup.stop()
+		// the core's deliveries are drained once stop returns, so the pool holds nothing
+		// the engine still needs.
+		sender.CloseIdleConnections()
+
+		return err
+	}, nil
 }
 
 // serverlessSupervisor keeps the core running until stopped. Running reports whether the core
