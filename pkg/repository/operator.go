@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -29,7 +31,10 @@ type OperatorRepository interface {
 	// (slot_type -> max units) is provided by the caller and may vary between operators.
 	CreateOperatorWorker(ctx context.Context, dispatcherId uuid.UUID, operator *sqlcv1.V1Operator, slotConfig map[string]int32) (*sqlcv1.Worker, error)
 
-	// UpdateOperatorWorkerActions updates the registered actions for the worker corresponding to the operator.
+	// UpdateOperatorWorkerActions links actions to the worker corresponding to the operator. Links
+	// the worker already holds are kept, and the worker's action hash is recomputed from the links
+	// the call leaves behind, so it is always the canonical digest of the linked set. The worker
+	// must belong to the tenant.
 	UpdateOperatorWorkerActions(ctx context.Context, tenantId, workerId uuid.UUID, actions []string) error
 
 	// UpsertGRPCOperator registers an out-of-process operator by (tenant, name) with kind GRPC,
@@ -244,6 +249,8 @@ func (r *operatorRepository) CreateOperatorWorker(ctx context.Context, dispatche
 }
 
 func (r *operatorRepository) UpdateOperatorWorkerActions(ctx context.Context, tenantId, workerId uuid.UUID, actions []string) error {
+	actions = dedupeActionIds(actions)
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -252,13 +259,18 @@ func (r *operatorRepository) UpdateOperatorWorkerActions(ctx context.Context, te
 
 	defer rollback()
 
-	err = r.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
-		Workerid:   workerId,
-		Actionhash: hashActions(actions),
-	})
+	// the row lock is held until commit, so this call and the worker repository's deltas for
+	// the same worker apply one after the other and each recomputes the hash from the links it
+	// leaves behind; the tenant is part of the lock's predicate
+	if _, err := r.queries.LockWorkerActionHash(ctx, tx, sqlcv1.LockWorkerActionHashParams{
+		Workerid: workerId,
+		Tenantid: tenantId,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("worker %s does not belong to tenant %s: %w", workerId, tenantId, err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("could not update worker actions hash: %w", err)
+		return fmt.Errorf("could not lock worker %s: %w", workerId, err)
 	}
 
 	actionUUIDs := make([]uuid.UUID, len(actions))
@@ -276,13 +288,28 @@ func (r *operatorRepository) UpdateOperatorWorkerActions(ctx context.Context, te
 		actionUUIDs[i] = dbAction.ID
 	}
 
-	err = r.queries.LinkActionsToWorker(ctx, tx, sqlcv1.LinkActionsToWorkerParams{
-		Actionids: actionUUIDs,
+	if _, err := r.queries.LinkActionsToWorkerReturning(ctx, tx, sqlcv1.LinkActionsToWorkerReturningParams{
 		Workerid:  workerId,
-	})
+		Tenantid:  tenantId,
+		Actionids: actionUUIDs,
+	}); err != nil {
+		return fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	// the hash is the digest of every link the worker holds, not of the list this call was
+	// given, so a call that repeats or extends an existing set stores the same value a delta
+	// path would
+	hash, err := r.queries.ComputeWorkerActionHash(ctx, tx, workerId)
 
 	if err != nil {
-		return fmt.Errorf("could not link actions to worker: %w", err)
+		return fmt.Errorf("could not compute worker actions hash: %w", err)
+	}
+
+	if err := r.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
+		Workerid:   workerId,
+		Actionhash: hash,
+	}); err != nil {
+		return fmt.Errorf("could not update worker actions hash: %w", err)
 	}
 
 	return commit(ctx)
