@@ -41,9 +41,15 @@ func testJWT(t *testing.T, tenantId uuid.UUID) string {
 	return enc.EncodeToString(header) + "." + enc.EncodeToString(claims) + ".sig"
 }
 
+// writeFile replaces path atomically, through a temporary file and a rename, the way a
+// rotated secret or a mounted file is swapped. The exchange's poller stats the file between
+// writes, so a truncate-then-write could be observed as an empty (valid, tenantless) file.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+	tmp := path + ".tmp"
+	require.NoError(t, os.WriteFile(tmp, []byte(content), 0o600))
+	require.NoError(t, os.Rename(tmp, path))
 }
 
 func TestLocalExchangeLoadsAndReloads(t *testing.T) {
