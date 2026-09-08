@@ -1,5 +1,6 @@
 sns:
   post:
+    x-enable-rate-limiting: true
     description: SNS event
     operationId: sns:update
     parameters:
