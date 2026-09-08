@@ -31,6 +31,9 @@ func (s *OperatorServiceImpl) SendStepActionEvent(ctx context.Context, req *cont
 // DurableTask is the durable task event stream. The operator is authorized once when the
 // stream opens, and the worker named by the first register_worker message is checked for
 // ownership before the dispatcher's V1 service sees it; the dispatcher then owns the stream.
+// The SDK's durable listener registers exactly once per stream (it opens a new stream to
+// register again), so a second register_worker is refused as a protocol error rather than
+// re-checked: the stream stays bound to the worker it was authorized for.
 func (s *OperatorServiceImpl) DurableTask(stream v1contracts.OperatorService_DurableTaskServer) error {
 	op, err := s.authorizeOperator(stream.Context())
 
@@ -49,9 +52,9 @@ func (s *OperatorServiceImpl) DurableTask(stream v1contracts.OperatorService_Dur
 
 // ownershipCheckedDurableStream intercepts the first register_worker message on a durable task
 // stream and runs the worker ownership check on its worker id before handing the message to the
-// dispatcher. The generated OperatorService_DurableTaskServer and V1Dispatcher_DurableTaskServer
-// interfaces have the same method set, so the wrapped stream passes through otherwise
-// unchanged.
+// dispatcher. Any later register_worker is refused with InvalidArgument. The generated
+// OperatorService_DurableTaskServer and V1Dispatcher_DurableTaskServer interfaces have the same
+// method set, so the wrapped stream passes through otherwise unchanged.
 type ownershipCheckedDurableStream struct {
 	v1contracts.OperatorService_DurableTaskServer
 
@@ -71,11 +74,15 @@ func (w *ownershipCheckedDurableStream) Recv() (*v1contracts.DurableTaskRequest,
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	register := req.GetRegisterWorker()
+
 	if w.checked {
+		if register != nil {
+			return nil, status.Error(codes.InvalidArgument, "the DurableTask stream is already registered to a worker")
+		}
+
 		return req, nil
 	}
-
-	register := req.GetRegisterWorker()
 
 	if register == nil {
 		return nil, status.Error(codes.InvalidArgument, "the first message on the DurableTask stream must be register_worker")
