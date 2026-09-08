@@ -40,7 +40,7 @@ type Hooks struct {
 	Owned      func(units, endpoints int)
 }
 
-// Config is the leaser's timing. Zero values take the defaults below.
+// Config is the leaser's timing and claim sizing. Zero values take the defaults below.
 type Config struct {
 	Hostname          string
 	Version           string
@@ -51,7 +51,13 @@ type Config struct {
 	SweepInterval     time.Duration
 	SweepCutoff       time.Duration
 	ShedHysteresis    float64
-	ClaimBatch        int32
+
+	// ClaimBatch is the most units one claim statement takes; MaxClaimPerTick caps how many a
+	// tick claims in total. The tick's budget is its fair share of the claimable units, so a
+	// takeover of many units spreads evenly over the live processes and a single survivor
+	// takes at most MaxClaimPerTick per tick.
+	ClaimBatch      int32
+	MaxClaimPerTick int32
 }
 
 const (
@@ -61,11 +67,11 @@ const (
 	defaultSweepInterval     = 10 * time.Minute
 	defaultSweepCutoff       = time.Hour
 	defaultShedHysteresis    = 0.2
-	defaultClaimBatch        = 8
+	defaultClaimBatch        = 64
+	defaultMaxClaimPerTick   = 1024
 
-	// maxClaimRounds bounds the claim loop of one tick so a run of zero-weight units, which
-	// never spend the budget, cannot keep a tick busy.
-	maxClaimRounds = 16
+	// initialHeartbeatBackoffMax caps the retry interval of the first heartbeat.
+	initialHeartbeatBackoffMax = 30 * time.Second
 )
 
 func (c Config) withDefaults() Config {
@@ -97,6 +103,14 @@ func (c Config) withDefaults() Config {
 		c.ClaimBatch = defaultClaimBatch
 	}
 
+	if c.MaxClaimPerTick <= 0 {
+		c.MaxClaimPerTick = defaultMaxClaimPerTick
+	}
+
+	if c.ClaimBatch > c.MaxClaimPerTick {
+		c.ClaimBatch = c.MaxClaimPerTick
+	}
+
 	return c
 }
 
@@ -107,20 +121,29 @@ type Leaser struct {
 	reconciler Reconciler
 	l          *zerolog.Logger
 	owned      map[Unit]int32
-	hooks      Hooks
-	cfg        Config
-	mu         sync.Mutex
-	ticked     atomic.Bool
+	// kick asks the rebalance loop for an immediate tick, after a heartbeat lapse.
+	kick  chan struct{}
+	hooks Hooks
+	cfg   Config
+	// lastHeartbeat is when the last heartbeat succeeded; a gap longer than the TTL means the
+	// process row expired in between and other processes may have taken its units.
+	lastHeartbeat time.Time
+	// initialBackoff is the first retry interval of the initial heartbeat; tests shorten it.
+	initialBackoff time.Duration
+	mu             sync.Mutex
+	ticked         atomic.Bool
 }
 
 func New(repo repository.ServerlessRepository, reconciler Reconciler, cfg Config, l *zerolog.Logger, hooks Hooks) *Leaser {
 	return &Leaser{
-		repo:       repo,
-		reconciler: reconciler,
-		cfg:        cfg.withDefaults(),
-		l:          l,
-		hooks:      hooks,
-		owned:      map[Unit]int32{},
+		repo:           repo,
+		reconciler:     reconciler,
+		cfg:            cfg.withDefaults(),
+		l:              l,
+		hooks:          hooks,
+		owned:          map[Unit]int32{},
+		kick:           make(chan struct{}, 1),
+		initialBackoff: time.Second,
 	}
 }
 
@@ -156,38 +179,67 @@ func (s *Leaser) counts() (units, endpoints int32) {
 	return int32(len(s.owned)), endpoints // #nosec G115 -- unit counts are small
 }
 
-// Run heartbeats immediately so the process is live before its first tick, then loops the
-// heartbeat, rebalance and sweep until ctx is done. Loop errors are logged, not returned:
-// a transient database error must not stop the process.
+// Run heartbeats until the process row is live, retrying with backoff so a database that is
+// unreachable at startup delays the process instead of stopping it, then loops the heartbeat,
+// rebalance and sweep until ctx is done. Loop errors are logged, not returned: a transient
+// database error must not stop the process.
 func (s *Leaser) Run(ctx context.Context) error {
-	if err := s.Heartbeat(ctx); err != nil {
-		return fmt.Errorf("initial heartbeat: %w", err)
+	if err := s.initialHeartbeat(ctx); err != nil {
+		return err
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return s.loop(gctx, s.cfg.HeartbeatInterval, false, func(ctx context.Context) error {
-			return s.Heartbeat(ctx)
-		})
+		return s.loop(gctx, s.cfg.HeartbeatInterval, false, nil, s.Heartbeat)
 	})
 
 	g.Go(func() error {
-		return s.loop(gctx, s.cfg.RebalanceInterval, true, s.Tick)
+		return s.loop(gctx, s.cfg.RebalanceInterval, true, s.kick, s.Tick)
 	})
 
 	g.Go(func() error {
-		return s.loop(gctx, s.cfg.SweepInterval, false, s.sweep)
+		return s.loop(gctx, s.cfg.SweepInterval, false, nil, s.sweep)
 	})
 
 	return g.Wait()
 }
 
-func (s *Leaser) loop(ctx context.Context, interval time.Duration, immediate bool, fn func(context.Context) error) error {
-	if immediate {
+func (s *Leaser) initialHeartbeat(ctx context.Context) error {
+	backoff := s.initialBackoff
+
+	for {
+		err := s.Heartbeat(ctx)
+
+		if err == nil {
+			return nil
+		}
+
+		if ctx.Err() != nil {
+			return fmt.Errorf("initial heartbeat: %w", err)
+		}
+
+		s.l.Error().Err(err).Dur("retry_in", backoff).Msg("initial serverless heartbeat failed; retrying")
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("initial heartbeat: %w", ctx.Err())
+		case <-time.After(backoff):
+		}
+
+		backoff = min(backoff*2, initialHeartbeatBackoffMax)
+	}
+}
+
+func (s *Leaser) loop(ctx context.Context, interval time.Duration, immediate bool, kick <-chan struct{}, fn func(context.Context) error) error {
+	run := func() {
 		if err := fn(ctx); err != nil && ctx.Err() == nil {
 			s.l.Error().Err(err).Msg("serverless leaser step failed")
 		}
+	}
+
+	if immediate {
+		run()
 	}
 
 	ticker := time.NewTicker(interval)
@@ -198,14 +250,16 @@ func (s *Leaser) loop(ctx context.Context, interval time.Duration, immediate boo
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := fn(ctx); err != nil && ctx.Err() == nil {
-				s.l.Error().Err(err).Msg("serverless leaser step failed")
-			}
+			run()
+		case <-kick:
+			run()
 		}
 	}
 }
 
-// Heartbeat upserts the process row: the only steady-state write of a process.
+// Heartbeat upserts the process row: the only steady-state write of a process. A heartbeat
+// that lands more than the TTL after the previous one found the row expired in between; the
+// lease table is re-read at once, since other processes may have taken units meanwhile.
 func (s *Leaser) Heartbeat(ctx context.Context) error {
 	units, endpoints := s.counts()
 
@@ -224,18 +278,38 @@ func (s *Leaser) Heartbeat(ctx context.Context) error {
 		opts.Version = &s.cfg.Version
 	}
 
-	return s.repo.Processes().Upsert(ctx, opts)
+	if err := s.repo.Processes().Upsert(ctx, opts); err != nil {
+		return err
+	}
+
+	now := time.Now()
+
+	s.mu.Lock()
+	lapsed := !s.lastHeartbeat.IsZero() && now.Sub(s.lastHeartbeat) > s.cfg.TTL
+	s.lastHeartbeat = now
+	s.mu.Unlock()
+
+	if lapsed {
+		s.l.Warn().Msg("serverless heartbeat lapsed beyond the lease TTL; ownership is re-read from the lease table")
+
+		select {
+		case s.kick <- struct{}{}:
+		default:
+		}
+	}
+
+	return nil
 }
 
 func (s *Leaser) sweep(ctx context.Context) error {
-	n, err := s.repo.Processes().DeleteExpired(ctx, time.Now().Add(-s.cfg.SweepCutoff))
+	deleted, released, err := s.repo.Processes().DeleteExpired(ctx, time.Now().Add(-s.cfg.SweepCutoff))
 
 	if err != nil {
 		return fmt.Errorf("sweep expired processes: %w", err)
 	}
 
-	if n > 0 {
-		s.l.Info().Int64("deleted", n).Msg("swept expired serverless process rows")
+	if deleted > 0 {
+		s.l.Info().Int64("deleted", deleted).Int64("released_units", released).Msg("swept expired serverless process rows")
 	}
 
 	return nil
@@ -259,25 +333,10 @@ func (s *Leaser) Tick(ctx context.Context) error {
 		return err
 	}
 
-	live, dead, err := s.repo.Processes().ListLive(ctx)
+	live, _, err := s.repo.Processes().ListLive(ctx)
 
 	if err != nil {
 		return fmt.Errorf("list live processes: %w", err)
-	}
-
-	// Units still held by dead processes are claimable, so they count toward what the live
-	// processes share; without them a process that already owns its fair share has no budget
-	// to take a crashed process's units over.
-	deadIds := make([]uuid.UUID, 0, len(dead))
-
-	for _, p := range dead {
-		deadIds = append(deadIds, p.ProcessID)
-	}
-
-	unowned, err := s.repo.Leases().CountUnowned(ctx, deadIds)
-
-	if err != nil {
-		return fmt.Errorf("count claimable leases: %w", err)
 	}
 
 	myWeight := weightOf(current)
@@ -296,43 +355,43 @@ func (s *Leaser) Tick(ctx context.Context) error {
 		otherWeight += int64(p.EndpointCount)
 	}
 
-	total := otherWeight + myWeight + unowned.EndpointCount
+	// Units still held by dead processes are claimable, so they count toward what the live
+	// processes share; without them a process that already owns its fair share has no budget
+	// to take a crashed process's units over. The count is capped at what the whole fleet
+	// can claim this tick: beyond that the exact population does not change anyone's budget.
+	claimable, err := s.repo.Leases().CountClaimable(ctx, int64(s.cfg.MaxClaimPerTick)*liveCount)
+
+	if err != nil {
+		return fmt.Errorf("count claimable leases: %w", err)
+	}
+
+	total := otherWeight + myWeight + claimable.EndpointCount
 	fairShare := (total + liveCount - 1) / liveCount
-	budget := max(fairShare-myWeight, 0)
+	weightBudget := max(fairShare-myWeight, 0)
+
+	// The unit budget is this process's share of the claimable units, so a takeover spreads
+	// over the live processes within a tick instead of one process taking a fixed batch.
+	unitBudget := min((claimable.UnitCount+liveCount-1)/liveCount, int64(s.cfg.MaxClaimPerTick))
+
+	// The floor of one unit when holding nothing keeps units from being stranded while the
+	// weight estimate is off, pgoutbox style; the budgets spread load, they are not
+	// correctness constraints.
+	if len(current) == 0 && claimable.UnitCount > 0 {
+		unitBudget = max(unitBudget, 1)
+		weightBudget = max(weightBudget, 1)
+	}
 
 	claimed := 0
 
-	// The floor of one unit when holding nothing keeps units from being stranded while the
-	// weight estimate is off, pgoutbox style; the budget spreads load, it is not a
-	// correctness constraint.
-	if (budget > 0 || len(current) == 0) && (unowned.UnitCount > 0 || len(dead) > 0) {
-		for round := 0; round < maxClaimRounds; round++ {
-			// Each unit weighs at least one endpoint in practice, so a batch never larger
-			// than the remaining budget keeps the overshoot to one unit; the floor case
-			// claims exactly one.
-			limit := int32(1)
+	if weightBudget > 0 && unitBudget > 0 {
+		n, err := s.claim(ctx, current, unitBudget, weightBudget)
 
-			if budget > 0 {
-				limit = int32(min(int64(s.cfg.ClaimBatch), budget)) // #nosec G115 -- bounded by ClaimBatch
-			}
-
-			rows, err := s.repo.Leases().Claim(ctx, s.cfg.ProcessId, deadIds, limit)
-
-			if err != nil {
-				return fmt.Errorf("claim leases: %w", err)
-			}
-
-			for _, row := range rows {
-				current[Unit{TenantId: row.TenantID, Shard: row.Shard}] = row.EndpointCount
-				myWeight += int64(row.EndpointCount)
-				budget -= int64(row.EndpointCount)
-				claimed++
-			}
-
-			if int32(len(rows)) < limit || budget <= 0 { // #nosec G115 -- bounded by ClaimBatch
-				break
-			}
+		if err != nil {
+			return err
 		}
+
+		claimed = n
+		myWeight = weightOf(current)
 	}
 
 	if claimed > 0 && s.hooks.Claimed != nil {
@@ -392,6 +451,59 @@ func (s *Leaser) Tick(ctx context.Context) error {
 	s.ticked.Store(true)
 
 	return nil
+}
+
+// claim takes units into current until either budget is spent or nothing claimable is left.
+// The walk over unowned units starts at a random key, so concurrent claimers spread over the
+// population instead of contending on its head, and wraps around to the beginning once.
+func (s *Leaser) claim(ctx context.Context, current map[Unit]int32, unitBudget, weightBudget int64) (int, error) {
+	claimed := 0
+	after := Unit{TenantId: randomTenantKey()}
+	wrapped := false
+
+	for unitBudget > 0 && weightBudget > 0 {
+		limit := int32(min(int64(s.cfg.ClaimBatch), unitBudget, weightBudget)) // #nosec G115 -- bounded by ClaimBatch
+
+		rows, err := s.repo.Leases().Claim(ctx, s.cfg.ProcessId, after, limit)
+
+		if err != nil {
+			return claimed, fmt.Errorf("claim leases: %w", err)
+		}
+
+		for _, row := range rows {
+			unit := Unit{TenantId: row.TenantID, Shard: row.Shard}
+			current[unit] = row.EndpointCount
+			unitBudget--
+			// Every unit spends at least one weight unit so a run of empty units cannot keep
+			// a tick claiming past its unit budget.
+			weightBudget -= max(int64(row.EndpointCount), 1)
+			claimed++
+
+			if lessUnit(after, unit) {
+				after = unit
+			}
+		}
+
+		if int32(len(rows)) == limit { // #nosec G115 -- bounded by ClaimBatch
+			continue
+		}
+
+		if wrapped || after.TenantId == uuid.Nil {
+			break
+		}
+
+		after = Unit{}
+		wrapped = true
+	}
+
+	return claimed, nil
+}
+
+// randomTenantKey is a random point in the tenant id space: tenant ids are random uuids, so
+// a fresh one is distributed like them and starting a walk there spreads concurrent claimers
+// over the unowned population.
+func randomTenantKey() uuid.UUID {
+	return uuid.New()
 }
 
 func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {

@@ -13,25 +13,53 @@ import (
 )
 
 const claimServerlessLeases = `-- name: ClaimServerlessLeases :many
-WITH claimable AS (
-    SELECT l.tenant_id, l.shard, l.endpoint_count
+WITH unowned AS (
+    SELECT l.tenant_id, l.shard
     FROM v1_serverless_lease l
-    WHERE l.process_id IS NULL OR l.process_id = ANY($2::UUID[])
-    ORDER BY random()
-    LIMIT $3::INT
+    WHERE
+        l.process_id IS NULL
+        AND (l.tenant_id, l.shard) > ($2::UUID, $3::INT)
+    ORDER BY l.tenant_id, l.shard
+    LIMIT $4::INT
     FOR UPDATE SKIP LOCKED
+), abandoned AS (
+    SELECT a.tenant_id, a.shard
+    FROM v1_serverless_process p
+    CROSS JOIN LATERAL (
+        SELECT l.tenant_id, l.shard
+        FROM v1_serverless_lease l
+        WHERE l.process_id = p.process_id
+        ORDER BY l.tenant_id, l.shard
+        LIMIT $4::INT
+        FOR UPDATE SKIP LOCKED
+    ) a
+    WHERE p.expires_at < now()
+    LIMIT $4::INT
+), claimable AS (
+    SELECT tenant_id, shard FROM unowned
+    UNION ALL
+    SELECT tenant_id, shard FROM abandoned
+    LIMIT $4::INT
 )
 UPDATE v1_serverless_lease l
 SET process_id = $1::UUID, claimed_at = now()
 FROM claimable c
-WHERE l.tenant_id = c.tenant_id AND l.shard = c.shard
+WHERE
+    l.tenant_id = c.tenant_id
+    AND l.shard = c.shard
+    AND EXISTS (
+        SELECT 1
+        FROM v1_serverless_process me
+        WHERE me.process_id = $1::UUID AND me.expires_at >= now()
+    )
 RETURNING l.tenant_id, l.shard, l.endpoint_count
 `
 
 type ClaimServerlessLeasesParams struct {
-	Processid  uuid.UUID   `json:"processid"`
-	Deadids    []uuid.UUID `json:"deadids"`
-	Claimlimit int32       `json:"claimlimit"`
+	Processid     uuid.UUID `json:"processid"`
+	Aftertenantid uuid.UUID `json:"aftertenantid"`
+	Aftershard    int32     `json:"aftershard"`
+	Claimlimit    int32     `json:"claimlimit"`
 }
 
 type ClaimServerlessLeasesRow struct {
@@ -40,10 +68,23 @@ type ClaimServerlessLeasesRow struct {
 	EndpointCount int32     `json:"endpoint_count"`
 }
 
-// Claims up to @claimLimit units that are unowned or owned by a dead process. FOR UPDATE SKIP LOCKED
-// lets concurrent claimers race without blocking; a unit is claimed by exactly one of them.
+// Claims up to @claimLimit units for @processId. Unowned units come first, walked in
+// (tenant_id, shard) order from @afterTenantId/@afterShard through
+// v1_serverless_lease_claimable_idx (the caller starts at a random key and wraps around), then
+// units of processes whose heartbeat row has expired, walked per dead process through
+// v1_serverless_lease_owner_idx. Neither walk sorts the candidate population. Liveness is
+// decided here, in the statement's own snapshot, never from a process list read earlier: an
+// owner that heartbeated since the caller looked is live and keeps its units, and the caller
+// must itself be live to claim at all, so a process whose row expired or was swept cannot take
+// units until its next heartbeat. FOR UPDATE SKIP LOCKED lets concurrent claimers race without
+// blocking; a unit is claimed by exactly one of them.
 func (q *Queries) ClaimServerlessLeases(ctx context.Context, db DBTX, arg ClaimServerlessLeasesParams) ([]*ClaimServerlessLeasesRow, error) {
-	rows, err := db.Query(ctx, claimServerlessLeases, arg.Processid, arg.Deadids, arg.Claimlimit)
+	rows, err := db.Query(ctx, claimServerlessLeases,
+		arg.Processid,
+		arg.Aftertenantid,
+		arg.Aftershard,
+		arg.Claimlimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +103,53 @@ func (q *Queries) ClaimServerlessLeases(ctx context.Context, db DBTX, arg ClaimS
 	return items, nil
 }
 
+const countClaimableServerlessLeases = `-- name: CountClaimableServerlessLeases :one
+WITH unowned AS (
+    SELECT COUNT(*) AS n, COALESCE(SUM(u.endpoint_count), 0) AS w
+    FROM (
+        SELECT endpoint_count
+        FROM v1_serverless_lease
+        WHERE process_id IS NULL
+        LIMIT $1::BIGINT
+    ) u
+), abandoned AS (
+    SELECT COALESCE(SUM(a.n), 0) AS n, COALESCE(SUM(a.w), 0) AS w
+    FROM v1_serverless_process p
+    CROSS JOIN LATERAL (
+        SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
+        FROM (
+            SELECT l.endpoint_count
+            FROM v1_serverless_lease l
+            WHERE l.process_id = p.process_id
+            LIMIT $1::BIGINT
+        ) o
+    ) a
+    WHERE p.expires_at < now()
+)
+SELECT
+    (unowned.n + abandoned.n)::BIGINT AS unit_count,
+    (unowned.w + abandoned.w)::BIGINT AS endpoint_count
+FROM unowned, abandoned
+`
+
+type CountClaimableServerlessLeasesRow struct {
+	UnitCount     int64 `json:"unit_count"`
+	EndpointCount int64 `json:"endpoint_count"`
+}
+
+// Counts what a process may claim under the liveness rule of ClaimServerlessLeases: unowned
+// units (v1_serverless_lease_claimable_idx, index only) plus units still held by processes
+// whose heartbeat row has expired (v1_serverless_lease_owner_idx), so a survivor's fair share
+// includes the work of dead processes. Each side is counted over at most @countLimit units: a
+// caller only needs the claimable population up to the fleet's claim budget for one tick, and
+// the weight beyond the window is discovered on later ticks as the population shrinks.
+func (q *Queries) CountClaimableServerlessLeases(ctx context.Context, db DBTX, countlimit int64) (*CountClaimableServerlessLeasesRow, error) {
+	row := db.QueryRow(ctx, countClaimableServerlessLeases, countlimit)
+	var i CountClaimableServerlessLeasesRow
+	err := row.Scan(&i.UnitCount, &i.EndpointCount)
+	return &i, err
+}
+
 const countServerlessEndpoints = `-- name: CountServerlessEndpoints :one
 SELECT COUNT(*)
 FROM v1_serverless_endpoint
@@ -73,29 +161,6 @@ func (q *Queries) CountServerlessEndpoints(ctx context.Context, db DBTX, tenanti
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const countUnownedServerlessLeases = `-- name: CountUnownedServerlessLeases :one
-SELECT
-    COUNT(*)::BIGINT AS unit_count,
-    COALESCE(SUM(endpoint_count), 0)::BIGINT AS endpoint_count
-FROM v1_serverless_lease
-WHERE process_id IS NULL OR process_id = ANY($1::UUID[])
-`
-
-type CountUnownedServerlessLeasesRow struct {
-	UnitCount     int64 `json:"unit_count"`
-	EndpointCount int64 `json:"endpoint_count"`
-}
-
-// Counts the units a process may claim: unowned units (v1_serverless_lease_unowned_idx) plus
-// units still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx),
-// so a survivor's fair share includes the work of dead processes.
-func (q *Queries) CountUnownedServerlessLeases(ctx context.Context, db DBTX, deadids []uuid.UUID) (*CountUnownedServerlessLeasesRow, error) {
-	row := db.QueryRow(ctx, countUnownedServerlessLeases, deadids)
-	var i CountUnownedServerlessLeasesRow
-	err := row.Scan(&i.UnitCount, &i.EndpointCount)
-	return &i, err
 }
 
 const createServerlessEndpoint = `-- name: CreateServerlessEndpoint :one
@@ -196,19 +261,36 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 	return &i, err
 }
 
-const deleteExpiredServerlessProcesses = `-- name: DeleteExpiredServerlessProcesses :execrows
-DELETE FROM v1_serverless_process
-WHERE expires_at < $1::TIMESTAMPTZ
+const deleteExpiredServerlessProcesses = `-- name: DeleteExpiredServerlessProcesses :one
+WITH deleted AS (
+    DELETE FROM v1_serverless_process
+    WHERE expires_at < $1::TIMESTAMPTZ
+    RETURNING process_id
+), released AS (
+    UPDATE v1_serverless_lease l
+    SET process_id = NULL, claimed_at = NULL
+    FROM deleted d
+    WHERE l.process_id = d.process_id
+    RETURNING l.tenant_id
+)
+SELECT
+    (SELECT COUNT(*) FROM deleted)::BIGINT AS deleted_processes,
+    (SELECT COUNT(*) FROM released)::BIGINT AS released_units
 `
 
+type DeleteExpiredServerlessProcessesRow struct {
+	DeletedProcesses int64 `json:"deleted_processes"`
+	ReleasedUnits    int64 `json:"released_units"`
+}
+
 // Sweeps rows of processes that expired before the cutoff. Rows are kept for a while after
-// expiry so ClaimServerlessLeases can still see the dead ids of recently crashed processes.
-func (q *Queries) DeleteExpiredServerlessProcesses(ctx context.Context, db DBTX, cutoff pgtype.Timestamptz) (int64, error) {
-	result, err := db.Exec(ctx, deleteExpiredServerlessProcesses, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// expiry so ClaimServerlessLeases takes their units over first; whatever a swept process still
+// owns is released in the same statement, so deleting an owner row never strands its units.
+func (q *Queries) DeleteExpiredServerlessProcesses(ctx context.Context, db DBTX, cutoff pgtype.Timestamptz) (*DeleteExpiredServerlessProcessesRow, error) {
+	row := db.QueryRow(ctx, deleteExpiredServerlessProcesses, cutoff)
+	var i DeleteExpiredServerlessProcessesRow
+	err := row.Scan(&i.DeletedProcesses, &i.ReleasedUnits)
+	return &i, err
 }
 
 const deleteServerlessEndpoint = `-- name: DeleteServerlessEndpoint :one
@@ -253,10 +335,18 @@ func (q *Queries) DeleteServerlessEndpoint(ctx context.Context, db DBTX, arg Del
 }
 
 const deleteServerlessProcess = `-- name: DeleteServerlessProcess :exec
+WITH released AS (
+    UPDATE v1_serverless_lease
+    SET process_id = NULL, claimed_at = NULL
+    WHERE process_id = $1::UUID
+    RETURNING tenant_id
+)
 DELETE FROM v1_serverless_process
 WHERE process_id = $1::UUID
 `
 
+// The last step of a graceful shutdown. The process released its leases beforehand; any it
+// still holds after a failed release are released here so the row deletion cannot strand them.
 func (q *Queries) DeleteServerlessProcess(ctx context.Context, db DBTX, processid uuid.UUID) error {
 	_, err := db.Exec(ctx, deleteServerlessProcess, processid)
 	return err

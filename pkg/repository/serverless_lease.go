@@ -12,19 +12,16 @@ type serverlessLeaseRepository struct {
 	*sharedRepository
 }
 
-func (r *serverlessLeaseRepository) Claim(ctx context.Context, processId uuid.UUID, deadIds []uuid.UUID, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error) {
+func (r *serverlessLeaseRepository) Claim(ctx context.Context, processId uuid.UUID, after ServerlessUnit, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 
-	if deadIds == nil {
-		deadIds = []uuid.UUID{}
-	}
-
 	return r.queries.ClaimServerlessLeases(ctx, r.pool, sqlcv1.ClaimServerlessLeasesParams{
-		Processid:  processId,
-		Deadids:    deadIds,
-		Claimlimit: limit,
+		Processid:     processId,
+		Aftertenantid: after.TenantId,
+		Aftershard:    after.Shard,
+		Claimlimit:    limit,
 	})
 }
 
@@ -50,12 +47,12 @@ func (r *serverlessLeaseRepository) ListOwned(ctx context.Context, processId uui
 	return r.queries.ListOwnedServerlessLeases(ctx, r.pool, processId)
 }
 
-func (r *serverlessLeaseRepository) CountUnowned(ctx context.Context, deadIds []uuid.UUID) (*sqlcv1.CountUnownedServerlessLeasesRow, error) {
-	if deadIds == nil {
-		deadIds = []uuid.UUID{}
+func (r *serverlessLeaseRepository) CountClaimable(ctx context.Context, limit int64) (*sqlcv1.CountClaimableServerlessLeasesRow, error) {
+	if limit <= 0 {
+		return &sqlcv1.CountClaimableServerlessLeasesRow{}, nil
 	}
 
-	return r.queries.CountUnownedServerlessLeases(ctx, r.pool, deadIds)
+	return r.queries.CountClaimableServerlessLeases(ctx, r.pool, limit)
 }
 
 func (r *serverlessLeaseRepository) InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error {

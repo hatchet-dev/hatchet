@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -78,15 +79,30 @@ func leaseRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, unit Server
 	return processId, endpointCount
 }
 
-// claimAll drains every claimable unit for processId in batches of limit and returns the units
-// it received, in order.
-func claimAll(t *testing.T, ctx context.Context, repo ServerlessRepository, processId uuid.UUID, deadIds []uuid.UUID, limit int32) []ServerlessUnit {
+// heartbeat writes a live process row: the claim statement refuses claimers without one.
+func heartbeat(t *testing.T, ctx context.Context, repo ServerlessRepository, processId uuid.UUID, ttl time.Duration) {
+	t.Helper()
+
+	require.NoError(t, repo.Processes().Upsert(ctx, UpsertServerlessProcessOpts{ProcessId: processId, TTL: ttl}))
+}
+
+// expireProcess backdates a process row so the database sees it as dead.
+func expireProcess(t *testing.T, ctx context.Context, pool *pgxpool.Pool, processId uuid.UUID, by time.Duration) {
+	t.Helper()
+
+	_, err := pool.Exec(ctx, "UPDATE v1_serverless_process SET expires_at = now() - $2::interval WHERE process_id = $1", processId, by)
+	require.NoError(t, err)
+}
+
+// claimAll drains every claimable unit for processId in batches of limit, from the beginning
+// of the key space, and returns the units it received, in order.
+func claimAll(t *testing.T, ctx context.Context, repo ServerlessRepository, processId uuid.UUID, limit int32) []ServerlessUnit {
 	t.Helper()
 
 	var claimed []ServerlessUnit
 
 	for {
-		rows, err := repo.Leases().Claim(ctx, processId, deadIds, limit)
+		rows, err := repo.Leases().Claim(ctx, processId, ServerlessUnit{}, limit)
 		require.NoError(t, err)
 
 		if len(rows) == 0 {
@@ -97,6 +113,16 @@ func claimAll(t *testing.T, ctx context.Context, repo ServerlessRepository, proc
 			claimed = append(claimed, ServerlessUnit{TenantId: row.TenantID, Shard: row.Shard})
 		}
 	}
+}
+
+// countClaimable counts with a window far larger than any test population.
+func countClaimable(t *testing.T, ctx context.Context, repo ServerlessRepository) *sqlcv1.CountClaimableServerlessLeasesRow {
+	t.Helper()
+
+	row, err := repo.Leases().CountClaimable(ctx, 1_000_000)
+	require.NoError(t, err)
+
+	return row
 }
 
 func TestServerlessRepository(t *testing.T) {
@@ -458,11 +484,11 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, repo.Processes().Upsert(ctx, UpsertServerlessProcessOpts{ProcessId: shortLived, TTL: time.Millisecond}))
 		time.Sleep(20 * time.Millisecond)
 
-		swept, err := repo.Processes().DeleteExpired(ctx, time.Now().Add(-time.Hour))
+		swept, _, err := repo.Processes().DeleteExpired(ctx, time.Now().Add(-time.Hour))
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), swept, "a row that expired after the cutoff is kept for takeover")
 
-		swept, err = repo.Processes().DeleteExpired(ctx, time.Now())
+		swept, _, err = repo.Processes().DeleteExpired(ctx, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), swept)
 
@@ -480,14 +506,19 @@ func TestServerlessRepository(t *testing.T) {
 		const numUnits = 20
 		units := seedServerlessUnits(t, ctx, repo, numUnits)
 
-		unowned, err := repo.Leases().CountUnowned(ctx, nil)
-		require.NoError(t, err)
+		unowned := countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(numUnits), unowned.UnitCount)
 		// endpoint counts were seeded as 1..20
 		assert.Equal(t, int64(numUnits*(numUnits+1)/2), unowned.EndpointCount)
 
+		windowed, err := repo.Leases().CountClaimable(ctx, 5)
+		require.NoError(t, err)
+		assert.Equal(t, int64(5), windowed.UnitCount, "the count is capped at the window")
+
 		processA := uuid.New()
 		processB := uuid.New()
+		heartbeat(t, ctx, repo, processA, time.Minute)
+		heartbeat(t, ctx, repo, processB, time.Minute)
 
 		var wg sync.WaitGroup
 		var mu sync.Mutex
@@ -500,7 +531,7 @@ func TestServerlessRepository(t *testing.T) {
 			go func(processId uuid.UUID) {
 				defer wg.Done()
 
-				claimed := claimAll(t, ctx, repo, processId, nil, 3)
+				claimed := claimAll(t, ctx, repo, processId, 3)
 
 				mu.Lock()
 				defer mu.Unlock()
@@ -536,20 +567,166 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, numUnits, len(ownedA)+len(ownedB))
 
-		unowned, err = repo.Leases().CountUnowned(ctx, nil)
-		require.NoError(t, err)
+		unowned = countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(0), unowned.UnitCount)
 		assert.Equal(t, int64(0), unowned.EndpointCount)
 
 		// nothing is left for a third process
-		none, err := repo.Leases().Claim(ctx, uuid.New(), nil, 10)
+		third := uuid.New()
+		heartbeat(t, ctx, repo, third, time.Minute)
+		none, err := repo.Leases().Claim(ctx, third, ServerlessUnit{}, 10)
 		require.NoError(t, err)
 		assert.Empty(t, none)
 
 		// a non-positive limit is a no-op
-		none, err = repo.Leases().Claim(ctx, uuid.New(), nil, 0)
+		none, err = repo.Leases().Claim(ctx, third, ServerlessUnit{}, 0)
 		require.NoError(t, err)
 		assert.Empty(t, none)
+	})
+
+	t.Run("a claimer without a live row cannot claim", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+		seedServerlessUnits(t, ctx, repo, 3)
+
+		processId := uuid.New()
+
+		rows, err := repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "no heartbeat row yet")
+
+		heartbeat(t, ctx, repo, processId, time.Minute)
+		expireProcess(t, ctx, pool, processId, time.Second)
+
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "an expired row is not live")
+
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.Len(t, rows, 3)
+	})
+
+	t.Run("claim walks unowned units from the start key", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		units := seedServerlessUnits(t, ctx, repo, 6)
+		sort.Slice(units, func(i, j int) bool { return units[i].TenantId.String() < units[j].TenantId.String() })
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		// RETURNING does not preserve the walk's order, so results are compared as sets.
+		claimedUnits := func(rows []*sqlcv1.ClaimServerlessLeasesRow) []ServerlessUnit {
+			out := make([]ServerlessUnit, 0, len(rows))
+
+			for _, row := range rows {
+				out = append(out, ServerlessUnit{TenantId: row.TenantID, Shard: row.Shard})
+			}
+
+			return out
+		}
+
+		// Starting at the third key returns exactly the units after it.
+		rows, err := repo.Leases().Claim(ctx, processId, units[2], 10)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, units[3:], claimedUnits(rows))
+
+		// The wrap from the zero key takes the rest, and the limit bounds one statement.
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 2)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, units[:2], claimedUnits(rows))
+
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, units[2:3], claimedUnits(rows))
+	})
+
+	// A process that expired but heartbeats again before anyone took its units over stays the
+	// owner: the claim statement reads liveness in its own snapshot, so a dead list read
+	// earlier cannot transfer a live owner's unit.
+	t.Run("an owner that revives before the takeover keeps its units", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+		seedServerlessUnits(t, ctx, repo, 1)
+
+		a, b := uuid.New(), uuid.New()
+		heartbeat(t, ctx, repo, a, time.Second)
+		heartbeat(t, ctx, repo, b, time.Minute)
+
+		require.Len(t, claimAll(t, ctx, repo, a, 1), 1)
+
+		expireProcess(t, ctx, pool, a, time.Second)
+
+		_, dead, err := repo.Processes().ListLive(ctx)
+		require.NoError(t, err)
+		require.Len(t, dead, 1, "b sees a as dead")
+
+		// a heartbeats before b claims
+		heartbeat(t, ctx, repo, a, time.Minute)
+
+		rows, err := repo.Leases().Claim(ctx, b, ServerlessUnit{}, 1)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "a live owner's unit is not transferred on the strength of an earlier dead list")
+
+		claimable := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(0), claimable.UnitCount, "count and claim agree on liveness")
+
+		// once a is really dead, b takes over
+		expireProcess(t, ctx, pool, a, time.Second)
+
+		claimable = countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(1), claimable.UnitCount)
+
+		rows, err = repo.Leases().Claim(ctx, b, ServerlessUnit{}, 1)
+		require.NoError(t, err)
+		assert.Len(t, rows, 1)
+	})
+
+	// Sweeping a dead process row must not strand the units it still owns: the row deletion
+	// releases them in the same statement, and count and claim keep agreeing.
+	t.Run("a swept owner row releases its units", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+		seedServerlessUnits(t, ctx, repo, 3)
+
+		dead, live := uuid.New(), uuid.New()
+		heartbeat(t, ctx, repo, dead, time.Second)
+		heartbeat(t, ctx, repo, live, time.Minute)
+
+		require.Len(t, claimAll(t, ctx, repo, dead, 10), 3)
+
+		expireProcess(t, ctx, pool, dead, 2*time.Hour)
+
+		swept, released, err := repo.Processes().DeleteExpired(ctx, time.Now().Add(-time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), swept)
+		assert.Equal(t, int64(3), released, "the sweep released what the swept row still owned")
+
+		claimable := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(3), claimable.UnitCount)
+
+		assert.Len(t, claimAll(t, ctx, repo, live, 10), 3, "the survivor takes the swept process's units")
+	})
+
+	t.Run("a graceful delete releases units a failed release left behind", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+		units := seedServerlessUnits(t, ctx, repo, 2)
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+		require.Len(t, claimAll(t, ctx, repo, processId, 10), 2)
+
+		require.NoError(t, repo.Processes().Delete(ctx, processId))
+
+		for _, unit := range units {
+			owner, _ := leaseRow(t, ctx, pool, unit)
+			assert.Nil(t, owner)
+		}
+
+		live, dead, err := repo.Processes().ListLive(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, live)
+		assert.Empty(t, dead)
 	})
 
 	t.Run("dead process takeover", func(t *testing.T) {
@@ -562,21 +739,27 @@ func TestServerlessRepository(t *testing.T) {
 		liveProcess := uuid.New()
 		successor := uuid.New()
 
-		deadClaimed, err := repo.Leases().Claim(ctx, deadProcess, nil, 6)
+		for _, processId := range []uuid.UUID{deadProcess, liveProcess, successor} {
+			heartbeat(t, ctx, repo, processId, time.Minute)
+		}
+
+		deadClaimed, err := repo.Leases().Claim(ctx, deadProcess, ServerlessUnit{}, 6)
 		require.NoError(t, err)
 		assert.Len(t, deadClaimed, 6, "a claim takes exactly the units it asks for")
 
-		liveClaimed, err := repo.Leases().Claim(ctx, liveProcess, nil, 4)
+		liveClaimed, err := repo.Leases().Claim(ctx, liveProcess, ServerlessUnit{}, 4)
 		require.NoError(t, err)
 		assert.Len(t, liveClaimed, 4)
 
 		// a live owner's units are not claimable
-		none, err := repo.Leases().Claim(ctx, successor, nil, numUnits)
+		none, err := repo.Leases().Claim(ctx, successor, ServerlessUnit{}, numUnits)
 		require.NoError(t, err)
 		assert.Empty(t, none)
 
-		// declaring the dead process dead hands over exactly its units
-		taken := claimAll(t, ctx, repo, successor, []uuid.UUID{deadProcess}, 4)
+		// once the dead process's row expires, exactly its units are handed over
+		expireProcess(t, ctx, pool, deadProcess, time.Second)
+
+		taken := claimAll(t, ctx, repo, successor, 4)
 		assert.Len(t, taken, 6)
 
 		ownedDead, err := repo.Leases().ListOwned(ctx, deadProcess)
@@ -604,8 +787,10 @@ func TestServerlessRepository(t *testing.T) {
 
 		owner := uuid.New()
 		other := uuid.New()
+		heartbeat(t, ctx, repo, owner, time.Minute)
+		heartbeat(t, ctx, repo, other, time.Minute)
 
-		assert.Len(t, claimAll(t, ctx, repo, owner, nil, 7), numUnits)
+		assert.Len(t, claimAll(t, ctx, repo, owner, 7), numUnits)
 
 		// only the owner can shed
 		shed, err := repo.Leases().Shed(ctx, other, units[:5])
@@ -624,8 +809,7 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, owned, numUnits-5)
 
-		unowned, err := repo.Leases().CountUnowned(ctx, nil)
-		require.NoError(t, err)
+		unowned := countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(5), unowned.UnitCount)
 
 		for _, unit := range units[:5] {
@@ -644,7 +828,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, shed)
 
 		// a shed unit is claimable again, by anyone
-		reclaimed := claimAll(t, ctx, repo, other, nil, 10)
+		reclaimed := claimAll(t, ctx, repo, other, 10)
 		assert.Len(t, reclaimed, 5)
 
 		released, err := repo.Leases().ReleaseAll(ctx, owner)
@@ -659,8 +843,7 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, ownedOther, 5, "release all touches only the caller's units")
 
-		unowned, err = repo.Leases().CountUnowned(ctx, nil)
-		require.NoError(t, err)
+		unowned = countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(numUnits-5), unowned.UnitCount)
 
 		released, err = repo.Leases().ReleaseAll(ctx, owner)
@@ -678,7 +861,8 @@ func TestServerlessRepository(t *testing.T) {
 		seedServerlessUnits(t, ctx, repo, numUnits)
 
 		processId := uuid.New()
-		claimed := claimAll(t, ctx, repo, processId, nil, numUnits)
+		heartbeat(t, ctx, repo, processId, time.Minute)
+		claimed := claimAll(t, ctx, repo, processId, numUnits)
 		require.Len(t, claimed, numUnits)
 
 		heartbeat := func() {
