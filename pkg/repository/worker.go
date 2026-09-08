@@ -54,9 +54,6 @@ type UpdateWorkerOpts struct {
 	// When the last worker heartbeat was
 	LastHeartbeatAt *time.Time
 
-	// If the worker is active and accepting new runs
-	IsActive *bool
-
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
 
@@ -746,13 +743,6 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 	if opts.DispatcherId != nil {
 		parsed := *opts.DispatcherId
 		updateParams.DispatcherId = &parsed
-	}
-
-	if opts.IsActive != nil {
-		updateParams.IsActive = pgtype.Bool{
-			Bool:  *opts.IsActive,
-			Valid: true,
-		}
 	}
 
 	if opts.IsPaused != nil {

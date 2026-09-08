@@ -1679,17 +1679,15 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
     "lastHeartbeatAt" = coalesce($2::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce($3::boolean, "isActive"),
-    "isPaused" = coalesce($4::boolean, "isPaused")
+    "isPaused" = coalesce($3::boolean, "isPaused")
 WHERE
-    "id" = $5::uuid
+    "id" = $4::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
 `
 
 type UpdateWorkerParams struct {
 	DispatcherId    *uuid.UUID       `json:"dispatcherId"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	IsActive        pgtype.Bool      `json:"isActive"`
 	IsPaused        pgtype.Bool      `json:"isPaused"`
 	ID              uuid.UUID        `json:"id"`
 }
@@ -1698,7 +1696,6 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 	row := db.QueryRow(ctx, updateWorker,
 		arg.DispatcherId,
 		arg.LastHeartbeatAt,
-		arg.IsActive,
 		arg.IsPaused,
 		arg.ID,
 	)
