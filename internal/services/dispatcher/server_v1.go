@@ -1841,7 +1841,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		ResultPayload:         entry.ResultPayload,
 		IsFailure:             entry.ChildTaskIsFailure,
 		ErrorMessage:          entry.ChildTaskErrorMessage,
-		ReExecuted:            entry.ReExecuted,
+		ReExecuted:            !entry.AlreadyExisted,
 	}, nil
 }
 
