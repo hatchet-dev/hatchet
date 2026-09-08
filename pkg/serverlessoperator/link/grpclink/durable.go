@@ -33,20 +33,17 @@ const (
 	ackFailureGrace = 100 * time.Millisecond
 )
 
-type channelKey struct {
-	taskId     string
-	invocation int32
-}
-
 // durableHub owns the registration's single DurableTaskListener and the channels open on
-// it, keyed by (task, invocation). It is created on the first OpenDurable.
+// it, indexed by task and then invocation so a server-evict notice, which names one task,
+// finds that task's channels without walking every open channel under the lock. It is
+// created on the first OpenDurable.
 //
 // Requests reach the listener through the hub's bounded outbound queue and one pump
 // goroutine: the listener's own enqueue has no cancellation, so only the pump ever blocks on
 // it, while every channel's Send selects on its own close signal.
 type durableHub struct {
 	listener *client.DurableTaskListener //nolint:staticcheck // see import
-	channels map[channelKey]*durableChannel
+	channels map[string]map[int32]*durableChannel
 	outbound chan outboundRequest
 	stopped  chan struct{}
 	pumpDone chan struct{}
@@ -85,7 +82,7 @@ func newDurableHubOver(listener *client.DurableTaskListener) *durableHub { //nol
 
 	hub := &durableHub{
 		listener:   listener,
-		channels:   map[channelKey]*durableChannel{},
+		channels:   map[string]map[int32]*durableChannel{},
 		outbound:   make(chan outboundRequest, sendQueueSize),
 		stopped:    make(chan struct{}),
 		pumpDone:   make(chan struct{}),
@@ -151,10 +148,15 @@ func (h *durableHub) open(taskId string, invocation int32) (*durableChannel, err
 		return nil, errors.New("registration closed")
 	}
 
-	key := channelKey{taskId: taskId, invocation: invocation}
+	byInvocation := h.channels[taskId]
 
-	if _, ok := h.channels[key]; ok {
+	if _, ok := byInvocation[invocation]; ok {
 		return nil, fmt.Errorf("durable channel for task %s invocation %d is already open", taskId, invocation)
+	}
+
+	if byInvocation == nil {
+		byInvocation = map[int32]*durableChannel{}
+		h.channels[taskId] = byInvocation
 	}
 
 	ch := &durableChannel{
@@ -167,7 +169,7 @@ func (h *durableHub) open(taskId string, invocation int32) (*durableChannel, err
 		evictedCh:  make(chan struct{}),
 	}
 
-	h.channels[key] = ch
+	byInvocation[invocation] = ch
 
 	return ch, nil
 }
@@ -176,22 +178,29 @@ func (h *durableHub) remove(ch *durableChannel) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	key := channelKey{taskId: ch.taskId, invocation: ch.invocation}
+	byInvocation := h.channels[ch.taskId]
 
-	if h.channels[key] == ch {
-		delete(h.channels, key)
+	if byInvocation[ch.invocation] != ch {
+		return
+	}
+
+	delete(byInvocation, ch.invocation)
+
+	if len(byInvocation) == 0 {
+		delete(h.channels, ch.taskId)
 	}
 }
 
 // onServerEvict runs on the listener's receive loop. The notice supersedes the named
 // invocation and every older one of the task; each open channel affected yields a
-// server_evict response and the relay closes its socket.
+// server_evict response and the relay closes its socket. Only the named task's channels
+// are visited.
 func (h *durableHub) onServerEvict(taskId string, invocation int32, reason string) {
 	h.mu.Lock()
 	affected := make([]*durableChannel, 0, 1)
 
-	for key, ch := range h.channels {
-		if key.taskId == taskId && key.invocation <= invocation {
+	for open, ch := range h.channels[taskId] {
+		if open <= invocation {
 			affected = append(affected, ch)
 		}
 	}
@@ -210,8 +219,10 @@ func (h *durableHub) closeAll() {
 	h.closed = true
 	channels := make([]*durableChannel, 0, len(h.channels))
 
-	for _, ch := range h.channels {
-		channels = append(channels, ch)
+	for _, byInvocation := range h.channels {
+		for _, ch := range byInvocation {
+			channels = append(channels, ch)
+		}
 	}
 
 	h.mu.Unlock()
