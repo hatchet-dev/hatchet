@@ -13,6 +13,7 @@ import {
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { cn } from '@/lib/utils';
 import { useNavigate } from '@tanstack/react-router';
+import { X } from 'lucide-react';
 import { RiNotification3Line } from 'react-icons/ri';
 
 const colorToTailwind: Record<NotificationColor, string> = {
@@ -37,7 +38,7 @@ const getMostSevereColor = (notifications: Notification[]): NotificationColor =>
   );
 
 export function Notifications() {
-  const { notifications } = useNotifications();
+  const { notifications, dismiss } = useNotifications();
   const { currentUser } = useCurrentUser();
   const navigate = useNavigate();
   const count = notifications.length;
@@ -110,6 +111,26 @@ export function Notifications() {
                 {notification.message}
               </p>
             </div>
+            {notification.dismissKey ? (
+              <button
+                type="button"
+                aria-label={`Dismiss ${notification.title}`}
+                className="mt-0.5 shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (notification.dismissKey) {
+                    dismiss(notification.dismissKey);
+                  }
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

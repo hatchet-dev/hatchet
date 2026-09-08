@@ -6,6 +6,7 @@ type NotificationBase = {
   title: string;
   message: string;
   timestamp: string;
+  dismissKey?: string;
 };
 
 export type Notification =
