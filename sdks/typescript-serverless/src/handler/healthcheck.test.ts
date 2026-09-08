@@ -22,7 +22,7 @@ const sleeper = hatchet.durableTask({
 describe('healthcheck', () => {
   it('advertises every workflow as protojson, un-namespaced and lowercased', async () => {
     const op = createTestOperator({ workflows: [echo, pipeline, sleeper], secret });
-    const response = await op.request(`${op.handler.basePath}/healthcheck`, { body: '{}' });
+    const response = await op.request(`${op.handler.basePath}/healthcheck`);
     const raw = JSON.parse(await response.text());
 
     expect(response.status).toBe(200);

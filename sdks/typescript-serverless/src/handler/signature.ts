@@ -1,16 +1,18 @@
 /**
- * Request signatures, WebCrypto only. The operator signs every POST body with
+ * Request verification, WebCrypto only. The operator signs every POST body with
  * hex(hmac_sha256(secret, body)) (internal/signature/sign.go) and the bodyless websocket
- * upgrade with the same digest over `upgradeSigningPayload`.
+ * upgrade with the same digest over `upgradeSigningPayload`. Both carry a timestamp the
+ * signature covers, which must lie within `REQUEST_MAX_AGE_SECONDS` of the endpoint's clock
+ * in either direction, so a captured request cannot be replayed later.
  */
 import {
   ENDPOINT_ID_HEADER,
   INVOCATION_HEADER,
   NONCE_HEADER,
+  REQUEST_MAX_AGE_SECONDS,
   SIGNATURE_HEADER,
   TASK_ID_HEADER,
   TIMESTAMP_HEADER,
-  UPGRADE_MAX_AGE_SECONDS,
   upgradeSigningPayload,
 } from './contract';
 
@@ -87,6 +89,80 @@ export async function verifyBodySignature(
   return constantTimeEqual(expected, header);
 }
 
+/** Parses a protojson int64 (decimal string) or a plain number into unix seconds. */
+export function parseTimestamp(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+
+  if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+    return Number.parseInt(value, 10);
+  }
+
+  return Number.NaN;
+}
+
+/** Whether a signed timestamp lies within the request window of the clock, either way. */
+export function isFreshTimestamp(timestampSeconds: number, nowSeconds: number): boolean {
+  return (
+    Number.isFinite(timestampSeconds) &&
+    Math.abs(nowSeconds - timestampSeconds) <= REQUEST_MAX_AGE_SECONDS
+  );
+}
+
+export interface VerifyBodyOptions {
+  /** When set, bodies carrying another endpoint id are refused with 403. */
+  endpointId?: string;
+  /** The current time in unix seconds; defaults to the wall clock. */
+  nowSeconds?: number;
+}
+
+export type BodyVerification =
+  | { ok: true; json: Record<string, unknown>; timestamp: number }
+  | { ok: false; status: 400 | 401 | 403; reason: string };
+
+/**
+ * Verifies a signed POST in the contract's order: the HMAC over the raw body, the body as
+ * JSON, the `timestamp` it carries (within the window either way), then the `endpointId`
+ * when one is configured. Returns the parsed body for the caller to decode.
+ */
+export async function verifySignedBody(
+  body: string,
+  header: string | null | undefined,
+  secret: string,
+  opts: VerifyBodyOptions = {}
+): Promise<BodyVerification> {
+  if (!(await verifyBodySignature(body, header, secret))) {
+    return { ok: false, status: 401, reason: 'bad signature' };
+  }
+
+  let json: unknown;
+
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return { ok: false, status: 400, reason: 'the body is not JSON' };
+  }
+
+  if (typeof json !== 'object' || json === null || Array.isArray(json)) {
+    return { ok: false, status: 400, reason: 'the body is not a JSON object' };
+  }
+
+  const record = json as Record<string, unknown>;
+  const timestamp = parseTimestamp(record.timestamp);
+  const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
+
+  if (!isFreshTimestamp(timestamp, now)) {
+    return { ok: false, status: 401, reason: 'stale or missing timestamp' };
+  }
+
+  if (opts.endpointId && record.endpointId !== opts.endpointId) {
+    return { ok: false, status: 403, reason: 'unknown endpoint id' };
+  }
+
+  return { ok: true, json: record, timestamp };
+}
+
 export type UpgradeVerification =
   | { ok: true; endpointId: string; taskId: string; invocation: number; nonce: string }
   | { ok: false; status: 401 | 403; reason: string };
@@ -96,14 +172,18 @@ export interface VerifyUpgradeOptions {
   endpointId?: string;
   /** The current time in unix seconds; defaults to the wall clock. */
   nowSeconds?: number;
-  /** A nonce set for replay protection; returns true when the nonce was seen before. */
+  /**
+   * Consumes the nonce and returns true when it was seen before. Called only after the
+   * signature verified, so unsigned traffic cannot fill the set.
+   */
   seenNonce?: (nonce: string) => boolean;
 }
 
 /**
- * Verifies the bodyless websocket upgrade (pkg/serverlessoperator/durable/dial.go). The
- * signature covers `upgradeSigningPayload`; timestamps older than UpgradeMaxAge are
- * rejected. Used by the durable relay; exported so adapters can verify before accepting.
+ * Verifies the bodyless websocket upgrade (pkg/serverlessoperator/durable/dial.go) in the
+ * contract's order: the endpoint id when one is configured, the timestamp within the window
+ * either way, the HMAC over `upgradeSigningPayload`, then the nonce, consumed from the set
+ * only once the signature holds. Exported so adapters can verify before accepting.
  */
 export async function verifyUpgradeSignature(
   headers: Headers,
@@ -117,19 +197,13 @@ export async function verifyUpgradeSignature(
   }
 
   const timestamp = headers.get(TIMESTAMP_HEADER) ?? '';
-  const ts = Number.parseInt(timestamp, 10);
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
 
-  if (!Number.isFinite(ts) || now - ts > UPGRADE_MAX_AGE_SECONDS) {
+  if (!isFreshTimestamp(parseTimestamp(timestamp), now)) {
     return { ok: false, status: 401, reason: 'stale or missing timestamp' };
   }
 
   const nonce = headers.get(NONCE_HEADER) ?? '';
-
-  if (nonce === '' || (opts.seenNonce && opts.seenNonce(nonce))) {
-    return { ok: false, status: 401, reason: 'missing or replayed nonce' };
-  }
-
   const taskId = headers.get(TASK_ID_HEADER) ?? '';
   const invocation = headers.get(INVOCATION_HEADER) ?? '';
   const expected = await signHex(
@@ -139,6 +213,10 @@ export async function verifyUpgradeSignature(
 
   if (!constantTimeEqual(expected, headers.get(SIGNATURE_HEADER) ?? '')) {
     return { ok: false, status: 401, reason: 'bad signature' };
+  }
+
+  if (nonce === '' || (opts.seenNonce && opts.seenNonce(nonce))) {
+    return { ok: false, status: 401, reason: 'missing or replayed nonce' };
   }
 
   return { ok: true, endpointId, taskId, invocation: Number.parseInt(invocation, 10), nonce };

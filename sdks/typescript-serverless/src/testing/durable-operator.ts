@@ -44,6 +44,8 @@ export interface DurableInvokeOptions {
   retryCount?: number;
   additionalMetadata?: Record<string, string>;
   parents?: Record<string, unknown>;
+  /** Rewrites the first frame before it is sent, to test the endpoint's identity checks. */
+  firstFrame?: (frame: ServerlessFirstFrame) => ServerlessFirstFrame;
 }
 
 export interface RecordedFrame {
@@ -353,7 +355,8 @@ class ActiveInvocation implements DurableRun {
     }
 
     this.httpStatus = 101;
-    this.send({ first: this.firstFrame() });
+    const first = this.firstFrame();
+    this.send({ first: this.params.options.firstFrame?.(first) ?? first });
   }
 
   private firstFrame(): ServerlessFirstFrame {

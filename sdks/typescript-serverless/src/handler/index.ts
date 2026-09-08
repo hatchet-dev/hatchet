@@ -10,8 +10,9 @@ import { runDurableInvocation } from './durable/invocation';
 import type { DurableHooks } from './durable/socket';
 import { buildHealthcheck, serializeHealthcheck } from './healthcheck';
 import { json, jsonText, triggerError } from './http';
+import { NonceSet } from './nonce-set';
 import { buildRegistry, type ServeEntry } from './registry';
-import { verifyBodySignature, verifyUpgradeSignature } from './signature';
+import { verifySignedBody, verifyUpgradeSignature } from './signature';
 import { handleTrigger } from './trigger';
 
 export type { DurableHooks, DurableSocket } from './durable/socket';
@@ -34,7 +35,7 @@ export interface HandlerOptions {
   basePath?: string;
   /** The endpoint's signing secret, or a function reading it from the runtime's env. */
   secret: EnvResolver<string>;
-  /** When set, durable upgrades carrying another endpoint id are refused. */
+  /** When set, requests and upgrades carrying another endpoint id are refused with 403. */
   endpointId?: EnvResolver<string>;
   runtime: { name: ServerlessRuntimeName };
   /**
@@ -42,7 +43,12 @@ export interface HandlerOptions {
    * the healthcheck advertise durable support, and only for handlers with a durable task.
    */
   durable?: boolean;
-  /** Replay protection for durable upgrades: returns true when the nonce was seen before. */
+  /**
+   * Replay protection for durable upgrades: consumes the nonce and returns true when it was
+   * seen before. Defaults to a bounded in-memory set (4096 entries, expiring with the
+   * request window) that lives in one isolate; back it with a Durable Object or an expiring
+   * KV key in production so a replay landing in another isolate is caught too.
+   */
   seenNonce?: (nonce: string) => boolean;
   /** Where warnings and task logs go; defaults to the global console. */
   console?: ConsoleLike;
@@ -81,6 +87,8 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
   const durableSupported = options.durable === true && registry.durableActions.size > 0;
   const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
   const healthcheckBody = serializeHealthcheck(healthcheck);
+  const nonces = new NonceSet();
+  const seenNonce = options.seenNonce ?? ((nonce: string) => nonces.consume(nonce));
 
   const routeOf = (pathname: string): Route | undefined => {
     if (!pathname.startsWith(basePath)) {
@@ -134,9 +142,15 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
         }
 
         const body = await request.text();
+        const verified = await verifySignedBody(
+          body,
+          request.headers.get(SIGNATURE_HEADER),
+          secret,
+          { endpointId: resolve(options.endpointId, env) }
+        );
 
-        if (!(await verifyBodySignature(body, request.headers.get(SIGNATURE_HEADER), secret))) {
-          return json({ error: 'bad signature' }, 401);
+        if (!verified.ok) {
+          return json({ error: verified.reason }, verified.status);
         }
 
         return jsonText(healthcheckBody);
@@ -153,7 +167,7 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
 
         const verified = await verifyUpgradeSignature(request.headers, secret, {
           endpointId: resolve(options.endpointId, env),
-          seenNonce: options.seenNonce,
+          seenNonce,
         });
 
         if (!verified.ok) {
@@ -161,11 +175,21 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
         }
 
         return hooks.upgrade(request, (socket) =>
-          runDurableInvocation({ socket, registry, console: options.console })
+          runDurableInvocation({
+            socket,
+            registry,
+            console: options.console,
+            expected: { taskRunExternalId: verified.taskId, invocationCount: verified.invocation },
+          })
         );
       }
 
-      return handleTrigger(request, { registry, secret, console: options.console });
+      return handleTrigger(request, {
+        registry,
+        secret,
+        endpointId: resolve(options.endpointId, env),
+        console: options.console,
+      });
     },
   };
 }

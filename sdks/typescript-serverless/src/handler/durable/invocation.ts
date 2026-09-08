@@ -41,6 +41,11 @@ export interface DurableInvocationOptions {
    * with durable eviction, so the minimum version that enables it is assumed.
    */
   engineVersion?: string;
+  /**
+   * The task id and invocation the upgrade headers were signed for. A first frame naming
+   * another task or invocation closes the socket with 1008 before any task code runs.
+   */
+  expected?: { taskRunExternalId: string; invocationCount: number };
 }
 
 type State =
@@ -133,6 +138,22 @@ class DurableInvocation {
 
     if (!first.action) {
       this.finish({ error: 'the first frame carries no action', retry: false });
+      return;
+    }
+
+    const { expected } = this.options;
+
+    if (
+      expected &&
+      (first.action.taskRunExternalId !== expected.taskRunExternalId ||
+        first.action.durableTaskInvocationCount !== expected.invocationCount ||
+        first.invocationCount !== expected.invocationCount)
+    ) {
+      this.out.warn(
+        `[hatchet] durable first frame names task ${first.action.taskRunExternalId} invocation ${first.invocationCount}, but the upgrade was signed for task ${expected.taskRunExternalId} invocation ${expected.invocationCount}; closing`
+      );
+      this.state = 'closed';
+      this.closeWith(1008, 'first frame does not match the signed upgrade');
       return;
     }
 
@@ -366,8 +387,12 @@ class DurableInvocation {
   }
 
   private closeSocket(): void {
+    this.closeWith(1000, 'done');
+  }
+
+  private closeWith(code: number, reason: string): void {
     try {
-      this.options.socket.close(1000, 'done');
+      this.options.socket.close(code, reason);
     } catch {
       // Already closed by the operator.
     }

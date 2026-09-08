@@ -19,7 +19,11 @@ function executionContext(): ExecutionContext {
 }
 
 async function signedHealthcheck(path: string, signWith = secret) {
-  const body = '{"endpointId":"e","namespace":"n","timestamp":"1"}';
+  const body = JSON.stringify({
+    endpointId: 'e',
+    namespace: 'n',
+    timestamp: String(Math.floor(Date.now() / 1000)),
+  });
 
   return new Request(`https://worker.test${path}`, {
     method: 'POST',

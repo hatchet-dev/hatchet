@@ -39,11 +39,20 @@ export { decodeFrame, encodeFrame, frameKind } from './handler/durable/frames';
 export type { ServeEntry } from './handler/registry';
 export {
   constantTimeEqual,
+  isFreshTimestamp,
+  parseTimestamp,
   signHex,
   verifyBodySignature,
+  verifySignedBody,
   verifyUpgradeSignature,
 } from './handler/signature';
-export type { UpgradeVerification, VerifyUpgradeOptions } from './handler/signature';
+export type {
+  BodyVerification,
+  UpgradeVerification,
+  VerifyBodyOptions,
+  VerifyUpgradeOptions,
+} from './handler/signature';
+export { NonceSet } from './handler/nonce-set';
 export * from './handler/contract';
 
 // The SDK surface a task author needs.

@@ -17,11 +17,13 @@ import { ServerlessRuntime, type ConsoleLike } from './context';
 import { isServerlessLimitationError } from './errors';
 import { errorMessage, json, triggerError } from './http';
 import type { Registry } from './registry';
-import { verifyBodySignature } from './signature';
+import { verifySignedBody } from './signature';
 
 export interface TriggerOptions {
   registry: Registry;
   secret: string;
+  /** When set, envelopes carrying another endpoint id are refused with 403. */
+  endpointId?: string;
   console?: ConsoleLike;
 }
 
@@ -30,17 +32,24 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
     return triggerError(405, 'method not allowed', false);
   }
 
-  // The signature covers the exact bytes, so read the body before parsing it.
+  // The signature covers the exact bytes, so read the body before parsing it. The body's
+  // timestamp must be within the request window and its endpoint id must be this endpoint's.
   const body = await request.text();
+  const verified = await verifySignedBody(
+    body,
+    request.headers.get(SIGNATURE_HEADER),
+    options.secret,
+    { endpointId: options.endpointId }
+  );
 
-  if (!(await verifyBodySignature(body, request.headers.get(SIGNATURE_HEADER), options.secret))) {
-    return triggerError(401, 'bad signature', false);
+  if (!verified.ok) {
+    return triggerError(verified.status, verified.reason, false);
   }
 
   let envelope: ServerlessTriggerRequest;
 
   try {
-    envelope = ServerlessTriggerRequest.fromJSON(JSON.parse(body));
+    envelope = ServerlessTriggerRequest.fromJSON(verified.json);
   } catch (err) {
     return triggerError(400, `malformed trigger request: ${errorMessage(err)}`, false);
   }

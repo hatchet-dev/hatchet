@@ -14,8 +14,15 @@ export const NONCE_HEADER = 'X-Hatchet-Nonce';
 export const TASK_ID_HEADER = 'X-Hatchet-Task-Id';
 export const INVOCATION_HEADER = 'X-Hatchet-Invocation';
 
-/** contract.UpgradeMaxAge, in seconds. */
-export const UPGRADE_MAX_AGE_SECONDS = 5 * 60;
+/**
+ * contract.RequestMaxAge, in seconds: how far a signed timestamp may lie from the endpoint's
+ * clock, in either direction, before the request is refused. It applies to the timestamp in
+ * every signed POST body and to the upgrade's X-Hatchet-Timestamp.
+ */
+export const REQUEST_MAX_AGE_SECONDS = 5 * 60;
+
+/** contract.UpgradeMaxAge: RequestMaxAge as it applies to the durable upgrade. */
+export const UPGRADE_MAX_AGE_SECONDS = REQUEST_MAX_AGE_SECONDS;
 
 /** contract.TriggerEnvelopeVersion: the `version` field of ServerlessTriggerRequest. */
 export const TRIGGER_ENVELOPE_VERSION = 1;

@@ -182,7 +182,7 @@ describe('trigger outcomes', () => {
     const v2 = ServerlessTriggerRequest.toJSON({
       endpointId: op.endpointId,
       namespace: op.namespace,
-      timestamp: 1,
+      timestamp: Math.floor(Date.now() / 1000),
       version: 2,
       action: undefined,
     });
@@ -192,7 +192,7 @@ describe('trigger outcomes', () => {
       ServerlessTriggerRequest.fromPartial({
         endpointId: op.endpointId,
         namespace: op.namespace,
-        timestamp: 1,
+        timestamp: Math.floor(Date.now() / 1000),
         version: 1,
         action: { actionId: `${op.namespace}_echo:echo`, actionType: ActionType.CANCEL_STEP_RUN },
       })

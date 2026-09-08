@@ -73,6 +73,10 @@ export interface InvokeOptions {
   taskRunExternalId?: string;
   /** How the run was triggered; defaults to "manual". */
   triggeredBy?: string;
+  /** The envelope timestamp in unix seconds; defaults to now. */
+  timestamp?: number;
+  /** The envelope endpoint id; defaults to the operator's. */
+  endpointId?: string;
 }
 
 /** What to invoke: a task declaration, an action id (`workflow:task`), or a task of a workflow. */
@@ -156,6 +160,20 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
 
   const request: TestOperator['request'] = async (path, init = {}) => {
     const { sign = true, ...requestInit } = init;
+
+    const method = (requestInit.method ?? 'POST').toUpperCase();
+
+    if (requestInit.body === undefined && method !== 'GET' && method !== 'HEAD') {
+      // A fresh healthcheck-shaped body, so a raw request passes the freshness checks.
+      requestInit.body = JSON.stringify(
+        ServerlessHealthcheckRequest.toJSON({
+          endpointId,
+          namespace,
+          timestamp: Math.floor(Date.now() / 1000),
+        })
+      );
+    }
+
     const body = typeof requestInit.body === 'string' ? requestInit.body : '';
     const headers = new Headers(requestInit.headers);
 
@@ -172,7 +190,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
 
   const deliver: TestOperator['deliver'] = async (target, input, invokeOptions = {}) => {
     const { workflowName, taskName } = resolveTarget(target);
-    const timestamp = Math.floor(Date.now() / 1000);
+    const timestamp = invokeOptions.timestamp ?? Math.floor(Date.now() / 1000);
 
     const action = AssignedAction.fromPartial({
       tenantId: crypto.randomUUID(),
@@ -198,7 +216,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     });
 
     const envelope = ServerlessTriggerRequest.toJSON({
-      endpointId,
+      endpointId: invokeOptions.endpointId ?? endpointId,
       namespace,
       action,
       timestamp,
