@@ -1,5 +1,10 @@
-import { PlanSelector } from './plan-selector';
-import { resolveSubscriptionPlanCode } from './subscription-plan-code';
+import { formatInvoiceAmount, formatInvoiceDate } from './invoice-formatters';
+import {
+  isPayAsYouGoPlanCode,
+  payAsYouGoPlan,
+  resolveSubscriptionPlanCode,
+} from './subscription-plan-code';
+import { UpcomingInvoiceDialog } from './upcoming-invoice-dialog';
 import { usePylon } from '@/components/support-chat';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -25,11 +30,12 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
+  Coupon,
   OrganizationBillingStateSubscription,
+  OrganizationInvoicePreview,
+  SubscriptionPeriod,
   SubscriptionPlan,
   SubscriptionPlanCode,
-  SubscriptionPeriod,
-  Coupon,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { useApiError } from '@/lib/hooks';
@@ -42,6 +48,7 @@ interface SubscriptionProps {
   upcoming?: OrganizationBillingStateSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
+  invoicePreviews?: OrganizationInvoicePreview[];
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -124,6 +131,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   upcoming,
   plans,
   coupons,
+  invoicePreviews,
 }) => {
   const [loading, setLoading] = useState<string>();
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
@@ -131,6 +139,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   >(undefined);
   const [planChangeError, setPlanChangeError] = useState<string>();
   const [submittedPlanCode, setSubmittedPlanCode] = useState<string>();
+  const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
 
   const { tenantId, tenant, billing, organizationId } = useTenantDetails();
   const { canBill, isControlPlaneEnabled } = useControlPlane();
@@ -283,11 +292,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     setChangeConfirmOpen(undefined);
   }, [activePlanCode, submittedPlanCode, upcomingPlanCode]);
 
-  const activePlanAmountCents = useMemo(
-    () => plans?.find((p) => p.planCode === activePlanCode)?.amountCents,
-    [plans, activePlanCode],
-  );
-
   const formattedEndDate = useMemo(() => {
     if (!active?.endsAt) {
       return null;
@@ -334,6 +338,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   }, [tenant, tenantId]);
 
   const isDedicatedPlan = active?.plan === 'dedicated';
+  const nextInvoice = invoicePreviews?.[0];
+  const isUsageBasedCurrentPlan = isPayAsYouGoPlanCode(activePlanCode);
+  const showPlanSelector =
+    !isDedicatedPlan && !isPayAsYouGoPlanCode(activePlanCode);
+  const selectedPlanIsUsageBased = isChangeConfirmOpen
+    ? isPayAsYouGoPlanCode(isChangeConfirmOpen.planCode) ||
+      isChangeConfirmOpen.amountCents === 0
+    : false;
 
   const openChangeConfirm = (plan: SubscriptionPlan) => {
     setPlanChangeError(undefined);
@@ -363,8 +375,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             plan?
             <br />
             <br />
-            Upgrades will be prorated and downgrades will take effect at the end
-            of the billing period.
+            {selectedPlanIsUsageBased
+              ? "You'll only be charged for what you use, billed monthly."
+              : 'Upgrades will be prorated and downgrades will take effect at the end of the billing period.'}
             {planChangeError && (
               <Alert variant="destructive" className="mt-4">
                 <AlertTitle>Plan change failed</AlertTitle>
@@ -390,33 +403,35 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
       <div>
         {isDedicatedPlan ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-xl font-semibold leading-tight text-foreground">
-                You are on a Dedicated plan
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Contact us to make changes to your plan.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {pylon.enabled && (
-                <Button onClick={pylon.show} variant="outline">
-                  Contact us
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-xl font-semibold leading-tight text-foreground">
+                  You are on a Dedicated plan
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Contact us to make changes to your plan.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {pylon.enabled && (
+                  <Button onClick={pylon.show} variant="outline">
+                    Contact us
+                  </Button>
+                )}
+                <Button asChild variant="outline">
+                  <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
+                    Office hours
+                  </a>
                 </Button>
-              )}
-              <Button asChild variant="outline">
-                <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
-                  Office hours
-                </a>
-              </Button>
-              <Button
-                onClick={manageClicked}
-                variant="outline"
-                disabled={portalLoading}
-              >
-                {portalLoading ? <Spinner /> : 'Manage Billing'}
-              </Button>
+                <Button
+                  onClick={manageClicked}
+                  variant="outline"
+                  disabled={portalLoading}
+                >
+                  {portalLoading ? <Spinner /> : 'Manage Billing'}
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -482,7 +497,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     {portalLoading ? <Spinner /> : 'Manage Billing'}
                   </Button>
                 </CardHeader>
-                <CardContent className="p-4">
+                <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -510,7 +525,20 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       )}
                     </div>
                     <div className="text-right">
-                      {typeof currentPlanSummary.amountCents === 'number' ? (
+                      {isUsageBasedCurrentPlan && nextInvoice ? (
+                        <>
+                          <span className="text-2xl font-bold text-foreground">
+                            {formatInvoiceAmount(
+                              nextInvoice.totalCents,
+                              nextInvoice.currency,
+                            )}
+                          </span>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            estimated this period
+                          </p>
+                        </>
+                      ) : typeof currentPlanSummary.amountCents === 'number' &&
+                        currentPlanSummary.amountCents > 0 ? (
                         <>
                           <span className="text-2xl font-bold text-foreground">
                             {formatCurrency(
@@ -522,6 +550,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                             / month
                           </span>
                         </>
+                      ) : isUsageBasedCurrentPlan ? (
+                        <p className="text-sm text-muted-foreground">
+                          Pay only for what you use
+                        </p>
                       ) : (
                         <span className="text-sm text-muted-foreground">
                           {formatPeriod(currentPlanSummary.period)}
@@ -529,6 +561,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       )}
                     </div>
                   </div>
+                  {nextInvoice ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        Next charge {formatInvoiceDate(nextInvoice.invoiceAt)}
+                      </p>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 justify-start sm:justify-end"
+                        onClick={() => setInvoicePreviewOpen(true)}
+                      >
+                        View breakdown
+                      </Button>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             )}
@@ -573,46 +620,86 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            <div className="flex flex-row items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">
-                For plan details, visit{' '}
-                <a
-                  href="https://hatchet.run/pricing"
-                  className="text-primary/70 hover:text-primary hover:underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  our pricing page
-                </a>{' '}
-                or{' '}
-                <a
-                  href={OFFICE_HOURS_URL}
-                  className="text-primary/70 hover:text-primary hover:underline"
-                >
-                  contact us
-                </a>{' '}
-                for custom requirements.
-              </p>
-            </div>
-
-            <PlanSelector
-              activePlanCode={activePlanCode}
-              activePlanAmountCents={activePlanAmountCents}
-              upcomingPlanCode={upcomingPlanCode}
-              onSelectPlan={(plan) => {
-                if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate({ plan_code: plan.planCode });
-                } else {
-                  openChangeConfirm(plan);
-                }
-              }}
-              enterpriseContactUrl={enterpriseContactUrl}
-              loading={loading}
-              coupons={coupons}
-            />
+            {showPlanSelector && payAsYouGoPlan(plans) ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Upgrade to Pay as you Go
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      No monthly fee. Usage billed monthly.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      size="sm"
+                      disabled={!!loading}
+                      onClick={() => {
+                        const plan = payAsYouGoPlan(plans);
+                        if (!plan) {
+                          return;
+                        }
+                        if (!billing?.hasPaymentMethods) {
+                          subscriptionMutation.mutate({
+                            plan_code: plan.planCode,
+                          });
+                        } else {
+                          openChangeConfirm(plan);
+                        }
+                      }}
+                    >
+                      {loading ? <Spinner /> : 'Upgrade'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          enterpriseContactUrl,
+                          '_blank',
+                          'noreferrer',
+                        )
+                      }
+                    >
+                      Talk to sales
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : !isDedicatedPlan ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Need volume discounts, HIPAA, or VPC peering?
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      window.open(enterpriseContactUrl, '_blank', 'noreferrer')
+                    }
+                  >
+                    Schedule a Sales Call
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
           </>
         )}
       </div>
+
+      <UpcomingInvoiceDialog
+        preview={nextInvoice ?? null}
+        open={invoicePreviewOpen && !!nextInvoice}
+        onOpenChange={setInvoicePreviewOpen}
+      />
     </>
   );
 };

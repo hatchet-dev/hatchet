@@ -1,13 +1,17 @@
-import { resolveSubscriptionPlanCode } from './subscription-plan-code';
+import {
+  payAsYouGoPlan,
+  resolveSubscriptionPlanCode,
+} from './subscription-plan-code';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import { queries } from '@/lib/api';
+import { SubscriptionPlan } from '@/lib/api/generated/control-plane/data-contracts';
 import { appRoutes } from '@/router';
 import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { ReactNode } from 'react';
 
 export type UpgradeResource = 'users' | 'tenants';
 
@@ -51,19 +55,40 @@ export function formatPlanTier(planName: string | null | undefined) {
   return `${lower} tier`;
 }
 
-export function useCurrentPlanName(organizationId?: string | null) {
+export function useOrganizationBilling(organizationId?: string | null) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
 
-  const billingState = useQuery({
+  return useQuery({
     ...queries.controlPlane.billing(organizationId ?? ''),
     enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
+}
+
+export function PayAsYouGoSummaryRow({
+  plans,
+}: {
+  plans?: SubscriptionPlan[];
+}) {
+  const plan = payAsYouGoPlan(plans);
+  if (!plan) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex items-center justify-between gap-4">
+      <span className="text-muted-foreground">Upgrade to</span>
+      <span className="font-medium text-foreground text-right">
+        {plan.name} — no monthly fee, pay only for what you use
+      </span>
+    </div>
+  );
+}
+
+export function useCurrentPlanName(organizationId?: string | null) {
+  const billingState = useOrganizationBilling(organizationId);
 
   const currentPlanCode = nonempty(
-    resolveSubscriptionPlanCode(
-      billingState.data?.currentSubscription,
-      null,
-    ),
+    resolveSubscriptionPlanCode(billingState.data?.currentSubscription, null),
   );
   if (currentPlanCode) {
     return (
@@ -136,6 +161,7 @@ export function UpgradeRequiredCard({
   const { noun, description } = RESOURCE_COPY[resource];
   const navigate = useNavigate();
   const { entitlements } = useOrganizationEntitlements(organizationId);
+  const billingState = useOrganizationBilling(organizationId);
   const currentPlanName = useCurrentPlanName(organizationId);
   const tier = formatPlanTier(currentPlanName);
   const limit = entitlements?.[resource];
@@ -178,13 +204,17 @@ export function UpgradeRequiredCard({
                 </span>
               </div>
             ) : null}
+            <PayAsYouGoSummaryRow plans={billingState.data?.plans} />
           </>
         ) : undefined
       }
     >
       <Button size="lg" className="w-full" onClick={handleUpgrade}>
-        View plans &amp; upgrade
+        Upgrade to Pay as you Go
       </Button>
+      <p className="mt-2 text-xs text-muted-foreground">
+        No monthly fee. Cancel anytime.
+      </p>
     </UpgradeRequiredLayout>
   );
 }

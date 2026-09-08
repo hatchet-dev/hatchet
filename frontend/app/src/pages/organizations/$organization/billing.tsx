@@ -5,6 +5,7 @@ import {
   SubscriptionHistory,
 } from '@/components/v1/cloud/billing';
 import { resolveSubscriptionPlanCode } from '@/components/v1/cloud/billing/subscription-plan-code';
+import { UsageThisPeriod } from '@/components/v1/cloud/billing/usage-this-period';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -37,8 +38,8 @@ function BillingPageLayout({ children }: { children: ReactNode }) {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Billing"
-          description="Manage your organization subscription, payment methods, and plan changes."
+          title="Billing and usage"
+          description="Manage your organization subscription, usage, payment methods, and plan changes."
         />
 
         {children}
@@ -314,14 +315,26 @@ function OrganizationBillingContent() {
         upcoming={billingState.data?.upcomingSubscription}
         plans={billingState.data?.plans}
         coupons={billingState.data?.coupons}
+        invoicePreviews={invoices.data?.invoicePreviews}
       />
+
+      <div className="mt-12 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Usage</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Consumption against your included limits, with daily task-run and
+            event history.
+          </p>
+        </div>
+
+        <UsageThisPeriod organizationId={organization} />
+      </div>
 
       <div className="mt-12 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upcoming charges and previously issued invoices for this
-            organization.
+            Upcoming and previously issued invoices for this organization.
           </p>
         </div>
 

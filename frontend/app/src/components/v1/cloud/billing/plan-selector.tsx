@@ -1,3 +1,4 @@
+import { isPayAsYouGoPlanCode } from './subscription-plan-code';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -111,12 +112,14 @@ export function PlanSelector({
   return (
     <div
       className={`grid grid-cols-1 gap-4 ${
-        cardCount > 1 ? 'sm:grid-cols-2' : ''
+        cardCount > 1 ? 'lg:grid-cols-5' : ''
       }`}
     >
       {visiblePlans?.map((plan) => {
         const isActive = plan.planCode === activePlanCode;
         const isUpcoming = plan.planCode === upcomingPlanCode;
+        const usageBased =
+          isPayAsYouGoPlanCode(plan.planCode) || plan.amountCents === 0;
         const hasCoupon = activeCoupon && plan.amountCents > 0;
         const discountedCents = hasCoupon
           ? applyCoupon(plan.amountCents, activeCoupon)
@@ -125,7 +128,13 @@ export function PlanSelector({
           <PlanCard
             key={plan.planCode}
             name={plan.name}
-            price={formatCurrency(discountedCents, plan.period)}
+            price={
+              usageBased
+                ? undefined
+                : formatCurrency(discountedCents, plan.period)
+            }
+            usageBased={usageBased}
+            recommended={usageBased}
             originalPrice={
               hasCoupon && discountedCents !== plan.amountCents
                 ? formatCurrency(plan.amountCents, plan.period)
@@ -143,6 +152,8 @@ export function PlanSelector({
             isLoading={loading === plan.planCode}
             onSelect={() => onSelectPlan(plan)}
             selectLabel={selectLabel}
+            buttonLabel={usageBased ? 'Upgrade to Pay as you Go' : undefined}
+            className={cardCount > 1 ? 'lg:col-span-3' : undefined}
           />
         );
       })}
@@ -161,6 +172,8 @@ export function PlanSelector({
         ]}
         onSelect={() => window.open(enterpriseContactUrl, '_blank')}
         buttonLabel="Schedule a Sales Call"
+        secondary
+        className={cardCount > 1 ? 'lg:col-span-2' : undefined}
       />
     </div>
   );
@@ -181,6 +194,10 @@ function PlanCard({
   onSelect,
   buttonLabel,
   selectLabel,
+  usageBased,
+  recommended,
+  secondary,
+  className,
 }: {
   name: string;
   price?: string;
@@ -196,22 +213,42 @@ function PlanCard({
   onSelect: () => void;
   buttonLabel?: string;
   selectLabel?: string;
+  usageBased?: boolean;
+  recommended?: boolean;
+  secondary?: boolean;
+  className?: string;
 }) {
   return (
     <Card
       variant="light"
       className={`bg-transparent ring-1 border-none flex flex-col ${
-        isActive ? 'ring-primary' : 'ring-border/50'
-      }`}
+        isActive || recommended ? 'ring-primary' : 'ring-border/50'
+      } ${className ?? ''}`}
     >
       <CardHeader className="p-4 border-b border-border/50">
-        <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
-          {name}
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+            {name}
+          </CardTitle>
+          {recommended ? (
+            <Badge variant="successful" className="text-[10px]">
+              Recommended
+            </Badge>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="p-4 flex flex-col flex-1 gap-4">
         <div>
-          {price ? (
+          {usageBased ? (
+            <div className="space-y-1">
+              <p className="text-xl font-semibold text-foreground">
+                Pay only for what you use
+              </p>
+              <p className="text-sm text-muted-foreground">
+                No monthly fee. Usage billed monthly.
+              </p>
+            </div>
+          ) : price ? (
             <>
               {originalPrice && (
                 <span className="text-sm text-muted-foreground line-through mr-2">
@@ -291,29 +328,38 @@ function PlanCard({
           </div>
         )}
 
-        <Button
-          variant={
-            isActive || isUpcoming
-              ? 'outline'
-              : isUpgrade
-                ? 'default'
-                : 'outline'
-          }
-          size="sm"
-          disabled={isActive || isUpcoming || isLoading}
-          onClick={onSelect}
-          className="w-full mt-auto"
-        >
-          {isLoading ? (
-            <Spinner />
-          ) : isActive ? (
-            'Current Plan'
-          ) : isUpcoming ? (
-            'Upcoming Plan'
-          ) : (
-            buttonLabel || selectLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
-          )}
-        </Button>
+        <div className="mt-auto space-y-2">
+          <Button
+            variant={
+              isActive || isUpcoming || secondary
+                ? 'outline'
+                : isUpgrade || usageBased
+                  ? 'default'
+                  : 'outline'
+            }
+            size="sm"
+            disabled={isActive || isUpcoming || isLoading}
+            onClick={onSelect}
+            className="w-full"
+          >
+            {isLoading ? (
+              <Spinner />
+            ) : isActive ? (
+              'Current Plan'
+            ) : isUpcoming ? (
+              'Upcoming Plan'
+            ) : (
+              buttonLabel ||
+              selectLabel ||
+              (isUpgrade ? 'Upgrade' : 'Downgrade')
+            )}
+          </Button>
+          {usageBased ? (
+            <p className="text-center text-xs text-muted-foreground">
+              No monthly fee. Usage billed monthly. Cancel anytime.
+            </p>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

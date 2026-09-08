@@ -38,14 +38,6 @@ interface InvoicesProps {
   onRetry?: () => void;
 }
 
-function InvoiceSectionLabel({ children }: { children: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-      {children}
-    </span>
-  );
-}
-
 function InvoiceTableSkeleton() {
   return (
     <Card
@@ -135,119 +127,89 @@ export function Invoices({
   }
 
   return (
-    <div className="space-y-6">
-      {upcoming.length > 0 ? (
-        <div className="space-y-2">
-          <InvoiceSectionLabel>Upcoming</InvoiceSectionLabel>
-          <Card
-            variant="light"
-            className="bg-transparent ring-1 ring-border/50 border-none"
-          >
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-4">Products</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
+    <>
+      <Card
+        variant="light"
+        className="bg-transparent ring-1 ring-border/50 border-none"
+      >
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-4">Products</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {upcoming.map((preview, index) => {
+                const status = invoiceStatusBadge('upcoming');
+                return (
+                  <TableRow
+                    key={`${preview.planIds.join('-')}-${preview.invoiceAt}-${index}`}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedPreview(preview)}
+                  >
+                    <TableCell className="px-4 font-medium text-foreground">
+                      {formatPlanIds(preview.planIds)}
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {formatInvoiceAmount(
+                        preview.totalCents,
+                        preview.currency,
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatInvoiceDate(preview.invoiceAt)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {upcoming.map((preview, index) => {
-                    const status = invoiceStatusBadge('upcoming');
-                    return (
-                      <TableRow
-                        key={`${preview.planIds.join('-')}-${preview.invoiceAt}-${index}`}
-                        className="cursor-pointer"
-                        onClick={() => setSelectedPreview(preview)}
-                      >
-                        <TableCell className="px-4 font-medium text-foreground">
-                          {formatPlanIds(preview.planIds)}
-                        </TableCell>
-                        <TableCell className="text-foreground">
-                          {formatInvoiceAmount(
-                            preview.totalCents,
-                            preview.currency,
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatInvoiceDate(preview.invoiceAt)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {previous.length > 0 ? (
-        <div className="space-y-2">
-          <InvoiceSectionLabel>Previous</InvoiceSectionLabel>
-          <Card
-            variant="light"
-            className="bg-transparent ring-1 ring-border/50 border-none"
-          >
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-4">Products</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
+                );
+              })}
+              {previous.map((invoice) => {
+                const status = invoiceStatusBadge(invoice.status);
+                const hostedInvoiceUrl = invoice.hostedInvoiceUrl;
+                const canOpen = Boolean(hostedInvoiceUrl);
+                return (
+                  <TableRow
+                    key={invoice.stripeId}
+                    className={canOpen ? 'cursor-pointer' : undefined}
+                    onClick={
+                      hostedInvoiceUrl
+                        ? () => openHostedInvoice(hostedInvoiceUrl)
+                        : undefined
+                    }
+                  >
+                    <TableCell className="px-4 font-medium text-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        {formatPlanIds(invoice.planIds)}
+                        {canOpen ? (
+                          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {formatInvoiceAmount(
+                        invoice.totalCents,
+                        invoice.currency,
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatInvoiceDate(invoice.createdAt)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previous.map((invoice) => {
-                    const status = invoiceStatusBadge(invoice.status);
-                    const hostedInvoiceUrl = invoice.hostedInvoiceUrl;
-                    const canOpen = Boolean(hostedInvoiceUrl);
-                    return (
-                      <TableRow
-                        key={invoice.stripeId}
-                        className={canOpen ? 'cursor-pointer' : undefined}
-                        onClick={
-                          hostedInvoiceUrl
-                            ? () => openHostedInvoice(hostedInvoiceUrl)
-                            : undefined
-                        }
-                      >
-                        <TableCell className="px-4 font-medium text-foreground">
-                          <span className="inline-flex items-center gap-2">
-                            {formatPlanIds(invoice.planIds)}
-                            {canOpen ? (
-                              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                            ) : null}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-foreground">
-                          {formatInvoiceAmount(
-                            invoice.totalCents,
-                            invoice.currency,
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatInvoiceDate(invoice.createdAt)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <UpcomingInvoiceDialog
         preview={selectedPreview}
@@ -258,6 +220,6 @@ export function Invoices({
           }
         }}
       />
-    </div>
+    </>
   );
 }

@@ -1,14 +1,16 @@
 import {
+  PayAsYouGoSummaryRow,
   UpgradeRequiredLayout,
   formatPlanTier,
   useCurrentPlanName,
+  useOrganizationBilling,
 } from '@/components/v1/cloud/billing/upgrade-required';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Button } from '@/components/v1/ui/button';
 import { Dialog, DialogContent } from '@/components/v1/ui/dialog';
 import useControlPlane from '@/hooks/use-control-plane';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import type { RetentionAttempt } from '@/hooks/use-retention-gate';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { docsPages } from '@/lib/generated/docs';
 import {
   TIME_WINDOW_LABELS,
@@ -33,6 +35,7 @@ export function RetentionUpgradeDialog({
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { organizationId } = useTenantDetails();
   const currentPlanName = useCurrentPlanName(organizationId);
+  const billingState = useOrganizationBilling(organizationId);
   const tier = formatPlanTier(currentPlanName);
   const label = retentionPeriod
     ? formatRetentionPeriod(retentionPeriod)
@@ -99,11 +102,10 @@ export function RetentionUpgradeDialog({
                     }
                   >
                     <span className="text-muted-foreground">Retention</span>
-                    <span className="font-medium text-foreground">
-                      {label}
-                    </span>
+                    <span className="font-medium text-foreground">{label}</span>
                   </div>
                 ) : null}
+                <PayAsYouGoSummaryRow plans={billingState.data?.plans} />
               </>
             ) : undefined
           }
@@ -112,12 +114,16 @@ export function RetentionUpgradeDialog({
             <Link
               to={appRoutes.organizationBillingRoute.to}
               params={{ organization: organizationId }}
+              hash="plan-selector"
               className="w-full"
               onClick={onClose}
             >
               <Button size="lg" className="w-full">
-                View plans &amp; upgrade
+                Upgrade to Pay as you Go
               </Button>
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                No monthly fee. Cancel anytime.
+              </p>
             </Link>
           ) : !isControlPlaneEnabled ? (
             <DocsButton
