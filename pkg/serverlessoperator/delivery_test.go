@@ -94,7 +94,7 @@ func TestClassifyError(t *testing.T) {
 func TestDeliverActionSignsEnvelope(t *testing.T) {
 	sender := newFakeSender()
 
-	ep := &cachedEndpoint{id: uuid.New(), namespace: uuid.New(), limiter: newSlotLimiter(1)}
+	ep := &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}
 	cfg := &endpointConfig{triggerUrl: "https://ep.example.test/trigger", secret: "s3cret", requestTimeoutSeconds: 5}
 
 	sender.respond(cfg.triggerUrl, http.StatusOK, `{"result":42}`)

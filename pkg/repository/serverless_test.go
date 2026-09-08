@@ -116,8 +116,6 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, "endpoint-a", created.Name)
 		assert.NotEqual(t, uuid.Nil, created.Namespace)
 		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS, created.Kind)
-		assert.Equal(t, defaultServerlessSlots, created.Slots)
-		assert.Equal(t, defaultServerlessDurableSlots, created.DurableSlots)
 		assert.Equal(t, defaultServerlessRequestTimeoutSeconds, created.RequestTimeoutSeconds)
 		assert.Equal(t, defaultServerlessPollIntervalSeconds, created.PollIntervalSeconds)
 		assert.Equal(t, defaultServerlessInlineWaitBudgetMs, created.InlineWaitBudgetMs)
@@ -154,21 +152,21 @@ func TestServerlessRepository(t *testing.T) {
 		require.NoError(t, err)
 
 		newName := "endpoint-b"
-		newSlots := int32(5)
+		newTimeout := int32(5)
 		disabled := false
 		kind := sqlcv1.V1ServerlessEndpointKindGENERICHTTP
 
 		updated, err := repo.Endpoints().Update(ctx, tenantId, created.ID, UpdateServerlessEndpointOpts{
-			Name:    &newName,
-			Kind:    &kind,
-			Slots:   &newSlots,
-			Enabled: &disabled,
-			Labels:  []byte(`{"env": "test"}`),
+			Name:                  &newName,
+			Kind:                  &kind,
+			RequestTimeoutSeconds: &newTimeout,
+			Enabled:               &disabled,
+			Labels:                []byte(`{"env": "test"}`),
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "endpoint-b", updated.Name)
 		assert.Equal(t, kind, updated.Kind)
-		assert.Equal(t, int32(5), updated.Slots)
+		assert.Equal(t, int32(5), updated.RequestTimeoutSeconds)
 		assert.False(t, updated.Enabled)
 		assert.JSONEq(t, `{"env": "test"}`, string(updated.Labels))
 		// untouched fields keep their values, and the immutable ones cannot change
@@ -238,10 +236,10 @@ func TestServerlessRepository(t *testing.T) {
 		_, err = repo.Endpoints().Create(ctx, tenantId, noSecret)
 		assert.Error(t, err)
 
-		tooManySlots := serverlessEndpointOpts("too-many-slots")
-		slots := int32(1_000_000)
-		tooManySlots.Slots = &slots
-		_, err = repo.Endpoints().Create(ctx, tenantId, tooManySlots)
+		tooLongTimeout := serverlessEndpointOpts("too-long-timeout")
+		timeout := int32(1_000_000)
+		tooLongTimeout.RequestTimeoutSeconds = &timeout
+		_, err = repo.Endpoints().Create(ctx, tenantId, tooLongTimeout)
 		assert.Error(t, err)
 
 		badLabels := serverlessEndpointOpts("bad-labels")

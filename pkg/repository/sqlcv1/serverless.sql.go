@@ -108,8 +108,6 @@ INSERT INTO v1_serverless_endpoint (
     healthcheck_url,
     trigger_url,
     signing_secret_enc,
-    slots,
-    durable_slots,
     request_timeout_seconds,
     poll_interval_seconds,
     inline_wait_budget_ms,
@@ -127,13 +125,11 @@ INSERT INTO v1_serverless_endpoint (
     $8::INT,
     $9::INT,
     $10::INT,
-    $11::INT,
-    $12::INT,
-    $13::JSONB,
-    $14::BOOLEAN,
-    (abs(hashtext(($1::UUID)::text)::bigint) % $15::INT)::INT
+    $11::JSONB,
+    $12::BOOLEAN,
+    (abs(hashtext(($1::UUID)::text)::bigint) % $13::INT)::INT
 )
-RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 `
 
 type CreateServerlessEndpointParams struct {
@@ -144,8 +140,6 @@ type CreateServerlessEndpointParams struct {
 	Healthcheckurl        string                   `json:"healthcheckurl"`
 	Triggerurl            string                   `json:"triggerurl"`
 	Signingsecretenc      string                   `json:"signingsecretenc"`
-	Slots                 int32                    `json:"slots"`
-	Durableslots          int32                    `json:"durableslots"`
 	Requesttimeoutseconds int32                    `json:"requesttimeoutseconds"`
 	Pollintervalseconds   int32                    `json:"pollintervalseconds"`
 	Inlinewaitbudgetms    int32                    `json:"inlinewaitbudgetms"`
@@ -169,8 +163,6 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 		arg.Healthcheckurl,
 		arg.Triggerurl,
 		arg.Signingsecretenc,
-		arg.Slots,
-		arg.Durableslots,
 		arg.Requesttimeoutseconds,
 		arg.Pollintervalseconds,
 		arg.Inlinewaitbudgetms,
@@ -188,8 +180,6 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 		&i.HealthcheckUrl,
 		&i.TriggerUrl,
 		&i.SigningSecretEnc,
-		&i.Slots,
-		&i.DurableSlots,
 		&i.RequestTimeoutSeconds,
 		&i.PollIntervalSeconds,
 		&i.InlineWaitBudgetMs,
@@ -226,7 +216,7 @@ DELETE FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 `
 
 type DeleteServerlessEndpointParams struct {
@@ -246,8 +236,6 @@ func (q *Queries) DeleteServerlessEndpoint(ctx context.Context, db DBTX, arg Del
 		&i.HealthcheckUrl,
 		&i.TriggerUrl,
 		&i.SigningSecretEnc,
-		&i.Slots,
-		&i.DurableSlots,
 		&i.RequestTimeoutSeconds,
 		&i.PollIntervalSeconds,
 		&i.InlineWaitBudgetMs,
@@ -275,7 +263,7 @@ func (q *Queries) DeleteServerlessProcess(ctx context.Context, db DBTX, processi
 }
 
 const getServerlessEndpoint = `-- name: GetServerlessEndpoint :one
-SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -299,8 +287,6 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 		&i.HealthcheckUrl,
 		&i.TriggerUrl,
 		&i.SigningSecretEnc,
-		&i.Slots,
-		&i.DurableSlots,
 		&i.RequestTimeoutSeconds,
 		&i.PollIntervalSeconds,
 		&i.InlineWaitBudgetMs,
@@ -318,7 +304,7 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 }
 
 const getServerlessEndpointById = `-- name: GetServerlessEndpointById :one
-SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
 WHERE id = $1::UUID
 `
@@ -337,8 +323,6 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 		&i.HealthcheckUrl,
 		&i.TriggerUrl,
 		&i.SigningSecretEnc,
-		&i.Slots,
-		&i.DurableSlots,
 		&i.RequestTimeoutSeconds,
 		&i.PollIntervalSeconds,
 		&i.InlineWaitBudgetMs,
@@ -437,7 +421,7 @@ func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, proces
 }
 
 const listServerlessEndpoints = `-- name: ListServerlessEndpoints :many
-SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
 WHERE tenant_id = $1::UUID
 ORDER BY created_at DESC, id DESC
@@ -469,8 +453,6 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 			&i.HealthcheckUrl,
 			&i.TriggerUrl,
 			&i.SigningSecretEnc,
-			&i.Slots,
-			&i.DurableSlots,
 			&i.RequestTimeoutSeconds,
 			&i.PollIntervalSeconds,
 			&i.InlineWaitBudgetMs,
@@ -495,7 +477,7 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 }
 
 const listServerlessEndpointsForTenant = `-- name: ListServerlessEndpointsForTenant :many
-SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
 WHERE tenant_id = $1::UUID
 ORDER BY id
@@ -521,8 +503,6 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 			&i.HealthcheckUrl,
 			&i.TriggerUrl,
 			&i.SigningSecretEnc,
-			&i.Slots,
-			&i.DurableSlots,
 			&i.RequestTimeoutSeconds,
 			&i.PollIntervalSeconds,
 			&i.InlineWaitBudgetMs,
@@ -547,7 +527,7 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 }
 
 const listServerlessEndpointsForUnits = `-- name: ListServerlessEndpointsForUnits :many
-SELECT e.id, e.tenant_id, e.name, e.namespace, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.slots, e.durable_slots, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.shard, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at
+SELECT e.id, e.tenant_id, e.name, e.namespace, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.shard, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at
 FROM v1_serverless_endpoint e
 JOIN (
     -- parallel unnest zips the two arrays into (tenant_id, shard) pairs
@@ -593,8 +573,6 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 			&i.HealthcheckUrl,
 			&i.TriggerUrl,
 			&i.SigningSecretEnc,
-			&i.Slots,
-			&i.DurableSlots,
 			&i.RequestTimeoutSeconds,
 			&i.PollIntervalSeconds,
 			&i.InlineWaitBudgetMs,
@@ -619,7 +597,7 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 }
 
 const listServerlessEndpointsUpdatedSince = `-- name: ListServerlessEndpointsUpdatedSince :many
-SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -653,8 +631,6 @@ func (q *Queries) ListServerlessEndpointsUpdatedSince(ctx context.Context, db DB
 			&i.HealthcheckUrl,
 			&i.TriggerUrl,
 			&i.SigningSecretEnc,
-			&i.Slots,
-			&i.DurableSlots,
 			&i.RequestTimeoutSeconds,
 			&i.PollIntervalSeconds,
 			&i.InlineWaitBudgetMs,
@@ -793,18 +769,16 @@ SET
     healthcheck_url = COALESCE($3::TEXT, healthcheck_url),
     trigger_url = COALESCE($4::TEXT, trigger_url),
     signing_secret_enc = COALESCE($5::TEXT, signing_secret_enc),
-    slots = COALESCE($6::INT, slots),
-    durable_slots = COALESCE($7::INT, durable_slots),
-    request_timeout_seconds = COALESCE($8::INT, request_timeout_seconds),
-    poll_interval_seconds = COALESCE($9::INT, poll_interval_seconds),
-    inline_wait_budget_ms = COALESCE($10::INT, inline_wait_budget_ms),
-    labels = COALESCE($11::JSONB, labels),
-    enabled = COALESCE($12::BOOLEAN, enabled),
+    request_timeout_seconds = COALESCE($6::INT, request_timeout_seconds),
+    poll_interval_seconds = COALESCE($7::INT, poll_interval_seconds),
+    inline_wait_budget_ms = COALESCE($8::INT, inline_wait_budget_ms),
+    labels = COALESCE($9::JSONB, labels),
+    enabled = COALESCE($10::BOOLEAN, enabled),
     updated_at = NOW()
 WHERE
-    tenant_id = $13::UUID
-    AND id = $14::UUID
-RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, slots, durable_slots, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+    tenant_id = $11::UUID
+    AND id = $12::UUID
+RETURNING id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 `
 
 type UpdateServerlessEndpointParams struct {
@@ -813,8 +787,6 @@ type UpdateServerlessEndpointParams struct {
 	HealthcheckUrl        pgtype.Text                  `json:"healthcheckUrl"`
 	TriggerUrl            pgtype.Text                  `json:"triggerUrl"`
 	SigningSecretEnc      pgtype.Text                  `json:"signingSecretEnc"`
-	Slots                 pgtype.Int4                  `json:"slots"`
-	DurableSlots          pgtype.Int4                  `json:"durableSlots"`
 	RequestTimeoutSeconds pgtype.Int4                  `json:"requestTimeoutSeconds"`
 	PollIntervalSeconds   pgtype.Int4                  `json:"pollIntervalSeconds"`
 	InlineWaitBudgetMs    pgtype.Int4                  `json:"inlineWaitBudgetMs"`
@@ -833,8 +805,6 @@ func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg Upd
 		arg.HealthcheckUrl,
 		arg.TriggerUrl,
 		arg.SigningSecretEnc,
-		arg.Slots,
-		arg.DurableSlots,
 		arg.RequestTimeoutSeconds,
 		arg.PollIntervalSeconds,
 		arg.InlineWaitBudgetMs,
@@ -853,8 +823,6 @@ func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg Upd
 		&i.HealthcheckUrl,
 		&i.TriggerUrl,
 		&i.SigningSecretEnc,
-		&i.Slots,
-		&i.DurableSlots,
 		&i.RequestTimeoutSeconds,
 		&i.PollIntervalSeconds,
 		&i.InlineWaitBudgetMs,

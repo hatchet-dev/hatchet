@@ -445,8 +445,6 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		HealthcheckUrl:        "https://" + spec.name + ".example.test/health",
 		TriggerUrl:            "https://" + spec.name + ".example.test/trigger",
 		SigningSecretEnc:      "enc:secret-" + spec.name,
-		Slots:                 4,
-		DurableSlots:          2,
 		RequestTimeoutSeconds: 5,
 		PollIntervalSeconds:   3600,
 		Labels:                []byte("{}"),

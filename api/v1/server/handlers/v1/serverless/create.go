@@ -48,8 +48,6 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 		HealthcheckUrl:        body.HealthcheckUrl,
 		TriggerUrl:            body.TriggerUrl,
 		SigningSecretEnc:      encryptedSecret,
-		Slots:                 body.Slots,
-		DurableSlots:          body.DurableSlots,
 		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
 		PollIntervalSeconds:   body.PollIntervalSeconds,
 		InlineWaitBudgetMs:    body.InlineWaitBudgetMs,

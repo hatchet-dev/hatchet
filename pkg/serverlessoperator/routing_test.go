@@ -182,36 +182,3 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, cache.ActionUnion())
 }
-
-func TestRoutingCacheSlotsResizeKeepsLimiter(t *testing.T) {
-	repo := memrepo.New()
-	tenant := uuid.New()
-	l := zerolog.Nop()
-
-	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
-	repo.AddEndpoint(a)
-
-	cache := newRoutingCache(tenant, repo.Endpoints(), fakeEnc{}, &l)
-	require.NoError(t, cache.Load(context.Background()))
-
-	ep, _ := cache.Endpoint(a.ID)
-	limiter := ep.limiter
-
-	require.NoError(t, limiter.acquire(context.Background()))
-
-	repo.UpdateEndpoint(a.ID, func(row *sqlcv1.V1ServerlessEndpoint) { row.Slots = 1 })
-	require.NoError(t, cache.Refresh(context.Background()))
-
-	ep2, _ := cache.Endpoint(a.ID)
-	assert.Same(t, limiter, ep2.limiter, "the limiter survives a refresh")
-	assert.Equal(t, 1, limiter.inUse())
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*1000*1000)
-	defer cancel()
-
-	assert.Error(t, limiter.acquire(ctx), "the new limit of 1 is already held")
-
-	limiter.release()
-	assert.NoError(t, limiter.acquire(context.Background()))
-	limiter.release()
-}

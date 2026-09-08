@@ -57,8 +57,6 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 		Kind:                  gen.V1ServerlessEndpointKind(endpoint.Kind),
 		HealthcheckUrl:        endpoint.HealthcheckUrl,
 		TriggerUrl:            endpoint.TriggerUrl,
-		Slots:                 endpoint.Slots,
-		DurableSlots:          endpoint.DurableSlots,
 		RequestTimeoutSeconds: endpoint.RequestTimeoutSeconds,
 		PollIntervalSeconds:   endpoint.PollIntervalSeconds,
 		InlineWaitBudgetMs:    endpoint.InlineWaitBudgetMs,

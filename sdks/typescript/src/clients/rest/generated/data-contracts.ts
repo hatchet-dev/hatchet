@@ -1289,16 +1289,6 @@ export interface V1ServerlessEndpoint {
   /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
   triggerUrl: string;
   /**
-   * The number of regular task slots the operator registers for this endpoint.
-   * @format int32
-   */
-  slots: number;
-  /**
-   * The number of durable task slots the operator registers for this endpoint.
-   * @format int32
-   */
-  durableSlots: number;
-  /**
    * The per-request timeout backstop for trigger requests, in seconds.
    * @format int32
    */
@@ -1341,16 +1331,6 @@ export interface V1CreateServerlessEndpointRequest {
    */
   signingSecret: string;
   /**
-   * The number of regular task slots. Defaults to 100.
-   * @format int32
-   */
-  slots?: number;
-  /**
-   * The number of durable task slots. Defaults to 100.
-   * @format int32
-   */
-  durableSlots?: number;
-  /**
    * The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
    * @format int32
    */
@@ -1386,16 +1366,6 @@ export interface V1UpdateServerlessEndpointRequest {
    * @minLength 32
    */
   signingSecret?: string;
-  /**
-   * The number of regular task slots.
-   * @format int32
-   */
-  slots?: number;
-  /**
-   * The number of durable task slots.
-   * @format int32
-   */
-  durableSlots?: number;
   /**
    * The per-request timeout backstop for trigger requests, in seconds.
    * @format int32

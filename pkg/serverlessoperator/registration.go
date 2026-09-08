@@ -284,13 +284,6 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 		return
 	}
 
-	if err := ep.limiter.acquire(ctx); err != nil {
-		reg.reportAborted(task, action)
-		return
-	}
-
-	defer ep.limiter.release()
-
 	if err := reg.events.started(action); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
@@ -309,9 +302,9 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	}
 }
 
-// deliverDurable relays a durable invocation over the endpoint websocket: take a durable
-// slot, report STARTED, open the invocation's channel through the registration and run the
-// relay, which owns the socket and the channel until the endpoint's done frame or a failure.
+// deliverDurable relays a durable invocation over the endpoint websocket: report STARTED,
+// open the invocation's channel through the registration and run the relay, which owns the
+// socket and the channel until the endpoint's done frame or a failure.
 func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time) {
 	invocation := *action.DurableTaskInvocationCount
 
@@ -330,13 +323,6 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 
 		return
 	}
-
-	if err := ep.durableLimiter.acquire(ctx); err != nil {
-		reg.reportAborted(task, action)
-		return
-	}
-
-	defer ep.durableLimiter.release()
 
 	if err := reg.events.started(action); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")

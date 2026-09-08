@@ -3799,8 +3799,6 @@ type V1ServerlessEndpoint struct {
 	HealthcheckUrl        string                   `json:"healthcheck_url"`
 	TriggerUrl            string                   `json:"trigger_url"`
 	SigningSecretEnc      string                   `json:"signing_secret_enc"`
-	Slots                 int32                    `json:"slots"`
-	DurableSlots          int32                    `json:"durable_slots"`
 	RequestTimeoutSeconds int32                    `json:"request_timeout_seconds"`
 	PollIntervalSeconds   int32                    `json:"poll_interval_seconds"`
 	InlineWaitBudgetMs    int32                    `json:"inline_wait_budget_ms"`

@@ -41,8 +41,6 @@ func (t *V1ServerlessService) V1ServerlessEndpointUpdate(ctx echo.Context, reque
 		Name:                  body.Name,
 		HealthcheckUrl:        body.HealthcheckUrl,
 		TriggerUrl:            body.TriggerUrl,
-		Slots:                 body.Slots,
-		DurableSlots:          body.DurableSlots,
 		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
 		PollIntervalSeconds:   body.PollIntervalSeconds,
 		InlineWaitBudgetMs:    body.InlineWaitBudgetMs,

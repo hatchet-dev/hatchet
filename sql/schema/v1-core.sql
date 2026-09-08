@@ -2827,8 +2827,6 @@ CREATE TABLE v1_serverless_endpoint (
     trigger_url TEXT NOT NULL,
     -- enc.EncryptString(secret, SigningSecretEncryptionDataID)
     signing_secret_enc TEXT NOT NULL,
-    slots INT NOT NULL DEFAULT 100,
-    durable_slots INT NOT NULL DEFAULT 100,
     request_timeout_seconds INT NOT NULL DEFAULT 60,
     poll_interval_seconds INT NOT NULL DEFAULT 30,
     inline_wait_budget_ms INT NOT NULL DEFAULT 5000,

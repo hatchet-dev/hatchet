@@ -1612,9 +1612,6 @@ type V1CreateFilterRequest struct {
 
 // V1CreateServerlessEndpointRequest defines model for V1CreateServerlessEndpointRequest.
 type V1CreateServerlessEndpointRequest struct {
-	// DurableSlots The number of durable task slots. Defaults to 100.
-	DurableSlots *int32 `json:"durableSlots,omitempty"`
-
 	// Enabled Whether the operator polls and dispatches to this endpoint. Defaults to true.
 	Enabled *bool `json:"enabled,omitempty"`
 
@@ -1641,9 +1638,6 @@ type V1CreateServerlessEndpointRequest struct {
 
 	// SigningSecret The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
 	SigningSecret string `json:"signingSecret"`
-
-	// Slots The number of regular task slots. Defaults to 100.
-	Slots *int32 `json:"slots,omitempty"`
 
 	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
 	TriggerUrl string `json:"triggerUrl"`
@@ -1983,9 +1977,6 @@ type V1RunningFilter string
 
 // V1ServerlessEndpoint defines model for V1ServerlessEndpoint.
 type V1ServerlessEndpoint struct {
-	// DurableSlots The number of durable task slots the operator registers for this endpoint.
-	DurableSlots int32 `json:"durableSlots"`
-
 	// Enabled Whether the operator polls and dispatches to this endpoint.
 	Enabled bool `json:"enabled"`
 
@@ -2013,9 +2004,6 @@ type V1ServerlessEndpoint struct {
 
 	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds.
 	RequestTimeoutSeconds int32 `json:"requestTimeoutSeconds"`
-
-	// Slots The number of regular task slots the operator registers for this endpoint.
-	Slots int32 `json:"slots"`
 
 	// Status The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
 	Status V1ServerlessEndpointStatus `json:"status"`
@@ -2300,9 +2288,6 @@ type V1UpdateFilterRequest struct {
 
 // V1UpdateServerlessEndpointRequest Fields to update on a serverless endpoint. Omitted fields are left unchanged.
 type V1UpdateServerlessEndpointRequest struct {
-	// DurableSlots The number of durable task slots.
-	DurableSlots *int32 `json:"durableSlots,omitempty"`
-
 	// Enabled Whether the operator polls and dispatches to this endpoint.
 	Enabled *bool `json:"enabled,omitempty"`
 
@@ -2329,9 +2314,6 @@ type V1UpdateServerlessEndpointRequest struct {
 
 	// SigningSecret A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
 	SigningSecret *string `json:"signingSecret,omitempty"`
-
-	// Slots The number of regular task slots.
-	Slots *int32 `json:"slots,omitempty"`
 
 	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
 	TriggerUrl *string `json:"triggerUrl,omitempty"`

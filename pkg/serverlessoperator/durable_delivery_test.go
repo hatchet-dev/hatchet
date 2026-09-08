@@ -183,9 +183,6 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	assert.Equal(t, action.TaskRunExternalId, ch.sent[0].GetMemo().DurableTaskExternalId)
 	ch.mu.Unlock()
 
-	ep := env.tenant(tenant).cache.byId[row.ID]
-	assert.Equal(t, 0, ep.durableLimiter.inUse(), "the durable slot is released")
-	assert.Equal(t, 0, ep.limiter.inUse(), "non-durable slots are untouched")
 	assert.Equal(t, 0, reg.inflightCount(env))
 }
 

@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	defaultServerlessSlots                 int32 = 100
-	defaultServerlessDurableSlots          int32 = 100
 	defaultServerlessRequestTimeoutSeconds int32 = 60
 	defaultServerlessPollIntervalSeconds   int32 = 30
 	defaultServerlessInlineWaitBudgetMs    int32 = 5000
@@ -34,8 +32,6 @@ type CreateServerlessEndpointOpts struct {
 	// contract.SigningSecretEncryptionDataID. The repository never sees the plaintext.
 	SigningSecretEnc string `validate:"required"`
 
-	Slots                 *int32 `validate:"omitnil,min=1,max=100000"`
-	DurableSlots          *int32 `validate:"omitnil,min=0,max=100000"`
 	RequestTimeoutSeconds *int32 `validate:"omitnil,min=1,max=600"`
 	PollIntervalSeconds   *int32 `validate:"omitnil,min=5,max=3600"`
 	InlineWaitBudgetMs    *int32 `validate:"omitnil,min=0,max=600000"`
@@ -53,8 +49,6 @@ type UpdateServerlessEndpointOpts struct {
 	HealthcheckUrl        *string                          `validate:"omitnil,url"`
 	TriggerUrl            *string                          `validate:"omitnil,url"`
 	SigningSecretEnc      *string                          `validate:"omitnil,min=1"`
-	Slots                 *int32                           `validate:"omitnil,min=1,max=100000"`
-	DurableSlots          *int32                           `validate:"omitnil,min=0,max=100000"`
 	RequestTimeoutSeconds *int32                           `validate:"omitnil,min=1,max=600"`
 	PollIntervalSeconds   *int32                           `validate:"omitnil,min=5,max=3600"`
 	InlineWaitBudgetMs    *int32                           `validate:"omitnil,min=0,max=600000"`
@@ -142,8 +136,6 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 		Healthcheckurl:        opts.HealthcheckUrl,
 		Triggerurl:            opts.TriggerUrl,
 		Signingsecretenc:      opts.SigningSecretEnc,
-		Slots:                 int32OrDefault(opts.Slots, defaultServerlessSlots),
-		Durableslots:          int32OrDefault(opts.DurableSlots, defaultServerlessDurableSlots),
 		Requesttimeoutseconds: int32OrDefault(opts.RequestTimeoutSeconds, defaultServerlessRequestTimeoutSeconds),
 		Pollintervalseconds:   int32OrDefault(opts.PollIntervalSeconds, defaultServerlessPollIntervalSeconds),
 		Inlinewaitbudgetms:    int32OrDefault(opts.InlineWaitBudgetMs, defaultServerlessInlineWaitBudgetMs),
@@ -229,8 +221,6 @@ func (r *serverlessEndpointRepository) Update(ctx context.Context, tenantId, end
 		HealthcheckUrl:        sqlchelpers.TextFromMaybeStr(opts.HealthcheckUrl),
 		TriggerUrl:            sqlchelpers.TextFromMaybeStr(opts.TriggerUrl),
 		SigningSecretEnc:      sqlchelpers.TextFromMaybeStr(opts.SigningSecretEnc),
-		Slots:                 sqlchelpers.ToInt(opts.Slots),
-		DurableSlots:          sqlchelpers.ToInt(opts.DurableSlots),
 		RequestTimeoutSeconds: sqlchelpers.ToInt(opts.RequestTimeoutSeconds),
 		PollIntervalSeconds:   sqlchelpers.ToInt(opts.PollIntervalSeconds),
 		InlineWaitBudgetMs:    sqlchelpers.ToInt(opts.InlineWaitBudgetMs),

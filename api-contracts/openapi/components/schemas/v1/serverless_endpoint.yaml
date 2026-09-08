@@ -59,14 +59,6 @@ V1ServerlessEndpoint:
     triggerUrl:
       type: string
       description: The HTTPS URL (port 443) that assigned tasks are delivered to.
-    slots:
-      type: integer
-      format: int32
-      description: The number of regular task slots the operator registers for this endpoint.
-    durableSlots:
-      type: integer
-      format: int32
-      description: The number of durable task slots the operator registers for this endpoint.
     requestTimeoutSeconds:
       type: integer
       format: int32
@@ -98,8 +90,6 @@ V1ServerlessEndpoint:
     - kind
     - healthcheckUrl
     - triggerUrl
-    - slots
-    - durableSlots
     - requestTimeoutSeconds
     - pollIntervalSeconds
     - inlineWaitBudgetMs
@@ -137,14 +127,6 @@ V1CreateServerlessEndpointRequest:
       description: >-
         The secret used to HMAC-sign requests delivered to the endpoint. At least 32
         characters. Write-only: it is stored encrypted and never returned in responses.
-    slots:
-      type: integer
-      format: int32
-      description: The number of regular task slots. Defaults to 100.
-    durableSlots:
-      type: integer
-      format: int32
-      description: The number of durable task slots. Defaults to 100.
     requestTimeoutSeconds:
       type: integer
       format: int32
@@ -191,14 +173,6 @@ V1UpdateServerlessEndpointRequest:
       description: >-
         A new secret used to HMAC-sign requests delivered to the endpoint. At least 32
         characters. Provide a value to rotate the secret; it is never returned in responses.
-    slots:
-      type: integer
-      format: int32
-      description: The number of regular task slots.
-    durableSlots:
-      type: integer
-      format: int32
-      description: The number of durable task slots.
     requestTimeoutSeconds:
       type: integer
       format: int32

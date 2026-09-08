@@ -27,8 +27,6 @@ func testServerlessEndpoint() *sqlcv1.V1ServerlessEndpoint {
 		HealthcheckUrl:        "https://example.com/hatchet/health",
 		TriggerUrl:            "https://example.com/hatchet/trigger",
 		SigningSecretEnc:      testSigningSecretEnc,
-		Slots:                 100,
-		DurableSlots:          50,
 		RequestTimeoutSeconds: 60,
 		PollIntervalSeconds:   30,
 		InlineWaitBudgetMs:    5000,
@@ -63,8 +61,6 @@ func TestToV1ServerlessEndpointMapsConfiguration(t *testing.T) {
 	assert.Equal(t, "CLOUDFLARE_WORKERS", string(result.Kind))
 	assert.Equal(t, endpoint.HealthcheckUrl, result.HealthcheckUrl)
 	assert.Equal(t, endpoint.TriggerUrl, result.TriggerUrl)
-	assert.Equal(t, int32(100), result.Slots)
-	assert.Equal(t, int32(50), result.DurableSlots)
 	assert.Equal(t, int32(60), result.RequestTimeoutSeconds)
 	assert.Equal(t, int32(30), result.PollIntervalSeconds)
 	assert.Equal(t, int32(5000), result.InlineWaitBudgetMs)
