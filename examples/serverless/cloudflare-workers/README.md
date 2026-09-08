@@ -7,21 +7,22 @@ and delivers assigned tasks to it over signed HTTPS requests.
 - `echo`: a non-durable task. The operator POSTs the task, the Worker returns the message with
   the run id and retry count.
 - `sleep-then-echo`: a durable task. It records a timestamp, sleeps 3 seconds and returns both.
-  It is declared and advertised, but not runnable yet: this version of `@hatchet-dev/serverless`
-  reports `durable.supported: false`, so the operator never assigns it. The durable relay is the
-  package's next phase; nothing in the example changes when it lands.
+  The sleep is longer than the endpoint's inline wait budget, so the first invocation evicts
+  itself and the engine re-invokes the task when the sleep is over; the second invocation gets
+  the memoized timestamp from the event log and finishes with `invocation: 2`.
 
 ## Layout
 
 | File | Purpose |
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`. The same file works on a regular worker. |
-| `src/index.ts` | `export default cloudflare({ workflows })`: the adapter serves `POST /hatchet/healthcheck` and `POST /hatchet/trigger` and reads the secret from `env.HATCHET_SIGNING_SECRET`. |
+| `src/index.ts` | `export default cloudflare({ workflows })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the durable websocket upgrade on `/hatchet/trigger`, and reads the secret from `env.HATCHET_SIGNING_SECRET`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
-The wire contract is `api-contracts/v1/serverless.proto` (every request and response, carried as
-protojson) plus `pkg/serverlessoperator/contract/http.go` (headers, the signature scheme). The
-package generates its types from the proto, so nothing here is hand-written.
+The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
+frame, carried as protojson) plus `pkg/serverlessoperator/contract/http.go` (headers, the
+signature scheme) and `pkg/serverlessoperator/durable/protocol.go` (close codes). The package
+generates its types from the proto, so nothing here is hand-written.
 
 ## Build the package first
 
@@ -57,10 +58,13 @@ and the same `signingSecret` (`POST /api/v1/stable/tenants/{tenant}/serverless/e
 `namespace`; workflows are registered as `<namespace>_echo` and `<namespace>_sleep-then-echo`.
 
 Trigger `echo` with the input `{"message": "hello"}`; it returns
-`{"echo": "hello", "workflowRunId": "...", "retryCount": 0}`.
+`{"echo": "hello", "workflowRunId": "...", "retryCount": 0}`. Trigger `sleep-then-echo` with the
+same input; about three seconds later it returns
+`{"echo": "hello", "startedAt": "...", "finishedAt": "...", "invocation": 2}`, with `startedAt`
+recorded by the first invocation and `finishedAt` by the second.
 
 Optional: `pnpm wrangler secret put HATCHET_ENDPOINT_ID` with the endpoint id makes the Worker
-refuse durable upgrades carrying another endpoint id once the relay exists.
+refuse durable upgrades carrying another endpoint id.
 
 ## Watch it run
 
@@ -68,14 +72,15 @@ refuse durable upgrades carrying another endpoint id once the relay exists.
 pnpm run tail
 ```
 
-shows each request. The adapter logs a task's `ctx.logger` calls and failed tasks; healthchecks
-and successful triggers are silent.
+shows each request. The adapter logs a task's `ctx.logger` calls, failed tasks and durable
+evictions; healthchecks and successful triggers are silent.
 
 ## Local development
 
 `pnpm run dev` serves the Worker on `http://localhost:8787`. The operator only dials `https` URLs on
 port 443, so a local Worker needs either a tunnel (`cloudflared tunnel`) or the operator's
-`SERVERLESS_OPERATOR_INSECURE_DESTINATIONS=true` development switch. Put the secret in `.dev.vars`
+`SERVERLESS_OPERATOR_INSECURE_DESTINATIONS=true` development switch, which also lets it dial
+`ws://` for durable tasks. Put the secret in `.dev.vars`
 (`HATCHET_SIGNING_SECRET=...`) for `wrangler dev`.
 
 Without Hatchet at all, `@hatchet-dev/serverless/testing` invokes the tasks the way the operator

@@ -15,10 +15,10 @@ export const echo = hatchet.task({
 });
 
 /**
- * Durable: memoizes a timestamp, sleeps 3 seconds and returns both. The healthcheck advertises
- * it, but this version of @hatchet-dev/serverless cannot serve durable tasks (it reports
- * `durable.supported: false`, so the operator never assigns it). The durable relay is the next
- * phase; the declaration stays so the registration is already the final one.
+ * Durable: memoizes a timestamp, sleeps 3 seconds and returns both. The sleep is longer than
+ * the endpoint's inline wait budget, so the first invocation evicts itself and the engine
+ * re-invokes the task when the sleep is over; the second invocation gets the memoized
+ * timestamp from the event log and finishes.
  */
 export const sleepThenEcho = hatchet.durableTask({
   name: "sleep-then-echo",
@@ -32,6 +32,7 @@ export const sleepThenEcho = hatchet.durableTask({
       echo: input.message,
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
+      invocation: ctx.invocationCount,
     };
   },
 });
