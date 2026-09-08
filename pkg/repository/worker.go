@@ -136,10 +136,19 @@ type WorkerRepository interface {
 	// mutated and an error wrapping pgx.ErrNoRows is returned.
 	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (added int, err error)
 
+	// AddWorkerActionsWithinBudget is AddWorkerActions with a cap on the links it may create:
+	// when more than maxNewLinks actions would be newly linked the transaction is rolled back
+	// and an error wrapping ErrWorkerActionBudgetExceeded is returned. Actions the worker
+	// already has never count. A negative maxNewLinks disables the cap.
+	AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (added int, err error)
+
 	// RemoveWorkerActions unlinks actionIds from the worker and recomputes its action hash
 	// from the resulting set. Actions the worker does not have are skipped. It returns the
 	// number of actions actually unlinked. The tenant check is the same as AddWorkerActions.
 	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (removed int, err error)
+
+	// CountOperatorWorkerActions counts the action links held by every worker of the operator.
+	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
@@ -765,7 +774,15 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	return worker, nil
 }
 
+// ErrWorkerActionBudgetExceeded is returned by AddWorkerActionsWithinBudget when the delta
+// would link more actions than its budget allows. Nothing is linked in that case.
+var ErrWorkerActionBudgetExceeded = errors.New("worker action budget exceeded")
+
 func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+	return w.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, actionIds, -1)
+}
+
+func (w *workerRepository) AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error) {
 	actionIds = dedupeActionIds(actionIds)
 
 	if len(actionIds) == 0 {
@@ -804,6 +821,11 @@ func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.U
 
 	if len(linked) == 0 {
 		return 0, nil
+	}
+
+	// the links are rolled back with the transaction
+	if maxNewLinks >= 0 && int64(len(linked)) > maxNewLinks {
+		return 0, fmt.Errorf("delta would link %d new actions to worker %s, the budget allows %d: %w", len(linked), workerId, maxNewLinks, ErrWorkerActionBudgetExceeded)
 	}
 
 	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
@@ -878,6 +900,13 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 	}
 
 	return len(unlinked), nil
+}
+
+func (w *workerRepository) CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
+	return w.queries.CountOperatorWorkerActions(ctx, w.pool, sqlcv1.CountOperatorWorkerActionsParams{
+		Tenantid:   tenantId,
+		Operatorid: operatorId,
+	})
 }
 
 // lockWorkerActions takes the worker's row lock for the rest of tx. A worker that does not

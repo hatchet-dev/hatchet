@@ -111,6 +111,29 @@ func (q *Queries) ComputeWorkerActionHash(ctx context.Context, db DBTX, workerid
 	return hash, err
 }
 
+const countOperatorWorkerActions = `-- name: CountOperatorWorkerActions :one
+SELECT count(*)
+FROM "_ActionToWorker" aw
+JOIN "Worker" w ON w."id" = aw."B"
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."operatorId" = $2::uuid
+`
+
+type CountOperatorWorkerActionsParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Operatorid uuid.UUID `json:"operatorid"`
+}
+
+// Counts the action links held by every worker of the operator, for the per-operator action
+// budget the gRPC operator service enforces at admission.
+func (q *Queries) CountOperatorWorkerActions(ctx context.Context, db DBTX, arg CountOperatorWorkerActionsParams) (int64, error) {
+	row := db.QueryRow(ctx, countOperatorWorkerActions, arg.Tenantid, arg.Operatorid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countWorkers = `-- name: CountWorkers :one
 SELECT count(*)
 FROM

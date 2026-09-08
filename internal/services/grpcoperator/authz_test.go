@@ -196,20 +196,31 @@ func (f *fakeWorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UU
 	return nil, nil
 }
 
-func (f *fakeWorkerStore) AddWorkerActions(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+func (f *fakeWorkerStore) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+	return f.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, actionIds, -1)
+}
+
+func (f *fakeWorkerStore) AddWorkerActionsWithinBudget(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	added := 0
+	var fresh []string
 
 	for _, id := range actionIds {
 		if _, ok := f.actions[workerId][id]; !ok {
-			f.actions[workerId][id] = struct{}{}
-			added++
+			fresh = append(fresh, id)
 		}
 	}
 
-	return added, nil
+	if maxNewLinks >= 0 && int64(len(fresh)) > maxNewLinks {
+		return 0, fmt.Errorf("delta would link %d new actions, the budget allows %d: %w", len(fresh), maxNewLinks, repository.ErrWorkerActionBudgetExceeded)
+	}
+
+	for _, id := range fresh {
+		f.actions[workerId][id] = struct{}{}
+	}
+
+	return len(fresh), nil
 }
 
 func (f *fakeWorkerStore) RemoveWorkerActions(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
@@ -226,6 +237,25 @@ func (f *fakeWorkerStore) RemoveWorkerActions(_ context.Context, _ uuid.UUID, wo
 	}
 
 	return removed, nil
+}
+
+func (f *fakeWorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var n int64
+
+	for workerId, actions := range f.actions {
+		w, ok := f.workers[workerId]
+
+		if !ok || w.TenantId != tenantId || w.OperatorId == nil || *w.OperatorId != operatorId {
+			continue
+		}
+
+		n += int64(len(actions))
+	}
+
+	return n, nil
 }
 
 func (f *fakeWorkerStore) actionSet(workerId uuid.UUID) []string {
@@ -404,6 +434,10 @@ func newTestService(t *testing.T, operators *fakeOperatorStore) *testService {
 		v:              validator.NewDefaultValidator(),
 		analytics:      analytics.NoOpAnalytics{},
 		notifyInterval: defaultNotifyInterval,
+
+		maxListenStreamsPerOperator: DefaultMaxListenStreamsPerOperator,
+		maxActionsPerOperator:       DefaultMaxActionsPerOperator,
+		listenStreams:               map[uuid.UUID]int{},
 	}
 
 	t.Cleanup(func() { _ = svc.Cleanup() })
