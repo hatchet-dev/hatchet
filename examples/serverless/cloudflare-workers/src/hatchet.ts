@@ -29,8 +29,15 @@ export const NONCE_HEADER = "X-Hatchet-Nonce";
 export const TASK_ID_HEADER = "X-Hatchet-Task-Id";
 export const INVOCATION_HEADER = "X-Hatchet-Invocation";
 
-/** contract.UpgradeMaxAge (5 minutes), in seconds. */
-export const UPGRADE_MAX_AGE_SECONDS = 5 * 60;
+/**
+ * contract.RequestMaxAge (5 minutes), in seconds: how far a signed timestamp may lie from
+ * the endpoint's clock, in either direction, before the request is refused. It applies to
+ * the `timestamp` field of every signed POST body and to X-Hatchet-Timestamp on the upgrade.
+ */
+export const REQUEST_MAX_AGE_SECONDS = 5 * 60;
+
+/** contract.UpgradeMaxAge, the same window as REQUEST_MAX_AGE_SECONDS. */
+export const UPGRADE_MAX_AGE_SECONDS = REQUEST_MAX_AGE_SECONDS;
 
 /** contract.TriggerEnvelopeVersion. */
 export const TRIGGER_ENVELOPE_VERSION = 1;
@@ -98,6 +105,8 @@ export function constantTimeEqual(a: string, b: string): boolean {
 /**
  * Verifies X-Hatchet-Signature on a POST (healthcheck or non-durable trigger). The signature
  * covers the raw body bytes exactly as sent, so read the body as text before parsing it.
+ * This is the HMAC check only; verifySignedBody adds the freshness and endpoint checks
+ * every handler needs.
  */
 export async function verifyBodySignature(
   body: string,
@@ -113,6 +122,121 @@ export async function verifyBodySignature(
   return constantTimeEqual(expected, header);
 }
 
+/** Reports whether a signed timestamp (Unix seconds) is within the freshness window of now. */
+export function isFresh(timestampSeconds: number, nowSeconds: number): boolean {
+  return (
+    Number.isFinite(timestampSeconds) &&
+    Math.abs(nowSeconds - timestampSeconds) <= REQUEST_MAX_AGE_SECONDS
+  );
+}
+
+export type BodyVerification =
+  | { ok: true; endpointId: string; timestamp: number }
+  | { ok: false; status: 401 | 403; reason: string };
+
+/**
+ * Verifies a signed POST body end to end: the HMAC over the raw bytes, then the freshness
+ * of the `timestamp` field the signature covers (a captured request is only good for
+ * REQUEST_MAX_AGE_SECONDS on either side of the endpoint's clock), then the endpoint id
+ * when the caller knows its own. A body that verifies but does not parse is refused.
+ *
+ * Within the window a request can still be repeated. The operator delivers every task at
+ * most once per attempt, so treat (endpointId, taskRunExternalId, retryCount) as the
+ * idempotency key of anything with side effects.
+ */
+export async function verifySignedBody(
+  body: string,
+  header: string | null,
+  secret: string,
+  opts: { endpointId?: string; nowSeconds?: number } = {},
+): Promise<BodyVerification> {
+  if (!(await verifyBodySignature(body, header, secret))) {
+    return { ok: false, status: 401, reason: "bad signature" };
+  }
+
+  let parsed: { endpointId?: unknown; timestamp?: unknown };
+
+  try {
+    parsed = JSON.parse(body) as { endpointId?: unknown; timestamp?: unknown };
+  } catch {
+    return { ok: false, status: 401, reason: "malformed body" };
+  }
+
+  // An int64 on the wire, so a decimal string.
+  const timestamp = Number.parseInt(String(parsed.timestamp ?? ""), 10);
+  const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
+
+  if (!isFresh(timestamp, now)) {
+    return { ok: false, status: 401, reason: "stale or missing timestamp" };
+  }
+
+  const endpointId = typeof parsed.endpointId === "string" ? parsed.endpointId : "";
+
+  if (opts.endpointId && endpointId !== opts.endpointId) {
+    return { ok: false, status: 403, reason: "unknown endpoint id" };
+  }
+
+  return { ok: true, endpointId, timestamp };
+}
+
+/**
+ * A bounded set of upgrade nonces seen within the freshness window. Entries expire with
+ * their timestamp (a nonce older than the window is refused by the timestamp check anyway)
+ * and the oldest are dropped once `capacity` is reached, so memory is bounded whatever the
+ * request rate.
+ *
+ * It lives in one isolate. Workers run many isolates, so a replay that lands in another
+ * isolate is not caught by this set; production endpoints should back it with a Durable
+ * Object (one per endpoint id) or KV with an expiring key, consumed atomically after the
+ * signature verifies.
+ */
+export class NonceSet {
+  private readonly seen = new Map<string, number>();
+
+  constructor(private readonly capacity = 4096) {}
+
+  /**
+   * Records nonce with the timestamp it was signed for and reports whether it was already
+   * present. Call it only after the signature verified, so unsigned traffic cannot fill it.
+   */
+  consume(nonce: string, timestampSeconds: number, nowSeconds: number): boolean {
+    this.expire(nowSeconds);
+
+    if (this.seen.has(nonce)) {
+      return true;
+    }
+
+    while (this.seen.size >= this.capacity) {
+      const oldest = this.seen.keys().next().value;
+
+      if (oldest === undefined) {
+        break;
+      }
+
+      this.seen.delete(oldest);
+    }
+
+    this.seen.set(nonce, timestampSeconds);
+
+    return false;
+  }
+
+  get size(): number {
+    return this.seen.size;
+  }
+
+  private expire(nowSeconds: number): void {
+    for (const [nonce, ts] of this.seen) {
+      if (nowSeconds - ts > REQUEST_MAX_AGE_SECONDS) {
+        this.seen.delete(nonce);
+      }
+    }
+  }
+}
+
+/** The isolate's nonce set for durable upgrades. */
+export const upgradeNonces = new NonceSet();
+
 export type UpgradeVerification =
   | { ok: true; endpointId: string; taskId: string; invocation: number; nonce: string }
   | { ok: false; status: 401 | 403; reason: string };
@@ -123,14 +247,16 @@ export type UpgradeVerification =
  *
  *   timestamp + "." + nonce + "." + task_id + "." + invocation
  *
- * each as it appears in its header. Timestamps older than UpgradeMaxAge are rejected. A
- * replayed nonce should be rejected too; pass `seenNonce` if you keep a nonce set (a KV or
- * Durable Object in production; this example does not).
+ * each as it appears in its header. The timestamp must be within UPGRADE_MAX_AGE_SECONDS
+ * of now in either direction, and the nonce is consumed from `nonces` (default: the
+ * isolate's upgradeNonces) after the signature verified, so a captured upgrade cannot be
+ * replayed within the window. The verified task id and invocation must then match the
+ * first frame the operator sends: DurableClient.assertMatches does that.
  */
 export async function verifyUpgradeSignature(
   headers: Headers,
   secret: string,
-  opts: { endpointId?: string; nowSeconds?: number; seenNonce?: (nonce: string) => boolean } = {},
+  opts: { endpointId?: string; nowSeconds?: number; nonces?: NonceSet | null } = {},
 ): Promise<UpgradeVerification> {
   const endpointId = headers.get(ENDPOINT_ID_HEADER) ?? "";
 
@@ -142,14 +268,14 @@ export async function verifyUpgradeSignature(
   const ts = Number.parseInt(timestamp, 10);
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
 
-  if (!Number.isFinite(ts) || now - ts > UPGRADE_MAX_AGE_SECONDS) {
+  if (!isFresh(ts, now)) {
     return { ok: false, status: 401, reason: "stale or missing timestamp" };
   }
 
   const nonce = headers.get(NONCE_HEADER) ?? "";
 
-  if (nonce === "" || (opts.seenNonce && opts.seenNonce(nonce))) {
-    return { ok: false, status: 401, reason: "missing or replayed nonce" };
+  if (nonce === "") {
+    return { ok: false, status: 401, reason: "missing nonce" };
   }
 
   const taskId = headers.get(TASK_ID_HEADER) ?? "";
@@ -159,6 +285,13 @@ export async function verifyUpgradeSignature(
 
   if (!constantTimeEqual(expected, headers.get(SIGNATURE_HEADER) ?? "")) {
     return { ok: false, status: 401, reason: "bad signature" };
+  }
+
+  // Only a verified nonce enters the set, so unsigned traffic cannot fill it.
+  const nonces = opts.nonces === undefined ? upgradeNonces : opts.nonces;
+
+  if (nonces && nonces.consume(nonce, ts, now)) {
+    return { ok: false, status: 401, reason: "replayed nonce" };
   }
 
   return { ok: true, endpointId, taskId, invocation: Number.parseInt(invocation, 10), nonce };
@@ -519,6 +652,23 @@ export class DurableClient {
     this.taskId = first.action.taskRunExternalId;
     this.invocation = first.invocationCount;
     this.inlineWaitBudgetMs = first.inlineWaitBudgetMs;
+  }
+
+  /**
+   * Checks the first frame against the upgrade that was verified: the signature covered the
+   * task id and invocation in the headers, not the frame, so a frame naming another task
+   * is not authenticated and must not run. Returns the mismatch, or null when they agree.
+   */
+  assertMatches(verified: { taskId: string; invocation: number }): string | null {
+    if (this.taskId !== verified.taskId) {
+      return `first frame task ${this.taskId} does not match the verified upgrade`;
+    }
+
+    if (this.invocation !== verified.invocation) {
+      return `first frame invocation ${this.invocation} does not match the verified upgrade`;
+    }
+
+    return null;
   }
 
   /** Feed every text frame after the first one here. */

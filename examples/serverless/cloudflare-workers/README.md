@@ -47,7 +47,26 @@ and the same `signingSecret`. The response carries the endpoint's `namespace`; w
 as `<namespace>_echo` and `<namespace>_sleep-then-echo`.
 
 Optional: `pnpm wrangler secret put HATCHET_ENDPOINT_ID` with the endpoint id makes the Worker refuse
-websocket upgrades carrying another endpoint id.
+requests and websocket upgrades carrying another endpoint id.
+
+## What the Worker verifies
+
+Every request from the operator is signed with the endpoint's secret (`X-Hatchet-Signature`,
+hex HMAC-SHA256). The Worker checks, in this order:
+
+- **POST bodies** (healthcheck, non-durable trigger): the HMAC over the raw body, then the
+  `timestamp` field the signature covers, which must be within five minutes of the Worker's
+  clock in either direction (`REQUEST_MAX_AGE_SECONDS`), then the `endpointId` when
+  `HATCHET_ENDPOINT_ID` is set. A captured request is therefore only replayable for five
+  minutes; a task with side effects should treat `(endpointId, taskRunExternalId, retryCount)`
+  as its idempotency key.
+- **Websocket upgrades** (durable trigger): the HMAC over `timestamp.nonce.taskId.invocation`,
+  the same five minute window on `X-Hatchet-Timestamp`, and the nonce, which is consumed from
+  a bounded in-memory set after the signature verified (`NonceSet`, 4096 entries, expiring
+  with the window). That set is per isolate; a production endpoint should consume nonces in a
+  Durable Object or an expiring KV key so a replay that lands in another isolate is caught.
+- **The first frame**: its task id and invocation must match the verified upgrade headers,
+  otherwise the socket is closed with 1008 before any task code runs.
 
 ## Watch it run
 

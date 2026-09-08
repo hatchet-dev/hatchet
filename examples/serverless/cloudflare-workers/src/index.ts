@@ -27,14 +27,14 @@ import {
   parseActionInput,
   stripNamespace,
   triggerError,
-  verifyBodySignature,
+  verifySignedBody,
   verifyUpgradeSignature,
 } from "./hatchet";
 
 export interface Env {
   /** `wrangler secret put HATCHET_SIGNING_SECRET`; the endpoint's signingSecret in Hatchet. */
   HATCHET_SIGNING_SECRET: string;
-  /** Optional: when set, upgrades from any other endpoint id are refused with 403. */
+  /** Optional: when set, requests and upgrades carrying any other endpoint id are refused with 403. */
   HATCHET_ENDPOINT_ID?: string;
 }
 
@@ -119,7 +119,8 @@ export default {
 
 /**
  * POST healthcheck_url. Body {"endpointId", "namespace", "timestamp"} signed with
- * X-Hatchet-Signature. The response lists the workflows; the operator registers them on change.
+ * X-Hatchet-Signature; the timestamp must be within five minutes of now. The response lists
+ * the workflows; the operator registers them on change.
  */
 async function handleHealthcheck(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
@@ -129,8 +130,12 @@ async function handleHealthcheck(request: Request, env: Env): Promise<Response> 
   // Read the raw body first: the signature covers the exact bytes.
   const body = await request.text();
 
-  if (!(await verifyBodySignature(body, request.headers.get(SIGNATURE_HEADER), env.HATCHET_SIGNING_SECRET))) {
-    return json({ error: "bad signature" }, 401);
+  const verified = await verifySignedBody(body, request.headers.get(SIGNATURE_HEADER), env.HATCHET_SIGNING_SECRET, {
+    endpointId: env.HATCHET_ENDPOINT_ID,
+  });
+
+  if (!verified.ok) {
+    return json({ error: verified.reason }, verified.status);
   }
 
   const req = JSON.parse(body) as HealthcheckRequest;
@@ -142,11 +147,15 @@ async function handleHealthcheck(request: Request, env: Env): Promise<Response> 
 
 /**
  * POST trigger_url for a non-durable task. The envelope carries the protojson AssignedAction
- * with a namespaced action id; strip the namespace, run the task, and answer:
+ * with a namespaced action id and a timestamp that must be within five minutes of now;
+ * strip the namespace, run the task, and answer:
  *   200 + JSON body   COMPLETED with that output
  *   4xx               FAILED, not retried (except 408, 425, 429)
  *   5xx               FAILED, retried
  * {"error", "retry"} in a non-2xx body overrides the default message and retry decision.
+ *
+ * Within the window a delivery can be repeated; a task with side effects should key them on
+ * (endpointId, taskRunExternalId, retryCount).
  */
 async function handleTrigger(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
@@ -155,8 +164,12 @@ async function handleTrigger(request: Request, env: Env): Promise<Response> {
 
   const body = await request.text();
 
-  if (!(await verifyBodySignature(body, request.headers.get(SIGNATURE_HEADER), env.HATCHET_SIGNING_SECRET))) {
-    return triggerError(401, "bad signature", false);
+  const verified = await verifySignedBody(body, request.headers.get(SIGNATURE_HEADER), env.HATCHET_SIGNING_SECRET, {
+    endpointId: env.HATCHET_ENDPOINT_ID,
+  });
+
+  if (!verified.ok) {
+    return triggerError(verified.status, verified.reason, false);
   }
 
   const envelope = JSON.parse(body) as TriggerRequest;
@@ -187,10 +200,12 @@ async function handleTrigger(request: Request, env: Env): Promise<Response> {
 /**
  * GET trigger_url with Upgrade: websocket, for a durable task.
  *
- * Step 2: verify the signed headers (timestamp, nonce, task id, invocation) before accepting.
+ * Step 2: verify the signed headers (timestamp within five minutes, nonce not seen before,
+ *         task id, invocation) before accepting.
  * Step 3: accept with WebSocketPair and answer 101; the socket lives for the whole invocation
  *         and there is no wall-clock limit while the operator stays connected.
- * Step 4: the first frame carries the action; start the task then.
+ * Step 4: the first frame carries the action; check it names the verified task and
+ *         invocation, then start the task.
  * Step 5: relay memo / wait_for / evict_invocation frames through DurableClient.
  * Step 6: finish with exactly one done frame; the operator closes the socket (1000).
  */
@@ -240,8 +255,19 @@ async function handleDurableUpgrade(request: Request, env: Env, ctx: ExecutionCo
     }
 
     const taskId = first.action.taskRunExternalId;
+    const client = new DurableClient(server, first, (msg) => console.log(`durable ${taskId}: ${msg}`));
 
-    durable = new DurableClient(server, first, (msg) => console.log(`durable ${taskId}: ${msg}`));
+    // The upgrade signature covered the task id and invocation in the headers, not this
+    // frame: only a frame that names them may run.
+    const mismatch = client.assertMatches(verified);
+
+    if (mismatch) {
+      console.log(`upgrade refused after the first frame: ${mismatch}`);
+      server.close(1008, mismatch);
+      return;
+    }
+
+    durable = client;
 
     console.log(
       `durable first frame task=${durable.taskId} invocation=${durable.invocation} budget=${durable.inlineWaitBudgetMs}ms`,

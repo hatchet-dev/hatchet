@@ -18,7 +18,12 @@ import (
 
 // Headers carried by every request the operator sends to an endpoint. Endpoints verify
 // SignatureHeader by recomputing the HMAC-SHA256 hex digest of the raw body with their
-// signing secret (internal/signature.Verify).
+// signing secret (internal/signature.Verify). The signed body of every POST
+// (v1.ServerlessHealthcheckRequest, v1.ServerlessTriggerRequest) carries the operator's
+// timestamp in Unix seconds; an endpoint rejects a body whose timestamp lies more than
+// RequestMaxAge from its own clock in either direction, so a captured request cannot be
+// replayed later. Within that window a delivery may be repeated: endpoints key side effects
+// on (endpoint id, task run external id, retry count).
 const (
 	SignatureHeader  = "X-Hatchet-Signature"
 	EndpointIdHeader = "X-Hatchet-Endpoint-Id"
@@ -27,15 +32,23 @@ const (
 
 // Headers carried only by the durable websocket upgrade, which has no body to sign. The
 // endpoint verifies SignatureHeader against UpgradeSigningPayload with its signing secret,
-// rejects timestamps older than UpgradeMaxAge, and may keep a nonce set against replay.
+// rejects a TimestampHeader more than UpgradeMaxAge from its clock in either direction,
+// consumes NonceHeader from a nonce set after the signature verified so a captured upgrade
+// cannot be replayed within the window, and checks that the first frame's task id and
+// invocation are the ones the headers were signed for.
 const (
 	NonceHeader      = "X-Hatchet-Nonce"
 	TaskIdHeader     = "X-Hatchet-Task-Id"
 	InvocationHeader = "X-Hatchet-Invocation"
 )
 
-// UpgradeMaxAge is how old an upgrade timestamp may be before an endpoint rejects it.
-const UpgradeMaxAge = 5 * time.Minute
+// RequestMaxAge is how far a signed timestamp may lie from the endpoint's clock, in either
+// direction, before the endpoint rejects the request. It applies to the timestamp inside
+// every signed POST body and to the upgrade's TimestampHeader.
+const RequestMaxAge = 5 * time.Minute
+
+// UpgradeMaxAge is RequestMaxAge as it applies to the durable upgrade.
+const UpgradeMaxAge = RequestMaxAge
 
 // UpgradeSigningPayload is the string the durable upgrade signature covers:
 // timestamp "." nonce "." task_id "." invocation, each as it appears in its header.
