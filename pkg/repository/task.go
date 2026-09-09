@@ -4721,7 +4721,11 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 	result := make(map[string]TaskStat)
 
 	for _, row := range rows {
-		stepReadableId := row.StepReadableID
+		if !row.StepReadableID.Valid {
+			continue
+		}
+
+		stepReadableId := row.StepReadableID.String
 		rowKind := row.RowKind
 		queue := row.Queue
 		count := row.Count

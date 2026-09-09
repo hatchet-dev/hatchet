@@ -860,6 +860,10 @@ CREATE TABLE "Worker" (
     "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
+    -- Identifies the listener session that last activated the worker. A session may only
+    -- deactivate the worker while its id is still stored here; a session whose id has been
+    -- replaced was superseded by a newer listener and must not mark the worker inactive.
+    "lastListenerSessionId" UUID,
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
