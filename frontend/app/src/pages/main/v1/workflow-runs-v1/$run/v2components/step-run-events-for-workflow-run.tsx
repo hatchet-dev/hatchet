@@ -152,13 +152,6 @@ function mergeByTimestamp(a: LogLine[], b: LogLine[]): LogLine[] {
   return merged;
 }
 
-function isCancelledDueToConcurrencyStrategy(event: V1TaskEvent): boolean {
-  return (
-    event.eventType === 'CANCELLED' &&
-    !!event.message?.includes('Cancelled due to concurrency strategy')
-  );
-}
-
 function toTaskEventLogLines(
   events: V1TaskEvent[],
   isDag: boolean,
@@ -172,8 +165,8 @@ function toTaskEventLogLines(
       level = 'EVICTION_NOTICE';
     } else if (event.eventType === 'DURABLE_RESTORING') {
       level = 'RESTORE_NOTICE';
-    } else if (isCancelledDueToConcurrencyStrategy(event)) {
-      level = V1LogLineLevel.INFO;
+    } else if (event.eventType === 'CANCELLED') {
+      level = 'CANCELLATION_NOTICE';
     } else {
       switch (severity) {
         case 'CRITICAL':
