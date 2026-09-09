@@ -1,7 +1,7 @@
 {
   "name": "@hatchet-dev/serverless",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
+  "private": false,
   "description": "Serve Hatchet tasks from serverless runtimes without a worker process",
   "license": "MIT",
   "repository": {
@@ -54,7 +54,8 @@
     "eslint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.mjs\" --fix",
     "prettier:check": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --list-different",
     "prettier:fix": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --write",
-    "generate-proto": "./generate-proto.sh"
+    "generate-proto": "./generate-proto.sh",
+    "publish:alpha": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --tag alpha --no-git-checks"
   },
   "peerDependencies": {
     "@hatchet-dev/typescript-sdk": "^1.32.0",
@@ -86,5 +87,9 @@
       "grpc-tools",
       "esbuild"
     ]
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
   }
 }
