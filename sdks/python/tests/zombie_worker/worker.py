@@ -6,24 +6,20 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 import argparse
 
 from hatchet_sdk import Hatchet
-import logging
 
 hatchet = Hatchet()
 
-logger = logging.getLogger(__name__)
 
-
-@hatchet.task(execution_timeout=timedelta(seconds=1))
+@hatchet.task(execution_timeout=timedelta(seconds=5))
 def die(input: EmptyModel, ctx: Context) -> None:
-    logger.info("Worker ID: %s about to die", ctx.worker_id)
+    ctx.log(f"Worker ID: {ctx.worker_id} about to die")
     ctypes.string_at(0)
-    logger.error("Worker ID: %s did not die", ctx.worker_id)
+    ctx.log(f"Worker ID: {ctx.worker_id} did not die")
 
 
 def main(name: str) -> None:
     worker = hatchet.worker(
         name,
-        slots=1,
         workflows=[
             die,
         ],

@@ -32,9 +32,12 @@ _worker_name = f"e2e-test-zombie-worker-{uuid.uuid4()}"
 async def test_zombie_worker(hatchet: Hatchet, on_demand_worker: Popen[Any]) -> None:
     workers = await hatchet.workers.aio_list()
     assert workers.rows
+
     worker = next((w for w in workers.rows if w.name == _worker_name), None)
+
     assert worker is not None
     worker_id = worker.metadata.id
+
     with pytest.raises(FailedTaskRunExceptionGroup):
         await die.aio_run(desired_worker_id=worker.metadata.id)
 
