@@ -33,7 +33,7 @@ type runMigrationsOpt struct {
 	upToPenultimate bool
 	upToVersion     int64
 	databaseURL     string
-	logger          *zerolog.Logger
+	l               *zerolog.Logger
 }
 
 // resolveLogger returns the caller-supplied logger, or the package default.
@@ -44,8 +44,8 @@ type runMigrationsOpt struct {
 // command wires a console logger at debug level, which keeps every line it
 // printed before visible.
 func (o *runMigrationsOpt) resolveLogger() *zerolog.Logger {
-	if o.logger != nil {
-		return o.logger
+	if o.l != nil {
+		return o.l
 	}
 
 	l := logger.NewStdErr(&shared.LoggerConfigFile{Level: "info", Format: "json"}, "migrate")
@@ -82,7 +82,7 @@ func WithDatabaseURL(url string) RunMigrationsOpt {
 // that migrations do not write to stdout/stderr on their own terms.
 func WithLogger(l *zerolog.Logger) RunMigrationsOpt {
 	return func(o *runMigrationsOpt) {
-		o.logger = l
+		o.l = l
 	}
 }
 
@@ -147,11 +147,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err)).Msg("close DB connection failed")
 		}
 
 		if err := db.Close(); err != nil {
-			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err)).Msg("close DB failed")
 		}
 	}()
 
@@ -432,7 +432,7 @@ func RunDownMigration(ctx context.Context, targetVersion string, opts ...RunMigr
 	l := options.resolveLogger()
 
 	if err := runDownMigrationImpl(ctx, targetVersion, l); err != nil {
-		l.Fatal().Msgf("%v", err)
+		l.Fatal().Err(err).Msg("down migration failed")
 	}
 }
 
@@ -486,13 +486,13 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 	defer func() {
 		if conn != nil {
 			if err := conn.Close(); err != nil {
-				l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+				l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err)).Msg("close DB connection failed")
 			}
 		}
 
 		if db != nil {
 			if err := db.Close(); err != nil {
-				l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+				l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err)).Msg("close DB failed")
 			}
 		}
 	}()
@@ -511,7 +511,7 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 
 	defer func() {
 		if err := locker.SessionUnlock(ctx, conn); err != nil {
-			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err)).Msg("session unlock failed")
 		}
 	}()
 
