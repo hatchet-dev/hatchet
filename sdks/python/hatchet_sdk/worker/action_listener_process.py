@@ -371,6 +371,10 @@ class WorkerActionListenerProcess:
             except Empty:
                 if self._parent_is_dead():
                     logger.error("stopping event send loop, parent is dead...")
+                    # setting the stop event manually because we need to unblock the thread waiting on it in
+                    # _wait_for_stop_event and trigger the normal stop path, since the parent is dead at this point
+                    # so it can't set it for us
+                    self._stop_event.set()
                     break
                 continue
             if event == STOP_LOOP:
@@ -623,11 +627,7 @@ def worker_action_listener_process(
                 *list(process.step_action_events), return_exceptions=True
             )
         # wait for stop_event_task to finish before continuing
-        if (
-            not process._parent_is_dead()
-            and process._stop_event_task is not None
-            and not process._stop_event_task.done()
-        ):
+        if process._stop_event_task is not None and not process._stop_event_task.done():
             try:
                 await process._stop_event_task
             except Exception:
@@ -642,10 +642,8 @@ def worker_action_listener_process(
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
 
-        # TODO: don't actually merge this, see comment in github
         if process._parent_is_dead():
-            import os
-
-            os.kill(os.getpid(), signal.SIGKILL)
+            for queue in (action_queue, worker_id_queue):
+                queue.cancel_join_thread()
 
     asyncio.run(run())
