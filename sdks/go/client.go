@@ -872,7 +872,7 @@ func (st *StandaloneTask) RunNoWait(ctx context.Context, input any, opts ...RunO
 	return workflowRunRef, nil
 }
 
-// RunMany executes multiple standalone task instances with different inputs.
+// RunMany executes multiple standalone task instances with different inputs. The returned results are in the same order as the inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	workflowRefs, err := st.workflow.RunMany(ctx, inputs)
@@ -1152,7 +1152,7 @@ type RunManyOpt struct {
 	Opts  []RunOptFunc
 }
 
-// RunMany executes multiple workflow instances with different inputs.
+// RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
@@ -1188,36 +1188,8 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 		}
 	}
 
-	var workflowRefs []WorkflowRunRef
-
-	var wg sync.WaitGroup
-	var errs []error
-	var errsMutex sync.Mutex
-	var workflowRefsMutex sync.Mutex
-
-	wg.Add(len(inputs))
-
-	for _, input := range inputs {
-		go func() {
-			defer wg.Done()
-
-			workflowRef, err := c.RunNoWait(originalCtx, workflowName, input.Input, input.Opts...)
-			if err != nil {
-				errsMutex.Lock()
-				errs = append(errs, err)
-				errsMutex.Unlock()
-				return
-			}
-
-			workflowRefsMutex.Lock()
-			workflowRefs = append(workflowRefs, *workflowRef)
-			workflowRefsMutex.Unlock()
-		}()
-	}
-
-	wg.Wait()
-
-	if err := errors.Join(errs...); err != nil {
+	workflowRefs, err := runManyBulk(originalCtx, otelCtx, c.legacyClient, workflowName, inputs)
+	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
 	}
