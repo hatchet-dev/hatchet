@@ -364,11 +364,6 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(step)
 
-            if self._action_registry.get(action_name) is not None:
-                raise ValueError(
-                    f"action '{action_name}' already registered, actions must have unique names. this is likely the result of two tasks or functions sharing the same name after being lowercased (e.g. `def fooBar` and `def foobar` would both register as `foobar`). please rename one of the tasks or functions to avoid this conflict."
-                )
-
             self._action_registry[action_name] = step
 
     async def aio_register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
@@ -513,6 +508,17 @@ class Worker:
 
         return version
 
+    def _raise_for_duped_action_ids(self) -> None:
+        action_ids = [
+            w._create_action_name(t) for w in self._workflows for t in w.tasks
+        ]
+        duped_action_ids = {a for a in action_ids if action_ids.count(a) > 1}
+
+        if duped_action_ids:
+            raise ValueError(
+                f"duplicate action(s) found: '{', '.join(duped_action_ids)}'. actions must have unique names. this is likely the result of two tasks sharing the same name after being lowercased (e.g. `def fooBar` and `def foobar` would both register as `foobar`). please rename one of the tasks to avoid this conflict."
+            )
+
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
 
@@ -521,6 +527,8 @@ class Worker:
         logger.debug(f"worker starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
+
+        self._raise_for_duped_action_ids()
 
         await gather_max_concurrency(
             *[self.aio_register_workflow(wf) for wf in self._workflows],
