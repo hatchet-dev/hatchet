@@ -29,8 +29,15 @@ const tenantContextKey = "tenant"
 // outcome.
 const eventReportTimeout = 30 * time.Second
 
-type Operator interface {
+// ActionHandler receives actions the dispatcher assigned to an operator's worker. The call runs
+// on the dispatcher's delivery goroutine, so it must not block for long, and its error requeues
+// the task.
+type ActionHandler interface {
 	HandleAction(ctx context.Context, action *contracts.AssignedAction) error
+}
+
+type Operator interface {
+	ActionHandler
 
 	WorkerId() uuid.UUID
 

@@ -78,7 +78,7 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
 ) error {
-	if worker.operator != nil {
+	if worker.handler != nil {
 		return worker.sendToWorkerWithOperator(ctx, action)
 	}
 
@@ -100,7 +100,7 @@ func (worker *subscribedWorker) sendToWorkerWithOperator(
 		},
 	)
 
-	return worker.operator.HandleAction(ctx, action)
+	return worker.handler.HandleAction(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorkerWithStream(

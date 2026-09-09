@@ -32,7 +32,7 @@ import (
 type Dispatcher interface {
 	// AddOperatorSession registers op as the operator-backed session for workerId; release
 	// removes it.
-	AddOperatorSession(workerId uuid.UUID, op operator.Operator) (release func())
+	AddOperatorSession(workerId uuid.UUID, sessionId uuid.UUID, op operator.Operator) (release func())
 
 	// NotifyNewWorker tells the tenant's scheduler that the worker (or its action set) changed.
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
@@ -245,7 +245,7 @@ func (e *Link) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts)
 		return nil, fmt.Errorf("could not activate serverless worker %s: %w", worker.ID, err)
 	}
 
-	reg.release = e.dispatcher.AddOperatorSession(worker.ID, sessionOperator{reg})
+	reg.release = e.dispatcher.AddOperatorSession(worker.ID, sessionId, sessionOperator{reg})
 
 	e.dispatcher.NotifyNewWorker(tctx, tenant, worker.ID)
 

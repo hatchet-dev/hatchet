@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"os"
 	"sync/atomic"
 	"time"
@@ -64,7 +66,7 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 	cfg := enginelink.ConfigFromServer(cf)
 
 	lnk := enginelink.New(enginelink.Deps{
-		Dispatcher:   d,
+		Dispatcher:   enginelinkDispatcher{d},
 		AdminV1:      adminv1Svc,
 		Repo:         sc.V1,
 		Validator:    sc.Validator,
@@ -163,4 +165,15 @@ func (s *serverlessSupervisor) stop() error {
 	<-s.done
 
 	return nil
+}
+
+// enginelinkDispatcher presents the dispatcher's handler-backed session to the engine link as
+// the release function it expects; the link chooses the session id so the dispatcher's key and
+// the worker row's listener fence agree.
+type enginelinkDispatcher struct {
+	*dispatcher.DispatcherImpl
+}
+
+func (a enginelinkDispatcher) AddOperatorSession(workerId uuid.UUID, sessionId uuid.UUID, op operator.Operator) func() {
+	return a.DispatcherImpl.AddOperatorSession(workerId, sessionId, op).Release
 }

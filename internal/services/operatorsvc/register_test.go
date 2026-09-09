@@ -1,0 +1,179 @@
+package operatorsvc_test
+
+import (
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+func grpcRegisterOpts(name string) operatorsvc.RegisterOpts {
+	return operatorsvc.RegisterOpts{Name: name, Kind: sqlcv1.V1OperatorKindGRPC}
+}
+
+func TestRegisterCreatesWorker(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	label := "gpu"
+
+	opts := grpcRegisterOpts("my-operator")
+	opts.SlotConfig = map[string]int32{"default": 5}
+	opts.Labels = map[string]*contracts.WorkerLabels{"kind": {StrValue: &label}}
+
+	reg, err := svc.Register(t.Context(), tenant, opts)
+
+	require.NoError(t, err)
+	assert.Equal(t, tenant.ID, reg.TenantId)
+	assert.False(t, reg.Resumed)
+
+	op, err := svc.operators.GetOperatorById(t.Context(), reg.OperatorId)
+	require.NoError(t, err)
+	assert.Equal(t, "my-operator", op.Name)
+	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind)
+	assert.Equal(t, op, reg.Operator)
+
+	created := svc.workers.Created()
+	require.Len(t, created, 1)
+	assert.Equal(t, op.Name, created[0].Name)
+	assert.Equal(t, svc.dispatcherId, created[0].DispatcherId)
+	require.NotNil(t, created[0].OperatorId)
+	assert.Equal(t, op.ID, *created[0].OperatorId)
+	assert.Empty(t, created[0].Actions, "registration never registers actions")
+	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
+
+	require.Len(t, svc.workers.Labels(reg.WorkerId), 1)
+	assert.Equal(t, "kind", svc.workers.Labels(reg.WorkerId)[0].Key)
+
+	// a second registration of the same name reuses the operator and creates another worker
+	again, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("my-operator"))
+	require.NoError(t, err)
+	assert.Equal(t, reg.OperatorId, again.OperatorId)
+	assert.NotEqual(t, reg.WorkerId, again.WorkerId)
+	assert.False(t, again.Resumed)
+	assert.Equal(t, map[string]int32{repository.SlotTypeDefault: int32(100)}, svc.workers.Created()[1].SlotConfig, "empty slot config defaults")
+}
+
+// The worker is named after the operator unless the caller names it, so replicas of one
+// operator can be told apart.
+func TestRegisterNamesWorker(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	opts := grpcRegisterOpts("my-operator")
+	opts.WorkerName = "my-operator-replica-2"
+
+	_, err := svc.Register(t.Context(), tenant, opts)
+	require.NoError(t, err)
+
+	require.Len(t, svc.workers.Created(), 1)
+	assert.Equal(t, "my-operator-replica-2", svc.workers.Created()[0].Name)
+}
+
+func TestRegisterResumesOwnWorker(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	first, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("my-operator"))
+	require.NoError(t, err)
+
+	opts := grpcRegisterOpts("my-operator")
+	opts.ResumeWorkerId = &first.WorkerId
+
+	resumed, err := svc.Register(t.Context(), tenant, opts)
+	require.NoError(t, err)
+	assert.True(t, resumed.Resumed)
+	assert.Equal(t, first.WorkerId, resumed.WorkerId)
+	assert.Equal(t, first.OperatorId, resumed.OperatorId)
+	assert.Len(t, svc.workers.Created(), 1, "resume must not create a worker")
+}
+
+// An operator that paused its worker to drain, and then crashed, would otherwise come back to a
+// worker the scheduler never assigns to.
+func TestRegisterResumeClearsThePause(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	first, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("my-operator"))
+	require.NoError(t, err)
+
+	require.NoError(t, svc.PauseWorker(t.Context(), tenant, first.WorkerId, true))
+	require.True(t, svc.workers.IsPaused(first.WorkerId))
+
+	opts := grpcRegisterOpts("my-operator")
+	opts.ResumeWorkerId = &first.WorkerId
+
+	resumed, err := svc.Register(t.Context(), tenant, opts)
+	require.NoError(t, err)
+	require.True(t, resumed.Resumed)
+	assert.False(t, svc.workers.IsPaused(first.WorkerId), "a resumed worker is assignable again")
+}
+
+func TestRegisterDoesNotResumeAnotherOperatorsWorker(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	other, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("other-operator"))
+	require.NoError(t, err)
+
+	unknown := uuid.New()
+
+	cases := []struct {
+		name     string
+		workerId uuid.UUID
+	}{
+		{name: "another operator's worker", workerId: other.WorkerId},
+		{name: "unknown worker", workerId: unknown},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(svc.workers.Created())
+
+			opts := grpcRegisterOpts("my-operator")
+			opts.ResumeWorkerId = &tc.workerId
+
+			reg, err := svc.Register(t.Context(), tenant, opts)
+			require.NoError(t, err)
+			assert.False(t, reg.Resumed)
+			assert.NotEqual(t, tc.workerId, reg.WorkerId)
+			assert.Len(t, svc.workers.Created(), before+1, "a worker that cannot be resumed is replaced by a new one")
+		})
+	}
+}
+
+func TestRegisterRejects(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+
+	t.Run("missing tenant", func(t *testing.T) {
+		svc := newTestService(t, nil)
+		_, err := svc.Register(t.Context(), nil, grpcRegisterOpts("op"))
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+	})
+
+	for _, name := range []string{"", "bad name!"} {
+		t.Run("invalid name "+name, func(t *testing.T) {
+			svc := newTestService(t, nil)
+			_, err := svc.Register(t.Context(), tenant, grpcRegisterOpts(name))
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Zero(t, svc.operators.Count(), "validation runs before the upsert")
+		})
+	}
+
+	// only out-of-process operators register through a session today; the in-process kinds
+	// arrive with the in-process host
+	t.Run("unsupported kind", func(t *testing.T) {
+		svc := newTestService(t, nil)
+		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG})
+		require.Error(t, err)
+		assert.Zero(t, svc.operators.Count())
+	})
+}

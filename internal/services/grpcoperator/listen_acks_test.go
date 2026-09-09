@@ -23,22 +23,6 @@ func sequencedDeltaMsg(seq uint64, add, remove []string) *v1contracts.OperatorLi
 	}}
 }
 
-// ackedSequences lists the sequences Listen acknowledged through the session handle, in order.
-func (f *fakeDispatcher) ackedSequences() []uint64 {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	var out []uint64
-
-	for _, msg := range f.sent {
-		if resp, ok := msg.(*v1contracts.OperatorListenResponse); ok && resp.GetAck() != nil {
-			out = append(out, resp.GetAck().Sequence)
-		}
-	}
-
-	return out
-}
-
 // Every sequenced delta is acknowledged once it is applied, in stream order, whether or not
 // it changed the set; a delta without a sequence asks for no ack.
 func TestListenAcknowledgesCommittedDeltas(t *testing.T) {
@@ -51,15 +35,15 @@ func TestListenAcknowledgesCommittedDeltas(t *testing.T) {
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	done := runListen(svc, stream)
 
-	eventually(t, func() bool { return svc.dispatcher.sessionCount() == 1 }, "session was not registered")
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 
 	stream.push(sequencedDeltaMsg(7, []string{"svc:a"}, nil))
 	stream.push(deltaMsg([]string{"svc:b"}, nil))
 	stream.push(sequencedDeltaMsg(9, []string{"svc:a"}, []string{"svc:never"}))
 
-	eventually(t, func() bool { return len(svc.dispatcher.ackedSequences()) == 2 }, "deltas were not acknowledged")
-	assert.Equal(t, []uint64{7, 9}, svc.dispatcher.ackedSequences(), "acks carry the delta's sequence and skip unsequenced deltas")
-	assert.ElementsMatch(t, []string{"svc:a", "svc:b"}, svc.workers.actionSet(worker.ID))
+	eventually(t, func() bool { return len(svc.dispatcher.AckedSequences()) == 2 }, "deltas were not acknowledged")
+	assert.Equal(t, []uint64{7, 9}, svc.dispatcher.AckedSequences(), "acks carry the delta's sequence and skip unsequenced deltas")
+	assert.ElementsMatch(t, []string{"svc:a", "svc:b"}, svc.workers.ActionSet(worker.ID))
 
 	close(stream.recv)
 	assert.NoError(t, waitListen(t, done))
@@ -78,7 +62,7 @@ func TestListenDoesNotAcknowledgeRejectedDelta(t *testing.T) {
 
 	err := waitListen(t, runListen(svc, stream))
 	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
-	assert.Empty(t, svc.dispatcher.ackedSequences())
+	assert.Empty(t, svc.dispatcher.AckedSequences())
 }
 
 // An ack that cannot be written ends the stream instead of leaving the delta unconfirmed.
@@ -89,16 +73,14 @@ func TestListenEndsWhenAckCannotBeSent(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	svc.dispatcher.mu.Lock()
-	svc.dispatcher.sendErr = errors.New("flow control")
-	svc.dispatcher.mu.Unlock()
+	svc.dispatcher.SetSendErr(errors.New("flow control"))
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), sequencedDeltaMsg(1, []string{"svc:a"}, nil))
 
 	err := waitListen(t, runListen(svc, stream))
 	assert.Equal(t, codes.Unavailable, status.Code(err), err)
-	assert.Equal(t, []string{"svc:a"}, svc.workers.actionSet(worker.ID), "the delta itself was committed before the ack failed")
-	assert.Len(t, svc.workers.sessionLog(), 2, "the worker is deactivated on exit")
+	assert.Equal(t, []string{"svc:a"}, svc.workers.ActionSet(worker.ID), "the delta itself was committed before the ack failed")
+	assert.Len(t, svc.workers.SessionLog(), 2, "the worker is deactivated on exit")
 }
 
 // The dispatcher fan-out wraps every assigned action in the Listen response envelope.

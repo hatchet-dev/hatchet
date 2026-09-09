@@ -205,7 +205,7 @@ func (f *fakeSession) NewDurableTaskListener(opts ...client.DurableTaskListenerO
 	return listener
 }
 
-func (f *fakeSession) Close() error {
+func (f *fakeSession) Close(_ ...client.CloseOpt) error {
 	f.closed = true
 
 	for _, l := range f.listeners {

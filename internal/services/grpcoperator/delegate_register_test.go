@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc/operatorsvctest"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -17,7 +18,7 @@ import (
 // registerTwiceDispatcher reads two messages from the durable stream and records the worker
 // ids of the register messages it was handed.
 type registerTwiceDispatcher struct {
-	*fakeDispatcher
+	*operatorsvctest.Dispatcher
 
 	seen []string
 	err  error
@@ -59,10 +60,10 @@ func TestDurableTaskRejectsSecondRegisterWorker(t *testing.T) {
 			ctx, _, own := registeredOperator(t, svc, tenant)
 
 			otherOp := uuid.New()
-			other := svc.workers.add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
+			other := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
 
-			d := &registerTwiceDispatcher{fakeDispatcher: svc.dispatcher}
-			svc.OperatorServiceImpl.dispatcher = d
+			d := &registerTwiceDispatcher{Dispatcher: svc.dispatcher}
+			svc.durable = d
 
 			stream := &fakeDurableStream{ctx: ctx, recv: make(chan *v1contracts.DurableTaskRequest, 2)}
 			stream.recv <- registerWorkerMsg(own.ID.String())
@@ -83,8 +84,8 @@ func TestDurableTaskPassesLaterMessagesThrough(t *testing.T) {
 	svc := newTestService(t, nil)
 	ctx, _, own := registeredOperator(t, svc, tenant)
 
-	d := &registerTwiceDispatcher{fakeDispatcher: svc.dispatcher}
-	svc.OperatorServiceImpl.dispatcher = d
+	d := &registerTwiceDispatcher{Dispatcher: svc.dispatcher}
+	svc.durable = d
 
 	stream := &fakeDurableStream{ctx: context.WithoutCancel(ctx), recv: make(chan *v1contracts.DurableTaskRequest, 2)}
 	stream.recv <- registerWorkerMsg(own.ID.String())

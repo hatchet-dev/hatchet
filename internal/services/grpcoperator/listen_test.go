@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -74,18 +75,6 @@ func deltaMsg(add, remove []string) *v1contracts.OperatorListenRequest {
 	}}
 }
 
-// registeredOperator seeds an operator with one worker and returns the operator-scoped context.
-func registeredOperator(t *testing.T, svc *testService, tenant *sqlcv1.Tenant) (context.Context, *sqlcv1.V1Operator, *sqlcv1.Worker) {
-	t.Helper()
-
-	op, err := svc.operators.UpsertGRPCOperator(tenantContext(tenant), tenant.ID, "op")
-	require.NoError(t, err)
-
-	worker := svc.workers.add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})
-
-	return operatorContext(tenant, op.ID.String()), op, worker
-}
-
 // runListen runs the handler in the background and returns a channel with its result.
 func runListen(svc *testService, stream *fakeListenStream) <-chan error {
 	done := make(chan error, 1)
@@ -107,22 +96,6 @@ func waitListen(t *testing.T, done <-chan error) error {
 	}
 }
 
-func eventually(t *testing.T, cond func() bool, msg string) {
-	t.Helper()
-
-	deadline := time.Now().Add(5 * time.Second)
-
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-
-		time.Sleep(2 * time.Millisecond)
-	}
-
-	t.Fatal(msg)
-}
-
 func TestListenRequiresOperatorMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(tenantContext(&sqlcv1.Tenant{ID: uuid.New()}))
 	defer cancel()
@@ -132,7 +105,7 @@ func TestListenRequiresOperatorMetadata(t *testing.T) {
 	err := svc.Listen(newFakeListenStream(ctx, startMsg(uuid.NewString())))
 
 	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
-	assert.Zero(t, svc.dispatcher.sessionCount())
+	assert.Zero(t, svc.dispatcher.SessionCount())
 }
 
 func TestListenRejectsNonStartFirstMessage(t *testing.T) {
@@ -149,8 +122,8 @@ func TestListenRejectsNonStartFirstMessage(t *testing.T) {
 		assert.Equal(t, codes.InvalidArgument, status.Code(err), err.Error())
 	}
 
-	assert.Zero(t, svc.dispatcher.sessionCount(), "nothing is registered before a start message")
-	assert.Empty(t, svc.workers.activations)
+	assert.Zero(t, svc.dispatcher.SessionCount(), "nothing is registered before a start message")
+	assert.Empty(t, svc.workers.Activations())
 }
 
 func TestListenRejectsForeignWorker(t *testing.T) {
@@ -161,7 +134,7 @@ func TestListenRejectsForeignWorker(t *testing.T) {
 	defer cancel()
 
 	otherOp := uuid.New()
-	other := svc.workers.add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
+	other := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
 
 	err := svc.Listen(newFakeListenStream(ctx, startMsg(other.ID.String())))
 	assert.Equal(t, codes.PermissionDenied, status.Code(err), err)
@@ -169,7 +142,7 @@ func TestListenRejectsForeignWorker(t *testing.T) {
 	err = svc.Listen(newFakeListenStream(ctx, startMsg("nope")))
 	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
 
-	assert.Zero(t, svc.dispatcher.sessionCount())
+	assert.Zero(t, svc.dispatcher.SessionCount())
 }
 
 func TestListenClientCloseBeforeStart(t *testing.T) {
@@ -195,32 +168,28 @@ func TestListenActivatesAndDeactivatesWithSessionId(t *testing.T) {
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	done := runListen(svc, stream)
 
-	eventually(t, func() bool { return svc.dispatcher.sessionCount() == 1 }, "session was not registered")
-	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.activations)
-	assert.Equal(t, 1, svc.dispatcher.notifyCount(), "a new session notifies the scheduler once")
-	assert.Equal(t, svc.dispatcherId, svc.workers.dispatchers[worker.ID], "the worker is pinned to this dispatcher")
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
+	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.Activations())
+	assert.Equal(t, 1, svc.dispatcher.NotifyCount(), "a new session notifies the scheduler once")
+	assert.Equal(t, svc.dispatcherId, svc.workers.DispatcherFor(worker.ID), "the worker is pinned to this dispatcher")
 
 	// heartbeats are written at most once per second
 	stream.push(heartbeatMsg())
 	stream.push(heartbeatMsg())
-	eventually(t, func() bool {
-		svc.workers.mu.Lock()
-		defer svc.workers.mu.Unlock()
-		return svc.workers.heartbeats == 1
-	}, "heartbeat was not written")
+	eventually(t, func() bool { return svc.workers.Heartbeats() == 1 }, "heartbeat was not written")
 
 	// a second start is a protocol error
 	stream.push(startMsg(worker.ID.String()))
 
 	err := waitListen(t, done)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
-	assert.Equal(t, 1, svc.dispatcher.releasedCount(), "the session is released on exit")
+	assert.Equal(t, 1, svc.dispatcher.ReleasedCount(), "the session is released on exit")
 
-	sessions := svc.workers.sessionLog()
+	sessions := svc.workers.SessionLog()
 	require.Len(t, sessions, 2, "the worker is activated on start and deactivated on exit")
 	assert.Equal(t, sessions[0], sessions[1], "deactivation is fenced on the activation session id")
-	assert.Equal(t, []uuid.UUID{sessions[0]}, svc.dispatcher.sessionIdLog(), "the dispatcher session is keyed on the listener session id")
-	assert.False(t, svc.workers.isActive(worker.ID), "the worker is inactive once its only session ends")
+	assert.Equal(t, []uuid.UUID{sessions[0]}, svc.dispatcher.SessionIdLog(), "the dispatcher session is keyed on the listener session id")
+	assert.False(t, svc.workers.IsActive(worker.ID), "the worker is inactive once its only session ends")
 }
 
 // A newer Listen stream on the same worker takes over the listener session. When the older
@@ -236,24 +205,24 @@ func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 	first := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	firstDone := runListen(svc, first)
 
-	eventually(t, func() bool { return svc.dispatcher.sessionCount() == 1 }, "first session was not registered")
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "first session was not registered")
 
 	second := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	secondDone := runListen(svc, second)
 
-	eventually(t, func() bool { return svc.dispatcher.sessionCount() == 2 }, "second session was not registered")
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 2 }, "second session was not registered")
 
 	close(first.recv)
 	assert.NoError(t, waitListen(t, firstDone), "a superseded deactivation is not an error")
-	assert.True(t, svc.workers.isActive(worker.ID), "a superseded session must not deactivate the worker")
+	assert.True(t, svc.workers.IsActive(worker.ID), "a superseded session must not deactivate the worker")
 
 	close(second.recv)
 	assert.NoError(t, waitListen(t, secondDone))
-	assert.False(t, svc.workers.isActive(worker.ID), "the live session's deactivation marks the worker inactive")
+	assert.False(t, svc.workers.IsActive(worker.ID), "the live session's deactivation marks the worker inactive")
 
-	sessions := svc.workers.sessionLog()
+	sessions := svc.workers.SessionLog()
 	require.Len(t, sessions, 4, "two activations and two deactivations")
-	assert.Equal(t, sessions[:2], svc.dispatcher.sessionIdLog(), "each stream registers under its own listener session id")
+	assert.Equal(t, sessions[:2], svc.dispatcher.SessionIdLog(), "each stream registers under its own listener session id")
 	assert.NotEqual(t, sessions[0], sessions[1], "each stream gets its own session id")
 	assert.Equal(t, sessions[0], sessions[2], "the first stream deactivates with its own session id")
 	assert.Equal(t, sessions[1], sessions[3], "the second stream deactivates with its own session id")
@@ -261,8 +230,7 @@ func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 
 func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	svc := newTestService(t, nil)
-	svc.notifyInterval = 100 * time.Millisecond
+	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(100*time.Millisecond))
 	ctx, _, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -270,33 +238,33 @@ func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	done := runListen(svc, stream)
 
-	eventually(t, func() bool { return svc.dispatcher.notifyCount() == 1 }, "start did not notify")
+	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 1 }, "start did not notify")
 
 	// deltas right after the start notify are inside the throttle window, so they are deferred
 	// and folded into one notification
 	stream.push(deltaMsg([]string{"svc:a", "svc:b"}, nil))
 	stream.push(deltaMsg([]string{"svc:c"}, []string{"svc:b"}))
 
-	eventually(t, func() bool { return len(svc.workers.actionSet(worker.ID)) == 2 }, "deltas did not reach the store")
-	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.actionSet(worker.ID))
-	assert.Equal(t, 1, svc.dispatcher.notifyCount(), "deltas inside the window are not notified immediately")
+	eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 2 }, "deltas did not reach the store")
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID))
+	assert.Equal(t, 1, svc.dispatcher.NotifyCount(), "deltas inside the window are not notified immediately")
 
-	eventually(t, func() bool { return svc.dispatcher.notifyCount() == 2 }, "deferred notify did not fire")
+	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 2 }, "deferred notify did not fire")
 
 	// no further notify without further changes
 	time.Sleep(150 * time.Millisecond)
-	assert.Equal(t, 2, svc.dispatcher.notifyCount())
+	assert.Equal(t, 2, svc.dispatcher.NotifyCount())
 
 	// a delta that changes nothing does not notify at all
 	stream.push(deltaMsg([]string{"svc:a"}, []string{"svc:never"}))
 	time.Sleep(150 * time.Millisecond)
-	assert.Equal(t, 2, svc.dispatcher.notifyCount())
+	assert.Equal(t, 2, svc.dispatcher.NotifyCount())
 
 	// a delta outside the window notifies immediately
 	stream.push(deltaMsg(nil, []string{"svc:a"}))
-	eventually(t, func() bool { return svc.dispatcher.notifyCount() == 3 }, "delta outside the window did not notify")
-	eventually(t, func() bool { return len(svc.workers.actionSet(worker.ID)) == 1 }, "removal did not reach the store")
-	assert.ElementsMatch(t, []string{"svc:c"}, svc.workers.actionSet(worker.ID))
+	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 3 }, "delta outside the window did not notify")
+	eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 1 }, "removal did not reach the store")
+	assert.ElementsMatch(t, []string{"svc:c"}, svc.workers.ActionSet(worker.ID))
 
 	close(stream.recv)
 	assert.NoError(t, waitListen(t, done))
@@ -305,7 +273,7 @@ func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
 func TestListenRejectsBadDeltas(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 
-	tooMany := make([]string, MaxActionsPerDelta+1)
+	tooMany := make([]string, operatorsvc.MaxActionsPerDelta+1)
 
 	for i := range tooMany {
 		tooMany[i] = "svc:a"
@@ -331,8 +299,8 @@ func TestListenRejectsBadDeltas(t *testing.T) {
 
 			err := waitListen(t, runListen(svc, stream))
 			assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
-			assert.Empty(t, svc.workers.actionSet(worker.ID), "a rejected delta must not touch the store")
-			assert.Len(t, svc.workers.sessionLog(), 2, "the worker is deactivated on error exit")
+			assert.Empty(t, svc.workers.ActionSet(worker.ID), "a rejected delta must not touch the store")
+			assert.Len(t, svc.workers.SessionLog(), 2, "the worker is deactivated on error exit")
 		})
 	}
 
@@ -342,10 +310,10 @@ func TestListenRejectsBadDeltas(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), deltaMsg(tooMany[:MaxActionsPerDelta], nil))
+		stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), deltaMsg(tooMany[:operatorsvc.MaxActionsPerDelta], nil))
 		done := runListen(svc, stream)
 
-		eventually(t, func() bool { return len(svc.workers.actionSet(worker.ID)) == 1 }, "delta at the cap was not applied")
+		eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 1 }, "delta at the cap was not applied")
 
 		close(stream.recv)
 		assert.NoError(t, waitListen(t, done))
@@ -362,10 +330,10 @@ func TestListenExitsOnDispatcherFin(t *testing.T) {
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
 	done := runListen(svc, stream)
 
-	eventually(t, func() bool { return svc.dispatcher.sessionCount() == 1 }, "session was not registered")
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 
-	svc.dispatcher.fin <- true
+	svc.dispatcher.Fin() <- true
 
 	assert.NoError(t, waitListen(t, done))
-	assert.Len(t, svc.workers.sessionLog(), 2)
+	assert.Len(t, svc.workers.SessionLog(), 2)
 }

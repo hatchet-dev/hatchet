@@ -32,8 +32,9 @@ type subscribedWorker struct {
 	done     chan struct{}
 	doneOnce sync.Once
 
-	// optional: the operator backing this worker
-	operator operator.Operator
+	// handler is the direct delivery target for an in-process operator session; nil for
+	// stream-backed workers
+	handler  operator.ActionHandler
 	workerId uuid.UUID
 }
 
@@ -57,12 +58,12 @@ func newGRPCSubscribedWorker(
 func newOperatorSubscribedWorker(
 	workerId uuid.UUID,
 	pubBuffer *msgqueue.MQPubBuffer,
-	operator operator.Operator,
+	handler operator.ActionHandler,
 ) *subscribedWorker {
 	return &subscribedWorker{
 		workerId:  workerId,
 		pubBuffer: pubBuffer,
-		operator:  operator,
+		handler:   handler,
 	}
 }
 

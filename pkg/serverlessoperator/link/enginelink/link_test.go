@@ -59,7 +59,7 @@ func (f *fakeDispatcher) respond(resp *v1.DurableTaskResponse) {
 	f.inject <- resp
 }
 
-func (f *fakeDispatcher) AddOperatorSession(workerId uuid.UUID, op operator.Operator) func() {
+func (f *fakeDispatcher) AddOperatorSession(workerId uuid.UUID, _ uuid.UUID, op operator.Operator) func() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

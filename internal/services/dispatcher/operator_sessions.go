@@ -74,23 +74,33 @@ func (s *OperatorStreamSession) Release() {
 	s.release()
 }
 
+// OperatorHandlerSession is a live dispatcher session backed by an operator running in this
+// process: assigned actions are handed to its handler directly, with no encoding and no stream.
+// There is no Fin signal, because there is no stream to hang up, and the shutdown drain skips
+// these sessions: the host that opened the session owns its teardown.
+type OperatorHandlerSession struct {
+	release func()
+}
+
 // AddOperatorSession registers an in-process operator as a live session for workerId, so the
-// dispatcher fans assigned actions out to op.HandleAction like it does for the operator
-// manager's operators. Operator-backed sessions have no stream: nothing selects on fin, the
-// shutdown drain in Start's cleanup skips them, and the owner tears them down by calling
-// release, which removes the session from the dispatcher. The owner is responsible for the
-// worker row (activation, heartbeats, deactivation, and the listener session id that fences
-// them); the dispatcher only routes.
-func (d *DispatcherImpl) AddOperatorSession(workerId uuid.UUID, op operator.Operator) (release func()) {
-	sessionId := uuid.New()
+// dispatcher routes assigned actions to it like any other worker. The caller chooses sessionId
+// so the dispatcher's session key is the same id it records on the worker row as the listener
+// session fence. The caller must call Release when the session ends.
+func (d *DispatcherImpl) AddOperatorSession(
+	workerId uuid.UUID,
+	sessionId uuid.UUID,
+	handler operator.ActionHandler,
+) *OperatorHandlerSession {
+	d.workers.Add(workerId, sessionId, newOperatorSubscribedWorker(workerId, d.pubBuffer, handler))
 
-	d.workers.Add(
-		workerId,
-		sessionId,
-		newOperatorSubscribedWorker(workerId, d.pubBuffer, op),
-	)
-
-	return func() {
-		d.workers.DeleteForSession(workerId, sessionId)
+	return &OperatorHandlerSession{
+		release: func() {
+			d.workers.DeleteForSession(workerId, sessionId)
+		},
 	}
+}
+
+// Release removes the session from the dispatcher. It is idempotent.
+func (s *OperatorHandlerSession) Release() {
+	s.release()
 }
