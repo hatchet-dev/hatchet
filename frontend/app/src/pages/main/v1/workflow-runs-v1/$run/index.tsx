@@ -43,6 +43,7 @@ import api, {
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { prettyPrintIfValidJson } from '@/lib/utils';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes, tenantRunRoute } from '@/router';
@@ -477,7 +478,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                     language="json"
                     code={
                       workflowRun.status === V1TaskStatus.FAILED
-                        ? workflowRun.errorMessage || ''
+                        ? prettyPrintIfValidJson(workflowRun.errorMessage || '')
                         : JSON.stringify(workflowRun.output, null, 2)
                     }
                   />
