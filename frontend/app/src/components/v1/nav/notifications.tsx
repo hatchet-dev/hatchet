@@ -6,6 +6,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import {
   Notification,
   NotificationColor,
   useNotifications,
@@ -112,24 +118,31 @@ export function Notifications() {
               </p>
             </div>
             {notification.dismissKey ? (
-              <button
-                type="button"
-                aria-label={`Dismiss ${notification.title}`}
-                className="mt-0.5 shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (notification.dismissKey) {
-                    dismiss(notification.dismissKey);
-                  }
-                }}
-              >
-                <X className="size-3.5" />
-              </button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Dismiss ${notification.title}`}
+                      className="mt-0.5 shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (notification.dismissKey) {
+                          dismiss(notification.dismissKey);
+                        }
+                      }}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Dismiss</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
           </DropdownMenuItem>
         ))}
