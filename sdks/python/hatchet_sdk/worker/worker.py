@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 from collections.abc import AsyncGenerator, Callable
+from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -130,6 +131,7 @@ class Worker:
         self._stop_listener_event = self._ctx.Event()
 
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._aio_start_exception: BaseException | None = None
 
         self._client = Client(config=self._config, debug=self._debug)
 
@@ -425,13 +427,33 @@ class Worker:
         if not self._loop:
             raise RuntimeError("event loop not set, cannot start worker")
 
-        asyncio.run_coroutine_threadsafe(self._aio_start(), self._loop)
+        aio_start_future = asyncio.run_coroutine_threadsafe(
+            self._aio_start(), self._loop
+        )
+        aio_start_future.add_done_callback(self._handle_aio_start_done)
 
         # start the loop and wait until its closed
         self._loop.run_forever()
 
+        if self._aio_start_exception is not None:
+            raise self._aio_start_exception
+
         if self._handle_kill:
             sys.exit(0)
+
+    def _handle_aio_start_done(self, future: Future[None]) -> None:
+        if future.cancelled():
+            return
+
+        exception = future.exception()
+        if exception is None:
+            return
+
+        logger.exception("worker failed to start", exc_info=exception)
+        self._aio_start_exception = exception
+
+        if self._loop:
+            self._loop.stop()
 
     def _emit_legacy_slot_deprecation(self) -> None:
         emit_deprecation_notice(
@@ -486,6 +508,17 @@ class Worker:
 
         return version
 
+    def _raise_for_duped_action_ids(self) -> None:
+        action_ids = [
+            w._create_action_name(t) for w in self._workflows for t in w.tasks
+        ]
+        duped_action_ids = {a for a in action_ids if action_ids.count(a) > 1}
+
+        if duped_action_ids:
+            raise ValueError(
+                f"duplicate action(s) found: '{', '.join(duped_action_ids)}'. actions must have unique names. this is likely the result of two tasks sharing the same name after being lowercased (e.g. `def fooBar` and `def foobar` would both register as `foobar`). please rename one of the tasks to avoid this conflict."
+            )
+
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
 
@@ -494,6 +527,8 @@ class Worker:
         logger.debug(f"worker starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
+
+        self._raise_for_duped_action_ids()
 
         await gather_max_concurrency(
             *[self.aio_register_workflow(wf) for wf in self._workflows],
