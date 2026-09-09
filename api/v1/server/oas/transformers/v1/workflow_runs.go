@@ -83,6 +83,11 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	status, isEvicted := mapOlapStatus(string(task.ReadableStatus))
 
+	runType := gen.V1WorkflowTypeDAG
+	if task.Kind == sqlcv1.V1RunKindTASK {
+		runType = gen.V1WorkflowTypeTASK
+	}
+
 	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
@@ -105,7 +110,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		TaskExternalId:        task.ExternalID,
 		TaskId:                taskId,
 		TaskInsertedAt:        task.InsertedAt.Time,
-		Type:                  gen.V1WorkflowTypeDAG,
+		Type:                  runType,
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &actionId,

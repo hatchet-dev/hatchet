@@ -18,7 +18,7 @@ import { queries } from '@/lib/api';
 import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { VisibilityState } from '@tanstack/react-table';
 import { useMemo, useState, useCallback } from 'react';
@@ -102,6 +102,7 @@ function WorkersTable() {
       includeOperators: showOperators || undefined,
     }),
     refetchInterval,
+    placeholderData: keepPreviousData,
   });
 
   const rows = listWorkersQuery.data?.rows ?? [];
