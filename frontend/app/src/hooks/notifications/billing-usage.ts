@@ -1,5 +1,6 @@
 import { billingUsageDismissKey } from './dismissed';
 import { Notification, NotificationColor } from './types';
+import { isPeriodUsageFeature } from '@/components/v1/cloud/billing/usage-features';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
@@ -33,6 +34,12 @@ const featureToNotification = (
   organizationName: string,
   timestamp: string,
 ): Notification | null => {
+  // Period included amounts for task runs / events are billing thresholds,
+  // not hard caps. Daily-limit features still notify.
+  if (isPeriodUsageFeature(feature.featureId)) {
+    return null;
+  }
+
   const status = getUsageLimitStatus(feature);
 
   if (status === 'ok') {

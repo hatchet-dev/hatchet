@@ -322,8 +322,7 @@ function OrganizationBillingContent() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Usage</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Consumption against your included limits, with daily task-run and
-            event history.
+            Plan limits plus this period&apos;s task-run and event counts.
           </p>
         </div>
 

@@ -2,9 +2,26 @@ import {
   UpgradeGate,
   UpgradeGateDialog,
 } from './upgrade-gate-dialog';
+import {
+  dailyMeterSeverity,
+  formatTimeUntil,
+  meterPercent,
+  nextRefillAt,
+  selectDailyMeters,
+  toUsageDisplayRows,
+  type DailyMeter,
+  type UsageDisplayRow,
+  type UsageSeverity,
+} from './usage-features';
 import { ZoomableChart } from '@/components/v1/molecules/charts/zoomable';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import {
   Card,
   CardContent,
@@ -32,6 +49,7 @@ import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data
 import { cn } from '@/lib/utils';
 import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer } from 'recharts';
 
@@ -49,8 +67,6 @@ function usagePercent(feature: OrganizationUsageFeature) {
   }
   return Math.min(100, (feature.usage / feature.includedUsage) * 100);
 }
-
-type UsageSeverity = 'ok' | 'warn' | 'critical';
 
 function usageSeverity(feature: OrganizationUsageFeature): UsageSeverity {
   if (feature.unlimited || feature.includedUsage <= 0) {
@@ -102,6 +118,66 @@ function formatUsageLabel(feature: OrganizationUsageFeature) {
     return `${formatUsageCount(feature.usage)} / ∞`;
   }
   return `${formatUsageCount(feature.usage)} / ${formatUsageCount(feature.includedUsage)}`;
+}
+
+function formatPeriodCount(feature: OrganizationUsageFeature) {
+  return `${formatUsageCount(feature.usage)} this period`;
+}
+
+function formatDailyMeterValue(meter: DailyMeter) {
+  return `${formatUsageCount(meter.value)} / ${formatUsageCount(meter.limitValue)}`;
+}
+
+function dailyLimitKind(window?: string) {
+  if (window === '24h0m0s' || window === '24h') {
+    return 'daily limit';
+  }
+  if (window === '168h0m0s' || window === '168h') {
+    return 'weekly limit';
+  }
+  if (window === '720h0m0s' || window === '720h') {
+    return 'monthly limit';
+  }
+  return 'limit';
+}
+
+function DailyMeterAnnotation({ meter }: { meter: DailyMeter }) {
+  const refill = nextRefillAt(meter);
+
+  return (
+    <span className="font-normal text-muted-foreground">
+      {' '}
+      ({dailyLimitKind(meter.window)}
+      {refill ? (
+        <>
+          {' - '}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                asChild
+                onFocusCapture={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <span
+                  className="underline decoration-muted-foreground/50 decoration-dotted underline-offset-2"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  {formatTimeUntil(refill)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {format(refill, 'yyyy-MM-dd HH:mm:ss.SSS zzz')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </>
+      ) : null}
+      {meter.showTenant && meter.tenantName ? ` - ${meter.tenantName}` : null})
+    </span>
+  );
 }
 
 function formatRangeLabel(start?: string, end?: string) {
@@ -169,29 +245,65 @@ function UsageSparkline({ values }: { values: number[] }) {
 }
 
 function UsageMeter({
-  feature,
+  row,
   sparkline,
   selectable,
   onSelect,
   onUpgrade,
 }: {
-  feature: OrganizationUsageFeature;
+  row: UsageDisplayRow;
   sparkline?: number[];
   selectable: boolean;
   onSelect: () => void;
   onUpgrade: () => void;
 }) {
-  const percent = usagePercent(feature);
-  const severity = usageSeverity(feature);
+  const { feature, dailyMeter, showPeriodAsCount } = row;
+  const percent = dailyMeter
+    ? meterPercent(dailyMeter)
+    : showPeriodAsCount
+      ? 0
+      : usagePercent(feature);
+  const severity = dailyMeter
+    ? dailyMeterSeverity(dailyMeter)
+    : showPeriodAsCount
+      ? 'ok'
+      : usageSeverity(feature);
   const styles = severityStyles[severity];
+  const showBar = dailyMeter
+    ? dailyMeter.limitValue > 0
+    : !showPeriodAsCount && !feature.unlimited && feature.includedUsage > 0;
+  const upgradeLabel = dailyMeter
+    ? `Upgrade to raise the ${feature.name} daily limit`
+    : `Upgrade to raise the ${feature.name} limit`;
+  const primaryValue = dailyMeter
+    ? formatDailyMeterValue(dailyMeter)
+    : showPeriodAsCount
+      ? formatPeriodCount(feature)
+      : formatUsageLabel(feature);
+
   const content = (
     <>
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm font-medium text-foreground">{feature.name}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">{feature.name}</p>
+            {dailyMeter && showPeriodAsCount ? (
+              <p className="text-xs text-muted-foreground">
+                {formatPeriodCount(feature)}
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1.5">
-            <p className={cn('text-sm tabular-nums', styles.value)}>
-              {formatUsageLabel(feature)}
+            <p
+              className={cn(
+                'text-sm tabular-nums',
+                dailyMeter || !showPeriodAsCount
+                  ? styles.value
+                  : 'text-muted-foreground',
+              )}
+            >
+              {primaryValue}
+              {dailyMeter ? <DailyMeterAnnotation meter={dailyMeter} /> : null}
             </p>
             {severity !== 'ok' ? (
               <button
@@ -204,19 +316,21 @@ function UsageMeter({
                   'rounded-sm p-0.5 transition-opacity hover:opacity-80',
                   styles.value,
                 )}
-                aria-label={`Upgrade to raise the ${feature.name} limit`}
+                aria-label={upgradeLabel}
               >
                 <ArrowUpCircleIcon className="h-3.5 w-3.5" />
               </button>
             ) : null}
           </div>
         </div>
-        <div className="h-1 overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn('h-full rounded-full', styles.bar)}
-            style={{ width: `${feature.unlimited ? 0 : percent}%` }}
-          />
-        </div>
+        {showBar ? (
+          <div className="h-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn('h-full rounded-full', styles.bar)}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        ) : null}
       </div>
       {sparkline ? <UsageSparkline values={sparkline} /> : null}
     </>
@@ -265,10 +379,24 @@ export function UsageThisPeriod({
     enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
 
+  const resourceLimits = useQuery({
+    ...queries.controlPlane.tenantResourceLimits(organizationId ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
+  });
+
   const features = useMemo(
     () =>
       [...(usage.data?.features ?? [])].sort((a, b) => b.usage - a.usage),
     [usage.data?.features],
+  );
+  const dailyMeters = useMemo(
+    () => selectDailyMeters(resourceLimits.data?.tenants ?? [], tenantId),
+    [resourceLimits.data?.tenants, tenantId],
+  );
+  const rows = useMemo(
+    () => toUsageDisplayRows(features, dailyMeters),
+    [dailyMeters, features],
   );
   const detailFeature = features.find(
     (feature) => feature.featureId === detailFeatureId,
@@ -294,7 +422,19 @@ export function UsageThisPeriod({
   });
 
   useEffect(() => {
-    if (tenantId !== 'all' || !timeseries.data?.tenants) {
+    if (tenantId !== 'all') {
+      return;
+    }
+
+    const fromLimits = (resourceLimits.data?.tenants ?? []).map((tenant) => ({
+      tenantId: tenant.tenantId,
+      tenantName: tenant.tenantName,
+    }));
+    if (fromLimits.length > 0) {
+      setTenantOptions(fromLimits);
+      return;
+    }
+    if (!timeseries.data?.tenants) {
       return;
     }
     setTenantOptions(
@@ -303,7 +443,7 @@ export function UsageThisPeriod({
         tenantName: tenant.tenantName,
       })),
     );
-  }, [tenantId, timeseries.data?.tenants]);
+  }, [resourceLimits.data?.tenants, tenantId, timeseries.data?.tenants]);
 
   const seriesByFeature = useMemo(() => {
     const series = timeseries.data?.series ?? [];
@@ -359,6 +499,7 @@ export function UsageThisPeriod({
               onClick={() => {
                 void usage.refetch();
                 void timeseries.refetch();
+                void resourceLimits.refetch();
               }}
             >
               Try again
@@ -416,25 +557,25 @@ export function UsageThisPeriod({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {features.length > 0 ? (
+          {rows.length > 0 ? (
             <div className="divide-y divide-border/40">
-              {features.map((feature) => {
-                const graphable = GRAPHABLE_FEATURES.has(feature.featureId);
+              {rows.map((row) => {
+                const graphable = GRAPHABLE_FEATURES.has(row.feature.featureId);
                 const sparkline = graphable
                   ? seriesByFeature[
-                      feature.featureId as keyof typeof seriesByFeature
+                      row.feature.featureId as keyof typeof seriesByFeature
                     ]
                   : undefined;
 
                 return (
                   <UsageMeter
-                    key={feature.featureId}
-                    feature={feature}
+                    key={row.feature.featureId}
+                    row={row}
                     sparkline={sparkline}
                     selectable={graphable}
-                    onSelect={() => setDetailFeatureId(feature.featureId)}
+                    onSelect={() => setDetailFeatureId(row.feature.featureId)}
                     onUpgrade={() =>
-                      setUpgradeGate(gateForFeature(feature.featureId))
+                      setUpgradeGate(gateForFeature(row.feature.featureId))
                     }
                   />
                 );
