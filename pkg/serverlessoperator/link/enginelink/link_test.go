@@ -504,7 +504,7 @@ func TestOpenRegistersWorkerAndSession(t *testing.T) {
 	// the session
 	session := h.dispatcher.session(workerId)
 	require.NotNil(t, session)
-	assert.Equal(t, workerId, session.WorkerId())
+	assert.Equal(t, workerId, session.(sessionOperator).WorkerId())
 	assert.Equal(t, 2, h.dispatcher.notifyCount())
 
 	// heartbeats run until Close

@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
@@ -130,12 +131,13 @@ func (r *registration) HandleAction(_ context.Context, action *contracts.Assigne
 	}
 }
 
-// Cleanup implements operator.Operator. The core drains in-flight deliveries itself, so
-// there is nothing to do here; the dispatcher never calls it for sessions it does not own.
-func (r *registration) Cleanup() {}
+// Start implements operator.Operator. The link opens the session itself; the dispatcher
+// never calls it.
+func (r *registration) Start(context.Context, operator.Session) error { return nil }
 
-// Drain implements operator.Operator; see Cleanup.
-func (r *registration) Drain() {}
+// Drain implements operator.Operator. The core drains in-flight deliveries itself, so there
+// is nothing to do here; the dispatcher never calls it for sessions it does not own.
+func (r *registration) Drain(context.Context) {}
 
 // Actions implements link.Registration. The channels close when ctx is cancelled or the
 // registration is closed.
