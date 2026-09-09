@@ -6,7 +6,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -18,9 +17,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
+	"github.com/rs/zerolog"
 	"github.com/sethvargo/go-retry"
 
 	_ "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate/migrations" // register go migrations
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/migratediag"
 )
 
@@ -31,6 +33,24 @@ type runMigrationsOpt struct {
 	upToPenultimate bool
 	upToVersion     int64
 	databaseURL     string
+	logger          *zerolog.Logger
+}
+
+// resolveLogger returns the caller-supplied logger, or the package default.
+//
+// The default writes to stderr at info level so that in-process consumers
+// (e.g. embedded mode, the test harness) do not get migration diagnostics on
+// their output unless something goes wrong. The standalone hatchet-migrate
+// command wires a console logger at debug level, which keeps every line it
+// printed before visible.
+func (o *runMigrationsOpt) resolveLogger() *zerolog.Logger {
+	if o.logger != nil {
+		return o.logger
+	}
+
+	l := logger.NewStdErr(&shared.LoggerConfigFile{Level: "info", Format: "json"}, "migrate")
+
+	return &l
 }
 
 type RunMigrationsOpt func(*runMigrationsOpt)
@@ -57,6 +77,15 @@ func WithDatabaseURL(url string) RunMigrationsOpt {
 	}
 }
 
+// WithLogger routes migration output through the given logger. Callers that
+// embed the engine in their own process should pass their configured logger so
+// that migrations do not write to stdout/stderr on their own terms.
+func WithLogger(l *zerolog.Logger) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.logger = l
+	}
+}
+
 func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
@@ -64,6 +93,8 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	for _, opt := range opts {
 		opt(options)
 	}
+
+	l := options.resolveLogger()
 
 	const (
 		databaseEnvVar = "DATABASE_URL"
@@ -116,11 +147,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
 		}
 
 		if err := db.Close(); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
 		}
 	}()
 
@@ -174,7 +205,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 			return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "check atlas_schema_revisions existence", err)
 		}
 
-		fmt.Printf("Does existing atlas schema exist? %v\n", atlasExists)
+		l.Debug().Msgf("Does existing atlas schema exist? %v", atlasExists)
 
 		// 2. If it does, check for the latest migration in the atlas schema.
 		if atlasExists {
@@ -183,7 +214,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 			err = conn.QueryRowContext(ctx, atlasLatestQuery).Scan(&version)
 			if err == nil {
 				baseline = version
-				fmt.Printf("Baseline version from atlas: %s\n", baseline)
+				l.Debug().Msgf("Baseline version from atlas: %s", baseline)
 			}
 		}
 
@@ -196,7 +227,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "check _prisma_migrations existence", err)
 			}
 
-			fmt.Printf("Does existing prisma schema exist? %v\n", prismaExists)
+			l.Debug().Msgf("Does existing prisma schema exist? %v", prismaExists)
 
 			// 4. If it does, check for the latest migration in the prisma schema.
 			if prismaExists {
@@ -205,7 +236,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				err = conn.QueryRowContext(ctx, prismaLatestQuery).Scan(&migrationName)
 				if err == nil {
 					baseline = migrationName
-					fmt.Printf("Baseline version from prisma: %s\n", baseline)
+					l.Debug().Msgf("Baseline version from prisma: %s", baseline)
 				}
 			}
 		}
@@ -237,7 +268,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				}
 				version := parts[0]
 				if version <= baseline {
-					fmt.Printf("Including version %s from %s\n", version, name)
+					l.Debug().Msgf("Including version %s from %s", version, name)
 					migrations = append(migrations, migration{version: version, filename: name})
 				}
 			}
@@ -391,13 +422,21 @@ func listMigrations() (goose.Migrations, error) {
 }
 
 // RunDownMigration runs down migrations to a specific version.
-func RunDownMigration(ctx context.Context, targetVersion string) {
-	if err := runDownMigrationImpl(ctx, targetVersion); err != nil {
-		log.Fatal(err)
+func RunDownMigration(ctx context.Context, targetVersion string, opts ...RunMigrationsOpt) {
+	options := &runMigrationsOpt{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	l := options.resolveLogger()
+
+	if err := runDownMigrationImpl(ctx, targetVersion, l); err != nil {
+		l.Fatal().Msgf("%v", err)
 	}
 }
 
-func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
+func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.Logger) error {
 	const (
 		databaseEnvVar = "DATABASE_URL"
 		phaseName      = "oss-down"
@@ -447,13 +486,13 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 	defer func() {
 		if conn != nil {
 			if err := conn.Close(); err != nil {
-				log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+				l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
 			}
 		}
 
 		if db != nil {
 			if err := db.Close(); err != nil {
-				log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+				l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
 			}
 		}
 	}()
@@ -472,7 +511,7 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 
 	defer func() {
 		if err := locker.SessionUnlock(ctx, conn); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err))
+			l.Warn().Msgf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err))
 		}
 	}()
 
@@ -497,17 +536,17 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 	}
 
 	if currentVersion == targetVersionInt {
-		fmt.Printf("Database is already at version %d. No migration needed.\n", targetVersionInt)
+		l.Info().Msgf("Database is already at version %d. No migration needed.", targetVersionInt)
 		return nil
 	}
 
-	fmt.Printf("Migrating down from version %d to version %d\n", currentVersion, targetVersionInt)
+	l.Info().Msgf("Migrating down from version %d to version %d", currentVersion, targetVersionInt)
 
 	err = goose.DownTo(db, ".", targetVersionInt)
 	if err != nil {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply down migration", fmt.Errorf("target version %d: %w", targetVersionInt, err))
 	}
 
-	fmt.Printf("Successfully migrated down to version %d\n", targetVersionInt)
+	l.Info().Msgf("Successfully migrated down to version %d", targetVersionInt)
 	return nil
 }
