@@ -51,20 +51,34 @@ func NewTriggerWriter(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, repo v1.
 	}
 }
 
-func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts) error {
-	// attempt to acquire a slot in the semaphore
-	if tw.semaphore != nil {
+func (tw *TriggerWriter) acquireSlot(ctx context.Context, wait bool) (func(), error) {
+	if tw.semaphore == nil {
+		return func() {}, nil
+	}
+
+	if wait {
 		select {
 		case tw.semaphore <- struct{}{}:
-			// acquired a slot
-			defer func() {
-				<-tw.semaphore
-			}()
-		default:
-			// no slots available
-			return ErrNoTriggerSlots
+			return func() { <-tw.semaphore }, nil
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: %w", ErrNoTriggerSlots, ctx.Err())
 		}
 	}
+
+	select {
+	case tw.semaphore <- struct{}{}:
+		return func() { <-tw.semaphore }, nil
+	default:
+		return nil, ErrNoTriggerSlots
+	}
+}
+
+func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts) error {
+	release, err := tw.acquireSlot(ctx, false)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	opts := make([]v1.EventTriggerOpts, 0, len(eventIdToOpts))
 
@@ -113,19 +127,21 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 }
 
 func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
-	// attempt to acquire a slot in the semaphore
-	if tw.semaphore != nil {
-		select {
-		case tw.semaphore <- struct{}{}:
-			// acquired a slot
-			defer func() {
-				<-tw.semaphore
-			}()
-		default:
-			// no slots available
-			return nil, ErrNoTriggerSlots
-		}
+	return tw.triggerFromWorkflowNames(ctx, tenantId, opts, false)
+}
+
+// TriggerFromWorkflowNamesWaiting acquires a trigger slot, blocking until one is free or ctx is done.
+// Use this when the caller cannot fall back to the durable queue (idempotent batches).
+func (tw *TriggerWriter) TriggerFromWorkflowNamesWaiting(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
+	return tw.triggerFromWorkflowNames(ctx, tenantId, opts, true)
+}
+
+func (tw *TriggerWriter) triggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, waitForSlot bool) ([]v1.IdempotencyCollision, error) {
+	release, err := tw.acquireSlot(ctx, waitForSlot)
+	if err != nil {
+		return nil, err
 	}
+	defer release()
 
 	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
