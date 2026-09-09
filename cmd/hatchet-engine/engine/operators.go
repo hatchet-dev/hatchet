@@ -21,12 +21,22 @@ import (
 // operatorStopTimeout bounds the claimer's teardown of every hosted operator at shutdown.
 const operatorStopTimeout = 60 * time.Second
 
+// inprocOperators is the engine's in-process operator runtime: the one host every operator
+// hosted in this dispatcher process opens its sessions on (the claimed DAG operators and the
+// serverless operator alike), and the stop that pauses, drains and closes the claimed
+// operators, then the host and its service. The serverless operator closes its own sessions
+// before stop runs.
+type inprocOperators struct {
+	host *hostinproc.Host
+	stop func() error
+}
+
 // startOperatorClaimer hosts the operators this dispatcher claims inside the engine process:
 // the in-process host over the engine's operator session logic, and the claimer that opens
-// the DAG operator on it for every claimed row. It returns a stop function that pauses,
-// drains and closes every hosted operator and blocks until it has; the caller runs it before
-// the dispatcher drains its workers so the operators' events still have somewhere to go.
-func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, adminv1Svc adminv1.AdminService) (stop func() error, err error) {
+// the DAG operator on it for every claimed row. The stop it returns blocks until every claimed
+// operator is torn down; the caller runs it before the dispatcher drains its workers so the
+// operators' events still have somewhere to go.
+func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, adminv1Svc adminv1.AdminService) (*inprocOperators, error) {
 	l := sc.Logger.With().Str("service", "operator-claimer").Logger()
 
 	svc, err := operatorsvc.New(
@@ -80,14 +90,17 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 	// ordered by the cleanup chain, not by the engine context's cancellation.
 	c.Start(context.Background())
 
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), operatorStopTimeout)
-		defer cancel()
+	return &inprocOperators{
+		host: host,
+		stop: func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), operatorStopTimeout)
+			defer cancel()
 
-		c.Stop(ctx)
-		host.Close()
+			c.Stop(ctx)
+			host.Close()
 
-		return svc.Cleanup()
+			return svc.Cleanup()
+		},
 	}, nil
 }
 

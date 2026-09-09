@@ -14,7 +14,7 @@ const (
 	// unhealthy. One success flips it back.
 	unhealthyAfterFailures = 3
 
-	// noTokenStatusError is written once on the endpoints of a tenant the link cannot
+	// noTokenStatusError is written once on the endpoints of a tenant the host cannot
 	// authenticate as.
 	noTokenStatusError = "no token for tenant"
 )
@@ -42,7 +42,7 @@ type endpointPoller struct {
 	registeredKnown bool
 	lastHash        string
 
-	// rejectedHash is the response hash the engine or the link last refused, with the
+	// rejectedHash is the response hash the engine or the host last refused, with the
 	// backoff before the same catalog is tried again; an unchanged rejected catalog is not
 	// re-put on every poll.
 	rejectedHash    string
@@ -56,7 +56,7 @@ type endpointPoller struct {
 const rejectedBackoffMax = time.Hour
 
 // catalogRejected marks an error the engine gave for the catalog itself, which the same
-// catalog will get again: it backs off. Transport and link failures are retried on the next
+// catalog will get again: it backs off. Transport and engine failures are retried on the next
 // poll.
 type catalogRejected struct{ err error }
 
@@ -238,7 +238,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 			continue
 		}
 
-		if _, err := reg.reg.PutWorkflow(ctx, wf); err != nil {
+		if _, err := reg.session.PutWorkflow(ctx, wf); err != nil {
 			return catalogRejected{err: fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)}
 		}
 

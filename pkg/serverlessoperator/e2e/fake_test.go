@@ -77,6 +77,7 @@ type fakeEndpoint struct {
 	script     durableScript
 	failStatus int
 	failBody   string
+	hold       chan struct{}
 	endpointId string
 	requests   []recordedRequest
 	runs       []durableRun
@@ -149,6 +150,32 @@ func (f *fakeEndpoint) setScript(s durableScript) {
 	f.script = s
 }
 
+// holdTriggers makes every trigger request from now on wait, after it is recorded, until the
+// returned release is called (or the request ends), so a test can observe the operator with
+// a delivery in flight.
+func (f *fakeEndpoint) holdTriggers() (release func()) {
+	hold := make(chan struct{})
+
+	f.mu.Lock()
+	f.hold = hold
+	f.mu.Unlock()
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			f.mu.Lock()
+
+			if f.hold == hold {
+				f.hold = nil
+			}
+
+			f.mu.Unlock()
+			close(hold)
+		})
+	}
+}
+
 func (f *fakeEndpoint) setFailure(status int, body string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -217,7 +244,7 @@ func (f *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 	case healthcheckPath:
 		f.serveHealthcheck(w, body)
 	case triggerPath:
-		f.serveTrigger(w, body)
+		f.serveTrigger(w, r, body)
 	default:
 		http.NotFound(w, r)
 	}
@@ -251,7 +278,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 	_, _ = w.Write(out)
 }
 
-func (f *fakeEndpoint) serveTrigger(w http.ResponseWriter, body []byte) {
+func (f *fakeEndpoint) serveTrigger(w http.ResponseWriter, r *http.Request, body []byte) {
 	env := &v1.ServerlessTriggerRequest{}
 
 	if err := contract.Unmarshal(body, env); err != nil {
@@ -276,8 +303,16 @@ func (f *fakeEndpoint) serveTrigger(w http.ResponseWriter, body []byte) {
 	})
 
 	f.mu.Lock()
-	failStatus, failBody := f.failStatus, f.failBody
+	failStatus, failBody, hold := f.failStatus, f.failBody, f.hold
 	f.mu.Unlock()
+
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-r.Context().Done():
+			return
+		}
+	}
 
 	if failStatus != 0 {
 		w.Header().Set("Content-Type", "application/json")

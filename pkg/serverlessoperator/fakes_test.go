@@ -20,11 +20,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 // fakeEnc "decrypts" by stripping the enc: prefix; anything else fails.
@@ -44,39 +44,50 @@ func (fakeEnc) DecryptString(ciphertext string, dataId string) (string, error) {
 	return strings.TrimPrefix(ciphertext, "enc:"), nil
 }
 
-// actionDelta is one AddActions or RemoveActions call recorded by fakeRegistration.
+// actionDelta is one AddActions or RemoveActions call recorded by fakeSession.
 type actionDelta struct {
 	add    []string
 	remove []string
 }
 
-// fakeRegistration records what the core does with a registration and lets tests push
-// assigned actions. openDurable, when set, backs OpenDurable; otherwise the link reports
-// durable delivery unsupported. deltas records every add and remove in order; flushes counts
-// Flush calls.
-type fakeRegistration struct {
-	actions     chan *contracts.AssignedAction
-	errs        chan error
+// fakeSession records what the core does with a session and hands assigned actions to the
+// handler the core opened it with. openDurable, when set, backs OpenDurable; otherwise the
+// session reports durable delivery unsupported, as operatortest.Session does. deltas records
+// every add and remove in order; flushes counts Flush calls; ops records the lifecycle calls
+// (pause, close) in order.
+type fakeSession struct {
+	handler     operator.ActionHandler
+	reg         operator.Registration
 	putErr      error
 	deltaErr    error
-	openDurable func(taskId string, invocation int32) (link.DurableChannel, error)
-	workerId    string
+	openDurable func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error)
 	puts        []*v1.CreateWorkflowVersionRequest
 	deltas      []actionDelta
 	events      []*contracts.StepActionEvent
-	tenantId    uuid.UUID
+	ops         []string
 	flushes     int
 	mu          sync.Mutex
 	closed      bool
 }
 
-func (f *fakeRegistration) WorkerId() string { return f.workerId }
+var _ operator.Session = (*fakeSession)(nil)
 
-func (f *fakeRegistration) Actions(_ context.Context) (<-chan *contracts.AssignedAction, <-chan error, error) {
-	return f.actions, f.errs, nil
+func (f *fakeSession) Registration() operator.Registration { return f.reg }
+
+// workerId is the worker id the way events carry it.
+func (f *fakeSession) workerId() string { return f.reg.WorkerId.String() }
+
+// deliver hands an action to the core's handler the way a host does and fails the test if
+// the handler refuses it.
+func (f *fakeSession) deliver(t *testing.T, action *contracts.AssignedAction) {
+	t.Helper()
+
+	if err := f.handler.HandleAction(context.Background(), action); err != nil {
+		t.Fatalf("handler refused the action: %v", err)
+	}
 }
 
-func (f *fakeRegistration) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
+func (f *fakeSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -89,7 +100,7 @@ func (f *fakeRegistration) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowV
 	return actionsForWorkflow(wf)
 }
 
-func (f *fakeRegistration) AddActions(_ context.Context, ids []string) error {
+func (f *fakeSession) AddActions(_ context.Context, ids []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -102,7 +113,7 @@ func (f *fakeRegistration) AddActions(_ context.Context, ids []string) error {
 	return nil
 }
 
-func (f *fakeRegistration) RemoveActions(_ context.Context, ids []string) error {
+func (f *fakeSession) RemoveActions(_ context.Context, ids []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -115,7 +126,7 @@ func (f *fakeRegistration) RemoveActions(_ context.Context, ids []string) error 
 	return nil
 }
 
-func (f *fakeRegistration) Flush(_ context.Context) error {
+func (f *fakeSession) Flush(_ context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -124,7 +135,7 @@ func (f *fakeRegistration) Flush(_ context.Context) error {
 	return nil
 }
 
-func (f *fakeRegistration) SendStepActionEvent(_ context.Context, ev *contracts.StepActionEvent) error {
+func (f *fakeSession) SendStepActionEvent(_ context.Context, ev *contracts.StepActionEvent) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -133,42 +144,64 @@ func (f *fakeRegistration) SendStepActionEvent(_ context.Context, ev *contracts.
 	return nil
 }
 
-func (f *fakeRegistration) OpenDurable(_ context.Context, taskId string, invocation int32) (link.DurableChannel, error) {
+func (f *fakeSession) OpenDurable(_ context.Context, taskId uuid.UUID, invocation int32) (operator.DurableChannel, error) {
 	f.mu.Lock()
 	open := f.openDurable
 	f.mu.Unlock()
 
 	if open == nil {
-		return nil, link.ErrDurableNotSupported
+		return nil, operator.ErrNotSupported
 	}
 
 	return open(taskId, invocation)
 }
 
-func (f *fakeRegistration) setOpenDurable(open func(taskId string, invocation int32) (link.DurableChannel, error)) {
+func (f *fakeSession) setOpenDurable(open func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.openDurable = open
 }
 
-func (f *fakeRegistration) Close() error {
+func (f *fakeSession) Pause(_ context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.closed = true
+	if f.closed {
+		return operator.ErrSessionClosed
+	}
+
+	f.ops = append(f.ops, "pause")
 
 	return nil
 }
 
-func (f *fakeRegistration) isClosed() bool {
+func (f *fakeSession) Close(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.closed = true
+	f.ops = append(f.ops, "close")
+
+	return nil
+}
+
+func (f *fakeSession) isClosed() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return f.closed
 }
 
-func (f *fakeRegistration) eventTypes() []contracts.StepActionEventType {
+// lifecycle returns the pause and close calls in order.
+func (f *fakeSession) lifecycle() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string{}, f.ops...)
+}
+
+func (f *fakeSession) eventTypes() []contracts.StepActionEventType {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -181,7 +214,7 @@ func (f *fakeRegistration) eventTypes() []contracts.StepActionEventType {
 	return out
 }
 
-func (f *fakeRegistration) lastEvent() *contracts.StepActionEvent {
+func (f *fakeSession) lastEvent() *contracts.StepActionEvent {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -192,14 +225,14 @@ func (f *fakeRegistration) lastEvent() *contracts.StepActionEvent {
 	return f.events[len(f.events)-1]
 }
 
-func (f *fakeRegistration) putCount() int {
+func (f *fakeSession) putCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return len(f.puts)
 }
 
-func (f *fakeRegistration) deltaCount() int {
+func (f *fakeSession) deltaCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -207,7 +240,7 @@ func (f *fakeRegistration) deltaCount() int {
 }
 
 // added and removed flatten the recorded deltas, in order.
-func (f *fakeRegistration) added() []string {
+func (f *fakeSession) added() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -220,7 +253,7 @@ func (f *fakeRegistration) added() []string {
 	return out
 }
 
-func (f *fakeRegistration) removed() []string {
+func (f *fakeSession) removed() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -233,7 +266,7 @@ func (f *fakeRegistration) removed() []string {
 	return out
 }
 
-func (f *fakeRegistration) flushCount() int {
+func (f *fakeSession) flushCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -241,74 +274,75 @@ func (f *fakeRegistration) flushCount() int {
 }
 
 type openCall struct {
-	opts     link.OpenOpts
-	tenantId uuid.UUID
+	id   operator.Identity
+	opts operator.OpenOpts
 }
 
-// fakeLink hands out fakeRegistrations and records Opens and tenant releases.
-type fakeLink struct {
+// fakeHost hands out fakeSessions and records Opens and tenant releases.
+type fakeHost struct {
 	openErr  error
 	opens    []openCall
-	regs     []*fakeRegistration
+	sessions []*fakeSession
 	released []uuid.UUID
 	mu       sync.Mutex
 }
 
-func (f *fakeLink) Open(_ context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
+var _ operator.Host = (*fakeHost)(nil)
+
+func (f *fakeHost) Open(_ context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.opens = append(f.opens, openCall{tenantId: tenantId, opts: opts})
+	f.opens = append(f.opens, openCall{id: id, opts: opts})
 
 	if f.openErr != nil {
 		return nil, f.openErr
 	}
 
-	reg := &fakeRegistration{
-		tenantId: tenantId,
-		workerId: fmt.Sprintf("worker-%d", len(f.regs)),
-		actions:  make(chan *contracts.AssignedAction, 16),
-		errs:     make(chan error, 1),
+	s := &fakeSession{
+		handler: opts.Handler,
+		reg:     operator.Registration{TenantId: id.TenantId, OperatorId: uuid.New(), WorkerId: uuid.New()},
 	}
 
-	f.regs = append(f.regs, reg)
+	f.sessions = append(f.sessions, s)
 
-	return reg, nil
+	return s, nil
 }
 
-func (f *fakeLink) ReleaseTenant(tenantId uuid.UUID) {
+func (f *fakeHost) ReleaseTenant(tenantId uuid.UUID) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.released = append(f.released, tenantId)
 }
 
-func (f *fakeLink) setOpenErr(err error) {
+func (f *fakeHost) setOpenErr(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.openErr = err
 }
 
-func (f *fakeLink) openCount() int {
+func (f *fakeHost) openCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return len(f.opens)
 }
 
-func (f *fakeLink) reg(i int) *fakeRegistration {
+// session returns the i-th session opened, or nil.
+func (f *fakeHost) session(i int) *fakeSession {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if i >= len(f.regs) {
+	if i >= len(f.sessions) {
 		return nil
 	}
 
-	return f.regs[i]
+	return f.sessions[i]
 }
 
-func (f *fakeLink) releasedTenants() []uuid.UUID {
+func (f *fakeHost) releasedTenants() []uuid.UUID {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -445,7 +479,7 @@ func prefixed(ns uuid.UUID, action string) string {
 
 type testEnv struct {
 	repo   *memrepo.Repo
-	link   *fakeLink
+	host   *fakeHost
 	sender *fakeSender
 	r      *runner
 }
@@ -456,7 +490,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	l := zerolog.Nop()
 
 	repo := memrepo.New()
-	lnk := &fakeLink{}
+	host := &fakeHost{}
 	sender := newFakeSender()
 
 	cfg := Config{
@@ -471,7 +505,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	r := newRunner(Deps{
 		Repo:       repo,
-		Link:       lnk,
+		Host:       host,
 		Encryption: fakeEnc{},
 		Sender:     sender,
 		Logger:     &l,
@@ -480,7 +514,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	t.Cleanup(r.Shutdown)
 
-	return &testEnv{repo: repo, link: lnk, sender: sender, r: r}
+	return &testEnv{repo: repo, host: host, sender: sender, r: r}
 }
 
 // addEndpoint stores the row and installs a healthcheck handler that advertises the row's

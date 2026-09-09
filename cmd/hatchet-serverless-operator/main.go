@@ -1,6 +1,6 @@
 // hatchet-serverless-operator runs the serverless operator core out of process: it talks to
-// the engine database for leases and endpoints and to the engine's OperatorService over gRPC
-// with per-tenant tokens.
+// the engine database for leases and endpoints and, through the gRPC operator host, to the
+// engine's OperatorService with per-tenant tokens.
 package main
 
 import (
@@ -21,10 +21,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link/grpclink"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -180,14 +180,14 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func newExchange(cf *configFile, l *zerolog.Logger) (grpclink.TenantTokenExchange, func(), error) {
+func newExchange(cf *configFile, l *zerolog.Logger) (hostgrpc.TokenSource, func(), error) {
 	switch strings.ToLower(strings.TrimSpace(cf.TokenExchange)) {
 	case "local":
 		if cf.TokenFile == "" {
 			return nil, nil, fmt.Errorf("SERVERLESS_OPERATOR_TOKEN_FILE is required with TOKEN_EXCHANGE=local")
 		}
 
-		ex, err := grpclink.NewLocalExchange(cf.TokenFile)
+		ex, err := hostgrpc.NewLocalExchange(cf.TokenFile, hostgrpc.WithLogger(l))
 
 		if err != nil {
 			return nil, nil, err
@@ -199,7 +199,7 @@ func newExchange(cf *configFile, l *zerolog.Logger) (grpclink.TenantTokenExchang
 			return nil, nil, fmt.Errorf("set SERVERLESS_OPERATOR_TOKEN_EXCHANGE=local with a token file, or HATCHET_CLIENT_TOKEN for a single tenant")
 		}
 
-		ex, err := grpclink.NewStaticExchange(cf.ClientToken)
+		ex, err := hostgrpc.NewStaticExchange(cf.ClientToken)
 
 		if err != nil {
 			return nil, nil, err
@@ -276,14 +276,13 @@ func run(ctx context.Context, cf *configFile) error {
 
 	hostname, _ := os.Hostname()
 
-	lnk := grpclink.New(exchange, grpclink.Options{
-		Logger:       &l,
-		OperatorName: cf.OperatorName,
-	})
+	// The operator name is the core's: it registers each tenant's session under it.
+	host := hostgrpc.New(exchange, hostgrpc.Options{Logger: &l})
+	defer host.Close()
 
 	return serverlessoperator.Run(ctx, serverlessoperator.Deps{
 		Repo:       repo,
-		Link:       lnk,
+		Host:       host,
 		Encryption: enc,
 		Sender:     sender,
 		Logger:     &l,

@@ -13,16 +13,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// linkCase is one of the two links a scenario runs against: the in-engine process, or an
-// out-of-process instance started for the subtest. owner is the process id the scenario pins
-// its tenant's lease to.
+// linkCase is one of the two hosts a scenario runs against: the in-engine process (the
+// in-process host), or an out-of-process instance (the gRPC host) started for the subtest.
+// owner is the process id the scenario pins its tenant's lease to.
 type linkCase struct {
 	e     *testEnv
 	owner uuid.UUID
 	name  string
 }
 
-// forEachLink runs the scenario once per link. The in-engine case runs first with no
+// forEachLink runs the scenario once per host. The in-engine case runs first with no
 // out-of-process instance alive, the grpc case starts one and stops it at the end of the
 // subtest, so at most one out-of-process instance is ever live during these scenarios.
 func forEachLink(t *testing.T, fn func(t *testing.T, lc linkCase)) {
@@ -413,12 +413,75 @@ func TestGracefulShutdownDeactivates(t *testing.T) {
 
 	for _, w := range workers {
 		assert.True(t, w.active, "worker %s must be active before shutdown", w.id)
+		assert.False(t, w.paused, "worker %s must not be paused before shutdown", w.id)
 	}
 
-	require.NoError(t, p.stop())
+	// A delivery is held at the endpoint while the process stops: the worker must be paused
+	// (nothing new assigned to it) before the drain waits on that delivery, and still active
+	// while it does, since deactivation is the close that follows the drain.
+	release := fake.holdTriggers()
 
-	// Closing a Listen stream deactivates the worker on the engine side once the server
-	// observes the stream end, so the flip lands shortly after stop returns.
+	ref, err := tn.sdk.RunNoWait(e.ctx, namespaced(ns, "echo"), map[string]any{"held": true})
+	require.NoError(t, err)
+
+	e.pollUntil(30*time.Second, "the held run to reach the endpoint", func() (bool, error) {
+		return len(fake.requestsOfKind("trigger")) >= 2, nil
+	})
+
+	// The process serves other tenants too, whose registrations have nothing in flight and
+	// finish their teardown at once; the ordering shows on this tenant's worker.
+	tenantWorker := func() (workerRow, bool) {
+		for _, w := range e.serverlessWorkers(tn.id) {
+			if w.process == p.id.String() {
+				return w, true
+			}
+		}
+
+		return workerRow{}, false
+	}
+
+	stopped := make(chan error, 1)
+
+	go func() { stopped <- p.stop() }()
+
+	e.pollUntil(10*time.Second, "the worker to be paused while its delivery is held", func() (bool, error) {
+		w, ok := tenantWorker()
+
+		if !ok {
+			return false, fmt.Errorf("no worker of process %s for the tenant", p.id)
+		}
+
+		if !w.active {
+			return false, fmt.Errorf("worker %s was deactivated before its delivery drained", w.id)
+		}
+
+		if !w.paused {
+			return false, fmt.Errorf("worker %s is not paused", w.id)
+		}
+
+		return true, nil
+	})
+
+	select {
+	case err := <-stopped:
+		t.Fatalf("stop returned while a delivery was held: %v", err)
+	default:
+	}
+
+	release()
+
+	select {
+	case err := <-stopped:
+		require.NoError(t, err)
+	case <-time.After(drainTimeout + 30*time.Second):
+		t.Fatal("stop did not return once the held delivery was released")
+	}
+
+	held := e.waitForCompletion(tn, ref.RunId, 30*time.Second)
+	assert.Equal(t, map[string]any{"held": true}, taskOutput(t, held)["input"], "the held delivery completed on the paused worker")
+
+	// The close that follows the drain deactivates the worker on the engine side; the flip
+	// lands shortly after stop returns.
 	e.pollUntil(10*time.Second, "workers of the stopped process to be inactive", func() (bool, error) {
 		for _, w := range e.workersOfProcess(p.id) {
 			if w.active {

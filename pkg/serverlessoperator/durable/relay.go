@@ -16,9 +16,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 const (
@@ -98,7 +98,7 @@ func evicted(closeCode int, source string) Outcome {
 type Params struct {
 	Logger  *zerolog.Logger
 	Dialer  NetDialer
-	Channel link.DurableChannel
+	Channel operator.DurableChannel
 	Action  *contracts.AssignedAction
 
 	// Cancelled reports, once ctx is done, whether the engine cancelled the task (close
@@ -185,6 +185,8 @@ func (p *Params) newNonce() (string, error) {
 type relay struct {
 	p          *Params
 	conn       *websocket.Conn
+	ctx        context.Context
+	cancel     context.CancelFunc
 	l          *zerolog.Logger
 	sendQ      chan []byte
 	stop       chan struct{}
@@ -228,9 +230,18 @@ func Run(ctx context.Context, p Params) Outcome {
 
 	conn.SetReadLimit(p.MaxFrameBytes)
 
+	// The channel calls of the pump goroutines run on the relay's own context, cancelled by
+	// teardown once the channel is closed, so no goroutine outlives Run. It is deliberately
+	// not derived from ctx: the delivery context ending is Run's exit (an abort through the
+	// select below), and a Recv that returned on it first would look like an engine failure.
+	rctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	r := &relay{
 		p:          &p,
 		conn:       conn,
+		ctx:        rctx,
+		cancel:     cancel,
 		l:          p.Logger,
 		sendQ:      make(chan []byte, sendQueueSize),
 		stop:       make(chan struct{}),
@@ -384,6 +395,7 @@ func (r *relay) teardown() {
 
 	_ = r.conn.Close()
 	_ = r.p.Channel.Close()
+	r.cancel()
 
 	r.wg.Wait()
 }
@@ -524,8 +536,8 @@ func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 		return false
 	}
 
-	if err := r.p.Channel.Send(req); err != nil {
-		if errors.Is(err, link.ErrRequestInFlight) {
+	if err := r.p.Channel.Send(r.ctx, req); err != nil {
+		if errors.Is(err, operator.ErrRequestInFlight) {
 			r.violation(CloseRequestInFlight, "endpoint sent a durable request while another was awaiting its ack")
 		} else {
 			r.linkFailed(err)
@@ -546,8 +558,8 @@ func (e *mismatchError) Error() string {
 }
 
 // stamp overwrites the task id and invocation count on the request. A non-empty id or a
-// non-zero count that differs from the invocation's is a mismatch; link-internal request
-// kinds are forbidden.
+// non-zero count that differs from the invocation's is a mismatch; the request kinds the host
+// owns (register_worker, worker_status) are forbidden.
 func (r *relay) stamp(req *v1.DurableTaskRequest) error {
 	var (
 		id  *string
@@ -570,7 +582,7 @@ func (r *relay) stamp(req *v1.DurableTaskRequest) error {
 
 		id, inv = &m.CompleteMemo.Ref.DurableTaskExternalId, &m.CompleteMemo.Ref.InvocationCount
 	case *v1.DurableTaskRequest_RegisterWorker, *v1.DurableTaskRequest_WorkerStatus:
-		return errors.New("endpoint sent a link-internal durable request")
+		return errors.New("endpoint sent a host-internal durable request")
 	default:
 		return errors.New("endpoint sent an unknown durable request")
 	}
@@ -591,7 +603,7 @@ func (r *relay) stamp(req *v1.DurableTaskRequest) error {
 	return nil
 }
 
-// confine is the namespace boundary of the relay, shared by both links: the resources an
+// confine is the namespace boundary of the relay, the same in either host: the resources an
 // endpoint names in a nested request are prefixed with its namespace the way the operator
 // prefixed what it registered (contract.ApplyNamespace), so a durable task can only
 // trigger workflows and wait for user events of its own namespace. Names that already carry
@@ -618,15 +630,17 @@ func (r *relay) confine(req *v1.DurableTaskRequest) {
 	}
 }
 
-// pumpLoop forwards engine responses to the send queue.
+// pumpLoop forwards engine responses to the send queue. A Recv that fails while the relay is
+// live ends it as an engine-side failure, which includes the engine ending the invocation on
+// its own (operator.ErrSessionEnded); a closed channel is the relay's own teardown.
 func (r *relay) pumpLoop() {
 	defer r.wg.Done()
 
 	for {
-		resp, err := r.p.Channel.Recv()
+		resp, err := r.p.Channel.Recv(r.ctx)
 
 		if err != nil {
-			if !r.stopped() && !errors.Is(err, link.ErrChannelClosed) {
+			if !r.stopped() && !errors.Is(err, operator.ErrChannelClosed) {
 				r.linkFailed(err)
 			}
 

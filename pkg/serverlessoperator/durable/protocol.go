@@ -1,5 +1,5 @@
-// Package durable relays one durable task invocation between the engine, reached through a
-// link.DurableChannel, and a serverless endpoint, reached over an operator-dialed websocket.
+// Package durable relays one durable task invocation between the engine, reached through an
+// operator.DurableChannel, and a serverless endpoint, reached over an operator-dialed websocket.
 // The socket is the invocation's single request: the core sends the assigned action as the
 // first frame, forwards the endpoint's DurableTaskRequests to the engine and the engine's
 // DurableTaskResponses back, and reads the outcome from the endpoint's final done frame.
@@ -21,7 +21,7 @@ const (
 	CloseCancelled = 4003
 	// CloseInvocationMismatch means a request carried another task id or invocation count.
 	CloseInvocationMismatch = 4004
-	// CloseForbiddenMessage means the endpoint sent a link-internal request
+	// CloseForbiddenMessage means the endpoint sent a host-internal request
 	// (register_worker, worker_status), a frame that is not a request or done, a done
 	// frame whose output is not JSON, or a done frame with status evicted before the engine
 	// acknowledged an eviction.

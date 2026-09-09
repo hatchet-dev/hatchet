@@ -15,7 +15,7 @@ import (
 
 // TestRelayConfinesNestedNamesToTheNamespace is the security F13 regression: workflow
 // names in trigger_runs and user event keys in wait_for conditions are prefixed with the
-// endpoint's namespace before either link sees them, the way the operator prefixes what it
+// endpoint's namespace before either host sees them, the way the operator prefixes what it
 // registers, so an endpoint can only reach resources of its own namespace. Names that
 // already carry the prefix, sleep conditions, event scopes and memo keys are untouched.
 func TestRelayConfinesNestedNamesToTheNamespace(t *testing.T) {
