@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -106,10 +107,45 @@ type OperatorSession interface {
 	// listener created here.
 	NewDurableTaskListener(opts ...DurableTaskListenerOpt) *DurableTaskListener
 
-	// Close flushes pending deltas with a short timeout, ends the Listen
-	// stream, which deactivates the worker, and waits for the session's
-	// goroutines to exit.
-	Close() error
+	// Pause stops the scheduler assigning to this session's worker. It
+	// returns once the engine has committed the pause, so a caller that
+	// drains afterwards knows no further action will be assigned. It is its
+	// own call rather than a message on the Listen stream so it also works
+	// while the stream is reconnecting.
+	Pause(ctx context.Context) error
+
+	// Resume lets the scheduler assign to the worker again. Reconnecting also
+	// clears the pause, so a session that is resumed after a crash comes back
+	// assignable without this call.
+	Resume(ctx context.Context) error
+
+	// Close pauses the worker, waits for the actions already handed to the
+	// consumer to be reported, flushes pending deltas with a short timeout,
+	// and ends the Listen stream, which deactivates the worker. Pass
+	// WithoutDrain to hang up at once instead.
+	Close(opts ...CloseOpt) error
+}
+
+// CloseOpt changes how an operator session is closed.
+type CloseOpt func(*closeOpts)
+
+type closeOpts struct {
+	drain        bool
+	drainTimeout time.Duration
+}
+
+// WithoutDrain closes the session at once, without pausing the worker or
+// waiting for in-flight actions. Use it when the process is going away and the
+// work it holds will be retried by the engine anyway.
+func WithoutDrain() CloseOpt {
+	return func(o *closeOpts) { o.drain = false }
+}
+
+// WithDrainTimeout bounds the wait for in-flight actions on Close. When it
+// elapses the session hangs up with work still outstanding, which the engine
+// retries once the task times out.
+func WithDrainTimeout(d time.Duration) CloseOpt {
+	return func(o *closeOpts) { o.drainTimeout = d }
 }
 
 type operatorClientImpl struct {
@@ -164,7 +200,9 @@ func (o *operatorClientImpl) Connect(ctx context.Context, req *ConnectOperatorRe
 	session := newOperatorSession(o.client, o.admin, o.ctx, o.l, register, resume)
 
 	if err := session.connect(ctx); err != nil {
-		_ = session.Close()
+		// nothing has been assigned to a worker that never connected, so there is nothing to
+		// drain and possibly no worker to pause
+		_ = session.Close(WithoutDrain())
 		return nil, fmt.Errorf("could not connect operator %s: %w", req.Name, err)
 	}
 
