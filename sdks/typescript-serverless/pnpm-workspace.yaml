@@ -1,0 +1,15 @@
+packages:
+  - .
+
+# Installs refuse packages published less than a day ago, matching the SDK's policy.
+minimumReleaseAge: 1440
+
+# Dependency install scripts are opt-in under pnpm 10. esbuild fetches its platform binary
+# and grpc-tools its protoc; the SDK's postinstall only prints upgrade notes and protobufjs
+# needs nothing at install time.
+onlyBuiltDependencies:
+  - esbuild
+  - grpc-tools
+ignoredBuiltDependencies:
+  - "@hatchet-dev/typescript-sdk"
+  - protobufjs
