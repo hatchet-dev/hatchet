@@ -30,6 +30,9 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
+	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -770,4 +773,65 @@ func TestCloseDrainsBeforeDeactivating(t *testing.T) {
 
 	assert.True(t, workerPaused(t, ctx, workerId), "the worker is paused before the session hangs up")
 	pollWorkerActive(t, ctx, workerId, false)
+}
+
+// The same echo operator the in-process host runs in its unit tests is hosted here over
+// OperatorService through pkg/operator/hostgrpc: opened with the token's tenant as its
+// identity, given a workflow through the session, driven to a completed run, and torn down in
+// the host's order (pause, drain, close).
+func TestHostGRPCEcho(t *testing.T) {
+	ctx := newTestContext(t)
+	_, sdk := clients(t)
+
+	source, err := hostgrpc.NewStaticExchange(os.Getenv("HATCHET_CLIENT_TOKEN"))
+	require.NoError(t, err)
+
+	host := hostgrpc.New(source, hostgrpc.Options{})
+	t.Cleanup(host.Close)
+
+	echo := &operatortest.Echo{}
+
+	session, err := host.Open(ctx, operator.Identity{TenantId: source.TenantId(), Name: uniqueName("host-echo")}, operator.OpenOpts{
+		Handler:    echo,
+		SlotConfig: map[string]int32{"default": 10},
+	})
+	require.NoError(t, err)
+	require.NoError(t, echo.Start(ctx, session))
+
+	reg := session.Registration()
+	assert.Equal(t, source.TenantId(), reg.TenantId)
+	assert.NotEqual(t, uuid.Nil, reg.OperatorId)
+	assert.NotEqual(t, uuid.Nil, reg.WorkerId)
+	assert.False(t, reg.Resumed)
+
+	workerId := reg.WorkerId.String()
+	pollWorkerActive(t, ctx, workerId, true)
+	assert.Empty(t, workerActions(t, ctx, workerId), "opening links no actions")
+
+	name := uniqueName("host-echo-wf")
+	actions, err := session.PutWorkflow(ctx, simpleWorkflow(name, "hostecho:run", false))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"hostecho:run"}, actions)
+
+	require.NoError(t, session.AddActions(ctx, actions))
+	require.NoError(t, session.Flush(ctx))
+	pollUntil(t, ctx, func() (bool, error) {
+		return slices.Contains(workerActions(t, ctx, workerId), "hostecho:run"), nil
+	})
+
+	input := map[string]any{"message": "hello", "n": float64(3)}
+	details := runToCompletion(t, ctx, sdk, name, input)
+	assert.Equal(t, input, taskOutput(t, details))
+	assert.Equal(t, 1, echo.Handled())
+
+	// the host's teardown order: pause, the operator's drain, close
+	require.NoError(t, session.Pause(ctx))
+	pollWorkerPaused(t, ctx, workerId, true)
+
+	echo.Drain(ctx)
+
+	require.NoError(t, session.Close(ctx))
+	pollWorkerActive(t, ctx, workerId, false)
+
+	assert.ErrorIs(t, session.Flush(ctx), operator.ErrSessionClosed)
 }

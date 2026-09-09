@@ -15,11 +15,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 const eventually = 3 * time.Second
@@ -49,10 +50,10 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 
-	require.Equal(t, 1, env.link.openCount())
+	require.Equal(t, 1, env.host.openCount())
 
-	open := env.link.opens[0]
-	assert.Equal(t, tenant, open.tenantId)
+	open := env.host.opens[0]
+	assert.Equal(t, tenant, open.id.TenantId)
 	assert.Equal(t, sortedUnion(a.RegisteredActions, b.RegisteredActions), open.opts.Actions, "the union covers every enabled endpoint of the tenant, not only the owned ones")
 	assert.Equal(t, map[string]int32{repository.SlotTypeDefault: 10, repository.SlotTypeDurable: 5}, open.opts.SlotConfig)
 	assert.Equal(t, env.r.processId.String(), open.opts.Labels[workerLabelProcess])
@@ -68,7 +69,7 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 
 	assert.Empty(t, env.repo.ActionWrites(), "an unchanged action set is not rewritten")
 	assert.Empty(t, env.repo.StatusWrites(), "a healthy endpoint that stays healthy writes nothing")
-	assert.Equal(t, 0, env.link.reg(0).deltaCount(), "the open carried the union; nothing to push")
+	assert.Equal(t, 0, env.host.session(0).deltaCount(), "the open carried the union; nothing to push")
 }
 
 func TestUnitLostClosesRegistrationWithoutTouchingActions(t *testing.T) {
@@ -81,7 +82,7 @@ func TestUnitLostClosesRegistrationWithoutTouchingActions(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
 
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 	require.NotNil(t, reg)
 
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(a)})
@@ -89,11 +90,11 @@ func TestUnitLostClosesRegistrationWithoutTouchingActions(t *testing.T) {
 	require.Eventually(t, reg.isClosed, eventually, 10*time.Millisecond)
 	assert.Nil(t, env.poller(a), "the poller stopped")
 	assert.Nil(t, env.tenant(tenant), "the tenant is forgotten with its last unit")
-	assert.Eventually(t, func() bool { return len(env.link.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return len(env.host.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
 	assert.Equal(t, 0, reg.deltaCount())
 	assert.Equal(t, 0, reg.putCount())
 	assert.Empty(t, env.repo.ActionWrites())
-	assert.Equal(t, 1, env.link.openCount())
+	assert.Equal(t, 1, env.host.openCount())
 }
 
 func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
@@ -107,9 +108,9 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	env.addEndpoint(b)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
-	require.Equal(t, 1, env.link.openCount())
+	require.Equal(t, 1, env.host.openCount())
 
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 
 	require.Eventually(t, func() bool {
 		return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 && len(env.sender.callsTo(b.HealthcheckUrl)) == 1
@@ -174,10 +175,10 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	require.Eventually(t, reg.isClosed, eventually, 10*time.Millisecond)
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(b)})
 
-	require.Equal(t, 2, env.link.openCount())
-	reopened := env.link.opens[1]
+	require.Equal(t, 2, env.host.openCount())
+	reopened := env.host.opens[1]
 	assert.Equal(t, wantUnion, reopened.opts.Actions)
-	assert.Equal(t, 0, env.link.reg(1).deltaCount())
+	assert.Equal(t, 0, env.host.session(1).deltaCount())
 }
 
 func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
@@ -193,7 +194,7 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 	poller := env.poller(a)
 	poller.stop()
 
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 	reg.mu.Lock()
 	reg.deltaErr = assert.AnError
 	reg.mu.Unlock()
@@ -234,7 +235,7 @@ func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
 	poller := env.poller(a)
 	poller.stop()
 
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 	reg.mu.Lock()
 	reg.putErr = assert.AnError
 	reg.mu.Unlock()
@@ -255,7 +256,7 @@ func TestTokenlessTenant(t *testing.T) {
 
 	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
 	env.addEndpoint(a)
-	env.link.setOpenErr(link.ErrNoToken)
+	env.host.setOpenErr(hostgrpc.ErrNoToken)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 
@@ -263,19 +264,19 @@ func TestTokenlessTenant(t *testing.T) {
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
 	assert.Equal(t, noTokenStatusError, *env.repo.StatusWrites()[0].Error)
 	assert.Nil(t, env.poller(a), "nothing is polled without a token")
-	assert.Nil(t, env.link.reg(0))
+	assert.Nil(t, env.host.session(0))
 
 	// Later passes without a token neither rewrite the status nor poll.
 	env.r.maintainOnce(context.Background())
 	assert.Len(t, env.repo.StatusWrites(), 1)
 	assert.Empty(t, env.sender.callsTo(a.HealthcheckUrl))
-	assert.Equal(t, 2, env.link.openCount(), "open is retried")
+	assert.Equal(t, 2, env.host.openCount(), "open is retried")
 
 	// The token appears: the registration opens, polling starts and health recovers.
-	env.link.setOpenErr(nil)
+	env.host.setOpenErr(nil)
 	env.r.maintainOnce(context.Background())
 
-	require.NotNil(t, env.link.reg(0))
+	require.NotNil(t, env.host.session(0))
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
 	require.Eventually(t, func() bool { return len(env.repo.StatusWrites()) == 2 }, eventually, 10*time.Millisecond)
 	assert.True(t, env.repo.StatusWrites()[1].Healthy)
@@ -347,11 +348,11 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 	env.sender.respond(b.TriggerUrl, http.StatusOK, `{"from":"b"}`)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 	require.NotNil(t, reg)
 
 	// Same action name on two endpoints: the namespace prefix decides.
-	reg.actions <- startAction(b.Namespace, "svc:run")
+	reg.deliver(t, startAction(b.Namespace, "svc:run"))
 
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(b.TriggerUrl)) == 1 }, eventually, 10*time.Millisecond)
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
@@ -364,13 +365,13 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 
 	done := reg.lastEvent()
 	assert.Equal(t, `{"from":"b"}`, done.EventPayload)
-	assert.Equal(t, reg.workerId, done.WorkerId)
+	assert.Equal(t, reg.workerId(), done.WorkerId)
 	assert.Equal(t, int32(1), *done.RetryCount)
 	assert.Nil(t, done.ShouldNotRetry)
 
 	// A permanent endpoint failure is reported as non-retryable.
 	env.sender.respond(a.TriggerUrl, http.StatusBadRequest, `{"error":"bad input"}`)
-	reg.actions <- startAction(a.Namespace, "svc:run")
+	reg.deliver(t, startAction(a.Namespace, "svc:run"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 4 }, eventually, 10*time.Millisecond)
 	failed := reg.lastEvent()
@@ -387,11 +388,11 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	env.addEndpoint(a)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 
 	loads := env.repo.ListForTenantCalls()
 
-	reg.actions <- startAction(uuid.New(), "svc:run")
+	reg.deliver(t, startAction(uuid.New(), "svc:run"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
 	miss := reg.lastEvent()
@@ -403,14 +404,14 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	invocation := int32(0)
 	durable := startAction(a.Namespace, "svc:run")
 	durable.DurableTaskInvocationCount = &invocation
-	reg.actions <- durable
+	reg.deliver(t, durable)
 
-	// STARTED goes out before the channel is opened, then the link's refusal is reported.
+	// STARTED goes out before the channel is opened, then the host's refusal is reported.
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 3 }, eventually, 10*time.Millisecond)
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, reg.eventTypes()[1])
 	ev := reg.lastEvent()
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType)
-	assert.Equal(t, link.ErrDurableNotSupported.Error(), ev.EventPayload)
+	assert.Equal(t, operator.ErrNotSupported.Error(), ev.EventPayload)
 	assert.False(t, *ev.ShouldNotRetry)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
 }
@@ -432,10 +433,10 @@ func TestCancelInFlightDelivery(t *testing.T) {
 	})
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 
 	action := startAction(a.Namespace, "svc:run")
-	reg.actions <- action
+	reg.deliver(t, action)
 
 	select {
 	case <-started:
@@ -451,7 +452,7 @@ func TestCancelInFlightDelivery(t *testing.T) {
 		TaskId:            action.TaskId,
 		ActionId:          action.ActionId,
 	}
-	reg.actions <- cancel
+	reg.deliver(t, cancel)
 
 	require.Eventually(t, func() bool { return env.r.InFlight(env.unit(a)) == 0 }, eventually, 10*time.Millisecond)
 
@@ -482,8 +483,8 @@ func TestDrainTimeoutAbortsDeliveryRetryably(t *testing.T) {
 	})
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	reg := env.link.reg(0)
-	reg.actions <- startAction(a.Namespace, "svc:run")
+	reg := env.host.session(0)
+	reg.deliver(t, startAction(a.Namespace, "svc:run"))
 
 	<-started
 
@@ -506,7 +507,7 @@ func TestMaintainStartsPollerForNewEndpointAndStopsForDeleted(t *testing.T) {
 	env.addEndpoint(a)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 
 	// A new endpoint on the owned unit appears in the database.
 	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:b"}})

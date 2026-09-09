@@ -370,7 +370,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -436,6 +435,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -491,9 +498,9 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
-		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
-		// unless enabled
-		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, adminv1Svc)
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, operators.host)
 
 		if err != nil {
 			return fmt.Errorf("could not start serverless operator: %w", err)
@@ -522,6 +529,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			// the serverless operator closes its registrations (and deactivates their workers)
 			// before the dispatcher drains, while events can still be reported
 			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
 				return err
 			}
 
@@ -864,7 +876,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -932,6 +943,14 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -987,9 +1006,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
-		// the in-engine serverless operator registers with the local dispatcher; it is a no-op
-		// unless enabled
-		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, adminv1Svc)
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, operators.host)
 
 		if err != nil {
 			return fmt.Errorf("could not start serverless operator: %w", err)
@@ -1018,6 +1037,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			// the serverless operator closes its registrations (and deactivates their workers)
 			// before the dispatcher drains, while events can still be reported
 			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
 				return err
 			}
 

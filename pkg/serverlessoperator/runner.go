@@ -10,17 +10,26 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
+
+// tenantReleaser is implemented by hosts that hold per-tenant state outside sessions, such
+// as the gRPC host's client cache. The runner calls ReleaseTenant when it owns no more units
+// of the tenant, after every session for the tenant is closed. The in-process host holds no
+// such state and does not implement it.
+type tenantReleaser interface {
+	ReleaseTenant(tenantId uuid.UUID)
+}
 
 // endpointPageSize is the keyset page size for loading a gained unit's endpoints.
 const endpointPageSize int64 = 500
 
 // tenantState is everything the process keeps for a served tenant: the routing cache, the
 // one registration the tenant's owned units share, the pollers of owned endpoints and whether
-// the link could authenticate.
+// the host could authenticate as the tenant.
 //
 // opMu serializes the operations on the tenant (gaining and losing units, maintenance,
 // shutdown), which include network work and poller shutdown waits; it is never held together
@@ -101,7 +110,9 @@ func (ts *tenantState) unitCount() int {
 // shutdown on one tenant does not stall the others or the lease tick.
 type runner struct {
 	repo         repository.ServerlessRepository
-	link         link.Link
+	host         operator.Host
+	kind         sqlcv1.V1OperatorKind
+	workerName   string
 	enc          encryption.EncryptionService
 	sender       RequestSender
 	l            *zerolog.Logger
@@ -120,14 +131,16 @@ type runner struct {
 }
 
 func newRunner(deps Deps, cfg Config, m *metrics) *runner {
-	// Pollers and action loops live on loopCtx and are stopped first at shutdown;
-	// deliveries live on deliveryCtx, which is cancelled only after the drain timeout.
+	// Pollers live on loopCtx and are stopped first at shutdown; deliveries live on
+	// deliveryCtx, which is cancelled only after the drain timeout.
 	loopCtx, stopLoops := context.WithCancel(context.Background())
 	deliveryCtx, cancel := context.WithCancel(context.Background())
 
 	return &runner{
 		repo:         deps.Repo,
-		link:         deps.Link,
+		host:         deps.Host,
+		kind:         deps.OperatorKind,
+		workerName:   deps.WorkerName,
 		enc:          deps.Encryption,
 		sender:       deps.Sender,
 		l:            deps.Logger,
@@ -341,8 +354,8 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, ts *tenantState, units [
 
 // UnitsLost implements lease.Reconciler: stop the lost units' pollers; the tenant's
 // registration stays while it still owns units. A tenant with no owned units left is
-// forgotten, its registration drained and closed in the background so the lease tick is not
-// held for DrainTimeout, and released on the link once that is done. Action sets are
+// forgotten, its registration paused, drained and closed in the background so the lease tick
+// is not held for DrainTimeout, and released on the host once that is done. Action sets are
 // untouched.
 func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
 	for tenantId, shards := range groupUnits(units) {
@@ -388,8 +401,7 @@ func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
 			defer r.wg.Done()
 
 			if reg != nil {
-				reg.drain(r.cfg.DrainTimeout)
-				reg.close()
+				reg.teardown(r.cfg.DrainTimeout)
 			}
 
 			r.releaseTenant(tenantId)
@@ -400,7 +412,7 @@ func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
 }
 
 func (r *runner) releaseTenant(tenantId uuid.UUID) {
-	if releaser, ok := r.link.(link.TenantReleaser); ok {
+	if releaser, ok := r.host.(tenantReleaser); ok {
 		releaser.ReleaseTenant(tenantId)
 	}
 }
@@ -426,8 +438,8 @@ func (r *runner) InFlight(unit lease.Unit) int {
 
 // maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (a full
 // reload every RoutingFullReloadInterval, which drops deleted endpoints), reconcile pollers,
-// reopen registrations that are missing (never opened, no token, stream failed), push a
-// changed action union to the registration, and retry units whose tenant failed to load.
+// reopen registrations that are missing (never opened, no token), push a changed action
+// union to the registration, and retry units whose tenant failed to load.
 func (r *runner) maintain(ctx context.Context) {
 	ticker := time.NewTicker(r.cfg.RoutingRefreshInterval)
 	defer ticker.Stop()
@@ -532,8 +544,9 @@ func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
 	}
 }
 
-// Shutdown is the graceful stop after leases were released: stop pollers and action loops,
-// drain deliveries up to DrainTimeout, close registrations, then wait for every goroutine.
+// Shutdown is the graceful stop after leases were released: stop pollers, pause every
+// registration's worker, drain deliveries up to DrainTimeout, close the sessions, then wait
+// for every goroutine.
 func (r *runner) Shutdown() {
 	r.mu.Lock()
 	tenants := r.tenants
@@ -567,8 +580,7 @@ func (r *runner) Shutdown() {
 		go func(reg *registration) {
 			defer wg.Done()
 
-			reg.drain(r.cfg.DrainTimeout)
-			reg.close()
+			reg.teardown(r.cfg.DrainTimeout)
 		}(reg)
 	}
 

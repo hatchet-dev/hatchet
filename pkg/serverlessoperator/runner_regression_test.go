@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 // failingEndpoints fails ListForTenant while fail is set, standing in for a database outage
@@ -75,17 +75,17 @@ func TestClaimedUnitIsServedAfterInitialLoadFailure(t *testing.T) {
 	require.NoError(t, ls.Heartbeat(ctx))
 	require.NoError(t, ls.Tick(ctx))
 	require.Len(t, ls.Owned(), 1, "the unit is claimed")
-	require.Equal(t, 0, env.link.openCount(), "nothing opened while the load failed")
+	require.Equal(t, 0, env.host.openCount(), "nothing opened while the load failed")
 
 	ep.setFail(false)
 
-	for i := 0; i < 3 && env.link.openCount() == 0; i++ {
+	for i := 0; i < 3 && env.host.openCount() == 0; i++ {
 		require.NoError(t, ls.Heartbeat(ctx))
 		require.NoError(t, ls.Tick(ctx))
 		env.r.maintainOnce(ctx)
 	}
 
-	assert.Equal(t, 1, env.link.openCount(), "database recovered but the claimed unit is still unserved: owned=%d tenants=%d", len(ls.Owned()), len(env.r.tenants))
+	assert.Equal(t, 1, env.host.openCount(), "database recovered but the claimed unit is still unserved: owned=%d tenants=%d", len(ls.Owned()), len(env.r.tenants))
 	assert.NotNil(t, env.poller(row), "the unit's endpoint is polled after recovery")
 }
 
@@ -99,8 +99,8 @@ func TestOlderInvocationFinishKeepsCurrentInvocation(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	fake := &fakeRegistration{workerId: uuid.New().String()}
-	reg := &registration{r: env.r, reg: fake, events: &eventSender{reg: fake}, inflight: map[string]map[attemptKey]*inflightTask{}}
+	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	reg := &registration{r: env.r, session: fake, events: &eventSender{session: fake}, inflight: map[string]map[attemptKey]*inflightTask{}}
 
 	id := uuid.New().String()
 	oldKey := attemptKey{retry: 1, invocation: 1}
@@ -156,15 +156,15 @@ func TestDuplicateAssignmentIsIgnored(t *testing.T) {
 	})
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	fake := env.link.reg(0)
+	fake := env.host.session(0)
 	reg := env.tenant(tenant).registration()
 	require.NotNil(t, reg)
 
 	action := startAction(a.Namespace, "svc:run")
-	fake.actions <- action
+	fake.deliver(t, action)
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.TriggerUrl)) == 1 }, eventually, 10*time.Millisecond)
 
-	fake.actions <- action
+	fake.deliver(t, action)
 	time.Sleep(50 * time.Millisecond)
 
 	assert.Equal(t, 1, reg.inFlight())
@@ -174,14 +174,14 @@ func TestDuplicateAssignmentIsIgnored(t *testing.T) {
 	require.Eventually(t, func() bool { return reg.inFlight() == 0 }, eventually, 10*time.Millisecond)
 }
 
-// blockedOpen is a registration whose OpenDurable reports the context it was given and
-// blocks until that context ends.
+// blockedOpen is a session whose OpenDurable reports the context it was given and blocks
+// until that context ends.
 type blockedOpen struct {
-	link.Registration
+	operator.Session
 	observed chan context.Context
 }
 
-func (r *blockedOpen) OpenDurable(ctx context.Context, _ string, _ int32) (link.DurableChannel, error) {
+func (r *blockedOpen) OpenDurable(ctx context.Context, _ uuid.UUID, _ int32) (operator.DurableChannel, error) {
 	r.observed <- ctx
 	<-ctx.Done()
 
@@ -192,9 +192,9 @@ func (r *blockedOpen) OpenDurable(ctx context.Context, _ string, _ int32) (link.
 // timeout like the rest of the invocation.
 func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 	env := newTestEnv(t)
-	fake := &fakeRegistration{workerId: uuid.NewString()}
-	blocking := &blockedOpen{Registration: fake, observed: make(chan context.Context, 1)}
-	reg := &registration{r: env.r, reg: blocking, events: &eventSender{reg: fake}}
+	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	blocking := &blockedOpen{Session: fake, observed: make(chan context.Context, 1)}
+	reg := &registration{r: env.r, session: blocking, events: &eventSender{session: fake}}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -217,26 +217,26 @@ func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 	assert.WithinDuration(t, time.Now().Add(time.Second), deadline, 2*time.Second)
 }
 
-// blockingLink blocks Open for one tenant until released, standing in for a hung engine.
-type blockingLink struct {
-	fakeLink
+// blockingHost blocks Open for one tenant until released, standing in for a hung engine.
+type blockingHost struct {
+	fakeHost
 	blockTenant uuid.UUID
 	release     chan struct{}
 	entered     chan struct{}
 }
 
-func (l *blockingLink) Open(ctx context.Context, tenantId uuid.UUID, opts link.OpenOpts) (link.Registration, error) {
-	if tenantId == l.blockTenant {
-		l.entered <- struct{}{}
+func (h *blockingHost) Open(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
+	if id.TenantId == h.blockTenant {
+		h.entered <- struct{}{}
 
 		select {
-		case <-l.release:
+		case <-h.release:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	}
 
-	return l.fakeLink.Open(ctx, tenantId, opts)
+	return h.fakeHost.Open(ctx, id, opts)
 }
 
 // One tenant's hung registration must not stall reconciliation of another tenant: the runner
@@ -246,9 +246,9 @@ func TestHungOpenDoesNotBlockOtherTenants(t *testing.T) {
 	slow := uuid.New()
 	fast := uuid.New()
 
-	lnk := &blockingLink{blockTenant: slow, release: make(chan struct{}), entered: make(chan struct{}, 1)}
-	env.r.link = lnk
-	defer close(lnk.release)
+	host := &blockingHost{blockTenant: slow, release: make(chan struct{}), entered: make(chan struct{}, 1)}
+	env.r.host = host
+	defer close(host.release)
 
 	a := healthyRow(endpointSpec{tenantId: slow, name: "slow", actions: []string{"svc:a"}})
 	b := healthyRow(endpointSpec{tenantId: fast, name: "fast", actions: []string{"svc:b"}})
@@ -256,7 +256,7 @@ func TestHungOpenDoesNotBlockOtherTenants(t *testing.T) {
 	env.addEndpoint(b)
 
 	go env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
-	<-lnk.entered
+	<-host.entered
 
 	done := make(chan struct{})
 
@@ -383,30 +383,30 @@ func TestUnitsOfOneTenantShareOneRegistration(t *testing.T) {
 	env.addEndpoint(b)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
-	require.Equal(t, 1, env.link.openCount(), "two units of one tenant open one registration")
-	assert.Equal(t, sortedUnion(a.RegisteredActions, b.RegisteredActions), env.link.opens[0].opts.Actions)
+	require.Equal(t, 1, env.host.openCount(), "two units of one tenant open one registration")
+	assert.Equal(t, sortedUnion(a.RegisteredActions, b.RegisteredActions), env.host.opens[0].opts.Actions)
 
 	require.Eventually(t, func() bool {
 		return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 && len(env.sender.callsTo(b.HealthcheckUrl)) == 1
 	}, eventually, 10*time.Millisecond)
 
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 
 	// Losing one unit stops its poller and keeps the registration.
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(b)})
 	assert.Nil(t, env.poller(b))
 	assert.NotNil(t, env.poller(a))
 	assert.False(t, reg.isClosed())
-	assert.Equal(t, 1, env.link.openCount())
+	assert.Equal(t, 1, env.host.openCount())
 
 	// Regaining it reuses the registration.
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(b)})
 	assert.NotNil(t, env.poller(b))
-	assert.Equal(t, 1, env.link.openCount())
+	assert.Equal(t, 1, env.host.openCount())
 
 	// Losing the last unit closes it and releases the tenant.
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
 	require.Eventually(t, reg.isClosed, eventually, 10*time.Millisecond)
 	assert.Nil(t, env.tenant(tenant))
-	assert.Eventually(t, func() bool { return len(env.link.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
+	assert.Eventually(t, func() bool { return len(env.host.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
 }

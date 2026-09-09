@@ -1,7 +1,16 @@
 // Package serverlessoperator is the serverless operator core: it owns (tenant, shard) lease
-// units, polls their endpoints' healthchecks, registers their workflows with the engine
-// through a link, and delivers assigned tasks to the endpoints over signed HTTP. The same
-// core runs out of process (grpclink) and, in a later phase, inside the engine.
+// units, polls their endpoints' healthchecks, registers their workflows with the engine and
+// delivers assigned tasks to the endpoints over signed HTTP or, for durable tasks, over a
+// websocket relay.
+//
+// The core reaches the engine through the operator host contract (pkg/operator.Host,
+// Session and DurableChannel): one session per served tenant, opened by name and kind with
+// the tenant's action union, its handler the registration that routes assigned actions to
+// endpoints. The same core runs in either host as a deployment choice. Out of process,
+// hatchet-serverless-operator gives it pkg/operator/hostgrpc, which speaks OperatorService
+// with a per-tenant token; inside the engine, cmd/hatchet-engine gives it the dispatcher's
+// in-process host, which registers the rows as SERVERLESS operators and delivers by direct
+// call. Nothing in the core distinguishes the two beyond Deps.Host.
 package serverlessoperator
 
 import (
@@ -15,15 +24,30 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
-// Deps is everything Run needs. The binary and the in-engine mode build it differently.
+// Deps is everything Run needs. The binary and the in-engine mode build it differently: the
+// host, the operator kind and the worker name are hosting facts the wiring decides.
 type Deps struct {
-	Repo       repository.ServerlessRepository
-	Link       link.Link
+	Repo repository.ServerlessRepository
+
+	// Host opens the engine session of each served tenant.
+	Host operator.Host
+
+	// OperatorKind is the kind the operator rows are registered under: SERVERLESS inside the
+	// engine, where the in-process host upserts the row itself; empty (GRPC) out of process,
+	// where OperatorService registers the operator like any other gRPC operator.
+	OperatorKind sqlcv1.V1OperatorKind
+
+	// WorkerName names the worker rows the sessions back; empty means the operator name.
+	// Only a host that can name workers accepts it (the in-process host does, the gRPC host
+	// refuses), so it is set by the engine wiring only.
+	WorkerName string
+
 	Encryption encryption.EncryptionService
 	Sender     RequestSender
 	Logger     *zerolog.Logger
@@ -37,8 +61,8 @@ func (d Deps) validate() error {
 	switch {
 	case d.Repo == nil:
 		return errors.New("serverless operator: repository is required")
-	case d.Link == nil:
-		return errors.New("serverless operator: link is required")
+	case d.Host == nil:
+		return errors.New("serverless operator: operator host is required")
 	case d.Sender == nil:
 		return errors.New("serverless operator: request sender is required")
 	case d.Logger == nil:

@@ -1,11 +1,11 @@
 //go:build e2e
 
 // Package e2e exercises the serverless operator core end to end against an in-process engine
-// started by the test harness. The engine runs the in-engine operator (enginelink) as one
-// process whose id is the dispatcher id; the tests start additional out-of-process instances
-// (grpclink) inside the same test binary, so every instance shares the lease table and each
-// scenario can be run against either link by pinning its tenant's lease to the process it
-// wants (see pinLease in env_test.go).
+// started by the test harness. The engine runs the in-engine operator (over the in-process
+// host) as one process whose id is the dispatcher id; the tests start additional
+// out-of-process instances (over the gRPC host) inside the same test binary, so every
+// instance shares the lease table and each scenario can be run against either host by
+// pinning its tenant's lease to the process it wants (see pinLease in env_test.go).
 package e2e
 
 import (

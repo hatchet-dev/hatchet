@@ -3,6 +3,7 @@ package dagoperator
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,6 +128,71 @@ func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseC
 	return fd
 }
 
+// testChannel is a DurableChannel over the test's raw channel pair, driven from the dag's
+// goroutine alone. Like the engine's channel it never lets a send deadlock against the fake
+// dispatcher's blocking delivery: responses that arrive while a send waits are queued for the
+// next Recv. Unlike the engine's channel it applies no ordering, so the dag's own handling of
+// an entry that races ahead of its ack is what these tests exercise, and it reads responses
+// only when the dag asks, so a test that observes the dag's state after the fake dispatcher
+// delivered a response sees the dag's writes.
+type testChannel struct {
+	requestCh  chan *v1contracts.DurableTaskRequest
+	responseCh chan *v1contracts.DurableTaskResponse
+	queued     []*v1contracts.DurableTaskResponse
+	closed     chan struct{}
+	closeOnce  sync.Once
+}
+
+func newTestChannel(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse) *testChannel {
+	return &testChannel{requestCh: requestCh, responseCh: responseCh, closed: make(chan struct{})}
+}
+
+func (c *testChannel) Send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	for {
+		select {
+		case c.requestCh <- req:
+			return nil
+		case resp, ok := <-c.responseCh:
+			if !ok {
+				return operator.ErrSessionEnded
+			}
+
+			c.queued = append(c.queued, resp)
+		case <-c.closed:
+			return operator.ErrChannelClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
+	if len(c.queued) > 0 {
+		resp := c.queued[0]
+		c.queued = c.queued[1:]
+
+		return resp, nil
+	}
+
+	select {
+	case resp, ok := <-c.responseCh:
+		if !ok {
+			return nil, operator.ErrSessionEnded
+		}
+
+		return resp, nil
+	case <-c.closed:
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (c *testChannel) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return nil
+}
+
 func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, ref *v1contracts.DurableEventLogEntryRef, payload []byte) {
 	t.Helper()
 
@@ -170,6 +236,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	stop := make(chan struct{})
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -177,7 +244,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	externalId := uuid.New()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, triggerStep)
 	}()
 
 	return &dagHarness{
@@ -188,6 +255,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 		cleanup: func() {
 			close(stop)
 			cancel()
+			_ = ch.Close()
 		},
 	}
 }
@@ -505,13 +573,15 @@ func TestDag_SleepWaitCondition(t *testing.T) {
 	defer close(stop)
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	var ref *v1contracts.DurableEventLogEntryRef
@@ -795,12 +865,15 @@ func TestDag_RunTriggerDeferredUntilWaitForAcksDrain(t *testing.T) {
 		return base(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
 	}
 
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, triggerStep)
 	}()
 
 	requireTriggered := func(want string) {
@@ -1300,12 +1373,15 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
 
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose

@@ -64,22 +64,54 @@ func (f *OperatorStore) GetOperatorById(_ context.Context, operatorId uuid.UUID)
 }
 
 func (f *OperatorStore) UpsertGRPCOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindGRPC), nil
+}
+
+func (f *OperatorStore) UpsertServerlessOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindSERVERLESS), nil
+}
+
+// upsert returns the row of the given (tenant, name, kind), creating it when there is none.
+func (f *OperatorStore) upsert(tenantId uuid.UUID, name string, kind sqlcv1.V1OperatorKind) *sqlcv1.V1Operator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	for _, op := range f.operators {
-		if op.TenantID == tenantId && op.Name == name && op.Kind == sqlcv1.V1OperatorKindGRPC {
-			return op, nil
+		if op.TenantID == tenantId && op.Name == name && op.Kind == kind {
+			return op
 		}
 	}
 
-	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: name, Kind: sqlcv1.V1OperatorKindGRPC}
+	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: name, Kind: kind}
 
 	if f.operators == nil {
 		f.operators = map[uuid.UUID]*sqlcv1.V1Operator{}
 	}
 
 	f.operators[op.ID] = op
+
+	return op
+}
+
+// UpdateOperator applies the row changes a registration makes: pointing the row at a worker.
+func (f *OperatorStore) UpdateOperator(_ context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	op, ok := f.operators[operatorId]
+
+	if !ok || op.TenantID != tenantId {
+		return nil, pgx.ErrNoRows
+	}
+
+	if opts.WorkerId != nil {
+		workerId := *opts.WorkerId
+		op.WorkerID = &workerId
+	}
+
+	if opts.Name != nil {
+		op.Name = *opts.Name
+	}
 
 	return op, nil
 }
@@ -128,10 +160,12 @@ type WorkerStore struct {
 	// listenerSessions is the listener session id recorded on each worker by its last activation
 	listenerSessions map[uuid.UUID]uuid.UUID
 	// sessionIds records the session id passed to each activation and deactivation, in order
-	sessionIds  []uuid.UUID
-	heartbeats  int
-	labels      map[uuid.UUID][]repository.UpsertWorkerLabelOpts
-	dispatchers map[uuid.UUID]uuid.UUID
+	sessionIds []uuid.UUID
+	heartbeats int
+	// bulkHeartbeats records the worker id sets of each bulk heartbeat write, in order
+	bulkHeartbeats [][]uuid.UUID
+	labels         map[uuid.UUID][]repository.UpsertWorkerLabelOpts
+	dispatchers    map[uuid.UUID]uuid.UUID
 	// ops records the writes that change a worker's lifecycle state, in order, so a test can
 	// assert that a pause lands before the deactivation that follows it
 	ops []string
@@ -257,6 +291,24 @@ func (f *WorkerStore) UpdateWorkerHeartbeat(_ context.Context, _ uuid.UUID, _ uu
 	f.heartbeats++
 
 	return nil
+}
+
+// UpdateWorkerHeartbeats records one bulk heartbeat write, the in-process host's liveness.
+func (f *WorkerStore) UpdateWorkerHeartbeats(_ context.Context, workerIds []uuid.UUID, _ time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.bulkHeartbeats = append(f.bulkHeartbeats, append([]uuid.UUID(nil), workerIds...))
+
+	return nil
+}
+
+// BulkHeartbeats returns the worker id sets of every bulk heartbeat write, in order.
+func (f *WorkerStore) BulkHeartbeats() [][]uuid.UUID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([][]uuid.UUID(nil), f.bulkHeartbeats...)
 }
 
 func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
@@ -418,6 +470,110 @@ func (f *WorkerStore) DispatcherFor(workerId uuid.UUID) uuid.UUID {
 	return f.dispatchers[workerId]
 }
 
+// TenantStore serves tenant rows from memory, for hosts that name the tenant by id.
+type TenantStore struct {
+	mu      sync.Mutex
+	tenants map[uuid.UUID]*sqlcv1.Tenant
+}
+
+// NewTenantStore seeds a store with the given tenants.
+func NewTenantStore(tenants ...*sqlcv1.Tenant) *TenantStore {
+	s := &TenantStore{tenants: map[uuid.UUID]*sqlcv1.Tenant{}}
+
+	for _, tenant := range tenants {
+		s.tenants[tenant.ID] = tenant
+	}
+
+	return s
+}
+
+func (f *TenantStore) GetTenantByID(_ context.Context, tenantId uuid.UUID) (*sqlcv1.Tenant, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	tenant, ok := f.tenants[tenantId]
+
+	if !ok {
+		return nil, pgx.ErrNoRows
+	}
+
+	return tenant, nil
+}
+
+// WorkflowStore stands in for the admin service and the workflow repository a host puts
+// workflows through: each put is recorded and becomes a version whose steps are the request's
+// tasks, with the action ids stored as given.
+type WorkflowStore struct {
+	mu       sync.Mutex
+	puts     []*v1contracts.CreateWorkflowVersionRequest
+	versions map[uuid.UUID]*v1contracts.CreateWorkflowVersionRequest
+	putErr   error
+}
+
+func NewWorkflowStore() *WorkflowStore {
+	return &WorkflowStore{versions: map[uuid.UUID]*v1contracts.CreateWorkflowVersionRequest{}}
+}
+
+// PutWorkflow records the request and returns a fresh version id for it.
+func (f *WorkflowStore) PutWorkflow(_ context.Context, req *v1contracts.CreateWorkflowVersionRequest) (*v1contracts.CreateWorkflowVersionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.putErr != nil {
+		return nil, f.putErr
+	}
+
+	f.puts = append(f.puts, req)
+
+	versionId := uuid.New()
+	f.versions[versionId] = req
+
+	return &v1contracts.CreateWorkflowVersionResponse{Id: versionId.String(), WorkflowId: uuid.NewString()}, nil
+}
+
+// ListStepsByWorkflowVersionId returns one step per task of the put request, plus the
+// on-failure task; a DAG orchestrator step is never produced by the fake.
+func (f *WorkflowStore) ListStepsByWorkflowVersionId(_ context.Context, _ uuid.UUID, versionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	req, ok := f.versions[versionId]
+
+	if !ok {
+		return nil, pgx.ErrNoRows
+	}
+
+	tasks := append([]*v1contracts.CreateTaskOpts(nil), req.Tasks...)
+
+	if req.OnFailureTask != nil {
+		tasks = append(tasks, req.OnFailureTask)
+	}
+
+	rows := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(tasks))
+
+	for _, task := range tasks {
+		rows = append(rows, &sqlcv1.ListStepsByWorkflowVersionIdsRow{ID: uuid.New(), ActionId: task.Action})
+	}
+
+	return rows, nil
+}
+
+// FailPut makes every later PutWorkflow fail.
+func (f *WorkflowStore) FailPut(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.putErr = err
+}
+
+// Puts returns the requests put so far, in order.
+func (f *WorkflowStore) Puts() []*v1contracts.CreateWorkflowVersionRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*v1contracts.CreateWorkflowVersionRequest(nil), f.puts...)
+}
+
 // Dispatcher records session registrations, scheduler notifications and delegated calls.
 type Dispatcher struct {
 	mu sync.Mutex
@@ -541,11 +697,20 @@ func (f *Dispatcher) DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServ
 
 // DurableInvocation is one channel-backed durable task the service registered. Requests carries
 // what the session sent, Responses is what the test sends back; the response channel is closed
-// when the session's context ends, as the engine closes its side.
+// when the session's context ends or the test calls End, as the engine closes its side.
 type DurableInvocation struct {
 	ExternalId uuid.UUID
 	Requests   chan *v1contracts.DurableTaskRequest
 	Responses  chan *v1contracts.DurableTaskResponse
+
+	end     chan struct{}
+	endOnce sync.Once
+}
+
+// End closes the engine's side of the invocation, as the engine does when it tears the
+// invocation down on its own.
+func (inv *DurableInvocation) End() {
+	inv.endOnce.Do(func() { close(inv.end) })
 }
 
 // RegisterDurableTask hands out a channel pair for the invocation and records it.
@@ -561,13 +726,18 @@ func (f *Dispatcher) RegisterDurableTask(ctx context.Context, externalId uuid.UU
 		ExternalId: externalId,
 		Requests:   make(chan *v1contracts.DurableTaskRequest, 64),
 		Responses:  make(chan *v1contracts.DurableTaskResponse, 512),
+		end:        make(chan struct{}),
 	}
 
 	f.durables = append(f.durables, inv)
 	f.mu.Unlock()
 
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-inv.end:
+		}
+
 		close(inv.Responses)
 	}()
 

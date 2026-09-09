@@ -29,7 +29,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
-	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -66,7 +65,6 @@ type DispatcherImpl struct {
 	version                             string
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	streamEventBufferTimeout            time.Duration
-	om                                  *manager.OperatorManager
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
@@ -173,7 +171,6 @@ type DispatcherOpts struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
-	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -240,12 +237,6 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
-	}
-}
-
-func WithDAGOperatorDefaultSlots(slots int) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.dagOperatorDefaultSlots = slots
 	}
 }
 
@@ -329,7 +320,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
-	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -352,7 +342,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
-		om:                                  om,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
@@ -386,10 +375,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	d.s.Start()
-
-	operatorCh := d.om.Start(ctx, d)
-
-	go d.listenForOperators(operatorCh)
 
 	wg := sync.WaitGroup{}
 
@@ -433,11 +418,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
-		// drain the operators (waits for their in-flight tasks and stops their heartbeats);
-		// this runs after wg.Wait so in-flight queue tasks can still reach their operators,
-		// and before pubBuffer.Stop so draining operators can still flush result events
-		d.om.Cleanup()
-
 		d.pubBuffer.Stop()
 		d.serviceV1.pubBuffer.Stop()
 		d.refreshTimeoutBuf.stop()
@@ -450,8 +430,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 				w := value
 
 				// operator-backed workers have no stream goroutine reading `finished`: the
-				// host that opened the session owns their teardown, the operator manager for
-				// the operators it claims and the operator service for the sessions it opens
+				// host that opened the session owns their teardown, the in-process host for
+				// the operators the claimer runs and the operator service for the sessions
+				// it opens
 				if w.handler != nil {
 					return true
 				}
@@ -483,54 +464,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
-}
-
-// listenForOperators mirrors the manager's reported operator set into the workers map. Each
-// message carries the full set of active operators (resent every poll), so entries that
-// disappear from the set are removed — the dispatcher never accumulates routing entries for
-// operators that are no longer claimed by it.
-func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
-	// workerId -> sessionId for the operator-backed entries this loop has added; only this
-	// goroutine touches it. operator workers are exclusive to their operator instance, so a
-	// stable session per worker is sufficient.
-	sessions := make(map[uuid.UUID]uuid.UUID)
-
-	for operators := range ch {
-		current := make(map[uuid.UUID]struct{}, len(operators))
-
-		for _, o := range operators {
-			workerId := o.WorkerId()
-			current[workerId] = struct{}{}
-
-			if _, ok := sessions[workerId]; ok {
-				continue
-			}
-
-			sessionId := uuid.New()
-			sessions[workerId] = sessionId
-
-			d.workers.Add(
-				workerId,
-				sessionId,
-				// nil finished channel: operator workers have no stream goroutine to signal,
-				// and the shutdown drain skips them (the operator manager owns their teardown)
-				newOperatorSubscribedWorker(
-					workerId,
-					d.pubBuffer,
-					o,
-				),
-			)
-		}
-
-		for workerId := range sessions {
-			if _, ok := current[workerId]; ok {
-				continue
-			}
-
-			delete(sessions, workerId)
-			d.workers.Delete(workerId)
-		}
-	}
 }
 
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {

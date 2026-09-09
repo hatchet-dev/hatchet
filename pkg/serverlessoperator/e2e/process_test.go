@@ -15,15 +15,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link/grpclink"
 )
 
 // operatorProcess is one out-of-process operator instance run inside the test binary: the
-// core with grpclink over the shared token registry, its own pool and a random process id.
+// core over the gRPC host with the shared token registry, its own pool and a random process
+// id.
 type operatorProcess struct {
 	id     uuid.UUID
 	cancel context.CancelFunc
@@ -79,7 +80,10 @@ func startProcess(t *testing.T, e *testEnv) *operatorProcess {
 		pool:  pool,
 	}
 
+	host := hostgrpc.New(tokens, hostgrpc.Options{Logger: &l})
+
 	p.stopFn = func() error {
+		host.Close()
 		err := cleanupRepo()
 		pool.Close()
 
@@ -91,7 +95,7 @@ func startProcess(t *testing.T, e *testEnv) *operatorProcess {
 
 	deps := serverlessoperator.Deps{
 		Repo:       crashableRepo{ServerlessRepository: repo, sw: p.crash},
-		Link:       grpclink.New(tokens, grpclink.Options{Logger: &l}),
+		Host:       host,
 		Encryption: e.enc,
 		Sender:     sender,
 		Logger:     &l,

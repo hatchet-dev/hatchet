@@ -19,11 +19,11 @@ import (
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 // The tests in this file hold the routing cache to the budgets the performance review asked
@@ -223,9 +223,9 @@ func TestHealthcheckChangeCostIsLocal(t *testing.T) {
 func TestUnchangedUnionSyncIsFree(t *testing.T) {
 	c, _ := budgetCache(t, 10000, 10)
 
-	fake := &fakeRegistration{}
+	fake := &fakeSession{}
 	union, rev := c.ActionUnion()
-	reg := &registration{reg: fake, advertised: union, advertisedRev: rev}
+	reg := &registration{session: fake, advertised: union, advertisedRev: rev}
 	l := zerolog.Nop()
 	reg.r = &runner{l: &l}
 	ts := &tenantState{cache: c, tenantId: budgetTenant, reg: reg}
@@ -299,10 +299,10 @@ func TestRecoveryWriteAfterOwnershipTransfer(t *testing.T) {
 	assert.Len(t, env.repo.StatusWrites(), 2, "one unhealthy write by the previous owner, one recovery write")
 }
 
-// rejectingRegistration fails every PutWorkflow, as an engine that rejects the workflow does.
-type rejectingRegistration struct{ link.Registration }
+// rejectingSession fails every PutWorkflow, as an engine that rejects the workflow does.
+type rejectingSession struct{ operator.Session }
 
-func (rejectingRegistration) PutWorkflow(context.Context, *v1.CreateWorkflowVersionRequest) ([]string, error) {
+func (rejectingSession) PutWorkflow(context.Context, *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	return nil, fmt.Errorf("persistent workflow rejection")
 }
 
@@ -318,7 +318,7 @@ func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 	c, repo := budgetCache(t, 1, 0)
 	ep := c.byId[repo.rows[0].ID]
 
-	ts := &tenantState{cache: c, reg: &registration{reg: rejectingRegistration{}}, hcSem: make(chan struct{}, 4)}
+	ts := &tenantState{cache: c, reg: &registration{session: rejectingSession{}}, hcSem: make(chan struct{}, 4)}
 	l := zerolog.Nop()
 	r := &runner{repo: budgetRootRepo{ep: repo}, cfg: DefaultConfig(), sender: validHealthSender{}, l: &l, m: newMetrics("budget-status"), hcSem: make(chan struct{}, 256)}
 	ts.reg.r = r

@@ -22,9 +22,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/signature"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 const (
@@ -215,7 +215,7 @@ func newFakeChannel() *fakeChannel {
 	}
 }
 
-func (f *fakeChannel) Send(req *v1.DurableTaskRequest) error {
+func (f *fakeChannel) Send(_ context.Context, req *v1.DurableTaskRequest) error {
 	if f.onSend != nil {
 		if err := f.onSend(req); err != nil {
 			return err
@@ -227,12 +227,14 @@ func (f *fakeChannel) Send(req *v1.DurableTaskRequest) error {
 	return nil
 }
 
-func (f *fakeChannel) Recv() (*v1.DurableTaskResponse, error) {
+func (f *fakeChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse, error) {
 	select {
 	case item := <-f.recv:
 		return item.resp, item.err
 	case <-f.closed:
-		return nil, link.ErrChannelClosed
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
@@ -288,7 +290,7 @@ func testAction() *contracts.AssignedAction {
 	}
 }
 
-func testParams(ep *fakeEndpoint, ch link.DurableChannel) Params {
+func testParams(ep *fakeEndpoint, ch operator.DurableChannel) Params {
 	return Params{
 		Dialer:             loopbackDialer{},
 		Channel:            ch,
@@ -545,7 +547,7 @@ func TestRelayProtocolViolations(t *testing.T) {
 		{
 			name:     "second request in flight",
 			frame:    `{"id":1,"request":{"memo":{"key":"aw=="}}}`,
-			onSend:   func(*v1.DurableTaskRequest) error { return link.ErrRequestInFlight },
+			onSend:   func(*v1.DurableTaskRequest) error { return operator.ErrRequestInFlight },
 			wantCode: CloseRequestInFlight,
 		},
 		{

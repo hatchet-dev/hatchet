@@ -22,7 +22,8 @@ type OperatorRepository interface {
 
 	// ClaimOperators returns all operators which should be run by this dispatcher (unassigned,
 	// on an inactive dispatcher, or already assigned to this dispatcher). It does not create
-	// workers — call CreateOperatorWorker separately when instantiating an operator.
+	// workers; the claimer registers one per claimed row through the operator service, which
+	// points the row's worker_id at it so later polls see the assignment.
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
 
 	// CreateOperatorWorker creates a new worker for a single operator instance and points the
@@ -137,6 +138,10 @@ func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UU
 type UpdateOperatorOpts struct {
 	Name   *string `json:"name"`
 	Config []byte  `json:"config"`
+
+	// WorkerId points the operator row at the worker that runs it, which is how ClaimOperators
+	// recognises an operator as assigned to that worker's dispatcher.
+	WorkerId *uuid.UUID `json:"-"`
 }
 
 func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
@@ -144,6 +149,7 @@ func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, opera
 		Tenantid: tenantId,
 		ID:       operatorId,
 		Config:   opts.Config,
+		WorkerId: opts.WorkerId,
 	}
 
 	if opts.Name != nil {

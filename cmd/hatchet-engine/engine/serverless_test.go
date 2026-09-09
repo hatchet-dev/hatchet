@@ -12,7 +12,69 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
 )
+
+func TestServerlessConfigFromServer(t *testing.T) {
+	cf := server.ServerlessOperatorConfigFile{
+		OperatorName:                 "custom",
+		DefaultSlots:                 11,
+		DurableSlots:                 12,
+		LeaseTTL:                     13 * time.Second,
+		HeartbeatInterval:            14 * time.Second,
+		RebalanceInterval:            15 * time.Second,
+		ShedHysteresis:               0.3,
+		DrainTimeout:                 16 * time.Second,
+		RoutingRefreshInterval:       17 * time.Second,
+		HealthcheckTimeout:           18 * time.Second,
+		HealthcheckConcurrency:       19,
+		WSMaxFrameBytes:              20,
+		WSPingInterval:               21 * time.Second,
+		HealthcheckTenantConcurrency: 22,
+		HealthcheckApplyTimeout:      23 * time.Second,
+		MaxWorkflowsPerEndpoint:      24,
+		MaxActionsPerEndpoint:        25,
+		MaintenanceConcurrency:       26,
+		LeaseMaxClaimPerTick:         27,
+		WSMaxUpgradeHeaderBytes:      28,
+		WSMaxQueuedBytes:             29,
+	}
+
+	got := serverlessConfigFromServer(cf)
+
+	assert.Equal(t, serverlessoperator.Config{
+		OperatorName:                 "custom",
+		LinkName:                     serverlessLinkName,
+		DefaultSlots:                 11,
+		DurableSlots:                 12,
+		LeaseTTL:                     13 * time.Second,
+		HeartbeatInterval:            14 * time.Second,
+		RebalanceInterval:            15 * time.Second,
+		ShedHysteresis:               0.3,
+		DrainTimeout:                 16 * time.Second,
+		RoutingRefreshInterval:       17 * time.Second,
+		HealthcheckTimeout:           18 * time.Second,
+		HealthcheckConcurrency:       19,
+		WSMaxFrameBytes:              20,
+		WSPingInterval:               21 * time.Second,
+		HealthcheckTenantConcurrency: 22,
+		HealthcheckApplyTimeout:      23 * time.Second,
+		MaxWorkflowsPerEndpoint:      24,
+		MaxActionsPerEndpoint:        25,
+		MaintenanceConcurrency:       26,
+		LeaseMaxClaimPerTick:         27,
+		WSMaxUpgradeHeaderBytes:      28,
+		WSMaxQueuedBytes:             29,
+		HealthPort:                   0,
+	}, got)
+
+	// the engine serves health and metrics itself; the core's server stays off even when
+	// the config file is empty
+	assert.Equal(t, 0, serverlessConfigFromServer(server.ServerlessOperatorConfigFile{}).HealthPort)
+	assert.Equal(t, serverlessLinkName, serverlessConfigFromServer(server.ServerlessOperatorConfigFile{}).LinkName)
+}
 
 // An operator core that fails at startup (a database that is not reachable yet) is restarted
 // with backoff until it runs, and a later unexpected stop is restarted too; stop ends the

@@ -8,10 +8,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 // attemptKey identifies one delivery attempt of a task: the engine retries a task with a
@@ -42,17 +45,33 @@ type inflightTask struct {
 	byEngine atomic.Bool
 }
 
-// registration is a tenant's engine registration on this process: the link Registration,
-// the action loop that dispatches assigned actions, the in-flight deliveries keyed by task
-// and attempt, and the action union revision it last advertised.
+// errRegistrationClosed is what HandleAction reports for an action that arrives after the
+// registration closed: in process the dispatcher requeues the task, over gRPC the host
+// reports a retryable failure, and either way the task goes to a live worker.
+var errRegistrationClosed = errors.New("serverless registration is closed")
+
+// errRegistrationNotOpen is what HandleAction reports when the host handed it an action but
+// the open that would have produced the session failed.
+var errRegistrationNotOpen = errors.New("serverless registration was not opened")
+
+// registration is a tenant's engine session on this process: the operator.Session the host
+// opened, the in-flight deliveries keyed by task and attempt, and the action union revision
+// it last advertised. It is the session's ActionHandler.
+//
+// session and events are set once the host's Open returns and ready is closed; a handler
+// call that arrives earlier (the in-process host links the initial actions before Open
+// returns, so the dispatcher may assign right away) waits on ready.
 type registration struct {
-	r          *runner
-	ts         *tenantState
-	reg        link.Registration
-	events     *eventSender
-	loopCancel context.CancelFunc
-	loopDone   chan struct{}
-	inflight   map[string]map[attemptKey]*inflightTask
+	r       *runner
+	ts      *tenantState
+	session operator.Session
+	events  *eventSender
+	ready   chan struct{}
+
+	// slots caps the deliveries in flight at the worker's slot count; see HandleAction.
+	slots chan struct{}
+
+	inflight map[string]map[attemptKey]*inflightTask
 	// advertised is the union the engine holds for this registration (the cache's shared
 	// sorted slice, never modified) and advertisedRev its revision: a sync is free while the
 	// cache is at the same revision.
@@ -66,9 +85,39 @@ type registration struct {
 	closed bool
 }
 
-// openTimeout bounds one Link.Open, so a hung engine cannot hold a tenant's operations for
+var _ operator.ActionHandler = (*registration)(nil)
+
+// openTimeout bounds one Host.Open, so a hung engine cannot hold a tenant's operations for
 // longer than this.
 const openTimeout = 30 * time.Second
+
+// sessionOpTimeout bounds one Pause or Close on the session at teardown.
+const sessionOpTimeout = 30 * time.Second
+
+// newRegistration builds the registration the host's Open will hand actions to. It is not
+// usable until open installs the session.
+func newRegistration(r *runner, ts *tenantState, union []string, rev uint64, slotConfig map[string]int32) *registration {
+	return &registration{
+		r:             r,
+		ts:            ts,
+		ready:         make(chan struct{}),
+		slots:         make(chan struct{}, slotCap(slotConfig)),
+		inflight:      map[string]map[attemptKey]*inflightTask{},
+		advertised:    union,
+		advertisedRev: rev,
+	}
+}
+
+// open installs the session Open returned, or records that there is none, and releases the
+// handler calls waiting on ready.
+func (reg *registration) open(session operator.Session) {
+	if session != nil {
+		reg.session = session
+		reg.events = &eventSender{session: session}
+	}
+
+	close(reg.ready)
+}
 
 // openRegistration connects the tenant with its current action union. Workflows are not part
 // of opening: the pollers put them as they learn them, and the engine keeps them. Runs under
@@ -78,17 +127,25 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	defer cancel()
 
 	union, rev := ts.cache.ActionUnion()
+	slotConfig := r.slotConfig()
+	reg := newRegistration(r, ts, union, rev, slotConfig)
 
-	opts := link.OpenOpts{
+	session, err := r.host.Open(ctx, operator.Identity{
+		TenantId: ts.tenantId,
+		Name:     r.cfg.OperatorName,
+		Kind:     r.kind,
+	}, operator.OpenOpts{
+		Handler:    reg,
 		Actions:    union,
-		SlotConfig: r.slotConfig(),
+		SlotConfig: slotConfig,
 		Labels:     map[string]interface{}{workerLabelProcess: r.processId.String()},
-	}
-
-	reg, err := r.link.Open(ctx, ts.tenantId, opts)
+		WorkerName: r.workerName,
+	})
 
 	if err != nil {
-		if errors.Is(err, link.ErrNoToken) {
+		reg.open(nil)
+
+		if errors.Is(err, hostgrpc.ErrNoToken) {
 			if !ts.noToken.Load() {
 				r.l.Warn().Str("tenant_id", ts.tenantId.String()).Msg("no token for tenant; endpoints are not polled or registered")
 			}
@@ -103,40 +160,17 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	}
 
 	ts.noToken.Store(false)
+	reg.open(session)
 
-	reg2 := &registration{
-		r:             r,
-		ts:            ts,
-		reg:           reg,
-		events:        &eventSender{reg: reg},
-		inflight:      map[string]map[attemptKey]*inflightTask{},
-		advertised:    union,
-		advertisedRev: rev,
-		loopDone:      make(chan struct{}),
-	}
-
-	// The action loop outlives ctx (the reconcile call) and ends with the runner's loop
-	// context or an explicit drain; loopCancel is set before the registration is published
-	// so a concurrent UnitsLost can always drain it.
-	loopCtx, cancel := context.WithCancel(r.loopCtx)
-	reg2.loopCancel = cancel
-
-	if prev := ts.setRegistration(reg2); prev != nil {
+	if prev := ts.setRegistration(reg); prev != nil {
 		// A stale registration for the tenant is closed without draining; its deliveries
-		// report through the closed link and the engine retries them.
+		// report through the closed session and the engine retries them.
 		go prev.close()
 	}
 
-	r.wg.Add(1)
-
-	go func() {
-		defer r.wg.Done()
-		reg2.run(loopCtx)
-	}()
-
 	r.l.Info().
 		Str("tenant_id", ts.tenantId.String()).
-		Str("worker_id", reg.WorkerId()).
+		Str("worker_id", session.Registration().WorkerId.String()).
 		Int("actions", len(union)).
 		Msg("serverless registration opened")
 
@@ -150,86 +184,80 @@ func (r *runner) slotConfig() map[string]int32 {
 	}
 }
 
-// run is the action loop. It ends when the loop context is cancelled (unit lost, shutdown)
-// or the link fails permanently, in which case the registration is dropped from the tenant so
-// the maintenance loop reopens it.
-func (reg *registration) run(ctx context.Context) {
-	defer close(reg.loopDone)
+// slotCap is the most deliveries a registration runs at once: the worker's slot total, which
+// is the most the engine assigns it, and at least one.
+func slotCap(slotConfig map[string]int32) int {
+	total := 0
 
-	ch, errCh, err := reg.reg.Actions(ctx)
-
-	if err != nil {
-		reg.r.l.Error().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not start serverless action stream")
-		reg.failed()
-
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case action, ok := <-ch:
-			if !ok {
-				if ctx.Err() == nil {
-					reg.failed()
-				}
-
-				return
-			}
-
-			reg.handle(action)
-		case err, ok := <-errCh:
-			if !ok {
-				// A closed error channel means the stream ended cleanly; the action channel
-				// closing decides what happens next.
-				errCh = nil
-				continue
-			}
-
-			if err != nil && ctx.Err() == nil {
-				reg.r.l.Error().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("serverless action stream failed")
-				reg.failed()
-
-				return
-			}
+	for _, n := range slotConfig {
+		if n > 0 {
+			total += int(n)
 		}
 	}
+
+	return max(total, 1)
 }
 
-// failed detaches a broken registration so the maintenance loop opens a fresh one.
-func (reg *registration) failed() {
-	reg.ts.detachRegistration(reg)
-	reg.r.m.sessionReconnect()
+// HandleAction implements operator.ActionHandler: a START_STEP_RUN starts a delivery, a
+// CANCEL_STEP_RUN interrupts one, anything else has no meaning for a serverless worker and
+// is dropped.
+//
+// Flow control is by blocking, never by refusing: the deliveries in flight are capped at the
+// worker's slot count, and a start that finds every slot taken waits on ctx for one to free
+// rather than returning an error. The engine never assigns a worker more than its slots, so
+// the wait only happens when an assignment overlaps the report that frees its predecessor's
+// slot; and an error would be the wrong answer to it anyway, since in process the dispatcher
+// would requeue the task and over gRPC the host would report a FAILED event that burns one
+// of the task's retries. In process ctx carries the dispatcher's own send timeout, which
+// bounds the wait; over gRPC the host's inbox is unbounded and the wait holds its deliver
+// loop, which is the backpressure a saturated worker should apply.
+func (reg *registration) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
+	select {
+	case <-reg.ready:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
-	go reg.close()
-}
+	if reg.session == nil {
+		return errRegistrationNotOpen
+	}
 
-func (reg *registration) handle(action *contracts.AssignedAction) {
 	switch action.ActionType {
 	case contracts.ActionType_START_STEP_RUN:
-		reg.startDelivery(action)
+		return reg.startDelivery(ctx, action)
 	case contracts.ActionType_CANCEL_STEP_RUN:
 		reg.cancelTask(action)
+		return nil
 	default:
 		reg.r.l.Warn().
 			Str("action_type", action.ActionType.String()).
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("serverless registration received unsupported action type")
+
+		return nil
 	}
 }
 
-// startDelivery records the attempt and delivers it. A second start for an attempt already
-// in flight is a duplicate assignment and is ignored; a new attempt of a task whose previous
-// attempt is still cleaning up gets its own record.
-func (reg *registration) startDelivery(action *contracts.AssignedAction) {
+// startDelivery takes a slot, records the attempt and delivers it. A second start for an
+// attempt already in flight is a duplicate assignment and is ignored; a new attempt of a
+// task whose previous attempt is still cleaning up gets its own record.
+func (reg *registration) startDelivery(ctx context.Context, action *contracts.AssignedAction) error {
+	select {
+	case reg.slots <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	release := func() { <-reg.slots }
 	key := attemptOf(action)
 
 	reg.mu.Lock()
 
 	if reg.closed {
 		reg.mu.Unlock()
-		return
+		release()
+
+		return errRegistrationClosed
 	}
 
 	attempts, ok := reg.inflight[action.TaskRunExternalId]
@@ -241,16 +269,17 @@ func (reg *registration) startDelivery(action *contracts.AssignedAction) {
 
 	if _, dup := attempts[key]; dup {
 		reg.mu.Unlock()
+		release()
 		reg.r.l.Warn().
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Int32("retry", key.retry).
 			Int32("invocation", key.invocation).
 			Msg("duplicate assignment for an attempt already in flight; ignored")
 
-		return
+		return nil
 	}
 
-	ctx, cancel := context.WithCancel(reg.r.deliveryCtx)
+	dctx, cancel := context.WithCancel(reg.r.deliveryCtx)
 	task := &inflightTask{cancel: cancel}
 	attempts[key] = task
 	reg.active.Add(1)
@@ -260,11 +289,14 @@ func (reg *registration) startDelivery(action *contracts.AssignedAction) {
 
 	go func() {
 		defer reg.r.wg.Done()
+		defer release()
 		defer reg.active.Done()
 		defer reg.finish(action.TaskRunExternalId, key, task)
 
-		reg.deliver(ctx, task, action)
+		reg.deliver(dctx, task, action)
 	}()
+
+	return nil
 }
 
 // finish removes the attempt's own record only: a newer attempt of the same task keeps its
@@ -356,9 +388,9 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 }
 
 // deliverDurable relays a durable invocation over the endpoint websocket: report STARTED,
-// open the invocation's channel through the registration and run the relay, which owns the
+// open the invocation's channel through the session and run the relay, which owns the
 // socket and the channel until the endpoint's done frame or a failure. The endpoint's request
-// timeout bounds the whole invocation, the link's handshake included.
+// timeout bounds the whole invocation, the host's handshake included.
 func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time) {
 	invocation := *action.DurableTaskInvocationCount
 
@@ -378,6 +410,15 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 		return
 	}
 
+	taskId, err := uuid.Parse(action.TaskRunExternalId)
+
+	if err != nil {
+		reg.r.m.delivered("failed", time.Since(start))
+		reg.reportFailure(action, fmt.Sprintf("durable task id %q is not a uuid", action.TaskRunExternalId), false)
+
+		return
+	}
+
 	if err := reg.events.started(action); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
@@ -387,12 +428,12 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	ch, err := reg.reg.OpenDurable(rctx, action.TaskRunExternalId, invocation)
+	ch, err := reg.session.OpenDurable(rctx, taskId, invocation)
 
 	if err != nil {
 		result := "retryable"
 
-		if errors.Is(err, link.ErrDurableNotSupported) {
+		if errors.Is(err, operator.ErrNotSupported) {
 			result = "durable_unsupported"
 		}
 
@@ -529,18 +570,18 @@ func (reg *registration) syncActions(ctx context.Context, cache *routingCache) e
 	}
 
 	if len(added) > 0 {
-		if err := reg.reg.AddActions(ctx, added); err != nil {
+		if err := reg.session.AddActions(ctx, added); err != nil {
 			return fmt.Errorf("could not add actions: %w", err)
 		}
 	}
 
 	if len(removed) > 0 {
-		if err := reg.reg.RemoveActions(ctx, removed); err != nil {
+		if err := reg.session.RemoveActions(ctx, removed); err != nil {
 			return fmt.Errorf("could not remove actions: %w", err)
 		}
 	}
 
-	if err := reg.reg.Flush(ctx); err != nil {
+	if err := reg.session.Flush(ctx); err != nil {
 		return fmt.Errorf("could not flush actions: %w", err)
 	}
 
@@ -584,12 +625,30 @@ func diffActions(have, want []string) (added, removed []string) {
 	return added, removed
 }
 
-// drain stops reading actions and waits for in-flight deliveries up to timeout, then cancels
-// whatever is left.
-func (reg *registration) drain(timeout time.Duration) {
-	reg.loopCancel()
-	<-reg.loopDone
+// teardown is the orderly end of a registration: pause the worker so the engine assigns it
+// nothing further, drain the deliveries in flight up to timeout, then close the session,
+// which deactivates the worker. The pause is committed before the drain starts, so a task
+// assigned during the drain window goes to another worker instead of into a delivery that
+// the drain timeout would abort.
+func (reg *registration) teardown(timeout time.Duration) {
+	reg.pause()
+	reg.drain(timeout)
+	reg.close()
+}
 
+// pause asks the engine to stop assigning to the worker and returns once it has. A pause the
+// session refuses (already closed) is logged and the drain proceeds without it.
+func (reg *registration) pause() {
+	ctx, cancel := context.WithTimeout(context.Background(), sessionOpTimeout)
+	defer cancel()
+
+	if err := reg.session.Pause(ctx); err != nil && !errors.Is(err, operator.ErrSessionClosed) {
+		reg.r.l.Warn().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not pause serverless worker before draining")
+	}
+}
+
+// drain waits for in-flight deliveries up to timeout, then cancels whatever is left.
+func (reg *registration) drain(timeout time.Duration) {
 	done := make(chan struct{})
 
 	go func() {
@@ -621,6 +680,7 @@ func (reg *registration) drain(timeout time.Duration) {
 	<-done
 }
 
+// close ends the session; later actions are refused. It runs once.
 func (reg *registration) close() {
 	reg.mu.Lock()
 
@@ -632,11 +692,10 @@ func (reg *registration) close() {
 	reg.closed = true
 	reg.mu.Unlock()
 
-	if reg.loopCancel != nil {
-		reg.loopCancel()
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), sessionOpTimeout)
+	defer cancel()
 
-	if err := reg.reg.Close(); err != nil {
+	if err := reg.session.Close(ctx); err != nil {
 		reg.r.l.Warn().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not close serverless registration")
 	}
 }

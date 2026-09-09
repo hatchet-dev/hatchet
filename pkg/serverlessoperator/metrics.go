@@ -26,7 +26,6 @@ type metricVectors struct {
 	routingMisses       *prometheus.CounterVec
 	wsConnectionsOpen   *prometheus.GaugeVec
 	evictions           *prometheus.CounterVec
-	sessionReconnects   *prometheus.CounterVec
 }
 
 var (
@@ -54,7 +53,6 @@ func registerVectors() *metricVectors {
 			routingMisses:       promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_routing_misses_total", Help: "Actions whose namespace had no endpoint"}, link),
 			wsConnectionsOpen:   promauto.NewGaugeVec(prometheus.GaugeOpts{Name: "hatchet_serverless_ws_connections_open", Help: "Open durable websockets"}, link),
 			evictions:           promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_evictions_total", Help: "Durable evictions by source"}, []string{"link", "source"}),
-			sessionReconnects:   promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_session_reconnects_total", Help: "Registration re-opens after a stream failure"}, link),
 		}
 	})
 
@@ -124,8 +122,4 @@ func (m *metrics) evicted(source string) {
 
 func (m *metrics) routingMiss() {
 	m.v.routingMisses.WithLabelValues(m.link).Inc()
-}
-
-func (m *metrics) sessionReconnect() {
-	m.v.sessionReconnects.WithLabelValues(m.link).Inc()
 }

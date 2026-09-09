@@ -1,6 +1,7 @@
 package operatorsvc_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -123,37 +124,122 @@ func TestOpenDurableHandshakeAndStamping(t *testing.T) {
 
 	ch, inv := openInvocation(t, svc, session, workerId)
 
-	require.NoError(t, ch.Send(memoRequest()))
+	require.NoError(t, ch.Send(t.Context(), memoRequest()))
 
 	req := <-inv.Requests
 	assert.Equal(t, inv.ExternalId.String(), req.GetMemo().GetDurableTaskExternalId())
 	assert.Equal(t, int32(3), req.GetMemo().GetInvocationCount())
 
 	// one ack-bearing request at a time: the engine keys its pending state by (task, invocation)
-	assert.ErrorIs(t, ch.Send(memoRequest()), operatorsvc.ErrRequestInFlight)
+	assert.ErrorIs(t, ch.Send(t.Context(), memoRequest()), operatorsvc.ErrRequestInFlight)
 
 	inv.Responses <- memoAck()
 
-	resp, err := ch.Recv()
+	resp, err := ch.Recv(t.Context())
 	require.NoError(t, err)
 	assert.NotNil(t, resp.GetMemoAck())
 
-	require.NoError(t, ch.Send(memoRequest()), "the slot is released when the ack is read")
+	require.NoError(t, ch.Send(t.Context(), memoRequest()), "the slot is released when the ack is read")
 }
 
-// register_worker and worker_status belong to the session, not to the operator driving the
-// invocation.
-func TestOpenDurableRefusesSessionOwnedRequests(t *testing.T) {
+// register_worker belongs to the session, not to the operator driving the invocation; a
+// worker_status the operator sends to report what it is blocked on passes through, naming the
+// session's worker whatever the operator put in it.
+func TestOpenDurableSessionOwnedRequests(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	err := ch.Send(t.Context(), &v1contracts.DurableTaskRequest{Message: &v1contracts.DurableTaskRequest_RegisterWorker{
+		RegisterWorker: &v1contracts.DurableTaskRequestRegisterWorker{WorkerId: workerId.String()},
+	}})
+	require.Error(t, err)
+
+	require.NoError(t, ch.Send(t.Context(), &v1contracts.DurableTaskRequest{Message: &v1contracts.DurableTaskRequest_WorkerStatus{
+		WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{WorkerId: "someone-else"},
+	}}))
+
+	req := <-inv.Requests
+	assert.Equal(t, workerId.String(), req.GetWorkerStatus().GetWorkerId())
+}
+
+// The engine delivers responses on one goroutine that blocks on each delivery before it reads
+// the next request; an operator that sends while a response is undelivered must not deadlock
+// against it.
+func TestOpenDurableSendWhileResponsesPending(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	// the engine has responses queued that nobody has read yet
+	for i := 0; i < 8; i++ {
+		inv.Responses <- memoAck()
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- ch.Send(t.Context(), memoRequest()) }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send blocked behind undelivered responses")
+	}
+
+	<-inv.Requests
+
+	for i := 0; i < 8; i++ {
+		resp, err := ch.Recv(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetMemoAck())
+	}
+}
+
+// Recv and Send honour the caller's context.
+func TestOpenDurableContextEnds(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
 	session, workerId := durableSession(t, svc, tenant)
 
 	ch, _ := openInvocation(t, svc, session, workerId)
 
-	err := ch.Send(&v1contracts.DurableTaskRequest{Message: &v1contracts.DurableTaskRequest_RegisterWorker{
-		RegisterWorker: &v1contracts.DurableTaskRequestRegisterWorker{WorkerId: workerId.String()},
-	}})
-	require.Error(t, err)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+
+	_, err := ch.Recv(ctx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// the in-flight slot is given back when a send is abandoned
+	sendCtx, cancelSend := context.WithCancel(t.Context())
+	cancelSend()
+
+	assert.ErrorIs(t, ch.Send(sendCtx, memoRequest()), context.Canceled)
+	require.NoError(t, ch.Send(t.Context(), memoRequest()))
+}
+
+// When the engine ends the invocation on its own, Recv reports it as the session ending, not as
+// the channel being closed.
+func TestOpenDurableEngineEndsSession(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	inv.Responses <- memoAck()
+	inv.End()
+
+	resp, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, resp.GetMemoAck(), "what the engine sent before ending is still delivered")
+
+	_, err = ch.Recv(t.Context())
+	assert.ErrorIs(t, err, operatorsvc.ErrSessionEnded)
 }
 
 // The engine delivers a completion for an already satisfied entry as soon as the invocation
@@ -168,13 +254,13 @@ func TestOpenDurableHoldsEntriesUntilTheirAck(t *testing.T) {
 
 	inv.Responses <- entryCompleted(0, 7)
 
-	require.NoError(t, ch.Send(waitForRequest()))
+	require.NoError(t, ch.Send(t.Context(), waitForRequest()))
 	<-inv.Requests
 
 	received := make(chan *v1contracts.DurableTaskResponse, 2)
 	go func() {
 		for i := 0; i < 2; i++ {
-			resp, err := ch.Recv()
+			resp, err := ch.Recv(t.Context())
 
 			if err != nil {
 				return
@@ -208,17 +294,17 @@ func TestOpenDurableDeliversEntriesAfterTheirAck(t *testing.T) {
 
 	ch, inv := openInvocation(t, svc, session, workerId)
 
-	require.NoError(t, ch.Send(waitForRequest()))
+	require.NoError(t, ch.Send(t.Context(), waitForRequest()))
 	<-inv.Requests
 
 	inv.Responses <- waitForAck(1, 4)
 	inv.Responses <- entryCompleted(1, 4)
 
-	ack, err := ch.Recv()
+	ack, err := ch.Recv(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, ack.GetWaitForAck())
 
-	entry, err := ch.Recv()
+	entry, err := ch.Recv(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, entry.GetEntryCompleted())
 	assert.Equal(t, int64(4), entry.GetEntryCompleted().GetRef().GetNodeId())
@@ -232,16 +318,16 @@ func TestOpenDurableHoldsPreHandshakeResponses(t *testing.T) {
 
 	ch, inv := openInvocation(t, svc, session, workerId, entryCompleted(0, 2))
 
-	require.NoError(t, ch.Send(waitForRequest()))
+	require.NoError(t, ch.Send(t.Context(), waitForRequest()))
 	<-inv.Requests
 
 	inv.Responses <- waitForAck(0, 2)
 
-	ack, err := ch.Recv()
+	ack, err := ch.Recv(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, ack.GetWaitForAck())
 
-	entry, err := ch.Recv()
+	entry, err := ch.Recv(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, entry.GetEntryCompleted(), "the entry held through the handshake is delivered behind its ack")
 	assert.Equal(t, int64(2), entry.GetEntryCompleted().GetRef().GetNodeId())
@@ -318,7 +404,7 @@ func TestOpenDurableCloseUnblocks(t *testing.T) {
 
 	require.NoError(t, ch.Close())
 
-	_, err := ch.Recv()
+	_, err := ch.Recv(t.Context())
 	assert.ErrorIs(t, err, operatorsvc.ErrChannelClosed)
-	assert.ErrorIs(t, ch.Send(memoRequest()), operatorsvc.ErrChannelClosed)
+	assert.ErrorIs(t, ch.Send(t.Context(), memoRequest()), operatorsvc.ErrChannelClosed)
 }

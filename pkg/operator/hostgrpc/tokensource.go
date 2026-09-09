@@ -1,7 +1,8 @@
-package grpclink
+package hostgrpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,16 +15,16 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
-// ErrNoToken is returned by an exchange for a tenant it does not serve. It is the link
-// package's sentinel so the core can match it without depending on grpclink.
-var ErrNoToken = link.ErrNoToken
+// ErrNoToken is returned by a TokenSource for a tenant it does not serve, and by Open when the
+// host therefore cannot authenticate as the tenant. A multi-tenant operator keeps the tenant
+// and retries Open later, so a token that appears afterwards is picked up without a restart.
+var ErrNoToken = errors.New("hostgrpc: no token for tenant")
 
-// TenantTokenExchange resolves the API token the link uses to register as a tenant. The
-// database never stores tokens; every deployment plugs in its own source.
-type TenantTokenExchange interface {
+// TokenSource resolves the API token the host uses to register as a tenant. The database never
+// stores tokens; every deployment plugs in its own source.
+type TokenSource interface {
 	// Token returns the tenant's token, or ErrNoToken when the tenant is not served.
 	Token(ctx context.Context, tenantId uuid.UUID) (string, error)
 }
@@ -44,10 +45,10 @@ type localTokenEntry struct {
 
 const defaultLocalExchangePollInterval = 10 * time.Second
 
-// LocalExchange reads tokens from a YAML file and reloads it when the file or any token_file
-// it references changes. The mtimes are polled by a background goroutine so a rotated file
-// or mounted secret is picked up without a restart; a reload that fails keeps the previous
-// mapping and is logged when a logger is configured.
+// LocalExchange is a TokenSource that reads tokens from a YAML file and reloads it when the
+// file or any token_file it references changes. The mtimes are polled by a background
+// goroutine so a rotated file or mounted secret is picked up without a restart; a reload that
+// fails keeps the previous mapping and is logged when a logger is configured.
 type LocalExchange struct {
 	tokens   map[uuid.UUID]string
 	modTimes map[string]time.Time
@@ -59,6 +60,8 @@ type LocalExchange struct {
 	interval time.Duration
 	closed   bool
 }
+
+var _ TokenSource = (*LocalExchange)(nil)
 
 // LocalExchangeOpt configures NewLocalExchange.
 type LocalExchangeOpt func(*LocalExchange)
@@ -195,7 +198,7 @@ func (e *LocalExchange) poll() {
 	}
 }
 
-// Token implements TenantTokenExchange.
+// Token implements TokenSource.
 func (e *LocalExchange) Token(_ context.Context, tenantId uuid.UUID) (string, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -279,12 +282,15 @@ func loadLocalTokenFile(path string) (map[uuid.UUID]string, []string, error) {
 	return tokens, files, nil
 }
 
-// StaticExchange serves a single tenant from one token, the tenant being the token's sub
-// claim. It backs the HATCHET_CLIENT_TOKEN fallback for local development and tests.
+// StaticExchange is a TokenSource that serves a single tenant from one token, the tenant being
+// the token's sub claim. It backs the HATCHET_CLIENT_TOKEN case for a single-tenant operator,
+// local development and tests.
 type StaticExchange struct {
 	token    string
 	tenantId uuid.UUID
 }
+
+var _ TokenSource = (*StaticExchange)(nil)
 
 // NewStaticExchange parses the tenant id out of token's sub claim.
 func NewStaticExchange(token string) (*StaticExchange, error) {
@@ -303,12 +309,12 @@ func NewStaticExchange(token string) (*StaticExchange, error) {
 	return &StaticExchange{token: token, tenantId: tenantId}, nil
 }
 
-// TenantId is the single tenant the exchange serves.
+// TenantId is the single tenant the source serves.
 func (s *StaticExchange) TenantId() uuid.UUID {
 	return s.tenantId
 }
 
-// Token implements TenantTokenExchange.
+// Token implements TokenSource.
 func (s *StaticExchange) Token(_ context.Context, tenantId uuid.UUID) (string, error) {
 	if tenantId != s.tenantId {
 		return "", ErrNoToken

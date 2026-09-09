@@ -19,10 +19,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/signature"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
 )
 
 // fakeDurableChannel answers every memo with a memo_ack and records what was sent.
@@ -38,7 +38,7 @@ func newFakeDurableChannel() *fakeDurableChannel {
 	return &fakeDurableChannel{recv: make(chan *v1.DurableTaskResponse, 8), closed: make(chan struct{})}
 }
 
-func (f *fakeDurableChannel) Send(req *v1.DurableTaskRequest) error {
+func (f *fakeDurableChannel) Send(_ context.Context, req *v1.DurableTaskRequest) error {
 	f.mu.Lock()
 	f.sent = append(f.sent, req)
 	f.mu.Unlock()
@@ -56,12 +56,14 @@ func (f *fakeDurableChannel) Send(req *v1.DurableTaskRequest) error {
 	return nil
 }
 
-func (f *fakeDurableChannel) Recv() (*v1.DurableTaskResponse, error) {
+func (f *fakeDurableChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse, error) {
 	select {
 	case resp := <-f.recv:
 		return resp, nil
 	case <-f.closed:
-		return nil, link.ErrChannelClosed
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
@@ -152,14 +154,14 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	env.addEndpoint(row)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(row)})
-	reg := env.link.reg(0)
+	reg := env.host.session(0)
 	require.NotNil(t, reg)
 
 	ch := newFakeDurableChannel()
 	var opened []string
 
-	reg.setOpenDurable(func(taskId string, invocation int32) (link.DurableChannel, error) {
-		opened = append(opened, taskId)
+	reg.setOpenDurable(func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error) {
+		opened = append(opened, taskId.String())
 		assert.Equal(t, int32(2), invocation)
 
 		return ch, nil
@@ -168,7 +170,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	invocation := int32(2)
 	action := startAction(row.Namespace, "svc:run")
 	action.DurableTaskInvocationCount = &invocation
-	reg.actions <- action
+	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
 
@@ -194,8 +196,8 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	assert.Equal(t, 0, reg.inflightCount(env))
 }
 
-func (f *fakeRegistration) inflightCount(env *testEnv) int {
-	ts := env.tenant(f.tenantId)
+func (f *fakeSession) inflightCount(env *testEnv) int {
+	ts := env.tenant(f.reg.TenantId)
 
 	if ts == nil {
 		return 0
@@ -233,13 +235,13 @@ func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
 	env.addEndpoint(row)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(row)})
-	reg := env.link.reg(0)
-	reg.setOpenDurable(func(string, int32) (link.DurableChannel, error) { return newFakeDurableChannel(), nil })
+	reg := env.host.session(0)
+	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) { return newFakeDurableChannel(), nil })
 
 	invocation := int32(0)
 	action := startAction(row.Namespace, "svc:run")
 	action.DurableTaskInvocationCount = &invocation
-	reg.actions <- action
+	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
 
@@ -284,18 +286,18 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	env.addEndpoint(row)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(row)})
-	reg := env.link.reg(0)
-	reg.setOpenDurable(func(string, int32) (link.DurableChannel, error) { return newFakeDurableChannel(), nil })
+	reg := env.host.session(0)
+	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) { return newFakeDurableChannel(), nil })
 
 	invocation := int32(1)
 	action := startAction(row.Namespace, "svc:run")
 	action.DurableTaskInvocationCount = &invocation
-	reg.actions <- action
+	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
 
 	cancel := &contracts.AssignedAction{ActionType: contracts.ActionType_CANCEL_STEP_RUN, TaskRunExternalId: action.TaskRunExternalId}
-	reg.actions <- cancel
+	reg.deliver(t, cancel)
 
 	select {
 	case code := <-closeCode:

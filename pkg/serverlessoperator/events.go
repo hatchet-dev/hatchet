@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 // eventReportTimeout bounds one step event report. Reports use a detached context, like the
@@ -15,9 +15,9 @@ import (
 const eventReportTimeout = 30 * time.Second
 
 // eventSender builds the same StepActionEvents as pkg/operator.SharedOperator and sends them
-// through a registration.
+// through a session.
 type eventSender struct {
-	reg link.Registration
+	session operator.Session
 }
 
 func newStepEvent(workerId string, action *contracts.AssignedAction, eventType contracts.StepActionEventType, payload string, shouldNotRetry *bool) *contracts.StepActionEvent {
@@ -42,7 +42,9 @@ func (s *eventSender) send(action *contracts.AssignedAction, eventType contracts
 	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
 	defer cancel()
 
-	return s.reg.SendStepActionEvent(ctx, newStepEvent(s.reg.WorkerId(), action, eventType, payload, shouldNotRetry))
+	workerId := s.session.Registration().WorkerId.String()
+
+	return s.session.SendStepActionEvent(ctx, newStepEvent(workerId, action, eventType, payload, shouldNotRetry))
 }
 
 func (s *eventSender) started(action *contracts.AssignedAction) error {

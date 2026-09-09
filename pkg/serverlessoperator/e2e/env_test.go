@@ -22,10 +22,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link/grpclink"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -51,8 +51,8 @@ const (
 	processLabel = "hatchet-serverless-process"
 )
 
-// tokens is the tenant token exchange every out-of-process instance uses: one token per
-// tenant the tests create, plus the harness tenant's token.
+// tokens is the token source every out-of-process instance uses: one token per tenant the
+// tests create, plus the harness tenant's token.
 var tokens = &tokenRegistry{tokens: map[uuid.UUID]string{}}
 
 type tokenRegistry struct {
@@ -67,7 +67,7 @@ func (r *tokenRegistry) add(tenantId uuid.UUID, tok string) {
 	r.tokens[tenantId] = tok
 }
 
-// Token implements grpclink.TenantTokenExchange.
+// Token implements hostgrpc.TokenSource.
 func (r *tokenRegistry) Token(_ context.Context, tenantId uuid.UUID) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -75,7 +75,7 @@ func (r *tokenRegistry) Token(_ context.Context, tenantId uuid.UUID) (string, er
 	tok, ok := r.tokens[tenantId]
 
 	if !ok {
-		return "", grpclink.ErrNoToken
+		return "", hostgrpc.ErrNoToken
 	}
 
 	return tok, nil
@@ -181,7 +181,7 @@ func (e *testEnv) pollUntil(timeout time.Duration, what string, fn func() (bool,
 	}
 }
 
-// tenant is a tenant the test created, with a token for the out-of-process link and an SDK
+// tenant is a tenant the test created, with a token for the out-of-process host and an SDK
 // client for triggering and inspecting runs.
 type tenant struct {
 	id  uuid.UUID
@@ -270,7 +270,7 @@ func uniqueName(prefix string) string {
 // The owner discovers the unit on its next rebalance tick (ListOwned) and opens its
 // registration. Shedding cannot undo a pin of one weighted unit per process: a unit is shed
 // only when its weight fits within the owner's excess over fair share, and with one weighted
-// unit the excess is always below that weight. This is how the scenarios decide which link
+// unit the excess is always below that weight. This is how the scenarios decide which host
 // serves a tenant.
 func (e *testEnv) pinLease(tenantId uuid.UUID, shard int32, owner uuid.UUID) {
 	e.t.Helper()
@@ -472,6 +472,7 @@ type workerRow struct {
 	operatorId *uuid.UUID
 	process    string
 	active     bool
+	paused     bool
 	actions    []string
 }
 
@@ -481,7 +482,7 @@ func (e *testEnv) serverlessWorkers(tenantId uuid.UUID) []workerRow {
 	e.t.Helper()
 
 	rows, err := e.pool.Query(e.ctx, `
-		SELECT w."id", w."operatorId", w."isActive", l."strValue",
+		SELECT w."id", w."operatorId", w."isActive", w."isPaused", l."strValue",
 			COALESCE((
 				SELECT array_agg(a."actionId" ORDER BY a."actionId")
 				FROM "_ActionToWorker" atw
@@ -504,7 +505,7 @@ func (e *testEnv) serverlessWorkers(tenantId uuid.UUID) []workerRow {
 		var w workerRow
 		var process *string
 
-		require.NoError(e.t, rows.Scan(&w.id, &w.operatorId, &w.active, &process, &w.actions))
+		require.NoError(e.t, rows.Scan(&w.id, &w.operatorId, &w.active, &w.paused, &process, &w.actions))
 
 		if process != nil {
 			w.process = *process
@@ -541,7 +542,7 @@ func (e *testEnv) workersOfProcess(processId uuid.UUID) []workerRow {
 	e.t.Helper()
 
 	rows, err := e.pool.Query(e.ctx, `
-		SELECT w."id", w."isActive"
+		SELECT w."id", w."isActive", w."isPaused"
 		FROM "Worker" w
 		JOIN "WorkerLabel" l ON l."workerId" = w."id" AND l."key" = $1 AND l."strValue" = $2`,
 		processLabel, processId.String(),
@@ -554,7 +555,7 @@ func (e *testEnv) workersOfProcess(processId uuid.UUID) []workerRow {
 
 	for rows.Next() {
 		var w workerRow
-		require.NoError(e.t, rows.Scan(&w.id, &w.active))
+		require.NoError(e.t, rows.Scan(&w.id, &w.active, &w.paused))
 		w.process = processId.String()
 		out = append(out, w)
 	}

@@ -1,4 +1,4 @@
-package grpclink
+package hostgrpc
 
 import (
 	"context"
@@ -9,34 +9,34 @@ import (
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
-	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/link"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 const (
-	// recvQueueSize bounds responses waiting for the relay to Recv them. Pushes from
+	// recvQueueSize bounds responses waiting for the operator to Recv them. Pushes from
 	// per-request goroutines block when it is full; the server-evict push never blocks
 	// the listener's receive loop (it is spawned).
 	recvQueueSize = 64
 
 	// sendQueueSize bounds requests waiting for the hub's pump to hand them to the shared
-	// listener. A Send past it blocks, selecting on the invocation's close, so a full queue
-	// (an unreachable engine) never holds a closing invocation.
+	// listener. A Send past it blocks, selecting on the invocation's close and the caller's
+	// context, so a full queue (an unreachable engine) never holds a closing invocation.
 	sendQueueSize = 256
 
 	// evictionAckTimeout mirrors the SDK's bound on an eviction ack.
 	evictionAckTimeout = 30 * time.Second
 
 	// ackFailureGrace is how long an ack failure waits for a server-evict notice before it
-	// is reported as a link failure. The listener fails pending acks (CleanupTaskState) a
-	// moment before it invokes the evict callback; within the grace the eviction wins and
+	// is reported as a transport failure. The listener fails pending acks (CleanupTaskState)
+	// a moment before it invokes the evict callback; within the grace the eviction wins and
 	// the failure is dropped, so a superseded invocation is reported as evicted, not failed.
 	ackFailureGrace = 100 * time.Millisecond
 )
 
-// durableHub owns the registration's single DurableTaskListener and the channels open on
-// it, indexed by task and then invocation so a server-evict notice, which names one task,
-// finds that task's channels without walking every open channel under the lock. It is
-// created on the first OpenDurable.
+// durableHub owns the session's single DurableTaskListener and the channels open on it,
+// indexed by task and then invocation so a server-evict notice, which names one task, finds
+// that task's channels without walking every open channel under the lock. It is created on
+// the first OpenDurable.
 //
 // Requests reach the listener through the hub's bounded outbound queue and one pump
 // goroutine: the listener's own enqueue has no cancellation, so only the pump ever blocks on
@@ -97,7 +97,7 @@ func newDurableHubOver(listener *client.DurableTaskListener) *durableHub { //nol
 
 // pump hands queued requests to the shared listener. A listener that is no longer running
 // would never drain its queue, so requests are dropped instead of blocking on it; the
-// channels they belong to are being closed with the registration. The hand-off itself is
+// channels they belong to are being closed with the session. The hand-off itself is
 // bounded by pumpCtx and by the listener's own stop, so a full listener queue (an
 // unreachable engine) cannot hold the pump past closeAll.
 func (h *durableHub) pump() {
@@ -120,23 +120,29 @@ func (h *durableHub) pump() {
 }
 
 // enqueue queues req for the listener, or reports the channel closed. A full queue blocks
-// until there is room or the channel or hub closes.
-func (h *durableHub) enqueue(ch *durableChannel, req *v1.DurableTaskRequest) error {
+// until there is room or the channel, the hub or ctx ends.
+func (h *durableHub) enqueue(ctx context.Context, ch *durableChannel, req *v1.DurableTaskRequest) error {
 	select {
 	case <-ch.closed:
-		return link.ErrChannelClosed
+		return operator.ErrChannelClosed
 	case <-h.stopped:
-		return link.ErrChannelClosed
+		return operator.ErrChannelClosed
 	default:
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	select {
 	case h.outbound <- outboundRequest{req: req, ch: ch}:
 		return nil
 	case <-ch.closed:
-		return link.ErrChannelClosed
+		return operator.ErrChannelClosed
 	case <-h.stopped:
-		return link.ErrChannelClosed
+		return operator.ErrChannelClosed
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -145,7 +151,7 @@ func (h *durableHub) open(taskId string, invocation int32) (*durableChannel, err
 	defer h.mu.Unlock()
 
 	if h.closed {
-		return nil, errors.New("registration closed")
+		return nil, operator.ErrSessionClosed
 	}
 
 	byInvocation := h.channels[taskId]
@@ -193,7 +199,7 @@ func (h *durableHub) remove(ch *durableChannel) {
 
 // onServerEvict runs on the listener's receive loop. The notice supersedes the named
 // invocation and every older one of the task; each open channel affected yields a
-// server_evict response and the relay closes its socket. Only the named task's channels
+// server_evict response and the operator ends the invocation. Only the named task's channels
 // are visited.
 func (h *durableHub) onServerEvict(taskId string, invocation int32, reason string) {
 	h.mu.Lock()
@@ -268,6 +274,8 @@ type durableChannel struct {
 	closing    bool
 }
 
+var _ operator.DurableChannel = (*durableChannel)(nil)
+
 // spawn runs fn on a goroutine the channel joins on Close; nothing is started once closing.
 func (c *durableChannel) spawn(fn func()) {
 	c.mu.Lock()
@@ -296,7 +304,7 @@ func (c *durableChannel) acquire() error {
 	defer c.mu.Unlock()
 
 	if c.inflight {
-		return link.ErrRequestInFlight
+		return operator.ErrRequestInFlight
 	}
 
 	c.inflight = true
@@ -319,25 +327,27 @@ func (c *durableChannel) isClosed() bool {
 	}
 }
 
-// Send implements link.DurableChannel.
-func (c *durableChannel) Send(req *v1.DurableTaskRequest) error {
+// Send implements operator.DurableChannel. A worker_status is dropped: the listener reports
+// the entries every channel of the session awaits on its own, from the callbacks the acks
+// register.
+func (c *durableChannel) Send(ctx context.Context, req *v1.DurableTaskRequest) error {
 	if c.isClosed() {
-		return link.ErrChannelClosed
+		return operator.ErrChannelClosed
 	}
 
 	switch m := req.Message.(type) {
 	case *v1.DurableTaskRequest_Memo:
 		m.Memo.DurableTaskExternalId, m.Memo.InvocationCount = c.taskId, c.invocation
-		return c.sendAcked(req, c.awaitMemoAck)
+		return c.sendAcked(ctx, req, c.awaitMemoAck)
 	case *v1.DurableTaskRequest_TriggerRuns:
 		m.TriggerRuns.DurableTaskExternalId, m.TriggerRuns.InvocationCount = c.taskId, c.invocation
-		return c.sendAcked(req, c.awaitTriggerRunsAck)
+		return c.sendAcked(ctx, req, c.awaitTriggerRunsAck)
 	case *v1.DurableTaskRequest_WaitFor:
 		m.WaitFor.DurableTaskExternalId, m.WaitFor.InvocationCount = c.taskId, c.invocation
-		return c.sendAcked(req, c.awaitWaitForAck)
+		return c.sendAcked(ctx, req, c.awaitWaitForAck)
 	case *v1.DurableTaskRequest_EvictInvocation:
 		m.EvictInvocation.DurableTaskExternalId, m.EvictInvocation.InvocationCount = c.taskId, c.invocation
-		return c.sendEviction(req)
+		return c.sendEviction(ctx, req)
 	case *v1.DurableTaskRequest_CompleteMemo:
 		if m.CompleteMemo.Ref == nil {
 			return errors.New("complete_memo requires a ref")
@@ -345,9 +355,11 @@ func (c *durableChannel) Send(req *v1.DurableTaskRequest) error {
 
 		m.CompleteMemo.Ref.DurableTaskExternalId, m.CompleteMemo.Ref.InvocationCount = c.taskId, c.invocation
 
-		return c.hub.enqueue(c, req)
-	case *v1.DurableTaskRequest_RegisterWorker, *v1.DurableTaskRequest_WorkerStatus:
-		return errors.New("register_worker and worker_status are link-internal")
+		return c.hub.enqueue(ctx, c, req)
+	case *v1.DurableTaskRequest_WorkerStatus:
+		return nil
+	case *v1.DurableTaskRequest_RegisterWorker:
+		return errors.New("register_worker is owned by the session")
 	default:
 		return errors.New("unknown durable request")
 	}
@@ -355,14 +367,14 @@ func (c *durableChannel) Send(req *v1.DurableTaskRequest) error {
 
 // sendAcked registers the event ack, sends, and hands the ack to handle on its own goroutine.
 // A send refused because the channel closed undoes the registration and the in-flight slot.
-func (c *durableChannel) sendAcked(req *v1.DurableTaskRequest, handle func(*v1.DurableTaskResponse)) error {
+func (c *durableChannel) sendAcked(ctx context.Context, req *v1.DurableTaskRequest, handle func(*v1.DurableTaskResponse)) error {
 	if err := c.acquire(); err != nil {
 		return err
 	}
 
 	ackCh := c.listener.AddPendingEventAck(c.ackKey())
 
-	if err := c.hub.enqueue(c, req); err != nil {
+	if err := c.hub.enqueue(ctx, c, req); err != nil {
 		c.listener.CleanupTaskState(c.taskId, c.invocation)
 		c.release()
 
@@ -449,14 +461,14 @@ func (c *durableChannel) awaitEntry(branchId, nodeId int64) {
 
 // sendEviction registers the eviction ack and reconstructs the ack message from it, since
 // the listener only reports success or failure.
-func (c *durableChannel) sendEviction(req *v1.DurableTaskRequest) error {
+func (c *durableChannel) sendEviction(ctx context.Context, req *v1.DurableTaskRequest) error {
 	if err := c.acquire(); err != nil {
 		return err
 	}
 
 	ackCh := c.listener.AddPendingEvictionAck(c.ackKey())
 
-	if err := c.hub.enqueue(c, req); err != nil {
+	if err := c.hub.enqueue(ctx, c, req); err != nil {
 		c.listener.CleanupTaskState(c.taskId, c.invocation)
 		c.release()
 
@@ -493,8 +505,8 @@ func (c *durableChannel) sendEviction(req *v1.DurableTaskRequest) error {
 }
 
 // failed turns a listener-reported failure into what Recv yields: a non-determinism error
-// becomes an error response the relay forwards to the endpoint; anything else is a link
-// failure, unless a server-evict notice explains it within the grace.
+// becomes an error response the operator handles like any engine error; anything else is a
+// transport failure, unless a server-evict notice explains it within the grace.
 func (c *durableChannel) failed(err error) {
 	var nonDet *client.NonDeterminismError //nolint:staticcheck // see import
 
@@ -556,17 +568,19 @@ func (c *durableChannel) serverEvicted(invocation int32, reason string) {
 	})
 }
 
-// Recv implements link.DurableChannel.
-func (c *durableChannel) Recv() (*v1.DurableTaskResponse, error) {
+// Recv implements operator.DurableChannel.
+func (c *durableChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse, error) {
 	select {
 	case item := <-c.queue:
 		return item.resp, item.err
 	case <-c.closed:
-		return nil, link.ErrChannelClosed
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
-// Close implements link.DurableChannel: unblocks Send, Recv and the ack goroutines, joins
+// Close implements operator.DurableChannel: unblocks Send, Recv and the ack goroutines, joins
 // every goroutine the channel started so none can register state afterwards, and then drops
 // the invocation's pending state on the listener.
 func (c *durableChannel) Close() error {

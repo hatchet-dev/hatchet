@@ -288,6 +288,23 @@ func (ss *Session) ApplyDelta(ctx context.Context, add, remove []string) (bool, 
 	return changed, nil
 }
 
+// SendStepActionEvent reports task progress for an action delivered to the session's worker,
+// on the tenant-scoped path in-engine operators use: the tenant is put on the context and the
+// dispatcher handles the event exactly like an SDK worker's. An empty WorkerId is filled from
+// the session; another worker's id is refused, since the session only ever speaks for its own
+// worker.
+func (ss *Session) SendStepActionEvent(ctx context.Context, ev *contracts.StepActionEvent) error {
+	if ev.WorkerId == "" {
+		ev.WorkerId = ss.workerId.String()
+	} else if ev.WorkerId != ss.workerId.String() {
+		return status.Errorf(codes.PermissionDenied, "worker %s is not this session's worker %s", ev.WorkerId, ss.workerId)
+	}
+
+	_, err := ss.svc.dispatcher.SendStepActionEvent(WithTenant(ctx, ss.tenant), ev)
+
+	return err
+}
+
 // Pause stops the scheduler assigning to the session's worker, or lets it be assigned to again.
 // It returns once the change is committed, so a host that pauses before draining knows no
 // further work will arrive.

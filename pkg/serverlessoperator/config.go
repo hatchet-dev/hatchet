@@ -5,10 +5,10 @@ import "time"
 // Config holds the knobs shared by the out-of-process binary and the in-engine mode. Zero
 // values are replaced by the defaults below; the binary binds SERVERLESS_OPERATOR_* onto it.
 type Config struct {
-	// OperatorName is the OperatorService operator name registrations connect as.
+	// OperatorName is the operator name the sessions register as.
 	OperatorName string
 
-	// LinkName labels metrics: grpc or engine.
+	// LinkName labels metrics with how the core reaches the engine: grpc or engine.
 	LinkName string
 
 	DefaultSlots int32
