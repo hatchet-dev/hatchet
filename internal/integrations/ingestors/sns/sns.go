@@ -15,10 +15,18 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"time"
 )
 
 // https://github.com/robbiet480/go.sns/issues/2
 var hostPattern = regexp.MustCompile(`^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$`)
+
+const (
+	maxResponseBytes = 1 << 20
+	maxTimestampSkew = time.Hour
+)
+
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // Payload contains a single POST from SNS
 type Payload struct {
@@ -100,8 +108,30 @@ func (payload *Payload) SignatureAlgorithm() x509.SignatureAlgorithm {
 	return x509.SHA1WithRSA
 }
 
+// Rejecting stale timestamps prevents indefinite replay of captured messages.
+// The 1-hour window matches the hard cap on SNS HTTP/S delivery retries ("The
+// total policy retry time for an HTTP/S endpoint cannot be greater than 3,600
+// seconds"), so no legitimate delivery arrives later than that:
+// https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html
+func (payload *Payload) validateTimestamp() error {
+	t, err := time.Parse(time.RFC3339, payload.Timestamp)
+	if err != nil {
+		return fmt.Errorf("invalid message timestamp: %w", err)
+	}
+
+	if time.Since(t).Abs() > maxTimestampSkew {
+		return errors.New("message timestamp is outside the allowed window")
+	}
+
+	return nil
+}
+
 // VerifyPayload will verify that a payload came from SNS
 func (payload *Payload) VerifyPayload() error {
+	if err := payload.validateTimestamp(); err != nil {
+		return err
+	}
+
 	payloadSignature, err := base64.StdEncoding.DecodeString(payload.Signature)
 	if err != nil {
 		return err
@@ -120,14 +150,14 @@ func (payload *Payload) VerifyPayload() error {
 		return fmt.Errorf("certificate is located on an invalid domain")
 	}
 
-	resp, err := http.Get(payload.SigningCertURL)
+	resp, err := httpClient.Get(payload.SigningCertURL)
 	if err != nil {
 		return err
 	}
 
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return err
 	}
@@ -156,14 +186,14 @@ func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 		return response, err
 	}
 
-	resp, err := http.Get(payload.SubscribeURL)
+	resp, err := httpClient.Get(payload.SubscribeURL)
 	if err != nil {
 		return response, err
 	}
 
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return response, err
 	}
@@ -183,14 +213,14 @@ func (payload *Payload) Unsubscribe() (UnsubscribeResponse, error) {
 		return response, err
 	}
 
-	resp, err := http.Get(payload.UnsubscribeURL)
+	resp, err := httpClient.Get(payload.UnsubscribeURL)
 	if err != nil {
 		return response, err
 	}
 
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return response, err
 	}
