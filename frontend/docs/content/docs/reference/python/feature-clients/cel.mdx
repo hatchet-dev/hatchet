@@ -10,10 +10,10 @@ The CEL client is a client for debugging CEL expressions within Hatchet
 
 Methods:
 
-| Name        | Description                                                                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name | Description |
+| --- | --- |
 | `aio_debug` | Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production. |
-| `debug`     | Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production. |
+| `debug` | Debug a CEL expression with the provided input, filter payload, and optional metadata. Useful for testing and validating CEL expressions and debugging issues in production. |
 
 ### Functions
 
@@ -23,17 +23,17 @@ Debug a CEL expression with the provided input, filter payload, and optional met
 
 Parameters:
 
-| Name                  | Type                              | Description                                                                                      | Default    |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
-| `expression`          | `str`                             | The CEL expression to debug.                                                                     | _required_ |
-| `input`               | `JSONSerializableMapping`         | The input, which simulates the workflow run input.                                               | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata, which simulates metadata that could be sent with an event or a workflow run | `None`     |
-| `filter_payload`      | `JSONSerializableMapping \| None` | The filter payload, which simulates a payload set on a previous-created filter                   | `None`     |
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `expression` | `str` | The CEL expression to debug. | *required* |
+| `input` | `JSONSerializableMapping` | The input, which simulates the workflow run input. | *required* |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata, which simulates metadata that could be sent with an event or a workflow run | `None` |
+| `filter_payload` | `JSONSerializableMapping \| None` | The filter payload, which simulates a payload set on a previous-created filter | `None` |
 
 Returns:
 
-| Type                  | Description                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Type | Description |
+| --- | --- |
 | `CELEvaluationResult` | A V1CELDebugErrorResponse or V1CELDebugSuccessResponse containing the result of the debug operation. |
 
 #### `debug`
@@ -42,21 +42,21 @@ Debug a CEL expression with the provided input, filter payload, and optional met
 
 Parameters:
 
-| Name                  | Type                              | Description                                                                                      | Default    |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
-| `expression`          | `str`                             | The CEL expression to debug.                                                                     | _required_ |
-| `input`               | `JSONSerializableMapping`         | The input, which simulates the workflow run input.                                               | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata, which simulates metadata that could be sent with an event or a workflow run | `None`     |
-| `filter_payload`      | `JSONSerializableMapping \| None` | The filter payload, which simulates a payload set on a previous-created filter                   | `None`     |
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| `expression` | `str` | The CEL expression to debug. | *required* |
+| `input` | `JSONSerializableMapping` | The input, which simulates the workflow run input. | *required* |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata, which simulates metadata that could be sent with an event or a workflow run | `None` |
+| `filter_payload` | `JSONSerializableMapping \| None` | The filter payload, which simulates a payload set on a previous-created filter | `None` |
 
 Returns:
 
-| Type                  | Description                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Type | Description |
+| --- | --- |
 | `CELEvaluationResult` | A V1CELDebugErrorResponse or V1CELDebugSuccessResponse containing the result of the debug operation. |
 
 Raises:
 
-| Type         | Description                                        |
-| ------------ | -------------------------------------------------- |
+| Type | Description |
+| --- | --- |
 | `ValueError` | If no response is received from the CEL debug API. |
