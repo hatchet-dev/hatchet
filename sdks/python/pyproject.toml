@@ -191,6 +191,4 @@ arg-type-hints-in-docstring = false
 check-return-types = false
 
 [dependency-groups]
-test = [
-    "pytest-timeout (>=2.4.0,<3.0.0)"
-]
+test = ["pytest-timeout (>=2.4.0,<3.0.0)"]

@@ -1333,20 +1333,20 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
 -- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        qi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(qi.task_inserted_at) AS oldest,
+        MIN(qi.task_inserted_at) FILTER (WHERE qi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
-        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+        "Step" s ON s."id" = qi.step_id
     WHERE
         qi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        qi.queue
 ), retry_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1365,36 +1365,36 @@ WITH queued_tasks AS (
         t.queue
 ), rate_limited_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        rqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(rqi.task_inserted_at) AS oldest,
+        MIN(rqi.task_inserted_at) FILTER (WHERE rqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
-        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+        "Step" s ON s."id" = rqi.step_id
     WHERE
         rqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        rqi.queue
 ), paused_workflow_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        pqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(pqi.task_inserted_at) AS oldest,
+        MIN(pqi.task_inserted_at) FILTER (WHERE pqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_paused_workflow_queue_item pqi
     JOIN
-        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+        "Step" s ON s."id" = pqi.step_id
     WHERE
         pqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        pqi.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,

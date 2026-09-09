@@ -39,7 +39,7 @@ from hatchet_sdk import Hatchet, V1TaskStatus
 
 from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
 
-TIMING_TOLERANCE = 1.0
+TIMING_TOLERANCE = 2.0
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 

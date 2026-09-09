@@ -10,6 +10,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { DispatcherClient } from './dispatcher-client';
 import { Heartbeat } from './heartbeat/heartbeat-controller';
+import { createAction } from './action';
 import { classifyListenerFailure } from './listener-severity';
 
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
@@ -20,34 +21,8 @@ enum ListenStrategy {
   LISTEN_STRATEGY_V2 = 2,
 }
 
-export type ActionKey = `${string}/${number}` | `${string}/${number}/${number}`;
-
-export type Action = AssignedAction & { readonly key: ActionKey };
-
-export function workflowNameFromAction(
-  action: Pick<AssignedAction, 'actionId' | 'jobName'>
-): string {
-  const separatorIndex = action.actionId.lastIndexOf(':');
-  return separatorIndex === -1 ? action.jobName : action.actionId.substring(0, separatorIndex);
-}
-
-export function createAction(assignedAction: AssignedAction): Action {
-  const action = assignedAction as Action;
-  Object.defineProperty(action, 'key', {
-    get(): ActionKey {
-      // Durable task invocations each get a distinct key so a restored
-      // invocation never collides with the one it replaces in contexts,
-      // futures, or eviction state.
-      if (this.durableTaskInvocationCount !== undefined) {
-        return `${this.taskRunExternalId}/${this.retryCount}/${this.durableTaskInvocationCount}`;
-      }
-      return `${this.taskRunExternalId}/${this.retryCount}`;
-    },
-    enumerable: true,
-    configurable: true,
-  });
-  return action;
-}
+export { createAction, createActionId, workflowNameFromAction } from './action';
+export type { Action, ActionKey } from './action';
 
 export class ActionListener {
   config: ClientConfig;

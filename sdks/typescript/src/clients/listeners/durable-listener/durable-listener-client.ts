@@ -25,17 +25,37 @@ import {
   DurableTaskWaitForRequest,
   DurableEventLogEntryRef,
 } from '@hatchet/protoc/v1/dispatcher';
-import {
-  DurableEventListenerConditions,
-  SleepMatchCondition,
-  UserEventMatchCondition,
-} from '@hatchet/protoc/v1/shared/condition';
-import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
+import { SleepMatchCondition, UserEventMatchCondition } from '@hatchet/protoc/v1/shared/condition';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import { TaskRunTerminatedError } from '@hatchet/util/errors/task-run-terminated-error';
-import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
+import { createAbortError } from '@hatchet/util/abort-error';
+import { bindAbortSignalHandler } from '@hatchet/util/abort-signal';
 import sleep from '@hatchet/util/sleep';
 import { classifyListenerFailure } from '@clients/dispatcher/listener-severity';
+import {
+  DurableTaskEventAck,
+  DurableTaskEventLogEntryResult,
+  DurableTaskEventMemoAck,
+  DurableTaskEventRunAck,
+  DurableTaskEventWaitForAck,
+  DurableTaskSendEvent,
+  MemoEvent,
+  RunChildrenEvent,
+  WaitForEvent,
+} from './durable-events';
+
+export type {
+  DurableTaskEventAck,
+  DurableTaskEventLogEntryResult,
+  DurableTaskEventMemoAck,
+  DurableTaskEventRunAck,
+  DurableTaskEventWaitForAck,
+  DurableTaskRunAckEntryResult,
+  DurableTaskSendEvent,
+  MemoEvent,
+  RunChildrenEvent,
+  WaitForEvent,
+} from './durable-events';
 
 class TTLMap<K, V> {
   private cache = new Map<K, { value: V; expiresAt: number }>();
@@ -101,48 +121,6 @@ const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
 const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
 
-export interface DurableTaskRunAckEntryResult {
-  nodeId: number;
-  branchId: number;
-  workflowRunExternalId: string;
-}
-
-export interface DurableTaskEventRunAck {
-  ackType: 'run';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  runEntries: DurableTaskRunAckEntryResult[];
-}
-
-export interface DurableTaskEventMemoAck {
-  ackType: 'memo';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  branchId: number;
-  nodeId: number;
-  memoAlreadyExisted: boolean;
-  memoResultPayload?: Uint8Array;
-}
-
-export interface DurableTaskEventWaitForAck {
-  ackType: 'waitFor';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  branchId: number;
-  nodeId: number;
-}
-
-export type DurableTaskEventAck =
-  DurableTaskEventRunAck | DurableTaskEventMemoAck | DurableTaskEventWaitForAck;
-
-export interface DurableTaskEventLogEntryResult {
-  durableTaskExternalId: string;
-  nodeId: number;
-  payload: Record<string, unknown> | undefined;
-  isFailure: boolean;
-  errorMessage: string | undefined;
-}
-
 function eventLogEntryResultFromProto(
   proto: DurableTaskEventLogEntryCompletedResponse
 ): DurableTaskEventLogEntryResult {
@@ -158,25 +136,6 @@ function eventLogEntryResultFromProto(
     errorMessage: proto.errorMessage,
   };
 }
-
-export interface WaitForEvent {
-  kind: 'waitFor';
-  waitForConditions: DurableEventListenerConditions;
-  label?: string;
-}
-
-export interface RunChildrenEvent {
-  kind: 'runChildren';
-  triggerOpts: TriggerWorkflowRequest[];
-}
-
-export interface MemoEvent {
-  kind: 'memo';
-  memoKey: Uint8Array;
-  payload?: Uint8Array;
-}
-
-export type DurableTaskSendEvent = WaitForEvent | RunChildrenEvent | MemoEvent;
 
 type TaskExternalId = string;
 type InvocationCount = number;
