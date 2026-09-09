@@ -451,7 +451,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 				// operator-backed workers have no stream goroutine reading `finished`; the
 				// operator manager has already drained them above
-				if w.operator != nil {
+				if w.handler != nil {
 					return true
 				}
 

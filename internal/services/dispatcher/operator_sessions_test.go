@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -201,5 +202,72 @@ func TestAddOperatorStreamSessionFinAndRelease(t *testing.T) {
 
 	if len(ws) != 0 {
 		t.Fatalf("release did not remove the session, %d remain", len(ws))
+	}
+}
+
+// stubActionHandler records the actions an in-process session was handed.
+type stubActionHandler struct {
+	mu       sync.Mutex
+	received []*contracts.AssignedAction
+}
+
+func (s *stubActionHandler) HandleAction(_ context.Context, action *contracts.AssignedAction) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.received = append(s.received, action)
+
+	return nil
+}
+
+// An in-process session is keyed on the session id its host chose, the same id the host records
+// on the worker row as the listener fence, and delivers by calling the handler directly.
+func TestAddOperatorSessionRoutesToTheHandler(t *testing.T) {
+	l := zerolog.Nop()
+	d := &DispatcherImpl{workers: &workers{}, l: &l}
+
+	workerId := uuid.New()
+	sessionId := uuid.New()
+	handler := &stubActionHandler{}
+
+	session := d.AddOperatorSession(workerId, sessionId, handler)
+
+	w, err := d.workers.Get(workerId)
+
+	if err != nil {
+		t.Fatalf("expected the session to be registered: %v", err)
+	}
+
+	if len(w) != 1 {
+		t.Fatalf("expected exactly one session, got %d", len(w))
+	}
+
+	action := &contracts.AssignedAction{ActionId: "svc:a"}
+
+	if err := w[0].sendToWorker(context.Background(), action); err != nil {
+		t.Fatalf("expected the action to reach the handler: %v", err)
+	}
+
+	handler.mu.Lock()
+	got := len(handler.received)
+	handler.mu.Unlock()
+
+	if got != 1 {
+		t.Fatalf("expected the handler to receive one action, got %d", got)
+	}
+
+	session.Release()
+
+	// Release is idempotent: a host that releases twice must not disturb a newer session
+	session.Release()
+
+	after, err := d.workers.Get(workerId)
+
+	if err != nil {
+		t.Fatalf("unexpected error reading the worker's sessions: %v", err)
+	}
+
+	if len(after) != 0 {
+		t.Fatalf("expected the session to be gone after Release, got %d", len(after))
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 // OperatorStreamSession is a live dispatcher session backed by a gRPC stream that an operator
@@ -70,5 +71,36 @@ func (s *OperatorStreamSession) Send(ctx context.Context, msg proto.Message) err
 
 // Release removes the session from the dispatcher. It is idempotent.
 func (s *OperatorStreamSession) Release() {
+	s.release()
+}
+
+// OperatorHandlerSession is a live dispatcher session backed by an operator running in this
+// process: assigned actions are handed to its handler directly, with no encoding and no stream.
+// There is no Fin signal, because there is no stream to hang up, and the shutdown drain skips
+// these sessions: the host that opened the session owns its teardown.
+type OperatorHandlerSession struct {
+	release func()
+}
+
+// AddOperatorSession registers an in-process operator as a live session for workerId, so the
+// dispatcher routes assigned actions to it like any other worker. The caller chooses sessionId
+// so the dispatcher's session key is the same id it records on the worker row as the listener
+// session fence. The caller must call Release when the session ends.
+func (d *DispatcherImpl) AddOperatorSession(
+	workerId uuid.UUID,
+	sessionId uuid.UUID,
+	handler operator.ActionHandler,
+) *OperatorHandlerSession {
+	d.workers.Add(workerId, sessionId, newOperatorSubscribedWorker(workerId, d.pubBuffer, handler))
+
+	return &OperatorHandlerSession{
+		release: func() {
+			d.workers.DeleteForSession(workerId, sessionId)
+		},
+	}
+}
+
+// Release removes the session from the dispatcher. It is idempotent.
+func (s *OperatorHandlerSession) Release() {
 	s.release()
 }
