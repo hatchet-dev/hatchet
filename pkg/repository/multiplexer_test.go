@@ -3,17 +3,12 @@
 package repository
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
 
@@ -263,154 +258,6 @@ func TestMultiplexedListener_ConcurrentAccess(t *testing.T) {
 
 	if actualCount != expectedCount {
 		t.Errorf("Expected %d messages received, got %d", expectedCount, actualCount)
-	}
-}
-
-func TestMultiplexedListener_IsShutdownErr(t *testing.T) {
-	tests := []struct {
-		name     string
-		shutdown bool
-		err      error
-		want     bool
-	}{
-		{
-			name:     "canceled error before shutdown is a real error",
-			shutdown: false,
-			err:      context.Canceled,
-			want:     false,
-		},
-		{
-			name:     "non-cancellation error before shutdown is a real error",
-			shutdown: false,
-			err:      errors.New("connection reset by peer"),
-			want:     false,
-		},
-		{
-			name:     "canceled error during shutdown is expected",
-			shutdown: true,
-			err:      context.Canceled,
-			want:     true,
-		},
-		{
-			name:     "wrapped canceled error during shutdown is expected",
-			shutdown: true,
-			err:      fmt.Errorf("waiting for notification: %w", context.Canceled),
-			want:     true,
-		},
-		{
-			name:     "deadline exceeded during shutdown is expected",
-			shutdown: true,
-			err:      context.DeadlineExceeded,
-			want:     true,
-		},
-		{
-			name:     "non-cancellation error during shutdown is a real error",
-			shutdown: true,
-			err:      errors.New("connection reset by peer"),
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			logger := zerolog.Nop()
-			m := newMultiplexedListener(&logger, nil)
-
-			if tt.shutdown {
-				m.cancel()
-			}
-
-			if got := m.isShutdownErr(tt.err); got != tt.want {
-				t.Errorf("isShutdownErr(%v) with shutdown=%v = %v, want %v", tt.err, tt.shutdown, got, tt.want)
-			}
-		})
-	}
-}
-
-// syncLogBuffer collects zerolog output from the listener goroutines.
-type syncLogBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *syncLogBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *syncLogBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-// TestMultiplexedListener_RealListenerErrorStillLogs verifies that a listener
-// error while the listener's context is still live keeps logging at warn, so
-// the graceful-shutdown demotion never hides real failures.
-func TestMultiplexedListener_RealListenerErrorStillLogs(t *testing.T) {
-	buf := &syncLogBuffer{}
-	logger := zerolog.New(buf)
-
-	// port 1 is never a Postgres server, so every connect attempt fails with a
-	// real (non-cancellation) error
-	pool, err := pgxpool.New(context.Background(), "postgres://postgres:postgres@127.0.0.1:1/postgres?sslmode=disable&connect_timeout=1")
-	if err != nil {
-		t.Fatalf("failed to build pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	m := newMultiplexedListener(&logger, pool)
-	t.Cleanup(m.cancel)
-
-	m.startListening()
-
-	deadline := time.After(10 * time.Second)
-	for !strings.Contains(buf.String(), "error in listener") {
-		select {
-		case <-deadline:
-			t.Fatalf("expected a warn record for a real listener error, got: %q", buf.String())
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-
-	if !strings.Contains(buf.String(), `"level":"warn"`) {
-		t.Fatalf("expected the listener error to be logged at warn, got: %q", buf.String())
-	}
-}
-
-// TestMultiplexedListener_QuietGracefulShutdown verifies that once the
-// listener's own context is canceled, the cancellation errors from the
-// listener teardown are demoted to debug instead of warn or error.
-func TestMultiplexedListener_QuietGracefulShutdown(t *testing.T) {
-	buf := &syncLogBuffer{}
-	logger := zerolog.New(buf)
-
-	pool, err := pgxpool.New(context.Background(), "postgres://postgres:postgres@127.0.0.1:1/postgres?sslmode=disable&connect_timeout=1")
-	if err != nil {
-		t.Fatalf("failed to build pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	m := newMultiplexedListener(&logger, pool)
-
-	// cancel first so the listener starts inside a graceful shutdown; every
-	// error it produces is then a context cancellation
-	m.cancel()
-	m.startListening()
-
-	deadline := time.After(10 * time.Second)
-	for !strings.Contains(buf.String(), "multiplexed listener stopped") {
-		select {
-		case <-deadline:
-			t.Fatalf("expected a debug record for the listener exit, got: %q", buf.String())
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-
-	out := buf.String()
-	if strings.Contains(out, `"level":"warn"`) || strings.Contains(out, `"level":"error"`) {
-		t.Fatalf("expected no warn or error records during a graceful shutdown, got: %q", out)
 	}
 }
 

@@ -81,6 +81,12 @@ func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operatio
 
 				if err != nil {
 					innerCancel()
+
+					if isShutdownErr(outerCtx, err) {
+						ql.Debug().Err(err).Msg("could not list tenants")
+						continue
+					}
+
 					ql.Error().Err(err).Msg("could not list tenants")
 					continue
 				}

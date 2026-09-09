@@ -604,6 +604,17 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	return s.subscribeToWorkflowRunsV1(server)
 }
 
+// isShutdownErr reports whether err is the cancellation produced by ctx going
+// down during a graceful shutdown, as opposed to a real failure, which should
+// keep logging at its original level.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	done := make(chan struct{})
 
@@ -1214,7 +1225,12 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(iterCtx, tenantId, workflowRunIds)
 
 		if err != nil {
-			s.l.Error().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
+			if isShutdownErr(ctx, err) {
+				s.l.Debug().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
+			} else {
+				s.l.Error().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
+			}
+
 			return err
 		}
 
@@ -1226,7 +1242,12 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns = nil // nolint: ineffassign
 
 		if err != nil {
-			s.l.Error().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
+			if isShutdownErr(ctx, err) {
+				s.l.Debug().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
+			} else {
+				s.l.Error().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
+			}
+
 			return err
 		}
 
@@ -1251,7 +1272,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		if matchedWorkflowRunIds, ok := isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				if isShutdownErr(ctx, err) {
+					s.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				} else {
+					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				}
 			}
 		}
 
@@ -1307,7 +1332,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				}
 
 				if err := iter(workflowRunIds); err != nil {
-					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					if isShutdownErr(ctx, err) {
+						s.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					} else {
+						s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					}
 				}
 			}
 		}

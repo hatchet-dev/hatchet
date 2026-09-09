@@ -240,7 +240,12 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		dbEvents, err := d.repo.Tasks().ListSignalCompletedEvents(ctx, tenantId, signalEvents)
 
 		if err != nil {
-			d.l.Error().Ctx(ctx).Err(err).Msg("could not list signal completed events")
+			if isShutdownErr(ctx, err) {
+				d.l.Debug().Ctx(ctx).Err(err).Msg("could not list signal completed events")
+			} else {
+				d.l.Error().Ctx(ctx).Err(err).Msg("could not list signal completed events")
+			}
+
 			return err
 		}
 
@@ -309,7 +314,11 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				}
 
 				if err := iter(signalEvents); err != nil {
-					d.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					if isShutdownErr(ctx, err) {
+						d.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					} else {
+						d.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					}
 				}
 			}
 		}

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -444,12 +445,28 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
+			if isShutdownErr(ctx, err) {
+				s.l.Debug().Err(err).Ctx(ctx).Msg("could not list tenants")
+				return
+			}
+
 			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 
 		s.pool.SetTenants(tenants)
 	}
+}
+
+// isShutdownErr reports whether err is the cancellation produced by ctx going
+// down during a graceful shutdown, as opposed to a real failure, which should
+// keep logging at its original level.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {

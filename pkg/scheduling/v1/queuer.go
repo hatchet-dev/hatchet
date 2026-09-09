@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math/rand/v2"
 	"sort"
 	"sync"
@@ -154,6 +155,17 @@ func (q *Queuer) Cleanup() {
 	q.cleanup()
 }
 
+// isShutdownErr reports whether err is the cancellation produced by ctx going
+// down during a graceful shutdown, as opposed to a real failure, which should
+// keep logging at its original level.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 func (q *Queuer) queue(ctx context.Context) {
 	if ok := q.queueMu.TryLock(); !ok {
 		return
@@ -227,7 +239,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
 
 			if err != nil {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
+				if isShutdownErr(ctx, err) {
+					q.l.Debug().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
+				} else {
+					q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
+				}
 			}
 		}
 
@@ -236,7 +252,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
+
+			if isShutdownErr(ctx, err) {
+				q.l.Debug().Ctx(ctx).Err(err).Msg("error refilling queue")
+			} else {
+				q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
+			}
+
 			continue
 		}
 
@@ -264,7 +286,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
+			if isShutdownErr(ctx, err) {
+				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting rate limits")
+			} else {
+				q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
+			}
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -301,7 +327,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
+
+			if isShutdownErr(ctx, err) {
+				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting desired labels")
+			} else {
+				q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
+			}
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -315,7 +346,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting batch configs")
+
+			if isShutdownErr(ctx, err) {
+				q.l.Debug().Err(err).Msg("error getting batch configs")
+			} else {
+				q.l.Error().Err(err).Msg("error getting batch configs")
+			}
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -329,7 +365,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
+
+			if isShutdownErr(ctx, err) {
+				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting step slot requests")
+			} else {
+				q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
+			}
 
 			q.unackedToUnassigned(qis)
 			continue

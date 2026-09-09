@@ -1,6 +1,8 @@
 package olap
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +13,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+// isShutdownErr reports whether err is the cancellation produced by ctx going
+// down during a graceful shutdown, as opposed to a real failure, which should
+// keep logging at its original level.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
 
 type taskPrometheusUpdate struct {
 	tenantId       uuid.UUID
@@ -113,7 +126,11 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process task prometheus updates")
+			if isShutdownErr(o.taskPrometheusWorkerCtx, err) {
+				o.l.Debug().Err(err).Msg("failed to process task prometheus updates")
+			} else {
+				o.l.Error().Err(err).Msg("failed to process task prometheus updates")
+			}
 		}
 	}
 
@@ -223,7 +240,11 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
+			if isShutdownErr(o.dagPrometheusWorkerCtx, err) {
+				o.l.Debug().Err(err).Msg("failed to process dag prometheus updates")
+			} else {
+				o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
+			}
 		}
 	}
 

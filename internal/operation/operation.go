@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -124,6 +125,17 @@ func (o *SerialOperation) Stop() {
 	o.cancel()
 }
 
+// isShutdownErr reports whether err is the cancellation produced by ctx going
+// down during a graceful shutdown, as opposed to a real failure, which should
+// keep logging at its original level.
+func isShutdownErr(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 func (o *SerialOperation) RunOrContinue(l *zerolog.Logger) {
 	o.setContinue(true)
 	o.Run(l)
@@ -149,6 +161,13 @@ func (o *SerialOperation) Run(l *zerolog.Logger) {
 			shouldContinue, err := o.method(ctx, o.id)
 
 			if err != nil {
+				// note: the check is against runningCtx, not the per-run timeout ctx,
+				// so a genuine operation timeout still logs at its original level
+				if isShutdownErr(o.runningCtx, err) {
+					l.Debug().Err(err).Msgf("could not %s", o.description)
+					return
+				}
+
 				l.Err(err).Msgf("could not %s", o.description)
 				return
 			}

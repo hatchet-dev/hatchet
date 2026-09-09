@@ -261,7 +261,13 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
-			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+
+			if isShutdownErr(ctx, err) {
+				c.l.Debug().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+			} else {
+				c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+			}
+
 			continue
 		}
 
