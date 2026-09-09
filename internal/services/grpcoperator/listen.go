@@ -107,6 +107,7 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 
 	l := s.l.With().
 		Str("tenant_id", tenant.ID.String()).
+		Str("operator_name", op.Name).
 		Str("operator_id", op.ID.String()).
 		Str("worker_id", worker.ID.String()).
 		Logger()

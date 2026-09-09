@@ -235,6 +235,13 @@ func (f *fakeOperatorServiceClient) PauseWorker(ctx context.Context, in *v1.Oper
 	return &v1.OperatorPauseWorkerResponse{WorkerId: in.WorkerId, Paused: in.Paused}, nil
 }
 
+func (f *fakeOperatorServiceClient) stepEventsSent() []*dispatchercontracts.StepActionEvent {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*dispatchercontracts.StepActionEvent(nil), f.stepEvents...)
+}
+
 func (f *fakeOperatorServiceClient) pauseRequests() []*v1.OperatorPauseWorkerRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -152,4 +153,67 @@ func TestOperatorSessionClosesWhenPauseFails(t *testing.T) {
 	require.NoError(t, s.connect(context.Background()))
 
 	require.NoError(t, s.Close(WithDrainTimeout(time.Second)))
+}
+
+// A consumer that reports an action the instant it takes it must still leave the session idle:
+// the action is recorded as in flight before it is handed over, so the report cannot clear an
+// entry that has not been added yet.
+func TestOperatorSessionCloseDrainsImmediateReports(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
+	s, _ := newTestOperatorSession(t, client, true)
+	require.NoError(t, s.connect(context.Background()))
+
+	actions, _, err := s.Actions(context.Background())
+	require.NoError(t, err)
+
+	const runs = 50
+
+	reported := make(chan struct{})
+
+	go func() {
+		defer close(reported)
+
+		for action := range actions {
+			_, _ = s.SendStepActionEvent(context.Background(), completed(action.TaskRunExternalId))
+		}
+	}()
+
+	for i := 0; i < runs; i++ {
+		client.stream(0).deliver(startStepRun(fmt.Sprintf("run-%d", i)))
+	}
+
+	waitFor(t, func() bool { return len(client.stepEventsSent()) == runs }, "the consumer did not report every action")
+
+	started := time.Now()
+	require.NoError(t, s.Close(WithDrainTimeout(10*time.Second)))
+	assert.Less(t, time.Since(started), 5*time.Second, "the drain waited for an action that was already reported")
+
+	<-reported
+}
+
+// A consumer that cancels its Actions context will never report the runs it holds, so Close
+// stops waiting for them instead of draining until the timeout.
+func TestOperatorSessionCloseDoesNotDrainAnEndedConsumer(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
+	s, _ := newTestOperatorSession(t, client, true)
+	require.NoError(t, s.connect(context.Background()))
+
+	consumerCtx, cancelConsumer := context.WithCancel(context.Background())
+
+	actions, _, err := s.Actions(consumerCtx)
+	require.NoError(t, err)
+
+	client.stream(0).deliver(startStepRun("run-1"))
+	<-actions
+
+	cancelConsumer()
+
+	// the delivery loop closes the channel on its way out, which is when the runs it handed
+	// over stop counting
+	for range actions {
+	}
+
+	started := time.Now()
+	require.NoError(t, s.Close(WithDrainTimeout(10*time.Second)))
+	assert.Less(t, time.Since(started), 5*time.Second, "Close waited for a consumer that had gone away")
 }

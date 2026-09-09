@@ -97,7 +97,7 @@ type entryRef struct {
 // engine's ack is consumed here so Recv only ever returns invocation traffic. The engine routes
 // responses to the task as soon as it is registered, before the ack, so invocation traffic that
 // arrives during the handshake (a completion restored for a resumed invocation, for instance) is
-// held for the channel, under the same ack-before-entry ordering, up to handshakeHoldLimit
+// held for the channel, under the same ack-before-entry ordering, up to HandshakeHoldLimit
 // responses. ctx bounds the handshake; the invocation itself is detached from it and ends on
 // Close.
 func (ss *Session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, invocation int32) (DurableChannel, error) {

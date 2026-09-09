@@ -478,6 +478,9 @@ func (s *operatorSession) terminalErr() error {
 func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
 	defer close(ch)
 	defer close(errCh)
+	// once delivery ends there is nobody left to report the runs the consumer was handed, so a
+	// Close that is draining must stop waiting for them
+	defer s.abandonInflight()
 
 	stopOnCancel := context.AfterFunc(ctx, func() {
 		s.loopCancel()
@@ -487,13 +490,20 @@ func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatcher
 
 	for {
 		if action := s.inbox.pop(); action != nil {
+			// The action counts as in flight from the moment this loop commits to delivering
+			// it, not once the consumer has taken it: a consumer that reports the outcome the
+			// instant it receives the action would otherwise clear an entry that is not there
+			// yet, and the entry added afterwards would never be cleared.
+			s.startAction(action)
+
 			select {
 			case ch <- action:
-				s.startAction(action)
 				continue
 			case <-ctx.Done():
+				s.finishAction(action.TaskRunExternalId)
 				return
 			case <-s.loopDone:
+				s.finishAction(action.TaskRunExternalId)
 			}
 		}
 
@@ -574,6 +584,25 @@ func (s *operatorSession) finishAction(taskRunExternalId string) {
 	}
 }
 
+// abandonInflight forgets every task run handed to the consumer. Delivery has ended, so the
+// consumer that would have reported them is gone; the engine retries whatever it was holding
+// once those tasks time out.
+func (s *operatorSession) abandonInflight() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.inflight) == 0 {
+		return
+	}
+
+	s.inflight = map[string]struct{}{}
+
+	if s.idle != nil {
+		close(s.idle)
+		s.idle = nil
+	}
+}
+
 // idleCh returns a channel that is closed once nothing is in flight.
 func (s *operatorSession) idleCh() <-chan struct{} {
 	s.mu.Lock()
@@ -630,13 +659,19 @@ func (s *operatorSession) drain(timeout time.Duration) {
 
 	select {
 	case <-s.idleCh():
+		return
 	case <-ctx.Done():
-		s.mu.Lock()
-		outstanding := len(s.inflight)
-		s.mu.Unlock()
-
-		s.l.Warn().Int("in_flight", outstanding).Msg("operator session closed with actions still in flight")
 	}
+
+	s.mu.Lock()
+	outstanding := len(s.inflight)
+	s.mu.Unlock()
+
+	if outstanding == 0 {
+		return
+	}
+
+	s.l.Warn().Int("in_flight", outstanding).Msg("operator session closed with actions still in flight")
 }
 
 func (s *operatorSession) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, []string, error) {

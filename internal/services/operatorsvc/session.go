@@ -49,8 +49,8 @@ type OpenOpts struct {
 // Close.
 //
 // The methods that drive the session (Heartbeat, ApplyDelta, Send) are meant to be called from
-// the one goroutine that owns the session's protocol loop; Close is safe to call from anywhere
-// and runs once.
+// the one goroutine that owns the session's protocol loop, which is how the throttles read as
+// one sequence; Pause and Close are safe to call from anywhere, and Close runs once.
 type Session struct {
 	svc *Service
 
@@ -575,6 +575,9 @@ func (n *throttledNotifier) notify() {
 	n.d.NotifyNewWorker(n.ctx, n.tenant, n.workerId)
 }
 
+// stop ends the notifier. A callback that already passed the stopped check may still publish
+// one notification after this returns; the scheduler simply reloads a worker that is on its way
+// out, so stop does not wait for it.
 func (n *throttledNotifier) stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
