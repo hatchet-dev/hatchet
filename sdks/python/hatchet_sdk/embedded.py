@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
+from pydantic_settings.sources import DotEnvSettingsSource
 
 import hatchet_sdk.logger  # noqa: F401  (configures the parent "hatchet" logger)
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
@@ -284,26 +285,33 @@ _warned_ambient_token = False
 
 def _ambient_client_token_source() -> str | None:
     """
-    Return where an ambient `HATCHET_CLIENT_TOKEN` would be loaded from (the
-    environment, or one of the `.env` files `ClientConfig` reads), or `None`
-    if there is none.
+    Return where a token picked up by the standard `ClientConfig` constructor
+    would come from (the environment, or one of the `.env` files it reads), or
+    `None` if there is none. The `.env` files are probed with `ClientConfig`'s
+    own pydantic-settings dotenv source, one file at a time so the warning can
+    name the file, which keeps the answer identical to what the constructor
+    would actually load.
     """
     if os.environ.get("HATCHET_CLIENT_TOKEN"):
         return "the environment"
 
-    for name in (".env", ".env.hatchet", ".env.dev", ".env.local"):
-        try:
-            content = Path(name).read_text()
-        except OSError:
-            continue
+    env_prefix = str(ClientConfig.model_config.get("env_prefix", ""))
+    env_file_setting = ClientConfig.model_config.get("env_file")
 
-        for line in content.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("export "):
-                stripped = stripped.removeprefix("export ").lstrip()
-            key, sep, value = stripped.partition("=")
-            if sep and key.strip() == "HATCHET_CLIENT_TOKEN" and value.strip():
-                return name
+    env_files: tuple[Path | str, ...]
+    if env_file_setting is None:
+        env_files = ()
+    elif isinstance(env_file_setting, (str, Path)):
+        env_files = (env_file_setting,)
+    else:
+        env_files = tuple(env_file_setting)
+
+    for name in env_files:
+        source = DotEnvSettingsSource(
+            ClientConfig, env_file=name, env_prefix=env_prefix
+        )
+        if source().get("token"):
+            return str(name)
 
     return None
 
