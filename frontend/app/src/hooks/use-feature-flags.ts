@@ -24,7 +24,7 @@ export const useIsFeatureEnabled = (
 ): UseIsFeatureEnabledResult => {
   const { tenantId } = useAppContext();
 
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
     queryFn: async () => {
       if (!tenantId) {
@@ -44,7 +44,7 @@ export const useIsFeatureEnabled = (
     refetchOnReconnect: false,
   });
 
-  if (tenantId && !data) {
+  if (tenantId && !data && !isError) {
     // fixme: not sure if this is the right behavior here
     // should we default to `isEnabledIfNoPosthog` while loading, or should we
     // default to `false` until we know for sure?
