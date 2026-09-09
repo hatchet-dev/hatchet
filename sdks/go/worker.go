@@ -59,19 +59,15 @@ func WithLogger(logger *zerolog.Logger) WorkerOption {
 	}
 }
 
-// resolveWorkerLogger picks the logger a worker should use. An explicitly
-// configured worker logger (via WithLogger) always wins; otherwise the worker
-// inherits the client's logger as a sub-logger tagged with service=worker,
-// following the same derivation pattern as other service loggers. Returns nil
-// only if neither logger is available, in which case pkg/worker falls back to
-// its standalone default.
+// resolveWorkerLogger picks the logger a worker should use: an explicitly
+// configured worker logger (via WithLogger) always wins; otherwise the client's
+// logger is inherited as a sub-logger tagged with service=worker, so worker
+// output follows the client's configured level and format. Returns nil when
+// neither logger is available.
 //
-// Inheriting means the worker's log level and format follow the client
-// configuration instead of pkg/worker's debug-level JSON default; this is a
-// deliberate change to default worker output. As with the engine's service
-// loggers, the client logger already carries its own service field, so the
-// emitted JSON repeats the key with the worker value last (JSON consumers and
-// zerolog's console writer both resolve to service=worker).
+// The client logger already carries its own service field, so the emitted JSON
+// repeats the key with the worker value last; JSON consumers and zerolog's
+// console writer both resolve to service=worker.
 func resolveWorkerLogger(configured *zerolog.Logger, clientLogger *zerolog.Logger) *zerolog.Logger {
 	if configured != nil {
 		return configured

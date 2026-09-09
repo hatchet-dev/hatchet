@@ -201,12 +201,8 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
-	// Default the worker's logger to a sub-logger of the client's configured
-	// logger so that worker output follows the client's log level and format
-	// instead of pkg/worker's standalone default (debug-level JSON). This
-	// intentionally changes the default worker log output for SDK users: level
-	// and format now follow the client configuration. An explicit WithLogger on
-	// the worker still takes precedence.
+	// Worker log output follows the client's configured level and format by
+	// default; an explicit WithLogger on the worker takes precedence.
 	config.logger = resolveWorkerLogger(config.logger, c.legacyClient.Logger())
 
 	dumps := gatherWorkflowDumps(config.workflows)
