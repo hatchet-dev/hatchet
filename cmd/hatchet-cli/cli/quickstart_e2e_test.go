@@ -131,7 +131,7 @@ func testTemplate(t *testing.T, tt templateTestCase) {
 	}
 
 	// 5. Get the local profile (created by hatchet server start)
-	profile, err := cliconfig.GetProfile("local")
+	profile, err := cliconfig.Profiles.GetProfile("local")
 	if err != nil {
 		t.Fatalf("Failed to get local profile: %v", err)
 	}
