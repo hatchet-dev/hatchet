@@ -969,3 +969,53 @@ func TestConcurrentDefaultProfileOperations(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, profile)
 }
+
+func TestConcurrentSetDefaultProfileIfUnset_ExactlyOneWins(t *testing.T) {
+	s, _ := setupTestStore(t)
+
+	numGoroutines := 10
+	for i := 0; i < numGoroutines; i++ {
+		name := fmt.Sprintf("profile-%d", i)
+		if err := s.AddProfile(name, makeTestProfile(name, fmt.Sprintf("token-%d", i))); err != nil {
+			t.Fatalf("failed to add profile %s: %v", name, err)
+		}
+	}
+
+	// Every goroutine tries to claim the unset default for its own profile;
+	// exactly one may report success, and the stored default must be the
+	// winner's profile.
+	var wg sync.WaitGroup
+	results := make(chan string, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			name := fmt.Sprintf("profile-%d", id)
+			set, err := s.SetDefaultProfileIfUnset(name)
+			if err != nil {
+				t.Errorf("SetDefaultProfileIfUnset(%s): %v", name, err)
+				return
+			}
+			if set {
+				results <- name
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(results)
+
+	winners := make([]string, 0, 1)
+	for name := range results {
+		winners = append(winners, name)
+	}
+
+	if len(winners) != 1 {
+		t.Fatalf("expected exactly one caller to set the default, got %d: %v", len(winners), winners)
+	}
+
+	if got := s.GetDefaultProfile(); got != winners[0] {
+		t.Fatalf("default profile is %q, expected the winner %q", got, winners[0])
+	}
+}

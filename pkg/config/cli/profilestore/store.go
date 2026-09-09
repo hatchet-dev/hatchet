@@ -37,9 +37,10 @@ const hatchetDirName = ".hatchet"
 const cliConfigFileName = "config.yaml"
 
 // Store reads and writes the profile file in a fixed directory. Reads go
-// through viper (lenient, case-insensitive, matching how the CLI has always
-// read the file); writes take the shared config.lock, surgically edit the
-// yaml document, and replace the file atomically with 0600 permissions.
+// through viper (lenient and case-insensitive, so unknown fields are ignored
+// and key casing does not matter); writes take the shared config.lock,
+// surgically edit the yaml document, and replace the file atomically with
+// 0600 permissions.
 //
 // A Store is safe for concurrent use within a process, and the file lock
 // serializes writers across processes.
@@ -111,11 +112,10 @@ func (s *Store) Path() string {
 	return filepath.Join(s.dir, s.fileName)
 }
 
-// load parses the profile file into a fresh viper instance. Mirroring the
-// CLI's historical load path, the file is also unmarshalled into
-// cli.ProfileFile so malformed values (for example a quoted expiresAt that
-// cannot decode into time.Time) surface as an error here instead of
-// corrupting later operations.
+// load parses the profile file into a fresh viper instance. The file is also
+// unmarshalled into cli.ProfileFile so malformed values (for example a quoted
+// expiresAt that cannot decode into time.Time) surface as an error here
+// instead of corrupting later operations.
 func (s *Store) load() error {
 	var files [][]byte
 
@@ -225,7 +225,7 @@ func (s *Store) AddProfile(name string, profile *cli.Profile) error {
 
 // UpsertProfile is AddProfile plus extraFields: additional entries written
 // under the same profile mapping (keys are lowercased). The CLI ignores
-// fields it does not know, so extraFields can carry caller metadata — values
+// fields it does not know, so extraFields can carry caller metadata; values
 // go through the yaml encoder, meaning time.Time values become unquoted yaml
 // timestamps just like expiresAt.
 func (s *Store) UpsertProfile(name string, profile *cli.Profile, extraFields map[string]any) error {
@@ -444,17 +444,36 @@ func (s *Store) SetDefaultProfile(name string) error {
 }
 
 // SetDefaultProfileIfUnset makes name the default profile when none is
-// configured and reports whether it did.
+// configured and reports whether it did. The check and the write happen under
+// the same file lock against the freshly parsed file, so concurrent callers
+// cannot both observe an unset default and both report success.
 func (s *Store) SetDefaultProfileIfUnset(name string) (bool, error) {
-	if s.GetDefaultProfile() != "" {
-		return false, nil
-	}
+	set := false
 
-	if err := s.SetDefaultProfile(name); err != nil {
-		return false, err
-	}
+	err := s.mutate(func(d *document) (bool, error) {
+		if v := mappingValue(d.root, "defaultProfile"); v != nil && v.Value != "" {
+			return false, nil
+		}
 
-	return true, nil
+		profiles := mappingValue(d.root, "profiles")
+
+		if mappingValue(profiles, name) == nil {
+			return false, fmt.Errorf("profile '%s' not found", name)
+		}
+
+		node, err := yamlNodeFor(name)
+		if err != nil {
+			return false, err
+		}
+
+		setMappingValue(d.root, "defaultprofile", node)
+		d.root.Style = 0
+		set = true
+
+		return true, nil
+	})
+
+	return set, err
 }
 
 // ClearDefaultProfile clears the default profile setting. Clearing an unset

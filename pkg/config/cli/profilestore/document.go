@@ -16,9 +16,8 @@ package profilestore
 //     style, and merging a new entry into a flow mapping would make the
 //     encoder quote the timestamps.
 //
-// Keys are matched case-insensitively (viper reads them case-insensitively)
-// and created lowercased, matching what viper's own writer historically
-// produced.
+// Keys are matched case-insensitively (the read path is case-insensitive) and
+// created lowercased, the file's canonical form.
 
 import (
 	"bytes"

@@ -348,7 +348,7 @@ func TestFilePermissions(t *testing.T) {
 }
 
 // TestNewDefaultStoreResolvesFileName: the store resolves its location the
-// way the CLI does — HATCHET_CLI_PROFILE_FILE_NAME beats the profileFileName
+// way the CLI does: HATCHET_CLI_PROFILE_FILE_NAME beats the profileFileName
 // key in ~/.hatchet/config.yaml, which beats the profiles.yaml default.
 func TestNewDefaultStoreResolvesFileName(t *testing.T) {
 	home := t.TempDir()
