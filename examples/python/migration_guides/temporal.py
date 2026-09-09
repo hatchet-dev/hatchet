@@ -241,7 +241,7 @@ async def weekly_report(input: ReportInput, ctx: Context) -> ReportOutput:
 
 # > Hatchet runtime schedules
 async def create_schedules(customer_id: str) -> tuple[str, str]:
-    cron = await hatchet.cron.aio_create(
+    cron = await hatchet.crons.aio_create(
         workflow_name=weekly_report.name,
         cron_name=f"weekly-report-{customer_id}",
         expression="0 9 * * 1",

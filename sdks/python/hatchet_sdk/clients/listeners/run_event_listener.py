@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from enum import Enum
+from enum import StrEnum
 from typing import TypeVar, cast
 
 import grpc
@@ -22,7 +22,7 @@ DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
 
 
-class TaskRunEventType(str, Enum):
+class TaskRunEventType(StrEnum):
     STARTED = "STARTED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -150,7 +150,7 @@ class RunEventListener:
                     )
                 raise Exception("no listener method provided")
 
-            except grpc.RpcError as e:  # noqa: PERF203
+            except grpc.RpcError as e:
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:

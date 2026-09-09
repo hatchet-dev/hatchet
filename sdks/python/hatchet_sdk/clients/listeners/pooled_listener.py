@@ -252,7 +252,7 @@ class PooledListener(Generic[R, T, L], ABC):
                     metadata=create_authorization_header(self.token),
                 )
 
-            except grpc.RpcError as e:  # noqa: PERF203
+            except grpc.RpcError as e:
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:

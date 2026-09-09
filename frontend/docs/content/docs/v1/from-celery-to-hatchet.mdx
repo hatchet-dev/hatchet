@@ -144,9 +144,10 @@ What changed:
 
 <Callout type="warning">
   If your Celery tasks use positional arguments, `*args`, or `**kwargs`, you
-  will need to define a Pydantic model that captures the expected fields. For
-  tasks that take no meaningful input, use `EmptyModel` from `hatchet_sdk`. This
-  input-model conversion is the main mechanical cost of the migration.
+  will need to define a Pydantic model that captures the expected fields. Tasks
+  that take no meaningful input can omit the `input_validator` and declare their
+  input as `None`. This input-model conversion is the main mechanical cost of
+  the migration.
 </Callout>
 
 ### Serialization

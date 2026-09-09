@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OTelAttribute(str, Enum):
+class OTelAttribute(StrEnum):
     ## Shared
     NAMESPACE = "namespace"
     ADDITIONAL_METADATA = "additional_metadata"

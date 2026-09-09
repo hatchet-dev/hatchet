@@ -27,10 +27,10 @@ async def create_cron() -> None:
     cron_trigger.metadata.id  # the id of the cron trigger
 
     # > List
-    await hatchet.cron.aio_list()
+    await hatchet.crons.aio_list()
 
     # > Get
-    cron_trigger = await hatchet.cron.aio_get(cron_id=cron_trigger.metadata.id)
+    cron_trigger = await hatchet.crons.aio_get(cron_id=cron_trigger.metadata.id)
 
     # > Delete
-    await hatchet.cron.aio_delete(cron_id=cron_trigger.metadata.id)
+    await hatchet.crons.aio_delete(cron_id=cron_trigger.metadata.id)

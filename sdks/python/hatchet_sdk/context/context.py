@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
@@ -41,6 +41,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import (
     expr_to_timedelta,
     timedelta_to_expr,
@@ -559,13 +560,21 @@ class Context:
         return self._action.parent_workflow_run_id
 
     @property
-    def priority(self) -> int | None:
+    def priority(self) -> Priority | None:
         """
         The priority that the current task was run with.
 
         :return: The priority of the current task run, or None if no priority was set.
         """
-        return self._action.priority
+        raw_priority = self._action.priority
+
+        if raw_priority is None:
+            return None
+
+        try:
+            return Priority(raw_priority)
+        except ValueError:
+            return None
 
     @property
     def workflow_id(self) -> str | None:
@@ -1052,7 +1061,7 @@ class DurableContext(Context):
         return result
 
     async def _now(self) -> MemoNowResult:
-        ts = await asyncio.to_thread(datetime.now, timezone.utc)
+        ts = await asyncio.to_thread(datetime.now, UTC)
         return MemoNowResult(ts=ts)
 
     async def aio_now(self) -> datetime:

@@ -4,7 +4,7 @@ version = "2.0.0a1"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10,<4"
+requires-python = ">=3.11,<4"
 
 authors = [
     { name = "Alexander Belanger", email = "alexander@hatchet.run" },
@@ -15,7 +15,6 @@ authors = [
 
 dependencies = [
     "grpcio>=1.76.0,<2",
-    "grpcio-tools>=1.76.0,<2",
     "grpcio-status>=1.76.0,<2",
     "protobuf>=6.30.2,<7",
     "pydantic>=2.6.3,<3",
@@ -126,7 +125,7 @@ enable_error_code = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 exclude = [
     "hatchet_sdk/clients/rest/api/*",
     "hatchet_sdk/clients/rest/models/*",

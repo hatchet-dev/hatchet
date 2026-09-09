@@ -6,7 +6,7 @@ import signal
 import time
 from dataclasses import dataclass
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from multiprocessing import Queue
 from queue import Empty
 from typing import TYPE_CHECKING, Any
@@ -47,7 +47,7 @@ ACTION_EVENT_RETRY_COUNT = 5
 STARTING_UNHEALTHY_AFTER_SECONDS = 10.0
 
 
-class HealthStatus(str, Enum):
+class HealthStatus(StrEnum):
     STARTING = "STARTING"
     HEALTHY = "HEALTHY"
     UNHEALTHY = "UNHEALTHY"
@@ -149,7 +149,7 @@ class WorkerActionListenerProcess:
             # report a continuously increasing lag value (time since first detected block).
             if (
                 timedelta(seconds=lag)
-                >= self.config.healthcheck.event_loop_block_threshold_seconds
+                >= self.config.healthcheck.event_loop_block_threshold
             ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
@@ -161,7 +161,7 @@ class WorkerActionListenerProcess:
 
             if (
                 timedelta(seconds=lag)
-                < self.config.healthcheck.event_loop_block_threshold_seconds
+                < self.config.healthcheck.event_loop_block_threshold
             ):
                 self._event_loop_blocked_since = None
 
@@ -181,7 +181,7 @@ class WorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -191,7 +191,7 @@ class WorkerActionListenerProcess:
         if (
             self._waiting_steps_blocked_since is not None
             and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 

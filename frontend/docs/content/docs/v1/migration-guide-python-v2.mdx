@@ -9,6 +9,12 @@ This guide will help you migrate Hatchet workflows from the V1 SDK to the V2 SDK
 
 V2 is a focused cleanup release: it removes everything that was deprecated in V1 (primarily in V1.31.0), enforces types that were previously coerced or warned about, and makes async a first-class requirement for durable tasks. There are no new concepts to learn — the goal is to arrive at a codebase with no deprecation warnings.
 
+#### Python 3.11 or newer is required
+
+V2 requires Python 3.11+. Python 3.10 reaches end-of-life in October 2026 and is no longer supported.
+
+The SDK also no longer depends on `grpcio-tools` at runtime — it was only ever needed for code generation. If your project relied on the SDK pulling it in transitively, add it to your own dependencies.
+
 #### Running without wait
 
 In V1, running a workflow without waiting for the result was done with dedicated `_no_wait` methods:
@@ -73,16 +79,18 @@ The `namespace` field on these options has also been removed. The namespace alwa
 
 The `desired_worker_label` field on `TriggerWorkflowOptions` has been renamed to `desired_worker_labels` and only accepts a `list[DesiredWorkerLabel]` (previously it also accepted a `dict[str, DesiredWorkerLabel]`).
 
-#### `hatchet.event` renamed to `hatchet.events`
+#### `hatchet.event` renamed to `hatchet.events`, `hatchet.cron` renamed to `hatchet.crons`
 
-The event client is now accessed as `hatchet.events`, consistent with the other (plural) feature clients:
+The event and cron clients are now accessed as `hatchet.events` and `hatchet.crons`, consistent with the other (plural) feature clients:
 
 ```python
 # V1
 hatchet.event.push("my-event", payload)
+hatchet.cron.create(...)
 
 # V2
 hatchet.events.push("my-event", payload)
+hatchet.crons.create(...)
 ```
 
 The internal `log` and `stream` methods on the events client are no longer public. Use `ctx.log` and the streaming methods on `Context` instead.
@@ -101,6 +109,8 @@ Several properties on `Context` have been renamed or removed.
 | `ctx.aio_task_output(task)`      | `ctx.task_output(task)`                        |
 | `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)`                 |
 | `ctx.worker`                     | Use specific properties: `ctx.worker_id`, etc. |
+
+`ctx.priority` now returns a `Priority | None` instead of an `int | None`, consistent with priorities being represented by the `Priority` enum everywhere else.
 
 Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`, `ctx.log_sender`, `ctx.durable_event_listener`) have also been removed. These were never intended for external use.
 
@@ -359,6 +369,31 @@ The `WorkflowRunEventType` enum has been removed entirely — it was never actua
 `from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary` — the types returned by `events.list()` and `runs.list()` — are now exported from the top level.
 
 The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` modules (aliases for `hatchet_sdk.types.labels` and `hatchet_sdk.types.rate_limit`) have been removed. Import `DesiredWorkerLabel`, `WorkerLabel`, and `RateLimit` from `hatchet_sdk` directly. (`RateLimitDuration` is no longer exported at all; pass the duration as a plain string, as described above.)
+
+#### `runs.subscribe_to_stream` renamed to `runs.aio_subscribe_to_stream`
+
+The async generator for subscribing to a run's stream chunks now carries the `aio_` prefix, consistent with every other async method in the SDK:
+
+```python
+# V1
+async for chunk in hatchet.runs.subscribe_to_stream(run_id): ...
+
+# V2
+async for chunk in hatchet.runs.aio_subscribe_to_stream(run_id): ...
+```
+
+#### Worker registration failures raise instead of exiting
+
+`Worker.register_workflow` previously called `sys.exit(1)` if registering the workflow with the engine failed. It now raises the underlying exception, so registration failures can be caught and handled (and no longer kill the host process, e.g. a web server embedding a worker).
+
+#### Configuration changes
+
+- The `HealthcheckConfig.event_loop_block_threshold_seconds` field has been renamed to `event_loop_block_threshold` (it is a `timedelta`; numeric values are interpreted as seconds). The corresponding environment variable is now `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
+- `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]` instead of `str`, so invalid values fail at construction time instead of being silently treated as insecure.
+
+#### Enums converted to `StrEnum`
+
+Enums that mixed in `str` (`RunStatus`, `TaskRunEventType`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses. Comparisons and serialization behave the same; the only visible difference is that `str(member)` and f-string interpolation now produce the raw value (e.g. `"FAILED"`) instead of `"RunStatus.FAILED"`.
 
 #### `Event` class field and property changes
 

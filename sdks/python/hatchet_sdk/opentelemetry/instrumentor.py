@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable, Collection, Coroutine, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from importlib.metadata import version
 from typing import Any, cast
 
@@ -88,7 +88,7 @@ class _HatchetSpanExporter(SpanExporter):
         self._retry_at: datetime | None = None
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        if self._retry_at and datetime.now(timezone.utc) < self._retry_at:
+        if self._retry_at and datetime.now(UTC) < self._retry_at:
             return SpanExportResult.SUCCESS
 
         try:
@@ -97,7 +97,7 @@ class _HatchetSpanExporter(SpanExporter):
             return result
         except Exception as exc:
             if _is_grpc_unimplemented(exc):
-                self._retry_at = datetime.now(timezone.utc) + _RETRY_AFTER
+                self._retry_at = datetime.now(UTC) + _RETRY_AFTER
                 return SpanExportResult.SUCCESS
             raise
 

@@ -1,6 +1,6 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SlotType(str, Enum):
+class SlotType(StrEnum):
     DEFAULT = "default"
     DURABLE = "durable"

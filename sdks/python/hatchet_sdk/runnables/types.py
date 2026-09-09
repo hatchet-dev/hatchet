@@ -2,7 +2,7 @@ import inspect
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -127,7 +127,7 @@ BatchMemberId = NewType("BatchMemberId", str)
 """The key identifying a single item within a batch task's input/output dict (its task run external id)."""
 
 
-class StepType(str, Enum):
+class StepType(StrEnum):
     DEFAULT = "default"
     ON_FAILURE = "on_failure"
     ON_SUCCESS = "on_success"

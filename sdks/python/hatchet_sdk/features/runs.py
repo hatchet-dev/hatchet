@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal, overload
 
 from pydantic import BaseModel, model_validator
@@ -231,7 +231,7 @@ class RunsClient(BaseRestClient):
         :param additional_metadata: Additional metadata to filter runs by.
         :param workflow_ids: The workflow IDs to filter runs by.
         """
-        until = until or datetime.now(tz=timezone.utc)
+        until = until or datetime.now(tz=UTC)
         since = since or (until - timedelta(days=1))
 
         with self.client() as client:
@@ -448,8 +448,8 @@ class RunsClient(BaseRestClient):
         """
 
         date_ranges = partition_date_range(
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
-            until=until or datetime.now(tz=timezone.utc),
+            since=since or datetime.now(tz=UTC) - timedelta(days=1),
+            until=until or datetime.now(tz=UTC),
         )
 
         with self.client() as client:
@@ -530,8 +530,8 @@ class RunsClient(BaseRestClient):
         """
 
         date_ranges = partition_date_range(
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
-            until=until or datetime.now(tz=timezone.utc),
+            since=since or datetime.now(tz=UTC) - timedelta(days=1),
+            until=until or datetime.now(tz=UTC),
         )
 
         with self.client() as client:
@@ -741,13 +741,20 @@ class RunsClient(BaseRestClient):
             admin_client=self._admin_client,
         )
 
-    async def subscribe_to_stream(
+    async def aio_subscribe_to_stream(
         self,
         workflow_run_id: str,
     ) -> AsyncIterator[str]:
+        """
+        Subscribe to the stream chunks sent by a run via `ctx.put_stream`.
+
+        :param workflow_run_id: The ID of the workflow run to subscribe to.
+        :yield: Each stream chunk as it arrives.
+        :ytype: str
+        """
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
-        async for chunk in ref._stream():
+        async for chunk in ref.stream():
             if chunk.type == TaskRunEventType.STREAM:
                 yield chunk.payload
 

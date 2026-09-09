@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import json
-from datetime import timezone
 from typing import TYPE_CHECKING, cast
 
 from google.protobuf import timestamp_pb2
@@ -60,7 +59,7 @@ def _inject_source_info(
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
-    t = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
+    t = datetime.datetime.now(tz=datetime.UTC).timestamp()
     seconds = int(t)
     nanos = int(t % 1 * 1e9)
 
@@ -91,7 +90,7 @@ class Event(BaseModel):
             payload=proto.payload,
             additional_metadata=additional_metadata,
             scope=scope,
-            seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
+            seen_at=proto.event_timestamp.ToDatetime(tzinfo=datetime.UTC),
         )
 
 

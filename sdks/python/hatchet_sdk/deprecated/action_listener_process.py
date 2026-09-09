@@ -120,7 +120,7 @@ class LegacyWorkerActionListenerProcess:
             lag = max(0.0, elapsed - interval)
             if (
                 timedelta(seconds=lag)
-                >= self.config.healthcheck.event_loop_block_threshold_seconds
+                >= self.config.healthcheck.event_loop_block_threshold
             ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
@@ -132,7 +132,7 @@ class LegacyWorkerActionListenerProcess:
 
             if (
                 timedelta(seconds=lag)
-                < self.config.healthcheck.event_loop_block_threshold_seconds
+                < self.config.healthcheck.event_loop_block_threshold
             ):
                 self._event_loop_blocked_since = None
 
@@ -146,14 +146,14 @@ class LegacyWorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
         if (
             self._waiting_steps_blocked_since is not None
             and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 

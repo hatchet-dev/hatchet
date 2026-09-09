@@ -7,7 +7,7 @@ import sys
 from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from multiprocessing import Queue
 from types import FrameType
@@ -159,7 +159,7 @@ class Worker:
             self._admin_client.put_workflow(workflow.to_proto())
         except Exception:
             logger.exception(f"failed to register workflow: {workflow.name}")
-            sys.exit(1)
+            raise
 
         for step in workflow.tasks:
             action_name = workflow.create_action_name(step)
@@ -233,7 +233,7 @@ class Worker:
                 "multiple slot types. Falling back to legacy worker registration. "
                 "Please upgrade your Hatchet engine to the latest version."
             ),
-            start=datetime(2026, 2, 12, tzinfo=timezone.utc),
+            start=datetime(2026, 2, 12, tzinfo=UTC),
             error_days=180,
         )
 
@@ -259,7 +259,7 @@ class Worker:
                 f"Eviction policies will be ignored for tasks: {names}. "
                 "Please upgrade your Hatchet engine."
             ),
-            start=datetime(2026, 3, 3, tzinfo=timezone.utc),
+            start=datetime(2026, 3, 3, tzinfo=UTC),
             error_days=180,
         )
 
@@ -630,7 +630,7 @@ class Worker:
                 await asyncio.wait_for(
                     self._lifespan_cleanup_complete.wait(), timeout=5.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("lifespan cleanup timed out during forceful shutdown")
 
         logger.info("👋")

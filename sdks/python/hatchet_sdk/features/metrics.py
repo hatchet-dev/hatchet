@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -136,8 +136,8 @@ class MetricsClient(BaseRestClient):
         :return: Task metrics
         """
 
-        since = since or datetime.now(timezone.utc) - timedelta(days=1)
-        until = until or datetime.now(timezone.utc)
+        since = since or datetime.now(UTC) - timedelta(days=1)
+        until = until or datetime.now(UTC)
         with self.client() as client:
             v1_task_list_status_metrics = tenacity_retry(
                 self._taskapi(client).v1_task_list_status_metrics,

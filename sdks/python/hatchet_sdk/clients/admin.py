@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypeVar, cast
 
 import grpc
@@ -60,7 +60,7 @@ T = TypeVar("T")
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 
 
-class RunStatus(str, Enum):
+class RunStatus(StrEnum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"

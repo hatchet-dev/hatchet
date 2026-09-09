@@ -1,7 +1,7 @@
 import json
 from dataclasses import field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -50,7 +50,7 @@ class ActionPayload(BaseModel):
         return self
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
     START_BATCH = "START_BATCH"

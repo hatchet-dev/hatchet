@@ -238,7 +238,7 @@ async def crons(
 
     crons = await asyncio.gather(
         *[
-            hatchet.cron.aio_create(
+            hatchet.crons.aio_create(
                 workflow_name=priority_workflow.name,
                 cron_name=f"{test_run_id}-cron-{i}",
                 expression="* * * * *",
@@ -257,7 +257,9 @@ async def crons(
 
     yield crons[0].workflow_id, test_run_id, n
 
-    await asyncio.gather(*[hatchet.cron.aio_delete(cron.metadata.id) for cron in crons])
+    await asyncio.gather(
+        *[hatchet.crons.aio_delete(cron.metadata.id) for cron in crons]
+    )
 
 
 def time_until_next_minute() -> float:

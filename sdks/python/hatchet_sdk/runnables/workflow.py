@@ -11,6 +11,7 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
+    assert_never,
     cast,
     get_args,
     get_origin,
@@ -19,7 +20,6 @@ from typing import (
 )
 
 from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
-from typing_extensions import assert_never
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
@@ -652,7 +652,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `CronWorkflows` object representing the created cron job.
         """
-        return self._client.cron.create(
+        return self._client.crons.create(
             workflow_name=self._config.name,
             cron_name=cron_name,
             expression=expression,
@@ -1492,6 +1492,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        slot_cost: int | None = None,
     ) -> Callable[
         [
             Callable[
@@ -1535,8 +1536,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
 
+        :param slot_cost: The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it.
+
         :returns: A decorator which creates a `Task` object.
+
+        :raises ValueError: If `slot_cost` is not positive.
         """
+        if slot_cost is not None and slot_cost <= 0:
+            raise ValueError("slot_cost must be a positive integer")
+
+        slot_requests = {"durable": slot_cost} if slot_cost is not None else None
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
@@ -1573,6 +1582,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 eviction_policy=eviction_policy,
+                slot_requests=slot_requests,
             )
 
             self._durable_tasks.append(task)
@@ -1771,19 +1781,21 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
     def __str__(self) -> str:
         return self.workflow_run_id
 
-    async def aio_result(self) -> R:
-        result = await self._wrr._workflow_run_listener.aio_result(
-            self._wrr.workflow_run_id
-        )
-        return self._s._extract_result(result)
-
-    def result(self) -> R:
-        result = self._wrr.result()
+    async def aio_result(
+        self,
+        timeout: timedelta | None = None,  # noqa: ASYNC109
+    ) -> R:
+        result = await self._wrr.aio_result(timeout=timeout)
 
         return self._s._extract_result(result)
 
-    def stream(self) -> RunEventListener:
-        return self._wrr._stream()
+    def result(self, timeout: timedelta | None = None) -> R:
+        result = self._wrr.result(timeout=timeout)
+
+        return self._s._extract_result(result)
+
+    def _stream(self) -> RunEventListener:
+        return self._wrr.stream()
 
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):

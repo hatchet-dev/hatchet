@@ -157,7 +157,7 @@ class Hatchet:
         return self._cel_client
 
     @property
-    def cron(self) -> CronClient:
+    def crons(self) -> CronClient:
         """
         The cron client is a client for managing cron workflows within Hatchet.
         """
@@ -661,6 +661,9 @@ class Hatchet:
         name: str | None = None,
         description: str | None = None,
         input_validator: None = None,
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
@@ -671,6 +674,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -693,6 +697,9 @@ class Hatchet:
         name: str | None = None,
         description: str | None = None,
         input_validator: None = None,
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
@@ -703,6 +710,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -725,6 +733,9 @@ class Hatchet:
         name: str | None = None,
         description: str | None = None,
         input_validator: type[TWorkflowInput],
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
@@ -735,6 +746,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -757,6 +769,9 @@ class Hatchet:
         name: str | None = None,
         description: str | None = None,
         input_validator: type[TWorkflowInput],
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
@@ -767,6 +782,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -791,6 +807,9 @@ class Hatchet:
         name: str | None = None,
         description: str | None = None,
         input_validator: type[TWorkflowInput] | None = None,
+        on_events: list[str] | None = None,
+        on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: Priority = Priority.LOW,
@@ -801,6 +820,7 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
+        default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = 1,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -846,10 +866,14 @@ class Hatchet:
                     name=inferred_name,
                     version=version,
                     description=description,
+                    on_events=on_events or [],
+                    on_crons=on_crons or [],
+                    cron_input=cron_input,
                     sticky=sticky,
                     default_priority=default_priority,
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
+                    default_additional_metadata=default_additional_metadata or {},
                 ),
                 self,
             )
@@ -934,6 +958,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
@@ -968,6 +993,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
@@ -1005,6 +1031,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
@@ -1064,6 +1091,8 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
+        :param slot_cost: The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it.
+
         :param eviction_policy: An optional eviction policy controlling when idle durable tasks are evicted from workers.
 
         :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
@@ -1120,6 +1149,7 @@ class Hatchet:
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
                 eviction_policy=eviction_policy,
+                slot_cost=slot_cost,
             )
 
             return Standalone[TWorkflowInput, R](

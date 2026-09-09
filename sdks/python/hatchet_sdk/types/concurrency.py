@@ -19,7 +19,7 @@ class ConcurrencyStrategy(BaseModel):
             concurrency group (i.e. "input.tier == 'premium' ? 10 : 1"). With an
             expression, a group's effective limit is the value from its most recently
             created task.
-        limit_strategy (ConcurrencyLimitStrategy): Strategy for handling limit violations.
+        strategy: Strategy for handling limit violations.
         name (str | None): Unique (per tenant) strategy name. Required when
             `is_tenant_scoped` is set.
         is_tenant_scoped (bool): When True, the entry defines (or updates in place) a
@@ -29,13 +29,17 @@ class ConcurrencyStrategy(BaseModel):
             strategies must order them consistently.
 
     Example:
-        ConcurrencyStrategy("input.user_id", 5, ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+        ConcurrencyStrategy(
+            expression="input.user_id",
+            max_runs=5,
+            strategy="CANCEL_IN_PROGRESS",
+        )
 
     Example (tenant-scoped, shared across workflows):
         ConcurrencyStrategy(
             expression="input.group",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            strategy="GROUP_ROUND_ROBIN",
             name="tenant-wide-limit",
             is_tenant_scoped=True,
         )

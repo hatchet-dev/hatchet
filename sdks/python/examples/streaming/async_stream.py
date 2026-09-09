@@ -8,7 +8,7 @@ async def main() -> None:
     # > Consume
     ref = await stream_task.aio_run(wait_for_result=False)
 
-    async for chunk in hatchet.runs.subscribe_to_stream(ref.workflow_run_id):
+    async for chunk in hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id):
         print(chunk, flush=True, end="")
     # !!
 
