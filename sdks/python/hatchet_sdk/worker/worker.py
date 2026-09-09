@@ -451,9 +451,11 @@ class Worker:
             return
 
         exception = future.exception()
-        if exception is not None:
-            logger.exception("worker failed to start", exc_info=exception)
-            self._aio_start_exception = exception
+        if exception is None:
+            return
+
+        logger.exception("worker failed to start", exc_info=exception)
+        self._aio_start_exception = exception
 
         if self._loop:
             self._loop.stop()
