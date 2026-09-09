@@ -4,9 +4,9 @@
 // invocations.
 //
 // It is shared by every operator host. internal/services/grpcoperator serves it over
-// OperatorService to operators that run outside the engine, and the in-process host will call
-// the same functions for operators hosted inside the dispatcher, so the two hosts differ only
-// in how assigned actions reach the operator and in how the caller is authenticated.
+// OperatorService to operators that run outside the engine, and internal/operator/hostinproc
+// calls the same functions for operators hosted inside the dispatcher, so the two hosts differ
+// only in how assigned actions reach the operator and in how the caller is authenticated.
 //
 // The API takes no OperatorService protocol messages: callers pass plain values and get
 // repository rows back. Errors carry gRPC status codes because they are returned to gRPC

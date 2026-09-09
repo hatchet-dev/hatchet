@@ -602,7 +602,7 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 			actionId:     s.ActionId,
 			workflowName: s.WorkflowName,
 			readableId:   s.ReadableId.String,
-			index:        int32(taskIndex), // nolint:gosec
+			index:        int32(taskIndex), // nolint:gosec // a workflow has far fewer steps than int32 holds
 		}
 		taskIndex++
 

@@ -22,7 +22,8 @@ type OperatorRepository interface {
 
 	// ClaimOperators returns all operators which should be run by this dispatcher (unassigned,
 	// on an inactive dispatcher, or already assigned to this dispatcher). It does not create
-	// workers — call CreateOperatorWorker separately when instantiating an operator.
+	// workers; the claimer registers one per claimed row through the operator service, which
+	// points the row's worker_id at it so later polls see the assignment.
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
 
 	// CreateOperatorWorker creates a new worker for a single operator instance and points the
