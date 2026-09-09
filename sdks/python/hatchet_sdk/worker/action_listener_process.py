@@ -1,15 +1,15 @@
 import asyncio
 import contextlib
 import logging
+import multiprocessing.synchronize
 import signal
 import time
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-from typing import TYPE_CHECKING, Any
 from multiprocessing import Queue
 from queue import Empty
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import grpc
 from aiohttp import web
@@ -39,7 +39,6 @@ from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 if TYPE_CHECKING:
-    import multiprocessing.synchronize
     from multiprocessing import Queue
 
     from hatchet_sdk.clients.dispatcher.action_listener import ActionListener

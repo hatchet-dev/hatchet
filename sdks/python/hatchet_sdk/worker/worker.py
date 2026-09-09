@@ -279,9 +279,7 @@ class Worker:
         return version
 
     def _raise_for_duped_action_ids(self) -> None:
-        action_ids = [
-            w._create_action_name(t) for w in self._workflows for t in w.tasks
-        ]
+        action_ids = [w.create_action_name(t) for w in self._workflows for t in w.tasks]
         duped_action_ids = {a for a in action_ids if action_ids.count(a) > 1}
 
         if duped_action_ids:

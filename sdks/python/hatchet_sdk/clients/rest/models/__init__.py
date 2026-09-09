@@ -298,9 +298,6 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
         V1CreateFilterRequest,
     )
-    from hatchet_sdk.clients.rest.models.v1_create_http_operator_request import (
-        V1CreateHTTPOperatorRequest,
-    )
     from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
         V1CreateWebhookRequest,
     )
@@ -339,8 +336,6 @@ if TYPE_CHECKING:
     )
     from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
     from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-    from hatchet_sdk.clients.rest.models.v1_http_operator import V1HTTPOperator
-    from hatchet_sdk.clients.rest.models.v1_http_operator_list import V1HTTPOperatorList
     from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
     from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
     from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
@@ -378,9 +373,6 @@ if TYPE_CHECKING:
     )
     from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
         V1UpdateFilterRequest,
-    )
-    from hatchet_sdk.clients.rest.models.v1_update_http_operator_request import (
-        V1UpdateHTTPOperatorRequest,
     )
     from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
         V1UpdateWebhookRequest,
@@ -645,7 +637,6 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1CancelTaskRequest": "hatchet_sdk.clients.rest.models.v1_cancel_task_request",
     "V1CancelledTasks": "hatchet_sdk.clients.rest.models.v1_cancelled_tasks",
     "V1CreateFilterRequest": "hatchet_sdk.clients.rest.models.v1_create_filter_request",
-    "V1CreateHTTPOperatorRequest": "hatchet_sdk.clients.rest.models.v1_create_http_operator_request",
     "V1CreateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_create_webhook_request",
     "V1CreateWebhookRequestAPIKey": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key",
     "V1CreateWebhookRequestBase": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_base",
@@ -662,8 +653,6 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1EventWorkflowRunSummary": "hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary",
     "V1Filter": "hatchet_sdk.clients.rest.models.v1_filter",
     "V1FilterList": "hatchet_sdk.clients.rest.models.v1_filter_list",
-    "V1HTTPOperator": "hatchet_sdk.clients.rest.models.v1_http_operator",
-    "V1HTTPOperatorList": "hatchet_sdk.clients.rest.models.v1_http_operator_list",
     "V1LogLine": "hatchet_sdk.clients.rest.models.v1_log_line",
     "V1LogLineLevel": "hatchet_sdk.clients.rest.models.v1_log_line_level",
     "V1LogLineList": "hatchet_sdk.clients.rest.models.v1_log_line_list",
@@ -690,7 +679,6 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1TaskTimingList": "hatchet_sdk.clients.rest.models.v1_task_timing_list",
     "V1TriggerWorkflowRunRequest": "hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request",
     "V1UpdateFilterRequest": "hatchet_sdk.clients.rest.models.v1_update_filter_request",
-    "V1UpdateHTTPOperatorRequest": "hatchet_sdk.clients.rest.models.v1_update_http_operator_request",
     "V1UpdateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_update_webhook_request",
     "V1WaitItem": "hatchet_sdk.clients.rest.models.v1_wait_item",
     "V1Webhook": "hatchet_sdk.clients.rest.models.v1_webhook",
