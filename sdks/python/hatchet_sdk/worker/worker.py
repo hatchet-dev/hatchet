@@ -353,6 +353,24 @@ class Worker:
             msg = f"failed to register workflow: {workflow.name}. Workflows must have at least one task registered before registering"
             raise ValueError(msg)
 
+        # Fail fast on action-id collisions before anything is registered server-side.
+        # Action ids are namespaced and lowercased, so tasks whose names differ only by case
+        # (or that share an explicit name) map to the same action id. A bare registry
+        # assignment would silently overwrite the first task, and the worker would then run
+        # the wrong function for one of the workflows with no warning anywhere.
+        new_actions: dict[str, Task[Any, Any]] = {}
+        for step in workflow.tasks:
+            action_name = workflow._create_action_name(step)
+            existing = self._action_registry.get(action_name) or new_actions.get(action_name)
+            if existing is not None and existing is not step:
+                msg = (
+                    f"failed to register workflow: {workflow.name}. Action id '{action_name}' is already "
+                    f"registered to another task. Action ids are lowercased, so task names that differ "
+                    f"only by case (or share an explicit name) collide; rename one of the tasks."
+                )
+                raise ValueError(msg)
+            new_actions[action_name] = step
+
         try:
             self._client.admin.put_workflow(workflow.to_proto())
         except Exception:
