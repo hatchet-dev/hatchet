@@ -23,7 +23,6 @@ See the [V2 migration guide](https://docs.hatchet.run/v1/migration-guide-python-
 
 ### Added
 
-- `WorkflowRunRef.stream()` is now public, matching `TaskRunRef.stream()`.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
 - `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
