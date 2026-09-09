@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 from collections.abc import AsyncGenerator, Callable
+from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -130,6 +131,7 @@ class Worker:
         self._stop_listener_event = self._ctx.Event()
 
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._aio_start_exception: BaseException | None = None
 
         self._client = Client(config=self._config, debug=self._debug)
 
@@ -362,6 +364,11 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(step)
 
+            if self._action_registry.get(action_name) is not None:
+                raise ValueError(
+                    f"action '{action_name}' already registered, actions must have unique names. this is likely the result of two tasks or functions sharing the same name after being lowercased (e.g. `def fooBar` and `def foobar` would both register as `foobar`). please rename one of the tasks or functions to avoid this conflict."
+                )
+
             self._action_registry[action_name] = step
 
     async def aio_register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
@@ -425,13 +432,31 @@ class Worker:
         if not self._loop:
             raise RuntimeError("event loop not set, cannot start worker")
 
-        asyncio.run_coroutine_threadsafe(self._aio_start(), self._loop)
+        aio_start_future = asyncio.run_coroutine_threadsafe(
+            self._aio_start(), self._loop
+        )
+        aio_start_future.add_done_callback(self._handle_aio_start_done)
 
         # start the loop and wait until its closed
         self._loop.run_forever()
 
+        if self._aio_start_exception is not None:
+            raise self._aio_start_exception
+
         if self._handle_kill:
             sys.exit(0)
+
+    def _handle_aio_start_done(self, future: Future[None]) -> None:
+        if future.cancelled():
+            return
+
+        exception = future.exception()
+        if exception is not None:
+            logger.exception("worker failed to start", exc_info=exception)
+            self._aio_start_exception = exception
+
+        if self._loop:
+            self._loop.stop()
 
     def _emit_legacy_slot_deprecation(self) -> None:
         emit_deprecation_notice(
