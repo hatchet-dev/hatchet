@@ -30,7 +30,8 @@ type RegisterOpts struct {
 	// Name is the operator name, unique per (tenant, kind). Ignored when OperatorId is set.
 	Name string
 
-	// Kind is how the operator is hosted. Only GRPC rows are upserted today; other kinds are
+	// Kind is how the operator is hosted. GRPC (an out-of-process operator) and SERVERLESS
+	// (the serverless operator, in either mode) rows are upserted; the in-process kinds are
 	// registered by OperatorId. Ignored when OperatorId is set.
 	Kind sqlcv1.V1OperatorKind
 
@@ -167,12 +168,20 @@ func (s *Service) pointOperatorAtWorker(ctx context.Context, op *sqlcv1.V1Operat
 	return nil
 }
 
+// upsertOperator upserts the row a named registration stands for. Each upsertable kind has its
+// own statement because the rows are unique per (tenant, name, kind).
 func (s *Service) upsertOperator(ctx context.Context, tenant *sqlcv1.Tenant, opts RegisterOpts) (*sqlcv1.V1Operator, error) {
-	if opts.Kind != sqlcv1.V1OperatorKindGRPC {
+	var op *sqlcv1.V1Operator
+	var err error
+
+	switch opts.Kind {
+	case sqlcv1.V1OperatorKindGRPC:
+		op, err = s.operators.UpsertGRPCOperator(ctx, tenant.ID, opts.Name)
+	case sqlcv1.V1OperatorKindSERVERLESS:
+		op, err = s.operators.UpsertServerlessOperator(ctx, tenant.ID, opts.Name)
+	default:
 		return nil, fmt.Errorf("operator kind %q cannot be registered through a session", opts.Kind)
 	}
-
-	op, err := s.operators.UpsertGRPCOperator(ctx, tenant.ID, opts.Name)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert %s operator %s", opts.Kind, opts.Name)

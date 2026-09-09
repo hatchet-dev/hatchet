@@ -168,14 +168,39 @@ func TestRegisterRejects(t *testing.T) {
 		})
 	}
 
-	// only out-of-process operators are upserted through a session; the in-process kinds are
-	// registered by the id of their claimed row
+	// the kinds a host registers by name are upserted; the in-process kinds are registered by
+	// the id of their claimed row
 	t.Run("unsupported kind", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG})
 		require.Error(t, err)
 		assert.Zero(t, svc.operators.Count())
 	})
+}
+
+// The serverless operator registers by name like a gRPC operator, under its own kind: the row
+// is upserted per (tenant, name, kind), so a serverless and a gRPC operator of one name are two
+// rows.
+func TestRegisterServerlessKind(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	reg, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "serverless", Kind: sqlcv1.V1OperatorKindSERVERLESS})
+	require.NoError(t, err)
+
+	op, err := svc.operators.GetOperatorById(t.Context(), reg.OperatorId)
+	require.NoError(t, err)
+	assert.Equal(t, sqlcv1.V1OperatorKindSERVERLESS, op.Kind)
+	assert.Equal(t, "serverless", op.Name)
+
+	again, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "serverless", Kind: sqlcv1.V1OperatorKindSERVERLESS})
+	require.NoError(t, err)
+	assert.Equal(t, reg.OperatorId, again.OperatorId, "the row is reused")
+
+	grpcReg, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("serverless"))
+	require.NoError(t, err)
+	assert.NotEqual(t, reg.OperatorId, grpcReg.OperatorId, "a gRPC operator of the same name is another row")
+	assert.Equal(t, 2, svc.operators.Count())
 }
 
 // A claimed row is registered by id: nothing is upserted, the worker is named after the row and

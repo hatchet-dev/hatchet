@@ -71,6 +71,7 @@ const (
 type OperatorStore interface {
 	GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
 	UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
+	UpsertServerlessOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
 	UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error)
 }
 

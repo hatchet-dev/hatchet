@@ -64,16 +64,25 @@ func (f *OperatorStore) GetOperatorById(_ context.Context, operatorId uuid.UUID)
 }
 
 func (f *OperatorStore) UpsertGRPCOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindGRPC), nil
+}
+
+func (f *OperatorStore) UpsertServerlessOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindSERVERLESS), nil
+}
+
+// upsert returns the row of the given (tenant, name, kind), creating it when there is none.
+func (f *OperatorStore) upsert(tenantId uuid.UUID, name string, kind sqlcv1.V1OperatorKind) *sqlcv1.V1Operator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	for _, op := range f.operators {
-		if op.TenantID == tenantId && op.Name == name && op.Kind == sqlcv1.V1OperatorKindGRPC {
-			return op, nil
+		if op.TenantID == tenantId && op.Name == name && op.Kind == kind {
+			return op
 		}
 	}
 
-	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: name, Kind: sqlcv1.V1OperatorKindGRPC}
+	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: name, Kind: kind}
 
 	if f.operators == nil {
 		f.operators = map[uuid.UUID]*sqlcv1.V1Operator{}
@@ -81,7 +90,7 @@ func (f *OperatorStore) UpsertGRPCOperator(_ context.Context, tenantId uuid.UUID
 
 	f.operators[op.ID] = op
 
-	return op, nil
+	return op
 }
 
 // UpdateOperator applies the row changes a registration makes: pointing the row at a worker.
