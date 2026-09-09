@@ -7,6 +7,7 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
+import { docsPages } from '@/lib/generated/docs';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
@@ -239,12 +240,23 @@ function MetricsUpgrade() {
           </div>
         }
         title="Unlock Prometheus Metrics"
-        description="Prometheus metrics let you federate this tenant's metrics into your own dashboards and alerting. Talk to sales to enable this feature for your organization."
+        description="Federate this tenant's metrics into your own Grafana, dashboards, and alerting. Included on Hatchet Custom plans."
         buttons={[
           {
-            label: 'Talk to Sales',
+            label: 'Talk to us',
+            variant: 'default',
+            size: 'default',
             onClick: () =>
               window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
+          },
+          {
+            label: "See what's exported",
+            onClick: () =>
+              window.open(
+                docsPages.v1['prometheus-metrics'].href,
+                '_blank',
+                'noreferrer',
+              ),
           },
         ]}
       />

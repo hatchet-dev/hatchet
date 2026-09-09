@@ -1,5 +1,4 @@
 import { payAsYouGoPlan } from './subscription-plan-code';
-import { formatPlanTier, useCurrentPlanName } from './upgrade-required';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -24,11 +23,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL, PRICING_URL } from '@/lib/external-links';
 import { cn } from '@/lib/utils';
-import {
-  TIME_WINDOW_LABELS,
-  formatRetentionPeriod,
-  formatShortDate,
-} from '@/lib/utils/retention';
+import { formatRetentionPeriod } from '@/lib/utils/retention';
 import {
   BoltIcon,
   BuildingOffice2Icon,
@@ -39,7 +34,9 @@ import { useQuery } from '@tanstack/react-query';
 
 export type UpgradeGate = 'tenants' | 'users' | 'retention' | 'usage';
 
-const TEAM_HEADLINE = 'Scale with your whole team';
+const PAYG_SUBHEAD =
+  'Pay as you Go removes the free tier limits; you pay nothing until you scale past them.';
+const DISMISS_LABEL = 'Not now';
 
 type UpgradeGateProps = {
   gate: UpgradeGate;
@@ -64,6 +61,8 @@ const PAYG_FEATURES = {
   scheduled: { id: 'scheduled_runs', fallback: '1M' },
   crons: { id: 'crons', fallback: '1,000' },
   webhooks: { id: 'webhooks', fallback: '100' },
+  taskRuns: { id: 'task_runs', fallback: '1M' },
+  events: { id: 'events', fallback: '10M' },
 } as const;
 
 function findFeature(plan: SubscriptionPlan | undefined, featureId: string) {
@@ -110,24 +109,9 @@ function paygLimits(plan?: SubscriptionPlan) {
     scheduled: included('scheduled'),
     crons: included('crons'),
     webhooks: included('webhooks'),
-    events: findFeature(plan, 'events'),
+    taskRuns: included('taskRuns'),
+    events: included('events'),
   };
-}
-
-function eventsDescription(events?: SubscriptionPlanFeature) {
-  if (events?.display?.secondaryText) {
-    return `No monthly fee. ${events.display.primaryText} included, ${events.display.secondaryText}.`;
-  }
-  return `No monthly fee. ${events?.display?.primaryText ?? '10M external events included'}, then usage-based pricing.`;
-}
-
-function comparedLimit(
-  payg: string,
-  current: string,
-  noun: string,
-  tier: string,
-) {
-  return `Pay as you Go includes ${payg} ${noun} — ${tier} includes ${current}.`;
 }
 
 function salesUrl(tenantName?: string, tenantId?: string) {
@@ -143,75 +127,65 @@ function gateCopy(
   gate: UpgradeGate,
   payg: ReturnType<typeof paygLimits>,
   current: {
-    tier: string;
     tenants: string;
     users: string;
     retention: string;
-    tried: string | null;
   },
 ) {
   const pitch = {
     tenants: {
-      title: 'Separate dev, staging, and prod',
-      context: comparedLimit(
-        payg.tenants,
-        current.tenants,
-        'tenants',
-        current.tier,
-      ),
-      dismiss: 'Not now',
+      title: 'Take Hatchet to production',
+      context: PAYG_SUBHEAD,
     },
     users: {
-      title: TEAM_HEADLINE,
-      context: comparedLimit(
-        payg.users,
-        current.users,
-        'members',
-        current.tier,
-      ),
-      dismiss: 'Not now',
+      title: 'Bring your whole team',
+      context: PAYG_SUBHEAD,
     },
     retention: {
       title: 'Debug with a week of history',
-      context: [
-        `Pay as you Go keeps ${payg.retentionDays} days of runs, events, and logs — ${current.tier} keeps ${current.retention}.`,
-        current.tried,
-      ]
-        .filter(Boolean)
-        .join(' '),
-      dismiss: `Keep last ${current.retention}`,
+      context: `Switch to Pay as you Go to get ${payg.retentionDays}-day retention (up from ${current.retention} on the free tier).`,
     },
     usage: {
-      title: TEAM_HEADLINE,
-      context:
-        'Pay as you Go raises included limits — no monthly fee, usage billed monthly.',
-      dismiss: 'Not now',
+      title: 'Take Hatchet to production',
+      context: PAYG_SUBHEAD,
     },
   }[gate];
 
+  const infraLimits = `${payg.concurrent} worker slots, ${payg.scheduled} scheduled runs, ${payg.crons} crons, and ${payg.webhooks} webhook endpoints.`;
   const cards: Benefit[] = [
     {
       id: 'tenants',
       title: 'Isolated environments',
-      description: `${payg.tenants} tenants for dev, staging, and prod, each with its own workers, keys, and limits.`,
+      description:
+        gate === 'retention'
+          ? `${payg.tenants} tenants for dev, staging, and prod (up from ${current.tenants} on the free tier); reproduce an issue in staging without touching prod.`
+          : gate === 'users'
+            ? `Separate dev, staging, and prod across ${payg.tenants} tenants (up from ${current.tenants} on free), so your team can build and test without stepping on toes.`
+            : `Separate dev, staging, and prod across ${payg.tenants} tenants (up from ${current.tenants} on free), each with its own workers, keys, and limits.`,
       icon: BuildingOffice2Icon,
     },
     {
       id: 'retention',
       title: `${payg.retentionDays}-day retention`,
-      description: 'A week of runs, events, and logs to debug against.',
+      description:
+        gate === 'retention'
+          ? 'A full week of runs, events, and logs to debug against, across every tenant and workflow.'
+          : `A full week of runs, events, and logs to debug against (up from ${current.retention} on free).`,
       icon: ClockIcon,
     },
     {
       id: 'users',
-      title: TEAM_HEADLINE,
-      description: `${payg.users} members, plus ${payg.concurrent} concurrent runs, ${payg.scheduled} scheduled runs, ${payg.crons} crons, and ${payg.webhooks} webhook endpoints.`,
+      title: 'Built for teams shipping to production',
+      description:
+        gate === 'users'
+          ? `${payg.users} teammates (up from ${current.users} on free), plus ${infraLimits}`
+          : `${payg.users} teammates, ${infraLimits}`,
       icon: BoltIcon,
     },
     {
       id: 'usage',
-      title: 'Pay only for what you use',
-      description: eventsDescription(payg.events),
+      title: 'Same free volume, no monthly fee',
+      description: `Your ${payg.taskRuns} task runs and ${payg.events} events stay included. You only pay for usage beyond that.`,
       icon: CurrencyDollarIcon,
     },
   ];
@@ -229,12 +203,10 @@ export function UpgradeGateContent({
   gate,
   organizationId,
   onDismiss,
-  retentionAttempt,
   retentionPeriod,
 }: UpgradeGateProps) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { tenant } = useTenantDetails();
-  const currentPlanName = useCurrentPlanName(organizationId);
   const { entitlements } = useOrganizationEntitlements(organizationId);
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
@@ -243,17 +215,11 @@ export function UpgradeGateContent({
   const payg = payAsYouGoPlan(plansQuery.data?.plans);
   const upgrade = useSubscriptionUpgrade(organizationId);
   const { pitch, cards } = gateCopy(gate, paygLimits(payg), {
-    tier: formatPlanTier(currentPlanName),
     tenants: formatLimit(entitlements?.tenants?.limit),
-    users: formatLimit(entitlements?.users?.limit),
+    users: formatLimit(entitlements?.users?.limit, '3'),
     retention: retentionPeriod
       ? formatRetentionPeriod(retentionPeriod)
-      : '3 days',
-    tried: retentionAttempt
-      ? retentionAttempt.kind === 'preset'
-        ? `You tried to view the last ${TIME_WINDOW_LABELS[retentionAttempt.window]}.`
-        : `You tried to look back to ${formatShortDate(retentionAttempt.date)}.`
-      : null,
+      : '1 day',
   });
 
   return (
@@ -306,7 +272,11 @@ export function UpgradeGateContent({
           }
           onClick={() => payg && upgrade.mutate(payg.planCode)}
         >
-          {upgrade.isPending ? <Spinner /> : 'Upgrade to Pay as you Go'}
+          {upgrade.isPending ? (
+            <Spinner />
+          ) : (
+            'Upgrade to Pay as you Go – starts at $0/month'
+          )}
         </Button>
         <a
           href={PRICING_URL}
@@ -314,7 +284,7 @@ export function UpgradeGateContent({
           rel="noreferrer"
           className="text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
         >
-          More Details
+          More Pricing Details
         </a>
         <p className="text-center text-sm text-muted-foreground">
           Complex requirements? Volume discounts?{' '}
@@ -324,7 +294,7 @@ export function UpgradeGateContent({
             rel="noreferrer"
             className="underline underline-offset-4 hover:text-foreground"
           >
-            Talk to sales
+            Let's chat
           </a>
         </p>
         {onDismiss ? (
@@ -333,7 +303,7 @@ export function UpgradeGateContent({
             onClick={onDismiss}
             className="w-full py-1 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            {pitch.dismiss}
+            {DISMISS_LABEL}
           </button>
         ) : null}
       </div>

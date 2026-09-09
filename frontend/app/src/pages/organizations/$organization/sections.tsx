@@ -37,10 +37,6 @@ export function OrganizationSsoPage() {
   return <OrganizationSectionPage section="sso" />;
 }
 
-export function OrganizationAuditLogPage() {
-  return <OrganizationSectionPage section="audit-log" />;
-}
-
 export function OrganizationCompliancePage() {
   return <OrganizationSectionPage section="compliance" />;
 }

@@ -120,12 +120,6 @@ export function settingsNavGroups(opts: {
         ...(opts.isControlPlaneEnabled
           ? [
               {
-                key: 'organization-audit-log',
-                name: 'Audit Log',
-                to: appRoutes.organizationAuditLogRoute.to,
-                params,
-              },
-              {
                 key: 'organization-compliance',
                 name: 'Compliance',
                 to: appRoutes.organizationComplianceRoute.to,

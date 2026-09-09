@@ -1,29 +1,13 @@
+import { SettingRow } from '../components/settings-row';
 import { DocsButton } from '@/components/v1/docs/docs-button';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { docsPages } from '@/lib/generated/docs';
-import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-
-function SectionHeader({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-4 space-y-1">
-      <h2 className="text-sm font-medium text-foreground">{title}</h2>
-      <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
-    </div>
-  );
-}
 
 export function AuditLogSettings({ orgId }: { orgId: string }) {
   const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
@@ -100,45 +84,38 @@ function AuditLogRetrieval({ orgId }: { orgId: string }) {
 function AuditLogEnabled({ orgId }: { orgId: string }) {
   return (
     <div>
-      <SectionHeader
-        title="Audit Log"
+      <SettingRow
+        label="Audit Logs"
         description="Retrieve an immutable record of actions taken across your organization's tenants for compliance and security review."
-      />
-      <Separator className="my-4" />
-      <AuditLogRetrieval orgId={orgId} />
-      <Separator className="my-6" />
-      <p className="text-sm text-muted-foreground">
-        See the{' '}
+      >
         <DocsButton
           doc={docsPages.v1.security['audit-logs']}
-          label="audit logs documentation"
-          variant="text"
-        />{' '}
-        for the full response schema and details.
-      </p>
+          label="View docs"
+        />
+      </SettingRow>
+      <div className="pb-4">
+        <AuditLogRetrieval orgId={orgId} />
+      </div>
     </div>
   );
 }
 
 function AuditLogUpgrade() {
   return (
-    <div className="py-12">
-      <EmptyState
-        graphic={
-          <div className="rounded-full bg-primary/10 p-3">
-            <ShieldCheckIcon className="h-8 w-8 text-primary" />
-          </div>
-        }
-        title="Unlock Audit Logs"
-        description="Audit logs give you an immutable record of actions taken across your organization's tenants for compliance and security review. Talk to sales to enable this feature for your organization."
-        buttons={[
-          {
-            label: 'Talk to Sales',
-            onClick: () =>
-              window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
-          },
-        ]}
+    <SettingRow
+      label="Audit Logs"
+      description="An immutable record of every administrative action across your organization's tenants: who did what and when. Evidence for SOC 2 audits, security reviews, and incident investigation. Included on Hatchet Custom plans."
+    >
+      <Button
+        className="shrink-0"
+        onClick={() => window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer')}
+      >
+        Talk to us
+      </Button>
+      <DocsButton
+        doc={docsPages.v1.security['audit-logs']}
+        label="View docs"
       />
-    </div>
+    </SettingRow>
   );
 }

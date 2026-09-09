@@ -187,10 +187,12 @@ const organizationSsoRoute = createRoute({
 const organizationAuditLogRoute = createRoute({
   getParentRoute: () => organizationSettingsLayoutRoute,
   path: 'audit-log',
-  component: lazyRouteComponent(
-    () => import('./pages/organizations/$organization/sections'),
-    'OrganizationAuditLogPage',
-  ),
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.organizationComplianceRoute.to,
+      params,
+    });
+  },
 });
 
 const organizationComplianceRoute = createRoute({
@@ -320,7 +322,7 @@ const organizationLegacyAuditLogRoute = createRoute({
   path: 'audit-log',
   loader: ({ params }) => {
     throw redirect({
-      to: appRoutes.organizationAuditLogRoute.to,
+      to: appRoutes.organizationComplianceRoute.to,
       params,
     });
   },

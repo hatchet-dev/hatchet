@@ -20,7 +20,12 @@ type InlineLink = {
   external?: boolean;
 };
 
-type EmptyStateButton = { label: string; onClick: () => void };
+type EmptyStateButton = {
+  label: string;
+  onClick: () => void;
+  variant?: 'default' | 'outline';
+  size?: 'default' | 'sm';
+};
 
 type EmptyStateProps = {
   title: string;
@@ -152,7 +157,12 @@ export function EmptyState({
       {buttons && buttons.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-2">
           {buttons.map((btn, i) => (
-            <Button key={i} variant="outline" size="sm" onClick={btn.onClick}>
+            <Button
+              key={i}
+              variant={btn.variant ?? 'outline'}
+              size={btn.size ?? 'sm'}
+              onClick={btn.onClick}
+            >
               {btn.label}
             </Button>
           ))}

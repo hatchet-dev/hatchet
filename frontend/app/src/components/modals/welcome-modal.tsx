@@ -19,9 +19,17 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { SubscriptionPlanCode } from '@/lib/api/generated/control-plane/data-contracts';
-import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+
+const FREE_LIMIT_COPY: Record<string, { name: string; suffix?: string }> = {
+  task_runs: { name: 'Task runs', suffix: ' daily' },
+  task_runs_daily_limit: { name: 'Task runs', suffix: ' daily' },
+  events: { name: 'External events', suffix: ' daily' },
+  events_daily_limit: { name: 'External events', suffix: ' daily' },
+  worker_slots_limit: { name: 'Concurrent runs' },
+  users: { name: 'Users' },
+};
 
 interface WelcomeModalProps {
   tenantId: string | undefined;
@@ -92,23 +100,8 @@ export function WelcomeModal({
               Welcome to Hatchet
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              You&apos;re on the free tier with limits. <br />
-              <button
-                type="button"
-                className="text-primary/70 underline underline-offset-4 hover:text-primary disabled:opacity-50"
-                disabled={developerPlanMutation.isPending}
-                onClick={() => {
-                  capture('welcome_modal_add_payment', {
-                    tenant_id: tenantId,
-                    organization_id: organizationId,
-                    cta: 'upgrade_link',
-                  });
-                  developerPlanMutation.mutate();
-                }}
-              >
-                {developerPlanMutation.isPending ? 'Redirecting…' : 'Upgrade'}
-              </button>{' '}
-              to the Pay as you Go tier to remove these limits.
+              The free tier includes everything you need to start building. No
+              credit card, no time limit.
             </DialogDescription>
           </div>
           <Card
@@ -117,7 +110,7 @@ export function WelcomeModal({
           >
             <CardHeader className="p-4 border-b border-border/50">
               <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
-                Free Tier Limits
+                Included free
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
@@ -127,25 +120,45 @@ export function WelcomeModal({
                 </div>
               ) : (
                 <ul className="space-y-2.5 text-sm">
-                  {freeLimits?.map((fl) => (
-                    <li key={fl.featureId} className="flex justify-between">
-                      <span className="text-muted-foreground">{fl.name}</span>
-                      <span className="font-medium">
-                        {fl.limit.toLocaleString()}
-                      </span>
-                    </li>
-                  ))}
+                  {freeLimits?.map((fl) => {
+                    const copy = FREE_LIMIT_COPY[fl.featureId];
+                    return (
+                      <li key={fl.featureId} className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          {copy?.name ?? fl.name}
+                        </span>
+                        <span className="font-medium">
+                          {fl.limit.toLocaleString()}
+                          {copy?.suffix ?? ''}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>
           </Card>
           <div className="flex w-full flex-col gap-2">
-            <p className="text-center text-xs text-muted-foreground">
-              Add a credit card to prevent service interruption.
-              <br />
-              Pay only for what you use. No monthly fee, cancel anytime.
+            <p className="text-sm text-muted-foreground">
+              When you're ready for production, Pay as you Go removes these
+              limits. There's no monthly fee and you pay nothing until you scale
+              past what's free.
             </p>
             <Button
+              className="w-full"
+              onClick={() => {
+                capture('welcome_modal_dismissed', {
+                  tenant_id: tenantId,
+                  organization_id: organizationId,
+                  cta: 'start_building',
+                });
+                dismiss();
+              }}
+            >
+              Start Building with these Limits
+            </Button>
+            <Button
+              variant="ghost"
               className="w-full"
               disabled={developerPlanMutation.isPending}
               onClick={() => {
@@ -159,21 +172,7 @@ export function WelcomeModal({
             >
               {developerPlanMutation.isPending
                 ? 'Redirecting…'
-                : 'Upgrade to Pay as you Go'}
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                capture('welcome_modal_dismissed', {
-                  tenant_id: tenantId,
-                  organization_id: organizationId,
-                  cta: 'skip_for_now',
-                });
-                dismiss();
-              }}
-            >
-              Continue with limits for now
+                : 'Upgrade to Pay as you Go now'}
             </Button>
           </div>
         </div>

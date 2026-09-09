@@ -443,9 +443,15 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 className="bg-transparent ring-1 ring-border/50 border-none"
               >
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm font-medium text-foreground">
-                    Talk to sales to change your plan
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      New pricing is here!
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      You're on a legacy plan. Let's get you on a plan that fits
+                      your usage and budget.
+                    </p>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -453,7 +459,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       window.open(enterpriseContactUrl, '_blank', 'noreferrer')
                     }
                   >
-                    Talk to sales
+                    Talk to us
                   </Button>
                 </CardContent>
               </Card>

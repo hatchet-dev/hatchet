@@ -55,6 +55,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OFFICE_HOURS_URL, TRUST_CENTER_URL } from '@/lib/external-links';
+import { docsPages } from '@/lib/generated/docs';
 import { globalEmitter } from '@/lib/global-emitter';
 import {
   formatShardDeploymentKey,
@@ -85,7 +86,6 @@ import {
   ArrowsRightLeftIcon,
   ArrowTopRightOnSquareIcon,
   CheckIcon,
-  DocumentTextIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
   KeyIcon,
@@ -157,7 +157,6 @@ export type OrganizationSettingsSection =
   | 'tokens'
   | 'regions'
   | 'sso'
-  | 'audit-log'
   | 'compliance';
 
 const SECTION_HEADERS: Record<
@@ -191,14 +190,10 @@ const SECTION_HEADERS: Record<
     title: 'Single Sign On',
     description: 'Configure Single Sign On for this organization.',
   },
-  'audit-log': {
-    title: 'Audit Log',
-    description: 'Review administrative actions taken in this organization.',
-  },
   compliance: {
     title: 'Compliance',
     description:
-      'Manage compliance settings and access compliance documents for this organization.',
+      'Compliance settings, certifications, reports, and audit logs for this organization.',
   },
 };
 
@@ -1208,33 +1203,36 @@ export function CloudOrganizationSettings({
                     </div>
                   }
                   title="Unlock Single Sign On"
-                  description="Single Sign On lets your team log in with your identity provider. Talk to sales to enable this feature for your organization."
+                  description="Let your team log in through your identity provider – Okta, Microsoft Entra, Google, OneLogin, JumpCloud or generic OIDC providers. Included on Hatchet Custom plans, alongside RBAC, audit logs, and HIPAA BAA."
                   buttons={[
                     {
-                      label: 'Talk to Sales',
+                      label: 'Talk to us',
+                      variant: 'default',
+                      size: 'default',
                       onClick: () =>
                         window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
+                    },
+                    {
+                      label: 'Learn more',
+                      onClick: () =>
+                        window.open(
+                          docsPages.v1['single-sign-on'].href,
+                          '_blank',
+                          'noreferrer',
+                        ),
                     },
                   ]}
                 />
               </div>
             ))}
 
-          {section === 'audit-log' &&
-            (isControlPlaneEnabled ? (
-              <AuditLogSettings orgId={orgId} />
-            ) : (
-              <SectionUnavailable />
-            ))}
-
           {section === 'compliance' &&
             (isControlPlaneEnabled ? (
-              <div className="space-y-8">
+              <div className="divide-y divide-border">
                 {isOrganizationOwner && (
-                  <div className="divide-y divide-border">
                     <SettingRow
                       label="Inactivity Timeout"
-                      description="Automatically sign out members of this organization after this period of inactivity. Maximum 14 days."
+                      description="Automatically sign out members of this organization after this period of inactivity (maximum 14 days)."
                     >
                       {isEditingTimeout ? (
                         <div className="flex flex-col items-end gap-1.5">
@@ -1322,53 +1320,48 @@ export function CloudOrganizationSettings({
                         </div>
                       )}
                     </SettingRow>
-                  </div>
                 )}
 
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-base font-semibold">
-                      Compliance Documents
-                    </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Review our certifications and request compliance reports
-                      from the Hatchet Trust Center.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
+                <AuditLogSettings orgId={orgId} />
+
+                <SettingRow
+                  label="Compliance Documents"
+                  description="Our certification and reports, available through the Hatchet Trust Center."
+                >
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     {COMPLIANCE_DOCUMENTS.map((doc) => (
-                      <a
-                        key={doc.label}
-                        href={doc.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/10 px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/30"
-                      >
-                        <DocumentTextIcon className="size-4 text-muted-foreground" />
-                        {doc.label}
-                        <ArrowTopRightOnSquareIcon className="size-3.5 text-muted-foreground" />
-                      </a>
+                      <Button key={doc.label} variant="outline" asChild>
+                        <a href={doc.href} target="_blank" rel="noreferrer">
+                          {doc.label}
+                          <ArrowTopRightOnSquareIcon className="ml-1.5 size-3.5" />
+                        </a>
+                      </Button>
                     ))}
                   </div>
-                </div>
+                </SettingRow>
 
-                <div className="flex items-center justify-between gap-4 rounded-lg border border-border/50 bg-muted/10 p-4">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">Need a BAA or DPA?</p>
-                    <p className="text-sm text-muted-foreground">
-                      We offer Business Associate Agreements and Data Processing
-                      Agreements for teams with regulatory requirements.
-                    </p>
+                <SettingRow
+                  label="Need a BAA or DPA?"
+                  description="We offer Business Associate Agreements and Data Process Agreements for teams with regulatory requirements."
+                >
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <Button
+                      onClick={() =>
+                        window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer')
+                      }
+                    >
+                      Talk to us
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        window.open(TRUST_CENTER_URL, '_blank', 'noreferrer')
+                      }
+                    >
+                      Visit the Trust Center
+                    </Button>
                   </div>
-                  <Button
-                    className="shrink-0"
-                    onClick={() =>
-                      window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer')
-                    }
-                  >
-                    Talk to Sales
-                  </Button>
-                </div>
+                </SettingRow>
               </div>
             ) : (
               <SectionUnavailable />
