@@ -33,7 +33,16 @@ async def test_zombie_worker(hatchet: Hatchet, on_demand_worker: Popen[Any]) -> 
     workers = await hatchet.workers.aio_list()
     assert workers.rows
 
-    worker = next((w for w in workers.rows if w.name == _worker_name), None)
+    namespaced_worker_name = hatchet.config.apply_namespace(_worker_name)
+
+    worker = next(
+        (
+            w
+            for w in workers.rows
+            if w.name == namespaced_worker_name and w.status == WorkerStatus.ACTIVE
+        ),
+        None,
+    )
 
     assert worker is not None
     worker_id = worker.metadata.id
