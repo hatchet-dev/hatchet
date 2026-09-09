@@ -43,8 +43,8 @@ import api, {
   WorkflowRunShapeForWorkflowRunDetails,
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { prettyPrintIfValidJson } from '@/lib/utils';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { prettyPrintIfValidJson } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes, tenantRunRoute } from '@/router';
 import { useQuery } from '@tanstack/react-query';
