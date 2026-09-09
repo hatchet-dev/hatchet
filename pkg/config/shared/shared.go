@@ -29,6 +29,10 @@ type LoggerConfigFile struct {
 	// (for example inside a loader.ServerConfigFileOverride) to route engine,
 	// API and database log output somewhere other than os.Stderr. When nil,
 	// loggers built with logger.NewStdErr write to os.Stderr as before.
+	//
+	// A writer shared across several logger configs must be safe for concurrent
+	// use (wrap it with zerolog.SyncWriter if it is not); loader.WithLogWriter
+	// applies that wrapping automatically.
 	Writer io.Writer `mapstructure:"-" json:"-"`
 }
 

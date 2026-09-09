@@ -97,6 +97,7 @@ type ConfigLoader struct {
 	logWriter io.Writer
 }
 
+// ConfigLoaderOpt configures a ConfigLoader created by NewConfigLoader.
 type ConfigLoaderOpt func(*ConfigLoader)
 
 // WithLogWriter routes the loggers this loader constructs (database, server and
@@ -104,12 +105,18 @@ type ConfigLoaderOpt func(*ConfigLoader)
 // runtime-only override intended for embedding callers; it cannot be expressed
 // in a config file. Explicit writers set by a ServerConfigFileOverride take
 // precedence over w.
+//
+// The loader hands the same writer to several independent loggers that log
+// concurrently, so w is wrapped in a mutex-guarded writer here; callers can
+// pass writers that are not safe for concurrent use, such as a bytes.Buffer.
 func WithLogWriter(w io.Writer) ConfigLoaderOpt {
 	return func(c *ConfigLoader) {
-		c.logWriter = w
+		c.logWriter = zerolog.SyncWriter(w)
 	}
 }
 
+// NewConfigLoader creates a ConfigLoader that reads server and database
+// configuration from the given directory, applying any options.
 func NewConfigLoader(directory string, opts ...ConfigLoaderOpt) *ConfigLoader {
 	c := &ConfigLoader{directory: directory}
 
