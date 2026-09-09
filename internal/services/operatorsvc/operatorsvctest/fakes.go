@@ -155,8 +155,8 @@ type WorkerStore struct {
 	heartbeats int
 	// bulkHeartbeats records the worker id sets of each bulk heartbeat write, in order
 	bulkHeartbeats [][]uuid.UUID
-	labels      map[uuid.UUID][]repository.UpsertWorkerLabelOpts
-	dispatchers map[uuid.UUID]uuid.UUID
+	labels         map[uuid.UUID][]repository.UpsertWorkerLabelOpts
+	dispatchers    map[uuid.UUID]uuid.UUID
 	// ops records the writes that change a worker's lifecycle state, in order, so a test can
 	// assert that a pause lands before the deactivation that follows it
 	ops []string

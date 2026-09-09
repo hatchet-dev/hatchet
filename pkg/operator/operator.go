@@ -8,18 +8,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-
-	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// tenantContextKey is the context key the dispatcher's SendStepActionEvent reads the tenant
+// This file holds the operator side of the contract (ActionHandler, Operator) and the
+// engine-internal surface that only in-process operators get (TaskEventWriter and the
+// SharedOperator helpers). The hosting contract itself is in host.go.
+
+// tenantContextKey is the context key the dispatcher's engine-internal calls read the tenant
 // from. It must match the key set by the gRPC auth middleware
 // (internal/services/grpc/middleware/auth.go).
 const tenantContextKey = "tenant"
@@ -29,25 +30,22 @@ const tenantContextKey = "tenant"
 // outcome.
 const eventReportTimeout = 30 * time.Second
 
-// ActionHandler receives actions the dispatcher assigned to an operator's worker. The call runs
-// on the dispatcher's delivery goroutine, so it must not block for long, and its error requeues
-// the task.
+// ActionHandler receives assigned actions. It must not block for long: in process it runs on
+// the dispatcher's delivery goroutine and its error requeues the task; over gRPC it runs on
+// the session's deliver loop and its error is reported as a retryable failure.
 type ActionHandler interface {
 	HandleAction(ctx context.Context, action *contracts.AssignedAction) error
 }
 
+// Operator is what a hosted operator implements. The host opens the session with the operator
+// as its handler and calls Start once; the operator keeps the session for the rest of its
+// life. Drain stops new work and waits for in-flight work, bounded by ctx; the host pauses the
+// worker before Drain and closes the session after it.
 type Operator interface {
 	ActionHandler
 
-	WorkerId() uuid.UUID
-
-	// Cleanup tears down a single operator: it pauses the operator's worker and then drains.
-	Cleanup()
-
-	// Drain stops accepting new tasks and waits for in-flight ones, without pausing the
-	// worker. Used for bulk teardown, where the caller pauses all workers in one query
-	// instead of one update per operator.
-	Drain()
+	Start(ctx context.Context, s Session) error
+	Drain(ctx context.Context)
 }
 
 type DAGStepTriggerRequest struct {
@@ -85,9 +83,12 @@ type DAGStepTriggerResult struct {
 	ReExecuted bool
 }
 
+// TaskEventWriter is the engine-internal surface for engine-internal operators (the DAG
+// operator): calls that only exist inside the engine and are never available over gRPC. The
+// dispatcher implements it. Everything an operator needs that both hosts offer (events,
+// durable invocations, the action set) is on Session instead.
 type TaskEventWriter interface {
-	SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
-
+	// CancelTaskEvent reports a cancelled task with a custom reason.
 	CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
 	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
@@ -100,22 +101,30 @@ type TaskEventWriter interface {
 	CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error
 }
 
+// SharedOperator is the state an engine-internal operator shares: its config, the session the
+// host opened for it, the engine-internal writer, and the bookkeeping for in-flight work. The
+// session arrives with Start; the event senders, the action set and the durable channels go
+// through it, so the operator's lifecycle is the host's.
 type SharedOperator[T any] struct {
 	operatorConfig  T
-	repo            repository.Repository
 	taskEventWriter TaskEventWriter
 	l               *zerolog.Logger
 	tasks           sync.WaitGroup
 	mu              sync.Mutex
-	workerId        uuid.UUID
+	session         Session
+	operatorId      uuid.UUID
 	tenantId        uuid.UUID
 	shutdown        bool
 
 	inFlight map[string]context.CancelFunc
+
+	// lastActions is the action set the operator last advertised, so UpdateWorkerActions
+	// sends only the difference. Only the goroutine that refreshes actions touches it.
+	lastActions map[string]struct{}
 }
 
-// NewSharedOperator constructs the shared operator state.
-func NewSharedOperator[T any](operator *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter TaskEventWriter, workerId uuid.UUID, t T) (*SharedOperator[T], error) {
+// NewSharedOperator constructs the shared operator state from the operator row.
+func NewSharedOperator[T any](operator *sqlcv1.V1Operator, l *zerolog.Logger, taskEventWriter TaskEventWriter, t T) (*SharedOperator[T], error) {
 	err := json.Unmarshal(operator.Config, &t)
 
 	if err != nil {
@@ -125,11 +134,30 @@ func NewSharedOperator[T any](operator *sqlcv1.V1Operator, l *zerolog.Logger, re
 	return &SharedOperator[T]{
 		operatorConfig:  t,
 		l:               l,
-		repo:            repo,
 		taskEventWriter: taskEventWriter,
-		workerId:        workerId,
+		operatorId:      operator.ID,
 		tenantId:        operator.TenantID,
+		lastActions:     map[string]struct{}{},
 	}, nil
+}
+
+// Start records the session the host opened. Operators that embed SharedOperator call it from
+// their own Start.
+func (s *SharedOperator[T]) Start(_ context.Context, session Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.session = session
+
+	return nil
+}
+
+// Session is the session the host opened, or nil before Start.
+func (s *SharedOperator[T]) Session() Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.session
 }
 
 func (s *SharedOperator[T]) Config() T {
@@ -140,16 +168,82 @@ func (s *SharedOperator[T]) Logger() *zerolog.Logger {
 	return s.l
 }
 
+// WorkerId is the worker the session backs, or uuid.Nil before Start.
 func (s *SharedOperator[T]) WorkerId() uuid.UUID {
-	return s.workerId
+	session := s.Session()
+
+	if session == nil {
+		return uuid.Nil
+	}
+
+	return session.Registration().WorkerId
 }
 
 func (s *SharedOperator[T]) TenantId() uuid.UUID {
 	return s.tenantId
 }
 
-func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) error {
-	return s.repo.Operators().UpdateOperatorWorkerActions(ctx, s.tenantId, s.workerId, actions)
+func (s *SharedOperator[T]) OperatorId() uuid.UUID {
+	return s.operatorId
+}
+
+// UpdateWorkerActions makes actions the worker's action set: the difference from the set last
+// advertised goes to the session as adds and removes, followed by a flush. It reports whether
+// anything changed. A delta that fails leaves the advertised set as it was, so the next call
+// repeats it; ids the engine already has are ignored by it.
+func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) (bool, error) {
+	session := s.Session()
+
+	if session == nil {
+		return false, fmt.Errorf("operator has no session yet")
+	}
+
+	desired := make(map[string]struct{}, len(actions))
+	add := make([]string, 0)
+
+	for _, id := range actions {
+		if _, ok := desired[id]; ok {
+			continue
+		}
+
+		desired[id] = struct{}{}
+
+		if _, ok := s.lastActions[id]; !ok {
+			add = append(add, id)
+		}
+	}
+
+	remove := make([]string, 0)
+
+	for id := range s.lastActions {
+		if _, ok := desired[id]; !ok {
+			remove = append(remove, id)
+		}
+	}
+
+	if len(add) == 0 && len(remove) == 0 {
+		return false, nil
+	}
+
+	if len(add) > 0 {
+		if err := session.AddActions(ctx, add); err != nil {
+			return false, err
+		}
+	}
+
+	if len(remove) > 0 {
+		if err := session.RemoveActions(ctx, remove); err != nil {
+			return false, err
+		}
+	}
+
+	if err := session.Flush(ctx); err != nil {
+		return false, err
+	}
+
+	s.lastActions = desired
+
+	return true, nil
 }
 
 func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {
@@ -157,7 +251,7 @@ func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTrig
 		return nil, fmt.Errorf("operator has no task event writer configured")
 	}
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
 
 	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
 }
@@ -167,21 +261,19 @@ func (s *SharedOperator[T]) CancelDAGChildren(ctx context.Context, taskExternalI
 		return fmt.Errorf("operator has no task event writer configured")
 	}
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
 
 	return s.taskEventWriter.CancelDAGChildren(ctx, s.tenantId, taskExternalIds)
 }
 
 // RegisterDurableTask opens a channel-based durable-task session through the dispatcher,
-// injecting the tenant the dispatcher reads off the context (the same key sendStepActionEvent
-// uses). Operators that drive durable execution write requests to the returned channel and
-// read responses from it.
+// injecting the tenant the dispatcher reads off the context. Operators that drive durable
+// execution write requests to the returned channel and read responses from it.
 func (s *SharedOperator[T]) RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
 	if s.taskEventWriter == nil {
 		return nil, nil, fmt.Errorf("operator has no task event writer configured")
 	}
 
-	// the dispatcher reads the tenant off the context (see grpc auth middleware).
 	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
 
 	return s.taskEventWriter.RegisterDurableTask(ctx, externalId)
@@ -198,7 +290,10 @@ func (s *SharedOperator[T]) SendStartedAt(action *contracts.AssignedAction, at t
 
 // SendCompleted reports a successful result. output should be the task's JSON output.
 func (s *SharedOperator[T]) SendCompleted(action *contracts.AssignedAction, output []byte) error {
+	s.mu.Lock()
 	delete(s.inFlight, action.TaskRunExternalId)
+	s.mu.Unlock()
+
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED, string(output), nil)
 }
 
@@ -214,83 +309,74 @@ func (s *SharedOperator[T]) SendFailed(action *contracts.AssignedAction, errMsg 
 }
 
 // SendCancelledWithMessage reports a cancelled task with a custom cancellation reason, via
-// the dedicated CancelTaskEvent API rather than the generic step-action-event path.
+// the dedicated CancelTaskEvent API rather than the generic step-action-event path. It is
+// engine-internal: there is no such RPC.
 func (s *SharedOperator[T]) SendCancelledWithMessage(action *contracts.AssignedAction, msg string) error {
 	if s.taskEventWriter == nil {
 		return fmt.Errorf("operator has no task event writer configured")
 	}
 
-	retryCount := action.RetryCount
-
-	event := &contracts.StepActionEvent{
-		WorkerId:          s.workerId.String(),
-		JobId:             action.JobId,
-		JobRunId:          action.JobRunId,
-		TaskId:            action.TaskId,
-		TaskRunExternalId: action.TaskRunExternalId,
-		ActionId:          action.ActionId,
-		EventTimestamp:    timestamppb.Now(),
-		EventPayload:      msg,
-		RetryCount:        &retryCount,
-	}
+	event := s.buildEvent(action, msg, time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
 	defer cancel()
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
 
 	_, err := s.taskEventWriter.CancelTaskEvent(ctx, event)
 	return err
 }
 
-// sendStepActionEvent builds a StepActionEvent from the assigned action and reports it back
-// through the dispatcher's TaskEventWriter. It uses a detached, time-bounded context (the
-// caller's request context may already be cancelled by the time we report) and injects the
-// tenant the dispatcher expects on the context.
-func (s *SharedOperator[T]) sendStepActionEvent(action *contracts.AssignedAction, eventType contracts.StepActionEventType, payload string, shouldNotRetry *bool, eventTS ...time.Time) error {
-	if s.taskEventWriter == nil {
-		return fmt.Errorf("operator has no task event writer configured")
-	}
-
+// buildEvent is the StepActionEvent the engine expects for action, with the worker filled by
+// the session.
+func (s *SharedOperator[T]) buildEvent(action *contracts.AssignedAction, payload string, ts time.Time) *contracts.StepActionEvent {
 	retryCount := action.RetryCount
 
-	ts := time.Now()
-	if len(eventTS) > 0 {
-		ts = eventTS[0]
-	}
-
-	event := &contracts.StepActionEvent{
-		WorkerId:          s.workerId.String(),
+	return &contracts.StepActionEvent{
+		WorkerId:          s.WorkerId().String(),
 		JobId:             action.JobId,
 		JobRunId:          action.JobRunId,
 		TaskId:            action.TaskId,
 		TaskRunExternalId: action.TaskRunExternalId,
 		ActionId:          action.ActionId,
 		EventTimestamp:    timestamppb.New(ts),
-		EventType:         eventType,
 		EventPayload:      payload,
 		RetryCount:        &retryCount,
-		ShouldNotRetry:    shouldNotRetry,
 	}
+}
+
+// sendStepActionEvent builds a StepActionEvent from the assigned action and reports it through
+// the session. It uses a detached, time-bounded context (the caller's request context may
+// already be cancelled by the time we report).
+func (s *SharedOperator[T]) sendStepActionEvent(action *contracts.AssignedAction, eventType contracts.StepActionEventType, payload string, shouldNotRetry *bool, eventTS ...time.Time) error {
+	session := s.Session()
+
+	if session == nil {
+		return fmt.Errorf("operator has no session yet")
+	}
+
+	ts := time.Now()
+	if len(eventTS) > 0 {
+		ts = eventTS[0]
+	}
+
+	event := s.buildEvent(action, payload, ts)
+	event.EventType = eventType
+	event.ShouldNotRetry = shouldNotRetry
 
 	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
 	defer cancel()
 
-	// the dispatcher reads the tenant off the context (see grpc auth middleware).
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
-
-	_, err := s.taskEventWriter.SendStepActionEvent(ctx, event)
-
-	return err
+	return session.SendStepActionEvent(ctx, event)
 }
 
 // RecordTask registers an in-flight task and returns a release function that the caller
-// must invoke (typically via defer) when the task finishes. Cleanup blocks until every
+// must invoke (typically via defer) when the task finishes. Drain blocks until every
 // recorded task has been released.
 //
-// If the operator is already shutting down, the returned release is a no-op and the task is
-// not tracked — callers should generally avoid starting new work once Cleanup has begun,
-// but in-flight work recorded before shutdown is always awaited.
+// If the operator is already draining, the returned release is a no-op and the task is not
+// tracked: callers should avoid starting new work once Drain has begun, but in-flight work
+// recorded before it is always awaited.
 func (s *SharedOperator[T]) RecordTask() func() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -330,56 +416,46 @@ func (s *SharedOperator[T]) RegisterCancellableContext(ctx context.Context, task
 func (s *SharedOperator[T]) CancelTask(taskRunExternalId string) bool {
 	s.mu.Lock()
 	cancel, ok := s.inFlight[taskRunExternalId]
+
+	if ok {
+		delete(s.inFlight, taskRunExternalId)
+	}
+
 	s.mu.Unlock()
 
 	if ok {
 		cancel()
-		delete(s.inFlight, taskRunExternalId)
 	}
+
 	// if we didn't find it in the map, that means the task has either completed, or already been cancelled
 	return ok
 }
 
-func (s *SharedOperator[T]) Cleanup() {
-	// Stop accepting new tracked tasks before pausing, so no task slips in between the pause
-	// and the drain.
+// Drain stops accepting new tracked tasks and waits for the in-flight ones, or for ctx. The
+// host pauses the worker before calling it, so nothing new arrives while it waits.
+func (s *SharedOperator[T]) Drain(ctx context.Context) {
 	s.beginShutdown()
 
-	// Pause the worker so the scheduler stops assigning new tasks to it while we drain the
-	// in-flight ones. Uses a detached, bounded context since the operator's own context is
-	// about to be cancelled.
-	if s.repo != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
+	done := make(chan struct{})
 
-		paused := true
+	go func() {
+		s.tasks.Wait()
+		close(done)
+	}()
 
-		if _, err := s.repo.Workers().UpdateWorker(ctx, s.tenantId, s.workerId, &repository.UpdateWorkerOpts{
-			IsPaused: &paused,
-		}); err != nil && s.l != nil {
-			s.l.Error().Err(err).Msg("could not pause operator worker on shutdown")
+	select {
+	case <-done:
+	case <-ctx.Done():
+		if s.l != nil {
+			s.l.Warn().Ctx(ctx).Msg("operator drain ended before every in-flight task finished")
 		}
-
-		cancel()
 	}
-
-	s.drainTasks()
-}
-
-func (s *SharedOperator[T]) Drain() {
-	s.beginShutdown()
-	s.drainTasks()
 }
 
 // beginShutdown stops accepting new tracked tasks. Setting the flag under the mutex (paired
-// with the Add in RecordTask) guarantees no WaitGroup.Add races with the Wait in drainTasks.
+// with the Add in RecordTask) guarantees no WaitGroup.Add races with the Wait in Drain.
 func (s *SharedOperator[T]) beginShutdown() {
 	s.mu.Lock()
 	s.shutdown = true
 	s.mu.Unlock()
-}
-
-// drainTasks waits for in-flight tasks to finish before tearing down. The manager keeps
-// heartbeating this worker during the drain so it stays registered until its tasks complete.
-func (s *SharedOperator[T]) drainTasks() {
-	s.tasks.Wait()
 }

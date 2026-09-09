@@ -370,7 +370,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -434,6 +433,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		if err != nil {
 			return fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -505,6 +512,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// the claimed operators are paused, drained and closed before the dispatcher
+			// drains, while their events can still be reported
+			if err := stopOperators(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
@@ -844,7 +857,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -910,6 +922,14 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		if err != nil {
 			return fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -981,6 +1001,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// the claimed operators are paused, drained and closed before the dispatcher
+			// drains, while their events can still be reported
+			if err := stopOperators(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()

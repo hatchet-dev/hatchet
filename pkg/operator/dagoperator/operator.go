@@ -13,7 +13,6 @@ import (
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
@@ -72,16 +71,13 @@ type DAGOperator struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// lastActions is the most recently registered action set, used to avoid redundant
-	// dispatcher writes when the workflow list is unchanged. Only the polling goroutine
-	// touches it.
-	lastActions []string
-
 	// runCancels lets a CANCEL_STEP_RUN action stop one run without cancelling d.ctx.
 	runCancels syncx.Map[string, context.CancelFunc]
 
 	slots int
 }
+
+var _ operator.Operator = (*DAGOperator)(nil)
 
 type DAGOperatorOpt func(*DAGOperator)
 
@@ -93,12 +89,11 @@ func WithSlots(defaultSlots int) DAGOperatorOpt {
 	}
 }
 
-// NewDAGOperator constructs a DAG operator and starts a goroutine that polls the database for
-// the tenant's DAG workflows, registering each as a worker action so matching tasks are routed
-// to it. The action set is data-driven (not static config), so it is refreshed on a ticker the
-// same way the HTTP operator refreshes actions from its healthcheck.
-func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter operator.TaskEventWriter, workerId uuid.UUID, opts ...DAGOperatorOpt) (*DAGOperator, error) {
-	shared, err := operator.NewSharedOperator(op, l, repo, taskEventWriter, workerId, DAGOperatorConfig{})
+// NewDAGOperator constructs a DAG operator. It is engine-internal: it needs the repository for
+// the tenant's workflows and the engine-internal writer for triggering steps, so it is hosted
+// in process only, by the claimer through the in-process host. Nothing runs until Start.
+func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter operator.TaskEventWriter, opts ...DAGOperatorOpt) (*DAGOperator, error) {
+	shared, err := operator.NewSharedOperator(op, l, taskEventWriter, DAGOperatorConfig{})
 
 	if err != nil {
 		return nil, err
@@ -119,36 +114,39 @@ func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Re
 
 	d.slots = resolveSlots(shared.Config().Slots, d.slots)
 
-	go d.pollWorkflows(ctx)
-
 	return d, nil
 }
 
-// Cleanup stops the workflow poller in addition to the shared operator's teardown.
-func (d *DAGOperator) Cleanup() {
-	if d.cancel != nil {
-		d.cancel()
+// Start implements operator.Operator: it keeps the session, registers the tenant's DAG
+// workflows as the worker's actions before returning so the worker is assignable at once, and
+// starts the goroutine that keeps them in sync. The action set is data-driven, so it is
+// refreshed on a ticker.
+func (d *DAGOperator) Start(ctx context.Context, s operator.Session) error {
+	if err := d.SharedOperator.Start(ctx, s); err != nil {
+		return err
 	}
 
-	d.SharedOperator.Cleanup()
+	d.refreshActions(d.ctx)
+
+	go d.pollWorkflows(d.ctx)
+
+	return nil
 }
 
-// Drain stops the workflow poller and drains in-flight tasks without pausing the worker (used
-// for bulk teardown, where the caller pauses all operator workers in one query).
-func (d *DAGOperator) Drain() {
+// Drain implements operator.Operator: it stops the workflow poller, interrupts the runs in
+// flight (they leave their tasks for reassignment) and waits for them, bounded by ctx. The
+// host has paused the worker by then, so nothing new arrives.
+func (d *DAGOperator) Drain(ctx context.Context) {
 	if d.cancel != nil {
 		d.cancel()
 	}
 
-	d.SharedOperator.Drain()
+	d.SharedOperator.Drain(ctx)
 }
 
 // pollWorkflows periodically refreshes the worker's registered actions from the tenant's DAG
 // workflows in the database.
 func (d *DAGOperator) pollWorkflows(ctx context.Context) {
-	// Refresh once up front so the worker registers its actions without waiting a full tick.
-	d.refreshActions(ctx)
-
 	ticker := time.NewTicker(workflowPollInterval)
 	defer ticker.Stop()
 
@@ -162,8 +160,8 @@ func (d *DAGOperator) pollWorkflows(ctx context.Context) {
 	}
 }
 
-// refreshActions lists the tenant's DAG workflows and registers each workflow id as an action,
-// skipping the dispatcher write when the set is unchanged.
+// refreshActions lists the tenant's DAG workflows and makes each workflow's orchestration
+// action the worker's; only the difference from the advertised set reaches the engine.
 func (d *DAGOperator) refreshActions(ctx context.Context) {
 	ctx, span := telemetry.NewSpan(ctx, "dagoperator.refreshActions")
 	defer span.End()
@@ -182,23 +180,20 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 
 	span.SetAttributes(attribute.Int("dagoperator.action_count", len(actions)))
 
-	if listutils.AreUnorderedEqual(actions, d.lastActions) {
-		span.SetAttributes(attribute.Bool("dagoperator.actions_changed", false))
-		return
-	}
+	changed, err := d.UpdateWorkerActions(pollCtx, actions)
 
-	if err := d.UpdateWorkerActions(ctx, actions); err != nil {
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "could not update dag operator worker actions")
 		d.Logger().Error().Err(err).Msg("could not update dag operator worker actions")
 		return
 	}
 
-	span.SetAttributes(attribute.Bool("dagoperator.actions_changed", true))
+	span.SetAttributes(attribute.Bool("dagoperator.actions_changed", changed))
 
-	d.lastActions = actions
-
-	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
+	if changed {
+		d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
+	}
 }
 
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
