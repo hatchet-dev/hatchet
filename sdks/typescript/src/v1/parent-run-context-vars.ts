@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'async_hooks';
 import type { DurableContext } from './client/worker/context';
 
 export interface ParentRunContext {
@@ -23,11 +22,34 @@ export interface ParentRunContext {
   durableContext?: DurableContext<unknown, unknown>;
 }
 
-export class ParentRunContextManager {
-  private storage: AsyncLocalStorage<ParentRunContext>;
+/**
+ * Where the manager keeps the context of the task currently executing. Node workers
+ * install an `AsyncLocalStorage` backed store (see `parent-run-context-storage.ts`);
+ * runtimes without async context tracking keep the default store, which never has a
+ * context.
+ */
+export interface ParentRunContextStorage {
+  run<T>(context: ParentRunContext, fn: () => T): T;
+  getStore(): ParentRunContext | undefined;
+}
 
-  constructor() {
-    this.storage = new AsyncLocalStorage<ParentRunContext>();
+const noContextStorage: ParentRunContextStorage = {
+  run: (_context, fn) => fn(),
+  getStore: () => undefined,
+};
+
+export class ParentRunContextManager {
+  private storage: ParentRunContextStorage;
+
+  constructor(storage: ParentRunContextStorage = noContextStorage) {
+    this.storage = storage;
+  }
+
+  /**
+   * Replaces the store used for subsequent `runWithContext` and `getContext` calls.
+   */
+  useStorage(storage: ParentRunContextStorage): void {
+    this.storage = storage;
   }
 
   runWithContext<T>(opts: ParentRunContext, fn: () => T): T {
@@ -42,7 +64,7 @@ export class ParentRunContextManager {
   incrementChildIndex(n: number): void {
     const parentRunContext = this.getContext();
     if (parentRunContext) {
-      // Mutate in place — do NOT use enterWith here.
+      // Mutate in place, do NOT use enterWith here.
       // storage.run() gives every async descendant the same object reference,
       // so direct mutation is visible across all await boundaries within the
       // same task execution.  enterWith would replace the object, and the new
