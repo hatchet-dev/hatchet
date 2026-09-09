@@ -141,24 +141,10 @@ export function WelcomeModal({
           <div className="flex w-full flex-col gap-2">
             <p className="text-sm text-muted-foreground">
               When you're ready for production, Pay as you Go removes these
-              limits. There's no monthly fee and you pay nothing until you scale
-              past what's free.
+              limits. There's no base monthly fee and you pay nothing until you
+              scale past what's included for free.
             </p>
             <Button
-              className="w-full"
-              onClick={() => {
-                capture('welcome_modal_dismissed', {
-                  tenant_id: tenantId,
-                  organization_id: organizationId,
-                  cta: 'start_building',
-                });
-                dismiss();
-              }}
-            >
-              Start Building with these Limits
-            </Button>
-            <Button
-              variant="ghost"
               className="w-full"
               disabled={developerPlanMutation.isPending}
               onClick={() => {
@@ -172,7 +158,21 @@ export function WelcomeModal({
             >
               {developerPlanMutation.isPending
                 ? 'Redirecting…'
-                : 'Upgrade to Pay as you Go now'}
+                : 'Upgrade to Pay as you Go – starts at $0/month'}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                capture('welcome_modal_dismissed', {
+                  tenant_id: tenantId,
+                  organization_id: organizationId,
+                  cta: 'start_building',
+                });
+                dismiss();
+              }}
+            >
+              Start Building with these Limits
             </Button>
           </div>
         </div>
