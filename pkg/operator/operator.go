@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -90,10 +89,6 @@ type DAGStepTriggerResult struct {
 type TaskEventWriter interface {
 	// CancelTaskEvent reports a cancelled task with a custom reason.
 	CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
-
-	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
-	// a durable worker) writes requests to the returned channel and reads responses from it.
-	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
 
 	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
 
@@ -266,17 +261,17 @@ func (s *SharedOperator[T]) CancelDAGChildren(ctx context.Context, taskExternalI
 	return s.taskEventWriter.CancelDAGChildren(ctx, s.tenantId, taskExternalIds)
 }
 
-// RegisterDurableTask opens a channel-based durable-task session through the dispatcher,
-// injecting the tenant the dispatcher reads off the context. Operators that drive durable
-// execution write requests to the returned channel and read responses from it.
-func (s *SharedOperator[T]) RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
-	if s.taskEventWriter == nil {
-		return nil, nil, fmt.Errorf("operator has no task event writer configured")
+// OpenDurable opens one durable invocation's pipe through the session: the host does the
+// register-worker handshake and holds what the engine sends before its ack, so the operator
+// only ever reads invocation traffic, an entry never ahead of the ack that names it.
+func (s *SharedOperator[T]) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, invocation int32) (DurableChannel, error) {
+	session := s.Session()
+
+	if session == nil {
+		return nil, fmt.Errorf("operator has no session yet")
 	}
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
-
-	return s.taskEventWriter.RegisterDurableTask(ctx, externalId)
+	return session.OpenDurable(ctx, taskExternalId, invocation)
 }
 
 // SendStarted reports that the operator has started processing the assigned action.

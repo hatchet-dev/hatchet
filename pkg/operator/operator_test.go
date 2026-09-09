@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 // captureSession is the part of Session the shared operator drives: it records every step
@@ -64,10 +63,6 @@ type captureWriter struct {
 func (c *captureWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	c.events = append(c.events, request)
 	return &contracts.ActionEventResponse{}, nil
-}
-
-func (c *captureWriter) RegisterDurableTask(_ context.Context, _ uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
-	return nil, nil, nil
 }
 
 func (c *captureWriter) TriggerDAGStep(_ context.Context, _ uuid.UUID, _ *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {

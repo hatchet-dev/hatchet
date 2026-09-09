@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -335,34 +334,19 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		return d.fail(span, action, fmt.Errorf("invalid workflow_version_id %q: %w", action.GetWorkflowVersionId(), err), false)
 	}
 
-	requestCh, responseCh, err := d.RegisterDurableTask(runCtx, externalId)
+	// The host does the register-worker handshake and holds any response the engine sends
+	// before its ack, so the run only ever sees invocation traffic, in ack-before-entry order.
+	ch, err := d.OpenDurable(runCtx, externalId, action.GetDurableTaskInvocationCount())
 
 	if err != nil {
-		return d.fail(span, action, fmt.Errorf("could not register durable task: %w", err), false)
-	}
-
-	defer close(requestCh)
-
-	select {
-	case requestCh <- &v1contracts.DurableTaskRequest{
-		Message: &v1contracts.DurableTaskRequest_RegisterWorker{
-			RegisterWorker: &v1contracts.DurableTaskRequestRegisterWorker{
-				WorkerId: d.WorkerId().String(),
-			},
-		},
-	}:
-	case <-runCtx.Done():
-		return d.handleRunCancellation(span, action, nil, fmt.Errorf("run interrupted before register worker request could be sent: %w", runCtx.Err()))
-	}
-
-	select {
-	case <-runCtx.Done():
-		return d.handleRunCancellation(span, action, nil, fmt.Errorf("run interrupted waiting for register worker ack: %w", runCtx.Err()))
-	case _, ok := <-responseCh:
-		if !ok {
-			return d.fail(span, action, fmt.Errorf("response channel closed waiting for register worker ack"), false)
+		if runCtx.Err() != nil {
+			return d.handleRunCancellation(span, action, nil, fmt.Errorf("run interrupted opening the durable session: %w", err))
 		}
+
+		return d.fail(span, action, fmt.Errorf("could not open durable session: %w", err), false)
 	}
+
+	defer func() { _ = ch.Close() }()
 
 	var payloadWrapper struct {
 		Input               json.RawMessage               `json:"input"`
@@ -404,8 +388,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		d.WorkerId(),
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
-		requestCh,
-		responseCh,
+		ch,
 		d.repo.Matches().EvalBoolExpr,
 		triggerStep,
 	)

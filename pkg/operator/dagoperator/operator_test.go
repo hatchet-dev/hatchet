@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
@@ -22,10 +20,6 @@ import (
 // fakeTaskEventWriter is the engine-internal writer; nothing in these tests reaches it.
 type fakeTaskEventWriter struct {
 	events []*contracts.StepActionEvent
-}
-
-func (f *fakeTaskEventWriter) RegisterDurableTask(_ context.Context, _ uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
-	return nil, nil, nil
 }
 
 func (f *fakeTaskEventWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
