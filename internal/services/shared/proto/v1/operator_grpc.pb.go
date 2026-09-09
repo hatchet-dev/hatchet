@@ -60,6 +60,13 @@ type OperatorServiceClient interface {
 	//
 	// Requires the hatchet-operator-id metadata.
 	Listen(ctx context.Context, opts ...grpc.CallOption) (OperatorService_ListenClient, error)
+	// PauseWorker stops the scheduler assigning to one of the operator's workers, or lets it be
+	// assigned to again with paused = false. It returns once the change is committed, so an
+	// operator that pauses before draining knows no further work will arrive, and it works while
+	// the Listen stream is being torn down or reconnected. Register clears the pause when it
+	// resumes a worker, so an operator that crashed while paused comes back assignable.
+	// Requires the hatchet-operator-id metadata; the worker_id must belong to the operator.
+	PauseWorker(ctx context.Context, in *OperatorPauseWorkerRequest, opts ...grpc.CallOption) (*OperatorPauseWorkerResponse, error)
 	// SendStepActionEvent reports task progress (started, completed, failed) for an action that
 	// was delivered on a Listen stream. Same semantics as Dispatcher.SendStepActionEvent.
 	// Requires the hatchet-operator-id metadata; the event's worker_id must belong to the
@@ -118,6 +125,15 @@ func (x *operatorServiceListenClient) Recv() (*OperatorListenResponse, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *operatorServiceClient) PauseWorker(ctx context.Context, in *OperatorPauseWorkerRequest, opts ...grpc.CallOption) (*OperatorPauseWorkerResponse, error) {
+	out := new(OperatorPauseWorkerResponse)
+	err := c.cc.Invoke(ctx, "/v1.OperatorService/PauseWorker", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *operatorServiceClient) SendStepActionEvent(ctx context.Context, in *contracts.StepActionEvent, opts ...grpc.CallOption) (*contracts.ActionEventResponse, error) {
@@ -201,6 +217,13 @@ type OperatorServiceServer interface {
 	//
 	// Requires the hatchet-operator-id metadata.
 	Listen(OperatorService_ListenServer) error
+	// PauseWorker stops the scheduler assigning to one of the operator's workers, or lets it be
+	// assigned to again with paused = false. It returns once the change is committed, so an
+	// operator that pauses before draining knows no further work will arrive, and it works while
+	// the Listen stream is being torn down or reconnected. Register clears the pause when it
+	// resumes a worker, so an operator that crashed while paused comes back assignable.
+	// Requires the hatchet-operator-id metadata; the worker_id must belong to the operator.
+	PauseWorker(context.Context, *OperatorPauseWorkerRequest) (*OperatorPauseWorkerResponse, error)
 	// SendStepActionEvent reports task progress (started, completed, failed) for an action that
 	// was delivered on a Listen stream. Same semantics as Dispatcher.SendStepActionEvent.
 	// Requires the hatchet-operator-id metadata; the event's worker_id must belong to the
@@ -223,6 +246,9 @@ func (UnimplementedOperatorServiceServer) Register(context.Context, *OperatorReg
 }
 func (UnimplementedOperatorServiceServer) Listen(OperatorService_ListenServer) error {
 	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
+}
+func (UnimplementedOperatorServiceServer) PauseWorker(context.Context, *OperatorPauseWorkerRequest) (*OperatorPauseWorkerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PauseWorker not implemented")
 }
 func (UnimplementedOperatorServiceServer) SendStepActionEvent(context.Context, *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
@@ -287,6 +313,24 @@ func (x *operatorServiceListenServer) Recv() (*OperatorListenRequest, error) {
 	return m, nil
 }
 
+func _OperatorService_PauseWorker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OperatorPauseWorkerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OperatorServiceServer).PauseWorker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.OperatorService/PauseWorker",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OperatorServiceServer).PauseWorker(ctx, req.(*OperatorPauseWorkerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _OperatorService_SendStepActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(contracts.StepActionEvent)
 	if err := dec(in); err != nil {
@@ -341,6 +385,10 @@ var OperatorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Register",
 			Handler:    _OperatorService_Register_Handler,
+		},
+		{
+			MethodName: "PauseWorker",
+			Handler:    _OperatorService_PauseWorker_Handler,
 		},
 		{
 			MethodName: "SendStepActionEvent",

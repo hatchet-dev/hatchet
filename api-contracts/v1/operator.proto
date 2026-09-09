@@ -66,6 +66,14 @@ service OperatorService {
     // Requires the hatchet-operator-id metadata.
     rpc Listen(stream OperatorListenRequest) returns (stream OperatorListenResponse);
 
+    // PauseWorker stops the scheduler assigning to one of the operator's workers, or lets it be
+    // assigned to again with paused = false. It returns once the change is committed, so an
+    // operator that pauses before draining knows no further work will arrive, and it works while
+    // the Listen stream is being torn down or reconnected. Register clears the pause when it
+    // resumes a worker, so an operator that crashed while paused comes back assignable.
+    // Requires the hatchet-operator-id metadata; the worker_id must belong to the operator.
+    rpc PauseWorker(OperatorPauseWorkerRequest) returns (OperatorPauseWorkerResponse);
+
     // SendStepActionEvent reports task progress (started, completed, failed) for an action that
     // was delivered on a Listen stream. Same semantics as Dispatcher.SendStepActionEvent.
     // Requires the hatchet-operator-id metadata; the event's worker_id must belong to the
@@ -114,6 +122,22 @@ message OperatorRegisterResponse {
     // created (no worker_id was sent, or the worker no longer exists for this operator). A
     // client that keeps its own view of the action set must replay it when resumed is false.
     bool resumed = 4;
+}
+
+// OperatorPauseWorkerRequest names the worker to pause or unpause.
+message OperatorPauseWorkerRequest {
+    // Worker id from OperatorRegisterResponse. The worker must belong to the calling operator.
+    string worker_id = 1;
+
+    // True to stop the scheduler assigning to the worker, false to let it be assigned to again.
+    bool paused = 2;
+}
+
+message OperatorPauseWorkerResponse {
+    string worker_id = 1;
+
+    // The pause state now committed on the worker.
+    bool paused = 2;
 }
 
 // OperatorListenRequest is a client-to-server message on the Listen stream. The first message
