@@ -131,6 +131,10 @@ func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UU
 type UpdateOperatorOpts struct {
 	Name   *string `json:"name"`
 	Config []byte  `json:"config"`
+
+	// WorkerId points the operator row at the worker that runs it, which is how ClaimOperators
+	// recognises an operator as assigned to that worker's dispatcher.
+	WorkerId *uuid.UUID `json:"-"`
 }
 
 func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
@@ -138,6 +142,7 @@ func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, opera
 		Tenantid: tenantId,
 		ID:       operatorId,
 		Config:   opts.Config,
+		WorkerId: opts.WorkerId,
 	}
 
 	if opts.Name != nil {

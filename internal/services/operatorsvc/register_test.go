@@ -168,12 +168,47 @@ func TestRegisterRejects(t *testing.T) {
 		})
 	}
 
-	// only out-of-process operators register through a session today; the in-process kinds
-	// arrive with the in-process host
+	// only out-of-process operators are upserted through a session; the in-process kinds are
+	// registered by the id of their claimed row
 	t.Run("unsupported kind", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG})
 		require.Error(t, err)
 		assert.Zero(t, svc.operators.Count())
 	})
+}
+
+// A claimed row is registered by id: nothing is upserted, the worker is named after the row and
+// the row is pointed at the worker so ClaimOperators keeps seeing the assignment.
+func TestRegisterClaimedRow(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
+
+	reg, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, SlotConfig: map[string]int32{"durable": 3}})
+	require.NoError(t, err)
+
+	assert.Equal(t, row.ID, reg.OperatorId)
+	assert.Equal(t, 1, svc.operators.Count(), "no row is upserted")
+
+	created := svc.workers.Created()
+	require.Len(t, created, 1)
+	assert.Equal(t, "dag", created[0].Name)
+	assert.Equal(t, map[string]int32{"durable": 3}, created[0].SlotConfig)
+
+	op, err := svc.operators.GetOperatorById(t.Context(), row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, op.WorkerID)
+	assert.Equal(t, reg.WorkerId, *op.WorkerID, "the row points at the session's worker")
+
+	// a row of another tenant, or no row at all, is refused the same way
+	other := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
+
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &other.ID})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+
+	missing := uuid.New()
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &missing})
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }

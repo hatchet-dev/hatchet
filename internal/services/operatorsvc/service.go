@@ -30,6 +30,7 @@ import (
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -70,6 +71,7 @@ const (
 type OperatorStore interface {
 	GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
 	UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error)
+	UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error)
 }
 
 // WorkerStore is the subset of repository.WorkerRepository the service uses.
@@ -87,10 +89,9 @@ type WorkerStore interface {
 }
 
 // ActionHandler receives assigned actions by direct call. It is the in-process delivery: the
-// call runs on the dispatcher's delivery goroutine and its error requeues the task.
-type ActionHandler interface {
-	HandleAction(ctx context.Context, action *contracts.AssignedAction) error
-}
+// call runs on the dispatcher's delivery goroutine and its error requeues the task. It is the
+// contract's handler type, so an operator written against pkg/operator is hosted here unchanged.
+type ActionHandler = operator.ActionHandler
 
 // StreamSession is the dispatcher session handle for a stream-backed session; see
 // dispatcher.OperatorStreamSession.
