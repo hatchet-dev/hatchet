@@ -5,11 +5,10 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal, Never, Self, cast
 
 import grpc.aio
 from pydantic import BaseModel, Field
-from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -172,7 +171,7 @@ class DurableEventListener:
         config: ClientConfig,
         admin_client: AdminClient,
         on_server_evict: Callable[[str, int], None] | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -240,7 +239,7 @@ class DurableEventListener:
         self._request_queue = asyncio.Queue()
 
         self._stream = cast(
-            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
+            "grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse]",
             self._stub.DurableTask(
                 self._request_iterator(),  # type: ignore[arg-type]
                 metadata=create_authorization_header(self.token),
@@ -256,7 +255,7 @@ class DurableEventListener:
                 try:
                     self._request_queue.put_nowait(old_queue.get_nowait())
                     carried_over += 1
-                except asyncio.QueueEmpty:  # noqa: PERF203
+                except asyncio.QueueEmpty:
                     break
             if carried_over:
                 logger.info(
@@ -596,7 +595,7 @@ class DurableEventListener:
     ) -> DurableTaskEventAck:
         try:
             return await asyncio.wait_for(future, timeout=self._EVENT_ACK_TIMEOUT_S)
-        except (TimeoutError, asyncio.TimeoutError) as err:
+        except TimeoutError as err:
             if self._pending_event_acks.get(key) is future:
                 self._pending_event_acks.pop(key, None)
             raise TimeoutError(
@@ -822,7 +821,7 @@ class DurableEventListener:
 
         try:
             await asyncio.wait_for(ack_future, timeout=self._EVICTION_ACK_TIMEOUT_S)
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             self._pending_eviction_acks.pop(eviction_key, None)
             raise TimeoutError(
                 f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "

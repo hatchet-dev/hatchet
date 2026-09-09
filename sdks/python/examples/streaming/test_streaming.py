@@ -5,7 +5,7 @@ import pytest
 
 from examples.streaming.worker import chunks, stream_task
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
+from hatchet_sdk import TaskRunEventType
 
 
 @pytest.mark.parametrize(
@@ -27,7 +27,7 @@ async def test_streaming_ordering_and_completeness(
     ix = 0
     anna_karenina = ""
 
-    async for chunk in hatchet.runs.subscribe_to_stream(ref.workflow_run_id):
+    async for chunk in hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id):
         assert chunks[ix] == chunk
         ix += 1
         anna_karenina += chunk

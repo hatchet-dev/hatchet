@@ -1,9 +1,9 @@
 import json
 from collections.abc import Callable
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from logging import Logger, getLogger
-from typing import ClassVar, overload
+from typing import ClassVar, Literal, overload
 
 import tenacity
 from pydantic import Field, field_validator, model_validator
@@ -27,7 +27,7 @@ class ClientTLSConfig(BaseSettings):
         env_prefix="HATCHET_CLIENT_TLS_",
     )
 
-    strategy: str = "tls"
+    strategy: Literal["tls", "mtls", "none"] = "tls"
     cert_file: str | None = None
     key_file: str | None = None
     root_ca_file: str | None = None
@@ -41,15 +41,15 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    event_loop_block_threshold_seconds: timedelta = Field(
+    event_loop_block_threshold: timedelta = Field(
         default=timedelta(seconds=5),
-        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Numeric values are interpreted as seconds.",
     )
     bind_address: str | None = "0.0.0.0"
 
-    @field_validator("event_loop_block_threshold_seconds", mode="before")
+    @field_validator("event_loop_block_threshold", mode="before")
     @classmethod
-    def validate_event_loop_block_threshold_seconds(
+    def validate_event_loop_block_threshold(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
         if isinstance(value, timedelta):
@@ -100,7 +100,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
-class HTTPMethod(str, Enum):
+class HTTPMethod(StrEnum):
     GET = "GET"
     DELETE = "DELETE"
     POST = "POST"

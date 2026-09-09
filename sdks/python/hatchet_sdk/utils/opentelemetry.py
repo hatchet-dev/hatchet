@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OTelAttribute(str, Enum):
+class OTelAttribute(StrEnum):
     ## Shared
     NAMESPACE = "namespace"
     ADDITIONAL_METADATA = "additional_metadata"
@@ -34,9 +34,6 @@ class OTelAttribute(str, Enum):
     FILTER_SCOPE = "scope"
 
     ## Trigger Workflow
-    PARENT_ID = "parent_id"
-    PARENT_STEP_RUN_ID = "parent_step_run_id"
-    CHILD_INDEX = "child_index"
     CHILD_KEY = "child_key"
     DESIRED_WORKER_ID = "desired_worker_id"
     STICKY = "sticky"

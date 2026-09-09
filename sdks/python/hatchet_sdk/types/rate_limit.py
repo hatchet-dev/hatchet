@@ -1,18 +1,22 @@
-from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateTaskRateLimit
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    RateLimitDuration as RateLimitDurationProto,
+)
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
-
-class RateLimitDuration(str, Enum):
-    SECOND = "SECOND"
-    MINUTE = "MINUTE"
-    HOUR = "HOUR"
-    DAY = "DAY"
-    WEEK = "WEEK"
-    MONTH = "MONTH"
-    YEAR = "YEAR"
+RateLimitDuration = Literal[
+    "SECOND",
+    "MINUTE",
+    "HOUR",
+    "DAY",
+    "WEEK",
+    "MONTH",
+    "YEAR",
+]
 
 
 class RateLimit(BaseModel):
@@ -28,12 +32,12 @@ class RateLimit(BaseModel):
         dynamic_key (str, optional): A CEL expression for dynamic key evaluation.
         units (int or str, default=1): The number of units or a CEL expression for dynamic unit calculation.
         limit (int or str, optional): The rate limit value or a CEL expression for dynamic limit calculation.
-        duration (str, default=RateLimitDuration.MINUTE): The window duration of the rate limit.
+        duration (str, default="MINUTE"): The window duration of the rate limit.
 
     Usage:
         1. Static rate limit:
            rate_limit = RateLimit(static_key="external-api", units=100)
-           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.admin.put_rate_limit("external-api", 200, RateLimitDuration.SECOND)
+           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.admin.put_rate_limit("external-api", 200, "SECOND")
 
         2. Dynamic rate limit with CEL expressions:
            rate_limit = RateLimit(
@@ -55,7 +59,7 @@ class RateLimit(BaseModel):
     dynamic_key: str | None = None
     units: str | int = 1
     limit: int | str | None = None
-    duration: RateLimitDuration = RateLimitDuration.MINUTE
+    duration: RateLimitDuration = "MINUTE"
 
     @model_validator(mode="after")
     def validate_rate_limit(self) -> "RateLimit":
@@ -90,5 +94,7 @@ class RateLimit(BaseModel):
             units=units,
             units_expr=units_expression,
             limit_values_expr=limit_expression,
-            duration=self.duration,
+            duration=convert_python_literal_to_proto(
+                self.duration, RateLimitDurationProto
+            ),
         )

@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -28,10 +27,10 @@ concurrency_cancel_newest_task_level_workflow = hatchet.workflow(
 # > Task-Level Cancel Newest
 @concurrency_cancel_newest_task_level_workflow.task(
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.group",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+            strategy="CANCEL_NEWEST",
         )
     ],
 )

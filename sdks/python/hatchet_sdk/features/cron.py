@@ -1,15 +1,17 @@
 import asyncio
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
     CreateCronWorkflowTriggerRequest,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
 from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
     CronWorkflowsOrderByField,
 )
@@ -21,7 +23,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -81,10 +83,14 @@ class CronClient(BaseRestClient):
     The cron client is a client for managing cron workflows within Hatchet.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     def create(
@@ -94,7 +100,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.
@@ -108,7 +114,6 @@ class CronClient(BaseRestClient):
 
         :return: The created cron workflow instance.
         """
-        _warn_if_int_priority(priority)
 
         validated_input = CreateCronTriggerConfig(
             expression=expression, input=input, additional_metadata=additional_metadata
@@ -134,7 +139,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | Priority | None = None,
+        priority: Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.
@@ -189,7 +194,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> CronWorkflowsList:
+    ) -> list[CronWorkflows]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -226,7 +231,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> CronWorkflowsList:
+    ) -> list[CronWorkflows]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -246,7 +251,7 @@ class CronClient(BaseRestClient):
                 self._wa(client).cron_workflow_list,
                 self.client_config.tenacity,
             )
-            return cron_workflow_list(
+            cwl = cron_workflow_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -259,6 +264,8 @@ class CronClient(BaseRestClient):
                 workflow_name=workflow_name,
                 cron_name=cron_name,
             )
+
+            return cwl.rows or []
 
     def get(self, cron_id: str) -> CronWorkflows:
         """

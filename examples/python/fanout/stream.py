@@ -26,12 +26,6 @@ async def main() -> None:
         additional_metadata={streamKey: streamVal},
     )
 
-    # Stream all events for the additional meta key value
-    listener = hatchet.listener.stream_by_additional_metadata(streamKey, streamVal)
-
-    async for event in listener:
-        print(event.type, event.payload)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

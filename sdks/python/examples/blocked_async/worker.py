@@ -2,7 +2,7 @@ import hashlib
 import time
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -16,7 +16,7 @@ blocked_worker_workflow = hatchet.workflow(name="Blocked")
 
 
 @blocked_worker_workflow.task(execution_timeout=timedelta(seconds=11), retries=3)
-async def step1(input: EmptyModel, ctx: Context) -> dict[str, str | int | float]:
+async def step1(input: None, ctx: Context) -> dict[str, str | int | float]:
     print("Executing step1")
 
     # CPU-bound task: Calculate a large number of SHA-256 hashes

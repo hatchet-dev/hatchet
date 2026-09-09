@@ -31,14 +31,14 @@ _worker_name = f"e2e-test-zombie-worker-{uuid.uuid4()}"
 @pytest.mark.asyncio(loop_scope="session")
 async def test_zombie_worker(hatchet: Hatchet, on_demand_worker: Popen[Any]) -> None:
     workers = await hatchet.workers.aio_list()
-    assert workers.rows
+    assert workers
 
     namespaced_worker_name = hatchet.config.apply_namespace(_worker_name)
 
     worker = next(
         (
             w
-            for w in workers.rows
+            for w in workers
             if w.name == namespaced_worker_name and w.status == WorkerStatus.ACTIVE
         ),
         None,

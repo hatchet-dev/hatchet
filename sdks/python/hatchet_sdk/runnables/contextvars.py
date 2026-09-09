@@ -7,10 +7,10 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import Context, DurableContext
+    from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None

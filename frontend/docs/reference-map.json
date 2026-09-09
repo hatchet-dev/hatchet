@@ -99,7 +99,7 @@
       "guide": "/v1/cron-runs",
       "guideTitle": "Cron Runs",
       "slugs": {
-        "python": "cron",
+        "python": "crons",
         "typescript": "crons",
         "go": "crons",
         "ruby": "cron"

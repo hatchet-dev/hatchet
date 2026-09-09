@@ -162,5 +162,5 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
 
         await asyncio.sleep(1)
 
-    await hatchet.cron.aio_delete(cron.metadata.id)
+    await hatchet.crons.aio_delete(cron.metadata.id)
     await pausable_workflow.aio_unpause()

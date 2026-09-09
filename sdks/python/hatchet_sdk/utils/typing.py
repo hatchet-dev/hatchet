@@ -1,7 +1,7 @@
 import sys
 from collections.abc import Awaitable, Coroutine, Generator
 from dataclasses import Field as DataclassField
-from enum import Enum
+from enum import StrEnum
 from typing import Any, ClassVar, Literal, Protocol, TypeAlias, TypeVar
 
 
@@ -25,7 +25,7 @@ STOP_LOOP_TYPE = Literal["STOP_LOOP"]
 STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARN = "WARN"

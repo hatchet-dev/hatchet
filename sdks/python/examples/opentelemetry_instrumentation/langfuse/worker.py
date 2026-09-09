@@ -1,7 +1,7 @@
 from opentelemetry.trace import get_tracer_provider
 
 from examples.opentelemetry_instrumentation.langfuse.client import openai
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 # > Task
@@ -14,7 +14,7 @@ hatchet = Hatchet()
 
 
 @hatchet.task()
-async def langfuse_task(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+async def langfuse_task(input: None, ctx: Context) -> dict[str, str | None]:
     ## Usage, cost, etc. of this call will be send to Langfuse
     generation = await openai.chat.completions.create(
         model="gpt-4o-mini",

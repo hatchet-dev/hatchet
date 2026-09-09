@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -26,15 +25,15 @@ concurrency_workflow_level_workflow = hatchet.workflow(
     name="ConcurrencyWorkflowLevel",
     input_validator=WorkflowInput,
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.digit",
             max_runs=DIGIT_MAX_RUNS,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            strategy="GROUP_ROUND_ROBIN",
         ),
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.name",
             max_runs=NAME_MAX_RUNS,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            strategy="GROUP_ROUND_ROBIN",
         ),
     ],
 )

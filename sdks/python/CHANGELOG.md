@@ -5,6 +5,28 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+See the [V2 migration guide](https://docs.hatchet.run/v1/migration-guide-python-v2) for the full list of breaking changes.
+
+### Changed
+
+- Python 3.11 or newer is required.
+- `hatchet.cron` has been renamed to `hatchet.crons`, consistent with the other (plural) feature clients.
+- `runs.subscribe_to_stream` has been renamed to `runs.aio_subscribe_to_stream`, consistent with the `aio_` prefix on every other async method.
+- `ctx.priority` now returns `Priority | None` instead of `int | None`.
+- `Worker.register_workflow` now raises on registration failure instead of calling `sys.exit(1)`.
+- `HealthcheckConfig.event_loop_block_threshold_seconds` has been renamed to `event_loop_block_threshold`.
+- `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]`.
+- String-mixin enums (`RunStatus`, `TaskRunEventType`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
+- `grpcio-tools` is no longer a runtime dependency.
+
+### Added
+
+- `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
+- `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
+- `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
+
 ## [1.40.1] - 2026-09-09
 
 ### Fixed

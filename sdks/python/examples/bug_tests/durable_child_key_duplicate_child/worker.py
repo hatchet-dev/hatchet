@@ -1,4 +1,4 @@
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 from pydantic import BaseModel
 from typing import Literal
 from uuid import uuid4
@@ -11,7 +11,7 @@ class Input(BaseModel):
 
 
 @hatchet.task()
-async def child_child_key_bug(_i: EmptyModel, ctx: Context) -> dict[str, str]:
+async def child_child_key_bug(_i: None, ctx: Context) -> dict[str, str]:
     return {"id": ctx.workflow_run_id}
 
 

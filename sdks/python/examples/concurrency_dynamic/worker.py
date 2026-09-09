@@ -1,8 +1,7 @@
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -21,10 +20,10 @@ class WorkflowInput(BaseModel):
 @hatchet.task(
     input_validator=WorkflowInput,
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.account",
             max_runs="input.tier == 'premium' ? 10 : 1",
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            strategy="GROUP_ROUND_ROBIN",
         ),
     ],
 )

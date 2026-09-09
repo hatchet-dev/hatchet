@@ -1,8 +1,11 @@
 import asyncio
 import datetime
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
     ScheduleWorkflowRunRequest,
@@ -27,9 +30,6 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_request imp
 from hatchet_sdk.clients.rest.models.scheduled_workflows_bulk_update_response import (
     ScheduledWorkflowsBulkUpdateResponse,
 )
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
-    ScheduledWorkflowsList,
-)
 from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
     ScheduledWorkflowsOrderByField,
 )
@@ -52,10 +52,14 @@ class ScheduledClient(BaseRestClient):
     The scheduled client is a client for managing scheduled workflows within Hatchet.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     def create(
@@ -347,7 +351,7 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
-    ) -> ScheduledWorkflowsList:
+    ) -> list[ScheduledWorkflows]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -384,7 +388,7 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
-    ) -> ScheduledWorkflowsList:
+    ) -> list[ScheduledWorkflows]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -403,7 +407,7 @@ class ScheduledClient(BaseRestClient):
             workflow_scheduled_list = tenacity_retry(
                 self._wa(client).workflow_scheduled_list, self.client_config.tenacity
             )
-            return workflow_scheduled_list(
+            wsl = workflow_scheduled_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -416,6 +420,8 @@ class ScheduledClient(BaseRestClient):
                 parent_workflow_run_id=parent_workflow_run_id,
                 statuses=statuses,
             )
+
+            return wsl.rows or []
 
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
         """

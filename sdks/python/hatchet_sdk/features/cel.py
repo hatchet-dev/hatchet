@@ -1,9 +1,11 @@
 import asyncio
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.rest.api.cel_api import CELApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.cel_api import CELApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
 from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
@@ -33,7 +35,9 @@ class CELClient(BaseRestClient):
     The CEL client is a client for debugging CEL expressions within Hatchet
     """
 
-    def _ca(self, client: ApiClient) -> CELApi:
+    def _ca(self, client: ApiClient) -> "CELApi":
+        from hatchet_sdk.clients.rest.api.cel_api import CELApi
+
         return CELApi(client)
 
     def debug(

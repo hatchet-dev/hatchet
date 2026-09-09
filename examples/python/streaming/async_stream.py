@@ -1,14 +1,14 @@
 import asyncio
 
 from examples.streaming.worker import hatchet, stream_task
-from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
+from hatchet_sdk import TaskRunEventType
 
 
 async def main() -> None:
     # > Consume
     ref = await stream_task.aio_run(wait_for_result=False)
 
-    async for chunk in hatchet.runs.subscribe_to_stream(ref.workflow_run_id):
+    async for chunk in hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id):
         print(chunk, flush=True, end="")
 
 
