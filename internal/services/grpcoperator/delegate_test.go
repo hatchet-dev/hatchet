@@ -43,7 +43,7 @@ func TestSendStepActionEventChecksWorkerOwnership(t *testing.T) {
 	ctx, _, worker := registeredOperator(t, svc, tenant)
 
 	otherOp := uuid.New()
-	other := svc.workers.add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
+	other := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
 
 	_, err := svc.SendStepActionEvent(tenantContext(tenant), &contracts.StepActionEvent{WorkerId: worker.ID.String()})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err), "operator metadata is required")
@@ -54,7 +54,7 @@ func TestSendStepActionEventChecksWorkerOwnership(t *testing.T) {
 	resp, err := svc.SendStepActionEvent(ctx, &contracts.StepActionEvent{WorkerId: worker.ID.String()})
 	require.NoError(t, err)
 	assert.Equal(t, worker.ID.String(), resp.WorkerId)
-	assert.Len(t, svc.dispatcher.stepCalls, 1)
+	assert.Len(t, svc.dispatcher.StepCalls(), 1)
 }
 
 func TestDurableTaskChecksWorkerOwnership(t *testing.T) {
@@ -66,21 +66,21 @@ func TestDurableTaskChecksWorkerOwnership(t *testing.T) {
 
 		err := svc.DurableTask(stream)
 		assert.Equal(t, codes.InvalidArgument, status.Code(err))
-		assert.Nil(t, svc.dispatcher.durableRegister, "the dispatcher never sees an unauthorized stream")
+		assert.Nil(t, svc.dispatcher.DurableRegister(), "the dispatcher never sees an unauthorized stream")
 	})
 
 	t.Run("another operator's worker is rejected", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		ctx, _, _ := registeredOperator(t, svc, tenant)
 		otherOp := uuid.New()
-		other := svc.workers.add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
+		other := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
 
 		stream := &fakeDurableStream{ctx: ctx, recv: make(chan *v1contracts.DurableTaskRequest, 1)}
 		stream.recv <- registerWorkerMsg(other.ID.String())
 
 		err := svc.DurableTask(stream)
 		assert.Equal(t, codes.PermissionDenied, status.Code(err), err)
-		assert.Nil(t, svc.dispatcher.durableRegister, "the register message is not delegated when ownership fails")
+		assert.Nil(t, svc.dispatcher.DurableRegister(), "the register message is not delegated when ownership fails")
 	})
 
 	t.Run("first message must register", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestDurableTaskChecksWorkerOwnership(t *testing.T) {
 		stream.recv <- registerWorkerMsg(worker.ID.String())
 
 		require.NoError(t, svc.DurableTask(stream))
-		require.NotNil(t, svc.dispatcher.durableRegister)
-		assert.Equal(t, worker.ID.String(), svc.dispatcher.durableRegister.GetRegisterWorker().WorkerId)
+		require.NotNil(t, svc.dispatcher.DurableRegister())
+		assert.Equal(t, worker.ID.String(), svc.dispatcher.DurableRegister().GetRegisterWorker().WorkerId)
 	})
 }

@@ -28,6 +28,10 @@ const (
 	// operatorCloseFlushTimeout bounds the flush Close performs before it
 	// tears the session down.
 	operatorCloseFlushTimeout = 2 * time.Second
+
+	// operatorCloseDrainTimeout bounds how long Close waits for the actions
+	// already handed to the consumer to be reported before it hangs up.
+	operatorCloseDrainTimeout = 30 * time.Second
 )
 
 var errOperatorActionsStarted = errors.New("operator session actions already started")
@@ -116,8 +120,8 @@ func (b *actionInbox) pop() *dispatchercontracts.AssignedAction {
 // Flush can observe acks before Actions is called; Actions only attaches a
 // consumer to the inbox.
 // NOTE: field order follows govet fieldalignment (enforced by the pre-commit
-// autofixer); mu guards register, reg, durables, loopErr, started, consuming
-// and closed. Lock order is stream.sendMu → mu, never reverse: mu is only
+// autofixer); mu guards register, reg, durables, loopErr, inflight, idle,
+// started, consuming and closed. Lock order is stream.sendMu → mu, never reverse: mu is only
 // taken in short critical sections that do no stream I/O.
 type operatorSession struct {
 	client     v1.OperatorServiceClient
@@ -134,6 +138,12 @@ type operatorSession struct {
 	durables   []*DurableTaskListener
 	reg        OperatorRegistration
 	actions    *actionDeltaQueue
+
+	// inflight holds the task runs handed to the consumer that have not been
+	// reported as finished, and idle is closed the moment the last one is, so
+	// Close can drain. Both are guarded by mu.
+	inflight map[string]struct{}
+	idle     chan struct{}
 
 	heartbeatInterval time.Duration
 
@@ -169,6 +179,7 @@ func newOperatorSession(
 		loopCtx:           loopCtx,
 		loopCancel:        loopCancel,
 		loopDone:          make(chan struct{}),
+		inflight:          map[string]struct{}{},
 	}
 
 	s.stream = newReconnectingStreamWithLifecycle(
@@ -467,6 +478,9 @@ func (s *operatorSession) terminalErr() error {
 func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
 	defer close(ch)
 	defer close(errCh)
+	// once delivery ends there is nobody left to report the runs the consumer was handed, so a
+	// Close that is draining must stop waiting for them
+	defer s.abandonInflight()
 
 	stopOnCancel := context.AfterFunc(ctx, func() {
 		s.loopCancel()
@@ -476,12 +490,20 @@ func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatcher
 
 	for {
 		if action := s.inbox.pop(); action != nil {
+			// The action counts as in flight from the moment this loop commits to delivering
+			// it, not once the consumer has taken it: a consumer that reports the outcome the
+			// instant it receives the action would otherwise clear an entry that is not there
+			// yet, and the entry added afterwards would never be cleared.
+			s.startAction(action)
+
 			select {
 			case ch <- action:
 				continue
 			case <-ctx.Done():
+				s.finishAction(action.TaskRunExternalId)
 				return
 			case <-s.loopDone:
+				s.finishAction(action.TaskRunExternalId)
 			}
 		}
 
@@ -506,7 +528,150 @@ func (s *operatorSession) SendStepActionEvent(ctx context.Context, in *dispatche
 		in.WorkerId = s.Registration().WorkerId
 	}
 
-	return s.client.SendStepActionEvent(s.opCtx(ctx), in)
+	resp, err := s.client.SendStepActionEvent(s.opCtx(ctx), in)
+
+	// the report is what tells the session the action is done, whether or not the engine
+	// accepted it: a report that failed will not be retried by the caller either
+	if isTerminalStepEvent(in.EventType) {
+		s.finishAction(in.TaskRunExternalId)
+	}
+
+	return resp, err
+}
+
+// isTerminalStepEvent reports whether an event ends the caller's work on a task run. Started
+// and acknowledged events do not.
+func isTerminalStepEvent(eventType dispatchercontracts.StepActionEventType) bool {
+	switch eventType {
+	case dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED,
+		dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
+		dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return true
+	default:
+		return false
+	}
+}
+
+// startAction records that a task run was handed to the consumer and is not finished. Cancels
+// carry no work of their own and are never reported, so they are not tracked. A task run is
+// tracked once: a retry of the same run replaces the entry rather than adding one, since the
+// caller reports the run, not the attempt.
+func (s *operatorSession) startAction(action *dispatchercontracts.AssignedAction) {
+	if action.ActionType == dispatchercontracts.ActionType_CANCEL_STEP_RUN {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.inflight[action.TaskRunExternalId] = struct{}{}
+}
+
+// finishAction records that the caller reported the task run's outcome.
+func (s *operatorSession) finishAction(taskRunExternalId string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.inflight[taskRunExternalId]; !ok {
+		return
+	}
+
+	delete(s.inflight, taskRunExternalId)
+
+	if len(s.inflight) == 0 && s.idle != nil {
+		close(s.idle)
+		s.idle = nil
+	}
+}
+
+// abandonInflight forgets every task run handed to the consumer. Delivery has ended, so the
+// consumer that would have reported them is gone; the engine retries whatever it was holding
+// once those tasks time out.
+func (s *operatorSession) abandonInflight() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.inflight) == 0 {
+		return
+	}
+
+	s.inflight = map[string]struct{}{}
+
+	if s.idle != nil {
+		close(s.idle)
+		s.idle = nil
+	}
+}
+
+// idleCh returns a channel that is closed once nothing is in flight.
+func (s *operatorSession) idleCh() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.inflight) == 0 {
+		closed := make(chan struct{})
+		close(closed)
+
+		return closed
+	}
+
+	if s.idle == nil {
+		s.idle = make(chan struct{})
+	}
+
+	return s.idle
+}
+
+func (s *operatorSession) Pause(ctx context.Context) error {
+	return s.setPaused(ctx, true)
+}
+
+func (s *operatorSession) Resume(ctx context.Context) error {
+	return s.setPaused(ctx, false)
+}
+
+func (s *operatorSession) setPaused(ctx context.Context, paused bool) error {
+	workerId := s.Registration().WorkerId
+
+	if workerId == "" {
+		return fmt.Errorf("operator session has no worker to pause")
+	}
+
+	_, err := s.client.PauseWorker(s.opCtx(ctx), &v1.OperatorPauseWorkerRequest{
+		WorkerId: workerId,
+		Paused:   paused,
+	})
+
+	return err
+}
+
+// drain pauses the worker and waits for the actions already handed to the
+// consumer to be reported. The pause is what makes the wait terminate: without
+// it the scheduler keeps assigning. A pause that fails is logged and the wait
+// still runs, bounded by timeout, so in-flight work gets its chance to finish.
+func (s *operatorSession) drain(timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err := s.Pause(ctx); err != nil {
+		s.l.Warn().Ctx(ctx).Err(err).Msg("could not pause the operator worker before draining")
+	}
+
+	select {
+	case <-s.idleCh():
+		return
+	case <-ctx.Done():
+	}
+
+	s.mu.Lock()
+	outstanding := len(s.inflight)
+	s.mu.Unlock()
+
+	if outstanding == 0 {
+		return
+	}
+
+	s.l.Warn().Int("in_flight", outstanding).Msg("operator session closed with actions still in flight")
 }
 
 func (s *operatorSession) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, []string, error) {
@@ -590,7 +755,17 @@ func (s *operatorSession) ForgetWorker() {
 	s.reg.WorkerId = ""
 }
 
-func (s *operatorSession) Close() error {
+// Close is pause then drain: the worker is paused so the scheduler stops
+// assigning, the actions already handed to the consumer are given the drain
+// timeout to be reported, and only then is the stream ended and the worker
+// deactivated. WithoutDrain hangs up at once instead.
+func (s *operatorSession) Close(fs ...CloseOpt) error {
+	o := &closeOpts{drain: true, drainTimeout: operatorCloseDrainTimeout}
+
+	for _, f := range fs {
+		f(o)
+	}
+
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -599,6 +774,12 @@ func (s *operatorSession) Close() error {
 	s.closed = true
 	durables := s.durables
 	s.mu.Unlock()
+
+	// The loops are still running here, so the consumer can finish the work it
+	// holds and report it while the drain waits.
+	if o.drain {
+		s.drain(o.drainTimeout)
+	}
 
 	// Deltas queued before Close still belong to the worker the engine will
 	// deactivate, so they are given a short window to be acknowledged before

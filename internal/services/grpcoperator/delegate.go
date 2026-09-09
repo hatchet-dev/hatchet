@@ -15,17 +15,13 @@ import (
 // event's worker must belong to the calling operator; the dispatcher then handles it exactly
 // like an SDK worker's event.
 func (s *OperatorServiceImpl) SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	op, err := s.authorizeOperator(ctx)
+	tenant, op, err := s.authorizeOperator(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := s.authorizeOperatorWorker(ctx, op, req.WorkerId); err != nil {
-		return nil, err
-	}
-
-	return s.dispatcher.SendStepActionEvent(ctx, req)
+	return s.svc.SendStepActionEvent(ctx, tenant, op, req)
 }
 
 // DurableTask is the durable task event stream. The operator is authorized once when the
@@ -35,16 +31,16 @@ func (s *OperatorServiceImpl) SendStepActionEvent(ctx context.Context, req *cont
 // register again), so a second register_worker is refused as a protocol error rather than
 // re-checked: the stream stays bound to the worker it was authorized for.
 func (s *OperatorServiceImpl) DurableTask(stream v1contracts.OperatorService_DurableTaskServer) error {
-	op, err := s.authorizeOperator(stream.Context())
+	tenant, op, err := s.authorizeOperator(stream.Context())
 
 	if err != nil {
 		return err
 	}
 
-	return s.dispatcher.DurableTask(&ownershipCheckedDurableStream{
+	return s.durable.DurableTask(&ownershipCheckedDurableStream{
 		OperatorService_DurableTaskServer: stream,
 		check: func(ctx context.Context, workerId string) error {
-			_, err := s.authorizeOperatorWorker(ctx, op, workerId)
+			_, err := s.authorizeWorker(ctx, tenant, op, workerId)
 			return err
 		},
 	})

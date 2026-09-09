@@ -164,8 +164,10 @@ type fakeOperatorServiceClient struct {
 	streams             []*fakeOperatorListenStream
 	stepEvents          []*dispatchercontracts.StepActionEvent
 	stepEventOperatorId []string
+	pauses              []*v1.OperatorPauseWorkerRequest
 	registerErr         error
 	listenErr           error
+	pauseErr            error
 	mu                  sync.Mutex
 	// noAck makes every new stream withhold delta acks
 	noAck bool
@@ -218,6 +220,33 @@ func (f *fakeOperatorServiceClient) SendStepActionEvent(ctx context.Context, in 
 	f.stepEvents = append(f.stepEvents, in)
 	f.stepEventOperatorId = append(f.stepEventOperatorId, outgoingOperatorId(ctx))
 	return &dispatchercontracts.ActionEventResponse{TenantId: "tenant-1", WorkerId: in.WorkerId}, nil
+}
+
+func (f *fakeOperatorServiceClient) PauseWorker(ctx context.Context, in *v1.OperatorPauseWorkerRequest, opts ...grpc.CallOption) (*v1.OperatorPauseWorkerResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.pauseErr != nil {
+		return nil, f.pauseErr
+	}
+
+	f.pauses = append(f.pauses, in)
+
+	return &v1.OperatorPauseWorkerResponse{WorkerId: in.WorkerId, Paused: in.Paused}, nil
+}
+
+func (f *fakeOperatorServiceClient) stepEventsSent() []*dispatchercontracts.StepActionEvent {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*dispatchercontracts.StepActionEvent(nil), f.stepEvents...)
+}
+
+func (f *fakeOperatorServiceClient) pauseRequests() []*v1.OperatorPauseWorkerRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*v1.OperatorPauseWorkerRequest(nil), f.pauses...)
 }
 
 func (f *fakeOperatorServiceClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (v1.OperatorService_DurableTaskClient, error) {

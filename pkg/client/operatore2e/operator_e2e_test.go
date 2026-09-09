@@ -315,6 +315,27 @@ func workerActive(t *testing.T, ctx context.Context, workerId string) (active bo
 	return active, fmt.Sprintf("isActive=%t lastListenerEstablished=%v lastHeartbeatAt=%v", active, listenerEstablished, lastHeartbeat)
 }
 
+// workerPaused reads the worker's paused flag straight from the database.
+func workerPaused(t *testing.T, ctx context.Context, workerId string) bool {
+	t.Helper()
+
+	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	defer conn.Close(ctx)
+
+	var paused bool
+	require.NoError(t, conn.QueryRow(ctx, `SELECT "isPaused" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&paused))
+
+	return paused
+}
+
+func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want bool) {
+	t.Helper()
+	pollUntil(t, ctx, func() (bool, error) {
+		return workerPaused(t, ctx, workerId) == want, nil
+	})
+}
+
 // workerActionHash reads the worker's action hash straight from the database.
 func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte {
 	t.Helper()
@@ -693,4 +714,60 @@ func TestDurableTaskRejectsForeignWorker(t *testing.T) {
 	resp, err := own.Recv()
 	require.NoError(t, err)
 	assert.NotNil(t, resp.GetRegisterWorker(), "own worker registers on the durable stream")
+}
+
+// A paused worker keeps its actions and its session but is not assigned to, which is what lets
+// an operator drain before it hangs up. Resuming it lets the queued run through, and so does a
+// reconnect, since Register clears the pause on a resumed worker.
+func TestPauseStopsAssignment(t *testing.T) {
+	ctx := newTestContext(t)
+	v0, sdk := clients(t)
+
+	session := connect(t, ctx, v0, "pause-operator", map[string]int32{"default": 10})
+	workerId := session.Registration().WorkerId
+
+	serve(t, ctx, session, func(ctx context.Context, action *dispatchercontracts.AssignedAction) (string, error) {
+		return `{"paused":"ok"}`, nil
+	})
+
+	name := uniqueName("grpc-op-pause")
+	putAndAdd(t, ctx, session, simpleWorkflow(name, "grpcop:pause", false))
+	time.Sleep(schedulerConvergence)
+
+	require.NoError(t, session.Pause(ctx))
+	pollWorkerPaused(t, ctx, workerId, true)
+	time.Sleep(schedulerConvergence)
+
+	ref, err := sdk.RunNoWait(ctx, name, map[string]any{})
+	require.NoError(t, err)
+
+	assertStaysQueued(t, ctx, sdk, ref.RunId, schedulerConvergence)
+
+	active, state := workerActive(t, ctx, workerId)
+	assert.True(t, active, "a paused worker keeps its session: %s", state)
+
+	require.NoError(t, session.Resume(ctx))
+	pollWorkerPaused(t, ctx, workerId, false)
+
+	waitForCompletion(t, ctx, sdk, ref.RunId)
+}
+
+// Close is pause then drain: it pauses the worker before it hangs up, so nothing new is
+// assigned while the operator finishes what it holds.
+func TestCloseDrainsBeforeDeactivating(t *testing.T) {
+	ctx := newTestContext(t)
+	v0, _ := clients(t)
+
+	session := connect(t, ctx, v0, "drain-operator", map[string]int32{"default": 10})
+	workerId := session.Registration().WorkerId
+
+	_, _, err := session.Actions(ctx)
+	require.NoError(t, err)
+
+	pollWorkerActive(t, ctx, workerId, true)
+
+	require.NoError(t, session.Close())
+
+	assert.True(t, workerPaused(t, ctx, workerId), "the worker is paused before the session hangs up")
+	pollWorkerActive(t, ctx, workerId, false)
 }

@@ -449,9 +449,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			value.Range(func(key uuid.UUID, value *subscribedWorker) bool {
 				w := value
 
-				// operator-backed workers have no stream goroutine reading `finished`; the
-				// operator manager has already drained them above
-				if w.operator != nil {
+				// operator-backed workers have no stream goroutine reading `finished`: the
+				// host that opened the session owns their teardown, the operator manager for
+				// the operators it claims and the operator service for the sessions it opens
+				if w.handler != nil {
 					return true
 				}
 
