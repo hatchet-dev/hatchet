@@ -5,6 +5,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -90,10 +91,47 @@ func parseRetentionDuration(name, value string) (time.Duration, error) {
 
 type ConfigLoader struct {
 	directory string
+
+	// logWriter is an optional runtime override for where loggers built by this
+	// loader write. Nil means os.Stderr.
+	logWriter io.Writer
 }
 
-func NewConfigLoader(directory string) *ConfigLoader {
-	return &ConfigLoader{directory: directory}
+type ConfigLoaderOpt func(*ConfigLoader)
+
+// WithLogWriter routes the loggers this loader constructs (database, server and
+// the additional per-service loggers) to w instead of os.Stderr. This is a
+// runtime-only override intended for embedding callers; it cannot be expressed
+// in a config file. Explicit writers set by a ServerConfigFileOverride take
+// precedence over w.
+func WithLogWriter(w io.Writer) ConfigLoaderOpt {
+	return func(c *ConfigLoader) {
+		c.logWriter = w
+	}
+}
+
+func NewConfigLoader(directory string, opts ...ConfigLoaderOpt) *ConfigLoader {
+	c := &ConfigLoader{directory: directory}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+// applyLogWriter sets the loader's log writer on the given logger configs,
+// leaving any config that already carries an explicit writer untouched.
+func (c *ConfigLoader) applyLogWriter(cfs ...*shared.LoggerConfigFile) {
+	if c.logWriter == nil {
+		return
+	}
+
+	for _, cf := range cfs {
+		if cf.Writer == nil {
+			cf.Writer = c.logWriter
+		}
+	}
 }
 
 // InitDataLayer initializes the database layer from the configuration
@@ -123,6 +161,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	c.applyLogWriter(&cf.Logger)
 
 	l := logger.NewStdErr(&cf.Logger, "database")
 
@@ -456,6 +496,8 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 	for _, override := range overrides {
 		override(cf)
 	}
+
+	c.applyLogWriter(&cf.Logger, &cf.AdditionalLoggers.Queue, &cf.AdditionalLoggers.PgxStats)
 
 	if cf.VersionOverride != "" {
 		version = cf.VersionOverride

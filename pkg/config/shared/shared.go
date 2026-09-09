@@ -1,5 +1,7 @@
 package shared
 
+import "io"
+
 type TLSConfigFile struct {
 	// TLSStrategy can be "tls", "mtls", or "none"
 	TLSStrategy string `mapstructure:"tlsStrategy" json:"tlsStrategy,omitempty" default:"tls"`
@@ -20,6 +22,14 @@ type LoggerConfigFile struct {
 
 	// format can be "json" or "console"
 	Format string `mapstructure:"format" json:"format,omitempty" default:"console"`
+
+	// Writer is an optional runtime override for the log output destination. It
+	// is a runtime object, not a config-file field: it cannot be set from yaml
+	// or environment variables. Embedding callers can set it programmatically
+	// (for example inside a loader.ServerConfigFileOverride) to route engine,
+	// API and database log output somewhere other than os.Stderr. When nil,
+	// loggers built with logger.NewStdErr write to os.Stderr as before.
+	Writer io.Writer `mapstructure:"-" json:"-"`
 }
 
 type OpenTelemetryConfigFile struct {
