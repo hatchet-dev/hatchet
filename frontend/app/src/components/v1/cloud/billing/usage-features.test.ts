@@ -65,7 +65,11 @@ describe('toUsageDisplayRows', () => {
     const rows = toUsageDisplayRows(
       [
         feature('users', { name: 'Users', usage: 1, includedUsage: 1 }),
-        feature('task_runs', { name: 'Task Runs', usage: 12, includedUsage: 2000 }),
+        feature('task_runs', {
+          name: 'Task Runs',
+          usage: 12,
+          includedUsage: 2000,
+        }),
         feature('events', {
           name: 'External Events',
           usage: 4,
@@ -182,14 +186,8 @@ describe('selectDailyMeters', () => {
 
 describe('dailyMeterSeverity', () => {
   it('warns at 75% and goes critical at 90%', () => {
-    assert.equal(
-      dailyMeterSeverity({ value: 1499, limitValue: 2000 }),
-      'ok',
-    );
-    assert.equal(
-      dailyMeterSeverity({ value: 1500, limitValue: 2000 }),
-      'warn',
-    );
+    assert.equal(dailyMeterSeverity({ value: 1499, limitValue: 2000 }), 'ok');
+    assert.equal(dailyMeterSeverity({ value: 1500, limitValue: 2000 }), 'warn');
     assert.equal(
       dailyMeterSeverity({ value: 1800, limitValue: 2000 }),
       'critical',

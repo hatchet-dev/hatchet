@@ -67,7 +67,9 @@ export function parseGoDurationMs(window?: string) {
   return ms > 0 ? ms : null;
 }
 
-export function nextRefillAt(meter: Pick<TenantResourceLimit, 'lastRefill' | 'window'>) {
+export function nextRefillAt(
+  meter: Pick<TenantResourceLimit, 'lastRefill' | 'window'>,
+) {
   if (!meter.lastRefill) {
     return null;
   }
@@ -114,7 +116,9 @@ export function meterWindowLabel(window?: string) {
   return 'Current window';
 }
 
-export function meterPercent(meter: Pick<TenantResourceLimit, 'value' | 'limitValue'>) {
+export function meterPercent(
+  meter: Pick<TenantResourceLimit, 'value' | 'limitValue'>,
+) {
   if (meter.limitValue <= 0) {
     return 0;
   }
@@ -129,7 +133,10 @@ export function dailyMeterSeverity(
   }
 
   const percent = meterPercent(meter);
-  if (meter.value >= meter.limitValue || percent >= DAILY_LIMIT_CRITICAL_PERCENT) {
+  if (
+    meter.value >= meter.limitValue ||
+    percent >= DAILY_LIMIT_CRITICAL_PERCENT
+  ) {
     return 'critical';
   }
 

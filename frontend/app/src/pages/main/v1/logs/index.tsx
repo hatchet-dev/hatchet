@@ -13,10 +13,10 @@ import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-s
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
-import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { TimeRangeSelect } from '@/components/v1/molecules/time-picker/time-range-select';
+import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { docsPages } from '@/lib/generated/docs';

@@ -20,7 +20,6 @@ import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { SubscriptionPlanCode } from '@/lib/api/generated/control-plane/data-contracts';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 
 const FREE_LIMIT_COPY: Record<string, { name: string; suffix?: string }> = {
   task_runs: { name: 'Task runs', suffix: ' daily' },
@@ -45,7 +44,6 @@ export function WelcomeModal({
   onClose,
 }: WelcomeModalProps) {
   const { capture } = useAnalytics();
-  const navigate = useNavigate();
   const { isControlPlaneEnabled, canBill } = useControlPlane();
 
   const welcomePlansQuery = useQuery({

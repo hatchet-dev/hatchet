@@ -112,10 +112,7 @@ function AuditLogUpgrade() {
       >
         Talk to us
       </Button>
-      <DocsButton
-        doc={docsPages.v1.security['audit-logs']}
-        label="View docs"
-      />
+      <DocsButton doc={docsPages.v1.security['audit-logs']} label="View docs" />
     </SettingRow>
   );
 }

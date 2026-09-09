@@ -1,7 +1,4 @@
-import {
-  UpgradeGate,
-  UpgradeGateDialog,
-} from './upgrade-gate-dialog';
+import { UpgradeGate, UpgradeGateDialog } from './upgrade-gate-dialog';
 import {
   dailyMeterSeverity,
   formatTimeUntil,
@@ -16,12 +13,6 @@ import {
 import { ZoomableChart } from '@/components/v1/molecules/charts/zoomable';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import {
   Card,
   CardContent,
@@ -43,6 +34,12 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data-contracts';
@@ -95,10 +92,7 @@ function gateForFeature(featureId: string): UpgradeGate {
   return 'usage';
 }
 
-const severityStyles: Record<
-  UsageSeverity,
-  { value: string; bar: string }
-> = {
+const severityStyles: Record<UsageSeverity, { value: string; bar: string }> = {
   ok: {
     value: 'text-muted-foreground',
     bar: 'bg-foreground',
@@ -286,7 +280,9 @@ function UsageMeter({
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{feature.name}</p>
+            <p className="text-sm font-medium text-foreground">
+              {feature.name}
+            </p>
             {dailyMeter && showPeriodAsCount ? (
               <p className="text-xs text-muted-foreground">
                 {formatPeriodCount(feature)}
@@ -386,8 +382,7 @@ export function UsageThisPeriod({
   });
 
   const features = useMemo(
-    () =>
-      [...(usage.data?.features ?? [])].sort((a, b) => b.usage - a.usage),
+    () => [...(usage.data?.features ?? [])].sort((a, b) => b.usage - a.usage),
     [usage.data?.features],
   );
   const dailyMeters = useMemo(

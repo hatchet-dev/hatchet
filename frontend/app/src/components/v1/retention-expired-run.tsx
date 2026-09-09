@@ -37,10 +37,7 @@ export function RetentionExpiredRun({
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link
-                to={appRoutes.tenantRoute.to}
-                params={{ tenant: tenantId }}
-              >
+              <Link to={appRoutes.tenantRoute.to} params={{ tenant: tenantId }}>
                 Home
               </Link>
             </BreadcrumbLink>
@@ -58,7 +55,9 @@ export function RetentionExpiredRun({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="font-mono text-xs">{runId}</BreadcrumbPage>
+            <BreadcrumbPage className="font-mono text-xs">
+              {runId}
+            </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -73,10 +72,7 @@ export function RetentionExpiredRun({
             : 'Data from that window is no longer available.'}
         </p>
         <div className="mt-6 flex flex-wrap justify-end gap-2">
-          <Link
-            to={appRoutes.tenantRunsRoute.to}
-            params={{ tenant: tenantId }}
-          >
+          <Link to={appRoutes.tenantRunsRoute.to} params={{ tenant: tenantId }}>
             <Button variant="ghost">Back to Runs</Button>
           </Link>
           {isControlPlaneEnabled && canBill && organizationId ? (

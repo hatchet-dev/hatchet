@@ -151,13 +151,7 @@ type ManagementTokenWithTags = ManagementToken & {
 };
 
 export type OrganizationSettingsSection =
-  | 'general'
-  | 'tenants'
-  | 'team'
-  | 'tokens'
-  | 'regions'
-  | 'sso'
-  | 'compliance';
+  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'compliance';
 
 const SECTION_HEADERS: Record<
   OrganizationSettingsSection,
@@ -1230,96 +1224,96 @@ export function CloudOrganizationSettings({
             (isControlPlaneEnabled ? (
               <div className="divide-y divide-border">
                 {isOrganizationOwner && (
-                    <SettingRow
-                      label="Inactivity Timeout"
-                      description="Automatically sign out members of this organization after this period of inactivity (maximum 14 days)."
-                    >
-                      {isEditingTimeout ? (
-                        <div className="flex flex-col items-end gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="text"
-                              value={editedTimeout}
-                              onChange={(e) => setEditedTimeout(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleSaveTimeout();
-                                }
-                                if (e.key === 'Escape') {
-                                  handleCancelEditingTimeout();
-                                }
-                              }}
-                              className="w-[220px]"
-                              placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
-                              disabled={updateOrganizationLoading}
-                              autoFocus
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={handleCancelEditingTimeout}
-                              disabled={updateOrganizationLoading}
-                              hoverText="Cancel editing"
-                              aria-label="Cancel editing"
-                              className="shrink-0"
-                            >
-                              <XMarkIcon className="size-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={handleSaveTimeout}
-                              disabled={
-                                updateOrganizationLoading ||
-                                parsedEditedTimeout === null ||
-                                editedTimeoutExceedsMax
-                              }
-                              hoverText="Save inactivity timeout"
-                              aria-label="Save inactivity timeout"
-                              className="shrink-0"
-                            >
-                              {updateOrganizationLoading ? (
-                                <Spinner />
-                              ) : (
-                                <CheckIcon className="size-4" />
-                              )}
-                            </Button>
-                          </div>
-                          {editedTimeout.trim() !== '' && (
-                            <p
-                              className={`text-xs ${
-                                parsedEditedTimeout === null ||
-                                editedTimeoutExceedsMax
-                                  ? 'text-destructive'
-                                  : 'text-muted-foreground'
-                              }`}
-                            >
-                              {parsedEditedTimeout === null
-                                ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                                : editedTimeoutExceedsMax
-                                  ? 'Inactivity timeout cannot exceed 14 days'
-                                  : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
+                  <SettingRow
+                    label="Inactivity Timeout"
+                    description="Automatically sign out members of this organization after this period of inactivity (maximum 14 days)."
+                  >
+                    {isEditingTimeout ? (
+                      <div className="flex flex-col items-end gap-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="max-w-[220px] truncate text-sm">
-                            {formatTimeoutMs(currentInactivityTimeoutMs)}
-                          </span>
+                          <Input
+                            type="text"
+                            value={editedTimeout}
+                            onChange={(e) => setEditedTimeout(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveTimeout();
+                              }
+                              if (e.key === 'Escape') {
+                                handleCancelEditingTimeout();
+                              }
+                            }}
+                            className="w-[220px]"
+                            placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
+                            disabled={updateOrganizationLoading}
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleCancelEditingTimeout}
+                            disabled={updateOrganizationLoading}
+                            hoverText="Cancel editing"
+                            aria-label="Cancel editing"
+                            className="shrink-0"
+                          >
+                            <XMarkIcon className="size-4" />
+                          </Button>
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={handleStartEditingTimeout}
-                            hoverText="Edit inactivity timeout"
-                            aria-label="Edit inactivity timeout"
+                            onClick={handleSaveTimeout}
+                            disabled={
+                              updateOrganizationLoading ||
+                              parsedEditedTimeout === null ||
+                              editedTimeoutExceedsMax
+                            }
+                            hoverText="Save inactivity timeout"
+                            aria-label="Save inactivity timeout"
                             className="shrink-0"
                           >
-                            <PencilSquareIcon className="size-4" />
+                            {updateOrganizationLoading ? (
+                              <Spinner />
+                            ) : (
+                              <CheckIcon className="size-4" />
+                            )}
                           </Button>
                         </div>
-                      )}
-                    </SettingRow>
+                        {editedTimeout.trim() !== '' && (
+                          <p
+                            className={`text-xs ${
+                              parsedEditedTimeout === null ||
+                              editedTimeoutExceedsMax
+                                ? 'text-destructive'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
+                            {parsedEditedTimeout === null
+                              ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
+                              : editedTimeoutExceedsMax
+                                ? 'Inactivity timeout cannot exceed 14 days'
+                                : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="max-w-[220px] truncate text-sm">
+                          {formatTimeoutMs(currentInactivityTimeoutMs)}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleStartEditingTimeout}
+                          hoverText="Edit inactivity timeout"
+                          aria-label="Edit inactivity timeout"
+                          className="shrink-0"
+                        >
+                          <PencilSquareIcon className="size-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </SettingRow>
                 )}
 
                 <AuditLogSettings orgId={orgId} />

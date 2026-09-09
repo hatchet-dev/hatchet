@@ -35,7 +35,7 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const fromDate = retentionPeriod
-    ? getRetentionBoundary(retentionPeriod) ?? undefined
+    ? (getRetentionBoundary(retentionPeriod) ?? undefined)
     : undefined;
 
   const blockDate = (next: Date) => {
@@ -44,11 +44,7 @@ export function DateTimePicker({
   };
 
   const applyDate = (next: Date | undefined) => {
-    if (
-      next &&
-      retentionPeriod &&
-      isBeforeRetention(next, retentionPeriod)
-    ) {
+    if (next && retentionPeriod && isBeforeRetention(next, retentionPeriod)) {
       blockDate(next);
       return;
     }

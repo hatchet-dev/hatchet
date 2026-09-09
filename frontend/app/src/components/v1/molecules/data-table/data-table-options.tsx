@@ -141,7 +141,9 @@ function FilterControl<TData>({
           {!config.isCustomTimeRange && (
             <TimeRangeSelect
               value={
-                config.isCustomTimeRange ? 'custom' : (config.currentTimeWindow ?? '1d')
+                config.isCustomTimeRange
+                  ? 'custom'
+                  : (config.currentTimeWindow ?? '1d')
               }
               onChange={(value) => config.onTimeWindowChange?.(value)}
               retentionPeriod={config.retentionPeriod}

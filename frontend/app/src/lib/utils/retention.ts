@@ -114,9 +114,7 @@ export function isTimeWindowOutsideRetention(
 }
 
 /** Largest preset that still fits inside the tenant retention window. */
-export function largestAllowedTimeWindow(
-  period?: string,
-): TimeWindowPreset {
+export function largestAllowedTimeWindow(period?: string): TimeWindowPreset {
   if (!period) {
     return '7d';
   }

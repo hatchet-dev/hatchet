@@ -197,7 +197,7 @@ export const useRunsTableFilters = (
         });
       });
     },
-    [setZodState, retentionGate.tryTimeWindow],
+    [setZodState, retentionGate],
   );
 
   const updateCurrentTimeWindow = useCallback(() => {
@@ -227,14 +227,17 @@ export const useRunsTableFilters = (
         });
       }
     },
-    [setZodState, timeWindow, retentionGate.trySince],
+    [setZodState, timeWindow, retentionGate],
   );
 
   useEffect(() => {
     if (!retentionPeriod) {
       return;
     }
-    if (rawCreatedAfter && isBeforeRetention(rawCreatedAfter, retentionPeriod)) {
+    if (
+      rawCreatedAfter &&
+      isBeforeRetention(rawCreatedAfter, retentionPeriod)
+    ) {
       const boundary = getRetentionBoundary(retentionPeriod);
       if (boundary) {
         setZodState({

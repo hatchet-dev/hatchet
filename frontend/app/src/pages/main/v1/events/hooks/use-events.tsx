@@ -123,11 +123,15 @@ export const useEvents = ({ key }: UseEventsProps) => {
       retentionGate.tryTimeWindow(tw, () => {
         setSearchParams((prev) => ({
           ...Object.fromEntries(prev.entries()),
-          [TIME_KEY]: JSON.stringify({ tw, since: undefined, until: undefined }),
+          [TIME_KEY]: JSON.stringify({
+            tw,
+            since: undefined,
+            until: undefined,
+          }),
         }));
       });
     },
-    [setSearchParams, retentionGate.tryTimeWindow],
+    [setSearchParams, retentionGate],
   );
 
   const setCustomTimeRange = useCallback(
@@ -136,14 +140,17 @@ export const useEvents = ({ key }: UseEventsProps) => {
         setTimeState({ since: newSince, until: newUntil });
       });
     },
-    [setTimeState, retentionGate.trySince],
+    [setTimeState, retentionGate],
   );
 
   useEffect(() => {
     if (!retentionPeriod) {
       return;
     }
-    if (timeState.since && isBeforeRetention(timeState.since, retentionPeriod)) {
+    if (
+      timeState.since &&
+      isBeforeRetention(timeState.since, retentionPeriod)
+    ) {
       const boundary = getRetentionBoundary(retentionPeriod);
       if (boundary) {
         setTimeState({ since: boundary.toISOString() });
@@ -157,10 +164,20 @@ export const useEvents = ({ key }: UseEventsProps) => {
       const next = largestAllowedTimeWindow(retentionPeriod);
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
-        [TIME_KEY]: JSON.stringify({ tw: next, since: undefined, until: undefined }),
+        [TIME_KEY]: JSON.stringify({
+          tw: next,
+          since: undefined,
+          until: undefined,
+        }),
       }));
     }
-  }, [retentionPeriod, timeState.since, timeState.tw, setTimeState, setSearchParams]);
+  }, [
+    retentionPeriod,
+    timeState.since,
+    timeState.tw,
+    setTimeState,
+    setSearchParams,
+  ]);
 
   const clearTimeRange = useCallback(() => {
     setSearchParams((prev) => {

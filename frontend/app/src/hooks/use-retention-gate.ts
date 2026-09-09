@@ -3,11 +3,10 @@ import {
   isTimeWindowOutsideRetention,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 export type RetentionAttempt =
-  | { kind: 'preset'; window: TimeWindowPreset }
-  | { kind: 'since'; date: Date };
+  { kind: 'preset'; window: TimeWindowPreset } | { kind: 'since'; date: Date };
 
 export function useRetentionGate(period?: string) {
   const [attempt, setAttempt] = useState<RetentionAttempt | null>(null);
@@ -46,12 +45,15 @@ export function useRetentionGate(period?: string) {
     [period],
   );
 
-  return {
-    attempt,
-    close,
-    blockSince,
-    tryTimeWindow,
-    trySince,
-    period,
-  };
+  return useMemo(
+    () => ({
+      attempt,
+      close,
+      blockSince,
+      tryTimeWindow,
+      trySince,
+      period,
+    }),
+    [attempt, close, blockSince, tryTimeWindow, trySince, period],
+  );
 }

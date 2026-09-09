@@ -248,7 +248,7 @@ export function useTenantLogs() {
         setFilters({ since: newSince, until: newUntil });
       });
     },
-    [setFilters, retentionGate.trySince],
+    [setFilters, retentionGate],
   );
 
   const setTimeWindow = useCallback(
@@ -265,7 +265,7 @@ export function useTenantLogs() {
         }));
       });
     },
-    [filters, setSearchParams, retentionGate.tryTimeWindow],
+    [filters, setSearchParams, retentionGate],
   );
 
   useEffect(() => {
@@ -313,7 +313,7 @@ export function useTenantLogs() {
         setFilters({ since: newSince });
       });
     },
-    [setFilters, retentionGate.trySince],
+    [setFilters, retentionGate],
   );
 
   const setCustomUntil = useCallback(

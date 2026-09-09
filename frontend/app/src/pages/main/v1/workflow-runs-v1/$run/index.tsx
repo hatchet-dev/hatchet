@@ -273,8 +273,8 @@ export default function Run() {
     runData.dag?.run.metadata.createdAt;
   const isOutsideRetention = Boolean(
     createdAt &&
-      tenant?.dataRetentionPeriod &&
-      isBeforeRetention(createdAt, tenant.dataRetentionPeriod),
+    tenant?.dataRetentionPeriod &&
+    isBeforeRetention(createdAt, tenant.dataRetentionPeriod),
   );
 
   if (isOutsideRetention && tenant?.dataRetentionPeriod) {
