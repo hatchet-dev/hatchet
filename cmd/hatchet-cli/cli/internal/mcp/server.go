@@ -41,7 +41,7 @@ type Deps struct {
 	NewEngine EngineFactory
 
 	// DetectEmbedded looks for a running embedded instance. Defaults to
-	// DetectEmbedded when nil.
+	// DetectEmbedded over Profiles when nil.
 	DetectEmbedded func(ctx context.Context) *EmbeddedDetection
 
 	// Feedback delivers submit_feedback events.
@@ -65,7 +65,9 @@ type Server struct {
 // NewServer builds the MCP server and registers its tools.
 func NewServer(deps Deps) *Server {
 	if deps.DetectEmbedded == nil {
-		deps.DetectEmbedded = DetectEmbedded
+		deps.DetectEmbedded = func(ctx context.Context) *EmbeddedDetection {
+			return DetectEmbedded(ctx, deps.Profiles)
+		}
 	}
 
 	return &Server{
@@ -454,7 +456,7 @@ func (s *Server) handleEngineStatus(ctx context.Context, _ *mcpsdk.CallToolReque
 		return nil, nil, err
 	}
 
-	profiles := s.deps.Profiles.Profiles()
+	profiles := regularProfiles(s.deps.Profiles)
 	embedded := s.detect(ctx)
 
 	status := map[string]any{
@@ -464,6 +466,10 @@ func (s *Server) handleEngineStatus(ctx context.Context, _ *mcpsdk.CallToolReque
 	}
 	if embedded.Detected {
 		status["embeddedApiUrl"] = embedded.APIURL
+		// Which mechanism found the instance: "profile" for the engine's own
+		// registration in the profile store, or one of the detection fallbacks
+		// (handshake-env, token-env, port-probe).
+		status["embeddedSource"] = embedded.Source
 	}
 	if embedded.Note != "" {
 		status["embeddedNote"] = embedded.Note

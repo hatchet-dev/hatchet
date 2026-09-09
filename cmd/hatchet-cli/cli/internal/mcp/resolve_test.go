@@ -160,12 +160,38 @@ func TestResolveProfileEmbedded(t *testing.T) {
 		assert.True(t, rp.Embedded)
 	})
 
-	t.Run("configured profile named embedded takes precedence when granted", func(t *testing.T) {
+	t.Run("live registration resolves via detection without a grant", func(t *testing.T) {
+		// The engine's self-registration in the profile store arrives here as
+		// the (live-verified) detection result, implicitly granted.
 		sourceWithEmbedded := testProfileSource("", "embedded")
-		rp, err := resolveProfile("embedded", sourceWithEmbedded, grantsFor("embedded"), usableEmbedded())
+		detection := usableEmbedded()
+		detection.Source = EmbeddedSourceProfile
+
+		rp, err := resolveProfile("embedded", sourceWithEmbedded, grantsFor(), detection)
 		require.NoError(t, err)
-		assert.False(t, rp.Embedded)
+		assert.True(t, rp.Embedded)
 		assert.Equal(t, "tenant-embedded", rp.Profile.TenantId)
+	})
+
+	t.Run("stale registration is treated as absent", func(t *testing.T) {
+		// The profile exists in the store but its engine is dead: detection
+		// skipped it (with a note), and even a grant must not resurrect it.
+		sourceWithEmbedded := testProfileSource("", "embedded")
+		detection := &EmbeddedDetection{Note: "stale embedded registration: the engine at http://localhost:28243 is gone"}
+
+		_, err := resolveProfile("embedded", sourceWithEmbedded, grantsFor("embedded"), detection)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no running embedded Hatchet instance")
+		assert.Contains(t, err.Error(), "stale embedded registration")
+	})
+
+	t.Run("stale registration is never the default or sole profile", func(t *testing.T) {
+		sourceWithEmbedded := testProfileSource("embedded", "embedded")
+		detection := &EmbeddedDetection{Note: "stale embedded registration: the engine is gone"}
+
+		_, err := resolveProfile("", sourceWithEmbedded, grantsFor(GrantWildcard), detection)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "stale embedded registration")
 	})
 
 	t.Run("detected without token explains the limitation", func(t *testing.T) {
