@@ -1,5 +1,6 @@
 import { formatInvoiceAmount, formatInvoiceDate } from './invoice-formatters';
 import {
+  canSelfServePayAsYouGoUpgrade,
   isPayAsYouGoPlanCode,
   payAsYouGoPlan,
   resolveSubscriptionPlanCode,
@@ -215,6 +216,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const isUsageBasedCurrentPlan = isPayAsYouGoPlanCode(activePlanCode);
   const showPlanSelector =
     !isDedicatedPlan && !isPayAsYouGoPlanCode(activePlanCode);
+  const salesGatedLegacy =
+    !!currentPlanSummary?.legacy &&
+    !canSelfServePayAsYouGoUpgrade(activePlanCode);
 
   return (
     <>
@@ -437,7 +441,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            {showPlanSelector && currentPlanSummary?.legacy ? (
+            {showPlanSelector && salesGatedLegacy ? (
               <Card
                 variant="light"
                 className="bg-transparent ring-1 ring-border/50 border-none"

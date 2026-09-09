@@ -1,4 +1,5 @@
 import {
+  canSelfServePayAsYouGoUpgrade,
   isPayAsYouGoPlanCode,
   payAsYouGoPlan,
   resolveSubscriptionPlanCode,
@@ -52,6 +53,22 @@ describe('isPayAsYouGoPlanCode', () => {
     assert.equal(isPayAsYouGoPlanCode('pay-as-you-go'), true);
     assert.equal(isPayAsYouGoPlanCode('pay-as-you-go_monthly'), true);
     assert.equal(isPayAsYouGoPlanCode('developer'), false);
+  });
+});
+
+describe('canSelfServePayAsYouGoUpgrade', () => {
+  it('allows free and developer to self-serve to pay-as-you-go', () => {
+    assert.equal(canSelfServePayAsYouGoUpgrade('free'), true);
+    assert.equal(canSelfServePayAsYouGoUpgrade('developer'), true);
+  });
+
+  it('keeps paid legacy plans sales-gated', () => {
+    assert.equal(canSelfServePayAsYouGoUpgrade('starter_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('growth_yearly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('team_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('scale_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('migration'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('pay-as-you-go'), false);
   });
 });
 

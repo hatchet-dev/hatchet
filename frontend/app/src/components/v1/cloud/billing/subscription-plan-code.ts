@@ -18,6 +18,11 @@ export function isPayAsYouGoPlanCode(planCode?: string | null) {
   return planCodeBase(planCode) === 'pay-as-you-go';
 }
 
+export function canSelfServePayAsYouGoUpgrade(planCode?: string | null) {
+  const base = planCodeBase(planCode);
+  return base === 'free' || base === 'developer';
+}
+
 export function payAsYouGoPlan(plans?: SubscriptionPlan[]) {
   return plans?.find((plan) => isPayAsYouGoPlanCode(plan.planCode));
 }
