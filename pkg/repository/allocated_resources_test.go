@@ -97,5 +97,34 @@ func TestCountAllocatedResourcesByTenant(t *testing.T) {
 	require.Equal(t, int64(1), rows[0].ScheduledRunCount, "pending schedule counted; fired schedule excluded")
 	require.Equal(t, int64(1), rows[0].WebhookCount)
 
+	activeWorkerID := uuid.New()
+	staleWorkerID := uuid.New()
+	pausedWorkerID := uuid.New()
+	dispatcherID := uuid.New()
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO "Worker" ("id", "tenantId", "name", "dispatcherId", "lastHeartbeatAt", "isActive", "isPaused", "createdAt", "updatedAt")
+		VALUES
+			($1, $4, 'allocated-active', $5, NOW(), true, false, NOW(), NOW()),
+			($2, $4, 'allocated-stale', $5, NOW() - INTERVAL '30 seconds', true, false, NOW(), NOW()),
+			($3, $4, 'allocated-paused', $5, NOW(), true, true, NOW(), NOW())
+	`, activeWorkerID, staleWorkerID, pausedWorkerID, internalTenantId, dispatcherID)
+	require.NoError(t, err)
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO v1_worker_slot_config (tenant_id, worker_id, slot_type, max_units)
+		VALUES
+			($1, $2, 'DEFAULT', 10),
+			($1, $3, 'DEFAULT', 25),
+			($1, $4, 'DEFAULT', 7)
+	`, internalTenantId, activeWorkerID, staleWorkerID, pausedWorkerID)
+	require.NoError(t, err)
+
+	rows, err = schedules.CountAllocatedResourcesByTenant(ctx, []uuid.UUID{internalTenantId})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, int64(1), rows[0].WorkerCount, "only the live, unpaused worker is counted")
+	require.Equal(t, int64(10), rows[0].SlotCount, "only slots on the live worker are counted")
+
 	_ = pending
 }
