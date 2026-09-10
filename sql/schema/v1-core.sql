@@ -1821,6 +1821,8 @@ BEGIN
             AND t.initial_state = 'QUEUED'
             -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
+            -- A retry queue item for an older attempt must not create a slot for the current one
+            AND dr.task_retry_count = t.retry_count
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1863,7 +1865,8 @@ BEGIN
         next_max_runs,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING;
 
     WITH tasks AS (
         SELECT
