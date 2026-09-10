@@ -856,7 +856,14 @@ func (s *Scheduler) tryAssignBatch(
 
 	var attempt func(isRetry bool)
 	attempt = func(isRetry bool) {
+		_, attemptSpan := telemetry.NewSpan(ctx, "try-assign-batch-run-loop-assign")
+		defer attemptSpan.End()
+
+		telemetry.WithAttributes(attemptSpan, telemetry.AttributeKV{Key: "attempt.is_retry", Value: isRetry})
+
 		s.handleAssignBatch(actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
+
+		telemetry.WithAttributes(attemptSpan, batchOutcomeAttributes(res)...)
 
 		// If a replenish cycle is in flight, capacity may be milliseconds away:
 		// park the missed items and retry once when the cycle ends, instead of
@@ -866,6 +873,8 @@ func (s *Scheduler) tryAssignBatch(
 		// wait is bounded by parkedAssignRetryTimeout, so a slow replenish
 		// (e.g. degraded database reads) cannot stall assignment results.
 		if !isRetry && s.replenishing && batchHasMisses(res) {
+			telemetry.WithAttributes(attemptSpan, telemetry.AttributeKV{Key: "attempt.parked_for_replenish", Value: true})
+
 			s.afterReplenish = append(s.afterReplenish, func() {
 				if finished {
 					return
@@ -891,6 +900,7 @@ func (s *Scheduler) tryAssignBatch(
 		finish()
 	}
 
+	_, enqueueSpan := telemetry.NewSpan(ctx, "try-assign-batch-enqueue-run-loop")
 	enqueued := ctx.Err() == nil
 	if enqueued {
 		select {
@@ -901,8 +911,17 @@ func (s *Scheduler) tryAssignBatch(
 			enqueued = false
 		}
 	}
+	telemetry.WithAttributes(enqueueSpan, telemetry.AttributeKV{Key: "enqueued", Value: enqueued})
+	enqueueSpan.End()
 
-	if !enqueued || !s.wait(assignDone) {
+	assigned := false
+	if enqueued {
+		_, waitSpan := telemetry.NewSpan(ctx, "try-assign-batch-wait-for-run-loop")
+		assigned = s.wait(assignDone)
+		waitSpan.End()
+	}
+
+	if !assigned {
 		// the scheduler is shutting down; treat the batch as unassignable
 		for i := range res {
 			if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
@@ -911,14 +930,45 @@ func (s *Scheduler) tryAssignBatch(
 		}
 	}
 
+	_, releaseSpan := telemetry.NewSpan(ctx, "try-assign-batch-release-rate-limits")
 	// release rate-limit reservations for items that did not get assigned
 	for i := range res {
 		if res[i].rateLimitResult == nil && !res[i].succeeded && !res[i].toBatch {
 			rlNacks[i]()
 		}
 	}
+	releaseSpan.End()
+
+	telemetry.WithAttributes(span, batchOutcomeAttributes(res)...)
 
 	return res, nil
+}
+
+func batchOutcomeAttributes(res []*assignSingleResult) []telemetry.AttributeKV {
+	assignedCount := 0
+	noSlotsCount := 0
+	rateLimitedCount := 0
+	toBatchCount := 0
+
+	for i := range res {
+		switch {
+		case res[i].rateLimitResult != nil:
+			rateLimitedCount++
+		case res[i].toBatch:
+			toBatchCount++
+		case res[i].succeeded:
+			assignedCount++
+		case res[i].noSlots:
+			noSlotsCount++
+		}
+	}
+
+	return []telemetry.AttributeKV{
+		{Key: "batch.assigned_count", Value: assignedCount},
+		{Key: "batch.no_slots_count", Value: noSlotsCount},
+		{Key: "batch.rate_limited_count", Value: rateLimitedCount},
+		{Key: "batch.to_batch_count", Value: toBatchCount},
+	}
 }
 
 // batchHasMisses runs on the run loop.
