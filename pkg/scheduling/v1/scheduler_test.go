@@ -294,7 +294,7 @@ func assignOne(t *testing.T, s *Scheduler, a *action, qi *sqlcv1.V1QueueItem, la
 
 	r := &assignSingleResult{qi: qi}
 	onLoop(t, s, func() {
-		s.assignSingleton(a, qi, r, labels, requests, rlAck, rlNack, time.Now())
+		s.assignSingleton(context.Background(), a, qi, r, labels, requests, rlAck, rlNack, time.Now())
 	})
 	return r
 }

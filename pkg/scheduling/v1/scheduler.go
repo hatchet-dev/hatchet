@@ -856,12 +856,12 @@ func (s *Scheduler) tryAssignBatch(
 
 	var attempt func(isRetry bool)
 	attempt = func(isRetry bool) {
-		_, attemptSpan := telemetry.NewSpan(ctx, "try-assign-batch-run-loop-assign")
+		attemptCtx, attemptSpan := telemetry.NewSpan(ctx, "try-assign-batch-run-loop-assign")
 		defer attemptSpan.End()
 
 		telemetry.WithAttributes(attemptSpan, telemetry.AttributeKV{Key: "attempt.is_retry", Value: isRetry})
 
-		s.handleAssignBatch(actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
+		s.handleAssignBatch(attemptCtx, actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
 
 		telemetry.WithAttributes(attemptSpan, batchOutcomeAttributes(res)...)
 
@@ -952,10 +952,10 @@ func batchOutcomeAttributes(res []*assignSingleResult) []telemetry.AttributeKV {
 
 	for i := range res {
 		switch {
-		case res[i].rateLimitResult != nil:
-			rateLimitedCount++
 		case res[i].toBatch:
 			toBatchCount++
+		case res[i].rateLimitResult != nil:
+			rateLimitedCount++
 		case res[i].succeeded:
 			assignedCount++
 		case res[i].noSlots:
@@ -983,6 +983,7 @@ func batchHasMisses(res []*assignSingleResult) bool {
 
 // handleAssignBatch runs on the run loop.
 func (s *Scheduler) handleAssignBatch(
+	ctx context.Context,
 	actionId string,
 	qis []*sqlcv1.V1QueueItem,
 	res []*assignSingleResult,
@@ -992,9 +993,14 @@ func (s *Scheduler) handleAssignBatch(
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-assign-batch")
+	defer span.End()
+
 	action, ok := s.actions[actionId]
 
 	if !ok || action == nil || len(action.workerIds) == 0 {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.has_workers", Value: false})
+
 		s.l.Debug().Msgf("no slots for action %s", actionId)
 
 		// Treat missing action as "no slots" for non-rate-limited, non-batch queue items.
@@ -1010,6 +1016,11 @@ func (s *Scheduler) handleAssignBatch(
 
 		return
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "action.has_workers", Value: true},
+		telemetry.AttributeKV{Key: "action.worker_count", Value: len(action.workerIds)},
+	)
 
 	now := time.Now()
 
@@ -1052,12 +1063,13 @@ func (s *Scheduler) handleAssignBatch(
 			}
 		}
 
-		s.assignSingleton(action, qi, r, labels, requests, rlAcks[i], rlNacks[i], now)
+		s.assignSingleton(ctx, action, qi, r, labels, requests, rlAcks[i], rlNacks[i], now)
 	}
 }
 
 // assignSingleton runs on the run loop.
 func (s *Scheduler) assignSingleton(
+	ctx context.Context,
 	a *action,
 	qi *sqlcv1.V1QueueItem,
 	r *assignSingleResult,
@@ -1067,17 +1079,34 @@ func (s *Scheduler) assignSingleton(
 	rateLimitNack func(),
 	now time.Time,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "assign-singleton")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "task.id", Value: qi.TaskID},
+		telemetry.AttributeKV{Key: "sticky.strategy", Value: string(qi.Sticky)},
+		telemetry.AttributeKV{Key: "label.count", Value: len(labels)},
+	)
+
 	candidates := a.workerIds
 	offset := a.ringOffset
 	a.ringOffset++
 	topRankCount := len(candidates)
 
 	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
+		_, rankSpan := telemetry.NewSpan(ctx, "assign-singleton-rank-workers")
 		candidates, topRankCount = s.rankWorkerIds(qi, labels, a.workerIds)
+		rankSpan.End()
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "candidate.count", Value: len(candidates)},
+		telemetry.AttributeKV{Key: "candidate.top_rank_count", Value: topRankCount},
+	)
 
 	if len(candidates) == 0 || topRankCount == 0 {
 		r.noSlots = true
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
 	}
 
@@ -1111,6 +1140,7 @@ func (s *Scheduler) assignSingleton(
 
 	if selected == nil {
 		r.noSlots = true
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
 	}
 
@@ -1125,6 +1155,11 @@ func (s *Scheduler) assignSingleton(
 
 	r.workerId = selected[0].getWorkerId()
 	r.succeeded = true
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "assign.succeeded", Value: true},
+		telemetry.AttributeKV{Key: "worker.id", Value: r.workerId},
+	)
 }
 
 // tryAssignBatchQueueItem assigns a single representative queue item to obtain one worker slot
@@ -1173,7 +1208,7 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 		// scheduling skips the regular slot-request lookup path.
 		requests := map[string]int32{v1.SlotTypeDefault: 1}
 
-		s.assignSingleton(action, qi, &res, labels, requests, noop, noop, time.Now())
+		s.assignSingleton(ctx, action, qi, &res, labels, requests, noop, noop, time.Now())
 	}); !ok {
 		res.noSlots = true
 	}
