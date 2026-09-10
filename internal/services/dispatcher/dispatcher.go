@@ -385,6 +385,18 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule heartbeat update: %w", err)
 	}
 
+	_, err = d.s.NewJob(
+		gocron.DurationJob(time.Second*30),
+		gocron.NewTask(func() {
+			d.serviceV1.EvictStaleOperatorSessionTasks(ctx)
+		}),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule stale operator session watchdog: %w", err)
+	}
+
 	d.s.Start()
 
 	operatorCh := d.om.Start(ctx, d)
@@ -401,14 +413,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		defer wg.Done()
 
 		if taskErr := d.handleV1Task(ctx, task); taskErr != nil {
-			// ErrNoActiveDurableInvocation is an expected, self-healing condition (worker
-			// reconnecting after a roll); it's returned so the callback dead-letters and is
-			// re-routed, not because anything is wrong here.
-			if errors.Is(taskErr, ErrNoActiveDurableInvocation) {
-				d.l.Warn().Ctx(ctx).Err(taskErr).Msgf("deferring dispatcher task %s to dead-letter retry", task.ID)
-			} else {
-				d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
-			}
+			d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
 			return taskErr
 		}
 
@@ -566,9 +571,7 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypesv1.DurableCallbackCompletedPayload](task.Payloads)
 
-	// We need to return no active invocation errors because otherwise they will get stuck on engine failure, never go to DLQ,
-	// and then the next engine that stands up will have no idea about it, leading to runs stuck in RUNNING
-	var retryErr error
+	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
 
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
@@ -588,15 +591,36 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		}
 
 		if errors.Is(err, ErrNoActiveDurableInvocation) {
-			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (worker reconnecting); will redeliver", payload.TaskExternalId)
-			retryErr = err
+			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (no active durable session on this dispatcher); will redeliver via dead-letter queue", payload.TaskExternalId)
+			undelivered = append(undelivered, *payload)
 			continue
 		}
 
 		d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
 	}
 
-	return retryErr
+	if len(undelivered) == 0 {
+		return nil
+	}
+
+	// A missing durable session is an expected, self-healing condition (the task was just
+	// evicted or its session hasn't re-registered yet), so instead of returning an error --
+	// which would make the message queue nack the message to the dead-letter queue while
+	// logging it as a failure -- we publish the undelivered callbacks to the dead-letter
+	// queue ourselves and ack normally. The scheduler's dead-letter consumer re-routes them.
+	// Callbacks still can't be lost on engine failure: the publish happens before the ack,
+	// and a publish failure falls back to the nack path by returning the error.
+	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
+
+	if err != nil {
+		return fmt.Errorf("could not create dead-letter message for undelivered durable callbacks: %w", err)
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, msg); err != nil {
+		return fmt.Errorf("could not publish undelivered durable callbacks to the dead-letter queue: %w", err)
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {

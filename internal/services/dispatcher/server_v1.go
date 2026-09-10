@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -341,8 +342,22 @@ type durableTaskInvocation struct {
 
 	isRunningOnOperator bool
 
+	// lastClientActivityUnixNano is the last time the client sent any request on this session.
+	// The stale-session watchdog uses it to evict operator runs whose client has gone silent
+	// (a wedged or dead run goroutine sends neither worker-status reports nor other requests),
+	// since every other recovery path requires the client to keep reporting.
+	lastClientActivityUnixNano atomic.Int64
+
 	releasesMu sync.Mutex
 	releases   map[orderedReleaseKey]*orderedRelease
+}
+
+func (s *durableTaskInvocation) markClientActivity() {
+	s.lastClientActivityUnixNano.Store(time.Now().UnixNano())
+}
+
+func (s *durableTaskInvocation) lastClientActivity() time.Time {
+	return time.Unix(0, s.lastClientActivityUnixNano.Load())
 }
 
 type orderedReleaseKey struct {
@@ -378,6 +393,8 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 	req *contracts.DurableTaskRequest,
 	registerTask func(string),
 ) {
+	invocation.markClientActivity()
+
 	if msg, isRegisterWorker := req.GetMessage().(*contracts.DurableTaskRequest_RegisterWorker); isRegisterWorker {
 		if err := d.handleRegisterWorker(ctx, invocation, msg.RegisterWorker); err != nil {
 			d.l.Error().Err(err).Msg("error handling durable task request")
@@ -705,6 +722,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 			}
 		},
 	}
+	invocation.markClientActivity()
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
@@ -1575,6 +1593,97 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 			d.l.Error().Err(err).Str("task_external_id", taskExternalId.String()).Msg("failed to send eviction notice to operator session")
 		}
 	}
+}
+
+// staleOperatorSessionTimeout is how long an operator durable session may go without any
+// client request before the watchdog evicts its tasks. A healthy blocked run reports worker
+// status every 10 seconds and an active one sends wait-for/memo requests, so minutes of
+// total silence means the run goroutine is wedged or dead. Every other recovery path
+// (satisfied-event redelivery, idle eviction, stalled-release detection) is driven by the
+// client's own reports, so a silent session can only be recovered from the server side.
+const staleOperatorSessionTimeout = 3 * time.Minute
+
+// EvictStaleOperatorSessionTasks evicts the durable tasks of operator sessions whose client
+// has gone silent for staleOperatorSessionTimeout. Eviction hands recovery to the normal
+// restore machinery: evictDurableTask immediately publishes a restore when every entry is
+// already satisfied, and otherwise the next satisfied callback restores the evicted run.
+func (d *DispatcherServiceImpl) EvictStaleOperatorSessionTasks(ctx context.Context) {
+	staleTasksByInvocation := make(map[*durableTaskInvocation][]durableInvocationsKey)
+
+	d.durableInvocations.Range(func(key durableInvocationsKey, inv *durableTaskInvocation) bool {
+		if !inv.isRunningOnOperator {
+			return true
+		}
+
+		if time.Since(inv.lastClientActivity()) < staleOperatorSessionTimeout {
+			return true
+		}
+
+		staleTasksByInvocation[inv] = append(staleTasksByInvocation[inv], key)
+
+		return true
+	})
+
+	for invocation, keys := range staleTasksByInvocation {
+		for _, key := range keys {
+			d.evictStaleOperatorSessionTask(ctx, invocation, key)
+		}
+	}
+}
+
+func (d *DispatcherServiceImpl) evictStaleOperatorSessionTask(ctx context.Context, invocation *durableTaskInvocation, key durableInvocationsKey) {
+	const reason = "operator durable session stopped sending requests; evicted by the stale-session watchdog"
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, key.tenantId, key.taskId, false)
+	if err != nil {
+		d.l.Error().Err(err).Msgf("stale-session watchdog: could not look up durable task %s", key.taskId)
+		return
+	}
+
+	idInsertedAt := v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()}
+
+	currentCounts, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, key.tenantId, []v1.IdInsertedAt{idInsertedAt})
+	if err != nil {
+		d.l.Error().Err(err).Msgf("stale-session watchdog: could not get invocation count for durable task %s", key.taskId)
+		return
+	}
+
+	invocationCount := int32(1)
+	if current, ok := currentCounts[idInsertedAt]; ok && current != nil {
+		invocationCount = *current
+	}
+
+	d.l.Warn().Msgf(
+		"stale-session watchdog: evicting durable task %s (invocation %d) after %s of session silence",
+		key.taskId, invocationCount, staleOperatorSessionTimeout,
+	)
+
+	evictRes, err := d.evictDurableTask(ctx, key.tenantId, key.taskId, invocationCount, reason)
+	if err != nil {
+		d.l.Error().Err(err).Msgf("stale-session watchdog: could not evict durable task %s", key.taskId)
+		return
+	}
+
+	if !evictRes.WasEvicted {
+		return
+	}
+
+	// Sent from a goroutine: a dead run goroutine leaves the session channel without a
+	// reader, and the send only unblocks when the session context is torn down.
+	go func() {
+		err := invocation.send(&contracts.DurableTaskResponse{
+			Message: &contracts.DurableTaskResponse_ServerEvict{
+				ServerEvict: &contracts.DurableTaskServerEvictNotice{
+					DurableTaskExternalId: key.taskId.String(),
+					InvocationCount:       invocationCount,
+					Reason:                reason,
+				},
+			},
+		})
+		if err != nil {
+			d.l.Debug().Err(err).Msgf("stale-session watchdog: could not deliver eviction notice for task %s", key.taskId)
+		}
+	}()
 }
 
 // durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a

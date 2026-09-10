@@ -1533,3 +1533,60 @@ func TestDag_NoBlockedStatusReportBeforeInterval(t *testing.T) {
 	default:
 	}
 }
+
+func TestDag_FailsWhenBlockedButUnableToReportWorkerStatus(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 10*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	a.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "sleep-1",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	// a dispatcher that accepts requests but never acks the WAITFOR, leaving the run blocked
+	// with a pending wait ack: it can never report worker status, so it must fail rather than
+	// hang until the step timeout
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case _, ok := <-requestCh:
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+
+	trigger, _ := asyncTrigger(map[string]bool{})
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, trigger)
+	}()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unable to report worker status")
+	case <-time.After(4 * time.Second):
+		t.Fatal("dag did not fail while wedged with an unackable pending wait")
+	}
+}
