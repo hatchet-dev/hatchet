@@ -549,6 +549,10 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 	satisfiedMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 	if len(satisfiedMatchIds) > 0 {
+		if _, err := tx.Exec(ctx, "SET LOCAL jit = off"); err != nil {
+			return nil, fmt.Errorf("failed to disable jit for satisfied match conditions: %w", err)
+		}
+
 		satisfiedMatches, err = m.queries.SaveSatisfiedMatchConditions(
 			ctx,
 			tx,
