@@ -360,7 +360,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 	for _, task := range tasks {
 		taskExternalId := task.ExternalID
 
-		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
+		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task, new("canceled on creation")).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,

@@ -839,7 +839,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		cancelMsgByTaskId[msg.TaskId] = msg.EventMessage
 	}
 
-	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts, cancelMsgByTaskId)
 
 	if err != nil {
 		err = fmt.Errorf("could not cancel tasks: %w", err)
@@ -960,6 +960,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 				RetryCount:   task.RetryCount,
 				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
 				ShouldNotify: true,
+				EventMessage: task.CancellationReason,
 			})
 		}
 	}
