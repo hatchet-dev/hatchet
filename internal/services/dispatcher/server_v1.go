@@ -1830,7 +1830,17 @@ func (d *DispatcherServiceImpl) replayDAGStepChild(ctx context.Context, tenantId
 	return nil
 }
 
+// dagStepTriggerTimeout bounds the whole trigger sequence (ingestion, child creation,
+// replay). The caller is a durable run's goroutine on its run-lifetime context, so without
+// this deadline any stall below would freeze the run silently until its step timeout; a
+// timeout error instead fails the run, and the retry replays it against the idempotent
+// spawn records.
+const dagStepTriggerTimeout = 2 * time.Minute
+
 func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, dagStepTriggerTimeout)
+	defer cancel()
+
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -1889,13 +1899,19 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	var tasks []*v1.V1TaskWithPayload
 
 	if pending := ingestionResult.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
-		createdTasks, createdDags, _, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
+		createdTasks, createdDags, celFailures, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
 			Task:        task,
 			PendingRuns: pending,
 		}})
 
 		if triggerErr != nil {
 			return nil, fmt.Errorf("failed to trigger pending durable runs for dag step: %w", triggerErr)
+		}
+
+		// a CEL failure means the child was never created; returning success anyway would
+		// leave the durable run waiting forever on a run that does not exist
+		if len(celFailures) > 0 {
+			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
 		}
 
 		tasks = createdTasks

@@ -215,6 +215,11 @@ type durableEventIngestRequest struct {
 	responseCh chan durableEventIngestResponse
 }
 
+// durableEventIngestFlushTimeout bounds one batch ingest, including its transaction. Callers
+// waiting on the flush have no deadline of their own, so this is what guarantees they
+// eventually get an error instead of hanging when the database stalls.
+const durableEventIngestFlushTimeout = 30 * time.Second
+
 type durableEventIngestBuffer struct {
 	mu             sync.Mutex
 	pending        []*durableEventIngestRequest
@@ -336,6 +341,14 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, 
 
 	semaphoreWaitStart := time.Now()
 	b.flushSemaphore <- struct{}{}
+	defer func() { <-b.flushSemaphore }()
+
+	// the timeout is load-bearing: submitters wait on the flush with no deadline of their own
+	// (an operator's durable run submits under its run-lifetime context), so an ingest that
+	// hangs on a database lock or a dropped connection would otherwise strand every waiting
+	// caller silently and forever
+	ctx, cancel := context.WithTimeout(ctx, durableEventIngestFlushTimeout)
+	defer cancel()
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "batch_size", Value: len(batch)},
@@ -345,7 +358,6 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, 
 	)
 
 	results, taskErrors, err := b.ingest(ctx, batch)
-	<-b.flushSemaphore
 
 	// a batch-wide error can't be attributed to a single task, so retry each request as its own
 	// single-request batch: a poison request then only fails its own caller instead of every
@@ -375,7 +387,20 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, 
 			continue
 		}
 
-		request.responseCh <- durableEventIngestResponse{result: results[taskId], flushSpanContext: flushSpanContext}
+		result, ok := results[taskId]
+
+		if !ok || result == nil {
+			// every submitted request must terminate with a result or an error: a task the
+			// ingest dropped from both maps would otherwise hand its caller a nil result,
+			// which panics downstream
+			request.responseCh <- durableEventIngestResponse{
+				err:              fmt.Errorf("durable event ingest returned neither a result nor an error for task %d", taskId),
+				flushSpanContext: flushSpanContext,
+			}
+			continue
+		}
+
+		request.responseCh <- durableEventIngestResponse{result: result, flushSpanContext: flushSpanContext}
 	}
 
 	if len(deferredRequests) > 0 {
@@ -1410,6 +1435,11 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 		}
 
 		if latestEntryByChild[to.ExternalId] == nil {
+			r.l.Warn().Msgf(
+				"durable task %d: spawn dedupe record for key %q points at child %s which has no log entry (a previous spawn was torn); re-spawning with a fresh id",
+				logFile.DurableTaskID, to.childSpawnKey(), to.ExternalId,
+			)
+
 			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
 			continue
@@ -2250,6 +2280,20 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to claim durable run entries for trigger: %w", err)
+	}
+
+	// an unclaimed node should mean a concurrent trigger already claimed the entry and spawned
+	// its child; it is logged because a claim miss for any other reason silently drops the
+	// spawn while the caller still reports the trigger as successful
+	if len(claimedSet) < len(nodesToClaim) {
+		for _, k := range nodesToClaim {
+			if _, ok := claimedSet[k.claim()]; !ok {
+				r.l.Warn().Msgf(
+					"durable task %s: pending run entry (node %d, branch %d) was not claimed for triggering; assuming a concurrent trigger spawned it",
+					k.DurableTaskExternalId, k.NodeID, k.BranchID,
+				)
+			}
+		}
 	}
 
 	if len(claimedSet) == 0 {
