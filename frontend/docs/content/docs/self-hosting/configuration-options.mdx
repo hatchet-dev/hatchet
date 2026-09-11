@@ -162,7 +162,10 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_GRPC_SHUTDOWN_TIMEOUT`                 | Max time to drain in-flight gRPC requests on graceful shutdown                                | `10s`                   |
 | `SERVER_GRPC_TRIGGER_WRITES_ENABLED`           | Perform writes from the gRPC API, falling back to RabbitMQ when slots are exhausted           | `true`                  |
 | `SERVER_GRPC_TRIGGER_WRITE_SLOTS`              | Number of slots for gRPC writes                                                               | `5`                     |
-| `SERVER_GRPC_OPERATORS_ENABLED`                | Register the gRPC operator API for operators running outside the engine process               | `false`                 |
+| `SERVER_GRPC_OPERATORS_ENABLED`                | Register the gRPC operator API (`OperatorService`) for operators running outside the engine process | `false`                 |
+| `SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR` | Max Listen streams one gRPC operator may hold open on an engine replica; each stream is a live worker. `0` disables the cap | `100`                   |
+| `SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR` | Max action links held across all workers of one gRPC operator; a delta over the cap is refused. `0` disables the cap | `1000000`               |
+| `SERVER_DAG_OPERATOR_DEFAULT_SLOTS`            | Durable slots the DAG operator's worker advertises when the operator's config sets no `slots` (how many DAG runs one dispatcher orchestrates at once) | `10000`                 |
 | `SERVER_OPTIMISTIC_SCHEDULING_ENABLED`         | Enable optimistic scheduling                                                                  | `true`                  |
 | `SERVER_OPTIMISTIC_SCHEDULING_SLOTS`           | Slots to allocate for optimistic scheduling                                                   | `5`                     |
 | `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED`   | Use the in-memory index + outbox approach for concurrency strategies                          | `false`                 |
