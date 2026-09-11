@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -684,8 +685,13 @@ func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V
 }
 
 type GetOrCreateLogEntryOpt struct {
-	Kind                sqlcv1.V1DurableEventLogKind
-	IdempotencyKey      []byte
+	Kind           sqlcv1.V1DurableEventLogKind
+	IdempotencyKey []byte
+
+	// LegacyIdempotencyKey is the pre-upgrade key format for DAG step entries (see
+	// createLegacyDagStepIdempotencyKey); nil for every other kind of entry.
+	LegacyIdempotencyKey []byte
+
 	InputPayload        []byte
 	ResultPayload       []byte
 	NodeId              int64
@@ -695,6 +701,14 @@ type GetOrCreateLogEntryOpt struct {
 	WaitData            string // JSON-encoded WaitData, empty string means no wait data
 	ChildTaskExternalId uuid.UUID
 	ShouldSkip          bool
+}
+
+func (o GetOrCreateLogEntryOpt) idempotencyKeyMatches(existingKey []byte) bool {
+	if bytes.Equal(o.IdempotencyKey, existingKey) {
+		return true
+	}
+
+	return len(o.LegacyIdempotencyKey) > 0 && bytes.Equal(o.LegacyIdempotencyKey, existingKey)
 }
 
 type GetOrCreateLogEntryOpts struct {
@@ -807,12 +821,40 @@ func satisfiedOrderPtr(v pgtype.Int8) *int64 {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
+	return hashIdempotencyKey(kind, triggerOpts, waitForConditions, true)
+}
+
+// createLegacyDagStepIdempotencyKey computes the key format DAG step entries were written with
+// before the step identity was hashed in. Comparisons accept it alongside the current format so
+// runs in flight across the upgrade still replay against their existing entries.
+func (r *durableEventsRepository) createLegacyDagStepIdempotencyKey(triggerOpts *WorkflowNameTriggerOpts) ([]byte, error) {
+	if !triggerOpts.IsDagStepTrigger {
+		return nil, nil
+	}
+
+	return hashIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil, false)
+}
+
+func hashIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt, includeDagStepIdentity bool) ([]byte, error) {
 	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
 	if triggerOpts != nil {
 		dataToHash = append(dataToHash, triggerOpts.Data...)
 		dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
+
+		// every step of an operator DAG shares the workflow name and input, so without the step
+		// identity two different steps hash identically and a node id collision resolves one
+		// step's trigger to another step's entry instead of failing as nondeterminism
+		if includeDagStepIdentity && triggerOpts.IsDagStepTrigger {
+			if triggerOpts.TargetActionId != nil {
+				dataToHash = append(dataToHash, []byte(*triggerOpts.TargetActionId)...)
+			}
+
+			if triggerOpts.ChildIndex != nil {
+				dataToHash = append(dataToHash, []byte(strconv.FormatInt(*triggerOpts.ChildIndex, 10))...)
+			}
+		}
 	}
 
 	if waitForConditions != nil {
@@ -1092,7 +1134,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				state.newEntryByKey[key] = o
 				continue
 			}
-			if !bytes.Equal(o.IdempotencyKey, e.IdempotencyKey) {
+			if !o.idempotencyKeyMatches(e.IdempotencyKey) {
 				nonDeterminismErr = &NonDeterminismError{
 					BranchId:                o.BranchId,
 					NodeId:                  o.NodeId,
@@ -1249,7 +1291,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				return nil, nil, nil, fmt.Errorf("expected to find log entry for skipped child task external id %s", o.ChildTaskExternalId)
 			}
 
-			if len(o.IdempotencyKey) > 0 && !bytes.Equal(o.IdempotencyKey, e.IdempotencyKey) {
+			if len(o.IdempotencyKey) > 0 && !o.idempotencyKeyMatches(e.IdempotencyKey) {
 				return nil, nil, nil, &NonDeterminismError{
 					BranchId:                e.BranchID,
 					NodeId:                  e.NodeID,
@@ -1880,11 +1922,17 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 	}
 
+	maxExistingNodeIdByTaskId, err := r.getMaxExistingNodeIdsForDagStepTriggers(ctx, tx, batch, eligibleTaskIds)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
 	for _, taskId := range eligibleTaskIds {
 		opts := batch[taskId]
 		logFile := logFileByTaskId[taskId]
 
-		plan, taskErr, fatalErr := r.planDurableEventLogAppend(ctx, tx, opts, logFile, branchPointsByTaskId[taskId])
+		plan, taskErr, fatalErr := r.planDurableEventLogAppend(ctx, tx, opts, logFile, branchPointsByTaskId[taskId], maxExistingNodeIdByTaskId[taskId])
 
 		if fatalErr != nil {
 			return nil, nil, fatalErr
@@ -2050,6 +2098,67 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	return results, taskErrors, nil
 }
 
+// getMaxExistingNodeIdsForDagStepTriggers returns the highest node id on the log of each task
+// in the batch that is triggering a DAG step. It is looked up for skip-path triggers too, since
+// resolveOrphanedChildDedupes can still turn one of those into a fresh spawn while planning.
+func (r *durableEventsRepository) getMaxExistingNodeIdsForDagStepTriggers(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	batch map[durableTaskId]IngestDurableTaskEventOpts,
+	eligibleTaskIds []durableTaskId,
+) (map[durableTaskId]int64, error) {
+	params := sqlcv1.GetMaxDurableEventLogNodeIdsParams{}
+
+	for _, taskId := range eligibleTaskIds {
+		opts := batch[taskId]
+
+		if opts.Kind != sqlcv1.V1DurableEventLogKindRUN || !hasDagStepTrigger(opts.TriggerRuns.TriggerOpts) {
+			continue
+		}
+
+		params.Durabletaskids = append(params.Durabletaskids, opts.Task.ID)
+		params.Durabletaskinsertedats = append(params.Durabletaskinsertedats, opts.Task.InsertedAt)
+	}
+
+	maxNodeIdByTaskId := make(map[durableTaskId]int64, len(params.Durabletaskids))
+
+	if len(params.Durabletaskids) == 0 {
+		return maxNodeIdByTaskId, nil
+	}
+
+	rows, err := r.queries.GetMaxDurableEventLogNodeIds(ctx, tx, params)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get max durable event log node ids: %w", err)
+	}
+
+	for _, row := range rows {
+		maxNodeIdByTaskId[durableTaskId(row.DurableTaskID)] = row.MaxNodeID
+	}
+
+	return maxNodeIdByTaskId, nil
+}
+
+func hasDagStepTrigger(triggerOpts []*WorkflowNameTriggerOpts) bool {
+	for _, to := range triggerOpts {
+		if to.IsDagStepTrigger {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasFreshDagStepTrigger(triggerOpts []*WorkflowNameTriggerOpts) bool {
+	for _, to := range triggerOpts {
+		if to.IsDagStepTrigger && !to.ShouldSkip {
+			return true
+		}
+	}
+
+	return false
+}
+
 type durableEventLogAppendPlan struct {
 	opts                         IngestDurableTaskEventOpts
 	getOrCreateOpts              GetOrCreateLogEntryOpts
@@ -2066,6 +2175,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 	opts IngestDurableTaskEventOpts,
 	logFile *sqlcv1.V1DurableEventLogFile,
 	nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint,
+	maxExistingNodeId int64,
 ) (plan *durableEventLogAppendPlan, taskErr error, fatalErr error) {
 	tenantId := opts.TenantId
 	task := opts.Task
@@ -2086,6 +2196,17 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 
 		childrenToReplay = resolvedChildrenToReplay
 
+		// A DAG step's identity is its spawn key (see resolveChildExternalIdsForBatch), not its
+		// position in the log: a step already spawned takes the skip path above regardless of
+		// where the replay cursor sits. So a step being spawned for the first time during a
+		// replay must not be placed at the cursor, where it would land on top of an entry the
+		// replay has not yet walked past. The operator emits ready steps in whatever order
+		// their parents happen to complete, and that order legitimately differs between the
+		// original run and a replay, so fresh DAG steps are appended after every existing entry.
+		if hasFreshDagStepTrigger(opts.TriggerRuns.TriggerOpts) {
+			baseNodeId = max(logFile.LatestNodeID, maxExistingNodeId) + 1
+		}
+
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
 		nonSkipOffset := int64(0)
@@ -2094,13 +2215,19 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				// only index-based dedupe is validated against the existing entry's
 				// idempotency key: an explicit child_key intentionally reuses the
 				// cached child even when the inputs differ
-				var idempotencyKey []byte
+				var idempotencyKey, legacyIdempotencyKey []byte
 				if triggerOpts.ChildKey == nil {
 					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
 					if keyErr != nil {
 						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 					}
 					idempotencyKey = key
+
+					legacyKey, legacyKeyErr := r.createLegacyDagStepIdempotencyKey(triggerOpts)
+					if legacyKeyErr != nil {
+						return nil, fmt.Errorf("failed to create legacy idempotency key: %w", legacyKeyErr), nil
+					}
+					legacyIdempotencyKey = legacyKey
 				}
 
 				if _, exists := childExternalIdToTriggerOpts[triggerOpts.ExternalId]; !exists {
@@ -2108,10 +2235,11 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
-					Kind:                sqlcv1.V1DurableEventLogKindRUN,
-					ChildTaskExternalId: triggerOpts.ExternalId,
-					IdempotencyKey:      idempotencyKey,
-					ShouldSkip:          true,
+					Kind:                 sqlcv1.V1DurableEventLogKindRUN,
+					ChildTaskExternalId:  triggerOpts.ExternalId,
+					IdempotencyKey:       idempotencyKey,
+					LegacyIdempotencyKey: legacyIdempotencyKey,
+					ShouldSkip:           true,
 				}
 				continue
 			}
@@ -2134,6 +2262,11 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 			}
 
+			legacyIdempotencyKey, legacyKeyErr := r.createLegacyDagStepIdempotencyKey(triggerOpts)
+			if legacyKeyErr != nil {
+				return nil, fmt.Errorf("failed to create legacy idempotency key: %w", legacyKeyErr), nil
+			}
+
 			// A child that is being cancelled or skipped never runs, so no completion event
 			// will arrive for it (trigger.go creates it directly in a terminal state,
 			// bypassing the match pipeline): its entry is terminal at creation regardless of
@@ -2141,15 +2274,16 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:                sqlcv1.V1DurableEventLogKindRUN,
-				NodeId:              nodeId,
-				BranchId:            branchId,
-				ChildTaskExternalId: triggerOpts.ExternalId,
-				IdempotencyKey:      idempotencyKey,
-				InputPayload:        inputPayload,
-				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
-				UserMessage:         triggerOpts.UserMessage,
-				IsSatisfied:         isSatisfied,
+				Kind:                 sqlcv1.V1DurableEventLogKindRUN,
+				NodeId:               nodeId,
+				BranchId:             branchId,
+				ChildTaskExternalId:  triggerOpts.ExternalId,
+				IdempotencyKey:       idempotencyKey,
+				LegacyIdempotencyKey: legacyIdempotencyKey,
+				InputPayload:         inputPayload,
+				WaitData:             marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				UserMessage:          triggerOpts.UserMessage,
+				IsSatisfied:          isSatisfied,
 			}
 		}
 

@@ -385,18 +385,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule heartbeat update: %w", err)
 	}
 
-	_, err = d.s.NewJob(
-		gocron.DurationJob(time.Second*30),
-		gocron.NewTask(func() {
-			d.serviceV1.EvictStaleOperatorSessionTasks(ctx)
-		}),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule stale operator session watchdog: %w", err)
-	}
-
 	d.s.Start()
 
 	operatorCh := d.om.Start(ctx, d)
@@ -1032,6 +1020,7 @@ func resolveDagParentOutputs(
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
+				l.Warn().Ctx(ctx).Msgf("no completed output found for dag parent %s of task %s; the child will be missing that parent's output", parentExternalId, entry.payloadKey.ExternalId)
 				continue
 			}
 

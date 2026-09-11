@@ -262,6 +262,21 @@ WHERE
     AND e.child_task_external_id = ANY(@childTaskExternalIds::UUID[])
 ORDER BY e.child_task_external_id, e.node_id ASC;
 
+-- name: GetMaxDurableEventLogNodeIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+)
+
+SELECT
+    e.durable_task_id,
+    e.durable_task_inserted_at,
+    MAX(e.node_id)::BIGINT AS max_node_id
+FROM v1_durable_event_log_entry e
+JOIN inputs i ON (e.durable_task_id, e.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+GROUP BY e.durable_task_id, e.durable_task_inserted_at;
+
 -- name: BulkCreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT

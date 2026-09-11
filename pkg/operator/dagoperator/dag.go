@@ -261,15 +261,6 @@ func dagDurableTask(
 
 var blockedStatusReportInterval = 10 * time.Second
 
-// maxConsecutiveUnreportableTicks bounds how long a blocked run may go without being able to
-// send a WorkerStatus report before the run fails. All server-side recovery for operator runs
-// (satisfied-event redelivery, idle eviction, stalled-release detection) is driven by
-// WorkerStatus, so a run that can never report -- a wait ack that never arrived, or nothing
-// outstanding while tasks remain untriggered -- would otherwise hang silently until the step
-// timeout. Failing instead surfaces the wedge and lets the retry replay the run
-// deterministically from the durable event log.
-var maxConsecutiveUnreportableTicks = 6
-
 // blocks until the child task returns - this is basically here to just reveal bottlenecks, especially on child spawning, in the traces
 func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.DurableTaskResponse) (*v1contracts.DurableTaskResponse, error) {
 	_, span := telemetry.NewSpan(ctx, "dag.awaitResponse")
@@ -295,8 +286,6 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 	timer := time.NewTimer(blockedStatusReportInterval)
 	defer timer.Stop()
 
-	consecutiveUnreportableTicks := 0
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -308,9 +297,7 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 
 			return resp, nil
 		case <-timer.C:
-			reported, err := d.reportBlockedOnDurableEvents(ctx)
-
-			if err != nil {
+			if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
 				return nil, err
 			}
 
@@ -320,44 +307,25 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 				return resp, nil
 			}
 
-			if reported {
-				consecutiveUnreportableTicks = 0
-			} else {
-				consecutiveUnreportableTicks++
-
-				if consecutiveUnreportableTicks >= maxConsecutiveUnreportableTicks {
-					return nil, fmt.Errorf(
-						"durable dag run is blocked but has been unable to report worker status for %s (pending wait acks: %d, buffered entry completions: %d, outstanding waiting entries: %d, untriggered tasks: %d); failing so the run can be retried and replayed",
-						time.Duration(consecutiveUnreportableTicks)*blockedStatusReportInterval,
-						len(d.pendingWaitAcks),
-						len(d.pendingEntryCompletions),
-						len(d.outstandingWaitingEntries()),
-						len(d.pendingTasks),
-					)
-				}
-			}
-
 			timer.Reset(blockedStatusReportInterval)
 		}
 	}
 }
 
 // tells the dispatcher which unsatisfied durable event log entries we've been blocked on so
-// it can evict the durable task to free its slot. Returns whether a report was actually sent:
-// the caller counts consecutive unreportable ticks, because a run that can never report is cut
-// off from all server-side recovery.
-func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) (bool, error) {
+// it can evict the durable task to free its slot
+func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
 	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
-		return false, nil
+		return nil
 	}
 
 	entries := d.outstandingWaitingEntries()
 
 	if len(entries) == 0 {
-		return false, nil
+		return nil
 	}
 
-	err := d.send(ctx, &v1contracts.DurableTaskRequest{
+	return d.send(ctx, &v1contracts.DurableTaskRequest{
 		Message: &v1contracts.DurableTaskRequest_WorkerStatus{
 			WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{
 				WorkerId:       d.workerId.String(),
@@ -365,8 +333,6 @@ func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) (bool, error) {
 			},
 		},
 	})
-
-	return err == nil, err
 }
 
 func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompletedEntry {
