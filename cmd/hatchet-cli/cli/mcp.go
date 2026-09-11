@@ -90,6 +90,30 @@ func init() {
 	mcpAuthCmd.Flags().Bool("list", false, "List current grants")
 }
 
+// mcpEngineFactory builds the MCP Engine for a resolved profile. Client
+// construction is profile-authoritative: it never reads HATCHET_CLIENT_*
+// environment variables, so the profile the user granted stays the source of
+// truth for the token, tenant, and endpoints. Any residual panic from the
+// legacy SDK constructor is contained here so one bad profile cannot take
+// down the whole stdio server.
+func mcpEngineFactory(profile *profileconfig.Profile) (engine mcp.Engine, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			engine = nil
+			// Sanitized on purpose: panic values from config validation can
+			// echo stored configuration.
+			err = fmt.Errorf("could not initialize a client for this profile: its stored connection configuration is invalid")
+		}
+	}()
+
+	nopLogger := zerolog.Nop()
+	hatchetClient, err := newClientFromProfileOnly(profile, &nopLogger)
+	if err != nil {
+		return nil, err
+	}
+	return mcp.NewClientEngine(hatchetClient), nil
+}
+
 // mcpGrantStore returns the grant store next to the CLI profile store.
 func mcpGrantStore() *mcp.GrantStore {
 	return mcp.NewGrantStore(configcli.Profiles.Dir())
@@ -108,17 +132,10 @@ func runMCPServe() {
 	defer cancel()
 
 	server := mcp.NewServer(mcp.Deps{
-		Version:  Version,
-		Profiles: mcpProfileSource(),
-		Grants:   mcpGrantStore(),
-		NewEngine: func(profile *profileconfig.Profile) (mcp.Engine, error) {
-			nopLogger := zerolog.Nop()
-			hatchetClient, err := NewClientFromProfile(profile, &nopLogger)
-			if err != nil {
-				return nil, err
-			}
-			return mcp.NewClientEngine(hatchetClient), nil
-		},
+		Version:     Version,
+		Profiles:    mcpProfileSource(),
+		Grants:      mcpGrantStore(),
+		NewEngine:   mcpEngineFactory,
 		Feedback:    mcp.NewHTTPFeedbackSender(),
 		AnonymousID: configcli.EnsureAnonymousID(),
 	})

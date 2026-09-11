@@ -497,26 +497,20 @@ func (s *Server) handleSubmitFeedback(ctx context.Context, _ *mcpsdk.CallToolReq
 	}
 
 	// Resolve best-effort: feedback is still useful when no profile is granted.
+	// The feedback destination and project key are pinned at build time; an
+	// engine's metadata is only consulted to classify the deployment and must
+	// never choose where feedback is sent.
 	deployment := "unknown"
 	target := FeedbackTarget{APIKey: PosthogAPIKey, Endpoint: PosthogEndpoint}
 
 	rp, engine, resolveErr := s.resolve(ctx, args.Profile)
 	if resolveErr == nil {
-		meta, metaErr := engine.Meta(ctx)
+		meta, _ := engine.Meta(ctx)
 		deployment = classifyDeployment(rp, meta)
-
-		// Fall back to the public frontend PostHog key served by the connected
-		// engine (set on Hatchet Cloud) when no build-time key is present.
-		if target.APIKey == "" && metaErr == nil && meta.Posthog != nil && meta.Posthog.ApiKey != nil && *meta.Posthog.ApiKey != "" {
-			target.APIKey = *meta.Posthog.ApiKey
-			if meta.Posthog.ApiHost != nil && *meta.Posthog.ApiHost != "" {
-				target.Endpoint = *meta.Posthog.ApiHost
-			}
-		}
 	}
 
 	if target.APIKey == "" {
-		return nil, nil, fmt.Errorf("feedback was not sent: no analytics key is available for this deployment (no build-time key and the engine reports none)")
+		return nil, nil, fmt.Errorf("feedback was not sent: no analytics key is baked into this build")
 	}
 
 	event := FeedbackEvent{

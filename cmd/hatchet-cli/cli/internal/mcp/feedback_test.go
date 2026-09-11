@@ -77,6 +77,33 @@ func TestHTTPFeedbackSenderRequiresKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestHTTPFeedbackSenderRejectsRedirects is the regression test for the
+// feedback sender's redirect policy: a capture endpoint answering with a
+// redirect must not have the event re-posted to the redirect target.
+func TestHTTPFeedbackSenderRejectsRedirects(t *testing.T) {
+	forwarded := make(chan string, 4)
+	final := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwarded <- r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer final.Close()
+
+	redirecting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 307 preserves the POST body, the worst case for credential-free
+		// event forwarding.
+		http.Redirect(w, r, final.URL+"/capture/", http.StatusTemporaryRedirect)
+	}))
+	defer redirecting.Close()
+
+	sender := NewHTTPFeedbackSender()
+	err := sender.Send(context.Background(), FeedbackTarget{APIKey: "phc_test", Endpoint: redirecting.URL}, "anon-1", FeedbackEvent{
+		Category: "bug",
+		Summary:  "s",
+	})
+	require.Error(t, err)
+	assert.Empty(t, forwarded, "the redirect target must never receive the event")
+}
+
 func TestHTTPFeedbackSenderNon2xx(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

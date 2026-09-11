@@ -3,7 +3,9 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -22,6 +24,12 @@ const EmbeddedProfileName = "embedded"
 
 // embeddedProbeTimeout bounds the live check of the embedded registration.
 const embeddedProbeTimeout = 3 * time.Second
+
+// staleEmbeddedNote is the constant message carried for a registration that
+// failed live verification. It deliberately contains none of the stored
+// registration's contents: the URL of a rejected registration can carry
+// internal hosts, paths, or credentials and must not reach the agent.
+const staleEmbeddedNote = "a stale embedded registration was ignored; start the embedded engine again or remove the stale profile entry"
 
 // ProfileSource provides read access to the CLI profile store.
 type ProfileSource struct {
@@ -52,15 +60,16 @@ func (d *EmbeddedDetection) Detected() bool {
 //
 // Embedded engines register themselves in the profile store under the
 // reserved "embedded" name on ready and remove the entry on graceful
-// shutdown. The registration only counts when the engine behind it is live
-// and its /api/v1/meta reports embedded: true, so a hand-made "embedded"
-// profile pointing at a non-embedded deployment can never sneak past the
-// grant checks.
+// shutdown. The registration only counts when both of its stored destinations
+// (API URL and gRPC address) are loopback and the engine behind the API URL is
+// live and its /api/v1/meta reports embedded: true, so a hand-made "embedded"
+// profile pointing at a non-embedded or non-local deployment can never sneak
+// past the grant checks.
 //
-// A registration whose engine is dead (e.g. after a crash) is skipped with a
-// note, never auto-deleted: the note is carried so engine_status and
-// resolution errors can surface it, but the entry is only ever removed by the
-// engine that wrote it (or overwritten by the next one).
+// A registration failing any of these checks (e.g. left behind by a crash) is
+// skipped with a constant note, never auto-deleted: the note is carried so
+// engine_status and resolution errors can surface it, but the entry is only
+// ever removed by the engine that wrote it (or overwritten by the next one).
 func detectEmbedded(ctx context.Context, source ProfileSource) *EmbeddedDetection {
 	if source.Profiles == nil {
 		return &EmbeddedDetection{}
@@ -71,28 +80,81 @@ func detectEmbedded(ctx context.Context, source ProfileSource) *EmbeddedDetectio
 		return &EmbeddedDetection{}
 	}
 
-	if registered.Token != "" && registered.ApiServerURL != "" && isEmbeddedAPI(ctx, registered.ApiServerURL) {
+	if registered.Token != "" &&
+		isLoopbackURL(registered.ApiServerURL) &&
+		isLoopbackHostPort(registered.GrpcHostPort) &&
+		isEmbeddedAPI(ctx, registered.ApiServerURL) {
 		profile := registered
 		profile.Name = EmbeddedProfileName
 
 		return &EmbeddedDetection{Profile: &profile}
 	}
 
-	return &EmbeddedDetection{
-		Note: fmt.Sprintf(
-			"stale embedded registration: the %q profile points at %s but no live embedded engine answered there (it may have exited without cleaning up); the registration was ignored",
-			EmbeddedProfileName, registered.ApiServerURL,
-		),
+	return &EmbeddedDetection{Note: staleEmbeddedNote}
+}
+
+// isLoopbackURL reports whether rawURL is an http(s) URL whose host is a
+// loopback destination. An embedded engine always registers a loopback API
+// URL, so anything else is not an embedded registration.
+func isLoopbackURL(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
 	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+
+	return isLoopbackHost(parsed.Hostname())
+}
+
+// isLoopbackHostPort reports whether hostPort is a host:port pair whose host
+// is a loopback destination.
+func isLoopbackHostPort(hostPort string) bool {
+	host, _, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return false
+	}
+
+	return isLoopbackHost(host)
+}
+
+// isLoopbackHost reports whether host names the local machine: "localhost" or
+// a literal loopback IP. Other hostnames are rejected without resolving them,
+// so DNS can never turn a non-local registration into an implicit grant.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // isEmbeddedAPI reports whether apiURL is a live Hatchet API server running in
-// embedded mode, via the unauthenticated /api/v1/meta endpoint.
+// embedded mode, via the unauthenticated /api/v1/meta endpoint. The probe uses
+// a dedicated HTTP client with redirects and proxies disabled, so the answer
+// always comes directly from the already-validated loopback destination.
 func isEmbeddedAPI(ctx context.Context, apiURL string) bool {
 	probeCtx, cancel := context.WithTimeout(ctx, embeddedProbeTimeout)
 	defer cancel()
 
-	client, err := rest.NewClientWithResponses(apiURL, rest.WithHTTPClient(&http.Client{Timeout: embeddedProbeTimeout}))
+	probeClient := &http.Client{
+		Timeout: embeddedProbeTimeout,
+		Transport: &http.Transport{
+			// Never route the loopback probe through a proxy.
+			Proxy: nil,
+		},
+		// Do not follow redirects: a redirect answer fails the 200 check
+		// below, so only a direct response from the probed destination counts.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	client, err := rest.NewClientWithResponses(apiURL, rest.WithHTTPClient(probeClient))
 	if err != nil {
 		return false
 	}

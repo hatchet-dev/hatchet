@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/google/uuid"
@@ -60,6 +61,106 @@ func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger
 			analytics.SourceMetadataKey: string(analytics.SourceCLI),
 		}),
 	)
+}
+
+// newClientFromProfileOnly creates a Hatchet client whose connection settings
+// come exclusively from the profile, falling back to the claims embedded in
+// its token for fields the profile leaves empty. It never reads
+// HATCHET_CLIENT_* environment variables and never panics on a malformed
+// token: unlike NewClientFromProfile, construction bypasses the SDK's
+// env-binding config loader entirely.
+//
+// The MCP server uses this factory so the profile the user granted stays
+// authoritative for the token, tenant, and endpoints. The interactive CLI
+// commands keep NewClientFromProfile, where environment overrides are part of
+// the established UX.
+func newClientFromProfileOnly(profile *profileconfig.Profile, logger *zerolog.Logger) (client.Client, error) { //nolint:staticcheck
+	cfg, err := clientConfigFromProfile(profile)
+	if err != nil {
+		return nil, err
+	}
+
+	hatchetClient, err := client.NewFromConfig( //nolint:staticcheck
+		cfg,
+		client.WithLogger(logger),
+		client.WithGRPCHeaders(map[string]string{
+			analytics.SourceMetadataKey: string(analytics.SourceCLI),
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fail closed if the effective client identity ever drifts from the
+	// resolved configuration (the config above is built from the profile
+	// alone, so this guards against regressions in client construction).
+	if hatchetClient.TenantId() != cfg.TenantId {
+		return nil, fmt.Errorf("client tenant does not match the resolved profile")
+	}
+
+	return hatchetClient, nil
+}
+
+// clientConfigFromProfile resolves a profile into a complete client
+// configuration without consulting the environment. Missing connection fields
+// fall back to the claims in the profile's own token, mirroring the SDK
+// loader's resolution order minus its environment layer.
+func clientConfigFromProfile(profile *profileconfig.Profile) (*clientconfig.ClientConfig, error) {
+	if profile.Token == "" {
+		return nil, fmt.Errorf("the profile has no API token")
+	}
+
+	// Pre-validate the token: this returns an error for malformed tokens where
+	// the SDK's config loader would panic.
+	tokenConf, err := loaderutils.GetConfFromJWT(profile.Token)
+	if err != nil {
+		return nil, fmt.Errorf("the profile's stored API token is not valid: %w", err)
+	}
+
+	tenantID := profile.TenantId
+	if tenantID == "" {
+		tenantID = tokenConf.TenantId
+	}
+
+	serverURL := profile.ApiServerURL
+	if serverURL == "" {
+		serverURL = tokenConf.ServerURL
+	}
+
+	grpcHostPort := profile.GrpcHostPort
+	if grpcHostPort == "" {
+		grpcHostPort = tokenConf.GrpcBroadcastAddress
+	}
+
+	if serverURL == "" || grpcHostPort == "" {
+		return nil, fmt.Errorf("the profile does not specify the server URL or gRPC address")
+	}
+
+	tlsStrategy := profile.TLSStrategy
+	if tlsStrategy == "" {
+		tlsStrategy = "tls"
+	}
+
+	tlsServerName := grpcHostPort
+	if host, _, splitErr := net.SplitHostPort(grpcHostPort); splitErr == nil {
+		tlsServerName = host
+	}
+
+	tlsConfig, err := loaderutils.LoadClientTLSConfig(&clientconfig.ClientTLSConfigFile{
+		Base: shared.TLSConfigFile{TLSStrategy: tlsStrategy},
+	}, tlsServerName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientconfig.ClientConfig{
+		TenantId:             tenantID,
+		Token:                profile.Token,
+		ServerURL:            serverURL,
+		GRPCBroadcastAddress: grpcHostPort,
+		TLSConfig:            tlsConfig,
+		Logger:               shared.LoggerConfigFile{Level: "warn", Format: "text"},
+	}, nil
 }
 
 // clientCmdConfig holds CLI flag values used to create a Hatchet client.

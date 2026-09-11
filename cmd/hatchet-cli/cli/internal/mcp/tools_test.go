@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -335,6 +337,37 @@ func TestHandleEngineStatusNothingGranted(t *testing.T) {
 	assert.NotContains(t, text, `"local"`)
 }
 
+// TestStaleEmbeddedRegistrationIsRedacted is the regression test for the
+// stale-registration note: a rejected registration's stored URL (which can
+// carry internal hosts, paths, or credentials) must never reach the agent,
+// neither via engine_status nor via resolution errors.
+func TestStaleEmbeddedRegistrationIsRedacted(t *testing.T) {
+	staleURL := "http://review-user:synthetic-secret@127.0.0.1:1/private-path"
+	server := newTestServer(t, &fakeEngine{tenantID: "t"}, &fakeFeedbackSender{})
+	server.deps.Profiles = storedProfiles(map[string]cliconfig.Profile{
+		EmbeddedProfileName: registeredEmbedded(staleURL),
+	})
+	server.deps.DetectEmbedded = func(ctx context.Context) *EmbeddedDetection {
+		return detectEmbedded(ctx, server.deps.Profiles)
+	}
+
+	res, _, err := server.handleEngineStatus(context.Background(), nil, engineStatusArgs{})
+	require.NoError(t, err)
+
+	text := resultText(t, res)
+	assert.Contains(t, text, "stale embedded registration")
+	assert.NotContains(t, text, "synthetic-secret")
+	assert.NotContains(t, text, "127.0.0.1:1")
+	assert.NotContains(t, text, "private-path")
+
+	_, _, err = server.handleGetRun(context.Background(), nil, getRunArgs{Profile: EmbeddedProfileName, RunID: "unused"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stale embedded registration")
+	assert.NotContains(t, err.Error(), "synthetic-secret")
+	assert.NotContains(t, err.Error(), "127.0.0.1:1")
+	assert.NotContains(t, err.Error(), "private-path")
+}
+
 // clearPosthogKey empties the baked-in capture key for the test's duration so
 // the engine-fallback and no-key paths can be exercised deterministically.
 func clearPosthogKey(t *testing.T) {
@@ -349,9 +382,10 @@ func TestHandleSubmitFeedbackUsesBakedKey(t *testing.T) {
 	require.NotEmpty(t, PosthogAPIKey, "a public capture key should be baked into the build")
 
 	engineKey := "phc_from_engine"
+	engineHost := "http://engine-chosen.example.invalid"
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
-		meta:     &rest.APIMeta{Posthog: &rest.APIMetaPosthog{ApiKey: &engineKey}},
+		meta:     &rest.APIMeta{Posthog: &rest.APIMetaPosthog{ApiKey: &engineKey, ApiHost: &engineHost}},
 	}
 	sender := &fakeFeedbackSender{}
 	server := newTestServer(t, engine, sender, "local")
@@ -364,17 +398,12 @@ func TestHandleSubmitFeedbackUsesBakedKey(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, sender.sent)
-	assert.Equal(t, PosthogAPIKey, sender.target.APIKey, "the baked-in key takes precedence over the engine-served key")
+	assert.Equal(t, PosthogAPIKey, sender.target.APIKey, "the baked-in key is always used, never the engine-served key")
+	assert.Equal(t, PosthogEndpoint, sender.target.Endpoint, "the pinned endpoint is always used, never the engine-served host")
 }
 
 func TestHandleSubmitFeedback(t *testing.T) {
-	clearPosthogKey(t)
-
-	apiKey := "phc_from_engine"
-	engine := &fakeEngine{
-		tenantID: "tenant-local",
-		meta:     &rest.APIMeta{Posthog: &rest.APIMetaPosthog{ApiKey: &apiKey}},
-	}
+	engine := &fakeEngine{tenantID: "tenant-local"}
 	sender := &fakeFeedbackSender{}
 	server := newTestServer(t, engine, sender, "local")
 
@@ -387,12 +416,45 @@ func TestHandleSubmitFeedback(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, sender.sent)
-	assert.Equal(t, "phc_from_engine", sender.target.APIKey, "falls back to the engine-served public key")
+	assert.Equal(t, PosthogAPIKey, sender.target.APIKey)
+	assert.Equal(t, PosthogEndpoint, sender.target.Endpoint)
 	assert.Equal(t, "docs-gap", sender.event.Category)
 	assert.Equal(t, "missing replay docs", sender.event.Summary)
 	assert.Equal(t, "self-hosted", sender.event.DeploymentType)
 	assert.Equal(t, "test", sender.event.CLIVersion)
 	assert.Contains(t, resultText(t, res), `"sent": true`)
+}
+
+// TestHandleSubmitFeedbackEmptyKeyNeverUsesEngineTarget is the regression
+// test for feedback egress pinning: with no build-time capture key, an
+// engine's metadata must not be able to route the feedback event to an
+// engine-chosen key or host. The tool reports "not sent" instead.
+func TestHandleSubmitFeedbackEmptyKeyNeverUsesEngineTarget(t *testing.T) {
+	clearPosthogKey(t)
+
+	requests := make(chan string, 4)
+	engineChosen := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer engineChosen.Close()
+
+	engineKey := "phc_from_engine"
+	engineHost := engineChosen.URL
+	engine := &fakeEngine{
+		tenantID: "tenant-local",
+		meta:     &rest.APIMeta{Posthog: &rest.APIMetaPosthog{ApiKey: &engineKey, ApiHost: &engineHost}},
+	}
+	server := newTestServer(t, engine, NewHTTPFeedbackSender(), "local")
+
+	_, _, err := server.handleSubmitFeedback(context.Background(), nil, submitFeedbackArgs{
+		Category: "bug",
+		Summary:  "x",
+		Detail:   "y",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no analytics key")
+	assert.Empty(t, requests, "the engine-selected destination must never receive the feedback event")
 }
 
 func TestHandleSubmitFeedbackInvalidCategory(t *testing.T) {

@@ -129,6 +129,55 @@ func TestDetectEmbeddedProfileForNonEmbeddedServerIsSkipped(t *testing.T) {
 	assert.Contains(t, detection.Note, "stale embedded registration")
 }
 
+// TestDetectEmbeddedRejectsRedirectsAndNonLocalDestinations is the regression
+// test for the embedded implicit grant: the registration only counts when both
+// stored destinations are loopback and the probe answers directly, without
+// redirects. Anything else is treated like a stale registration.
+func TestDetectEmbeddedRejectsRedirectsAndNonLocalDestinations(t *testing.T) {
+	meta := newMetaServer(t, true)
+	defer meta.Close()
+
+	redirecting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, meta.URL+"/api/v1/meta", http.StatusFound)
+	}))
+	defer redirecting.Close()
+
+	cases := []struct {
+		name   string
+		mutate func(p *cliconfig.Profile)
+	}{
+		{
+			name:   "api url answers with a redirect",
+			mutate: func(p *cliconfig.Profile) { p.ApiServerURL = redirecting.URL },
+		},
+		{
+			name:   "grpc address is not loopback",
+			mutate: func(p *cliconfig.Profile) { p.GrpcHostPort = "unrelated.example.invalid:443" },
+		},
+		{
+			name:   "grpc address is missing",
+			mutate: func(p *cliconfig.Profile) { p.GrpcHostPort = "" },
+		},
+		{
+			name:   "api url host is not loopback",
+			mutate: func(p *cliconfig.Profile) { p.ApiServerURL = "http://unrelated.example.invalid:443" },
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			profile := registeredEmbedded(meta.URL)
+			tc.mutate(&profile)
+
+			source := storedProfiles(map[string]cliconfig.Profile{EmbeddedProfileName: profile})
+			detection := detectEmbedded(context.Background(), source)
+
+			assert.False(t, detection.Detected(), "a registration failing the local-destination checks must not be implicitly granted")
+			assert.Contains(t, detection.Note, "stale embedded registration")
+		})
+	}
+}
+
 func TestDetectEmbeddedNothingRegistered(t *testing.T) {
 	detection := detectEmbedded(context.Background(), storedProfiles(nil))
 

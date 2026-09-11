@@ -14,9 +14,10 @@ var (
 	// PosthogAPIKey is the public capture-only project key for cli_mcp_feedback
 	// events (safe to commit: it can ingest events but never read data, like the
 	// keys shipped in browser bundles). Overridable at build time via
-	// ldflags: -X .../cli/internal/mcp.PosthogAPIKey=phc_xxx. If somehow empty,
-	// submit_feedback falls back to the key served by the connected engine's
-	// /api/v1/meta endpoint, and reports clearly when no key is available.
+	// ldflags: -X .../cli/internal/mcp.PosthogAPIKey=phc_xxx. The key and
+	// endpoint are pinned at build time: if the key is somehow empty,
+	// submit_feedback reports that feedback cannot be sent. It never falls
+	// back to a key or host chosen by a connected engine.
 	PosthogAPIKey = "phc_Nd6kn74LHMatXkF0OHVJMiq1qp2iu7xUIzRaipZAZY1" // #nosec G101 -- public capture-only project key, not a secret; same class as keys shipped in browser bundles
 
 	// PosthogEndpoint is the PostHog ingestion host used with PosthogAPIKey.
@@ -76,9 +77,17 @@ type httpFeedbackSender struct {
 	client *http.Client
 }
 
-// NewHTTPFeedbackSender returns the production feedback sender.
+// NewHTTPFeedbackSender returns the production feedback sender. Its HTTP
+// client never follows redirects: the capture endpoint is pinned, and a
+// redirect answer must not re-post the event to a different destination (it
+// surfaces as a non-success status instead).
 func NewHTTPFeedbackSender() FeedbackSender {
-	return &httpFeedbackSender{client: &http.Client{Timeout: 10 * time.Second}}
+	return &httpFeedbackSender{client: &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}}
 }
 
 func (s *httpFeedbackSender) Send(ctx context.Context, target FeedbackTarget, distinctID string, event FeedbackEvent) error {
