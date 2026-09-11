@@ -639,7 +639,7 @@ func TestOpenRejects(t *testing.T) {
 	_, err = host.Open(context.Background(), operator.Identity{TenantId: tenant, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG}, operator.OpenOpts{Handler: handler})
 	assert.ErrorIs(t, err, operator.ErrNotSupported, "only GRPC rows are registered")
 
-	_, err = host.Open(context.Background(), operator.Identity{TenantId: tenant, Name: "managed", Leasing: sqlcv1.V1OperatorLeasingMANAGED}, operator.OpenOpts{Handler: handler})
+	_, err = host.Open(context.Background(), operator.Identity{TenantId: tenant, Name: "dispatcher", LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}, operator.OpenOpts{Handler: handler})
 	assert.ErrorIs(t, err, operator.ErrNotSupported, "only self-leased rows are registered over the wire")
 
 	_, err = host.Open(context.Background(), operator.Identity{TenantId: tenant}, operator.OpenOpts{Handler: handler})

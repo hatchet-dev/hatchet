@@ -3,13 +3,13 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
-    leasing,
+    leasing_manager,
     config
 ) VALUES (
     @tenantId::UUID,
     @name::TEXT,
     @kind::v1_operator_kind,
-    @leasing::v1_operator_leasing,
+    @leasing_manager::v1_operator_leasing_manager,
     @config::JSONB
 )
 RETURNING *;
@@ -99,10 +99,10 @@ WITH operators_on_inactive_dispatchers AS (
 SELECT *
 FROM v1_operator
 WHERE
-    -- Only engine-leased rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
     -- (a Listen stream out of process, its own leaser in process) and registers its own
     -- workers, so the claimer never claims or reconciles it.
-    v1_operator.leasing = 'MANAGED'
+    v1_operator.leasing_manager = 'DISPATCHER'
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR
@@ -113,26 +113,26 @@ FOR UPDATE SKIP LOCKED;
 
 -- name: UpsertOperator :one
 -- Registers an operator by (tenant, name, kind), the row a session registers under by name. The
--- row carries no config. A repeat registration takes the leasing it names: a row the engine was
--- leasing that registers as SELF leaves the claim set on the claimer's next poll, and the other
--- way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+-- row carries no config. A repeat registration takes the leasing manager it names: a row a
+-- dispatcher was claiming that registers as SELF leaves the claim set on the claimer's next poll,
+-- and the other way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
 -- back via "Worker"."operatorId".
 INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
-    leasing,
+    leasing_manager,
     config
 ) VALUES (
     @tenantId::UUID,
     @name::TEXT,
     @kind::v1_operator_kind,
-    @leasing::v1_operator_leasing,
+    @leasing_manager::v1_operator_leasing_manager,
     '{}'::JSONB
 )
 ON CONFLICT (tenant_id, name, kind) DO UPDATE
 SET
-    leasing = EXCLUDED.leasing,
+    leasing_manager = EXCLUDED.leasing_manager,
     updated_at = NOW()
 RETURNING *;
 

@@ -7,7 +7,7 @@
 // Session and DurableChannel): one session per served tenant, opened by name and kind with
 // the tenant's action union, its handler the registration that routes assigned actions to
 // endpoints. The operator is a GRPC contract operator that leases itself in both modes
-// (kind GRPC, leasing SELF): its rows are kept alive by the sessions it holds, never by the
+// (kind GRPC, leasing manager SELF): its rows are kept alive by the sessions it holds, never by the
 // engine's claimer. The same core runs in either host as a deployment choice. Out of
 // process, hatchet-serverless-operator gives it pkg/operator/hostgrpc, which speaks
 // OperatorService with a per-tenant token; inside the engine, cmd/hatchet-engine gives it

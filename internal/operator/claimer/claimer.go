@@ -1,5 +1,5 @@
 // Package claimer hosts the operators a dispatcher claims. It polls ClaimOperators for the
-// engine-leased rows (leasing MANAGED) assigned to this dispatcher, builds each one from a
+// rows the dispatcher claims (leasing manager DISPATCHER) assigned to it, builds each one from a
 // factory, opens it through the in-process host with the row as its identity, and starts the
 // operator on the session. An operator that leaves the claim result is torn down the way every
 // host tears an operator down: pause the worker, drain the operator, close the session. Worker
@@ -119,7 +119,7 @@ func WithFactory(kind sqlcv1.V1OperatorKind, f Factory) Opt {
 }
 
 // WithNamedFactory registers how claimed GRPC rows named name are built: a contract operator
-// the engine hosts in process under an engine-managed lease. A claimed GRPC row with no factory
+// the engine hosts in process under a lease the dispatcher holds. A claimed GRPC row with no factory
 // of its name is left alone.
 func WithNamedFactory(name string, f Factory) Opt {
 	return func(o *opts) { o.named[name] = f }

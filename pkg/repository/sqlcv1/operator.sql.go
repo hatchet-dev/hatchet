@@ -35,13 +35,13 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = $1::UUID
 )
-SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
-    -- Only engine-leased rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
     -- (a Listen stream out of process, its own leaser in process) and registers its own
     -- workers, so the claimer never claims or reconciles it.
-    v1_operator.leasing = 'MANAGED'
+    v1_operator.leasing_manager = 'DISPATCHER'
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR
@@ -65,7 +65,7 @@ func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
-			&i.Leasing,
+			&i.LeasingManager,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -127,24 +127,24 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
-    leasing,
+    leasing_manager,
     config
 ) VALUES (
     $1::UUID,
     $2::TEXT,
     $3::v1_operator_kind,
-    $4::v1_operator_leasing,
+    $4::v1_operator_leasing_manager,
     $5::JSONB
 )
-RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type CreateOperatorParams struct {
-	Tenantid uuid.UUID         `json:"tenantid"`
-	Name     string            `json:"name"`
-	Kind     V1OperatorKind    `json:"kind"`
-	Leasing  V1OperatorLeasing `json:"leasing"`
-	Config   []byte            `json:"config"`
+	Tenantid       uuid.UUID                `json:"tenantid"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+	Config         []byte                   `json:"config"`
 }
 
 func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperatorParams) (*V1Operator, error) {
@@ -152,7 +152,7 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		arg.Tenantid,
 		arg.Name,
 		arg.Kind,
-		arg.Leasing,
+		arg.LeasingManager,
 		arg.Config,
 	)
 	var i V1Operator
@@ -161,7 +161,7 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
-		&i.Leasing,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -175,7 +175,7 @@ DELETE FROM v1_operator
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type DeleteOperatorParams struct {
@@ -191,7 +191,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
-		&i.Leasing,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -201,7 +201,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 }
 
 const getOperator = `-- name: GetOperator :one
-SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     id = $1::UUID
@@ -215,7 +215,7 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
-		&i.Leasing,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -258,7 +258,7 @@ func (q *Queries) ListDAGOrchestrationActionsForTenant(ctx context.Context, db D
 }
 
 const listOperators = `-- name: ListOperators :many
-SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     tenant_id = $1::UUID
@@ -297,7 +297,7 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
-			&i.Leasing,
+			&i.LeasingManager,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -364,7 +364,7 @@ SET
 WHERE
     tenant_id = $4::UUID
     AND id = $5::UUID
-RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type UpdateOperatorParams struct {
@@ -389,7 +389,7 @@ func (q *Queries) UpdateOperator(ctx context.Context, db DBTX, arg UpdateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
-		&i.Leasing,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -422,40 +422,40 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
-    leasing,
+    leasing_manager,
     config
 ) VALUES (
     $1::UUID,
     $2::TEXT,
     $3::v1_operator_kind,
-    $4::v1_operator_leasing,
+    $4::v1_operator_leasing_manager,
     '{}'::JSONB
 )
 ON CONFLICT (tenant_id, name, kind) DO UPDATE
 SET
-    leasing = EXCLUDED.leasing,
+    leasing_manager = EXCLUDED.leasing_manager,
     updated_at = NOW()
-RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type UpsertOperatorParams struct {
-	Tenantid uuid.UUID         `json:"tenantid"`
-	Name     string            `json:"name"`
-	Kind     V1OperatorKind    `json:"kind"`
-	Leasing  V1OperatorLeasing `json:"leasing"`
+	Tenantid       uuid.UUID                `json:"tenantid"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
 }
 
 // Registers an operator by (tenant, name, kind), the row a session registers under by name. The
-// row carries no config. A repeat registration takes the leasing it names: a row the engine was
-// leasing that registers as SELF leaves the claim set on the claimer's next poll, and the other
-// way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+// row carries no config. A repeat registration takes the leasing manager it names: a row a
+// dispatcher was claiming that registers as SELF leaves the claim set on the claimer's next poll,
+// and the other way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
 // back via "Worker"."operatorId".
 func (q *Queries) UpsertOperator(ctx context.Context, db DBTX, arg UpsertOperatorParams) (*V1Operator, error) {
 	row := db.QueryRow(ctx, upsertOperator,
 		arg.Tenantid,
 		arg.Name,
 		arg.Kind,
-		arg.Leasing,
+		arg.LeasingManager,
 	)
 	var i V1Operator
 	err := row.Scan(
@@ -463,7 +463,7 @@ func (q *Queries) UpsertOperator(ctx context.Context, db DBTX, arg UpsertOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
-		&i.Leasing,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,

@@ -145,10 +145,10 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	// The serverless operator is a self-leased GRPC operator in both modes: the row is kept
 	// alive by this session, whichever host opens it, so the claimer never assigns it.
 	session, err := r.host.Open(ctx, operator.Identity{
-		TenantId: ts.tenantId,
-		Name:     r.cfg.OperatorName,
-		Kind:     sqlcv1.V1OperatorKindGRPC,
-		Leasing:  sqlcv1.V1OperatorLeasingSELF,
+		TenantId:       ts.tenantId,
+		Name:           r.cfg.OperatorName,
+		Kind:           sqlcv1.V1OperatorKindGRPC,
+		LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF,
 	}, operator.OpenOpts{
 		Handler:    reg,
 		Actions:    union,

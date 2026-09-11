@@ -17,10 +17,10 @@ func TestAuthorizeOperator(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	otherTenant := &sqlcv1.Tenant{ID: uuid.New()}
 
-	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
-	dagOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag-op", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
-	// a contract operator the engine leases is driven by the claimer, never over the wire
-	managedOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "managed-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
+	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
+	dagOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag-op", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+	// a contract operator a dispatcher claims is driven by the claimer, never over the wire
+	dispatcherOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dispatcher-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
 
 	cases := []struct {
 		tenant     *sqlcv1.Tenant
@@ -32,13 +32,13 @@ func TestAuthorizeOperator(t *testing.T) {
 		{name: "unknown operator", tenant: tenant, operatorId: uuid.New(), wantCode: codes.PermissionDenied},
 		{name: "tenant mismatch", tenant: otherTenant, operatorId: grpcOp.ID, wantCode: codes.PermissionDenied},
 		{name: "wrong kind", tenant: tenant, operatorId: dagOp.ID, wantCode: codes.PermissionDenied},
-		{name: "wrong leasing", tenant: tenant, operatorId: managedOp.ID, wantCode: codes.PermissionDenied},
+		{name: "wrong leasing manager", tenant: tenant, operatorId: dispatcherOp.ID, wantCode: codes.PermissionDenied},
 		{name: "authorized", tenant: tenant, operatorId: grpcOp.ID, wantCode: codes.OK},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := newTestService(t, operatorsvctest.NewOperatorStore(grpcOp, dagOp, managedOp))
+			svc := newTestService(t, operatorsvctest.NewOperatorStore(grpcOp, dagOp, dispatcherOp))
 
 			op, err := svc.AuthorizeOperator(t.Context(), tc.tenant, tc.operatorId)
 
@@ -58,7 +58,7 @@ func TestAuthorizeOperator(t *testing.T) {
 
 func TestAuthorizeOperatorCachesLookups(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
+	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
 
 	store := operatorsvctest.NewOperatorStore(grpcOp)
 	svc := newTestService(t, store)
@@ -74,7 +74,7 @@ func TestAuthorizeOperatorCachesLookups(t *testing.T) {
 
 func TestAuthorizeOperatorDoesNotCacheMisses(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
+	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
 
 	store := operatorsvctest.NewOperatorStore()
 	svc := newTestService(t, store)
@@ -93,8 +93,8 @@ func TestAuthorizeOperatorDoesNotCacheMisses(t *testing.T) {
 
 func TestAuthorizeWorker(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
-	otherOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "other-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
+	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
+	otherOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "other-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
 
 	svc := newTestService(t, nil)
 	ownWorker := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})

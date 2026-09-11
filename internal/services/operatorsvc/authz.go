@@ -36,7 +36,7 @@ func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, 
 		return nil, err
 	}
 
-	if op.TenantID != tenant.ID || op.Kind != sqlcv1.V1OperatorKindGRPC || op.Leasing != sqlcv1.V1OperatorLeasingSELF {
+	if op.TenantID != tenant.ID || op.Kind != sqlcv1.V1OperatorKindGRPC || op.LeasingManager != sqlcv1.V1OperatorLeasingManagerSELF {
 		return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a self-leased GRPC operator for this tenant", operatorId)
 	}
 
