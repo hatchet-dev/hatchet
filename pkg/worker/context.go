@@ -768,6 +768,7 @@ type SpawnWorkflowsOpts struct {
 	Input               any
 	Key                 *string
 	Sticky              *bool
+	Priority            *int32
 	AdditionalMetadata  *map[string]string
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
@@ -818,6 +819,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				ChildKey:            c.Key,
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
+				Priority:            c.Priority,
 				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
@@ -827,14 +829,14 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		triggerWorkflows,
 	)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
-	}
-
 	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
 
 	for i, workflowRunId := range workflowRunIds {
 		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
+	}
+
+	if err != nil {
+		return createdWorkflows, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
 
 	return createdWorkflows, nil

@@ -1,8 +1,11 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.31.1",
+  "version": "1.33.0",
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Background task orchestration & visibility for developers",
-  "types": "dist/index.d.ts",
+  "types": "index.d.ts",
   "files": [
     "*",
     "!**/*.test.js",
@@ -22,6 +25,7 @@
     "dump-version": "node -e \"console.log('export const HATCHET_VERSION = \\'' + require('./package.json').version + '\\';');\" > src/version.ts",
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
+    "check:edge": "pnpm run tsc:build && node scripts/check-edge-entry.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
@@ -72,6 +76,7 @@
     "@types/node": "^22.13.14",
     "autoprefixer": "^10.4.27",
     "dotenv-cli": "^7.4.4",
+    "esbuild": "0.28.2",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^3.10.0",

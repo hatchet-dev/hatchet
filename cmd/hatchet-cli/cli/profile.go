@@ -119,7 +119,7 @@ var profileAddCmd = &cobra.Command{
 			}
 		}
 
-		err = cli.AddProfile(name, profile)
+		err = cli.Profiles.AddProfile(name, profile)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not add profile: %v", err)
@@ -153,7 +153,7 @@ var profileRemoveCmd = &cobra.Command{
 			}
 		}
 
-		err := cli.RemoveProfile(name)
+		err := cli.Profiles.RemoveProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not remove profile: %v", err)
 		}
@@ -170,7 +170,7 @@ var profileListCmd = &cobra.Command{
 	Example: `  # List all configured profiles
   hatchet profile list`,
 	Run: func(cmd *cobra.Command, args []string) {
-		profileNames := cli.ListProfiles()
+		profileNames := cli.Profiles.ListProfiles()
 
 		fmt.Println(profileListView(profileNames))
 	},
@@ -197,7 +197,7 @@ var profileShowCmd = &cobra.Command{
 			name = selectProfileForm(false)
 		}
 
-		profile, err := cli.GetProfile(name)
+		profile, err := cli.Profiles.GetProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not get profile: %v", err)
 		}
@@ -235,7 +235,7 @@ var profileUpdateCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not get profile from token: %v", err)
 		}
 
-		err = cli.UpdateProfile(name, profile)
+		err = cli.Profiles.UpdateProfile(name, profile)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not update profile: %v", err)
@@ -267,7 +267,7 @@ var profileSetDefaultCmd = &cobra.Command{
 			}
 		}
 
-		err := cli.SetDefaultProfile(name)
+		err := cli.Profiles.SetDefaultProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not set default profile: %v", err)
 		}
@@ -284,14 +284,14 @@ var profileUnsetDefaultCmd = &cobra.Command{
 	Example: `  # Unset the default profile
   hatchet profile unset-default`,
 	Run: func(cmd *cobra.Command, args []string) {
-		currentDefault := cli.GetDefaultProfile()
+		currentDefault := cli.Profiles.GetDefaultProfile()
 
 		if currentDefault == "" {
 			fmt.Println(styles.InfoMessage("No default profile is currently set"))
 			return
 		}
 
-		err := cli.ClearDefaultProfile()
+		err := cli.Profiles.ClearDefaultProfile()
 		if err != nil {
 			cli.Logger.Fatalf("could not unset default profile: %v", err)
 		}
@@ -433,7 +433,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	}
 
 	// Save the profile
-	err = cli.AddProfile(name, profile)
+	err = cli.Profiles.AddProfile(name, profile)
 	if err != nil {
 		return "", fmt.Errorf("could not add profile: %w", err)
 	}
@@ -599,7 +599,7 @@ func probeTLSEndpoint(hostPort string) (string, error) {
 }
 
 func selectProfileForm(useDefault bool) string {
-	profiles := cli.GetProfiles()
+	profiles := cli.Profiles.GetProfiles()
 
 	if len(profiles) == 0 {
 		cli.Logger.Info("No profiles configured")
@@ -613,7 +613,7 @@ func selectProfileForm(useDefault bool) string {
 	}
 	sort.Strings(names)
 
-	if name, ok := resolveProfileWithoutForm(names, cli.GetDefaultProfile(), useDefault); ok {
+	if name, ok := resolveProfileWithoutForm(names, cli.Profiles.GetDefaultProfile(), useDefault); ok {
 		return name
 	}
 
@@ -705,7 +705,7 @@ func profileListView(profiles []string) string {
 		return styles.InfoMessage("No profiles configured")
 	}
 
-	defaultProfile := cli.GetDefaultProfile()
+	defaultProfile := cli.Profiles.GetDefaultProfile()
 
 	var lines []string
 	// Use Primary.Bold instead of Section to avoid the MarginBottom spacing

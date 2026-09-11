@@ -77,6 +77,10 @@ jobs:
       - name: Type check
         run: ${{ matrix.tsc-cmd }}
 
+      - name: Check the edge entry point is free of Node imports
+        if: matrix.package-manager == 'pnpm'
+        run: pnpm check:edge
+
       - name: Setup Go
         if: matrix.package-manager == 'pnpm'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

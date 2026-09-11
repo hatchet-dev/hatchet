@@ -5,6 +5,14 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.1] - 2026-09-09
+
+### Fixed
+
+- Errors if duplicate action ids are present in the action registry, since internally we assume they're unique
+- Raises correctly on errors inside of `aio_start` by handling coroutine callback
+- Raises an error and exists if a task e.g. segfaults instead of orphaning a process and hanging indefinitely
+
 ## [1.40.0] - 2026-09-03
 
 ### Added

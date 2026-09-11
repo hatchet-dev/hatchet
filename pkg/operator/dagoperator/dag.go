@@ -132,7 +132,6 @@ type pendingWaitAck struct {
 }
 
 type task struct {
-	id           uuid.UUID
 	actionId     string
 	workflowName string
 	readableId   string

@@ -1,11 +1,5 @@
 version: 2
 
-multi-ecosystem-groups:
-  hatchet-sdk-examples:
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 1
-
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,59 +28,6 @@ updates:
         patterns: ["*"]
         update-types: ["patch", "minor"]
 
-  - package-ecosystem: "pip"
-    directory: /sdks/python
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    cooldown:
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 3
-    allow:
-      - dependency-type: "development"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    open-pull-requests-limit: 2
-    groups:
-      python-deps:
-        applies-to: version-updates
-        dependency-type: "development"
-        patterns: ["*"]
-      python-security:
-        applies-to: security-updates
-        patterns: ["*"]
-
-  - package-ecosystem: uv
-    directory: /sdks/python
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    cooldown:
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 3
-    allow:
-      - dependency-type: "development"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    open-pull-requests-limit: 2
-    groups:
-      uv-deps:
-        applies-to: version-updates
-        dependency-type: "development"
-        patterns: ["*"]
-      uv-security:
-        applies-to: security-updates
-        patterns: ["*"]
-
-  - package-ecosystem: "pip"
-    directory: "/sdks/python/examples/quickstart"
-    multi-ecosystem-group: "hatchet-sdk-examples"
-    patterns: ["hatchet-sdk"]
-
   - package-ecosystem: "npm"
     directories:
       - "/frontend/app"
@@ -110,57 +51,3 @@ updates:
         patterns: ["*"]
       npm-dev-deps:
         patterns: ["*"]
-
-  - package-ecosystem: "npm"
-    directory: "/sdks/typescript"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    cooldown:
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 3
-    allow:
-      - dependency-type: "development"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    open-pull-requests-limit: 3
-    groups:
-      npm-sdk-deps:
-        applies-to: version-updates
-        dependency-type: "development"
-        patterns: ["*"]
-      npm-sdk-security:
-        applies-to: security-updates
-        patterns: ["*"]
-
-
-  - package-ecosystem: "bundler"
-    directory: "/sdks/ruby/examples"
-    multi-ecosystem-group: "hatchet-sdk-examples"
-    patterns: ["hatchet-sdk"]
-
-  - package-ecosystem: "bundler"
-    directory: "/sdks/ruby/src"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    cooldown:
-      semver-major-days: 30
-      semver-minor-days: 7
-      semver-patch-days: 3
-    allow:
-      - dependency-type: "development"
-    open-pull-requests-limit: 2
-    groups:
-      ruby-deps:
-        applies-to: version-updates
-        dependency-type: "development"
-        patterns: ["*"]
-      ruby-security:
-        applies-to: security-updates
-        patterns: ["*"]
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]

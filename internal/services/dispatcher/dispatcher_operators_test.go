@@ -49,7 +49,7 @@ func TestListenForOperatorsReconcilesWorkerEntries(t *testing.T) {
 	op2 := &stubOperator{workerId: uuid.New()}
 
 	grpcWorkerId := uuid.New()
-	d.workers.Add(grpcWorkerId, "session", newGRPCSubscribedWorker(nil, nil, grpcWorkerId, time.Second, nil))
+	d.workers.Add(grpcWorkerId, uuid.New(), newGRPCSubscribedWorker(nil, nil, grpcWorkerId, time.Second, nil))
 
 	ch := make(chan []operator.Operator)
 	done := make(chan struct{})

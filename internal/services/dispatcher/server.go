@@ -188,7 +188,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	s.analytics.Count(ctx, analytics.Worker, analytics.Listen)
-	sessionId := uuid.New().String()
+	sessionId := uuid.New()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
@@ -223,6 +223,20 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		}
 	}
 
+	// Activation records this session's id on the worker; deactivation below only succeeds
+	// while that id is still the one on the row, so a session superseded by a newer listener
+	// can never mark the live session's worker inactive.
+	_, err = s.repov1.Workers().ActivateWorkerListener(ctx, tenantId, workerId, sessionId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not activate worker %s for listener session %s", request.WorkerId, sessionId)
+		return err
+	}
+
 	fin := make(chan bool)
 
 	s.workers.Add(workerId, sessionId, newGRPCSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
@@ -237,7 +251,8 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
-	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
+	// legacy SDK clients do not call Heartbeat, so the worker's heartbeat is written here every
+	// 4 seconds for as long as the stream is open
 	go func() {
 		timer := time.NewTicker(100 * time.Millisecond)
 
@@ -257,16 +272,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
-						LastHeartbeatAt: &now,
-						IsActive:        v1.BoolPtr(true),
-					})
-
-					if err != nil {
-						if errors.Is(err, pgx.ErrNoRows) {
-							return
-						}
-
+					if err := s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, now); err != nil {
 						s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
 						return
 					}
@@ -282,10 +288,17 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		select {
 		case <-fin:
 			s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
-			return nil
+
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker stream closing")
 		case <-ctx.Done():
 			s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
-			return nil
+
+			// The stream context is already done, so the deactivation runs on a detached
+			// context with its own deadline.
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker disconnecting")
 		}
 	}
 }
@@ -297,7 +310,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
-	sessionId := uuid.New().String()
+	sessionId := uuid.New()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
@@ -332,22 +345,17 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		}
 	}
 
-	sessionEstablished := time.Now().UTC()
-
-	_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, true, sessionEstablished)
+	// Activation records this session's id on the worker; deactivation below only succeeds
+	// while that id is still the one on the row, so a session that has been superseded by a
+	// newer listener can never mark the live session's worker inactive.
+	_, err = s.repov1.Workers().ActivateWorkerListener(ctx, tenantId, workerId, sessionId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
 
-		lastSessionEstablished := "NULL"
-
-		if worker.LastListenerEstablished.Valid {
-			lastSessionEstablished = worker.LastListenerEstablished.Time.String()
-		}
-
-		s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to true (session established %s, last session established %s)", request.WorkerId, sessionEstablished.String(), lastSessionEstablished)
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not activate worker %s for listener session %s", request.WorkerId, sessionId)
 		return err
 	}
 
@@ -371,30 +379,37 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
-				return err
-			}
-
-			return nil
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker stream closing")
 		case <-ctx.Done():
 			s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
 
+			// The stream context is already done, so the deactivation runs on a detached
+			// context with its own deadline.
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			_, err = s.repov1.Workers().UpdateWorkerActiveStatus(ctx, tenantId, workerId, false, sessionEstablished)
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
-				return err
-			}
-
-			return nil
+			return s.deactivateWorkerListener(ctx, tenantId, workerId, sessionId, "worker disconnecting")
 		}
 	}
+}
+
+// deactivateWorkerListener marks the worker inactive on behalf of the given listener
+// session. A superseded session (one whose id is no longer recorded on the worker) has
+// nothing to do, because the newer session owns the worker's active flag.
+func (s *DispatcherImpl) deactivateWorkerListener(ctx context.Context, tenantId, workerId, sessionId uuid.UUID, reason string) error {
+	_, err := s.repov1.Workers().DeactivateWorkerListener(ctx, tenantId, workerId, sessionId)
+
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		s.l.Debug().Ctx(ctx).Msgf("listener session %s for worker %s was superseded by a newer session, leaving worker active (%s)", sessionId, workerId, reason)
+		return nil
+	}
+
+	s.l.Error().Ctx(ctx).Err(err).Msgf("could not deactivate worker %s for listener session %s due to %s", workerId, sessionId, reason)
+	return err
 }
 
 const HeartbeatInterval = 4 * time.Second
@@ -461,30 +476,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
 	// new worker is available
 	if !worker.LastHeartbeatAt.Valid || worker.LastHeartbeatAt.Time.Before(heartbeatAt.Add(-30*time.Second)) {
-		if tenant.SchedulerPartitionId.Valid {
-			go func() {
-				// detached from the request so the notify outlives the handler, but keeps
-				// the request's values for tracing
-				notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-				defer cancel()
-
-				msg, err := tasktypes.NotifyNewWorker(tenantId, worker.ID)
-
-				if err != nil {
-					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
-				} else {
-					err = s.pubsub.Pub(
-						notifyCtx,
-						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
-						msg,
-					)
-
-					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
-					}
-				}
-			}()
-		}
+		s.NotifyNewWorker(ctx, tenant, worker.ID)
 	}
 
 	return &contracts.HeartbeatResponse{}, nil

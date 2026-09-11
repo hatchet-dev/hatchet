@@ -1819,8 +1819,8 @@ BEGIN
         WHERE
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
-            -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
+            AND dr.task_retry_count = t.retry_count
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1863,7 +1863,8 @@ BEGIN
         next_max_runs,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING;
 
     WITH tasks AS (
         SELECT
@@ -1875,6 +1876,7 @@ BEGIN
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
             AND t.concurrency_strategy_ids[1] IS NULL
+            AND dr.task_retry_count = t.retry_count
     )
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -2786,6 +2788,8 @@ CREATE TABLE v1_durable_event_log_branch_point (
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
+-- HTTP_API is retained only because Postgres cannot drop enum values; the engine never
+-- instantiates operators of that kind.
 CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
 
 CREATE TABLE v1_operator (

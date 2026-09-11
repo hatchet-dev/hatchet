@@ -23,7 +23,6 @@ type triggerStepFn = func(ctx context.Context, actionId, workflowName string, ch
 
 func newTestTask(readableId, actionId string, index int32, parents ...*task) *task {
 	return &task{
-		id:           uuid.New(),
 		actionId:     actionId,
 		workflowName: "test-workflow",
 		readableId:   readableId,

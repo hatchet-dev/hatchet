@@ -328,7 +328,7 @@ Returns:
 
 #### `RunMany`
 
-RunMany executes multiple workflow instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs. Returns workflow run IDs that can be used to track the run statuses.
 
 ```go
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error)

@@ -181,7 +181,7 @@ INSERT INTO "Worker" (
     $5::uuid,
     -- operator workers have no gRPC listener to activate them, so they are born active.
     true
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
 `
 
 type CreateOperatorWorkerParams struct {
@@ -216,6 +216,7 @@ func (q *Queries) CreateOperatorWorker(ctx context.Context, db DBTX, arg CreateO
 		&i.MaxRuns,
 		&i.IsActive,
 		&i.LastListenerEstablished,
+		&i.LastListenerSessionId,
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,

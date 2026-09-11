@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -93,14 +92,14 @@ func init() {
 
 // mcpGrantStore returns the grant store next to the CLI profile store.
 func mcpGrantStore() *mcp.GrantStore {
-	return mcp.NewGrantStore(filepath.Join(configcli.HomeDir, ".hatchet"))
+	return mcp.NewGrantStore(configcli.Profiles.Dir())
 }
 
 // mcpProfileSource adapts the CLI profile store for the MCP server.
 func mcpProfileSource() mcp.ProfileSource {
 	return mcp.ProfileSource{
-		Profiles:       configcli.GetProfiles,
-		DefaultProfile: configcli.GetDefaultProfile,
+		Profiles:       configcli.Profiles.GetProfiles,
+		DefaultProfile: configcli.Profiles.GetDefaultProfile,
 	}
 }
 
@@ -161,7 +160,7 @@ func runMCPAuth(cmd *cobra.Command) {
 
 // runMCPAuthFlags applies --grant / --revoke non-interactively.
 func runMCPAuthFlags(store *mcp.GrantStore, grants *mcp.Grants, grantFlags, revokeFlags []string) {
-	profiles := configcli.GetProfiles()
+	profiles := configcli.Profiles.GetProfiles()
 
 	for _, name := range grantFlags {
 		name = strings.ToLower(strings.TrimSpace(name))
@@ -171,7 +170,7 @@ func runMCPAuthFlags(store *mcp.GrantStore, grants *mcp.Grants, grantFlags, revo
 
 		if name != mcp.GrantWildcard {
 			if _, ok := profiles[name]; !ok {
-				configcli.Logger.Fatalf("profile '%s' not found; available profiles: %s", name, strings.Join(configcli.ListProfiles(), ", "))
+				configcli.Logger.Fatalf("profile '%s' not found; available profiles: %s", name, strings.Join(configcli.Profiles.ListProfiles(), ", "))
 			}
 		}
 
@@ -201,8 +200,8 @@ func runMCPAuthFlags(store *mcp.GrantStore, grants *mcp.Grants, grantFlags, revo
 // runMCPAuthInteractive opens a multi-select of profiles; the selection
 // replaces the current grant set.
 func runMCPAuthInteractive(store *mcp.GrantStore, grants *mcp.Grants) {
-	profiles := configcli.GetProfiles()
-	defaultProfile := configcli.GetDefaultProfile()
+	profiles := configcli.Profiles.GetProfiles()
+	defaultProfile := configcli.Profiles.GetDefaultProfile()
 
 	names := make([]string, 0, len(profiles))
 	for name := range profiles {

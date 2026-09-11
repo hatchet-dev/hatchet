@@ -1,4 +1,4 @@
-import { JsonObject } from '@hatchet/v1';
+import { JsonObject } from '@hatchet/v1/types';
 
 export type LogExtra = JsonObject;
 export abstract class Logger {

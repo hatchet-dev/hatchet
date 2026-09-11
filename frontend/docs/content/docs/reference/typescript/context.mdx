@@ -19,11 +19,48 @@ Extended by
 
 - [`DurableContext`](#durablecontext)
 
+#### Constructors
+
+<a id="constructor"></a>
+
+##### Constructor
+
+Creates a context on top of a runtime.
+
+Parameters
+
+| Parameter | Type             | Description                                                        |
+| --------- | ---------------- | ------------------------------------------------------------------ |
+| `action`  | `Action`         | The action assigned to the task.                                   |
+| `runtime` | `ContextRuntime` | The runtime the context performs engine-facing operations through. |
+
+Returns
+
+[`Context`](#context)\<`T`, `K`\>
+
+##### Constructor
+
+Creates a context for a task running on a worker.
+
+Parameters
+
+| Parameter | Type                                                          | Description                      |
+| --------- | ------------------------------------------------------------- | -------------------------------- |
+| `action`  | `Action`                                                      | The action assigned to the task. |
+| `v1`      | [`HatchetClient`](/reference/typescript/client#hatchetclient) | The worker's Hatchet client.     |
+| `worker`  | `InternalWorker`                                              | The worker running the task.     |
+
+Returns
+
+[`Context`](#context)\<`T`, `K`\>
+
 Properties
 
-| Property                                          | Type     | Default value | Description                                                     |
-| ------------------------------------------------- | -------- | ------------- | --------------------------------------------------------------- |
-| <a id="property-spawnindex"></a> ~~`spawnIndex`~~ | `number` | `0`           | **Deprecated** Kept for backward compat; prefer nextChildIndex. |
+| Property                                          | Type                                                          | Default value | Description                                                                                                                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="property-runtime"></a> `runtime`           | `ContextRuntime`                                              | `undefined`   | The runtime the context performs engine-facing operations through.                                                                                                         |
+| <a id="property-spawnindex"></a> ~~`spawnIndex`~~ | `number`                                                      | `0`           | **Deprecated** Kept for backward compat; prefer nextChildIndex.                                                                                                            |
+| <a id="property-v1"></a> `v1`                     | [`HatchetClient`](/reference/typescript/client#hatchetclient) | `undefined`   | The Hatchet client of the worker running the task. Only set when the context was created by a worker; a runtime without a client (see ContextRuntime) leaves it undefined. |
 
 #### Methods
 
@@ -437,7 +474,7 @@ The workflow version ID.
 
 ### ContextWorker
 
-ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+ContextWorker is a user-friendly view of the worker running the task, from the context of a run.
 
 #### Methods
 
@@ -514,7 +551,67 @@ Extends
 
 - [`Context`](#context)\<`T`, `K`\>
 
+#### Constructors
+
+<a id="constructor-1"></a>
+
+##### Constructor
+
+Creates a durable context on top of a runtime and a durable transport.
+
+Parameters
+
+| Parameter   | Type                               | Description                                                        |
+| ----------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `action`    | `Action`                           | The action assigned to the task.                                   |
+| `runtime`   | `ContextRuntime`                   | The runtime the context performs engine-facing operations through. |
+| `transport` | `DurableTransport`                 | The transport durable events travel over.                          |
+| `options?`  | `DurableContextOptions` & `object` | Engine version and eviction settings.                              |
+
+Returns
+
+[`DurableContext`](#durablecontext)\<`T`, `K`\>
+
+Overrides
+
+[`Context`](#context).[`constructor`](#constructor)
+
+##### Constructor
+
+Creates a durable context for a task running on a worker.
+
+Parameters
+
+| Parameter          | Type                                                          | Description                                                       |
+| ------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `action`           | `Action`                                                      | The action assigned to the task.                                  |
+| `v1`               | [`HatchetClient`](/reference/typescript/client#hatchetclient) | The worker's Hatchet client.                                      |
+| `worker`           | `InternalWorker`                                              | The worker running the task.                                      |
+| `durableListener`  | `DurableListenerClient`                                       | The worker's durable listener.                                    |
+| `evictionManager?` | `DurableEvictionManager`                                      | The worker's eviction manager, when the engine supports eviction. |
+| `engineVersion?`   | `string`                                                      | The engine version the worker is connected to.                    |
+
+Returns
+
+[`DurableContext`](#durablecontext)\<`T`, `K`\>
+
+Overrides
+
+[`Context`](#context).[`constructor`](#constructor)
+
 Accessors
+
+<a id="durablelistener"></a>
+
+##### `durableListener`
+
+Get Signature
+
+The transport durable events travel over.
+
+Returns
+
+`DurableTransport`
 
 <a id="invocationcount"></a>
 
@@ -719,3 +816,25 @@ Returns
 `Promise`\<`output`\<`T`\>\>
 
 The event payload, validated against the schema if provided.
+
+## Functions
+
+<a id="computememokey"></a>
+
+### `computeMemoKey()`
+
+Derives the memo key for a task run and its dependency values: the SHA-256 of the task
+run id followed by the JSON-serialised dependencies, over WebCrypto so it works in
+every runtime. The bytes are identical to the previous Node `createHash` version, so
+event logs recorded by older SDKs keep replaying.
+
+Parameters
+
+| Parameter           | Type                 |
+| ------------------- | -------------------- |
+| `taskRunExternalId` | `string`             |
+| `args`              | readonly `unknown`[] |
+
+Returns
+
+`Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>

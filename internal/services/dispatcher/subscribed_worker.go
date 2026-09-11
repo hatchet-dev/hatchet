@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -13,7 +14,9 @@ import (
 )
 
 type subscribedWorker struct {
-	stream    contracts.Dispatcher_ListenServer
+	// stream is any server stream whose message type is AssignedAction, so operator services
+	// can register their own streams alongside the SDK Listen streams; nil for operator-backed workers
+	stream    grpc.ServerStream
 	finished  chan<- bool
 	sendLock  *timeout_lock.TimeoutLock
 	pubBuffer *msgqueue.MQPubBuffer
