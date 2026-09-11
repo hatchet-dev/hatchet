@@ -1496,10 +1496,9 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 type V1OperatorKind string
 
 const (
-	V1OperatorKindHTTPAPI    V1OperatorKind = "HTTP_API"
-	V1OperatorKindDAG        V1OperatorKind = "DAG"
-	V1OperatorKindGRPC       V1OperatorKind = "GRPC"
-	V1OperatorKindSERVERLESS V1OperatorKind = "SERVERLESS"
+	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
+	V1OperatorKindDAG     V1OperatorKind = "DAG"
+	V1OperatorKindGRPC    V1OperatorKind = "GRPC"
 )
 
 func (e *V1OperatorKind) Scan(src interface{}) error {
