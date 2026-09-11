@@ -795,8 +795,6 @@ func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEven
 	return hashIdempotencyKey(kind, triggerOpts, waitForConditions, true)
 }
 
-// the key format DAG step entries were written with before the step identity was hashed in,
-// accepted alongside the current format so runs in flight across the upgrade still replay
 func (r *durableEventsRepository) createLegacyDagStepIdempotencyKey(triggerOpts *WorkflowNameTriggerOpts) ([]byte, error) {
 	if !triggerOpts.IsDagStepTrigger {
 		return nil, nil
@@ -813,9 +811,6 @@ func hashIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *Workflow
 		dataToHash = append(dataToHash, triggerOpts.Data...)
 		dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
 
-		// every step of an operator DAG shares the workflow name and input, so without the step
-		// identity two different steps hash identically and a node id collision resolves one
-		// step's trigger to another step's entry instead of failing as nondeterminism
 		if includeDagStepIdentity && triggerOpts.IsDagStepTrigger {
 			if triggerOpts.TargetActionId != nil {
 				dataToHash = append(dataToHash, []byte(*triggerOpts.TargetActionId)...)

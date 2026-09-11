@@ -675,8 +675,6 @@ func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncT
 	return fn, triggered
 }
 
-// a completed before b originally, so c must be emitted before d even though both roots are
-// satisfied as soon as the replay triggers them
 func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1)

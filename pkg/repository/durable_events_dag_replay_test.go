@@ -82,8 +82,6 @@ func reinvokeDurableTask(t *testing.T, ctx context.Context, repos userEventScope
 	require.NoError(t, err)
 }
 
-// two steps of one DAG share a workflow name and input, so only the step identity in the key
-// stops a misplaced replay from resolving one step to the other's entry
 func TestDagStepReplayAtAnotherStepsNodeIsNondeterministic(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()

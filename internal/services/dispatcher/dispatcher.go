@@ -591,9 +591,6 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		return nil
 	}
 
-	// a missing session is expected (the task was just evicted or hasn't re-registered), so the
-	// undelivered callbacks are published to the dead-letter queue for re-routing instead of
-	// nacking the whole message; a publish failure still falls back to the nack path
 	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
 
 	if err != nil {

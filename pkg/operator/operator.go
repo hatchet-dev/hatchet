@@ -73,8 +73,7 @@ type DAGStepTriggerResult struct {
 	IsFailure     bool
 	ErrorMessage  *string
 
-	// SatisfiedOrder is set when the completion is delivered as an EntryCompleted in satisfied
-	// order rather than applied from this result; nil for a step created skipped or cancelled.
+	// set when the completion arrives as an EntryCompleted instead of being applied from this result
 	SatisfiedOrder *int64
 
 	// ReExecuted is true when the step actually runs this invocation rather than being
