@@ -91,7 +91,7 @@ func clientFromCmd(cmd *cobra.Command) (string, client.Client) { //nolint:static
 		}
 	}
 
-	profile, err := cli.GetProfile(selectedProfile)
+	profile, err := cli.Profiles.GetProfile(selectedProfile)
 	if err != nil {
 		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 	}
