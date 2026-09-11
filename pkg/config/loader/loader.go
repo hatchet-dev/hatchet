@@ -5,7 +5,7 @@ package loader
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -89,10 +89,54 @@ func parseRetentionDuration(name, value string) (time.Duration, error) {
 
 type ConfigLoader struct {
 	directory string
+
+	// logWriter is an optional runtime override for where loggers built by this
+	// loader write. Nil means os.Stderr.
+	logWriter io.Writer
 }
 
-func NewConfigLoader(directory string) *ConfigLoader {
-	return &ConfigLoader{directory: directory}
+// ConfigLoaderOpt configures a ConfigLoader created by NewConfigLoader.
+type ConfigLoaderOpt func(*ConfigLoader)
+
+// WithLogWriter routes the loggers this loader constructs (database, server and
+// the additional per-service loggers) to w instead of os.Stderr. This is a
+// runtime-only override intended for embedding callers; it cannot be expressed
+// in a config file. Explicit writers set by a ServerConfigFileOverride take
+// precedence over w.
+//
+// The loader hands the same writer to several independent loggers that log
+// concurrently, so w is wrapped in a mutex-guarded writer here; callers can
+// pass writers that are not safe for concurrent use, such as a bytes.Buffer.
+func WithLogWriter(w io.Writer) ConfigLoaderOpt {
+	return func(c *ConfigLoader) {
+		c.logWriter = zerolog.SyncWriter(w)
+	}
+}
+
+// NewConfigLoader creates a ConfigLoader that reads server and database
+// configuration from the given directory, applying any options.
+func NewConfigLoader(directory string, opts ...ConfigLoaderOpt) *ConfigLoader {
+	c := &ConfigLoader{directory: directory}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+// applyLogWriter sets the loader's log writer on the given logger configs,
+// leaving any config that already carries an explicit writer untouched.
+func (c *ConfigLoader) applyLogWriter(cfs ...*shared.LoggerConfigFile) {
+	if c.logWriter == nil {
+		return
+	}
+
+	for _, cf := range cfs {
+		if cf.Writer == nil {
+			cf.Writer = c.logWriter
+		}
+	}
 }
 
 // InitDataLayer initializes the database layer from the configuration
@@ -122,6 +166,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	c.applyLogWriter(&cf.Logger)
 
 	l := logger.NewStdErr(&cf.Logger, "database")
 
@@ -343,6 +389,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DDLPool:           ddlPool,
 		V1:                v1,
 		Seed:              cf.Seed,
+		Logger:            &l,
 	}, nil
 }
 
@@ -371,6 +418,8 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 	for _, override := range overrides {
 		override(cf)
 	}
+
+	c.applyLogWriter(&cf.Logger, &cf.AdditionalLoggers.Queue, &cf.AdditionalLoggers.PgxStats)
 
 	if cf.VersionOverride != "" {
 		version = cf.VersionOverride
@@ -780,7 +829,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
-		log.Printf("cleaning up server config")
+		l.Debug().Msg("cleaning up server config")
 
 		cleanupSecurityCheck()
 
