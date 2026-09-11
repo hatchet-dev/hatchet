@@ -18,7 +18,7 @@ import (
 // grpcRegisterOpts is what a wire registration passes: a self-leased GRPC row whose workers
 // are metered.
 func grpcRegisterOpts(name string) operatorsvc.RegisterOpts {
-	return operatorsvc.RegisterOpts{Name: name, Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
+	return operatorsvc.RegisterOpts{Name: name, Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
 }
 
 func TestRegisterCreatesWorker(t *testing.T) {
@@ -41,7 +41,7 @@ func TestRegisterCreatesWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "my-operator", op.Name)
 	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind)
-	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, op.Leasing)
+	assert.Equal(t, sqlcv1.V1OperatorLeasingManagerSELF, op.LeasingManager)
 	assert.Equal(t, op, reg.Operator)
 
 	created := svc.workers.Created()
@@ -176,7 +176,7 @@ func TestRegisterRejects(t *testing.T) {
 	// engine's own and are registered by the id of their claimed row
 	t.Run("unsupported kind", func(t *testing.T) {
 		svc := newTestService(t, nil)
-		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingSELF})
+		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF})
 		require.Error(t, err)
 		assert.Zero(t, svc.operators.Count())
 	})
@@ -190,24 +190,24 @@ func TestRegisterRejects(t *testing.T) {
 	})
 }
 
-// The leasing a registration names is written to the row whether the upsert creates or finds
-// it, so a row the engine was leasing that registers itself leaves the claim set, and the other
+// The leasing manager a registration names is written to the row whether the upsert creates or finds
+// it, so a row a dispatcher was claiming that registers itself leaves the claim set, and the other
 // way round.
-func TestRegisterSetsLeasing(t *testing.T) {
+func TestRegisterSetsLeasingManager(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
 
-	managed := grpcRegisterOpts("op")
-	managed.Leasing = sqlcv1.V1OperatorLeasingMANAGED
+	claimed := grpcRegisterOpts("op")
+	claimed.LeasingManager = sqlcv1.V1OperatorLeasingManagerDISPATCHER
 
-	reg, err := svc.Register(t.Context(), tenant, managed)
+	reg, err := svc.Register(t.Context(), tenant, claimed)
 	require.NoError(t, err)
-	assert.Equal(t, sqlcv1.V1OperatorLeasingMANAGED, reg.Operator.Leasing)
+	assert.Equal(t, sqlcv1.V1OperatorLeasingManagerDISPATCHER, reg.Operator.LeasingManager)
 
 	again, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("op"))
 	require.NoError(t, err)
 	assert.Equal(t, reg.OperatorId, again.OperatorId, "the same (tenant, name, kind) row")
-	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, again.Operator.Leasing, "a repeat registration takes the leasing it names")
+	assert.Equal(t, sqlcv1.V1OperatorLeasingManagerSELF, again.Operator.LeasingManager, "a repeat registration takes the leasing manager it names")
 }
 
 // Limit exemption is the caller's to grant: the in-process host grants it to every worker it
@@ -222,7 +222,7 @@ func TestRegisterExemptsWorkerOnRequest(t *testing.T) {
 	_, err := svc.Register(t.Context(), tenant, exempt)
 	require.NoError(t, err)
 
-	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED})
+	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER})
 
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ExemptFromLimits: true})
 	require.NoError(t, err)

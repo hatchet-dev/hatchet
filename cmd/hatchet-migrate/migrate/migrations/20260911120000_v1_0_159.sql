@@ -9,16 +9,16 @@
 -- The version jumps from v1_0_154 to v1_0_159 because belanger/serverless-operator, which
 -- stacks on this branch, owns v1_0_155 to v1_0_158.
 
--- What an operator is (kind) and who keeps it alive (leasing) are separate axes. MANAGED rows
--- are assigned to a dispatcher by ClaimOperators and built from a factory inside the engine;
+-- What an operator is (kind) and who keeps it alive (leasing manager) are separate axes. DISPATCHER rows
+-- are claimed by a dispatcher through ClaimOperators and built from a factory inside the engine;
 -- SELF rows keep themselves alive, through a Listen stream out of process or their own leaser in
 -- process, and are never claimed.
-CREATE TYPE v1_operator_leasing AS ENUM ('MANAGED', 'SELF');
+CREATE TYPE v1_operator_leasing_manager AS ENUM ('SELF', 'DISPATCHER');
 
-ALTER TABLE v1_operator ADD COLUMN leasing v1_operator_leasing NOT NULL DEFAULT 'SELF';
+ALTER TABLE v1_operator ADD COLUMN leasing_manager v1_operator_leasing_manager NOT NULL DEFAULT 'SELF';
 
 -- Every DAG operator row was claimed by the engine before the column existed.
-UPDATE v1_operator SET leasing = 'MANAGED' WHERE kind = 'DAG';
+UPDATE v1_operator SET leasing_manager = 'DISPATCHER' WHERE kind = 'DAG';
 
 -- SERVERLESS is retired: the serverless operator is a GRPC contract operator that leases itself
 -- in both modes. The enum value stays (Postgres cannot drop one, and databases migrated by the
@@ -71,8 +71,8 @@ DROP INDEX IF EXISTS v1_operator_tenant_name_kind_key;
 -- migrations. Rows folded from SERVERLESS into GRPC, and renamed duplicates, stay as they are.
 CREATE UNIQUE INDEX IF NOT EXISTS v1_operator_grpc_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'GRPC';
 
-ALTER TABLE v1_operator DROP COLUMN IF EXISTS leasing;
+ALTER TABLE v1_operator DROP COLUMN IF EXISTS leasing_manager;
 
-DROP TYPE IF EXISTS v1_operator_leasing;
+DROP TYPE IF EXISTS v1_operator_leasing_manager;
 
 -- +goose StatementEnd

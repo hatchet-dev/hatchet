@@ -1536,46 +1536,46 @@ func (ns NullV1OperatorKind) Value() (driver.Value, error) {
 	return string(ns.V1OperatorKind), nil
 }
 
-type V1OperatorLeasing string
+type V1OperatorLeasingManager string
 
 const (
-	V1OperatorLeasingMANAGED V1OperatorLeasing = "MANAGED"
-	V1OperatorLeasingSELF    V1OperatorLeasing = "SELF"
+	V1OperatorLeasingManagerSELF       V1OperatorLeasingManager = "SELF"
+	V1OperatorLeasingManagerDISPATCHER V1OperatorLeasingManager = "DISPATCHER"
 )
 
-func (e *V1OperatorLeasing) Scan(src interface{}) error {
+func (e *V1OperatorLeasingManager) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V1OperatorLeasing(s)
+		*e = V1OperatorLeasingManager(s)
 	case string:
-		*e = V1OperatorLeasing(s)
+		*e = V1OperatorLeasingManager(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V1OperatorLeasing: %T", src)
+		return fmt.Errorf("unsupported scan type for V1OperatorLeasingManager: %T", src)
 	}
 	return nil
 }
 
-type NullV1OperatorLeasing struct {
-	V1OperatorLeasing V1OperatorLeasing `json:"v1_operator_leasing"`
-	Valid             bool              `json:"valid"` // Valid is true if V1OperatorLeasing is not NULL
+type NullV1OperatorLeasingManager struct {
+	V1OperatorLeasingManager V1OperatorLeasingManager `json:"v1_operator_leasing_manager"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1OperatorLeasingManager is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV1OperatorLeasing) Scan(value interface{}) error {
+func (ns *NullV1OperatorLeasingManager) Scan(value interface{}) error {
 	if value == nil {
-		ns.V1OperatorLeasing, ns.Valid = "", false
+		ns.V1OperatorLeasingManager, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V1OperatorLeasing.Scan(value)
+	return ns.V1OperatorLeasingManager.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV1OperatorLeasing) Value() (driver.Value, error) {
+func (ns NullV1OperatorLeasingManager) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V1OperatorLeasing), nil
+	return string(ns.V1OperatorLeasingManager), nil
 }
 
 type V1OtelSpanKind string
@@ -3610,15 +3610,15 @@ type V1OperationIntervalSettings struct {
 }
 
 type V1Operator struct {
-	ID        uuid.UUID          `json:"id"`
-	TenantID  uuid.UUID          `json:"tenant_id"`
-	Name      string             `json:"name"`
-	Kind      V1OperatorKind     `json:"kind"`
-	Leasing   V1OperatorLeasing  `json:"leasing"`
-	Config    []byte             `json:"config"`
-	WorkerID  *uuid.UUID         `json:"worker_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             uuid.UUID                `json:"id"`
+	TenantID       uuid.UUID                `json:"tenant_id"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+	Config         []byte                   `json:"config"`
+	WorkerID       *uuid.UUID               `json:"worker_id"`
+	CreatedAt      pgtype.Timestamptz       `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz       `json:"updated_at"`
 }
 
 type V1OtelTraceLookupOlap struct {

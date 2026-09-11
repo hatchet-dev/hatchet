@@ -33,7 +33,7 @@ func (s *OperatorServiceImpl) Register(ctx context.Context, req *v1contracts.Ope
 	reg, err := s.svc.Register(ctx, tenant, operatorsvc.RegisterOpts{
 		Name:           req.Name,
 		Kind:           sqlcv1.V1OperatorKindGRPC,
-		Leasing:        sqlcv1.V1OperatorLeasingSELF,
+		LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF,
 		SlotConfig:     req.SlotConfig,
 		Labels:         req.Labels,
 		RuntimeInfo:    req.RuntimeInfo,
