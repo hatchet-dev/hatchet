@@ -44,6 +44,11 @@ type RegisterOpts struct {
 	Labels      map[string]*contracts.WorkerLabels
 	RuntimeInfo *contracts.RuntimeInfo
 
+	// ExemptFromLimits leaves the worker out of the tenant's worker and slot limits. It is a
+	// hosting fact: the in-process host sets it for every worker it creates, the wire never
+	// does.
+	ExemptFromLimits bool
+
 	// ResumeWorkerId names a worker of this operator to reuse instead of creating one. A
 	// worker that no longer exists, or that belongs to another operator, is replaced by a new
 	// one rather than refused, since a caller only ever learns about its own workers.
@@ -236,11 +241,11 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 	operatorId := op.ID
 
 	createOpts := &repository.CreateWorkerOpts{
-		DispatcherId: s.dispatcherId,
-		Name:         name,
-		SlotConfig:   slotConfig,
-		OperatorId:   &operatorId,
-		OperatorKind: op.Kind,
+		DispatcherId:     s.dispatcherId,
+		Name:             name,
+		SlotConfig:       slotConfig,
+		OperatorId:       &operatorId,
+		ExemptFromLimits: opts.ExemptFromLimits,
 	}
 
 	if opts.RuntimeInfo != nil {

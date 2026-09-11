@@ -205,14 +205,15 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, o operator.OpenOp
 	}
 
 	reg, err := h.svc.Register(ctx, tenant, operatorsvc.RegisterOpts{
-		OperatorId:     id.OperatorId,
-		Name:           id.Name,
-		Kind:           kind,
-		WorkerName:     o.WorkerName,
-		SlotConfig:     o.SlotConfig,
-		Labels:         labelsToProto(o.Labels),
-		RuntimeInfo:    o.RuntimeInfo,
-		ResumeWorkerId: o.ResumeWorkerId,
+		OperatorId:       id.OperatorId,
+		Name:             id.Name,
+		Kind:             kind,
+		ExemptFromLimits: true,
+		WorkerName:       o.WorkerName,
+		SlotConfig:       o.SlotConfig,
+		Labels:           labelsToProto(o.Labels),
+		RuntimeInfo:      o.RuntimeInfo,
+		ResumeWorkerId:   o.ResumeWorkerId,
 	})
 
 	if err != nil {

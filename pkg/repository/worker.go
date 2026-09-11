@@ -53,19 +53,14 @@ type CreateWorkerOpts struct {
 	// connections (for example an OperatorService Listen stream), nil for SDK workers.
 	OperatorId *uuid.UUID `validate:"omitempty"`
 
-	// The kind of the operator this worker backs; required with OperatorId. Workers of
-	// operators the engine hosts for every tenant as infrastructure (kind DAG) are not metered
-	// against the tenant's worker and slot limits; every other worker is.
-	OperatorKind sqlcv1.V1OperatorKind `validate:"required_with=OperatorId,omitempty,oneof=HTTP_API DAG GRPC"`
-}
-
-// unmeteredWorker reports whether a worker is exempt from the tenant's WORKER and WORKER_SLOT
-// limits: the DAG operator's workers are engine infrastructure, created for every tenant with
-// DAG workflows whether or not the tenant runs workers of its own. The limit queries in
-// workers.sql and tenant_limits.sql leave the same workers out, keyed on the operator's kind,
-// so what is metered here is what they count.
-func unmeteredWorker(opts *CreateWorkerOpts) bool {
-	return opts.OperatorId != nil && opts.OperatorKind == sqlcv1.V1OperatorKindDAG
+	// ExemptFromLimits leaves the worker out of the tenant's WORKER and WORKER_SLOT limits:
+	// neither metered here nor counted by the limit queries in workers.sql and
+	// tenant_limits.sql, which read the same flag off the row. It is a hosting fact, decided by
+	// whoever creates the worker: the in-process operator host sets it for every worker it
+	// creates, since those are engine infrastructure that runs whether or not the tenant runs
+	// workers of its own; the wire never sets it, so a worker registered over OperatorService
+	// or by an SDK is metered.
+	ExemptFromLimits bool
 }
 
 type UpdateWorkerOpts struct {
@@ -655,7 +650,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	postWorker := func() {}
 	postWorkerSlot := func() {}
 
-	if !unmeteredWorker(opts) {
+	if !opts.ExemptFromLimits {
 		var preWorker, preWorkerSlot func() error
 
 		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
@@ -690,6 +685,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Actionhash:          hashActions(initialActions),
 		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
 		OperatorId:          opts.OperatorId,
+		Exemptfromlimits:    opts.ExemptFromLimits,
 	}
 
 	// Default to self hosted

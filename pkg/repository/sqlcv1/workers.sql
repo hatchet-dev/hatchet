@@ -341,11 +341,10 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- the DAG operator's workers are engine infrastructure and are not metered; every other
-    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
-    )
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
+    AND NOT w."exemptFromLimits"
 GROUP BY wc.tenant_id
 ;
 
@@ -361,11 +360,10 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- the DAG operator's workers are engine infrastructure and are not metered; every other
-    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
-    )
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
+    AND NOT w."exemptFromLimits"
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -795,7 +793,8 @@ INSERT INTO "Worker" (
     "runtimeExtra",
     "actionHash",
     "operatorActionCount",
-    "operatorId"
+    "operatorId",
+    "exemptFromLimits"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -813,7 +812,9 @@ INSERT INTO "Worker" (
     -- the size of the initial action set the caller links right after
     @operatorActionCount::integer,
     -- set for workers backing an operator connection; NULL for SDK workers
-    sqlc.narg('operatorId')::uuid
+    sqlc.narg('operatorId')::uuid,
+    -- true only for workers the in-process operator host creates; the limit queries skip them
+    @exemptFromLimits::boolean
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec
