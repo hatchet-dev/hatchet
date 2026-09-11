@@ -169,8 +169,9 @@ func newNonce() (string, error) {
 }
 
 // signedUpgradeHeaders builds the bodyless upgrade's authorization headers. The signature
-// covers timestamp, nonce, task id and invocation so a captured upgrade cannot be replayed
-// for another task or, once the endpoint tracks nonces, at all.
+// covers the endpoint id, timestamp, nonce, task id and invocation so a captured upgrade
+// cannot be replayed for another task or endpoint or, once the endpoint tracks nonces, at
+// all.
 func signedUpgradeHeaders(secret, endpointId, taskId string, invocation int32, now time.Time, nonce string) (http.Header, error) {
 	if secret == "" {
 		return nil, fmt.Errorf("%w: endpoint %s", ErrNoSecret, endpointId)
@@ -179,7 +180,7 @@ func signedUpgradeHeaders(secret, endpointId, taskId string, invocation int32, n
 	timestamp := strconv.FormatInt(now.Unix(), 10)
 	inv := strconv.FormatInt(int64(invocation), 10)
 
-	sig, err := signature.Sign(contract.UpgradeSigningPayload(timestamp, nonce, taskId, inv), secret)
+	sig, err := signature.Sign(contract.UpgradeSigningPayload(endpointId, timestamp, nonce, taskId, inv), secret)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not sign upgrade: %w", err)

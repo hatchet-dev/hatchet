@@ -103,6 +103,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload := contract.UpgradeSigningPayload(
+			r.Header.Get(contract.EndpointIdHeader),
 			r.Header.Get(contract.TimestampHeader),
 			r.Header.Get(contract.NonceHeader),
 			r.Header.Get(contract.TaskIdHeader),

@@ -60,11 +60,14 @@ hex HMAC-SHA256). The Worker checks, in this order:
   `HATCHET_ENDPOINT_ID` is set. A captured request is therefore only replayable for five
   minutes; a task with side effects should treat `(endpointId, taskRunExternalId, retryCount)`
   as its idempotency key.
-- **Websocket upgrades** (durable trigger): the HMAC over `timestamp.nonce.taskId.invocation`,
-  the same five minute window on `X-Hatchet-Timestamp`, and the nonce, which is consumed from
-  a bounded in-memory set after the signature verified (`NonceSet`, 4096 entries, expiring
-  with the window). That set is per isolate; a production endpoint should consume nonces in a
-  Durable Object or an expiring KV key so a replay that lands in another isolate is caught.
+- **Websocket upgrades** (durable trigger): the HMAC over
+  `endpointId.timestamp.nonce.taskId.invocation` (so a signature made for one endpoint is no
+  good at another that shares the secret), the same five minute window on
+  `X-Hatchet-Timestamp`, and the nonce, which is consumed from an in-memory set after the
+  signature verified (`NonceSet`: every accepted nonce is kept until its window has passed,
+  and a set holding 4096 live nonces refuses further upgrades with 503 rather than forget
+  one). That set is per isolate; a production endpoint should consume nonces in a Durable
+  Object or an expiring KV key so a replay that lands in another isolate is caught.
 - **The first frame**: its task id and invocation must match the verified upgrade headers,
   otherwise the socket is closed with 1008 before any task code runs.
 

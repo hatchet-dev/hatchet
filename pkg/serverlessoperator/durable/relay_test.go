@@ -98,6 +98,7 @@ func (ep *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := contract.UpgradeSigningPayload(
+		r.Header.Get(contract.EndpointIdHeader),
 		r.Header.Get(contract.TimestampHeader),
 		nonce,
 		r.Header.Get(contract.TaskIdHeader),
@@ -996,7 +997,7 @@ func TestSignedUpgradeHeaders(t *testing.T) {
 	assert.Equal(t, testTaskId, h.Get(contract.TaskIdHeader))
 	assert.Equal(t, "4", h.Get(contract.InvocationHeader))
 
-	expected, err := signature.Sign("1700000000.nonce."+testTaskId+".4", testSecret)
+	expected, err := signature.Sign("ep-1.1700000000.nonce."+testTaskId+".4", testSecret)
 	require.NoError(t, err)
 	assert.Equal(t, expected, h.Get(contract.SignatureHeader))
 

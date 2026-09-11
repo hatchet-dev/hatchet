@@ -5,6 +5,8 @@ package durable
 import (
 	"context"
 	"crypto/tls"
+	"github.com/hatchet-dev/hatchet/internal/signature"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"io"
 	"net"
 	"net/http"
@@ -183,3 +185,28 @@ func (netConnStub) RemoteAddr() net.Addr             { return nil }
 func (netConnStub) SetDeadline(time.Time) error      { return nil }
 func (netConnStub) SetReadDeadline(time.Time) error  { return nil }
 func (netConnStub) SetWriteDeadline(time.Time) error { return nil }
+
+// The upgrade signature is bound to the endpoint it was made for: the same headers verify
+// under that endpoint's id and under no other, so a signing secret shared by two endpoints
+// does not let one present the other's upgrade.
+func TestSignedUpgradeHeadersAreBoundToTheEndpoint(t *testing.T) {
+	const secret = "upgrade-secret"
+
+	now := time.Unix(1_700_000_000, 0)
+	h, err := signedUpgradeHeaders(secret, "endpoint-a", "task-1", 2, now, "nonce-1")
+	require.NoError(t, err)
+
+	payloadFor := func(endpointId string) string {
+		return contract.UpgradeSigningPayload(
+			endpointId,
+			h.Get(contract.TimestampHeader),
+			h.Get(contract.NonceHeader),
+			h.Get(contract.TaskIdHeader),
+			h.Get(contract.InvocationHeader),
+		)
+	}
+
+	assert.Equal(t, "endpoint-a", h.Get(contract.EndpointIdHeader))
+	assert.True(t, signature.Verify(payloadFor("endpoint-a"), secret, h.Get(contract.SignatureHeader)))
+	assert.False(t, signature.Verify(payloadFor("endpoint-b"), secret, h.Get(contract.SignatureHeader)), "the signature does not verify under another endpoint id")
+}

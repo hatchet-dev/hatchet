@@ -180,10 +180,11 @@ export async function verifySignedBody(
 }
 
 /**
- * A bounded set of upgrade nonces seen within the freshness window. Entries expire with
- * their timestamp (a nonce older than the window is refused by the timestamp check anyway)
- * and the oldest are dropped once `capacity` is reached, so memory is bounded whatever the
- * request rate.
+ * The set of upgrade nonces accepted within the freshness window. Every accepted nonce is
+ * kept until its window has passed (a nonce older than the window is refused by the timestamp
+ * check anyway), so a captured upgrade cannot be replayed within it whatever the request rate;
+ * once `capacity` live nonces are held, further upgrades are refused rather than a live nonce
+ * forgotten. Memory is bounded by the capacity either way.
  *
  * It lives in one isolate. Workers run many isolates, so a replay that lands in another
  * isolate is not caught by this set; production endpoints should back it with a Durable
@@ -196,29 +197,25 @@ export class NonceSet {
   constructor(private readonly capacity = 4096) {}
 
   /**
-   * Records nonce with the timestamp it was signed for and reports whether it was already
-   * present. Call it only after the signature verified, so unsigned traffic cannot fill it.
+   * Records nonce with the timestamp it was signed for. Returns "replayed" when it was
+   * already present, "full" when the set holds `capacity` nonces still within their window
+   * and cannot admit another, and "accepted" otherwise. Call it only after the signature
+   * verified, so unsigned traffic cannot fill it.
    */
-  consume(nonce: string, timestampSeconds: number, nowSeconds: number): boolean {
+  consume(nonce: string, timestampSeconds: number, nowSeconds: number): "accepted" | "replayed" | "full" {
     this.expire(nowSeconds);
 
     if (this.seen.has(nonce)) {
-      return true;
+      return "replayed";
     }
 
-    while (this.seen.size >= this.capacity) {
-      const oldest = this.seen.keys().next().value;
-
-      if (oldest === undefined) {
-        break;
-      }
-
-      this.seen.delete(oldest);
+    if (this.seen.size >= this.capacity) {
+      return "full";
     }
 
     this.seen.set(nonce, timestampSeconds);
 
-    return false;
+    return "accepted";
   }
 
   get size(): number {
@@ -239,19 +236,21 @@ export const upgradeNonces = new NonceSet();
 
 export type UpgradeVerification =
   | { ok: true; endpointId: string; taskId: string; invocation: number; nonce: string }
-  | { ok: false; status: 401 | 403; reason: string };
+  | { ok: false; status: 401 | 403 | 503; reason: string };
 
 /**
  * Verifies the bodyless websocket upgrade (durable/dial.go signedUpgradeHeaders). The
  * signature covers contract.UpgradeSigningPayload:
  *
- *   timestamp + "." + nonce + "." + task_id + "." + invocation
+ *   endpoint_id + "." + timestamp + "." + nonce + "." + task_id + "." + invocation
  *
- * each as it appears in its header. The timestamp must be within UPGRADE_MAX_AGE_SECONDS
- * of now in either direction, and the nonce is consumed from `nonces` (default: the
- * isolate's upgradeNonces) after the signature verified, so a captured upgrade cannot be
- * replayed within the window. The verified task id and invocation must then match the
- * first frame the operator sends: DurableClient.assertMatches does that.
+ * each as it appears in its header, so a signature made for one endpoint cannot be presented
+ * to another that shares the secret. The timestamp must be within UPGRADE_MAX_AGE_SECONDS of
+ * now in either direction, and the nonce is consumed from `nonces` (default: the isolate's
+ * upgradeNonces) after the signature verified, so a captured upgrade cannot be replayed
+ * within the window; a set that cannot admit another live nonce refuses the upgrade with 503
+ * rather than forget one. The verified task id and invocation must then match the first
+ * frame the operator sends: DurableClient.assertMatches does that.
  */
 export async function verifyUpgradeSignature(
   headers: Headers,
@@ -280,7 +279,7 @@ export async function verifyUpgradeSignature(
 
   const taskId = headers.get(TASK_ID_HEADER) ?? "";
   const invocation = headers.get(INVOCATION_HEADER) ?? "";
-  const payload = `${timestamp}.${nonce}.${taskId}.${invocation}`;
+  const payload = `${endpointId}.${timestamp}.${nonce}.${taskId}.${invocation}`;
   const expected = await signHex(secret, payload);
 
   if (!constantTimeEqual(expected, headers.get(SIGNATURE_HEADER) ?? "")) {
@@ -290,8 +289,15 @@ export async function verifyUpgradeSignature(
   // Only a verified nonce enters the set, so unsigned traffic cannot fill it.
   const nonces = opts.nonces === undefined ? upgradeNonces : opts.nonces;
 
-  if (nonces && nonces.consume(nonce, ts, now)) {
-    return { ok: false, status: 401, reason: "replayed nonce" };
+  if (nonces) {
+    switch (nonces.consume(nonce, ts, now)) {
+      case "replayed":
+        return { ok: false, status: 401, reason: "replayed nonce" };
+      case "full":
+        return { ok: false, status: 503, reason: "nonce storage full; retry later" };
+      case "accepted":
+        break;
+    }
   }
 
   return { ok: true, endpointId, taskId, invocation: Number.parseInt(invocation, 10), nonce };
