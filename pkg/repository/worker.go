@@ -130,22 +130,16 @@ type WorkerRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
-	// AddWorkerActions links actionIds to the worker and recomputes its action hash from the
-	// resulting set. Actions the worker already has are skipped. It returns the number of
-	// actions actually linked. The worker must belong to tenantId; otherwise nothing is
+	// ApplyWorkerActionsDelta links add to the worker and unlinks remove from it in one
+	// transaction, and recomputes the worker's action hash once from the resulting set, so a
+	// delta an operator acknowledges by sequence is committed whole or not at all. Adds are
+	// applied before removes; actions the worker already has are not linked again and actions
+	// it does not have are not unlinked, and neither counts in the returned totals. When more
+	// than maxNewLinks actions would be newly linked the whole delta is rolled back, removes
+	// included, and an error wrapping ErrWorkerActionBudgetExceeded is returned; a negative
+	// maxNewLinks disables the cap. The worker must belong to tenantId; otherwise nothing is
 	// mutated and an error wrapping pgx.ErrNoRows is returned.
-	AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (added int, err error)
-
-	// AddWorkerActionsWithinBudget is AddWorkerActions with a cap on the links it may create:
-	// when more than maxNewLinks actions would be newly linked the transaction is rolled back
-	// and an error wrapping ErrWorkerActionBudgetExceeded is returned. Actions the worker
-	// already has never count. A negative maxNewLinks disables the cap.
-	AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (added int, err error)
-
-	// RemoveWorkerActions unlinks actionIds from the worker and recomputes its action hash
-	// from the resulting set. Actions the worker does not have are skipped. It returns the
-	// number of actions actually unlinked. The tenant check is the same as AddWorkerActions.
-	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (removed int, err error)
+	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (added, removed int, err error)
 
 	// CountOperatorWorkerActions counts the action links held by every worker of the operator.
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
@@ -774,25 +768,22 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	return worker, nil
 }
 
-// ErrWorkerActionBudgetExceeded is returned by AddWorkerActionsWithinBudget when the delta
-// would link more actions than its budget allows. Nothing is linked in that case.
+// ErrWorkerActionBudgetExceeded is returned by ApplyWorkerActionsDelta when the delta would
+// link more actions than its budget allows. Nothing is changed in that case.
 var ErrWorkerActionBudgetExceeded = errors.New("worker action budget exceeded")
 
-func (w *workerRepository) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
-	return w.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, actionIds, -1)
-}
+func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (int, int, error) {
+	add = dedupeActionIds(add)
+	remove = dedupeActionIds(remove)
 
-func (w *workerRepository) AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error) {
-	actionIds = dedupeActionIds(actionIds)
-
-	if len(actionIds) == 0 {
-		return 0, nil
+	if len(add) == 0 && len(remove) == 0 {
+		return 0, 0, nil
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	defer rollback()
@@ -800,7 +791,46 @@ func (w *workerRepository) AddWorkerActionsWithinBudget(ctx context.Context, ten
 	// the row lock is held until commit, so concurrent deltas for the same worker apply one
 	// after the other and each recomputes the hash from the links it leaves behind
 	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
-		return 0, err
+		return 0, 0, err
+	}
+
+	added, err := w.linkActions(ctx, tx, tenantId, workerId, add)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// the links are rolled back with the transaction, before any remove is applied
+	if maxNewLinks >= 0 && int64(added) > maxNewLinks {
+		return 0, 0, fmt.Errorf("delta would link %d new actions to worker %s, the budget allows %d: %w", added, workerId, maxNewLinks, ErrWorkerActionBudgetExceeded)
+	}
+
+	removed, err := w.unlinkActions(ctx, tx, tenantId, workerId, remove)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if added == 0 && removed == 0 {
+		return 0, 0, nil
+	}
+
+	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return 0, 0, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, 0, err
+	}
+
+	return added, removed, nil
+}
+
+// linkActions links actionIds to the worker within tx, creating the "Action" rows that are
+// missing, and returns how many links it created. actionIds must be deduplicated.
+func (w *workerRepository) linkActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID, actionIds []string) (int, error) {
+	if len(actionIds) == 0 {
+		return 0, nil
 	}
 
 	actionUUIDs, err := w.resolveActionIds(ctx, tx, tenantId, actionIds)
@@ -819,43 +849,15 @@ func (w *workerRepository) AddWorkerActionsWithinBudget(ctx context.Context, ten
 		return 0, fmt.Errorf("could not link actions to worker: %w", err)
 	}
 
-	if len(linked) == 0 {
-		return 0, nil
-	}
-
-	// the links are rolled back with the transaction
-	if maxNewLinks >= 0 && int64(len(linked)) > maxNewLinks {
-		return 0, fmt.Errorf("delta would link %d new actions to worker %s, the budget allows %d: %w", len(linked), workerId, maxNewLinks, ErrWorkerActionBudgetExceeded)
-	}
-
-	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
-		return 0, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return 0, err
-	}
-
 	return len(linked), nil
 }
 
-func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
-	actionIds = dedupeActionIds(actionIds)
-
+// unlinkActions unlinks actionIds from the worker within tx and returns how many links it
+// removed. Actions the tenant does not have cannot be linked, so they are skipped without an
+// insert. actionIds must be deduplicated.
+func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID, actionIds []string) (int, error) {
 	if len(actionIds) == 0 {
 		return 0, nil
-	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
-
-	if err != nil {
-		return 0, err
-	}
-
-	defer rollback()
-
-	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
-		return 0, err
 	}
 
 	actions, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
@@ -885,18 +887,6 @@ func (w *workerRepository) RemoveWorkerActions(ctx context.Context, tenantId uui
 
 	if err != nil {
 		return 0, fmt.Errorf("could not unlink actions from worker: %w", err)
-	}
-
-	if len(unlinked) == 0 {
-		return 0, nil
-	}
-
-	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
-		return 0, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return 0, err
 	}
 
 	return len(unlinked), nil

@@ -98,15 +98,15 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	require.NoError(t, err)
 
 	incremental := seedWorkerForActions(t, ctx, pool, tenantId)
-	_, err = repo.AddWorkerActions(ctx, tenantId, incremental, []string{"svc:other"})
+	_, err = addWorkerActions(repo, ctx, tenantId, incremental, []string{"svc:other"})
 	require.NoError(t, err)
-	_, err = repo.AddWorkerActions(ctx, tenantId, incremental, []string{"svc:run"})
+	_, err = addWorkerActions(repo, ctx, tenantId, incremental, []string{"svc:run"})
 	require.NoError(t, err)
 
 	churned := seedWorkerForActions(t, ctx, pool, tenantId)
-	_, err = repo.AddWorkerActions(ctx, tenantId, churned, []string{"svc:run", "svc:extra", "svc:other"})
+	_, err = addWorkerActions(repo, ctx, tenantId, churned, []string{"svc:run", "svc:extra", "svc:other"})
 	require.NoError(t, err)
-	_, err = repo.RemoveWorkerActions(ctx, tenantId, churned, []string{"svc:extra"})
+	_, err = removeWorkerActions(repo, ctx, tenantId, churned, []string{"svc:extra"})
 	require.NoError(t, err)
 
 	want := hashActions([]string{"svc:run", "svc:other"})
@@ -127,14 +127,14 @@ func TestWorkerActionsRejectTenantWorkerMismatch(t *testing.T) {
 	tenantB := seedTenantForActions(t, ctx, pool)
 	worker := seedWorkerForActions(t, ctx, pool, tenantB)
 
-	_, err := repo.AddWorkerActions(ctx, tenantA, worker, []string{"svc:run"})
+	_, err := addWorkerActions(repo, ctx, tenantA, worker, []string{"svc:run"})
 	require.Error(t, err, "a worker of another tenant must not be linked")
 	assert.Empty(t, linkedActions(t, ctx, pool, worker))
 
-	_, err = repo.AddWorkerActions(ctx, tenantB, worker, []string{"svc:run"})
+	_, err = addWorkerActions(repo, ctx, tenantB, worker, []string{"svc:run"})
 	require.NoError(t, err)
 
-	_, err = repo.RemoveWorkerActions(ctx, tenantA, worker, []string{"svc:run"})
+	_, err = removeWorkerActions(repo, ctx, tenantA, worker, []string{"svc:run"})
 	require.Error(t, err, "a worker of another tenant must not be unlinked")
 	assert.Equal(t, []string{"svc:run"}, linkedActions(t, ctx, pool, worker))
 
@@ -156,26 +156,26 @@ func TestAddWorkerActionsWithinBudget(t *testing.T) {
 	worker := seedWorkerForActions(t, ctx, pool, tenantId)
 	initial := workerActionHash(t, ctx, pool, worker)
 
-	added, err := repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 1)
+	added, err := addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 1)
 	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
 	assert.Zero(t, added)
 	assert.Empty(t, linkedActions(t, ctx, pool, worker), "a refused delta links nothing")
 	assert.Equal(t, initial, workerActionHash(t, ctx, pool, worker))
 
-	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 2)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 2)
 	require.NoError(t, err)
 	assert.Equal(t, 2, added)
 
-	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 0)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 0)
 	require.NoError(t, err, "repeated actions do not consume budget")
 	assert.Zero(t, added)
 
-	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:b", "svc:c"}, 0)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:b", "svc:c"}, 0)
 	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
 	assert.Zero(t, added)
 	assert.Equal(t, []string{"svc:a", "svc:b"}, linkedActions(t, ctx, pool, worker))
 
-	added, err = repo.AddWorkerActionsWithinBudget(ctx, tenantId, worker, []string{"svc:b", "svc:c"}, -1)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:b", "svc:c"}, -1)
 	require.NoError(t, err, "a negative budget is unlimited")
 	assert.Equal(t, 1, added)
 }
@@ -217,7 +217,7 @@ func TestWorkerActionsConcurrentReplayOfExistingActions(t *testing.T) {
 	}
 
 	seed := seedWorkerForActions(t, ctx, pool, tenantId)
-	_, err := repo.AddWorkerActions(ctx, tenantId, seed, ids)
+	_, err := addWorkerActions(repo, ctx, tenantId, seed, ids)
 	require.NoError(t, err)
 
 	before := actionRowVersions(t, ctx, pool, tenantId)
@@ -243,7 +243,7 @@ func TestWorkerActionsConcurrentReplayOfExistingActions(t *testing.T) {
 		go func(workerId uuid.UUID, ids []string) {
 			defer wg.Done()
 
-			added, err := repo.AddWorkerActions(ctx, tenantId, workerId, ids)
+			added, err := addWorkerActions(repo, ctx, tenantId, workerId, ids)
 
 			if err == nil && added != total {
 				err = fmt.Errorf("linked %d actions, want %d", added, total)
@@ -295,7 +295,7 @@ func TestWorkerActionDeltaCostAtScale(t *testing.T) {
 	fill := time.Now()
 
 	for start := 0; start < total; start += chunk {
-		_, err := repo.AddWorkerActions(ctx, tenantId, worker, ids[start:start+chunk])
+		_, err := addWorkerActions(repo, ctx, tenantId, worker, ids[start:start+chunk])
 		require.NoError(t, err)
 	}
 
@@ -308,19 +308,19 @@ func TestWorkerActionDeltaCostAtScale(t *testing.T) {
 	}
 
 	started := time.Now()
-	added, err := repo.AddWorkerActions(ctx, tenantId, worker, extra)
+	added, err := addWorkerActions(repo, ctx, tenantId, worker, extra)
 	require.NoError(t, err)
 	require.Equal(t, chunk, added)
 	t.Logf("add chunk of %d new actions at %d linked: %s", chunk, total, time.Since(started))
 
 	started = time.Now()
-	added, err = repo.AddWorkerActions(ctx, tenantId, worker, ids[:chunk])
+	added, err = addWorkerActions(repo, ctx, tenantId, worker, ids[:chunk])
 	require.NoError(t, err)
 	require.Zero(t, added)
 	t.Logf("no-op add chunk of %d existing actions at %d linked: %s", chunk, total+chunk, time.Since(started))
 
 	started = time.Now()
-	removed, err := repo.RemoveWorkerActions(ctx, tenantId, worker, extra)
+	removed, err := removeWorkerActions(repo, ctx, tenantId, worker, extra)
 	require.NoError(t, err)
 	require.Equal(t, chunk, removed)
 	t.Logf("remove chunk of %d actions at %d linked: %s", chunk, total+chunk, time.Since(started))

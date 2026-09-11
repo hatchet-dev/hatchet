@@ -313,46 +313,43 @@ func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, 
 
 // AddWorkerActions links actions without a budget, for tests that seed an action set.
 func (f *WorkerStore) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
-	return f.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, actionIds, -1)
+	added, _, err := f.ApplyWorkerActionsDelta(ctx, tenantId, workerId, actionIds, nil, -1)
+
+	return added, err
 }
 
-func (f *WorkerStore) AddWorkerActionsWithinBudget(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error) {
+// ApplyWorkerActionsDelta applies adds then removes, all or nothing: a delta over budget
+// changes nothing.
+func (f *WorkerStore) ApplyWorkerActionsDelta(_ context.Context, _ uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (int, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	var fresh []string
 
-	for _, id := range actionIds {
+	for _, id := range add {
 		if _, ok := f.actions[workerId][id]; !ok {
 			fresh = append(fresh, id)
 		}
 	}
 
 	if maxNewLinks >= 0 && int64(len(fresh)) > maxNewLinks {
-		return 0, fmt.Errorf("delta would link %d new actions, the budget allows %d: %w", len(fresh), maxNewLinks, repository.ErrWorkerActionBudgetExceeded)
+		return 0, 0, fmt.Errorf("delta would link %d new actions, the budget allows %d: %w", len(fresh), maxNewLinks, repository.ErrWorkerActionBudgetExceeded)
 	}
 
 	for _, id := range fresh {
 		f.actions[workerId][id] = struct{}{}
 	}
 
-	return len(fresh), nil
-}
-
-func (f *WorkerStore) RemoveWorkerActions(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	removed := 0
 
-	for _, id := range actionIds {
+	for _, id := range remove {
 		if _, ok := f.actions[workerId][id]; ok {
 			delete(f.actions[workerId], id)
 			removed++
 		}
 	}
 
-	return removed, nil
+	return len(fresh), removed, nil
 }
 
 func (f *WorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {

@@ -456,8 +456,9 @@ func (b *actionBudget) apply(added, removed int) {
 	b.linked += int64(added) - int64(removed)
 }
 
-// applyDelta validates and applies one delta to the worker's action set. It reports whether the
-// set changed.
+// applyDelta validates and applies one delta to the worker's action set, as one transaction:
+// a delta the caller acknowledges by sequence is committed whole or not at all. It reports
+// whether the set changed.
 func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, add, remove []string, budget *actionBudget) (bool, error) {
 	if n := len(add) + len(remove); n > MaxActionsPerDelta {
 		return false, status.Errorf(codes.InvalidArgument, "actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta)
@@ -467,36 +468,21 @@ func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, w
 		return false, status.Errorf(codes.InvalidArgument, "invalid actions delta: %s", err.Error())
 	}
 
-	changed := false
+	added, removed, err := s.workers.ApplyWorkerActionsDelta(ctx, tenantId, workerId, add, remove, budget.remaining())
 
-	if len(add) > 0 {
-		added, err := s.workers.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, add, budget.remaining())
-
-		if err != nil {
-			if errors.Is(err, repository.ErrWorkerActionBudgetExceeded) {
-				return false, status.Errorf(codes.ResourceExhausted, "operator holds %d actions and the delta adds more than the limit of %d allows", budget.linked, budget.limit)
-			}
-
-			l.Error().Ctx(ctx).Err(err).Msg("could not add worker actions")
-
-			return false, err
+	if err != nil {
+		if errors.Is(err, repository.ErrWorkerActionBudgetExceeded) {
+			return false, status.Errorf(codes.ResourceExhausted, "operator holds %d actions and the delta adds more than the limit of %d allows", budget.linked, budget.limit)
 		}
 
-		budget.apply(added, 0)
-		changed = changed || added > 0
+		l.Error().Ctx(ctx).Err(err).Msg("could not apply worker actions delta")
+
+		return false, err
 	}
 
-	if len(remove) > 0 {
-		removed, err := s.workers.RemoveWorkerActions(ctx, tenantId, workerId, remove)
+	budget.apply(added, removed)
 
-		if err != nil {
-			l.Error().Ctx(ctx).Err(err).Msg("could not remove worker actions")
-			return false, err
-		}
-
-		budget.apply(0, removed)
-		changed = changed || removed > 0
-	}
+	changed := added > 0 || removed > 0
 
 	l.Debug().Ctx(ctx).
 		Int("add", len(add)).

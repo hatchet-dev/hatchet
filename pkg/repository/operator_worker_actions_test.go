@@ -69,7 +69,7 @@ func TestUpdateOperatorWorkerActionsHashIsDigestOfLinkedSet(t *testing.T) {
 	workers := createWorkerActionsRepositoryForTest(pool)
 	operators := createOperatorRepositoryForTest(pool)
 
-	_, err := workers.AddWorkerActions(ctx, tenantId, workerId, []string{"svc:existing"})
+	_, err := addWorkerActions(workers, ctx, tenantId, workerId, []string{"svc:existing"})
 	require.NoError(t, err)
 
 	require.NoError(t, operators.UpdateOperatorWorkerActions(ctx, tenantId, workerId, []string{"Svc:Added", "svc:existing", "svc:other", "svc:other"}))
@@ -93,7 +93,7 @@ func TestUpdateOperatorWorkerActionsHashIsDigestOfLinkedSet(t *testing.T) {
 
 	// the worker repository's delta path and this call agree on the same set
 	sibling := seedWorkerForActions(t, ctx, pool, tenantId)
-	_, err = workers.AddWorkerActions(ctx, tenantId, sibling, []string{"svc:added", "svc:existing", "svc:other"})
+	_, err = addWorkerActions(workers, ctx, tenantId, sibling, []string{"svc:added", "svc:existing", "svc:other"})
 	require.NoError(t, err)
 	assert.Equal(t, storedWorkerActionHash(t, ctx, pool, sibling), storedWorkerActionHash(t, ctx, pool, workerId))
 }
