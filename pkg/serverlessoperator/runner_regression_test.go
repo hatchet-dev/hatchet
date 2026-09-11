@@ -8,15 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -99,7 +102,7 @@ func TestOlderInvocationFinishKeepsCurrentInvocation(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	fake := newFakeSession(nil, operator.Registration{WorkerId: uuid.New()})
 	reg := &registration{r: env.r, session: fake, events: &eventSender{session: fake}, inflight: map[string]map[attemptKey]*inflightTask{}}
 
 	id := uuid.New().String()
@@ -108,8 +111,10 @@ func TestOlderInvocationFinishKeepsCurrentInvocation(t *testing.T) {
 	old := &inflightTask{cancel: cancel1}
 	current := &inflightTask{cancel: cancel2}
 
-	// Both records are installed the way startDelivery installs them, N first.
+	// Both records are installed the way startDelivery installs them, N first, with the
+	// count startDelivery keeps beside the map.
 	reg.inflight[id] = map[attemptKey]*inflightTask{oldKey: old, currentKey: current}
+	reg.inflightCount.Store(2)
 	require.Equal(t, 2, reg.inFlight(), "both attempts are accounted for")
 
 	// N's deferred cleanup runs.
@@ -192,7 +197,7 @@ func (r *blockedOpen) OpenDurable(ctx context.Context, _ uuid.UUID, _ int32) (op
 // timeout like the rest of the invocation.
 func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 	env := newTestEnv(t)
-	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	fake := newFakeSession(nil, operator.Registration{WorkerId: uuid.New()})
 	blocking := &blockedOpen{Session: fake, observed: make(chan context.Context, 1)}
 	reg := &registration{r: env.r, session: blocking, events: &eventSender{session: fake}}
 
@@ -409,4 +414,205 @@ func TestUnitsOfOneTenantShareOneRegistration(t *testing.T) {
 	require.Eventually(t, reg.isClosed, eventually, 10*time.Millisecond)
 	assert.Nil(t, env.tenant(tenant))
 	assert.Eventually(t, func() bool { return len(env.host.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
+}
+
+// Deliveries belong to the tenant's registration, which stays open while the tenant owns any
+// unit: a busy tenant's units report no deliveries in flight except its last one, so a
+// process can shed the others without interrupting anything, and the delivery finishes on
+// the registration it started on.
+func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", shard: 0, actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", shard: 1, actions: []string{"svc:b"}})
+	env.addEndpoint(a)
+	env.addEndpoint(b)
+
+	started, release := holdingSender(env, a.TriggerUrl)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
+
+	session := env.host.session(0)
+	require.NotNil(t, session)
+
+	session.deliver(t, startAction(a.Namespace, "svc:a"))
+
+	select {
+	case <-started:
+	case <-time.After(eventually):
+		t.Fatal("delivery never started")
+	}
+
+	assert.Equal(t, 0, env.r.InFlight(env.unit(a)), "a unit of a tenant that owns others reports nothing in flight")
+	assert.Equal(t, 0, env.r.InFlight(env.unit(b)))
+
+	// Losing b leaves the registration and its delivery where they are; a is now the last
+	// unit and reports the delivery.
+	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(b)})
+	assert.False(t, session.isClosed())
+	assert.Equal(t, 1, env.r.InFlight(env.unit(a)))
+
+	release()
+
+	require.Eventually(t, func() bool { return env.r.InFlight(env.unit(a)) == 0 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return session.lastEvent() != nil && session.lastEvent().EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED
+	}, eventually, 10*time.Millisecond, "the delivery completed on the registration it started on")
+}
+
+// barrierHost blocks every Open until want of them are in progress at once, or a second
+// passes, and records the most concurrent Opens it saw.
+type barrierHost struct {
+	fakeHost
+	want    int
+	entered int
+	most    int
+	release chan struct{}
+	cond    *sync.Cond
+}
+
+func newBarrierHost(want int) *barrierHost {
+	h := &barrierHost{want: want, release: make(chan struct{})}
+	h.cond = sync.NewCond(&h.fakeHost.mu)
+
+	return h
+}
+
+func (h *barrierHost) Open(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
+	h.fakeHost.mu.Lock()
+	h.entered++
+	h.most = max(h.most, h.entered)
+
+	if h.entered == h.want {
+		close(h.release)
+	}
+
+	h.fakeHost.mu.Unlock()
+
+	select {
+	case <-h.release:
+	case <-time.After(time.Second):
+	case <-ctx.Done():
+	}
+
+	h.fakeHost.mu.Lock()
+	h.entered--
+	h.fakeHost.mu.Unlock()
+
+	return h.fakeHost.Open(ctx, id, opts)
+}
+
+func (h *barrierHost) mostConcurrent() int {
+	h.fakeHost.mu.Lock()
+	defer h.fakeHost.mu.Unlock()
+
+	return h.most
+}
+
+// One UnitsGained call carrying several tenants (a startup, a takeover) opens their
+// registrations concurrently, bounded by MaintenanceConcurrency, rather than waiting through
+// every tenant's load and Open in series.
+func TestGainedTenantsOpenConcurrently(t *testing.T) {
+	env := newTestEnv(t)
+	env.r.cfg.MaintenanceConcurrency = 4
+
+	host := newBarrierHost(4)
+	env.r.host = host
+
+	units := make([]memrepo.Unit, 0, 6)
+
+	for i := 0; i < 6; i++ {
+		row := healthyRow(endpointSpec{tenantId: uuid.New(), name: fmt.Sprintf("t%d", i), actions: []string{"svc:a"}})
+		env.addEndpoint(row)
+		units = append(units, env.unit(row))
+	}
+
+	start := time.Now()
+	env.r.UnitsGained(context.Background(), units)
+
+	assert.Equal(t, 4, host.mostConcurrent(), "gains of one batch open up to MaintenanceConcurrency tenants at once")
+	assert.Less(t, time.Since(start), 3*time.Second)
+	assert.Equal(t, 6, host.openCount())
+}
+
+// partialPutSession accepts every workflow but the one named "rejected".
+type partialPutSession struct{ operator.Session }
+
+func (partialPutSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
+	if wf.Name == "rejected" {
+		return nil, errors.New("catalog validation rejection")
+	}
+
+	return nil, nil
+}
+
+// An action the engine's rules accept but its storage cannot hold (a NUL code point, invalid
+// UTF-8, an oversized id) is refused by the parser, before the union or the session sees it.
+func TestHealthcheckRejectsUnstorableActions(t *testing.T) {
+	limits := catalogLimits{maxWorkflows: 200, maxActions: 500}
+
+	for name, body := range map[string]string{
+		"nul":       `{"actions":["review:run\u0000"]}`,
+		"oversized": `{"actions":["review:` + strings.Repeat("v", maxActionIdBytes) + `"]}`,
+		"bad utf-8": "{\"actions\":[\"review:run\xff\"]}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := parseHealthcheckResponse([]byte(body), uuid.New(), limits)
+			require.Error(t, err)
+		})
+	}
+
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), uuid.New(), limits)
+	require.NoError(t, err)
+	assert.Len(t, res.actions, 1)
+}
+
+// A delta the engine refuses is taken back out of the session: the session's desired set
+// returns to what the registration advertises, and the next sync has nothing to send.
+func TestRefusedDeltaIsReversedOnTheSession(t *testing.T) {
+	c, repo := budgetCache(t, 1, 1)
+	ep := c.byId[repo.rows[0].ID]
+	base, _ := c.ActionUnion()
+
+	fake := newFakeSession(nil, operator.Registration{})
+	reg := newRegistrationForTest(c, fake)
+	ts := reg.ts
+	p := newEndpointPoller(reg.r, ts, ep)
+
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), ep.namespace, catalogLimits{maxWorkflows: 200, maxActions: 500})
+	require.NoError(t, err)
+
+	fake.flushErr = errors.New("engine could not persist the action")
+	require.Error(t, p.applyChange(context.Background(), reg, res), "the engine's refusal is reported")
+
+	union, _ := c.ActionUnion()
+	assert.Equal(t, base, union, "the cache rolled the endpoint's contribution back")
+	assert.Equal(t, base, fake.desired(base), "the session desires the advertised set again")
+	assert.Equal(t, 4, fake.deltaCount(), "the add and the remove of the catalog, then their reversal")
+
+	require.NoError(t, reg.syncActions(context.Background(), c))
+	assert.Equal(t, 4, fake.deltaCount(), "nothing is left to send")
+	assert.Equal(t, c.Revision(), reg.advertisedRev)
+}
+
+// A run of rejected catalogs, each with a fresh accepted workflow ahead of the rejected one,
+// must not grow the remembered puts past the catalog: they are pruned on failure as on
+// success.
+func TestRejectedCatalogsDoNotAccumulatePutHashes(t *testing.T) {
+	l := zerolog.Nop()
+	p := &endpointPoller{putHashes: map[string]string{}, r: &runner{l: &l}}
+	reg := &registration{session: partialPutSession{}}
+
+	for i := 0; i < 250; i++ {
+		res := &healthcheckResult{
+			workflows:      []*v1.CreateWorkflowVersionRequest{{Name: fmt.Sprintf("accepted-%d", i)}, {Name: "rejected"}},
+			workflowHashes: []string{fmt.Sprint(i), "reject"},
+		}
+
+		require.Error(t, p.applyChange(context.Background(), reg, res), "the catalog is rejected")
+	}
+
+	assert.LessOrEqual(t, len(p.putHashes), 2, "only the last catalog's names are remembered")
+	assert.Contains(t, p.putHashes, "accepted-249", "the accepted put of the last catalog is still remembered for the retry")
 }

@@ -65,22 +65,54 @@ func DAGFactory(l *zerolog.Logger, repo repository.Repository, writer operator.T
 	}
 }
 
-// Deps are the collaborators a Claimer cannot run without. Factories maps each operator kind
-// the claimer hosts to how it is built; a claimed row of any other kind is left alone.
-type Deps struct {
-	Host         operator.Host
-	Claims       Claims
-	DispatcherId uuid.UUID
-	Factories    map[sqlcv1.V1OperatorKind]Factory
-	Logger       *zerolog.Logger
-}
-
 type opts struct {
+	host         operator.Host
+	claims       Claims
+	dispatcherId uuid.UUID
+	factories    map[sqlcv1.V1OperatorKind]Factory
+	l            *zerolog.Logger
+
 	pollInterval    time.Duration
 	teardownTimeout time.Duration
 }
 
 type Opt func(*opts)
+
+func defaultOpts() *opts {
+	l := logger.NewDefaultLogger("operator_claimer")
+
+	return &opts{
+		factories:       map[sqlcv1.V1OperatorKind]Factory{},
+		l:               &l,
+		pollInterval:    defaultPollInterval,
+		teardownTimeout: defaultTeardownTimeout,
+	}
+}
+
+// WithHost sets the host claimed operators are opened on. Required.
+func WithHost(h operator.Host) Opt {
+	return func(o *opts) { o.host = h }
+}
+
+// WithClaims sets the claim query. Required.
+func WithClaims(c Claims) Opt {
+	return func(o *opts) { o.claims = c }
+}
+
+// WithDispatcherId sets the dispatcher whose claims this claimer hosts. Required.
+func WithDispatcherId(id uuid.UUID) Opt {
+	return func(o *opts) { o.dispatcherId = id }
+}
+
+// WithFactory registers how operators of one kind are built. A claimed row of a kind with no
+// factory is left alone.
+func WithFactory(kind sqlcv1.V1OperatorKind, f Factory) Opt {
+	return func(o *opts) { o.factories[kind] = f }
+}
+
+func WithLogger(l *zerolog.Logger) Opt {
+	return func(o *opts) { o.l = l }
+}
 
 // WithPollInterval sets how often the claim query runs.
 func WithPollInterval(d time.Duration) Opt {
@@ -121,41 +153,32 @@ type Claimer struct {
 	stopOnce sync.Once
 }
 
-func New(deps Deps, fs ...Opt) (*Claimer, error) {
-	if deps.Host == nil || deps.Claims == nil {
-		return nil, errors.New("claimer: the host and the claim query are required")
-	}
-
-	if deps.DispatcherId == uuid.Nil {
-		return nil, errors.New("claimer: a dispatcher id is required")
-	}
-
-	o := &opts{pollInterval: defaultPollInterval, teardownTimeout: defaultTeardownTimeout}
+func New(fs ...Opt) (*Claimer, error) {
+	o := defaultOpts()
 
 	for _, f := range fs {
 		f(o)
 	}
 
-	l := deps.Logger
-
-	if l == nil {
-		defaultLogger := logger.NewDefaultLogger("operator_claimer")
-		l = &defaultLogger
+	if o.host == nil {
+		return nil, errors.New("host is required. use WithHost")
 	}
 
-	cl := l.With().Str("service", "operator_claimer").Logger()
-
-	factories := deps.Factories
-
-	if factories == nil {
-		factories = map[sqlcv1.V1OperatorKind]Factory{}
+	if o.claims == nil {
+		return nil, errors.New("claim query is required. use WithClaims")
 	}
+
+	if o.dispatcherId == uuid.Nil {
+		return nil, errors.New("dispatcher id is required. use WithDispatcherId")
+	}
+
+	cl := o.l.With().Str("service", "operator_claimer").Logger()
 
 	return &Claimer{
-		host:            deps.Host,
-		claims:          deps.Claims,
-		dispatcherId:    deps.DispatcherId,
-		factories:       factories,
+		host:            o.host,
+		claims:          o.claims,
+		dispatcherId:    o.dispatcherId,
+		factories:       o.factories,
 		l:               &cl,
 		pollInterval:    o.pollInterval,
 		teardownTimeout: o.teardownTimeout,

@@ -19,11 +19,6 @@ import (
 // engine-internal surface that only in-process operators get (TaskEventWriter and the
 // SharedOperator helpers). The hosting contract itself is in host.go.
 
-// tenantContextKey is the context key the dispatcher's engine-internal calls read the tenant
-// from. It must match the key set by the gRPC auth middleware
-// (internal/services/grpc/middleware/auth.go).
-const tenantContextKey = "tenant"
-
 // eventReportTimeout bounds a single result-reporting call. Reporting uses a detached
 // context (like the worker SDK) so a cancelled/timed-out task delivery still reports its
 // outcome.
@@ -85,10 +80,14 @@ type DAGStepTriggerResult struct {
 // TaskEventWriter is the engine-internal surface for engine-internal operators (the DAG
 // operator): calls that only exist inside the engine and are never available over gRPC. The
 // dispatcher implements it. Everything an operator needs that both hosts offer (events,
-// durable invocations, the action set) is on Session instead.
+// durable invocations, the action set) is on Session instead. Every call names its tenant
+// explicitly: nothing here reads the tenant the gRPC auth middleware puts on a request context.
 type TaskEventWriter interface {
-	// CancelTaskEvent reports a cancelled task with a custom reason.
-	CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
+	// CancelTaskEventCustom reports a cancelled task with a custom cancellation reason. It is
+	// the engine-internal writer behind SendCancelledWithMessage, distinct from the CANCELLED
+	// step action event every host offers through Session.SendStepActionEvent, and it is not
+	// on the gRPC surface: an out-of-process operator has no equivalent.
+	CancelTaskEventCustom(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
 	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
 
@@ -114,7 +113,8 @@ type SharedOperator[T any] struct {
 	inFlight map[string]context.CancelFunc
 
 	// lastActions is the action set the operator last advertised, so UpdateWorkerActions
-	// sends only the difference. Only the goroutine that refreshes actions touches it.
+	// sends only the difference. It is not guarded by mu: UpdateWorkerActions is the only
+	// reader and writer, and it is not safe for concurrent use (see its doc).
 	lastActions map[string]struct{}
 }
 
@@ -186,6 +186,12 @@ func (s *SharedOperator[T]) OperatorId() uuid.UUID {
 // advertised goes to the session as adds and removes, followed by a flush. It reports whether
 // anything changed. A delta that fails leaves the advertised set as it was, so the next call
 // repeats it; ids the engine already has are ignored by it.
+//
+// The difference is what makes the call cheap to repeat: the engine would accept the whole set
+// every time (adding an action the worker has is a no-op), but every send is a write, and the
+// removes cannot be derived without the previous set. It is not safe for concurrent use: the
+// operator calls it from one goroutine at a time (its Start, then the poller Start launches
+// once that first call has returned), which is why lastActions needs no lock.
 func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) (bool, error) {
 	session := s.Session()
 
@@ -246,8 +252,6 @@ func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTrig
 		return nil, fmt.Errorf("operator has no task event writer configured")
 	}
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
-
 	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
 }
 
@@ -255,8 +259,6 @@ func (s *SharedOperator[T]) CancelDAGChildren(ctx context.Context, taskExternalI
 	if s.taskEventWriter == nil {
 		return fmt.Errorf("operator has no task event writer configured")
 	}
-
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
 
 	return s.taskEventWriter.CancelDAGChildren(ctx, s.tenantId, taskExternalIds)
 }
@@ -303,9 +305,10 @@ func (s *SharedOperator[T]) SendFailed(action *contracts.AssignedAction, errMsg 
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, errMsg, &shouldNotRetry)
 }
 
-// SendCancelledWithMessage reports a cancelled task with a custom cancellation reason, via
-// the dedicated CancelTaskEvent API rather than the generic step-action-event path. It is
-// engine-internal: there is no such RPC.
+// SendCancelledWithMessage reports a cancelled task with a custom cancellation reason through
+// the engine-internal writer rather than the generic step action event path, so the reason
+// reaches the run's events verbatim. There is no such RPC: an operator hosted over gRPC
+// reports a plain CANCELLED event instead.
 func (s *SharedOperator[T]) SendCancelledWithMessage(action *contracts.AssignedAction, msg string) error {
 	if s.taskEventWriter == nil {
 		return fmt.Errorf("operator has no task event writer configured")
@@ -316,9 +319,7 @@ func (s *SharedOperator[T]) SendCancelledWithMessage(action *contracts.AssignedA
 	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
 	defer cancel()
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
-
-	_, err := s.taskEventWriter.CancelTaskEvent(ctx, event)
+	_, err := s.taskEventWriter.CancelTaskEventCustom(ctx, s.tenantId, event)
 	return err
 }
 

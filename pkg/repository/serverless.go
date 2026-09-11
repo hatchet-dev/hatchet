@@ -31,6 +31,13 @@ type ServerlessUnit struct {
 	Shard    int32
 }
 
+// ServerlessEndpointVersion is one endpoint's id and row version (the later of updated_at
+// and status_changed_at), the keyset ListVersions pages on.
+type ServerlessEndpointVersion struct {
+	Version time.Time
+	ID      uuid.UUID
+}
+
 type ServerlessEndpointRepository interface {
 	// Create inserts the endpoint and, in the same transaction, upserts the tenant's settings
 	// row, creates the endpoint's lease unit if it is the first endpoint on that unit, and
@@ -57,6 +64,16 @@ type ServerlessEndpointRepository interface {
 	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
 	// keyset, in that order. Configuration, registered_actions and status changes all surface.
 	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// GetByNamespace resolves the tenant's endpoint an action namespace names, for a routing
+	// miss; pgx.ErrNoRows when there is none.
+	GetByNamespace(ctx context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
+	// ListVersions is the anti-entropy pass of a tenant's routing cache: every endpoint's id
+	// and version, keyset-paged on (version, id) from after, in that order, and nothing else,
+	// so the cache can find the rows it must fetch and the ids that are gone without
+	// transferring the tenant's rows.
+	ListVersions(ctx context.Context, tenantId uuid.UUID, after ServerlessEndpointVersion, limit int64) ([]ServerlessEndpointVersion, error)
+	// ListByIds returns the given endpoints, by id.
+	ListByIds(ctx context.Context, ids []uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
 
 	// UpdateStatus records a healthy/unhealthy transition and returns the database's
 	// status_changed_at of the write. It is written by the owning process on transitions only,

@@ -80,7 +80,8 @@ func startProcess(t *testing.T, e *testEnv) *operatorProcess {
 		pool:  pool,
 	}
 
-	host := hostgrpc.New(tokens, hostgrpc.Options{Logger: &l})
+	host, err := hostgrpc.New(hostgrpc.WithTokenSource(tokens), hostgrpc.WithLogger(&l))
+	require.NoError(t, err)
 
 	p.stopFn = func() error {
 		host.Close()

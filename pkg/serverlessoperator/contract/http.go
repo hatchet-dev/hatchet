@@ -34,8 +34,10 @@ const (
 // endpoint verifies SignatureHeader against UpgradeSigningPayload with its signing secret,
 // rejects a TimestampHeader more than UpgradeMaxAge from its clock in either direction,
 // consumes NonceHeader from a nonce set after the signature verified so a captured upgrade
-// cannot be replayed within the window, and checks that the first frame's task id and
-// invocation are the ones the headers were signed for.
+// cannot be replayed within the window (every accepted nonce is kept until its window has
+// passed; an endpoint whose nonce storage cannot admit another refuses the upgrade rather
+// than forget a live nonce), and checks that the first frame's task id and invocation are
+// the ones the headers were signed for.
 const (
 	NonceHeader      = "X-Hatchet-Nonce"
 	TaskIdHeader     = "X-Hatchet-Task-Id"
@@ -51,9 +53,12 @@ const RequestMaxAge = 5 * time.Minute
 const UpgradeMaxAge = RequestMaxAge
 
 // UpgradeSigningPayload is the string the durable upgrade signature covers:
-// timestamp "." nonce "." task_id "." invocation, each as it appears in its header.
-func UpgradeSigningPayload(timestamp, nonce, taskId, invocation string) string {
-	return timestamp + "." + nonce + "." + taskId + "." + invocation
+// endpoint_id "." timestamp "." nonce "." task_id "." invocation, each as it appears in its
+// header. The endpoint id is part of it so a signature made for one endpoint cannot be
+// presented to another that shares the signing secret: the endpoint verifies the id it
+// serves against the signed one, not against an unsigned header alone.
+func UpgradeSigningPayload(endpointId, timestamp, nonce, taskId, invocation string) string {
+	return endpointId + "." + timestamp + "." + nonce + "." + taskId + "." + invocation
 }
 
 // TriggerEnvelopeVersion is the version field of v1.ServerlessTriggerRequest.

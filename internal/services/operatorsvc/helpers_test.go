@@ -40,8 +40,13 @@ func newTestService(t *testing.T, operators *operatorsvctest.OperatorStore, opts
 	dispatcherId := uuid.New()
 
 	svc, err := operatorsvc.New(
-		operatorsvc.Deps{Operators: operators, Workers: workers, Dispatcher: d, DispatcherId: dispatcherId},
-		append([]operatorsvc.Opt{operatorsvc.WithLogger(&l)}, opts...)...,
+		append([]operatorsvc.Opt{
+			operatorsvc.WithOperatorStore(operators),
+			operatorsvc.WithWorkerStore(workers),
+			operatorsvc.WithDispatcherBackend(d),
+			operatorsvc.WithDispatcherId(dispatcherId),
+			operatorsvc.WithLogger(&l),
+		}, opts...)...,
 	)
 	require.NoError(t, err)
 

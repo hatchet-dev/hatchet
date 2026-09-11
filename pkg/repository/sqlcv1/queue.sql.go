@@ -678,9 +678,11 @@ type ListActionsForWorkersLegacyFallbackRow struct {
 	ActionId pgtype.Text `json:"actionId"`
 }
 
-// Fallback for workers registered before actionHash existed; expands the full
-// worker<>action join per worker. Prefer the hash-cached path in the
-// assignment repository (ListLiveWorkerActionHashes + ListWorkerActionSets).
+// Fallback for workers without an actionHash: workers registered before the column existed,
+// and operator workers whose hash is NULL because a delta changed their links and the
+// refresh at the end of the delta sequence has not run yet. Expands the full worker<>action
+// join per worker. Prefer the hash-cached path in the assignment repository
+// (ListLiveWorkerActionHashes + ListWorkerActionSets).
 func (q *Queries) ListActionsForWorkersLegacyFallback(ctx context.Context, db DBTX, arg ListActionsForWorkersLegacyFallbackParams) ([]*ListActionsForWorkersLegacyFallbackRow, error) {
 	rows, err := db.Query(ctx, listActionsForWorkersLegacyFallback, arg.Tenantid, arg.Workerids)
 	if err != nil {

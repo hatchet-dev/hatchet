@@ -24,8 +24,8 @@ import (
 type Unit = repository.ServerlessUnit
 
 // Reconciler is what the leaser drives: the runner opens and closes registrations and
-// pollers as ownership changes and reports in-flight deliveries so shedding can prefer idle
-// units.
+// pollers as ownership changes and reports the deliveries losing a unit would interrupt, so
+// shedding takes idle units first.
 type Reconciler interface {
 	UnitsGained(ctx context.Context, units []Unit)
 	UnitsLost(ctx context.Context, units []Unit)
@@ -53,9 +53,10 @@ type Config struct {
 	ShedHysteresis    float64
 
 	// ClaimBatch is the most units one claim statement takes; MaxClaimPerTick caps how many a
-	// tick claims in total. The tick's budget is its fair share of the claimable units, so a
-	// takeover of many units spreads evenly over the live processes and a single survivor
-	// takes at most MaxClaimPerTick per tick.
+	// tick claims in total and sizes the sample of the claimable population each tick counts.
+	// The tick's budget is its fair share of the claimable units, so a takeover of many units
+	// spreads evenly over the live processes and a single survivor takes at most
+	// MaxClaimPerTick per tick.
 	ClaimBatch      int32
 	MaxClaimPerTick int32
 }
@@ -357,13 +358,19 @@ func (s *Leaser) Tick(ctx context.Context) error {
 
 	// Units still held by dead processes are claimable, so they count toward what the live
 	// processes share; without them a process that already owns its fair share has no budget
-	// to take a crashed process's units over. The count is capped at what the whole fleet
-	// can claim this tick: beyond that the exact population does not change anyone's budget.
-	claimable, err := s.repo.Leases().CountClaimable(ctx, int64(s.cfg.MaxClaimPerTick)*liveCount)
+	// to take a crashed process's units over. The count is a sample of at most
+	// MaxClaimPerTick units, whatever the fleet's size, so every replica's count costs the
+	// same bounded index walk each tick; only units with endpoints are counted, since only
+	// those are claimed. A full sample means the backlog is at least a tick's worth for this
+	// process, which is all the budget below needs to know.
+	sampleLimit := int64(s.cfg.MaxClaimPerTick)
+	claimable, err := s.repo.Leases().CountClaimable(ctx, sampleLimit)
 
 	if err != nil {
 		return fmt.Errorf("count claimable leases: %w", err)
 	}
+
+	saturated := claimable.UnitCount >= sampleLimit
 
 	total := otherWeight + myWeight + claimable.EndpointCount
 	fairShare := (total + liveCount - 1) / liveCount
@@ -373,9 +380,21 @@ func (s *Leaser) Tick(ctx context.Context) error {
 	// over the live processes within a tick instead of one process taking a fixed batch.
 	unitBudget := min((claimable.UnitCount+liveCount-1)/liveCount, int64(s.cfg.MaxClaimPerTick))
 
+	// A saturated sample is a backlog of unknown size beyond it (a cold start, a large
+	// process gone): every live process takes a full tick's worth now, the concurrent walks
+	// start at random keys and skip each other's locks, and the next tick sheds whatever
+	// overshot the fair share once the counts are exact again. Waiting for an exact fleet-wide
+	// count would cost every replica a scan of the whole backlog each tick.
+	if saturated {
+		unitBudget = int64(s.cfg.MaxClaimPerTick)
+		weightBudget = max(weightBudget, claimable.EndpointCount)
+	}
+
 	// The floor of one unit when holding nothing keeps units from being stranded while the
 	// weight estimate is off, pgoutbox style; the budgets spread load, they are not
-	// correctness constraints.
+	// correctness constraints. Progress with units held is guaranteed by the count itself:
+	// it covers only units with endpoints, so a claimable population raises the fair share
+	// above what the live processes hold and at least one of them gets a positive budget.
 	if len(current) == 0 && claimable.UnitCount > 0 {
 		unitBudget = max(unitBudget, 1)
 		weightBudget = max(weightBudget, 1)
@@ -522,25 +541,33 @@ func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {
 	return current, nil
 }
 
-// pickShed chooses units whose weights fit within excess, smallest first, skipping units with
-// in-flight deliveries and zero-weight units (shedding them changes nothing).
+// pickShed chooses units whose weights fit within excess: idle units first, smallest first,
+// then units with deliveries in flight, smallest first, so a busy unit is shed only when the
+// idle ones do not cover the excess. Being busy is an ordering, never an exclusion: a unit
+// with a delivery that never ends would otherwise keep an overloaded process from ever
+// shedding it. Zero-weight units are skipped, since shedding them changes nothing.
 func (s *Leaser) pickShed(current map[Unit]int32, excess int64) []Unit {
 	type candidate struct {
 		unit   Unit
 		weight int32
+		busy   bool
 	}
 
 	candidates := make([]candidate, 0, len(current))
 
 	for unit, weight := range current {
-		if weight <= 0 || s.reconciler.InFlight(unit) > 0 {
+		if weight <= 0 {
 			continue
 		}
 
-		candidates = append(candidates, candidate{unit: unit, weight: weight})
+		candidates = append(candidates, candidate{unit: unit, weight: weight, busy: s.reconciler.InFlight(unit) > 0})
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].busy != candidates[j].busy {
+			return !candidates[i].busy
+		}
+
 		if candidates[i].weight != candidates[j].weight {
 			return candidates[i].weight < candidates[j].weight
 		}
@@ -551,8 +578,12 @@ func (s *Leaser) pickShed(current map[Unit]int32, excess int64) []Unit {
 	out := make([]Unit, 0)
 
 	for _, c := range candidates {
-		if int64(c.weight) > excess {
+		if excess <= 0 {
 			break
+		}
+
+		if int64(c.weight) > excess {
+			continue
 		}
 
 		out = append(out, c.unit)

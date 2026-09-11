@@ -44,7 +44,9 @@ const (
 	DefaultMaxListenStreamsPerOperator = 100
 
 	// DefaultMaxActionsPerOperator caps the action links held across all workers of one
-	// operator. Deltas that would exceed it are refused with ResourceExhausted.
+	// operator. Deltas that would exceed it are refused with ResourceExhausted. The cap is
+	// checked by the repository inside the delta's transaction, so it holds across sessions
+	// and across engine replicas.
 	DefaultMaxActionsPerOperator = 1_000_000
 
 	// MaxActionsPerDelta caps the ids (adds plus removes) one delta may carry.
@@ -64,6 +66,10 @@ const (
 
 	// deactivateTimeout bounds the detached deactivation write once the session is gone.
 	deactivateTimeout = 20 * time.Second
+
+	// actionHashRefreshTimeout bounds one recompute of a worker's action hash, which reads
+	// every link the worker holds.
+	actionHashRefreshTimeout = 30 * time.Second
 )
 
 // OperatorStore is the subset of repository.OperatorRepository the service uses. It is narrow
@@ -84,8 +90,9 @@ type WorkerStore interface {
 	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
-	AddWorkerActionsWithinBudget(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error)
-	RemoveWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error)
+	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
+	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
+	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 }
 
@@ -95,16 +102,20 @@ type WorkerStore interface {
 type ActionHandler = operator.ActionHandler
 
 // StreamSession is the dispatcher session handle for a stream-backed session; see
-// dispatcher.OperatorStreamSession.
+// dispatcher.OperatorStreamSession. SetPaused(true) makes the dispatcher return every action it
+// is asked to deliver to the queue instead, so a pause the scheduler has not observed yet still
+// delivers nothing.
 type StreamSession interface {
 	Fin() <-chan bool
 	Send(ctx context.Context, msg proto.Message) error
+	SetPaused(paused bool)
 	Release()
 }
 
 // HandlerSession is the dispatcher session handle for a handler-backed session; see
-// dispatcher.OperatorHandlerSession.
+// dispatcher.OperatorHandlerSession. SetPaused is the same as on StreamSession.
 type HandlerSession interface {
+	SetPaused(paused bool)
 	Release()
 }
 
@@ -117,17 +128,6 @@ type DispatcherBackend interface {
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
-}
-
-// Deps are the collaborators a Service cannot run without.
-type Deps struct {
-	Operators  OperatorStore
-	Workers    WorkerStore
-	Dispatcher DispatcherBackend
-
-	// DispatcherId is the id of the local dispatcher; every operator worker whose session is
-	// opened here is pinned to it, since the delivery path lives here.
-	DispatcherId uuid.UUID
 }
 
 type Service struct {
@@ -146,7 +146,8 @@ type Service struct {
 
 	// maxListenStreamsPerOperator and maxActionsPerOperator are the admission limits; see the
 	// Default constants. Zero disables the limit. The stream cap only counts stream-backed
-	// sessions: an in-process session holds no stream.
+	// sessions: an in-process session holds no stream. The action cap is passed to every delta
+	// and enforced there.
 	maxListenStreamsPerOperator int
 	maxActionsPerOperator       int64
 
@@ -156,6 +157,11 @@ type Service struct {
 }
 
 type opts struct {
+	operators    OperatorStore
+	workers      WorkerStore
+	dispatcher   DispatcherBackend
+	dispatcherId uuid.UUID
+
 	analytics       analytics.Analytics
 	v               validator.Validator
 	l               *zerolog.Logger
@@ -166,6 +172,42 @@ type opts struct {
 }
 
 type Opt func(*opts)
+
+func defaultOpts() *opts {
+	defaultLogger := logger.NewDefaultLogger("operator_service")
+
+	return &opts{
+		analytics:       analytics.NoOpAnalytics{},
+		v:               validator.NewDefaultValidator(),
+		l:               &defaultLogger,
+		notifyInterval:  defaultNotifyInterval,
+		cacheTTL:        defaultOperatorCacheTTL,
+		maxListenStream: DefaultMaxListenStreamsPerOperator,
+		maxActions:      DefaultMaxActionsPerOperator,
+	}
+}
+
+// WithOperatorStore sets the operator rows the service registers and authorizes. Required.
+func WithOperatorStore(s OperatorStore) Opt {
+	return func(o *opts) { o.operators = s }
+}
+
+// WithWorkerStore sets the worker rows the service creates, activates and links actions to.
+// Required.
+func WithWorkerStore(s WorkerStore) Opt {
+	return func(o *opts) { o.workers = s }
+}
+
+// WithDispatcherBackend sets the local dispatcher sessions are registered with. Required.
+func WithDispatcherBackend(d DispatcherBackend) Opt {
+	return func(o *opts) { o.dispatcher = d }
+}
+
+// WithDispatcherId sets the id of the local dispatcher; every operator worker whose session is
+// opened here is pinned to it, since the delivery path lives here. Required.
+func WithDispatcherId(id uuid.UUID) Opt {
+	return func(o *opts) { o.dispatcherId = id }
+}
 
 func WithLogger(l *zerolog.Logger) Opt {
 	return func(o *opts) { o.l = l }
@@ -201,38 +243,36 @@ func WithOperatorCacheTTL(d time.Duration) Opt {
 	return func(o *opts) { o.cacheTTL = d }
 }
 
-func New(deps Deps, fs ...Opt) (*Service, error) {
-	if deps.Operators == nil || deps.Workers == nil {
-		return nil, fmt.Errorf("operator and worker stores are required")
-	}
-
-	if deps.Dispatcher == nil {
-		return nil, fmt.Errorf("dispatcher backend is required")
-	}
-
-	defaultLogger := logger.NewDefaultLogger("operator_service")
-
-	o := &opts{
-		analytics:       analytics.NoOpAnalytics{},
-		v:               validator.NewDefaultValidator(),
-		l:               &defaultLogger,
-		notifyInterval:  defaultNotifyInterval,
-		cacheTTL:        defaultOperatorCacheTTL,
-		maxListenStream: DefaultMaxListenStreamsPerOperator,
-		maxActions:      DefaultMaxActionsPerOperator,
-	}
+func New(fs ...Opt) (*Service, error) {
+	o := defaultOpts()
 
 	for _, f := range fs {
 		f(o)
 	}
 
+	if o.operators == nil {
+		return nil, fmt.Errorf("operator store is required. use WithOperatorStore")
+	}
+
+	if o.workers == nil {
+		return nil, fmt.Errorf("worker store is required. use WithWorkerStore")
+	}
+
+	if o.dispatcher == nil {
+		return nil, fmt.Errorf("dispatcher backend is required. use WithDispatcherBackend")
+	}
+
+	if o.dispatcherId == uuid.Nil {
+		return nil, fmt.Errorf("dispatcher id is required. use WithDispatcherId")
+	}
+
 	l := o.l.With().Str("service", "operator_service").Logger()
 
 	return &Service{
-		operators:                   deps.Operators,
-		workers:                     deps.Workers,
-		dispatcher:                  deps.Dispatcher,
-		dispatcherId:                deps.DispatcherId,
+		operators:                   o.operators,
+		workers:                     o.workers,
+		dispatcher:                  o.dispatcher,
+		dispatcherId:                o.dispatcherId,
 		cache:                       cache.New(o.cacheTTL),
 		analytics:                   o.analytics,
 		v:                           o.v,
@@ -315,9 +355,9 @@ func (s *Service) SendStepActionEvent(ctx context.Context, tenant *sqlcv1.Tenant
 }
 
 // PauseWorker stops the scheduler assigning to the worker, or lets it be assigned to again.
-// It returns once the change is committed, so a caller that pauses before draining knows no
-// further work will arrive. Register clears the pause when it resumes a worker, so an operator
-// that crashed while paused comes back assignable.
+// It returns once the change is committed. Register clears the pause when it resumes a worker,
+// so an operator that crashed while paused comes back assignable. A live session pauses
+// through Session.Pause, which also stops the session delivering.
 func (s *Service) PauseWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID, paused bool) error {
 	_, err := s.workers.UpdateWorker(ctx, tenant.ID, workerId, &repository.UpdateWorkerOpts{IsPaused: &paused})
 

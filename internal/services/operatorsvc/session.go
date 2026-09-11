@@ -69,7 +69,6 @@ type Session struct {
 	stream   StreamSession
 	handler  HandlerSession
 	notifier *throttledNotifier
-	budget   *actionBudget
 
 	releaseStream func()
 
@@ -81,11 +80,11 @@ type Session struct {
 	closeErr  error
 }
 
-// OpenSession makes the worker live: it re-pins the worker to this dispatcher, activates it
-// under a fresh session id that doubles as the listener fence, registers the delivery with the
-// dispatcher, notifies the scheduler and reads the operator's action budget. Stream-backed
-// sessions are also counted against the per-operator stream cap; in-process sessions hold no
-// stream, so only the action budget applies to them.
+// OpenSession makes the worker live: it re-pins the worker to this dispatcher, refreshes its
+// action hash when a previous session left it pending, activates it under a fresh session id
+// that doubles as the listener fence, registers the delivery with the dispatcher and notifies
+// the scheduler. Stream-backed sessions are also counted against the per-operator stream cap;
+// in-process sessions hold no stream, so only the action budget applies to them.
 func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sqlcv1.V1Operator, workerId uuid.UUID, opts OpenOpts) (*Session, error) {
 	if tenant == nil {
 		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
@@ -121,9 +120,22 @@ func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sq
 		ss.releaseStream = release
 	}
 
-	if err := s.pinWorker(ctx, &l, tenant, workerId, opts.Worker); err != nil {
+	worker, err := s.pinWorker(ctx, &l, tenant, workerId, opts.Worker)
+
+	if err != nil {
 		ss.unwind(ctx, false)
 		return nil, err
+	}
+
+	// a worker resumed after its previous session ended between a delta and the refresh that
+	// follows it has no hash; the digest of its links is written before it is assignable
+	if worker.ActionHash == nil {
+		if err := s.workers.RefreshWorkerActionHash(ctx, tenant.ID, workerId); err != nil {
+			l.Error().Ctx(ctx).Err(err).Msg("could not refresh the worker's action hash before opening the session")
+			ss.unwind(ctx, false)
+
+			return nil, err
+		}
 	}
 
 	if _, err := s.workers.ActivateWorkerListener(ctx, tenant.ID, workerId, ss.sessionId); err != nil {
@@ -140,36 +152,40 @@ func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sq
 	}
 
 	// the opening notify goes through the notifier so a burst of deltas right after it folds
-	// into the same throttle window
-	ss.notifier = newThrottledNotifier(ctx, s.dispatcher, tenant, workerId, s.notifyInterval)
+	// into the same throttle window; the notifier also refreshes the worker's action hash
+	// before each notification that follows a delta, so the reload sees the committed set's
+	// digest
+	ss.notifier = newThrottledNotifier(ctx, s.dispatcher, tenant, workerId, s.notifyInterval, ss.refreshActionHash, &ss.l)
 	ss.notifier.fire()
-
-	// The action budget is read once per session and then tracked from the deltas this session
-	// applies. Sessions of the same operator that run concurrently on this or another replica
-	// do not see each other's changes until they reopen, so the cap is exact per session and
-	// approximate across sessions, by at most one chunk per session.
-	budget, err := s.newActionBudget(ctx, tenant.ID, op.ID)
-
-	if err != nil {
-		l.Error().Ctx(ctx).Err(err).Msg("could not count operator worker actions")
-		ss.unwind(ctx, true)
-
-		return nil, err
-	}
-
-	ss.budget = budget
 
 	s.analytics.Count(ctx, analytics.Worker, analytics.Listen, analytics.Props("operator_kind", string(op.Kind)))
 
-	l.Info().Ctx(ctx).Int64("linked_actions", budget.linked).Msg("operator worker listening")
+	// the count is for the log line only: the budget is enforced by every delta's transaction
+	linked, err := s.workers.CountOperatorWorkerActions(ctx, tenant.ID, op.ID)
+
+	if err != nil {
+		l.Warn().Ctx(ctx).Err(err).Msg("could not count operator worker actions")
+	}
+
+	l.Info().Ctx(ctx).Int64("linked_actions", linked).Msg("operator worker listening")
 
 	return ss, nil
 }
 
+// refreshActionHash writes the digest of the worker's committed links. It runs detached from
+// the caller's context, bounded by its own timeout: the hash is what the scheduler groups the
+// worker by, and it is owed to the row whichever request happened to trigger it.
+func (ss *Session) refreshActionHash(ctx context.Context) error {
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), actionHashRefreshTimeout)
+	defer cancel()
+
+	return ss.svc.workers.RefreshWorkerActionHash(refreshCtx, ss.tenant.ID, ss.workerId)
+}
+
 // pinWorker points the worker at this dispatcher when it is not there already: the session that
 // delivers actions lives here, so a worker resumed after a reconnect to another engine replica
-// is re-pinned.
-func (s *Service) pinWorker(ctx context.Context, l *zerolog.Logger, tenant *sqlcv1.Tenant, workerId uuid.UUID, known *sqlcv1.GetWorkerForEngineRow) error {
+// is re-pinned. It returns the worker row it read, or was given.
+func (s *Service) pinWorker(ctx context.Context, l *zerolog.Logger, tenant *sqlcv1.Tenant, workerId uuid.UUID, known *sqlcv1.GetWorkerForEngineRow) (*sqlcv1.GetWorkerForEngineRow, error) {
 	worker := known
 
 	if worker == nil {
@@ -177,24 +193,24 @@ func (s *Service) pinWorker(ctx context.Context, l *zerolog.Logger, tenant *sqlc
 
 		if err != nil {
 			l.Error().Ctx(ctx).Err(err).Msg("could not read worker before opening the session")
-			return err
+			return nil, err
 		}
 
 		worker = loaded
 	}
 
 	if worker.DispatcherId != nil && *worker.DispatcherId == s.dispatcherId {
-		return nil
+		return worker, nil
 	}
 
 	dispatcherId := s.dispatcherId
 
 	if _, err := s.workers.UpdateWorker(ctx, tenant.ID, workerId, &repository.UpdateWorkerOpts{DispatcherId: &dispatcherId}); err != nil {
 		l.Error().Ctx(ctx).Err(err).Msg("could not update worker dispatcher")
-		return err
+		return nil, err
 	}
 
-	return nil
+	return worker, nil
 }
 
 // unwind undoes a partially opened session, in the reverse order of OpenSession. activated says
@@ -275,7 +291,7 @@ func (ss *Session) Heartbeat(ctx context.Context, at time.Time) error {
 // to reload it. It reports whether the set changed; a delta that only repeats what the worker
 // already has needs no notification, and the caller can still acknowledge it.
 func (ss *Session) ApplyDelta(ctx context.Context, add, remove []string) (bool, error) {
-	changed, err := ss.svc.applyDelta(ctx, &ss.l, ss.tenant.ID, ss.workerId, add, remove, ss.budget)
+	changed, err := ss.svc.applyDelta(ctx, &ss.l, ss.tenant.ID, ss.workerId, add, remove)
 
 	if err != nil {
 		return false, err
@@ -307,10 +323,27 @@ func (ss *Session) SendStepActionEvent(ctx context.Context, ev *contracts.StepAc
 
 // Pause stops the scheduler assigning to the session's worker, or lets it be assigned to again.
 // It returns once the change is committed, so a host that pauses before draining knows no
-// further work will arrive.
+// further work will arrive: the dispatcher session stops delivering before the pause is written,
+// and an action the scheduler assigned in the meantime goes back to the queue rather than to
+// the operator. Resuming lifts the pause in the opposite order, so nothing is refused once the
+// scheduler may assign again. The write is fenced on the session id like the deactivation: a
+// session superseded by a newer one on the same worker leaves the worker's scheduling state
+// to it.
 func (ss *Session) Pause(ctx context.Context, paused bool) error {
-	if err := ss.svc.PauseWorker(ctx, ss.tenant, ss.workerId, paused); err != nil {
+	if paused {
+		ss.setDelivering(false)
+	}
+
+	if err := ss.pauseWorker(ctx, paused); err != nil {
+		if paused {
+			ss.setDelivering(true)
+		}
+
 		return err
+	}
+
+	if !paused {
+		ss.setDelivering(true)
 	}
 
 	ss.mu.Lock()
@@ -320,6 +353,37 @@ func (ss *Session) Pause(ctx context.Context, paused bool) error {
 	return nil
 }
 
+// pauseWorker writes the pause on behalf of this session. A superseded session's write is
+// skipped by the fence, which is not an error: the newer session owns the worker's pause.
+func (ss *Session) pauseWorker(ctx context.Context, paused bool) error {
+	err := ss.svc.workers.PauseWorkerForListener(ctx, ss.tenant.ID, ss.workerId, ss.sessionId, paused)
+
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		ss.l.Debug().Ctx(ctx).Msgf("listener session %s was superseded by a newer session, leaving the worker's pause to it", ss.sessionId)
+		return nil
+	}
+
+	ss.l.Error().Ctx(ctx).Err(err).Msgf("could not set paused=%t on worker for listener session %s", paused, ss.sessionId)
+
+	return err
+}
+
+// setDelivering flips the dispatcher session between delivering and returning assignments to
+// the queue.
+func (ss *Session) setDelivering(delivering bool) {
+	if ss.stream != nil {
+		ss.stream.SetPaused(!delivering)
+	}
+
+	if ss.handler != nil {
+		ss.handler.SetPaused(!delivering)
+	}
+}
+
 type closeOpts struct {
 	pause bool
 }
@@ -327,9 +391,9 @@ type closeOpts struct {
 type CloseOpt func(*closeOpts)
 
 // WithoutPause closes the session without pausing its worker. It is what a session whose
-// operator pauses for itself uses: a gRPC operator pauses through PauseWorker before it hangs
-// up, and a stream that ends unexpectedly must leave the worker assignable so the operator's
-// next connection resumes a worker that can be given work.
+// operator pauses for itself uses: a gRPC operator pauses on its stream before it hangs up,
+// and a stream that ends unexpectedly must leave the worker assignable so the operator's next
+// connection resumes a worker that can be given work.
 func WithoutPause() CloseOpt {
 	return func(o *closeOpts) { o.pause = false }
 }
@@ -337,11 +401,12 @@ func WithoutPause() CloseOpt {
 // Close ends the session: pause, then drain, then deactivate. Pausing stops the scheduler
 // assigning new work, releasing the dispatcher session stops anything further being delivered,
 // and the deactivation, fenced on this session's id, marks the worker inactive. A host that
-// waits for its operator's in-flight work does so between Pause and Close.
+// waits for its operator's in-flight work does so between Pause and Close. A hash refresh the
+// notifier still owed is done here, so the row never keeps a pending hash past its session.
 //
-// The deactivation runs detached from ctx because the common exit is the operator being gone,
-// at which point ctx is already cancelled. Close runs once; later calls return the first
-// result.
+// The pause, the refresh and the deactivation run detached from ctx because the common exit
+// is the operator being gone, at which point ctx is already cancelled. Close runs once; later
+// calls return the first result.
 func (ss *Session) Close(ctx context.Context, fs ...CloseOpt) error {
 	o := &closeOpts{pause: true}
 
@@ -359,13 +424,17 @@ func (ss *Session) Close(ctx context.Context, fs ...CloseOpt) error {
 				pauseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deactivateTimeout)
 				defer cancel()
 
-				if err := ss.svc.PauseWorker(pauseCtx, ss.tenant, ss.workerId, true); err != nil {
+				if err := ss.pauseWorker(pauseCtx, true); err != nil {
 					ss.closeErr = err
 				}
 			}
 		}
 
-		ss.notifier.stop()
+		if ss.notifier.stop() {
+			if err := ss.refreshActionHash(ctx); err != nil {
+				ss.l.Error().Ctx(ctx).Err(err).Msg("could not refresh the worker's action hash on close; the next session on the worker refreshes it")
+			}
+		}
 
 		if ss.stream != nil {
 			ss.stream.Release()
@@ -416,49 +485,11 @@ type actionDeltaOpts struct {
 	Remove []string `validate:"dive,actionId"`
 }
 
-// actionBudget tracks the action links of one operator against the per-operator cap for the
-// life of a session.
-type actionBudget struct {
-	linked int64
-	limit  int64
-}
-
-func (s *Service) newActionBudget(ctx context.Context, tenantId, operatorId uuid.UUID) (*actionBudget, error) {
-	budget := &actionBudget{limit: s.maxActionsPerOperator}
-
-	if budget.limit <= 0 {
-		return budget, nil
-	}
-
-	linked, err := s.workers.CountOperatorWorkerActions(ctx, tenantId, operatorId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	budget.linked = linked
-
-	return budget, nil
-}
-
-// remaining is how many more links the operator may take, or -1 when unlimited. Adds that
-// repeat actions the worker already has never consume budget: the repository only counts the
-// links it creates, and rolls the delta back when they exceed this.
-func (b *actionBudget) remaining() int64 {
-	if b.limit <= 0 {
-		return -1
-	}
-
-	return max(b.limit-b.linked, 0)
-}
-
-func (b *actionBudget) apply(added, removed int) {
-	b.linked += int64(added) - int64(removed)
-}
-
-// applyDelta validates and applies one delta to the worker's action set. It reports whether the
-// set changed.
-func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, add, remove []string, budget *actionBudget) (bool, error) {
+// applyDelta validates and applies one delta to the worker's action set, as one transaction:
+// a delta the caller acknowledges by sequence is committed whole or not at all. The
+// per-operator action cap is enforced inside that transaction, against the links every worker
+// of the operator holds. It reports whether the set changed.
+func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, add, remove []string) (bool, error) {
 	if n := len(add) + len(remove); n > MaxActionsPerDelta {
 		return false, status.Errorf(codes.InvalidArgument, "actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta)
 	}
@@ -467,36 +498,27 @@ func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, w
 		return false, status.Errorf(codes.InvalidArgument, "invalid actions delta: %s", err.Error())
 	}
 
-	changed := false
+	maxLinks := s.maxActionsPerOperator
 
-	if len(add) > 0 {
-		added, err := s.workers.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, add, budget.remaining())
-
-		if err != nil {
-			if errors.Is(err, repository.ErrWorkerActionBudgetExceeded) {
-				return false, status.Errorf(codes.ResourceExhausted, "operator holds %d actions and the delta adds more than the limit of %d allows", budget.linked, budget.limit)
-			}
-
-			l.Error().Ctx(ctx).Err(err).Msg("could not add worker actions")
-
-			return false, err
-		}
-
-		budget.apply(added, 0)
-		changed = changed || added > 0
+	if maxLinks <= 0 {
+		maxLinks = -1
 	}
 
-	if len(remove) > 0 {
-		removed, err := s.workers.RemoveWorkerActions(ctx, tenantId, workerId, remove)
+	added, removed, err := s.workers.ApplyWorkerActionsDelta(ctx, tenantId, workerId, add, remove, maxLinks)
 
-		if err != nil {
-			l.Error().Ctx(ctx).Err(err).Msg("could not remove worker actions")
-			return false, err
+	if err != nil {
+		var budgetErr *repository.ActionBudgetError
+
+		if errors.As(err, &budgetErr) {
+			return false, status.Errorf(codes.ResourceExhausted, "the delta would leave the operator with %d action links across its workers, the limit is %d", budgetErr.Linked, budgetErr.Limit)
 		}
 
-		budget.apply(0, removed)
-		changed = changed || removed > 0
+		l.Error().Ctx(ctx).Err(err).Msg("could not apply worker actions delta")
+
+		return false, err
 	}
+
+	changed := added > 0 || removed > 0
 
 	l.Debug().Ctx(ctx).
 		Int("add", len(add)).
@@ -511,21 +533,31 @@ func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, w
 // immediately, and requests that arrive within interval of the last fire are folded into one
 // notification sent when the interval elapses. It drives its own timer, so a session that is
 // not selecting on anything still notifies.
+//
+// A request means a delta changed the worker's links, which cleared the row's action hash;
+// the window is the delta sequence, so the hash is refreshed once before the notification
+// that ends it, and the scheduler's reload sees the committed set's digest. A refresh that
+// fails leaves the row without a hash, which the scheduler reads through the join, and is
+// retried by the next window or by the session's close.
 type throttledNotifier struct {
 	ctx      context.Context
 	d        DispatcherBackend
 	tenant   *sqlcv1.Tenant
 	workerId uuid.UUID
 	interval time.Duration
+	refresh  func(context.Context) error
+	l        *zerolog.Logger
 
 	mu       sync.Mutex
 	lastFire time.Time
 	timer    *time.Timer
 	stopped  bool
+	// dirty records that a delta changed the links since the hash was last refreshed
+	dirty bool
 }
 
-func newThrottledNotifier(ctx context.Context, d DispatcherBackend, tenant *sqlcv1.Tenant, workerId uuid.UUID, interval time.Duration) *throttledNotifier {
-	return &throttledNotifier{ctx: ctx, d: d, tenant: tenant, workerId: workerId, interval: interval}
+func newThrottledNotifier(ctx context.Context, d DispatcherBackend, tenant *sqlcv1.Tenant, workerId uuid.UUID, interval time.Duration, refresh func(context.Context) error, l *zerolog.Logger) *throttledNotifier {
+	return &throttledNotifier{ctx: ctx, d: d, tenant: tenant, workerId: workerId, interval: interval, refresh: refresh, l: l}
 }
 
 // request asks for a notification, immediately when the last one is older than the interval and
@@ -533,7 +565,14 @@ func newThrottledNotifier(ctx context.Context, d DispatcherBackend, tenant *sqlc
 func (n *throttledNotifier) request() {
 	n.mu.Lock()
 
-	if n.stopped || n.timer != nil {
+	if n.stopped {
+		n.mu.Unlock()
+		return
+	}
+
+	n.dirty = true
+
+	if n.timer != nil {
 		n.mu.Unlock()
 		return
 	}
@@ -546,9 +585,10 @@ func (n *throttledNotifier) request() {
 	}
 
 	n.lastFire = time.Now()
+	n.dirty = false
 	n.mu.Unlock()
 
-	n.notify()
+	n.notify(true)
 }
 
 // fire notifies now and restarts the window; it is the opening notification of a session.
@@ -566,9 +606,11 @@ func (n *throttledNotifier) fire() {
 	}
 
 	n.lastFire = time.Now()
+	dirty := n.dirty
+	n.dirty = false
 	n.mu.Unlock()
 
-	n.notify()
+	n.notify(dirty)
 }
 
 func (n *throttledNotifier) fireDeferred() {
@@ -581,21 +623,35 @@ func (n *throttledNotifier) fireDeferred() {
 	}
 
 	n.lastFire = time.Now()
+	dirty := n.dirty
+	n.dirty = false
 	n.mu.Unlock()
 
-	n.notify()
+	n.notify(dirty)
 }
 
-// notify runs outside the lock: the dispatcher's publish must not be serialised behind the
-// notifier's own bookkeeping.
-func (n *throttledNotifier) notify() {
+// notify runs outside the lock: the refresh and the dispatcher's publish must not be serialised
+// behind the notifier's own bookkeeping. The refresh comes first, so the reload the
+// notification causes reads the digest of the committed set.
+func (n *throttledNotifier) notify(refresh bool) {
+	if refresh {
+		if err := n.refresh(n.ctx); err != nil {
+			n.l.Error().Ctx(n.ctx).Err(err).Msg("could not refresh the worker's action hash; the scheduler reads its actions through the join until the next refresh")
+
+			n.mu.Lock()
+			n.dirty = true
+			n.mu.Unlock()
+		}
+	}
+
 	n.d.NotifyNewWorker(n.ctx, n.tenant, n.workerId)
 }
 
-// stop ends the notifier. A callback that already passed the stopped check may still publish
-// one notification after this returns; the scheduler simply reloads a worker that is on its way
-// out, so stop does not wait for it.
-func (n *throttledNotifier) stop() {
+// stop ends the notifier and reports whether a refresh is still owed, so the caller can do it.
+// A callback that already passed the stopped check may still publish one notification after
+// this returns; the scheduler simply reloads a worker that is on its way out, so stop does not
+// wait for it.
+func (n *throttledNotifier) stop() bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -605,4 +661,9 @@ func (n *throttledNotifier) stop() {
 		n.timer.Stop()
 		n.timer = nil
 	}
+
+	dirty := n.dirty
+	n.dirty = false
+
+	return dirty
 }

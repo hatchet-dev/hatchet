@@ -341,8 +341,11 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- the DAG operator's workers are engine infrastructure and are not metered; every other
+    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY wc.tenant_id
 ;
 
@@ -358,8 +361,11 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- the DAG operator's workers are engine infrastructure and are not metered; every other
+    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -443,6 +449,8 @@ WHERE
 ;
 
 -- name: GetWorkerForEngine :one
+-- "actionHash" is NULL while the hash refresh that follows a delta is pending; a session that
+-- opens on such a worker refreshes it first.
 SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
@@ -451,7 +459,8 @@ SELECT
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished",
-    w."operatorId" AS "operatorId"
+    w."operatorId" AS "operatorId",
+    w."actionHash" AS "actionHash"
 FROM
     "Worker" w
 LEFT JOIN
@@ -569,23 +578,57 @@ RETURNING aw."A";
 
 -- name: ComputeWorkerActionHash :one
 -- The canonical digest of the worker's linked action set: sha256 over the action ids sorted
--- by byte order, each followed by ";". It is the same function hashActions computes in Go, so
--- a worker created with an initial set and a worker built by deltas hash equal for the same
--- set. The empty set hashes to sha256 of the empty string.
-SELECT sha256(convert_to(
-    coalesce(string_agg(a."actionId" || ';', '' ORDER BY a."actionId" COLLATE "C"), ''),
-    'UTF8'
+-- by byte order, each encoded as its UTF-8 byte length as a 4-byte big-endian integer followed
+-- by its bytes, so no id can be read as the boundary between two others. It is the same
+-- function hashActions computes in Go, so a worker created with an initial set and a worker
+-- built by deltas hash equal for the same set. The empty set hashes to sha256 of no bytes.
+SELECT sha256(coalesce(
+    string_agg(
+        int4send(octet_length(convert_to(a."actionId", 'UTF8'))) || convert_to(a."actionId", 'UTF8'),
+        ''::bytea
+        ORDER BY a."actionId" COLLATE "C"
+    ),
+    ''::bytea
 ))::bytea AS "hash"
 FROM "_ActionToWorker" aw
 JOIN "Action" a ON a."id" = aw."A"
 WHERE aw."B" = @workerId::uuid;
 
+-- name: RecountWorkerActions :exec
+-- Sets "actionCount" to the worker's real link count, for the paths that link without
+-- returning what they linked.
+UPDATE "Worker" w
+SET "actionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
+WHERE w."id" = @workerId::uuid;
+
+-- name: SettleWorkerActionsDelta :one
+-- Records a delta's effect on the worker row under the caller's row lock: "actionCount" moves
+-- by the links the delta created minus the links it removed, and "actionHash" is cleared
+-- until the session refreshes it at the end of the delta sequence. Returns the operator the
+-- worker belongs to, NULL for an SDK worker, so the caller knows whose budget to check.
+UPDATE "Worker" w
+SET
+    "actionCount" = "actionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
+    "actionHash" = NULL
+WHERE w."id" = @workerId::uuid
+RETURNING w."operatorId";
+
+-- name: SumOperatorWorkerActionCounts :one
+-- The action links held by every worker of the operator, from the per-worker counts. The
+-- caller holds the operator's row lock (LockOperator), so the sum is consistent with the
+-- delta it is checking.
+SELECT coalesce(sum(w."actionCount"), 0)::bigint
+FROM "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."operatorId" = @operatorId::uuid;
+
 -- name: CountOperatorWorkerActions :one
--- Counts the action links held by every worker of the operator, for the per-operator action
--- budget the gRPC operator service enforces at admission.
-SELECT count(*)
-FROM "_ActionToWorker" aw
-JOIN "Worker" w ON w."id" = aw."B"
+-- The action links held by every worker of the operator, from the per-worker counts. It is
+-- the unlocked reading of SumOperatorWorkerActionCounts, for reporting; the budget check
+-- inside a delta uses the locked one.
+SELECT coalesce(sum(w."actionCount"), 0)::bigint
+FROM "Worker" w
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."operatorId" = @operatorId::uuid;
@@ -638,6 +681,20 @@ WHERE
     "id" = @id::uuid
     AND "tenantId" = @tenantId::uuid
 RETURNING *;
+
+-- name: SetWorkerPausedForListener :one
+-- Sets the worker's pause on behalf of a listener session, only while that session is the one
+-- recorded on the row. A superseded session must not change the scheduling state the newer
+-- session owns, so this returns no rows in that case.
+UPDATE "Worker"
+SET
+    "isPaused" = @paused::boolean,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "lastListenerSessionId" = @sessionId::uuid
+RETURNING "id";
 
 -- name: DeactivateWorkerListener :one
 -- Marks the worker inactive only while the given session is still the one recorded on the
@@ -735,6 +792,7 @@ INSERT INTO "Worker" (
     "os",
     "runtimeExtra",
     "actionHash",
+    "actionCount",
     "operatorId"
 ) VALUES (
     gen_random_uuid(),
@@ -750,6 +808,8 @@ INSERT INTO "Worker" (
     sqlc.narg('os')::text,
     sqlc.narg('runtimeExtra')::text,
     @actionHash::bytea,
+    -- the size of the initial action set the caller links right after
+    @actionCount::integer,
     -- set for workers backing an operator connection; NULL for SDK workers
     sqlc.narg('operatorId')::uuid
 ) RETURNING *;

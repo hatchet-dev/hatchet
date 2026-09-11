@@ -61,8 +61,6 @@ type LocalExchange struct {
 	closed   bool
 }
 
-var _ TokenSource = (*LocalExchange)(nil)
-
 // LocalExchangeOpt configures NewLocalExchange.
 type LocalExchangeOpt func(*LocalExchange)
 
@@ -76,7 +74,7 @@ func WithPollInterval(d time.Duration) LocalExchangeOpt {
 }
 
 // WithLogger reports reload failures; tokens are never logged.
-func WithLogger(l *zerolog.Logger) LocalExchangeOpt {
+func WithExchangeLogger(l *zerolog.Logger) LocalExchangeOpt {
 	return func(e *LocalExchange) {
 		e.l = l
 	}
@@ -289,8 +287,6 @@ type StaticExchange struct {
 	token    string
 	tenantId uuid.UUID
 }
-
-var _ TokenSource = (*StaticExchange)(nil)
 
 // NewStaticExchange parses the tenant id out of token's sub claim.
 func NewStaticExchange(token string) (*StaticExchange, error) {

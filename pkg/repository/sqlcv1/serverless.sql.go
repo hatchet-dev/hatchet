@@ -18,6 +18,7 @@ WITH unowned AS (
     FROM v1_serverless_lease l
     WHERE
         l.process_id IS NULL
+        AND l.endpoint_count > 0
         AND (l.tenant_id, l.shard) > ($2::UUID, $3::INT)
     ORDER BY l.tenant_id, l.shard
     LIMIT $4::INT
@@ -28,7 +29,7 @@ WITH unowned AS (
     CROSS JOIN LATERAL (
         SELECT l.tenant_id, l.shard
         FROM v1_serverless_lease l
-        WHERE l.process_id = p.process_id
+        WHERE l.process_id = p.process_id AND l.endpoint_count > 0
         ORDER BY l.tenant_id, l.shard
         LIMIT $4::INT
         FOR UPDATE SKIP LOCKED
@@ -68,16 +69,17 @@ type ClaimServerlessLeasesRow struct {
 	EndpointCount int32     `json:"endpoint_count"`
 }
 
-// Claims up to @claimLimit units for @processId. Unowned units come first, walked in
-// (tenant_id, shard) order from @afterTenantId/@afterShard through
-// v1_serverless_lease_claimable_idx (the caller starts at a random key and wraps around), then
-// units of processes whose heartbeat row has expired, walked per dead process through
-// v1_serverless_lease_owner_idx. Neither walk sorts the candidate population. Liveness is
-// decided here, in the statement's own snapshot, never from a process list read earlier: an
-// owner that heartbeated since the caller looked is live and keeps its units, and the caller
-// must itself be live to claim at all, so a process whose row expired or was swept cannot take
-// units until its next heartbeat. FOR UPDATE SKIP LOCKED lets concurrent claimers race without
-// blocking; a unit is claimed by exactly one of them.
+// Claims up to @claimLimit units for @processId. Only units with endpoints are claimable: an
+// empty unit (shard growth, every endpoint deleted) has nothing to poll and is left unowned
+// until an endpoint lands on it. Unowned units come first, walked in (tenant_id, shard) order
+// from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
+// at a random key and wraps around), then units of processes whose heartbeat row has expired,
+// walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
+// candidate population. Liveness is decided here, in the statement's own snapshot, never from
+// a process list read earlier: an owner that heartbeated since the caller looked is live and
+// keeps its units, and the caller must itself be live to claim at all, so a process whose row
+// expired or was swept cannot take units until its next heartbeat. FOR UPDATE SKIP LOCKED lets
+// concurrent claimers race without blocking; a unit is claimed by exactly one of them.
 func (q *Queries) ClaimServerlessLeases(ctx context.Context, db DBTX, arg ClaimServerlessLeasesParams) ([]*ClaimServerlessLeasesRow, error) {
 	rows, err := db.Query(ctx, claimServerlessLeases,
 		arg.Processid,
@@ -109,22 +111,23 @@ WITH unowned AS (
     FROM (
         SELECT endpoint_count
         FROM v1_serverless_lease
-        WHERE process_id IS NULL
+        WHERE process_id IS NULL AND endpoint_count > 0
         LIMIT $1::BIGINT
     ) u
 ), abandoned AS (
-    SELECT COALESCE(SUM(a.n), 0) AS n, COALESCE(SUM(a.w), 0) AS w
-    FROM v1_serverless_process p
-    CROSS JOIN LATERAL (
-        SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
-        FROM (
+    SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
+    FROM (
+        SELECT a.endpoint_count
+        FROM v1_serverless_process p
+        CROSS JOIN LATERAL (
             SELECT l.endpoint_count
             FROM v1_serverless_lease l
-            WHERE l.process_id = p.process_id
+            WHERE l.process_id = p.process_id AND l.endpoint_count > 0
             LIMIT $1::BIGINT
-        ) o
-    ) a
-    WHERE p.expires_at < now()
+        ) a
+        WHERE p.expires_at < now()
+        LIMIT $1::BIGINT
+    ) o
 )
 SELECT
     (unowned.n + abandoned.n)::BIGINT AS unit_count,
@@ -137,12 +140,15 @@ type CountClaimableServerlessLeasesRow struct {
 	EndpointCount int64 `json:"endpoint_count"`
 }
 
-// Counts what a process may claim under the liveness rule of ClaimServerlessLeases: unowned
-// units (v1_serverless_lease_claimable_idx, index only) plus units still held by processes
-// whose heartbeat row has expired (v1_serverless_lease_owner_idx), so a survivor's fair share
-// includes the work of dead processes. Each side is counted over at most @countLimit units: a
-// caller only needs the claimable population up to the fleet's claim budget for one tick, and
-// the weight beyond the window is discovered on later ticks as the population shrinks.
+// Counts what a process may claim under the rules of ClaimServerlessLeases: unowned units
+// with endpoints (v1_serverless_lease_claimable_idx, index only) plus units with endpoints
+// still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx), so
+// a survivor's fair share includes the work of dead processes. Empty units are not counted,
+// as they are not claimed: a window of empty rows would otherwise report a claimable
+// population of zero weight and hide the populated units behind it. Each side is a sample
+// of at most @countLimit units, and the abandoned side is bounded as a whole, not per dead
+// process: a caller only needs to know the claimable population up to its own claim budget
+// for one tick, and a full sample tells it the backlog is at least that large.
 func (q *Queries) CountClaimableServerlessLeases(ctx context.Context, db DBTX, countlimit int64) (*CountClaimableServerlessLeasesRow, error) {
 	row := db.QueryRow(ctx, countClaimableServerlessLeases, countlimit)
 	var i CountClaimableServerlessLeasesRow
@@ -429,6 +435,49 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 	return &i, err
 }
 
+const getServerlessEndpointByNamespace = `-- name: GetServerlessEndpointByNamespace :one
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = $1::UUID
+    AND namespace = $2::UUID
+`
+
+type GetServerlessEndpointByNamespaceParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace uuid.UUID `json:"namespace"`
+}
+
+// Resolves the endpoint an action's namespace names, for a routing miss: one row through the
+// namespace's unique index, scoped to the tenant, instead of a reload of the tenant.
+func (q *Queries) GetServerlessEndpointByNamespace(ctx context.Context, db DBTX, arg GetServerlessEndpointByNamespaceParams) (*V1ServerlessEndpoint, error) {
+	row := db.QueryRow(ctx, getServerlessEndpointByNamespace, arg.Tenantid, arg.Namespace)
+	var i V1ServerlessEndpoint
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Namespace,
+		&i.Kind,
+		&i.HealthcheckUrl,
+		&i.TriggerUrl,
+		&i.SigningSecretEnc,
+		&i.RequestTimeoutSeconds,
+		&i.PollIntervalSeconds,
+		&i.InlineWaitBudgetMs,
+		&i.Labels,
+		&i.Enabled,
+		&i.Shard,
+		&i.Healthy,
+		&i.StatusError,
+		&i.StatusChangedAt,
+		&i.RegisteredActions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
 const getServerlessTenant = `-- name: GetServerlessTenant :one
 SELECT tenant_id, shard_count
 FROM v1_serverless_tenant
@@ -510,6 +559,61 @@ func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, proces
 	return items, nil
 }
 
+const listServerlessEndpointVersions = `-- name: ListServerlessEndpointVersions :many
+SELECT
+    id,
+    GREATEST(updated_at, COALESCE(status_changed_at, updated_at))::TIMESTAMPTZ AS version
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = $1::UUID
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > ($2::TIMESTAMPTZ, $3::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
+LIMIT $4::BIGINT
+`
+
+type ListServerlessEndpointVersionsParams struct {
+	Tenantid     uuid.UUID          `json:"tenantid"`
+	Afterversion pgtype.Timestamptz `json:"afterversion"`
+	Afterid      uuid.UUID          `json:"afterid"`
+	Versionlimit int64              `json:"versionlimit"`
+}
+
+type ListServerlessEndpointVersionsRow struct {
+	ID      uuid.UUID          `json:"id"`
+	Version pgtype.Timestamptz `json:"version"`
+}
+
+// Anti-entropy pass of a tenant's routing cache: every endpoint's id and version, nothing
+// else, keyset-paged on (version, id) through v1_serverless_endpoint_version_idx, which
+// covers the query. The cache compares the pairs with what it holds, fetches the rows whose
+// version differs through ListServerlessEndpointsByIds and drops the ids that are gone, so a
+// deleted endpoint and a row whose commit landed behind a refresh's read are both caught
+// without transferring the tenant's rows.
+func (q *Queries) ListServerlessEndpointVersions(ctx context.Context, db DBTX, arg ListServerlessEndpointVersionsParams) ([]*ListServerlessEndpointVersionsRow, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointVersions,
+		arg.Tenantid,
+		arg.Afterversion,
+		arg.Afterid,
+		arg.Versionlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListServerlessEndpointVersionsRow
+	for rows.Next() {
+		var i ListServerlessEndpointVersionsRow
+		if err := rows.Scan(&i.ID, &i.Version); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServerlessEndpoints = `-- name: ListServerlessEndpoints :many
 SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
@@ -527,6 +631,54 @@ type ListServerlessEndpointsParams struct {
 
 func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg ListServerlessEndpointsParams) ([]*V1ServerlessEndpoint, error) {
 	rows, err := db.Query(ctx, listServerlessEndpoints, arg.Tenantid, arg.Endpointoffset, arg.Endpointlimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1ServerlessEndpoint
+	for rows.Next() {
+		var i V1ServerlessEndpoint
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Namespace,
+			&i.Kind,
+			&i.HealthcheckUrl,
+			&i.TriggerUrl,
+			&i.SigningSecretEnc,
+			&i.RequestTimeoutSeconds,
+			&i.PollIntervalSeconds,
+			&i.InlineWaitBudgetMs,
+			&i.Labels,
+			&i.Enabled,
+			&i.Shard,
+			&i.Healthy,
+			&i.StatusError,
+			&i.StatusChangedAt,
+			&i.RegisteredActions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServerlessEndpointsByIds = `-- name: ListServerlessEndpointsByIds :many
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+FROM v1_serverless_endpoint
+WHERE id = ANY($1::UUID[])
+ORDER BY id
+`
+
+func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*V1ServerlessEndpoint, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointsByIds, ids)
 	if err != nil {
 		return nil, err
 	}

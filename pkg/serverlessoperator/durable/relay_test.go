@@ -98,6 +98,7 @@ func (ep *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := contract.UpgradeSigningPayload(
+		r.Header.Get(contract.EndpointIdHeader),
 		r.Header.Get(contract.TimestampHeader),
 		nonce,
 		r.Header.Get(contract.TaskIdHeader),
@@ -237,6 +238,10 @@ func (f *fakeChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse, error)
 		return nil, ctx.Err()
 	}
 }
+
+// ExpectEntry is a no-op: the relay never registers entries, the endpoint's requests carry
+// their own acks.
+func (f *fakeChannel) ExpectEntry(_, _ int64) error { return nil }
 
 func (f *fakeChannel) Close() error {
 	f.mu.Lock()
@@ -992,7 +997,7 @@ func TestSignedUpgradeHeaders(t *testing.T) {
 	assert.Equal(t, testTaskId, h.Get(contract.TaskIdHeader))
 	assert.Equal(t, "4", h.Get(contract.InvocationHeader))
 
-	expected, err := signature.Sign("1700000000.nonce."+testTaskId+".4", testSecret)
+	expected, err := signature.Sign("ep-1.1700000000.nonce."+testTaskId+".4", testSecret)
 	require.NoError(t, err)
 	assert.Equal(t, expected, h.Get(contract.SignatureHeader))
 
@@ -1042,4 +1047,15 @@ func TestRelayBackpressureBytes(t *testing.T) {
 	assert.Equal(t, CloseBackpressure, o.CloseCode)
 	assert.Contains(t, o.Error, "bytes behind")
 	assert.Equal(t, CloseBackpressure, ep.closed(t))
+}
+
+// A socket error names the endpoint host and the stage, never the address the socket was
+// connected to.
+func TestTransportMessageRedactsAddresses(t *testing.T) {
+	err := &net.OpError{Op: "read", Net: "tcp", Addr: &net.TCPAddr{IP: net.IPv4(203, 0, 113, 9), Port: 443}, Err: errors.New("connection reset by peer")}
+
+	msg := transportMessage("https://endpoint.example.test/trigger?token=marker", err)
+	assert.Contains(t, msg, "endpoint.example.test")
+	assert.NotContains(t, msg, "203.0.113.9")
+	assert.NotContains(t, msg, "marker")
 }

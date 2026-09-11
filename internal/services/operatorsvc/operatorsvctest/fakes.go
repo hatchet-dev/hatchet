@@ -169,6 +169,10 @@ type WorkerStore struct {
 	// ops records the writes that change a worker's lifecycle state, in order, so a test can
 	// assert that a pause lands before the deactivation that follows it
 	ops []string
+	// hashPending marks a worker whose links changed since its hash was last refreshed, the
+	// way the repository nulls the row's hash; refreshes records each refresh, in order
+	hashPending map[uuid.UUID]bool
+	refreshes   []uuid.UUID
 }
 
 func NewWorkerStore() *WorkerStore {
@@ -180,6 +184,7 @@ func NewWorkerStore() *WorkerStore {
 		listenerSessions: map[uuid.UUID]uuid.UUID{},
 		labels:           map[uuid.UUID][]repository.UpsertWorkerLabelOpts{},
 		dispatchers:      map[uuid.UUID]uuid.UUID{},
+		hashPending:      map[uuid.UUID]bool{},
 	}
 }
 
@@ -219,12 +224,19 @@ func (f *WorkerStore) GetWorkerForEngine(_ context.Context, tenantId uuid.UUID, 
 		return nil, pgx.ErrNoRows
 	}
 
-	return &sqlcv1.GetWorkerForEngineRow{
+	row := &sqlcv1.GetWorkerForEngineRow{
 		ID:           w.ID,
 		TenantId:     w.TenantId,
 		DispatcherId: w.DispatcherId,
 		OperatorId:   w.OperatorId,
-	}, nil
+	}
+
+	// the repository stores the digest; here only its presence matters
+	if !f.hashPending[workerId] {
+		row.ActionHash = []byte("hash")
+	}
+
+	return row, nil
 }
 
 func (f *WorkerStore) UpdateWorker(_ context.Context, _ uuid.UUID, workerId uuid.UUID, opts *repository.UpdateWorkerOpts) (*sqlcv1.Worker, error) {
@@ -284,6 +296,27 @@ func (f *WorkerStore) DeactivateWorkerListener(_ context.Context, _ uuid.UUID, w
 	return f.workers[workerId], nil
 }
 
+// PauseWorkerForListener mirrors the repository fence: only the session recorded by the last
+// activation may change the pause, and a superseded session gets pgx.ErrNoRows.
+func (f *WorkerStore) PauseWorkerForListener(_ context.Context, _ uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.listenerSessions[workerId] != sessionId {
+		return fmt.Errorf("could not set worker paused for listener: %w", pgx.ErrNoRows)
+	}
+
+	f.paused[workerId] = paused
+
+	if paused {
+		f.ops = append(f.ops, "pause")
+	} else {
+		f.ops = append(f.ops, "unpause")
+	}
+
+	return nil
+}
+
 func (f *WorkerStore) UpdateWorkerHeartbeat(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -322,52 +355,105 @@ func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, 
 
 // AddWorkerActions links actions without a budget, for tests that seed an action set.
 func (f *WorkerStore) AddWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
-	return f.AddWorkerActionsWithinBudget(ctx, tenantId, workerId, actionIds, -1)
+	added, _, err := f.ApplyWorkerActionsDelta(ctx, tenantId, workerId, actionIds, nil, -1)
+
+	return added, err
 }
 
-func (f *WorkerStore) AddWorkerActionsWithinBudget(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string, maxNewLinks int64) (int, error) {
+// ApplyWorkerActionsDelta applies adds then removes, all or nothing, the way the repository
+// does: the per-operator cap is checked against the links every worker of the operator holds
+// once the delta is applied, and a delta that leaves the operator over it changes nothing.
+// A worker whose links changed has its hash pending until RefreshWorkerActionHash.
+func (f *WorkerStore) ApplyWorkerActionsDelta(_ context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	var fresh []string
 
-	for _, id := range actionIds {
+	for _, id := range add {
 		if _, ok := f.actions[workerId][id]; !ok {
 			fresh = append(fresh, id)
 		}
 	}
 
-	if maxNewLinks >= 0 && int64(len(fresh)) > maxNewLinks {
-		return 0, fmt.Errorf("delta would link %d new actions, the budget allows %d: %w", len(fresh), maxNewLinks, repository.ErrWorkerActionBudgetExceeded)
+	var gone []string
+
+	for _, id := range remove {
+		if _, ok := f.actions[workerId][id]; ok {
+			gone = append(gone, id)
+		}
+	}
+
+	if len(fresh) == 0 && len(gone) == 0 {
+		return 0, 0, nil
+	}
+
+	if w := f.workers[workerId]; maxOperatorLinks >= 0 && w != nil && w.OperatorId != nil {
+		linked := f.operatorLinksLocked(tenantId, *w.OperatorId) + int64(len(fresh)) - int64(len(gone))
+
+		if linked > maxOperatorLinks {
+			return 0, 0, &repository.ActionBudgetError{OperatorId: *w.OperatorId, Linked: linked, Limit: maxOperatorLinks}
+		}
 	}
 
 	for _, id := range fresh {
 		f.actions[workerId][id] = struct{}{}
 	}
 
-	return len(fresh), nil
+	for _, id := range gone {
+		delete(f.actions[workerId], id)
+	}
+
+	f.hashPending[workerId] = true
+
+	return len(fresh), len(gone), nil
 }
 
-func (f *WorkerStore) RemoveWorkerActions(_ context.Context, _ uuid.UUID, workerId uuid.UUID, actionIds []string) (int, error) {
+// RefreshWorkerActionHash records the refresh and clears the pending mark.
+func (f *WorkerStore) RefreshWorkerActionHash(_ context.Context, _ uuid.UUID, workerId uuid.UUID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	removed := 0
+	f.refreshes = append(f.refreshes, workerId)
+	delete(f.hashPending, workerId)
 
-	for _, id := range actionIds {
-		if _, ok := f.actions[workerId][id]; ok {
-			delete(f.actions[workerId], id)
-			removed++
-		}
-	}
+	return nil
+}
 
-	return removed, nil
+// SetHashPending marks the worker's hash as pending, as a session that ended between a delta
+// and its refresh leaves it.
+func (f *WorkerStore) SetHashPending(workerId uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.hashPending[workerId] = true
+}
+
+// HashPending reports whether the worker's hash is pending a refresh.
+func (f *WorkerStore) HashPending(workerId uuid.UUID) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.hashPending[workerId]
+}
+
+// Refreshes returns the workers whose hash was refreshed, in order.
+func (f *WorkerStore) Refreshes() []uuid.UUID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]uuid.UUID(nil), f.refreshes...)
 }
 
 func (f *WorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	return f.operatorLinksLocked(tenantId, operatorId), nil
+}
+
+// operatorLinksLocked sums the links of every worker of the operator. The caller holds mu.
+func (f *WorkerStore) operatorLinksLocked(tenantId uuid.UUID, operatorId uuid.UUID) int64 {
 	var n int64
 
 	for workerId, actions := range f.actions {
@@ -380,7 +466,7 @@ func (f *WorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uui
 		n += int64(len(actions))
 	}
 
-	return n, nil
+	return n
 }
 
 // ActionSet is the worker's linked actions, in no particular order.
@@ -590,6 +676,8 @@ type Dispatcher struct {
 	// sent records the messages a session sent through the stream handle
 	sent    []proto.Message
 	sendErr error
+	// pauses records every SetPaused call on a session handle, in order
+	pauses []bool
 	// durableRegister records the first message the delegated durable stream received
 	durableRegister *v1contracts.DurableTaskRequest
 	durableErr      error
@@ -644,6 +732,8 @@ func (s *streamSession) Send(_ context.Context, msg proto.Message) error {
 	return nil
 }
 
+func (s *streamSession) SetPaused(paused bool) { s.d.setPaused(paused) }
+
 func (s *streamSession) Release() {
 	s.d.mu.Lock()
 	defer s.d.mu.Unlock()
@@ -655,10 +745,45 @@ type handlerSession struct {
 	d *Dispatcher
 }
 
+func (s *handlerSession) SetPaused(paused bool) { s.d.setPaused(paused) }
+
 func (s *handlerSession) Release() {
 	s.d.mu.Lock()
 	defer s.d.mu.Unlock()
 	s.d.released++
+}
+
+func (f *Dispatcher) setPaused(paused bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.pauses = append(f.pauses, paused)
+}
+
+// PausedLog returns every SetPaused call on the dispatcher's session handles, in order.
+func (f *Dispatcher) PausedLog() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]bool(nil), f.pauses...)
+}
+
+// PauseAcks returns the paused value of every pause ack sent through a session handle, in order.
+func (f *Dispatcher) PauseAcks() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var out []bool
+
+	for _, msg := range f.sent {
+		if resp, ok := msg.(*v1contracts.OperatorListenResponse); ok {
+			if ack := resp.GetPauseAck(); ack != nil {
+				out = append(out, ack.Paused)
+			}
+		}
+	}
+
+	return out
 }
 
 func (f *Dispatcher) NotifyNewWorker(_ context.Context, _ *sqlcv1.Tenant, workerId uuid.UUID) {

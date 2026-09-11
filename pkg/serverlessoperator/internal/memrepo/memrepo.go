@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -59,6 +60,10 @@ type Repo struct {
 	releaseAlls   int
 	listForTenant int
 	listSince     int
+	byNamespace   int
+	listVersions  int
+	byIds         int
+	readRows      int
 
 	mu sync.Mutex
 }
@@ -125,6 +130,37 @@ func (r *Repo) ListSinceCalls() int {
 	defer r.mu.Unlock()
 
 	return r.listSince
+}
+
+// ByNamespaceCalls counts routing-miss lookups; ListVersionsCalls counts anti-entropy
+// version pages; ByIdsCalls counts fetches of changed rows by id; ReadRows counts every
+// endpoint row returned in full.
+func (r *Repo) ByNamespaceCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.byNamespace
+}
+
+func (r *Repo) ListVersionsCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.listVersions
+}
+
+func (r *Repo) ByIdsCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.byIds
+}
+
+func (r *Repo) ReadRows() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.readRows
 }
 
 // SetFailWrites makes every write fail with err until called with nil.
@@ -320,6 +356,78 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	}
 
 	sortEndpoints(out)
+	e.r.readRows += len(out)
+
+	return out, nil
+}
+
+func (e *endpoints) GetByNamespace(_ context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.byNamespace++
+
+	for _, ep := range e.r.endpoints {
+		if ep.TenantID == tenantId && ep.Namespace == namespace {
+			e.r.readRows++
+			return copyEndpoint(ep), nil
+		}
+	}
+
+	return nil, pgx.ErrNoRows
+}
+
+func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after repository.ServerlessEndpointVersion, limit int64) ([]repository.ServerlessEndpointVersion, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.listVersions++
+
+	out := make([]repository.ServerlessEndpointVersion, 0)
+
+	for _, ep := range e.r.endpoints {
+		if ep.TenantID != tenantId {
+			continue
+		}
+
+		v := version(ep)
+
+		if v.After(after.Version) || (v.Equal(after.Version) && ep.ID.String() > after.ID.String()) {
+			out = append(out, repository.ServerlessEndpointVersion{ID: ep.ID, Version: v})
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Version.Equal(out[j].Version) {
+			return out[i].Version.Before(out[j].Version)
+		}
+
+		return out[i].ID.String() < out[j].ID.String()
+	})
+
+	if int64(len(out)) > limit {
+		out = out[:limit]
+	}
+
+	return out, nil
+}
+
+func (e *endpoints) ListByIds(_ context.Context, ids []uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.byIds++
+
+	out := make([]*sqlcv1.V1ServerlessEndpoint, 0, len(ids))
+
+	for _, id := range ids {
+		if ep, ok := e.r.endpoints[id]; ok {
+			out = append(out, copyEndpoint(ep))
+		}
+	}
+
+	sortEndpoints(out)
+	e.r.readRows += len(out)
 
 	return out, nil
 }
@@ -535,10 +643,15 @@ func (r *Repo) liveLocked(processId uuid.UUID) bool {
 	return ok && !proc.expired
 }
 
-// claimableLocked applies the database's rule: a unit is claimable when it has no owner or
-// its owner's heartbeat row exists and has expired. A missing owner row is not claimable;
-// row deletions release their units instead.
+// claimableLocked applies the database's rule: a unit is claimable when it has endpoints
+// and either no owner or an owner whose heartbeat row exists and has expired. An empty unit
+// is never claimed; a missing owner row is not claimable, row deletions release their units
+// instead.
 func (r *Repo) claimableLocked(lease *sqlcv1.V1ServerlessLease) bool {
+	if lease.EndpointCount <= 0 {
+		return false
+	}
+
 	if lease.ProcessID == nil {
 		return true
 	}
@@ -587,7 +700,9 @@ func (l *leases) Claim(_ context.Context, processId uuid.UUID, after Unit, limit
 			break
 		}
 
-		if l.r.leases[unit].ProcessID != nil || !lessUnit(after, unit) {
+		lease := l.r.leases[unit]
+
+		if lease.ProcessID != nil || !l.r.claimableLocked(lease) || !lessUnit(after, unit) {
 			continue
 		}
 
@@ -677,12 +792,15 @@ func (l *leases) CountClaimable(_ context.Context, limit int64) (*sqlcv1.CountCl
 
 	row := &sqlcv1.CountClaimableServerlessLeasesRow{}
 
-	// The database caps each side of the count at limit; the fake counts unowned and
-	// abandoned units together against the same cap, which is what the leaser observes.
-	for _, lease := range l.r.leases {
+	// The database samples each side of the count up to limit in key order; the fake counts
+	// unowned and abandoned units together against the same cap, in key order, which is what
+	// the leaser observes.
+	for _, unit := range sortedUnits(l.r.leases) {
 		if row.UnitCount >= limit {
 			break
 		}
+
+		lease := l.r.leases[unit]
 
 		if l.r.claimableLocked(lease) {
 			row.UnitCount++

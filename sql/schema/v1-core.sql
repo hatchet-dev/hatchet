@@ -2891,8 +2891,9 @@ CREATE TABLE v1_serverless_lease (
 
 CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, shard);
 
--- claims walk unowned units in key order from a random start; covering so the claimable count is index only
-CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, shard) INCLUDE (endpoint_count) WHERE process_id IS NULL;
+-- claims walk unowned units with endpoints in key order from a random start; covering so the
+-- claimable count is index only. Empty units are never claimed, so they are not in the index.
+CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, shard) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,

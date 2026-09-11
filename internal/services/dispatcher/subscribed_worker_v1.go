@@ -24,6 +24,7 @@ import (
 var (
 	errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
 	errSessionReleased   = errors.New("worker session has been released")
+	errWorkerPaused      = errors.New("worker session is paused, the task is returned to the queue")
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
@@ -78,6 +79,12 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
 ) error {
+	// a paused operator session refuses starts the way a failed send does, so the caller
+	// requeues the task; see subscribedWorker.paused
+	if action.ActionType != contracts.ActionType_CANCEL_STEP_RUN && worker.paused.Load() {
+		return errWorkerPaused
+	}
+
 	if worker.handler != nil {
 		return worker.sendToWorkerWithOperator(ctx, action)
 	}

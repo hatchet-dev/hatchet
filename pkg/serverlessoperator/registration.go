@@ -72,10 +72,21 @@ type registration struct {
 	slots chan struct{}
 
 	inflight map[string]map[attemptKey]*inflightTask
-	// advertised is the union the engine holds for this registration (the cache's shared
-	// sorted slice, never modified) and advertisedRev its revision: a sync is free while the
-	// cache is at the same revision.
-	advertised    []string
+	// inflightCount is the number of deliveries in inflight, every attempt included, kept
+	// beside the map so the lease tick reads it without walking the map.
+	inflightCount atomic.Int64
+
+	// The action set the engine holds for this registration is base, a slice the cache
+	// handed out (shared, never modified), with the deltas in applied pushed on top of it in
+	// order; advertisedRev is the union revision it corresponds to, and a sync is free while
+	// the cache is at that revision. The set is never materialized on the sync path: a
+	// changed union is pushed as the cache's delta since advertisedRev, whatever the tenant's
+	// size. It is materialized only when the cache's log no longer reaches advertisedRev
+	// (a diff against the current union) and when applied has grown past the base, when it
+	// is rewritten as a new base; both are O(set) and neither sorts it.
+	base          []string
+	applied       []unionDelta
+	appliedIds    int
 	advertisedRev uint64
 	mu            sync.Mutex
 	// syncMu serializes syncActions so two callers (maintenance pass and a poller) never
@@ -103,7 +114,7 @@ func newRegistration(r *runner, ts *tenantState, union []string, rev uint64, slo
 		ready:         make(chan struct{}),
 		slots:         make(chan struct{}, slotCap(slotConfig)),
 		inflight:      map[string]map[attemptKey]*inflightTask{},
-		advertised:    union,
+		base:          union,
 		advertisedRev: rev,
 	}
 }
@@ -168,6 +179,8 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 		go prev.close()
 	}
 
+	r.superviseRegistration(ts, reg)
+
 	r.l.Info().
 		Str("tenant_id", ts.tenantId.String()).
 		Str("worker_id", session.Registration().WorkerId.String()).
@@ -175,6 +188,53 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 		Msg("serverless registration opened")
 
 	return nil
+}
+
+// superviseRegistration watches the session's Done: a host recovers transient failures on
+// its own (the gRPC host reconnects and re-reads the tenant's token), so Done closing with an
+// error means it gave up for good, on a failure no retry fixes. The registration is then
+// detached and closed (its deliveries in flight report through the closed session and the
+// engine retries them) and a new one opened at once while the tenant still owns units; an
+// open that fails is retried by maintenance like any missing registration, and a tenant
+// whose token is gone is marked the way a tokenless open marks it. A Done without an error
+// is the registration's own Close and needs nothing.
+func (r *runner) superviseRegistration(ts *tenantState, reg *registration) {
+	r.wg.Add(1)
+
+	go func() {
+		defer r.wg.Done()
+
+		select {
+		case <-reg.session.Done():
+		case <-r.loopCtx.Done():
+			return
+		}
+
+		err := reg.session.Err()
+
+		if err == nil {
+			return
+		}
+
+		r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("host gave up on the serverless registration; opening another")
+
+		ts.opMu.Lock()
+		defer ts.opMu.Unlock()
+
+		if !ts.detachRegistration(reg) {
+			return
+		}
+
+		reg.close()
+
+		if ts.removed || ts.unitCount() == 0 {
+			return
+		}
+
+		if err := r.openRegistration(r.loopCtx, ts); err != nil {
+			r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("registration not reopened; will retry")
+		}
+	}()
 }
 
 func (r *runner) slotConfig() map[string]int32 {
@@ -282,6 +342,7 @@ func (reg *registration) startDelivery(ctx context.Context, action *contracts.As
 	dctx, cancel := context.WithCancel(reg.r.deliveryCtx)
 	task := &inflightTask{cancel: cancel}
 	attempts[key] = task
+	reg.inflightCount.Add(1)
 	reg.active.Add(1)
 	reg.mu.Unlock()
 
@@ -306,6 +367,7 @@ func (reg *registration) finish(taskRunExternalId string, key attemptKey, task *
 
 	if attempts, ok := reg.inflight[taskRunExternalId]; ok && attempts[key] == task {
 		delete(attempts, key)
+		reg.inflightCount.Add(-1)
 
 		if len(attempts) == 0 {
 			delete(reg.inflight, taskRunExternalId)
@@ -515,24 +577,17 @@ func (reg *registration) reportFailure(action *contracts.AssignedAction, msg str
 
 // inFlight counts every delivery in progress, every attempt included.
 func (reg *registration) inFlight() int {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	n := 0
-
-	for _, attempts := range reg.inflight {
-		n += len(attempts)
-	}
-
-	return n
+	return int(reg.inflightCount.Load())
 }
 
 // syncActions brings the registration to the cache's union revision: the delta since the
-// advertised revision comes from the cache's log, or from a diff against the full union when
-// the log no longer reaches back, and is pushed as add and remove deltas, then flushed, so the
-// engine sees the union. A failed push leaves the advertised revision unchanged and the next
-// sync retries the same delta; both deltas are idempotent on the engine, so a retry after a
-// partial push is harmless. A registration at the current revision returns at once.
+// advertised revision comes from the cache's log, or from a diff of the advertised set against
+// the union when the log no longer reaches back, and is pushed as add and remove deltas, then
+// flushed, so the engine sees the union. The tenant's union is never materialized or sorted
+// here: a one-action change costs that one action, whatever the tenant's size. A failed push
+// leaves the advertised revision unchanged and the next sync retries the same delta; both
+// deltas are idempotent on the engine, so a retry after a partial push is harmless. A
+// registration at the current revision returns at once.
 func (reg *registration) syncActions(ctx context.Context, cache *routingCache) error {
 	reg.mu.Lock()
 	prevRev := reg.advertisedRev
@@ -546,26 +601,51 @@ func (reg *registration) syncActions(ctx context.Context, cache *routingCache) e
 	defer reg.syncMu.Unlock()
 
 	reg.mu.Lock()
-	prev, prevRev := reg.advertised, reg.advertisedRev
+	prevRev = reg.advertisedRev
 	reg.mu.Unlock()
 
-	union, rev := cache.ActionUnion()
+	added, removed, rev, ok := cache.DeltasSince(prevRev)
 
-	if rev == prevRev {
+	if ok && rev == prevRev {
 		return nil
 	}
 
-	added, removed, ok := cache.DeltasSince(prevRev)
+	var have map[string]struct{}
 
 	if !ok {
-		added, removed = diffActions(prev, union)
+		have = reg.advertisedSet()
+		added, removed, rev = cache.DiffAgainst(have)
 	}
 
-	if len(added) == 0 && len(removed) == 0 {
-		reg.mu.Lock()
-		reg.advertised, reg.advertisedRev = union, rev
-		reg.mu.Unlock()
+	if err := reg.pushDelta(ctx, added, removed); err != nil {
+		reg.reverseDelta(added, removed)
+		return err
+	}
 
+	reg.mu.Lock()
+
+	if have != nil {
+		applyDelta(have, added, removed)
+		reg.rebaseLocked(have)
+	} else {
+		reg.recordLocked(added, removed, rev)
+	}
+
+	reg.advertisedRev = rev
+	reg.mu.Unlock()
+
+	reg.r.l.Debug().
+		Str("tenant_id", reg.ts.tenantId.String()).
+		Int("added", len(added)).
+		Int("removed", len(removed)).
+		Msg("serverless registration actions synced")
+
+	return nil
+}
+
+// pushDelta sends the delta to the session and waits for the engine to commit it.
+func (reg *registration) pushDelta(ctx context.Context, added, removed []string) error {
+	if len(added) == 0 && len(removed) == 0 {
 		return nil
 	}
 
@@ -585,44 +665,92 @@ func (reg *registration) syncActions(ctx context.Context, cache *routingCache) e
 		return fmt.Errorf("could not flush actions: %w", err)
 	}
 
-	reg.mu.Lock()
-	reg.advertised, reg.advertisedRev = union, rev
-	reg.mu.Unlock()
-
-	reg.r.l.Debug().
-		Str("tenant_id", reg.ts.tenantId.String()).
-		Int("added", len(added)).
-		Int("removed", len(removed)).
-		Msg("serverless registration actions synced")
-
 	return nil
 }
 
-// diffActions returns the ids in want but not in have (added) and in have but not in want
-// (removed), each in the order of the list they come from.
-func diffActions(have, want []string) (added, removed []string) {
-	haveSet := make(map[string]struct{}, len(have))
-	wantSet := make(map[string]struct{}, len(want))
+// reverseDelta takes a delta the engine refused back out of the session, so what the session
+// desires is again what the registration advertises: a host that queues deltas (the gRPC
+// host) would otherwise keep the refused ids in the set it restores on every new client
+// session, and the registration, whose advertised revision the failure left unchanged, would
+// never send the removal, since the cache's rollback cancels the change in its log. The
+// inverse is idempotent on the engine and runs on its own bounded context, since the push
+// may have failed on the caller's deadline. Its own failure is logged: the next sync
+// retries the forward delta anyway.
+func (reg *registration) reverseDelta(added, removed []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), sessionOpTimeout)
+	defer cancel()
 
-	for _, id := range have {
-		haveSet[id] = struct{}{}
+	if err := reg.pushDelta(ctx, removed, added); err != nil {
+		reg.r.l.Debug().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not take a refused action delta back out of the session")
+	}
+}
+
+// advertisedSet materializes the set the engine holds: base with the applied deltas on top.
+func (reg *registration) advertisedSet() map[string]struct{} {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	have := make(map[string]struct{}, len(reg.base)+reg.appliedIds)
+
+	for _, id := range reg.base {
+		have[id] = struct{}{}
 	}
 
-	for _, id := range want {
-		wantSet[id] = struct{}{}
-
-		if _, ok := haveSet[id]; !ok {
-			added = append(added, id)
-		}
+	for _, delta := range reg.applied {
+		applyDelta(have, delta.added, delta.removed)
 	}
 
-	for _, id := range have {
-		if _, ok := wantSet[id]; !ok {
-			removed = append(removed, id)
-		}
+	return have
+}
+
+func applyDelta(set map[string]struct{}, added, removed []string) {
+	for _, id := range added {
+		set[id] = struct{}{}
 	}
 
-	return added, removed
+	for _, id := range removed {
+		delete(set, id)
+	}
+}
+
+// recordLocked appends a pushed delta. Once the applied deltas carry more ids than the base
+// they are folded into a new base, so the fallback materialization stays bounded by the
+// set's size and the deltas do not accumulate for the life of the registration.
+func (reg *registration) recordLocked(added, removed []string, rev uint64) {
+	reg.applied = append(reg.applied, unionDelta{added: added, removed: removed, rev: rev})
+	reg.appliedIds += len(added) + len(removed)
+
+	if reg.appliedIds <= len(reg.base)+appliedCompactionFloor {
+		return
+	}
+
+	have := make(map[string]struct{}, len(reg.base))
+
+	for _, id := range reg.base {
+		have[id] = struct{}{}
+	}
+
+	for _, delta := range reg.applied {
+		applyDelta(have, delta.added, delta.removed)
+	}
+
+	reg.rebaseLocked(have)
+}
+
+// appliedCompactionFloor keeps a small registration from compacting on every delta.
+const appliedCompactionFloor = 1024
+
+// rebaseLocked replaces base with the set and drops the applied deltas.
+func (reg *registration) rebaseLocked(have map[string]struct{}) {
+	base := make([]string, 0, len(have))
+
+	for id := range have {
+		base = append(base, id)
+	}
+
+	reg.base = base
+	reg.applied = nil
+	reg.appliedIds = 0
 }
 
 // teardown is the orderly end of a registration: pause the worker so the engine assigns it

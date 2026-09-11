@@ -2,6 +2,7 @@ package serverlessoperator
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,11 +43,20 @@ type tenantState struct {
 	units    map[int32]struct{}
 	hcSem    chan struct{}
 	tenantId uuid.UUID
-	opMu     sync.Mutex
-	mu       sync.Mutex
-	noToken  atomic.Bool
-	loaded   bool
-	removed  bool
+	// jitter in [0, 1) offsets this tenant's anti-entropy interval.
+	jitter  float64
+	opMu    sync.Mutex
+	mu      sync.Mutex
+	noToken atomic.Bool
+	loaded  bool
+	removed bool
+}
+
+// reconcileInterval spreads the tenants' anti-entropy passes over the interval: each tenant
+// runs its own between 90 and 110 percent of the configured one, so the served tenants do not
+// all list their versions on the same tick.
+func (ts *tenantState) reconcileInterval(base time.Duration) time.Duration {
+	return time.Duration(float64(base) * (0.9 + 0.2*ts.jitter))
 }
 
 func (ts *tenantState) registration() *registration {
@@ -183,6 +193,7 @@ func (r *runner) tenantFor(tenantId uuid.UUID) *tenantState {
 		pollers:  map[uuid.UUID]*endpointPoller{},
 		units:    map[int32]struct{}{},
 		hcSem:    make(chan struct{}, r.cfg.HealthcheckTenantConcurrency),
+		jitter:   rand.Float64(), // #nosec G404 -- jitter, not security
 	}
 
 	r.tenants[tenantId] = ts
@@ -243,13 +254,36 @@ func (r *runner) pendingUnits() []lease.Unit {
 // UnitsGained implements lease.Reconciler: for each tenant, load its routing cache (or the
 // gained units' endpoints when it is already served), open its registration if it has none
 // and start pollers. A tenant whose load fails keeps its units pending for maintenance to
-// retry; a registration that fails to open is retried by maintenance as well.
+// retry; a registration that fails to open is retried by maintenance as well. One batch
+// gains its tenants concurrently, MaintenanceConcurrency at a time: a startup or a takeover
+// gains many tenants at once, and each tenant's gain is a load and a Host.Open, so in series
+// the lease tick would wait through every one of them.
 func (r *runner) UnitsGained(ctx context.Context, units []lease.Unit) {
-	for tenantId, shards := range groupUnits(units) {
-		r.gainUnits(ctx, tenantId, shards)
+	r.gainGroups(ctx, groupUnits(units))
+	r.updateGauges()
+}
+
+// gainGroups gains every tenant's units on a bounded pool and returns once all are done. A
+// tenant's gain runs under its own opMu, so the pool never runs two gains of one tenant.
+func (r *runner) gainGroups(ctx context.Context, groups map[uuid.UUID][]int32) {
+	sem := make(chan struct{}, r.cfg.MaintenanceConcurrency)
+
+	var wg sync.WaitGroup
+
+	for tenantId, shards := range groups {
+		wg.Add(1)
+
+		go func(tenantId uuid.UUID, shards []int32) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			r.gainUnits(ctx, tenantId, shards)
+		}(tenantId, shards)
 	}
 
-	r.updateGauges()
+	wg.Wait()
 }
 
 func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int32) {
@@ -417,13 +451,21 @@ func (r *runner) releaseTenant(tenantId uuid.UUID) {
 	}
 }
 
-// InFlight implements lease.Reconciler. Deliveries are tracked per tenant registration, so
-// every unit of a tenant reports the tenant's in-flight count: shedding then leaves a busy
-// tenant's units alone, which is the conservative reading.
+// InFlight implements lease.Reconciler. Deliveries belong to the tenant's registration, not
+// to a unit: losing one of several units stops that unit's pollers and leaves the
+// registration, and every delivery on it, where it is. So a unit reports no deliveries while
+// the tenant owns others, and shedding it costs nothing in flight. Only the tenant's last
+// unit reports the registration's count, since losing it closes the registration, which
+// drains for at most DrainTimeout and then aborts what is left; the leaser sheds such a unit
+// after the idle ones.
 func (r *runner) InFlight(unit lease.Unit) int {
 	ts := r.tenant(unit.TenantId)
 
 	if ts == nil {
+		return 0
+	}
+
+	if ts.unitCount() > 1 {
 		return 0
 	}
 
@@ -436,10 +478,10 @@ func (r *runner) InFlight(unit lease.Unit) int {
 	return reg.inFlight()
 }
 
-// maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (a full
-// reload every RoutingFullReloadInterval, which drops deleted endpoints), reconcile pollers,
-// reopen registrations that are missing (never opened, no token), push a changed action
-// union to the registration, and retry units whose tenant failed to load.
+// maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (an
+// anti-entropy reconcile every RoutingFullReloadInterval, which drops deleted endpoints),
+// reconcile pollers, reopen registrations that are missing (never opened, no token), push a
+// changed action union to the registration, and retry units whose tenant failed to load.
 func (r *runner) maintain(ctx context.Context) {
 	ticker := time.NewTicker(r.cfg.RoutingRefreshInterval)
 	defer ticker.Stop()
@@ -483,10 +525,7 @@ func (r *runner) maintainOnce(ctx context.Context) {
 
 	wg.Wait()
 
-	for tenantId, shards := range groupUnits(r.pendingUnits()) {
-		r.gainUnits(ctx, tenantId, shards)
-	}
-
+	r.gainGroups(ctx, groupUnits(r.pendingUnits()))
 	r.updateGauges()
 }
 
@@ -509,8 +548,8 @@ func (r *runner) maintainTenant(ctx context.Context, ts *tenantState) {
 			ts.loaded = true
 			ts.mu.Unlock()
 		}
-	case time.Since(ts.cache.LastLoad()) >= r.cfg.RoutingFullReloadInterval:
-		err = ts.cache.Load(ctx)
+	case time.Since(ts.cache.LastLoad()) >= ts.reconcileInterval(r.cfg.RoutingFullReloadInterval):
+		err = ts.cache.Reconcile(ctx)
 	default:
 		err = ts.cache.Refresh(ctx)
 	}

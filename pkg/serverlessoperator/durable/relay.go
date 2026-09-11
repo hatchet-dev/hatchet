@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -326,7 +327,20 @@ func classifyDialError(ctx context.Context, p *Params, err error) Outcome {
 		return failed(0, fmt.Sprintf("endpoint upgrade response headers exceeded the %d byte limit", p.MaxUpgradeHeaderBytes), false)
 	}
 
-	return failed(0, fmt.Sprintf("could not open websocket: %s", err.Error()), true)
+	return failed(0, fmt.Sprintf("could not open websocket: %s", transportMessage(p.TriggerURL, err)), true)
+}
+
+// transportMessage is the tenant-facing form of a socket or dial error: the endpoint host
+// and the stage that failed, through safeclient.PublicError, so a resolved address or a
+// request URL never reaches a task error. Policy errors are public already.
+func transportMessage(triggerURL string, err error) string {
+	host := ""
+
+	if u, parseErr := url.Parse(triggerURL); parseErr == nil {
+		host = u.Hostname()
+	}
+
+	return safeclient.PublicError(host, err).Error()
 }
 
 // abortExit maps a done delivery context: deadline (the request timeout), engine cancel,
@@ -459,7 +473,7 @@ func (r *relay) onReadError(err error) {
 	}
 
 	r.peerClosed.Store(true)
-	r.closedWithoutDone(fmt.Sprintf("websocket read failed: %s", err.Error()))
+	r.closedWithoutDone(fmt.Sprintf("websocket read failed: %s", transportMessage(r.p.TriggerURL, err)))
 }
 
 // closedWithoutDone is the crash rule: a socket that ends without done is a retryable
@@ -785,7 +799,7 @@ func (r *relay) writeQueued(frame []byte) bool {
 
 	if err := r.write(frame); err != nil {
 		if !r.stopped() {
-			r.closedWithoutDone(fmt.Sprintf("websocket write failed: %s", err.Error()))
+			r.closedWithoutDone(fmt.Sprintf("websocket write failed: %s", transportMessage(r.p.TriggerURL, err)))
 		}
 
 		return false

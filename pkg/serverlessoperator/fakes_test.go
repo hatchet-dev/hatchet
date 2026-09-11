@@ -56,18 +56,29 @@ type actionDelta struct {
 // every add and remove in order; flushes counts Flush calls; ops records the lifecycle calls
 // (pause, close) in order.
 type fakeSession struct {
-	handler     operator.ActionHandler
-	reg         operator.Registration
-	putErr      error
-	deltaErr    error
+	handler  operator.ActionHandler
+	reg      operator.Registration
+	putErr   error
+	deltaErr error
+	// flushErr fails the next Flush once, the way a delta the engine refuses surfaces.
+	flushErr error
+	// err is what Err reports once done is closed: nil after Close, the terminal failure a
+	// test injected through fail.
+	err         error
 	openDurable func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error)
 	puts        []*v1.CreateWorkflowVersionRequest
 	deltas      []actionDelta
 	events      []*contracts.StepActionEvent
 	ops         []string
+	done        chan struct{}
+	doneOnce    sync.Once
 	flushes     int
 	mu          sync.Mutex
 	closed      bool
+}
+
+func newFakeSession(handler operator.ActionHandler, reg operator.Registration) *fakeSession {
+	return &fakeSession{handler: handler, reg: reg, done: make(chan struct{})}
 }
 
 var _ operator.Session = (*fakeSession)(nil)
@@ -132,7 +143,33 @@ func (f *fakeSession) Flush(_ context.Context) error {
 
 	f.flushes++
 
+	if f.flushErr != nil {
+		err := f.flushErr
+		f.flushErr = nil
+
+		return err
+	}
+
 	return nil
+}
+
+// desired is the action set the session would restore on a new client session: the adds
+// and removes applied in order, the way the gRPC host keeps its desired set.
+func (f *fakeSession) desired(base []string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set := map[string]struct{}{}
+
+	for _, id := range base {
+		set[id] = struct{}{}
+	}
+
+	for _, d := range f.deltas {
+		applyDelta(set, d.add, d.remove)
+	}
+
+	return sortedUnion(keys(set))
 }
 
 func (f *fakeSession) SendStepActionEvent(_ context.Context, ev *contracts.StepActionEvent) error {
@@ -182,8 +219,30 @@ func (f *fakeSession) Close(_ context.Context) error {
 
 	f.closed = true
 	f.ops = append(f.ops, "close")
+	f.doneOnce.Do(func() { close(f.done) })
 
 	return nil
+}
+
+func (f *fakeSession) Done() <-chan struct{} { return f.done }
+
+func (f *fakeSession) Err() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.err
+}
+
+// fail ends the session the way a host that gave up on it does: Done closes with err on
+// Err, the session is not closed, and every later call is refused.
+func (f *fakeSession) fail(err error) {
+	f.mu.Lock()
+	f.err = err
+	f.putErr = operator.ErrSessionClosed
+	f.deltaErr = operator.ErrSessionClosed
+	f.mu.Unlock()
+
+	f.doneOnce.Do(func() { close(f.done) })
 }
 
 func (f *fakeSession) isClosed() bool {
@@ -299,10 +358,7 @@ func (f *fakeHost) Open(_ context.Context, id operator.Identity, opts operator.O
 		return nil, f.openErr
 	}
 
-	s := &fakeSession{
-		handler: opts.Handler,
-		reg:     operator.Registration{TenantId: id.TenantId, OperatorId: uuid.New(), WorkerId: uuid.New()},
-	}
+	s := newFakeSession(opts.Handler, operator.Registration{TenantId: id.TenantId, OperatorId: uuid.New(), WorkerId: uuid.New()})
 
 	f.sessions = append(f.sessions, s)
 

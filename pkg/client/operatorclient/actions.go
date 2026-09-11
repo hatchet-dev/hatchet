@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -42,6 +43,15 @@ type unackedDelta struct {
 	sentAt time.Time
 }
 
+// stagedChunk is a chunk the flusher took from pending and has not sent yet, with the stream
+// generation it was staged under. A replay between staging and send bumps the generation and
+// takes the chunk over (a resumed replay resends it, a fresh one replaces it with the
+// snapshot), so the flusher's own send is skipped once the generation moved.
+type stagedChunk struct {
+	delta      *v1.OperatorActionsDelta
+	generation uint64
+}
+
 // actionDeltaQueue turns AddActions and RemoveActions calls into sequenced
 // OperatorActionsDelta messages and tracks them until the engine acknowledges
 // them. Enqueues never block: they update the desired set and the pending map
@@ -60,7 +70,7 @@ type unackedDelta struct {
 // autofixer); mu guards desired, pending, order, unacked, nextSeq, inFlight,
 // lastErr and idle.
 type actionDeltaQueue struct {
-	stream     *reconnectingStream[*operatorListenClient]
+	stream     *streaming.ReconnectingStream[*listenClient]
 	l          *zerolog.Logger
 	desired    map[string]struct{}
 	pending    map[string]actionDeltaOp
@@ -73,6 +83,7 @@ type actionDeltaQueue struct {
 	interval   time.Duration
 	ackTimeout time.Duration
 	nextSeq    uint64
+	generation uint64
 
 	stopOnce sync.Once
 	mu       sync.Mutex
@@ -80,7 +91,7 @@ type actionDeltaQueue struct {
 	inFlight bool
 }
 
-func newActionDeltaQueue(l *zerolog.Logger, stream *reconnectingStream[*operatorListenClient], interval time.Duration, maxChunk int) *actionDeltaQueue {
+func newActionDeltaQueue(l *zerolog.Logger, stream *streaming.ReconnectingStream[*listenClient], interval time.Duration, maxChunk int) *actionDeltaQueue {
 	q := &actionDeltaQueue{
 		stream:     stream,
 		l:          l,
@@ -203,9 +214,10 @@ func (q *actionDeltaQueue) unackedSequences() []uint64 {
 }
 
 // replay brings a fresh stream up to date. It runs under the reconnecting
-// stream's sendMu before the stream is published, so no chunk is sent in
-// between: a chunk taken by the flusher while replay runs waits for the
-// lock and goes out on the new stream afterwards.
+// stream's send lock before the stream is published, so no chunk is sent in
+// between. A chunk the flusher staged before the replay took the lock is in
+// unacked already: the replay takes it over, and the stream generation it
+// bumps tells the flusher to skip its own send of it (see run).
 //
 // For a resumed worker the unacked chunks are resent in order. For a fresh
 // worker the desired set is the whole truth: the pending ops and the unacked
@@ -215,6 +227,8 @@ func (q *actionDeltaQueue) unackedSequences() []uint64 {
 // and never coalesced away.
 func (q *actionDeltaQueue) replay(stream v1.OperatorService_ListenClient, resumed bool) error {
 	q.mu.Lock()
+
+	q.generation++
 
 	if !resumed {
 		q.pending = map[string]actionDeltaOp{}
@@ -320,7 +334,7 @@ func (q *actionDeltaQueue) flush(ctx context.Context) error {
 		select {
 		case <-idle:
 		case <-q.done:
-			return errListenerClosed
+			return streaming.ErrListenerClosed
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -337,6 +351,12 @@ func (q *actionDeltaQueue) stop() {
 // flusher makes one coalesced reconnect attempt, whose replay resends it
 // along with everything else unacked, and otherwise leaves the reconnect to
 // the receive loop.
+//
+// A chunk is sent only under the stream generation it was staged under. The
+// send waits for the send lock a replay may hold; once it has the lock, a
+// changed generation means the replay took the chunk over: resent it on a
+// resumed worker, or dropped it for the snapshot of a fresh one. Sending it
+// then would apply a delta the snapshot already superseded.
 func (q *actionDeltaQueue) run() {
 	// the reconnect attempt is bound to a context that stop cancels, so a
 	// constructor blocked inside a dead connection does not outlive the
@@ -371,13 +391,19 @@ func (q *actionDeltaQueue) run() {
 		}
 
 		for {
-			chunk := q.takeChunk()
+			staged := q.takeChunk()
 
-			if chunk == nil {
+			if staged == nil {
 				break
 			}
 
-			err := q.stream.sendOnce(func(c *operatorListenClient) error {
+			chunk := staged.delta
+
+			err := q.stream.SendOnce(func(c *listenClient) error {
+				if !q.currentGeneration(staged.generation) {
+					return nil
+				}
+
 				return c.Send(&v1.OperatorListenRequest{Message: &v1.OperatorListenRequest_Actions{Actions: chunk}})
 			})
 
@@ -387,7 +413,7 @@ func (q *actionDeltaQueue) run() {
 				// the chunk stays in flight until the reconnect attempt settles, so a
 				// flush observes either the replayed chunk or the send error, never the
 				// error of a send the replay is about to repeat
-				if rerr := q.stream.connectOnce(ctx); rerr != nil {
+				if rerr := q.stream.ConnectOnce(ctx); rerr != nil {
 					q.l.Warn().Err(rerr).Msg("could not reconnect operator listener after a failed delta send")
 					q.finishChunk(err)
 				} else {
@@ -445,7 +471,7 @@ func (q *actionDeltaQueue) expireUnacked() {
 
 	q.l.Warn().Uint64("sequence", oldest).Dur("timeout", q.ackTimeout).Msg("operator action delta was not acknowledged in time, reconnecting")
 
-	if err := q.stream.closeStream(); err != nil {
+	if err := q.stream.CloseStream(); err != nil {
 		q.l.Warn().Err(err).Msg("could not close operator listener stream after an ack timeout")
 	}
 }
@@ -457,10 +483,19 @@ func (q *actionDeltaQueue) chunkReady() bool {
 	return len(q.pending) >= q.maxChunk
 }
 
+// currentGeneration reports whether generation is still the stream generation, which is
+// what tells the flusher that no replay ran since it staged a chunk.
+func (q *actionDeltaQueue) currentGeneration(generation uint64) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	return q.generation == generation
+}
+
 // takeChunk moves up to maxChunk pending ops into a sequenced delta, records
 // it as unacked and marks the queue in flight. It returns nil when nothing
 // is pending.
-func (q *actionDeltaQueue) takeChunk() *v1.OperatorActionsDelta {
+func (q *actionDeltaQueue) takeChunk() *stagedChunk {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -494,7 +529,7 @@ func (q *actionDeltaQueue) takeChunk() *v1.OperatorActionsDelta {
 	q.unacked = append(q.unacked, unackedDelta{delta: chunk, sentAt: time.Now()})
 	q.inFlight = true
 
-	return chunk
+	return &stagedChunk{delta: chunk, generation: q.generation}
 }
 
 func (q *actionDeltaQueue) finishChunk(err error) {

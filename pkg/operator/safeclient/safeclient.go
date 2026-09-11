@@ -9,11 +9,12 @@
 //     Config.InfraBlockedCIDRs;
 //   - redirects are never followed (3xx is surfaced to the caller as the result status);
 //   - the response body is capped at Config.MaxResponseBytes, and reading stops there;
-//   - idle connections are bounded globally, per host and in time (Config.MaxIdleConns,
-//     MaxIdleConnsPerHost, IdleConnTimeout); CloseIdleConnections releases them;
+//   - HTTP/1.1 only, so every retained connection is in the transport's idle pool, which
+//     is bounded globally, per host and in time (Config.MaxIdleConns, MaxIdleConnsPerHost,
+//     IdleConnTimeout); CloseIdleConnections releases them;
 //   - transport errors are returned as EndpointError, worded for the tenant, with the
 //     detail in the operator log;
-//   - the overall request deadline is owned by the CALLER via context.Context — this
+//   - the overall request deadline is owned by the CALLER via context.Context: this
 //     package imposes no overall request timeout.
 package safeclient
 
@@ -59,13 +60,14 @@ type Config struct {
 	ConnectTimeout       time.Duration
 	MaxResponseBytes     int64
 
-	// MaxIdleConns, MaxIdleConnsPerHost and IdleConnTimeout bound the transport's idle
-	// connection pool; zero values take the package defaults (256, 4, 90s).
-	MaxIdleConns        int
-	MaxIdleConnsPerHost int
-	IdleConnTimeout     time.Duration
+	MaxRedirects int
 
-	MaxRedirects         int
+	// MaxIdleConns, MaxIdleConnsPerHost and IdleConnTimeout bound the transport's idle
+	// connection pool, which is every connection the Sender retains: it speaks HTTP/1.1
+	// only. Zero values take the defaults (256, 4 and 90s).
+	MaxIdleConns         int
+	MaxIdleConnsPerHost  int
+	IdleConnTimeout      time.Duration
 	AllowEmptyInfraCIDRs bool
 	EnableIPv6           bool
 
@@ -97,7 +99,9 @@ type httpDoer interface {
 // Sender delivers outbound HTTP requests under the SSRF policy. Construct one with New and
 // reuse it; it is safe for concurrent use.
 type Sender struct {
-	client         httpDoer
+	client httpDoer
+	// transport is the transport the client actually uses: under the SSRF policy the clone
+	// safeurl installed its dialer on, so it holds the pooled connections.
 	transport      *http.Transport
 	blocklist      *blocklist
 	l              *zerolog.Logger
@@ -145,7 +149,7 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 	transport := cfg.newTransport()
 
 	if cfg.testInsecureTLS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- test-only
+		transport.TLSClientConfig.InsecureSkipVerify = true // #nosec G402 -- test-only
 	}
 
 	builder := safeurl.GetConfigBuilder().
@@ -165,9 +169,14 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 
 	client := safeurl.Client(builder.Build())
 
-	// safeurl clones the transport it is given; the clone is the one that pools
-	// connections, so that is the one CloseIdleConnections has to reach.
-	effective, _ := client.Client.Transport.(*http.Transport)
+	// safeurl clones the transport it was given and installs its own dialer on the clone;
+	// the clone is the one that pools connections, so it is the one CloseIdleConnections
+	// has to reach.
+	effective, ok := client.Client.Transport.(*http.Transport)
+
+	if !ok {
+		return nil, fmt.Errorf("safeclient: safeurl installed a %T transport, expected *http.Transport", client.Client.Transport)
+	}
 
 	return &Sender{
 		client:         client,
@@ -228,20 +237,28 @@ func (cfg Config) withDefaults() Config {
 	return cfg
 }
 
-// newTransport builds the transport both policy modes share: no proxy, HTTP/2 on, a hung
-// TLS handshake backstopped by ConnectTimeout and a bounded idle pool.
+// newTransport builds the transport both policy modes share: no proxy, HTTP/1.1 only, a
+// hung TLS handshake backstopped by ConnectTimeout and a bounded idle pool.
+//
+// The Sender speaks HTTP/1.1 only. HTTP/2 connections live in net/http's h2 pool, which
+// MaxIdleConns does not bound: a fleet polling many distinct origins would retain one
+// connection per origin for as long as the origin is revisited. HTTP/1.1 keep-alive under
+// the bounded idle pool is the explicit policy, so every retained connection is counted
+// and evicted by the transport. Three settings make that hold together with the dialer
+// safeurl installs: ForceAttemptHTTP2 stays off, TLSNextProto is an empty map so net/http
+// never registers the h2 upgrade, and ALPN offers http/1.1 alone so an origin cannot
+// select h2 and have its frames read by the HTTP/1 parser. The SSRF dial-time check runs
+// at the TCP layer regardless of the HTTP version.
 func (cfg Config) newTransport() *http.Transport {
 	return &http.Transport{
 		// Backstop for a hung TLS handshake; see Config.ConnectTimeout caveat.
 		TLSHandshakeTimeout: cfg.ConnectTimeout,
 		// Never pick up HTTP_PROXY / HTTPS_PROXY from the environment.
-		Proxy: nil,
-		// safeurl installs a custom DialContext, which makes net/http conservatively
-		// disable HTTP/2. Force it back on so we negotiate HTTP/2 via ALPN with servers
-		// that speak it; otherwise the client reads h2 frames with the HTTP/1
-		// parser and fails with "malformed HTTP response". The SSRF dial-time check runs at
-		// the TCP layer regardless of the negotiated HTTP version.
-		ForceAttemptHTTP2:   true,
+		Proxy:             nil,
+		ForceAttemptHTTP2: false,
+		TLSNextProto:      map[string]func(string, *tls.Conn) http.RoundTripper{},
+		TLSClientConfig:   &tls.Config{NextProtos: []string{"http/1.1"}, MinVersion: tls.VersionTLS12},
+
 		MaxIdleConns:        cfg.MaxIdleConns,
 		MaxIdleConnsPerHost: cfg.MaxIdleConnsPerHost,
 		IdleConnTimeout:     cfg.IdleConnTimeout,
@@ -313,10 +330,10 @@ func (s *Sender) Deliver(ctx context.Context, method, endpoint string, body []by
 	resp, err := s.client.Do(req)
 
 	if err != nil {
-		reason, mapped := mapSafeurlError(err)
+		reason, mapped := mapSafeurlError(host, err)
 
 		if reason != "" {
-			s.recordBlocked(host, reason, mapped)
+			s.recordBlocked(host, reason, err)
 			return nil, mapped
 		}
 
@@ -363,7 +380,7 @@ func (s *Sender) validate(endpoint string) (blockReason, error) {
 	// blocked range, before any network I/O.
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if ip, ok := parseHostLiteralIP(u.Hostname()); ok && s.blocklist.isBlockedIP(ip) {
@@ -373,34 +390,36 @@ func (s *Sender) validate(endpoint string) (blockReason, error) {
 	return "", nil
 }
 
-// publicError logs the transport failure in full and returns its tenant-facing form.
+// publicError logs the transport failure and returns its tenant-facing form.
 func (s *Sender) publicError(host string, err error) error {
 	public := PublicError(host, err)
 
 	var endpointErr *EndpointError
 
 	if s.l != nil && errors.As(public, &endpointErr) {
-		// Never log request bodies. Host, stage and the transport error only.
+		// Never log request bodies or URLs. Host, stage and the transport error only.
 		s.l.Warn().
 			Str("host", host).
 			Str("stage", string(endpointErr.Stage)).
-			Err(err).
+			Err(logCause(err)).
 			Msg("outbound request failed")
 	}
 
 	return public
 }
 
+// recordBlocked logs a policy block with its cause, which is the operator's to see: the
+// tenant gets the public error the caller returns.
 func (s *Sender) recordBlocked(host string, reason blockReason, err error) {
 	if s.l == nil {
 		return
 	}
 
-	// Never log request bodies. Host + matched rule only.
+	// Never log request bodies or URLs. Host, matched rule and the cause only.
 	s.l.Warn().
 		Str("host", host).
 		Str("reason", string(reason)).
-		Err(err).
+		Err(logCause(err)).
 		Msg("blocked outbound request")
 }
 
@@ -430,7 +449,7 @@ func validateInsecureURL(rawURL string) (blockReason, error) {
 	u, err := url.Parse(rawURL)
 
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if u.Scheme != allowedScheme && u.Scheme != "http" {
@@ -451,7 +470,7 @@ func validateURL(rawURL string, allowedPorts []int) (blockReason, error) {
 	u, err := url.Parse(rawURL)
 
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if u.Scheme != allowedScheme {

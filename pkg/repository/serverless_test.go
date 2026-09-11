@@ -509,6 +509,120 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, dead)
 	})
 
+	t.Run("routing lookups by namespace, version listing and fetch by id", func(t *testing.T) {
+		tenantId := uuid.New()
+
+		a, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-a"))
+		require.NoError(t, err)
+		b, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-b"))
+		require.NoError(t, err)
+
+		got, err := repo.Endpoints().GetByNamespace(ctx, tenantId, a.Namespace)
+		require.NoError(t, err)
+		assert.Equal(t, a.ID, got.ID)
+
+		_, err = repo.Endpoints().GetByNamespace(ctx, uuid.New(), a.Namespace)
+		assert.ErrorIs(t, err, pgx.ErrNoRows, "the lookup is scoped to the tenant")
+
+		// A status write moves b's version past a's; the listing pages in version order.
+		_, err = repo.Endpoints().UpdateStatus(ctx, b.ID, false, nil)
+		require.NoError(t, err)
+
+		first, err := repo.Endpoints().ListVersions(ctx, tenantId, ServerlessEndpointVersion{}, 1)
+		require.NoError(t, err)
+		require.Len(t, first, 1)
+		assert.Equal(t, a.ID, first[0].ID)
+		assert.True(t, first[0].Version.Equal(a.UpdatedAt.Time))
+
+		second, err := repo.Endpoints().ListVersions(ctx, tenantId, first[0], 1)
+		require.NoError(t, err)
+		require.Len(t, second, 1)
+		assert.Equal(t, b.ID, second[0].ID)
+		assert.True(t, second[0].Version.After(first[0].Version))
+
+		third, err := repo.Endpoints().ListVersions(ctx, tenantId, second[0], 1)
+		require.NoError(t, err)
+		assert.Empty(t, third)
+
+		rows, err := repo.Endpoints().ListByIds(ctx, []uuid.UUID{b.ID, a.ID})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		assert.True(t, rows[0].ID.String() < rows[1].ID.String(), "rows come back by id")
+
+		byId := map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{rows[0].ID: rows[0], rows[1].ID: rows[1]}
+		require.Contains(t, byId, a.ID)
+		require.Contains(t, byId, b.ID)
+		assert.True(t, byId[b.ID].StatusChangedAt.Valid, "the fetched row carries the status write")
+	})
+
+	t.Run("empty units are neither counted nor claimed", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		// Four empty units sort before the populated one; the count sample of four must
+		// skip them, and a claim must never take them.
+		for i := 0; i < 4; i++ {
+			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Shard: 0}
+			require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
+		}
+
+		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Shard: 0}
+		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, populated))
+		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, populated, 3))
+
+		sampled, err := repo.Leases().CountClaimable(ctx, 4)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), sampled.UnitCount)
+		assert.Equal(t, int64(3), sampled.EndpointCount)
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		claimed := claimAll(t, ctx, repo, processId, 10)
+		assert.Equal(t, []ServerlessUnit{populated}, claimed)
+
+		// An empty unit held by a dead process is not counted or claimed either.
+		dead := uuid.New()
+		heartbeat(t, ctx, repo, dead, time.Minute)
+		emptyDead := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000005"), Shard: 0}
+		_, err = pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, emptyDead.TenantId)
+		require.NoError(t, err)
+		expireProcess(t, ctx, pool, dead, time.Minute)
+
+		sampled, err = repo.Leases().CountClaimable(ctx, 4)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), sampled.UnitCount)
+		assert.Empty(t, claimAll(t, ctx, repo, processId, 10))
+	})
+
+	t.Run("abandoned count is bounded as a whole", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		// Three dead owners of four units each: a window of five covers five units, not
+		// five per owner.
+		for i := 0; i < 3; i++ {
+			dead := uuid.New()
+			heartbeat(t, ctx, repo, dead, time.Minute)
+
+			for j := 0; j < 4; j++ {
+				unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+				require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
+				require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, 1))
+				_, err := pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, unit.TenantId)
+				require.NoError(t, err)
+			}
+
+			expireProcess(t, ctx, pool, dead, time.Minute)
+		}
+
+		windowed, err := repo.Leases().CountClaimable(ctx, 5)
+		require.NoError(t, err)
+		assert.Equal(t, int64(5), windowed.UnitCount)
+		assert.Equal(t, int64(5), windowed.EndpointCount)
+
+		exact := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(12), exact.UnitCount)
+	})
+
 	t.Run("concurrent claims never double-claim", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 

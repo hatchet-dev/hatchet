@@ -27,7 +27,8 @@ type Config struct {
 	DrainTimeout time.Duration
 
 	// RoutingRefreshInterval is the incremental (updated_at based) routing cache refresh
-	// cadence; RoutingFullReloadInterval is how often the cache is reloaded in full, which is
+	// cadence; RoutingFullReloadInterval is how often the cache is reconciled against the
+	// tenant's endpoint ids and versions (spread by up to ten percent per tenant), which is
 	// what drops hard-deleted endpoints.
 	RoutingRefreshInterval    time.Duration
 	RoutingFullReloadInterval time.Duration

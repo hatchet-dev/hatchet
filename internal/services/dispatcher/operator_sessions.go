@@ -14,7 +14,7 @@ import (
 // OperatorStreamSession is a live dispatcher session backed by a gRPC stream that an operator
 // service owns. The dispatcher fans assigned actions out on the stream; the owner sends its own
 // protocol messages through Send, which shares the per-stream send serialisation with the
-// fan-out, and hangs the stream up when Fin fires.
+// fan-out, hangs the stream up when Fin fires, and pauses delivery through SetPaused.
 type OperatorStreamSession struct {
 	worker  *subscribedWorker
 	fin     <-chan bool
@@ -69,6 +69,14 @@ func (s *OperatorStreamSession) Send(ctx context.Context, msg proto.Message) err
 	return s.worker.sendMsg(ctx, msg)
 }
 
+// SetPaused makes the dispatcher return every start assigned to the worker to the queue
+// instead of sending it, until SetPaused(false). The owner sets it before it acknowledges a
+// pause to the operator, so an action the scheduler assigned before it observed the pause is
+// requeued rather than delivered after the ack. Cancels are still sent.
+func (s *OperatorStreamSession) SetPaused(paused bool) {
+	s.worker.setPaused(paused)
+}
+
 // Release removes the session from the dispatcher. It is idempotent.
 func (s *OperatorStreamSession) Release() {
 	s.release()
@@ -79,6 +87,7 @@ func (s *OperatorStreamSession) Release() {
 // There is no Fin signal, because there is no stream to hang up, and the shutdown drain skips
 // these sessions: the host that opened the session owns its teardown.
 type OperatorHandlerSession struct {
+	worker  *subscribedWorker
 	release func()
 }
 
@@ -91,13 +100,22 @@ func (d *DispatcherImpl) AddOperatorSession(
 	sessionId uuid.UUID,
 	handler operator.ActionHandler,
 ) *OperatorHandlerSession {
-	d.workers.Add(workerId, sessionId, newOperatorSubscribedWorker(workerId, d.pubBuffer, handler))
+	worker := newOperatorSubscribedWorker(workerId, d.pubBuffer, handler)
+
+	d.workers.Add(workerId, sessionId, worker)
 
 	return &OperatorHandlerSession{
+		worker: worker,
 		release: func() {
 			d.workers.DeleteForSession(workerId, sessionId)
 		},
 	}
+}
+
+// SetPaused is the same as OperatorStreamSession.SetPaused: starts assigned to the worker are
+// returned to the queue instead of handed to the handler.
+func (s *OperatorHandlerSession) SetPaused(paused bool) {
+	s.worker.setPaused(paused)
 }
 
 // Release removes the session from the dispatcher. It is idempotent.

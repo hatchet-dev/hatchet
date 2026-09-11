@@ -32,8 +32,6 @@ type Echo struct {
 	handled int
 }
 
-var _ operator.Operator = (*Echo)(nil)
-
 // Start implements operator.Operator: the session is what the echo reports through.
 func (e *Echo) Start(_ context.Context, s operator.Session) error {
 	e.mu.Lock()

@@ -21,11 +21,23 @@ type session struct {
 	ss   *operatorsvc.Session
 	reg  operator.Registration
 
+	// done closes with Close. Nothing else ends an in-process session: the dispatcher never
+	// hangs a handler-backed session up on its own, so Err is always nil.
+	done chan struct{}
+
 	mu     sync.Mutex
 	closed bool
 }
 
-var _ operator.Session = (*session)(nil)
+// Done implements operator.Session.
+func (s *session) Done() <-chan struct{} {
+	return s.done
+}
+
+// Err implements operator.Session; an in-process session only ends with Close.
+func (s *session) Err() error {
+	return nil
+}
 
 func (s *session) Registration() operator.Registration {
 	return s.reg
@@ -109,13 +121,13 @@ func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionR
 		return nil, operator.ErrSessionClosed
 	}
 
-	if s.host.workflows == nil {
+	if s.host.admin == nil {
 		return nil, fmt.Errorf("hostinproc: put workflow: %w", operator.ErrNotSupported)
 	}
 
 	tenant := s.ss.Tenant()
 
-	resp, err := s.host.workflows.PutWorkflow(operatorsvc.WithTenant(ctx, tenant), wf)
+	resp, err := s.host.admin.PutWorkflow(operatorsvc.WithTenant(ctx, tenant), wf)
 
 	if err != nil {
 		return nil, err
@@ -195,6 +207,7 @@ func (s *session) Close(ctx context.Context) error {
 	err := s.ss.Close(ctx)
 
 	s.host.forget(s)
+	close(s.done)
 
 	return err
 }

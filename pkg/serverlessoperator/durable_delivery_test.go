@@ -67,6 +67,9 @@ func (f *fakeDurableChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse,
 	}
 }
 
+// ExpectEntry is a no-op: the relay registers no entries of its own.
+func (f *fakeDurableChannel) ExpectEntry(_, _ int64) error { return nil }
+
 func (f *fakeDurableChannel) Close() error {
 	f.once.Do(func() { close(f.closed) })
 	return nil
@@ -100,6 +103,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload := contract.UpgradeSigningPayload(
+			r.Header.Get(contract.EndpointIdHeader),
 			r.Header.Get(contract.TimestampHeader),
 			r.Header.Get(contract.NonceHeader),
 			r.Header.Get(contract.TaskIdHeader),
@@ -260,6 +264,7 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
 
 	closeCode := make(chan int, 1)
+	upgraded := make(chan struct{}, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
@@ -269,6 +274,8 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 		}
 
 		defer conn.Close()
+
+		upgraded <- struct{}{}
 
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
@@ -295,6 +302,15 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
+
+	// STARTED is reported before the socket is dialed: a cancel that lands before the
+	// upgrade aborts the dial and no socket is ever closed, which is not what this test is
+	// about. Wait for the endpoint to hold the socket.
+	select {
+	case <-upgraded:
+	case <-time.After(eventually):
+		t.Fatal("endpoint never saw the upgrade")
+	}
 
 	cancel := &contracts.AssignedAction{ActionType: contracts.ActionType_CANCEL_STEP_RUN, TaskRunExternalId: action.TaskRunExternalId}
 	reg.deliver(t, cancel)

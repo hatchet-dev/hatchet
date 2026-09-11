@@ -188,6 +188,9 @@ func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskRespons
 	}
 }
 
+// ExpectEntry is a no-op: the test channel applies no ordering, so nothing is ever held.
+func (c *testChannel) ExpectEntry(int64, int64) error { return nil }
+
 func (c *testChannel) Close() error {
 	c.closeOnce.Do(func() { close(c.closed) })
 	return nil
@@ -1386,7 +1389,9 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
 	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
-	// precede it. b registers its skip watch first, then its wait watch (dag.go:300-314).
+	// precede it. b registers its skip watch first and holds its wait watch until that
+	// registration is acknowledged (one registration is in flight at a time); the skip fires
+	// with the ack, so the wait watch is never registered.
 	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
 		t.Helper()
 		select {
@@ -1401,7 +1406,6 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	}
 
 	skipWaitFor := recvWaitFor()
-	waitWaitFor := recvWaitFor()
 
 	ref := &v1contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
@@ -1409,32 +1413,24 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 		NodeId:                4242,
 		BranchId:              4242,
 	}
-	waitRef := &v1contracts.DurableEventLogEntryRef{
-		DurableTaskExternalId: waitWaitFor.DurableTaskExternalId,
-		InvocationCount:       waitWaitFor.InvocationCount,
-		NodeId:                4243,
-		BranchId:              4243,
-	}
 
 	sendEntryCompleted(t, responseCh, ref, nil)
 
-	// Acks are correlated FIFO, so the skip watch's ack goes first; the wait watch's ack has to
-	// follow because the dag holds run triggers until every registration is acked.
-	for _, ackRef := range []*v1contracts.DurableEventLogEntryRef{ref, waitRef} {
-		select {
-		case responseCh <- &v1contracts.DurableTaskResponse{
-			Message: &v1contracts.DurableTaskResponse_WaitForAck{
-				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ackRef},
-			},
-		}:
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out sending WaitForAck")
-		}
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_WaitForAck{
+			WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending WaitForAck")
 	}
 
 	select {
 	case err := <-errCh:
 		require.NoError(t, err)
+	case req := <-requestCh:
+		t.Fatalf("the dag registered another condition after its skip watch fired: %v", req)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
 	}
@@ -1442,6 +1438,7 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
+	require.False(t, b.isWaiting, "the wait watch was held behind the skip registration and never needed")
 }
 
 func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {

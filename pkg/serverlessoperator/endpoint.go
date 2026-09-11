@@ -31,7 +31,8 @@ type endpointPoller struct {
 
 	// putHashes remembers the canonical hash of every workflow this poller put, by
 	// namespaced name, so a response change re-puts only what changed. It is pruned to the
-	// last accepted catalog, so a stream of new names cannot grow it without bound.
+	// names of the last catalog applied, accepted or not, so a stream of new names cannot
+	// grow it past the catalog cap.
 	putHashes map[string]string
 
 	// registered is what this poller knows the endpoint row's registered_actions to be: the
@@ -233,6 +234,12 @@ func (p *endpointPoller) writeStatusIfChanged(ctx context.Context, cfg *endpoint
 // the database on their next cache refresh. A refused delta restores the endpoint's previous
 // contribution, so a rejected catalog never stays in the shared union.
 func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res *healthcheckResult) error {
+	// Whatever the outcome, the remembered puts are those of this catalog: an accepted
+	// early workflow of a catalog the engine then rejected is still worth not re-putting on
+	// the retry, but names from earlier catalogs are not, and a run of rejected catalogs
+	// with fresh names must not accumulate.
+	defer p.prunePutHashes(res)
+
 	for i, wf := range res.workflows {
 		if p.putHashes[wf.Name] == res.workflowHashes[i] {
 			continue
@@ -268,8 +275,6 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		p.registered = res.actions
 	}
 
-	p.prunePutHashes(res)
-
 	p.r.l.Info().
 		Str("endpoint_id", p.ep.id.String()).
 		Int("workflows", len(res.workflows)).
@@ -283,7 +288,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	return nil
 }
 
-// prunePutHashes forgets workflows the accepted catalog no longer names.
+// prunePutHashes forgets workflows the catalog does not name.
 func (p *endpointPoller) prunePutHashes(res *healthcheckResult) {
 	keep := make(map[string]struct{}, len(res.workflows))
 
