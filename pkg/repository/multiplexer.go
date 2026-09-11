@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxlisten"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 // multiplexChannel is a single channel used for all multiplexed messages.
@@ -69,12 +70,7 @@ func (m *multiplexedListener) startListening() {
 			return poolConn.Hijack(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
-			if m.isShutdownErr(err) {
-				m.l.Debug().Err(err).Msg("listener stopped")
-				return
-			}
-
-			m.l.Warn().Err(err).Msg("error in listener")
+			logger.ShutdownAware(m.listenerCtx, m.l, err, zerolog.WarnLevel).Err(err).Msg("error in listener")
 		},
 		ReconnectDelay: 10 * time.Second,
 	}
@@ -109,28 +105,12 @@ func (m *multiplexedListener) startListening() {
 			m.isListening = false
 			m.isListeningMu.Unlock()
 
-			if m.isShutdownErr(err) {
-				m.l.Debug().Err(err).Msg("multiplexed listener stopped")
-				return
-			}
-
-			m.l.Error().Err(err).Msg("error listening for multiplexed messages")
+			logger.ShutdownAware(m.listenerCtx, m.l, err, zerolog.ErrorLevel).Err(err).Msg("error listening for multiplexed messages")
 			return
 		}
 	}()
 
 	m.isListening = true
-}
-
-// isShutdownErr reports whether err is the cancellation produced by the
-// listener's own context going down during a graceful shutdown, as opposed to
-// a real listener failure, which should keep logging at its original level.
-func (m *multiplexedListener) isShutdownErr(err error) bool {
-	if !errors.Is(m.listenerCtx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (m *multiplexedListener) publishToSubscribers(msg *PubSubMessage) {

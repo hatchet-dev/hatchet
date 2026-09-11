@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -602,21 +603,6 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	s.analytics.Count(server.Context(), analytics.WorkflowRun, analytics.Subscribe)
 	return s.subscribeToWorkflowRunsV1(server)
-}
-
-// isShutdownErr reports whether err is the cancellation produced by ctx being
-// canceled during a graceful shutdown, as opposed to a real failure, which
-// should keep logging at its original level. The gate requires ctx to be
-// canceled specifically: a governing context whose deadline lapsed does not
-// demote, so a genuine timeout is never hidden. The error itself may be either
-// cancellation sentinel, since an in-flight operation with its own child
-// timeout can surface a deadline error while shutdown cancels around it.
-func isShutdownErr(ctx context.Context, err error) bool {
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
@@ -1229,11 +1215,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(iterCtx, tenantId, workflowRunIds)
 
 		if err != nil {
-			if isShutdownErr(ctx, err) {
-				s.l.Debug().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
-			} else {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
-			}
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
 
 			return err
 		}
@@ -1246,11 +1228,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns = nil // nolint: ineffassign
 
 		if err != nil {
-			if isShutdownErr(ctx, err) {
-				s.l.Debug().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
-			} else {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
-			}
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
 
 			return err
 		}
@@ -1276,11 +1254,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		if matchedWorkflowRunIds, ok := isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
-				if isShutdownErr(ctx, err) {
-					s.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-				} else {
-					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-				}
+				logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 			}
 		}
 
@@ -1336,11 +1310,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				}
 
 				if err := iter(workflowRunIds); err != nil {
-					if isShutdownErr(ctx, err) {
-						s.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-					} else {
-						s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-					}
+					logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}

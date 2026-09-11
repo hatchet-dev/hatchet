@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
 	"github.com/rs/zerolog"
@@ -82,12 +83,7 @@ func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operatio
 				if err != nil {
 					innerCancel()
 
-					if isShutdownErr(outerCtx, err) {
-						ql.Debug().Err(err).Msg("could not list tenants")
-						continue
-					}
-
-					ql.Error().Err(err).Msg("could not list tenants")
+					logger.ShutdownAware(outerCtx, ql, err, zerolog.ErrorLevel).Err(err).Msg("could not list tenants")
 					continue
 				}
 

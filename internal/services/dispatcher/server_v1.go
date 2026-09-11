@@ -20,6 +20,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -240,11 +241,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		dbEvents, err := d.repo.Tasks().ListSignalCompletedEvents(ctx, tenantId, signalEvents)
 
 		if err != nil {
-			if isShutdownErr(ctx, err) {
-				d.l.Debug().Ctx(ctx).Err(err).Msg("could not list signal completed events")
-			} else {
-				d.l.Error().Ctx(ctx).Err(err).Msg("could not list signal completed events")
-			}
+			logger.ShutdownAware(ctx, d.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not list signal completed events")
 
 			return err
 		}
@@ -314,11 +311,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 				}
 
 				if err := iter(signalEvents); err != nil {
-					if isShutdownErr(ctx, err) {
-						d.l.Debug().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-					} else {
-						d.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
-					}
+					logger.ShutdownAware(ctx, d.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}

@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"math/rand/v2"
 	"sort"
 	"sync"
@@ -13,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -155,21 +155,6 @@ func (q *Queuer) Cleanup() {
 	q.cleanup()
 }
 
-// isShutdownErr reports whether err is the cancellation produced by ctx being
-// canceled during a graceful shutdown, as opposed to a real failure, which
-// should keep logging at its original level. The gate requires ctx to be
-// canceled specifically: a governing context whose deadline lapsed does not
-// demote, so a genuine timeout is never hidden. The error itself may be either
-// cancellation sentinel, since an in-flight operation with its own child
-// timeout can surface a deadline error while shutdown cancels around it.
-func isShutdownErr(ctx context.Context, err error) bool {
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
 func (q *Queuer) queue(ctx context.Context) {
 	if ok := q.queueMu.TryLock(); !ok {
 		return
@@ -243,11 +228,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
 
 			if err != nil {
-				if isShutdownErr(ctx, err) {
-					q.l.Debug().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-				} else {
-					q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-				}
+				logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 			}
 		}
 
@@ -257,11 +238,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			if isShutdownErr(ctx, err) {
-				q.l.Debug().Ctx(ctx).Err(err).Msg("error refilling queue")
-			} else {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
-			}
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error refilling queue")
 
 			continue
 		}
@@ -290,11 +267,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			if isShutdownErr(ctx, err) {
-				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting rate limits")
-			} else {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
-			}
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -332,11 +305,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			if isShutdownErr(ctx, err) {
-				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting desired labels")
-			} else {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
-			}
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -351,11 +320,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			if isShutdownErr(ctx, err) {
-				q.l.Debug().Err(err).Msg("error getting batch configs")
-			} else {
-				q.l.Error().Err(err).Msg("error getting batch configs")
-			}
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Err(err).Msg("error getting batch configs")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -370,11 +335,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			if isShutdownErr(ctx, err) {
-				q.l.Debug().Ctx(ctx).Err(err).Msg("error getting step slot requests")
-			} else {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
-			}
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting step slot requests")
 
 			q.unackedToUnassigned(qis)
 			continue

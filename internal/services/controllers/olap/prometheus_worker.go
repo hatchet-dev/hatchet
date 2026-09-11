@@ -1,33 +1,18 @@
 package olap
 
 import (
-	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
-
-// isShutdownErr reports whether err is the cancellation produced by ctx being
-// canceled during a graceful shutdown, as opposed to a real failure, which
-// should keep logging at its original level. The gate requires ctx to be
-// canceled specifically: a governing context whose deadline lapsed does not
-// demote, so a genuine timeout is never hidden. The error itself may be either
-// cancellation sentinel, since an in-flight operation with its own child
-// timeout can surface a deadline error while shutdown cancels around it.
-func isShutdownErr(ctx context.Context, err error) bool {
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
 
 type taskPrometheusUpdate struct {
 	tenantId       uuid.UUID
@@ -130,11 +115,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			if isShutdownErr(o.taskPrometheusWorkerCtx, err) {
-				o.l.Debug().Err(err).Msg("failed to process task prometheus updates")
-			} else {
-				o.l.Error().Err(err).Msg("failed to process task prometheus updates")
-			}
+			logger.ShutdownAware(o.taskPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process task prometheus updates")
 		}
 	}
 
@@ -244,11 +225,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			if isShutdownErr(o.dagPrometheusWorkerCtx, err) {
-				o.l.Debug().Err(err).Msg("failed to process dag prometheus updates")
-			} else {
-				o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
-			}
+			logger.ShutdownAware(o.dagPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process dag prometheus updates")
 		}
 	}
 

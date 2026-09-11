@@ -2,7 +2,6 @@ package operation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -125,21 +125,6 @@ func (o *SerialOperation) Stop() {
 	o.cancel()
 }
 
-// isShutdownErr reports whether err is the cancellation produced by ctx being
-// canceled during a graceful shutdown, as opposed to a real failure, which
-// should keep logging at its original level. The gate requires ctx to be
-// canceled specifically: a governing context whose deadline lapsed does not
-// demote, so a genuine timeout is never hidden. The error itself may be either
-// cancellation sentinel, since an in-flight operation with its own child
-// timeout can surface a deadline error while shutdown cancels around it.
-func isShutdownErr(ctx context.Context, err error) bool {
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
 func (o *SerialOperation) RunOrContinue(l *zerolog.Logger) {
 	o.setContinue(true)
 	o.Run(l)
@@ -167,12 +152,7 @@ func (o *SerialOperation) Run(l *zerolog.Logger) {
 			if err != nil {
 				// note: the check is against runningCtx, not the per-run timeout ctx,
 				// so a genuine operation timeout still logs at its original level
-				if isShutdownErr(o.runningCtx, err) {
-					l.Debug().Err(err).Msgf("could not %s", o.description)
-					return
-				}
-
-				l.Err(err).Msgf("could not %s", o.description)
+				logger.ShutdownAware(o.runningCtx, l, err, zerolog.ErrorLevel).Err(err).Msgf("could not %s", o.description)
 				return
 			}
 

@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -445,32 +444,12 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
-			if isShutdownErr(ctx, err) {
-				s.l.Debug().Err(err).Ctx(ctx).Msg("could not list tenants")
-				return
-			}
-
-			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 
 		s.pool.SetTenants(tenants)
 	}
-}
-
-// isShutdownErr reports whether err is the cancellation produced by ctx being
-// canceled during a graceful shutdown, as opposed to a real failure, which
-// should keep logging at its original level. The gate requires ctx to be
-// canceled specifically: a governing context whose deadline lapsed does not
-// demote, so a genuine timeout is never hidden. The error itself may be either
-// cancellation sentinel, since an in-flight operation with its own child
-// timeout can surface a deadline error while shutdown cancels around it.
-func isShutdownErr(ctx context.Context, err error) bool {
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		return false
-	}
-
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
