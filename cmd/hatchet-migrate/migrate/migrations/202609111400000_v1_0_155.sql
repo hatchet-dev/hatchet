@@ -1,9 +1,12 @@
 -- +goose Up
 -- +goose StatementBegin
--- Serverless operators are upserted by (tenant, name) by every registration for the tenant,
--- like GRPC operators. The SERVERLESS enum value is added by the previous migration outside a
--- transaction, so it is usable in a predicate here.
-CREATE UNIQUE INDEX IF NOT EXISTS v1_operator_serverless_tenant_name_key ON v1_operator (tenant_id, name) WHERE kind = 'SERVERLESS';
+-- Runs inside goose's transaction: every type this file uses is created here, so nothing needs
+-- the autocommit treatment an ALTER TYPE ... ADD VALUE would. The retired SERVERLESS operator
+-- kind is never added; the serverless operator is a GRPC operator with leasing manager SELF,
+-- and its rows are unique under v1_operator_tenant_name_kind_key like every other kind.
+--
+-- The goose id is fifteen digits because main's 202609101223115_v1_0_153.sql is, and a version
+-- has to sort after every applied one or goose refuses it as a missing migration.
 
 CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
 
@@ -45,8 +48,9 @@ CREATE TABLE v1_serverless_endpoint (
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
 
--- incremental refresh of the routing cache
-CREATE INDEX v1_serverless_endpoint_updated_idx ON v1_serverless_endpoint (tenant_id, updated_at);
+-- incremental refresh of the routing cache, keyed by row version: the later of updated_at
+-- (configuration and registered_actions writes) and status_changed_at (health transitions)
+CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
 
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,
@@ -85,18 +89,24 @@ CREATE TABLE v1_serverless_lease (
 
 CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, shard);
 
-CREATE UNIQUE INDEX v1_serverless_lease_unowned_idx ON v1_serverless_lease (tenant_id, shard) WHERE process_id IS NULL;
+-- claims walk unowned units with endpoints in key order from a random start; covering so the
+-- claimable count is index only. Empty units are never claimed, so they are not in the index.
+CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, shard) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
+
+-- The gRPC operator service counts the action links of every worker of an operator once per
+-- Listen stream (CountOperatorWorkerActions); the workers are found by (tenant, operator).
+CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX IF EXISTS v1_operator_serverless_tenant_name_key;
-DROP INDEX IF EXISTS v1_serverless_lease_unowned_idx;
+DROP INDEX IF EXISTS "Worker_tenantId_operatorId_idx";
+DROP INDEX IF EXISTS v1_serverless_lease_claimable_idx;
 DROP INDEX IF EXISTS v1_serverless_lease_owner_idx;
 DROP TABLE IF EXISTS v1_serverless_lease;
 DROP TABLE IF EXISTS v1_serverless_process;
 DROP TABLE IF EXISTS v1_serverless_tenant;
-DROP INDEX IF EXISTS v1_serverless_endpoint_updated_idx;
+DROP INDEX IF EXISTS v1_serverless_endpoint_version_idx;
 DROP INDEX IF EXISTS v1_serverless_endpoint_unit_idx;
 DROP TABLE IF EXISTS v1_serverless_endpoint;
 DROP TYPE IF EXISTS v1_serverless_endpoint_kind;
