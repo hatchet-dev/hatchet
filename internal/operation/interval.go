@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -148,7 +149,7 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 
 					if err != nil {
 						if i.l != nil {
-							i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
+							logger.ShutdownAware(ctx, i.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
 						}
 					} else {
 						i.SetIntervalGauge(rowsModified)

@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxlisten"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 // multiplexChannel is a single channel used for all multiplexed messages.
@@ -68,7 +70,7 @@ func (m *multiplexedListener) startListening() {
 			return poolConn.Hijack(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
-			m.l.Warn().Err(err).Msg("error in listener")
+			logger.ShutdownAware(m.listenerCtx, m.l, err, zerolog.WarnLevel).Err(err).Msg("error in listener")
 		},
 		ReconnectDelay: 10 * time.Second,
 	}
@@ -103,7 +105,7 @@ func (m *multiplexedListener) startListening() {
 			m.isListening = false
 			m.isListeningMu.Unlock()
 
-			m.l.Error().Err(err).Msg("error listening for multiplexed messages")
+			logger.ShutdownAware(m.listenerCtx, m.l, err, zerolog.ErrorLevel).Err(err).Msg("error listening for multiplexed messages")
 			return
 		}
 	}()
