@@ -15,8 +15,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// grpcRegisterOpts is what a wire registration passes: a self-leased GRPC row whose workers
+// are metered.
 func grpcRegisterOpts(name string) operatorsvc.RegisterOpts {
-	return operatorsvc.RegisterOpts{Name: name, Kind: sqlcv1.V1OperatorKindGRPC}
+	return operatorsvc.RegisterOpts{Name: name, Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
 }
 
 func TestRegisterCreatesWorker(t *testing.T) {
@@ -39,6 +41,7 @@ func TestRegisterCreatesWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "my-operator", op.Name)
 	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind)
+	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, op.Leasing)
 	assert.Equal(t, op, reg.Operator)
 
 	created := svc.workers.Created()
@@ -49,6 +52,7 @@ func TestRegisterCreatesWorker(t *testing.T) {
 	assert.Equal(t, op.ID, *created[0].OperatorId)
 	assert.Empty(t, created[0].Actions, "registration never registers actions")
 	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
+	assert.False(t, created[0].ExemptFromLimits, "a worker is metered unless the caller exempts it")
 
 	require.Len(t, svc.workers.Labels(reg.WorkerId), 1)
 	assert.Equal(t, "kind", svc.workers.Labels(reg.WorkerId)[0].Key)
@@ -168,14 +172,65 @@ func TestRegisterRejects(t *testing.T) {
 		})
 	}
 
-	// only out-of-process operators are upserted through a session; the in-process kinds are
-	// registered by the id of their claimed row
+	// only contract operators are upserted through a session; the DAG operator's rows are the
+	// engine's own and are registered by the id of their claimed row
 	t.Run("unsupported kind", func(t *testing.T) {
 		svc := newTestService(t, nil)
-		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG})
+		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingSELF})
 		require.Error(t, err)
 		assert.Zero(t, svc.operators.Count())
 	})
+
+	// a named registration says who keeps the row alive; it cannot leave that unsaid
+	t.Run("missing leasing", func(t *testing.T) {
+		svc := newTestService(t, nil)
+		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindGRPC})
+		require.Error(t, err)
+		assert.Zero(t, svc.operators.Count())
+	})
+}
+
+// The leasing a registration names is written to the row whether the upsert creates or finds
+// it, so a row the engine was leasing that registers itself leaves the claim set, and the other
+// way round.
+func TestRegisterSetsLeasing(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	managed := grpcRegisterOpts("op")
+	managed.Leasing = sqlcv1.V1OperatorLeasingMANAGED
+
+	reg, err := svc.Register(t.Context(), tenant, managed)
+	require.NoError(t, err)
+	assert.Equal(t, sqlcv1.V1OperatorLeasingMANAGED, reg.Operator.Leasing)
+
+	again, err := svc.Register(t.Context(), tenant, grpcRegisterOpts("op"))
+	require.NoError(t, err)
+	assert.Equal(t, reg.OperatorId, again.OperatorId, "the same (tenant, name, kind) row")
+	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, again.Operator.Leasing, "a repeat registration takes the leasing it names")
+}
+
+// Limit exemption is the caller's to grant: the in-process host grants it to every worker it
+// creates, whether the row is claimed or upserted.
+func TestRegisterExemptsWorkerOnRequest(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+
+	exempt := grpcRegisterOpts("op")
+	exempt.ExemptFromLimits = true
+
+	_, err := svc.Register(t.Context(), tenant, exempt)
+	require.NoError(t, err)
+
+	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED})
+
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ExemptFromLimits: true})
+	require.NoError(t, err)
+
+	created := svc.workers.Created()
+	require.Len(t, created, 2)
+	assert.True(t, created[0].ExemptFromLimits)
+	assert.True(t, created[1].ExemptFromLimits)
 }
 
 // A claimed row is registered by id: nothing is upserted, the worker is named after the row and

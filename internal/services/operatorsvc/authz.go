@@ -13,10 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// AuthorizeOperator resolves operatorId and checks that it is a GRPC operator owned by tenant.
-// Lookups are cached for the cache's TTL; misses and errors are never cached, so a freshly
-// created operator is visible on the next call. Only GRPC operators are reachable from outside
-// the engine, which is the only caller that authorizes today.
+// AuthorizeOperator resolves operatorId and checks that it is a self-leased GRPC operator owned
+// by tenant. Lookups are cached for the cache's TTL; misses and errors are never cached, so a
+// freshly created operator is visible on the next call. Only such operators are reachable from
+// outside the engine, which is the only caller that authorizes today: a DAG row is the
+// engine's own, and a row the engine leases is driven by the claimer, never over the wire.
 func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
 	if tenant == nil {
 		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
@@ -28,15 +29,15 @@ func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, 
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a GRPC operator for this tenant", operatorId)
+			return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a self-leased GRPC operator for this tenant", operatorId)
 		}
 
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get operator %s", operatorId)
 		return nil, err
 	}
 
-	if op.TenantID != tenant.ID || op.Kind != sqlcv1.V1OperatorKindGRPC {
-		return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a GRPC operator for this tenant", operatorId)
+	if op.TenantID != tenant.ID || op.Kind != sqlcv1.V1OperatorKindGRPC || op.Leasing != sqlcv1.V1OperatorLeasingSELF {
+		return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a self-leased GRPC operator for this tenant", operatorId)
 	}
 
 	return op, nil

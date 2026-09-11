@@ -95,7 +95,7 @@ func newTestHost(t *testing.T, o hostOpts) *testHost {
 
 // claimedRow seeds an operator row the way the REST API creates a DAG operator.
 func (h *testHost) claimedRow() *sqlcv1.V1Operator {
-	return h.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: h.tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, Config: []byte(`{}`)})
+	return h.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: h.tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED, Config: []byte(`{}`)})
 }
 
 type nopHandler struct{}
@@ -179,7 +179,12 @@ func TestOpenByName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "contract-op", op.Name)
 	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind, "the kind defaults to GRPC")
+	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, op.Leasing, "the leasing defaults to SELF")
 	assert.Nil(t, op.WorkerID, "an upserted row is not pointed at its worker: the claimer never claims it")
+
+	created := h.workers.Created()
+	require.Len(t, created, 1)
+	assert.True(t, created[0].ExemptFromLimits, "every worker the in-process host creates is engine infrastructure")
 
 	// the same name opens another worker of the same operator
 	again, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, Name: "contract-op"}, operator.OpenOpts{Handler: nopHandler{}})

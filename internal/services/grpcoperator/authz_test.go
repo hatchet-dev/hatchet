@@ -19,7 +19,7 @@ import (
 // whether the operator may be used is the operator service's.
 func TestAuthorizeOperatorReadsMetadata(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC}
+	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingSELF}
 
 	cases := []struct {
 		ctx      context.Context
