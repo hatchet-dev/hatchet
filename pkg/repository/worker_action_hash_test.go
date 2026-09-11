@@ -80,11 +80,13 @@ func TestHashActionsIsCanonical(t *testing.T) {
 	assert.NotEqual(t, hashActions(nil), hashActions([]string{"svc:a"}))
 	assert.NotEqual(t, base, xorFold([]string{"svc:a", "svc:b"}), "the hash is not a linear combination of per-action digests")
 
-	// the encoding is unambiguous for ids that contain what a delimiter would be, and for
-	// ids whose concatenation is the same
-	assert.NotEqual(t, hashActions([]string{"svc:a;svc:b"}), hashActions([]string{"svc:a", "svc:b"}), "a delimiter inside an id")
+	// the separator keeps ids whose concatenation is the same apart
 	assert.NotEqual(t, hashActions([]string{"svc:ab", "svc:c"}), hashActions([]string{"svc:a", "svc:bc"}), "equal concatenation")
-	assert.NotEqual(t, hashActions([]string{"svc:a", "svc:b;"}), hashActions([]string{"svc:a", "svc:b"}), "a trailing delimiter")
+
+	// the framing is main's, so a hash written by an older engine equals the one this engine
+	// computes for the same set
+	pinned := sha256.Sum256([]byte("svc:a;svc:b;"))
+	assert.Equal(t, pinned[:], base, "each sorted id followed by a semicolon")
 }
 
 // A worker created with an initial action set and a worker built by deltas from an empty set

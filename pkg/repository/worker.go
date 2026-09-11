@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sort"
@@ -587,12 +586,17 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 }
 
 // hashActions is the canonical digest of an action set: sha256 over the ids sorted by byte
-// order, each encoded as its byte length as a 4-byte big-endian integer followed by its bytes,
-// after the same lower-casing and deduplication the "Action" table applies. The length prefix
-// is what makes the encoding unambiguous: an id may contain any byte, so a separator could be
-// read as an id boundary, while a length cannot. It is a function of the final set alone, so a
-// worker created with an initial set and a worker built by deltas hash equal for the same set,
-// and it is not a combination of per-action digests that could be solved for a chosen value.
+// order, each followed by ";", after the same lower-casing and deduplication the "Action"
+// table applies. The separator keeps ["ab", "c"] apart from ["a", "bc"]; it cannot occur
+// inside an id, because ParseActionID rejects semicolons on every registration path, so the
+// framing is unambiguous for every id that reaches the "Action" table. The per-id framing is
+// the one main has always used, so a rolling deploy needs no hash migration: a worker
+// registered by an older engine keeps the hash that engine computed until it re-registers,
+// and the scheduler treats that hash as a group of its own. Distinct hashes never misroute;
+// only equal hashes for different sets would, and both engines' digests are collision
+// resistant. The digest is a function of the final set alone, so a worker created with an
+// initial set and a worker built by deltas hash equal for the same set, and it is not a
+// combination of per-action digests that could be solved for a chosen value.
 // ComputeWorkerActionHash in workers.sql computes the same digest from the linked rows; the
 // two must stay in step because GetWorkerActionsByWorkerActionHash treats equal hashes as
 // equal sets.
@@ -603,12 +607,9 @@ func hashActions(actions []string) []byte {
 
 	h := sha256.New()
 
-	var length [4]byte
-
 	for _, action := range ids {
-		binary.BigEndian.PutUint32(length[:], uint32(len(action))) // nolint: gosec // an action id is far shorter than 4 GiB
-		h.Write(length[:])
 		h.Write([]byte(action))
+		h.Write([]byte(";"))
 	}
 
 	return h.Sum(nil)

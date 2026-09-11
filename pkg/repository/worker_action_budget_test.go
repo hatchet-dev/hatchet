@@ -227,20 +227,20 @@ func TestWorkerActionHashRefreshFollowsDeltas(t *testing.T) {
 	require.Error(t, repo.RefreshWorkerActionHash(ctx, other, worker), "another tenant cannot refresh the worker")
 }
 
-// The Go and SQL digests agree on ids that contain what a separator would be, and neither
-// confuses two sets whose ids concatenate to the same bytes.
-func TestWorkerActionHashEncodingIsUnambiguous(t *testing.T) {
+// The Go and SQL digests agree byte for byte for a fixed set of action sets, including ids
+// whose concatenation is the same bytes, mixed casing and the empty set, and distinct sets
+// hash distinct.
+func TestWorkerActionHashGoAndSQLAgree(t *testing.T) {
 	pool := workerActionsPool(t)
 	repo := createWorkerActionsRepositoryForTest(pool)
 	ctx := context.Background()
 	tenantId := seedTenantForActions(t, ctx, pool)
 
 	sets := [][]string{
-		{"svc:a;svc:b"},
 		{"svc:a", "svc:b"},
 		{"svc:ab", "svc:c"},
 		{"svc:a", "svc:bc"},
-		{"svc:a", "svc:b;"},
+		{"svc:a", "svc:b", "svc:c"},
 		{},
 	}
 
@@ -268,6 +268,13 @@ func TestWorkerActionHashEncodingIsUnambiguous(t *testing.T) {
 
 		hashes[string(stored)] = set
 	}
+
+	// casing, order and duplicates normalise the same way on both sides
+	worker := seedWorkerForActions(t, ctx, pool, tenantId)
+	_, err := addWorkerActions(repo, ctx, tenantId, worker, []string{"svc:b", "svc:A", "svc:a"})
+	require.NoError(t, err)
+	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, worker))
+	assert.Equal(t, hashActions([]string{"svc:a", "svc:b"}), workerActionHash(t, ctx, pool, worker))
 }
 
 // The pause is fenced on the listener session: a superseded session's pause changes nothing

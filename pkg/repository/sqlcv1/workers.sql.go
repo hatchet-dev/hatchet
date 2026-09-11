@@ -94,7 +94,7 @@ func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, arg CleanupOld
 const computeWorkerActionHash = `-- name: ComputeWorkerActionHash :one
 SELECT sha256(coalesce(
     string_agg(
-        int4send(octet_length(convert_to(a."actionId", 'UTF8'))) || convert_to(a."actionId", 'UTF8'),
+        convert_to(a."actionId", 'UTF8') || ';'::bytea,
         ''::bytea
         ORDER BY a."actionId" COLLATE "C"
     ),
@@ -106,10 +106,11 @@ WHERE aw."B" = $1::uuid
 `
 
 // The canonical digest of the worker's linked action set: sha256 over the action ids sorted
-// by byte order, each encoded as its UTF-8 byte length as a 4-byte big-endian integer followed
-// by its bytes, so no id can be read as the boundary between two others. It is the same
-// function hashActions computes in Go, so a worker created with an initial set and a worker
-// built by deltas hash equal for the same set. The empty set hashes to sha256 of no bytes.
+// by byte order, each followed by ";". An id cannot contain the separator (ParseActionID
+// rejects it), so no id can be read as the boundary between two others. It is the same
+// function hashActions computes in Go, byte for byte, so a worker created with an initial set
+// and a worker built by deltas hash equal for the same set. The empty set hashes to sha256 of
+// no bytes.
 func (q *Queries) ComputeWorkerActionHash(ctx context.Context, db DBTX, workerid uuid.UUID) ([]byte, error) {
 	row := db.QueryRow(ctx, computeWorkerActionHash, workerid)
 	var hash []byte
