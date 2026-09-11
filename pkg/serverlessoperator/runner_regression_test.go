@@ -462,21 +462,20 @@ func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
 }
 
 // barrierHost blocks every Open until want of them are in progress at once, or a second
-// passes, and records the most concurrent Opens it saw.
+// passes, and records the most concurrent Opens it saw. The barrier lifts once: Opens that
+// arrive after it lifted (the tenants past the first MaintenanceConcurrency) pass straight
+// through, even when the count of Opens in progress reaches want again.
 type barrierHost struct {
 	fakeHost
 	want    int
 	entered int
 	most    int
 	release chan struct{}
-	cond    *sync.Cond
+	lift    sync.Once
 }
 
 func newBarrierHost(want int) *barrierHost {
-	h := &barrierHost{want: want, release: make(chan struct{})}
-	h.cond = sync.NewCond(&h.fakeHost.mu)
-
-	return h
+	return &barrierHost{want: want, release: make(chan struct{})}
 }
 
 func (h *barrierHost) Open(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
@@ -484,8 +483,8 @@ func (h *barrierHost) Open(ctx context.Context, id operator.Identity, opts opera
 	h.entered++
 	h.most = max(h.most, h.entered)
 
-	if h.entered == h.want {
-		close(h.release)
+	if h.entered >= h.want {
+		h.lift.Do(func() { close(h.release) })
 	}
 
 	h.fakeHost.mu.Unlock()
