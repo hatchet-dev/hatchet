@@ -846,20 +846,28 @@ func (s *Scheduler) tryAssignBatch(
 	// finished is only touched on the run loop; once true, res belongs to the
 	// caller again and no parked retry or timeout may touch it.
 	finished := false
-	finish := func() {
+	finishedBy := "shutdown" // read by the caller only after assignDone is closed
+	finish := func(reason string) {
 		if finished {
 			return
 		}
 		finished = true
+		finishedBy = reason
 		close(assignDone)
 	}
+
+	enqueuedAt := time.Now()
 
 	var attempt func(isRetry bool)
 	attempt = func(isRetry bool) {
 		attemptCtx, attemptSpan := telemetry.NewSpan(ctx, "try-assign-batch-run-loop-assign")
 		defer attemptSpan.End()
 
-		telemetry.WithAttributes(attemptSpan, telemetry.AttributeKV{Key: "attempt.is_retry", Value: isRetry})
+		telemetry.WithAttributes(attemptSpan,
+			telemetry.AttributeKV{Key: "attempt.is_retry", Value: isRetry},
+			// time spent in the ops channel behind other ops (or an unscheduled loop goroutine)
+			telemetry.AttributeKV{Key: "attempt.queued_ms", Value: float64(time.Since(enqueuedAt)) / float64(time.Millisecond)},
+		)
 
 		s.handleAssignBatch(attemptCtx, actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
 
@@ -891,13 +899,17 @@ func (s *Scheduler) tryAssignBatch(
 			})
 
 			time.AfterFunc(parkedAssignRetryTimeout, func() {
-				s.mustDo(finish)
+				s.mustDo(func() { finish("timeout") })
 			})
 
 			return
 		}
 
-		finish()
+		if isRetry {
+			finish("replenish-retry")
+		} else {
+			finish("first-attempt")
+		}
 	}
 
 	_, enqueueSpan := telemetry.NewSpan(ctx, "try-assign-batch-enqueue-run-loop")
@@ -911,13 +923,17 @@ func (s *Scheduler) tryAssignBatch(
 			enqueued = false
 		}
 	}
-	telemetry.WithAttributes(enqueueSpan, telemetry.AttributeKV{Key: "enqueued", Value: enqueued})
+	telemetry.WithAttributes(enqueueSpan,
+		telemetry.AttributeKV{Key: "enqueued", Value: enqueued},
+		telemetry.AttributeKV{Key: "ops_ahead", Value: len(s.ops)},
+	)
 	enqueueSpan.End()
 
 	assigned := false
 	if enqueued {
 		_, waitSpan := telemetry.NewSpan(ctx, "try-assign-batch-wait-for-run-loop")
 		assigned = s.wait(assignDone)
+		telemetry.WithAttributes(waitSpan, telemetry.AttributeKV{Key: "wait.finished_by", Value: finishedBy})
 		waitSpan.End()
 	}
 
