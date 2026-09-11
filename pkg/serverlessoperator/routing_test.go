@@ -4,7 +4,9 @@ package serverlessoperator
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -12,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
 )
@@ -109,21 +112,31 @@ func TestRoutingCacheRouteAndMissRefresh(t *testing.T) {
 	assert.Equal(t, a.TriggerUrl, cfg.triggerUrl)
 	assert.Equal(t, 1, repo.ListForTenantCalls(), "a hit does not reload")
 
-	// An unknown namespace triggers exactly one reload and then fails.
+	// An unknown namespace is looked up on its own, never by reloading the tenant, and a
+	// namespace found absent is not looked up again within the negative TTL.
 	b := newEndpointRow(endpointSpec{tenantId: tenant, name: "b", enabled: true})
 	b.RegisteredActions = []string{prefixed(b.Namespace, "svc:b")}
 
 	_, _, err = cache.Route(context.Background(), prefixed(b.Namespace, "svc:b"))
 	require.ErrorIs(t, err, errEndpointNotFound)
-	assert.Equal(t, 2, repo.ListForTenantCalls())
+	assert.Equal(t, 1, repo.ListForTenantCalls(), "a miss does not reload the tenant")
+	assert.Equal(t, 1, repo.ByNamespaceCalls())
 
-	// Once the endpoint exists, the miss-triggered reload finds it.
+	_, _, err = cache.Route(context.Background(), prefixed(b.Namespace, "svc:b"))
+	require.ErrorIs(t, err, errEndpointNotFound)
+	assert.Equal(t, 1, repo.ByNamespaceCalls(), "an absent namespace is remembered")
+
+	// Once the endpoint exists and the negative entry has expired, the lookup finds it.
 	repo.AddEndpoint(b)
+	cache.missMu.Lock()
+	delete(cache.missed, b.Namespace)
+	cache.missMu.Unlock()
 
 	ep, _, err = cache.Route(context.Background(), prefixed(b.Namespace, "svc:b"))
 	require.NoError(t, err)
 	assert.Equal(t, b.ID, ep.id)
-	assert.Equal(t, 3, repo.ListForTenantCalls())
+	assert.Equal(t, 1, repo.ListForTenantCalls())
+	assert.Equal(t, 2, repo.ByNamespaceCalls())
 
 	union, _ := cache.ActionUnion()
 	assert.Equal(t, sortedUnion([]string{prefixed(a.Namespace, "svc:a"), prefixed(b.Namespace, "svc:b")}), union)
@@ -131,7 +144,117 @@ func TestRoutingCacheRouteAndMissRefresh(t *testing.T) {
 	// Actions without a namespace never route.
 	_, _, err = cache.Route(context.Background(), "svc:a")
 	require.ErrorIs(t, err, errEndpointNotFound)
-	assert.Equal(t, 3, repo.ListForTenantCalls(), "an unparseable action does not reload")
+	assert.Equal(t, 2, repo.ByNamespaceCalls(), "an unparseable action does not look anything up")
+}
+
+// gatedEndpoints blocks GetByNamespace until released, to observe concurrent misses.
+type gatedEndpoints struct {
+	repository.ServerlessEndpointRepository
+	gate    chan struct{}
+	entered chan struct{}
+}
+
+func (g *gatedEndpoints) GetByNamespace(ctx context.Context, tenantId, ns uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
+	g.entered <- struct{}{}
+	<-g.gate
+
+	return g.ServerlessEndpointRepository.GetByNamespace(ctx, tenantId, ns)
+}
+
+// Concurrent misses on one namespace share one lookup.
+func TestRoutingCacheCoalescesConcurrentMisses(t *testing.T) {
+	repo := memrepo.New()
+	tenant := uuid.New()
+	l := zerolog.Nop()
+
+	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
+	a.RegisteredActions = []string{prefixed(a.Namespace, "svc:a")}
+
+	gated := &gatedEndpoints{ServerlessEndpointRepository: repo.Endpoints(), gate: make(chan struct{}), entered: make(chan struct{}, 1)}
+	cache := newRoutingCache(tenant, gated, fakeEnc{}, &l)
+	require.NoError(t, cache.Load(context.Background()))
+
+	repo.AddEndpoint(a)
+
+	const routes = 16
+
+	var wg sync.WaitGroup
+
+	errs := make(chan error, routes)
+
+	for i := 0; i < routes; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			_, _, err := cache.Route(context.Background(), prefixed(a.Namespace, "svc:a"))
+			errs <- err
+		}()
+	}
+
+	<-gated.entered
+	time.Sleep(20 * time.Millisecond)
+	close(gated.gate)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 1, repo.ByNamespaceCalls(), "one lookup served every concurrent miss")
+	assert.Equal(t, 1, repo.ListForTenantCalls())
+}
+
+// Reconcile drops deleted endpoints and fetches in full only the rows whose version the cache
+// does not hold; an unchanged tenant transfers its ids and versions and nothing else.
+func TestRoutingCacheReconcileFetchesChangedRowsOnly(t *testing.T) {
+	repo := memrepo.New()
+	tenant := uuid.New()
+	l := zerolog.Nop()
+
+	rows := make([]*sqlcv1.V1ServerlessEndpoint, 0, 3)
+
+	for _, name := range []string{"a", "b", "c"} {
+		row := newEndpointRow(endpointSpec{tenantId: tenant, name: name, enabled: true})
+		row.RegisteredActions = []string{prefixed(row.Namespace, "svc:"+name)}
+		repo.AddEndpoint(row)
+		rows = append(rows, row)
+	}
+
+	cache := newRoutingCache(tenant, repo.Endpoints(), fakeEnc{}, &l)
+	require.NoError(t, cache.Load(context.Background()))
+
+	read := repo.ReadRows()
+	require.NoError(t, cache.Reconcile(context.Background()))
+	assert.Equal(t, read, repo.ReadRows(), "an unchanged tenant reads no row")
+	assert.Equal(t, 1, repo.ListVersionsCalls())
+	assert.Equal(t, 0, repo.ByIdsCalls())
+	assert.Equal(t, uint64(1), cache.Revision())
+
+	// One endpoint changes, one is deleted, one is new: only the changed and the new rows
+	// are fetched, the deleted one is dropped, and the union follows.
+	a, b, c := rows[0], rows[1], rows[2]
+	repo.UpdateEndpoint(a.ID, func(ep *sqlcv1.V1ServerlessEndpoint) {
+		ep.RegisteredActions = []string{prefixed(a.Namespace, "svc:a2")}
+	})
+	repo.RemoveEndpoint(b.ID)
+	d := newEndpointRow(endpointSpec{tenantId: tenant, name: "d", enabled: true})
+	d.RegisteredActions = []string{prefixed(d.Namespace, "svc:d")}
+	repo.AddEndpoint(d)
+
+	read = repo.ReadRows()
+	require.NoError(t, cache.Reconcile(context.Background()))
+	assert.Equal(t, read+2, repo.ReadRows(), "only the changed and the new rows are read")
+	assert.Equal(t, 1, repo.ByIdsCalls())
+	assert.Equal(t, 1, repo.ListForTenantCalls(), "reconcile never reloads the tenant")
+
+	_, ok := cache.Endpoint(b.ID)
+	assert.False(t, ok, "the deleted endpoint is dropped")
+
+	union, _ := cache.ActionUnion()
+	assert.Equal(t, sortedUnion([]string{prefixed(a.Namespace, "svc:a2"), prefixed(c.Namespace, "svc:c"), prefixed(d.Namespace, "svc:d")}), union)
 }
 
 func TestRoutingCacheRefreshAndUnion(t *testing.T) {
@@ -167,7 +290,8 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	union, rev = cache.ActionUnion()
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a"), prefixed(a.Namespace, "svc:a2")}, union)
 	assert.Equal(t, uint64(2), rev)
-	assert.Equal(t, 2, repo.ListForTenantCalls(), "the initial load plus the miss on the disabled endpoint")
+	assert.Equal(t, 1, repo.ListForTenantCalls(), "the initial load; the miss on the disabled endpoint looked it up by namespace")
+	assert.Equal(t, 1, repo.ByNamespaceCalls())
 	assert.Equal(t, 1, repo.ListSinceCalls())
 
 	added, removed, current, ok := cache.DeltasSince(1)

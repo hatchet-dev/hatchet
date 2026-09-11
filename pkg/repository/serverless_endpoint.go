@@ -307,9 +307,48 @@ func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenant
 func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	return r.queries.ListServerlessEndpointsUpdatedSince(ctx, r.pool, sqlcv1.ListServerlessEndpointsUpdatedSinceParams{
 		Tenantid: tenantId,
-		Since:    sqlchelpers.TimestamptzFromTime(since),
-		Sinceid:  sinceId,
+		// A zero watermark is a real time, not NULL: a NULL would make the keyset comparison
+		// NULL and the query return nothing for a tenant the cache has never seen a row of.
+		Since:   pgtype.Timestamptz{Time: since, Valid: true},
+		Sinceid: sinceId,
 	})
+}
+
+func (r *serverlessEndpointRepository) GetByNamespace(ctx context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
+	return r.queries.GetServerlessEndpointByNamespace(ctx, r.pool, sqlcv1.GetServerlessEndpointByNamespaceParams{
+		Tenantid:  tenantId,
+		Namespace: namespace,
+	})
+}
+
+func (r *serverlessEndpointRepository) ListVersions(ctx context.Context, tenantId uuid.UUID, after ServerlessEndpointVersion, limit int64) ([]ServerlessEndpointVersion, error) {
+	rows, err := r.queries.ListServerlessEndpointVersions(ctx, r.pool, sqlcv1.ListServerlessEndpointVersionsParams{
+		Tenantid: tenantId,
+		// The first page's zero version is a real time, not NULL; see ListUpdatedSince.
+		Afterversion: pgtype.Timestamptz{Time: after.Version, Valid: true},
+		Afterid:      after.ID,
+		Versionlimit: limit,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]ServerlessEndpointVersion, 0, len(rows))
+
+	for _, row := range rows {
+		out = append(out, ServerlessEndpointVersion{ID: row.ID, Version: row.Version.Time})
+	}
+
+	return out, nil
+}
+
+func (r *serverlessEndpointRepository) ListByIds(ctx context.Context, ids []uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	return r.queries.ListServerlessEndpointsByIds(ctx, r.pool, ids)
 }
 
 func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error) {

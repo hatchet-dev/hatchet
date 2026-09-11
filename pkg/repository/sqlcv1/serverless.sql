@@ -128,6 +128,38 @@ WHERE
     AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@since::TIMESTAMPTZ, @sinceId::UUID)
 ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id;
 
+-- name: GetServerlessEndpointByNamespace :one
+-- Resolves the endpoint an action's namespace names, for a routing miss: one row through the
+-- namespace's unique index, scoped to the tenant, instead of a reload of the tenant.
+SELECT *
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = @tenantId::UUID
+    AND namespace = @namespace::UUID;
+
+-- name: ListServerlessEndpointVersions :many
+-- Anti-entropy pass of a tenant's routing cache: every endpoint's id and version, nothing
+-- else, keyset-paged on (version, id) through v1_serverless_endpoint_version_idx, which
+-- covers the query. The cache compares the pairs with what it holds, fetches the rows whose
+-- version differs through ListServerlessEndpointsByIds and drops the ids that are gone, so a
+-- deleted endpoint and a row whose commit landed behind a refresh's read are both caught
+-- without transferring the tenant's rows.
+SELECT
+    id,
+    GREATEST(updated_at, COALESCE(status_changed_at, updated_at))::TIMESTAMPTZ AS version
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = @tenantId::UUID
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@afterVersion::TIMESTAMPTZ, @afterId::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
+LIMIT @versionLimit::BIGINT;
+
+-- name: ListServerlessEndpointsByIds :many
+SELECT *
+FROM v1_serverless_endpoint
+WHERE id = ANY(@ids::UUID[])
+ORDER BY id;
+
 -- name: UpdateServerlessEndpointStatus :one
 -- Written by the owner on a healthy/unhealthy transition only. Deliberately leaves updated_at
 -- alone: a health flip is not a routing change. The write's own timestamp is returned so the

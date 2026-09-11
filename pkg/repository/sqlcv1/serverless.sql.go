@@ -435,6 +435,49 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 	return &i, err
 }
 
+const getServerlessEndpointByNamespace = `-- name: GetServerlessEndpointByNamespace :one
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = $1::UUID
+    AND namespace = $2::UUID
+`
+
+type GetServerlessEndpointByNamespaceParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace uuid.UUID `json:"namespace"`
+}
+
+// Resolves the endpoint an action's namespace names, for a routing miss: one row through the
+// namespace's unique index, scoped to the tenant, instead of a reload of the tenant.
+func (q *Queries) GetServerlessEndpointByNamespace(ctx context.Context, db DBTX, arg GetServerlessEndpointByNamespaceParams) (*V1ServerlessEndpoint, error) {
+	row := db.QueryRow(ctx, getServerlessEndpointByNamespace, arg.Tenantid, arg.Namespace)
+	var i V1ServerlessEndpoint
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Namespace,
+		&i.Kind,
+		&i.HealthcheckUrl,
+		&i.TriggerUrl,
+		&i.SigningSecretEnc,
+		&i.RequestTimeoutSeconds,
+		&i.PollIntervalSeconds,
+		&i.InlineWaitBudgetMs,
+		&i.Labels,
+		&i.Enabled,
+		&i.Shard,
+		&i.Healthy,
+		&i.StatusError,
+		&i.StatusChangedAt,
+		&i.RegisteredActions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
 const getServerlessTenant = `-- name: GetServerlessTenant :one
 SELECT tenant_id, shard_count
 FROM v1_serverless_tenant
@@ -516,6 +559,61 @@ func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, proces
 	return items, nil
 }
 
+const listServerlessEndpointVersions = `-- name: ListServerlessEndpointVersions :many
+SELECT
+    id,
+    GREATEST(updated_at, COALESCE(status_changed_at, updated_at))::TIMESTAMPTZ AS version
+FROM v1_serverless_endpoint
+WHERE
+    tenant_id = $1::UUID
+    AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > ($2::TIMESTAMPTZ, $3::UUID)
+ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
+LIMIT $4::BIGINT
+`
+
+type ListServerlessEndpointVersionsParams struct {
+	Tenantid     uuid.UUID          `json:"tenantid"`
+	Afterversion pgtype.Timestamptz `json:"afterversion"`
+	Afterid      uuid.UUID          `json:"afterid"`
+	Versionlimit int64              `json:"versionlimit"`
+}
+
+type ListServerlessEndpointVersionsRow struct {
+	ID      uuid.UUID          `json:"id"`
+	Version pgtype.Timestamptz `json:"version"`
+}
+
+// Anti-entropy pass of a tenant's routing cache: every endpoint's id and version, nothing
+// else, keyset-paged on (version, id) through v1_serverless_endpoint_version_idx, which
+// covers the query. The cache compares the pairs with what it holds, fetches the rows whose
+// version differs through ListServerlessEndpointsByIds and drops the ids that are gone, so a
+// deleted endpoint and a row whose commit landed behind a refresh's read are both caught
+// without transferring the tenant's rows.
+func (q *Queries) ListServerlessEndpointVersions(ctx context.Context, db DBTX, arg ListServerlessEndpointVersionsParams) ([]*ListServerlessEndpointVersionsRow, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointVersions,
+		arg.Tenantid,
+		arg.Afterversion,
+		arg.Afterid,
+		arg.Versionlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListServerlessEndpointVersionsRow
+	for rows.Next() {
+		var i ListServerlessEndpointVersionsRow
+		if err := rows.Scan(&i.ID, &i.Version); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServerlessEndpoints = `-- name: ListServerlessEndpoints :many
 SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
 FROM v1_serverless_endpoint
@@ -533,6 +631,54 @@ type ListServerlessEndpointsParams struct {
 
 func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg ListServerlessEndpointsParams) ([]*V1ServerlessEndpoint, error) {
 	rows, err := db.Query(ctx, listServerlessEndpoints, arg.Tenantid, arg.Endpointoffset, arg.Endpointlimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1ServerlessEndpoint
+	for rows.Next() {
+		var i V1ServerlessEndpoint
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Namespace,
+			&i.Kind,
+			&i.HealthcheckUrl,
+			&i.TriggerUrl,
+			&i.SigningSecretEnc,
+			&i.RequestTimeoutSeconds,
+			&i.PollIntervalSeconds,
+			&i.InlineWaitBudgetMs,
+			&i.Labels,
+			&i.Enabled,
+			&i.Shard,
+			&i.Healthy,
+			&i.StatusError,
+			&i.StatusChangedAt,
+			&i.RegisteredActions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServerlessEndpointsByIds = `-- name: ListServerlessEndpointsByIds :many
+SELECT id, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at
+FROM v1_serverless_endpoint
+WHERE id = ANY($1::UUID[])
+ORDER BY id
+`
+
+func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*V1ServerlessEndpoint, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointsByIds, ids)
 	if err != nil {
 		return nil, err
 	}

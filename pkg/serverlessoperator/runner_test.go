@@ -429,6 +429,7 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	reg := env.host.session(0)
 
 	loads := env.repo.ListForTenantCalls()
+	lookups := env.repo.ByNamespaceCalls()
 
 	reg.deliver(t, startAction(uuid.New(), "svc:run"))
 
@@ -437,7 +438,8 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, miss.EventType)
 	assert.Contains(t, miss.EventPayload, "endpoint not found for namespace")
 	assert.False(t, *miss.ShouldNotRetry)
-	assert.Equal(t, loads+1, env.repo.ListForTenantCalls(), "a miss reloads the tenant once")
+	assert.Equal(t, loads, env.repo.ListForTenantCalls(), "a miss does not reload the tenant")
+	assert.Equal(t, lookups+1, env.repo.ByNamespaceCalls(), "a miss looks the namespace up once")
 
 	invocation := int32(0)
 	durable := startAction(a.Namespace, "svc:run")

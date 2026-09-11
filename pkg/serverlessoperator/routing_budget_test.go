@@ -3,10 +3,12 @@
 package serverlessoperator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -38,9 +40,11 @@ func (budgetEnc) DecryptString(s, _ string) (string, error) { return strings.Clo
 // budgetRepo is a lean endpoint repository over a fixed row set that counts what it returns.
 type budgetRepo struct {
 	repository.ServerlessEndpointRepository
-	rows     []*sqlcv1.V1ServerlessEndpoint
-	statuses []bool
-	readRows int
+	rows         []*sqlcv1.V1ServerlessEndpoint
+	versions     []repository.ServerlessEndpointVersion
+	statuses     []bool
+	readRows     int
+	readVersions int
 }
 
 func (r *budgetRepo) ListForTenant(context.Context, uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -53,6 +57,63 @@ func (r *budgetRepo) ListUpdatedSince(_ context.Context, _ uuid.UUID, since time
 
 	for _, row := range r.rows {
 		if row.UpdatedAt.Time.After(since) || (row.UpdatedAt.Time.Equal(since) && row.ID.String() > sinceId.String()) {
+			out = append(out, row)
+		}
+	}
+
+	r.readRows += len(out)
+
+	return out, nil
+}
+
+// ListVersions pages a version list built once, so what the measurement sees is the
+// cache's own work, not the fake's.
+func (r *budgetRepo) ListVersions(_ context.Context, _ uuid.UUID, after repository.ServerlessEndpointVersion, limit int64) ([]repository.ServerlessEndpointVersion, error) {
+	if r.versions == nil {
+		r.versions = make([]repository.ServerlessEndpointVersion, 0, len(r.rows))
+
+		for _, row := range r.rows {
+			r.versions = append(r.versions, repository.ServerlessEndpointVersion{ID: row.ID, Version: row.UpdatedAt.Time})
+		}
+
+		sort.Slice(r.versions, func(i, j int) bool {
+			if !r.versions[i].Version.Equal(r.versions[j].Version) {
+				return r.versions[i].Version.Before(r.versions[j].Version)
+			}
+
+			return r.versions[i].ID.String() < r.versions[j].ID.String()
+		})
+	}
+
+	start := 0
+
+	for start < len(r.versions) {
+		v := r.versions[start]
+
+		if v.Version.After(after.Version) || (v.Version.Equal(after.Version) && bytes.Compare(v.ID[:], after.ID[:]) > 0) {
+			break
+		}
+
+		start++
+	}
+
+	end := min(start+int(limit), len(r.versions))
+	r.readVersions += end - start
+
+	return r.versions[start:end], nil
+}
+
+func (r *budgetRepo) ListByIds(_ context.Context, ids []uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	want := make(map[uuid.UUID]struct{}, len(ids))
+
+	for _, id := range ids {
+		want[id] = struct{}{}
+	}
+
+	out := make([]*sqlcv1.V1ServerlessEndpoint, 0, len(ids))
+
+	for _, row := range r.rows {
+		if _, ok := want[row.ID]; ok {
 			out = append(out, row)
 		}
 	}
@@ -333,6 +394,28 @@ func keys(set map[string]struct{}) []string {
 	}
 
 	return out
+}
+
+// The periodic anti-entropy pass of an unchanged tenant must transfer ids and versions only:
+// no row, and no per-endpoint configuration built just to find it unchanged.
+func TestUnchangedReconcileReadsNoRows(t *testing.T) {
+	c, repo := budgetCache(t, 10000, 10)
+
+	// One pass first, so the fake's version list exists and the measurement is the cache's.
+	require.NoError(t, c.Reconcile(context.Background()))
+	repo.readRows = 0
+	repo.readVersions = 0
+
+	elapsed, allocated := measure(func() {
+		require.NoError(t, c.Reconcile(context.Background()))
+	})
+
+	t.Logf("unchanged reconcile of 10k endpoints: elapsed=%s allocated=%d versions=%d rows=%d", elapsed, allocated, repo.readVersions, repo.readRows)
+
+	assert.Equal(t, 0, repo.readRows, "an unchanged tenant reads no row")
+	assert.Equal(t, 10000, repo.readVersions)
+	assert.Less(t, allocated, uint64(1<<20), "no row, configuration or per-endpoint bookkeeping is allocated")
+	assert.Less(t, elapsed, 200*time.Millisecond)
 }
 
 // A full reload must observe a status another owner wrote, even though status writes leave

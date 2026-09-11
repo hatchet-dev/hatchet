@@ -2,6 +2,7 @@ package serverlessoperator
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,11 +43,20 @@ type tenantState struct {
 	units    map[int32]struct{}
 	hcSem    chan struct{}
 	tenantId uuid.UUID
-	opMu     sync.Mutex
-	mu       sync.Mutex
-	noToken  atomic.Bool
-	loaded   bool
-	removed  bool
+	// jitter in [0, 1) offsets this tenant's anti-entropy interval.
+	jitter  float64
+	opMu    sync.Mutex
+	mu      sync.Mutex
+	noToken atomic.Bool
+	loaded  bool
+	removed bool
+}
+
+// reconcileInterval spreads the tenants' anti-entropy passes over the interval: each tenant
+// runs its own between 90 and 110 percent of the configured one, so the served tenants do not
+// all list their versions on the same tick.
+func (ts *tenantState) reconcileInterval(base time.Duration) time.Duration {
+	return time.Duration(float64(base) * (0.9 + 0.2*ts.jitter))
 }
 
 func (ts *tenantState) registration() *registration {
@@ -183,6 +193,7 @@ func (r *runner) tenantFor(tenantId uuid.UUID) *tenantState {
 		pollers:  map[uuid.UUID]*endpointPoller{},
 		units:    map[int32]struct{}{},
 		hcSem:    make(chan struct{}, r.cfg.HealthcheckTenantConcurrency),
+		jitter:   rand.Float64(), // #nosec G404 -- jitter, not security
 	}
 
 	r.tenants[tenantId] = ts
@@ -467,10 +478,10 @@ func (r *runner) InFlight(unit lease.Unit) int {
 	return reg.inFlight()
 }
 
-// maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (a full
-// reload every RoutingFullReloadInterval, which drops deleted endpoints), reconcile pollers,
-// reopen registrations that are missing (never opened, no token), push a changed action
-// union to the registration, and retry units whose tenant failed to load.
+// maintain runs every RoutingRefreshInterval: refresh each served tenant's cache (an
+// anti-entropy reconcile every RoutingFullReloadInterval, which drops deleted endpoints),
+// reconcile pollers, reopen registrations that are missing (never opened, no token), push a
+// changed action union to the registration, and retry units whose tenant failed to load.
 func (r *runner) maintain(ctx context.Context) {
 	ticker := time.NewTicker(r.cfg.RoutingRefreshInterval)
 	defer ticker.Stop()
@@ -537,8 +548,8 @@ func (r *runner) maintainTenant(ctx context.Context, ts *tenantState) {
 			ts.loaded = true
 			ts.mu.Unlock()
 		}
-	case time.Since(ts.cache.LastLoad()) >= r.cfg.RoutingFullReloadInterval:
-		err = ts.cache.Load(ctx)
+	case time.Since(ts.cache.LastLoad()) >= ts.reconcileInterval(r.cfg.RoutingFullReloadInterval):
+		err = ts.cache.Reconcile(ctx)
 	default:
 		err = ts.cache.Refresh(ctx)
 	}

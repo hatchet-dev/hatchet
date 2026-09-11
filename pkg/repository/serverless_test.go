@@ -509,6 +509,48 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, dead)
 	})
 
+	t.Run("routing lookups by namespace, version listing and fetch by id", func(t *testing.T) {
+		tenantId := uuid.New()
+
+		a, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-a"))
+		require.NoError(t, err)
+		b, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-b"))
+		require.NoError(t, err)
+
+		got, err := repo.Endpoints().GetByNamespace(ctx, tenantId, a.Namespace)
+		require.NoError(t, err)
+		assert.Equal(t, a.ID, got.ID)
+
+		_, err = repo.Endpoints().GetByNamespace(ctx, uuid.New(), a.Namespace)
+		assert.ErrorIs(t, err, pgx.ErrNoRows, "the lookup is scoped to the tenant")
+
+		// A status write moves b's version past a's; the listing pages in version order.
+		_, err = repo.Endpoints().UpdateStatus(ctx, b.ID, false, nil)
+		require.NoError(t, err)
+
+		first, err := repo.Endpoints().ListVersions(ctx, tenantId, ServerlessEndpointVersion{}, 1)
+		require.NoError(t, err)
+		require.Len(t, first, 1)
+		assert.Equal(t, a.ID, first[0].ID)
+		assert.True(t, first[0].Version.Equal(a.UpdatedAt.Time))
+
+		second, err := repo.Endpoints().ListVersions(ctx, tenantId, first[0], 1)
+		require.NoError(t, err)
+		require.Len(t, second, 1)
+		assert.Equal(t, b.ID, second[0].ID)
+		assert.True(t, second[0].Version.After(first[0].Version))
+
+		third, err := repo.Endpoints().ListVersions(ctx, tenantId, second[0], 1)
+		require.NoError(t, err)
+		assert.Empty(t, third)
+
+		rows, err := repo.Endpoints().ListByIds(ctx, []uuid.UUID{b.ID, a.ID})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		assert.Equal(t, b.ID, rows[1].ID, "rows come back by id")
+		assert.True(t, rows[1].StatusChangedAt.Valid)
+	})
+
 	t.Run("empty units are neither counted nor claimed", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 

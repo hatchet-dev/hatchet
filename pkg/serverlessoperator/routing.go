@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
@@ -228,12 +229,14 @@ func (cfg *endpointConfig) contribution() []string {
 }
 
 // cachedEndpoint is one endpoint of a served tenant. Identity fields never change; cfg is
-// swapped under the cache lock.
+// swapped under the cache lock. seenGen is the reconcile generation that last listed the
+// endpoint; only Reconcile, which runs one at a time per tenant, reads or writes it.
 type cachedEndpoint struct {
 	cfg       *endpointConfig
 	id        uuid.UUID
 	tenantId  uuid.UUID
 	namespace uuid.UUID
+	seenGen   uint64
 	shard     int32
 }
 
@@ -280,7 +283,39 @@ type routingCache struct {
 	rev       uint64
 	sortedRev uint64
 	mu        sync.RWMutex
+
+	// reconcileGen counts Reconcile passes; an endpoint whose seenGen falls behind was not
+	// listed by the pass and is dropped.
+	reconcileGen uint64
+
+	// misses coalesces the namespace lookups of concurrent routing misses (one query per
+	// namespace at a time) and missed remembers namespaces that had no endpoint, for
+	// missNegativeTTL, so a burst of assignments to an absent namespace costs one query.
+	// missMu guards both.
+	misses map[uuid.UUID]*missLoad
+	missed map[uuid.UUID]time.Time
+	missMu sync.Mutex
 }
+
+// missLoad is one in-progress namespace lookup; waiters block on done.
+type missLoad struct {
+	done chan struct{}
+	err  error
+}
+
+const (
+	// missNegativeTTL is how long a namespace with no endpoint is remembered as absent.
+	missNegativeTTL = 5 * time.Second
+	// missedLimit bounds the negative cache; past it expired entries are dropped first and
+	// the oldest after them.
+	missedLimit = 4096
+
+	// reconcilePageSize is how many (id, version) pairs one anti-entropy page carries.
+	reconcilePageSize int64 = 5000
+)
+
+// reconcileFetchSize is how many changed rows one fetch by id asks for.
+const reconcileFetchSize = 500
 
 func newRoutingCache(tenantId uuid.UUID, repo repository.ServerlessEndpointRepository, enc encryption.EncryptionService, l *zerolog.Logger) *routingCache {
 	return &routingCache{
@@ -291,6 +326,8 @@ func newRoutingCache(tenantId uuid.UUID, repo repository.ServerlessEndpointRepos
 		byNamespace: map[uuid.UUID]*cachedEndpoint{},
 		byId:        map[uuid.UUID]*cachedEndpoint{},
 		counts:      map[string]int{},
+		misses:      map[uuid.UUID]*missLoad{},
+		missed:      map[uuid.UUID]time.Time{},
 	}
 }
 
@@ -450,9 +487,101 @@ func (c *routingCache) Load(ctx context.Context) error {
 	return nil
 }
 
+// Reconcile is the anti-entropy pass Load used to be: it catches hard-deleted endpoints and
+// rows whose commit landed after a refresh read past their version, which the watermark
+// refresh cannot see. It reads the tenant's (id, version) pairs in pages, nothing else,
+// fetches in full only the rows the cache does not hold at that version, applies them, and
+// drops the ids the listing no longer names, publishing at most one revision for the drops.
+// An unchanged tenant of a million endpoints costs a million pairs of a few dozen bytes and
+// no row, config or lock beyond the read of each id's cached version.
+func (c *routingCache) Reconcile(ctx context.Context) error {
+	c.reconcileGen++
+	gen := c.reconcileGen
+
+	var stale []uuid.UUID
+
+	after := repository.ServerlessEndpointVersion{}
+
+	for {
+		page, err := c.repo.ListVersions(ctx, c.tenantId, after, reconcilePageSize)
+
+		if err != nil {
+			return fmt.Errorf("could not list endpoint versions for tenant %s: %w", c.tenantId, err)
+		}
+
+		c.mu.RLock()
+
+		for _, v := range page {
+			ep, ok := c.byId[v.ID]
+
+			if ok {
+				ep.seenGen = gen
+			}
+
+			if !ok || !ep.cfg.version().Equal(v.Version) {
+				stale = append(stale, v.ID)
+			}
+		}
+
+		c.mu.RUnlock()
+
+		if int64(len(page)) < reconcilePageSize {
+			break
+		}
+
+		after = page[len(page)-1]
+	}
+
+	for start := 0; start < len(stale); start += reconcileFetchSize {
+		end := min(start+reconcileFetchSize, len(stale))
+
+		rows, err := c.repo.ListByIds(ctx, stale[start:end])
+
+		if err != nil {
+			return fmt.Errorf("could not fetch endpoints for tenant %s: %w", c.tenantId, err)
+		}
+
+		c.mu.Lock()
+
+		for _, row := range rows {
+			if ep, ok := c.byId[row.ID]; ok {
+				ep.seenGen = gen
+			}
+		}
+
+		c.applyRowsLocked(rows)
+
+		for _, row := range rows {
+			c.byId[row.ID].seenGen = gen
+		}
+
+		c.mu.Unlock()
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	b := newBatch()
+
+	for id, ep := range c.byId {
+		if ep.seenGen == gen {
+			continue
+		}
+
+		b.move(c, ep.cfg.contribution(), nil)
+		delete(c.byId, id)
+		delete(c.byNamespace, ep.namespace)
+	}
+
+	c.lastLoad = time.Now()
+	c.publishLocked(b)
+
+	return nil
+}
+
 // Refresh applies rows versioned past the watermark. Deleted endpoints are not visible here;
-// Load drops them. A row whose commit lands after a refresh read past its version is caught
-// by the next full load.
+// Reconcile drops them. A row whose commit lands after a refresh read past its version is
+// caught by the next Reconcile.
 func (c *routingCache) Refresh(ctx context.Context) error {
 	c.mu.RLock()
 	since, sinceId := c.since, c.sinceId
@@ -487,7 +616,8 @@ func (c *routingCache) applyRowsLocked(rows []*sqlcv1.V1ServerlessEndpoint) {
 	c.publishLocked(b)
 }
 
-// LastLoad is when the cache was last fully loaded; the runner schedules full reloads on it.
+// LastLoad is when the cache was last loaded in full or reconciled; the runner schedules the
+// next reconcile on it.
 func (c *routingCache) LastLoad() time.Time {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -798,8 +928,10 @@ func (c *routingCache) lookup(ns uuid.UUID) (*cachedEndpoint, *endpointConfig, b
 	return ep, ep.cfg, true
 }
 
-// Route resolves the endpoint an action id belongs to. A miss triggers one full reload,
-// which also drops deleted endpoints, before failing with errEndpointNotFound.
+// Route resolves the endpoint an action id belongs to. A miss looks the namespace up on its
+// own (one row, coalesced with concurrent misses on the same namespace, and remembered as
+// absent for missNegativeTTL when there is none) before failing with errEndpointNotFound;
+// the tenant is never reloaded for a miss.
 func (c *routingCache) Route(ctx context.Context, actionId string) (*cachedEndpoint, *endpointConfig, error) {
 	ns, ok := ParseNamespace(actionId)
 
@@ -811,7 +943,7 @@ func (c *routingCache) Route(ctx context.Context, actionId string) (*cachedEndpo
 		return ep, cfg, nil
 	}
 
-	if err := c.Load(ctx); err != nil {
+	if err := c.loadNamespace(ctx, ns); err != nil {
 		return nil, nil, err
 	}
 
@@ -820,6 +952,83 @@ func (c *routingCache) Route(ctx context.Context, actionId string) (*cachedEndpo
 	}
 
 	return nil, nil, fmt.Errorf("%w: %s", errEndpointNotFound, ns)
+}
+
+// loadNamespace fetches the endpoint a namespace names and applies its row. Concurrent
+// callers for one namespace share one query; a namespace found absent is not queried again
+// for missNegativeTTL. An absent namespace is not an error here: the caller's lookup fails.
+func (c *routingCache) loadNamespace(ctx context.Context, ns uuid.UUID) error {
+	c.missMu.Lock()
+
+	if until, ok := c.missed[ns]; ok {
+		if time.Now().Before(until) {
+			c.missMu.Unlock()
+			return nil
+		}
+
+		delete(c.missed, ns)
+	}
+
+	if load, ok := c.misses[ns]; ok {
+		c.missMu.Unlock()
+
+		select {
+		case <-load.done:
+			return load.err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	load := &missLoad{done: make(chan struct{})}
+	c.misses[ns] = load
+	c.missMu.Unlock()
+
+	row, err := c.repo.GetByNamespace(ctx, c.tenantId, ns)
+
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		c.rememberMissed(ns)
+	case err != nil:
+		load.err = fmt.Errorf("could not look up endpoint for namespace %s: %w", ns, err)
+	default:
+		c.mu.Lock()
+		c.applyRowsLocked([]*sqlcv1.V1ServerlessEndpoint{row})
+		c.mu.Unlock()
+	}
+
+	c.missMu.Lock()
+	delete(c.misses, ns)
+	c.missMu.Unlock()
+	close(load.done)
+
+	return load.err
+}
+
+// rememberMissed records an absent namespace, keeping the negative cache under missedLimit.
+func (c *routingCache) rememberMissed(ns uuid.UUID) {
+	c.missMu.Lock()
+	defer c.missMu.Unlock()
+
+	if len(c.missed) >= missedLimit {
+		now := time.Now()
+
+		for id, until := range c.missed {
+			if !now.Before(until) {
+				delete(c.missed, id)
+			}
+		}
+
+		for id := range c.missed {
+			if len(c.missed) < missedLimit {
+				break
+			}
+
+			delete(c.missed, id)
+		}
+	}
+
+	c.missed[ns] = time.Now().Add(missNegativeTTL)
 }
 
 // SetHealthcheck records the action set an owned endpoint's healthcheck produced. It

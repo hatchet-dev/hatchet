@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -59,6 +60,10 @@ type Repo struct {
 	releaseAlls   int
 	listForTenant int
 	listSince     int
+	byNamespace   int
+	listVersions  int
+	byIds         int
+	readRows      int
 
 	mu sync.Mutex
 }
@@ -125,6 +130,37 @@ func (r *Repo) ListSinceCalls() int {
 	defer r.mu.Unlock()
 
 	return r.listSince
+}
+
+// ByNamespaceCalls counts routing-miss lookups; ListVersionsCalls counts anti-entropy
+// version pages; ByIdsCalls counts fetches of changed rows by id; ReadRows counts every
+// endpoint row returned in full.
+func (r *Repo) ByNamespaceCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.byNamespace
+}
+
+func (r *Repo) ListVersionsCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.listVersions
+}
+
+func (r *Repo) ByIdsCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.byIds
+}
+
+func (r *Repo) ReadRows() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.readRows
 }
 
 // SetFailWrites makes every write fail with err until called with nil.
@@ -320,6 +356,78 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	}
 
 	sortEndpoints(out)
+	e.r.readRows += len(out)
+
+	return out, nil
+}
+
+func (e *endpoints) GetByNamespace(_ context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.byNamespace++
+
+	for _, ep := range e.r.endpoints {
+		if ep.TenantID == tenantId && ep.Namespace == namespace {
+			e.r.readRows++
+			return copyEndpoint(ep), nil
+		}
+	}
+
+	return nil, pgx.ErrNoRows
+}
+
+func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after repository.ServerlessEndpointVersion, limit int64) ([]repository.ServerlessEndpointVersion, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.listVersions++
+
+	out := make([]repository.ServerlessEndpointVersion, 0)
+
+	for _, ep := range e.r.endpoints {
+		if ep.TenantID != tenantId {
+			continue
+		}
+
+		v := version(ep)
+
+		if v.After(after.Version) || (v.Equal(after.Version) && ep.ID.String() > after.ID.String()) {
+			out = append(out, repository.ServerlessEndpointVersion{ID: ep.ID, Version: v})
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Version.Equal(out[j].Version) {
+			return out[i].Version.Before(out[j].Version)
+		}
+
+		return out[i].ID.String() < out[j].ID.String()
+	})
+
+	if int64(len(out)) > limit {
+		out = out[:limit]
+	}
+
+	return out, nil
+}
+
+func (e *endpoints) ListByIds(_ context.Context, ids []uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	e.r.byIds++
+
+	out := make([]*sqlcv1.V1ServerlessEndpoint, 0, len(ids))
+
+	for _, id := range ids {
+		if ep, ok := e.r.endpoints[id]; ok {
+			out = append(out, copyEndpoint(ep))
+		}
+	}
+
+	sortEndpoints(out)
+	e.r.readRows += len(out)
 
 	return out, nil
 }
