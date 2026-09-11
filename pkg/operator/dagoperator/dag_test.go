@@ -644,6 +644,81 @@ func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
 	require.False(t, a.isCancelled || b.isCancelled)
 }
 
+// replayTrigger satisfies the given steps from the log with a satisfied order, the way a
+// re-invocation does; their completions are then delivered by the test in that order.
+func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncTriggered) {
+	triggered := make(chan asyncTriggered, 16)
+	var nextId int64 = 1
+
+	fn := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		nodeId := nextId
+		nextId++
+
+		result := &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+		}
+
+		if order, ok := satisfiedOrders[actionId]; ok {
+			result.IsSatisfied = true
+			result.ResultPayload = mapToJson(map[string]interface{}{"ok": true})
+			result.SatisfiedOrder = &order
+		}
+
+		triggered <- asyncTriggered{
+			actionId: actionId,
+			ref:      &v1contracts.DurableEventLogEntryRef{NodeId: nodeId, BranchId: nodeId},
+		}
+
+		return result, nil
+	}
+
+	return fn, triggered
+}
+
+// In the original run a completed first, so c was emitted before b completed and d followed
+// it. On replay both a and b are satisfied as soon as they're triggered; the dag must still
+// emit c before d, which it only does if it consumes the completions in satisfied order
+// rather than applying them from the trigger results.
+func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	d := newTestTask("d", "action-d", 2, b)
+	c := newTestTask("c", "action-c", 3, a)
+
+	trigger, triggered := replayTrigger(map[string]int64{"action-a": 1, "action-b": 2})
+
+	h := startDAG(t, []*task{a, b, d, c}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	second := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+	require.Equal(t, "action-b", second.actionId)
+
+	select {
+	case unexpected := <-triggered:
+		t.Fatalf("%q triggered before any completion was delivered", unexpected.actionId)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	third := recvTriggered(t, triggered)
+	require.Equal(t, "action-c", third.actionId)
+
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	fourth := recvTriggered(t, triggered)
+	require.Equal(t, "action-d", fourth.actionId)
+
+	sendEntryCompleted(t, h.responseCh, third.ref, mapToJson(map[string]interface{}{"ok": true}))
+	sendEntryCompleted(t, h.responseCh, fourth.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+}
+
 func TestDag_AsyncFailureViaEntryCompleted(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)

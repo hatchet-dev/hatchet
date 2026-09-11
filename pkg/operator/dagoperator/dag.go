@@ -534,21 +534,33 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		t.isTriggered = true
 		progressed = true
 
-		if result.IsSatisfied {
-			errorMessage := ""
-			if result.ErrorMessage != nil {
-				errorMessage = *result.ErrorMessage
-			}
-			if err := d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
+		if err := d.applyUnorderedCompletion(ctx, t, result); err != nil {
+			d.err = err
+			return progressed, d.err
 		}
 	}
 
 	d.pendingTasks = stillPending
 
 	return progressed, nil
+}
+
+// applyUnorderedCompletion applies a satisfied trigger result that will not arrive as an
+// EntryCompleted. Every other completion is consumed from the session in satisfied order,
+// which is what keeps the sequence of emitted steps identical between the original run and a
+// replay: applying a replayed result here instead would let a step become ready earlier than
+// it did originally and take a different node id.
+func (d *dag) applyUnorderedCompletion(ctx context.Context, t *task, result *operator.DAGStepTriggerResult) error {
+	if !result.IsSatisfied || result.SatisfiedOrder != nil {
+		return nil
+	}
+
+	errorMessage := ""
+	if result.ErrorMessage != nil {
+		errorMessage = *result.ErrorMessage
+	}
+
+	return d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload)
 }
 
 func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
@@ -841,15 +853,9 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 
 	d.tasks = append(d.tasks, d.onFailureTask)
 
-	if result.IsSatisfied {
-		errorMessage := ""
-		if result.ErrorMessage != nil {
-			errorMessage = *result.ErrorMessage
-		}
-		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-			d.err = err
-			return true, d.err
-		}
+	if err := d.applyUnorderedCompletion(ctx, d.onFailureTask, result); err != nil {
+		d.err = err
+		return true, d.err
 	}
 
 	return true, nil

@@ -739,53 +739,6 @@ func (q *Queries) GetDurableTaskLogFiles(ctx context.Context, db DBTX, arg GetDu
 	return items, nil
 }
 
-const getMaxDurableEventLogNodeIds = `-- name: GetMaxDurableEventLogNodeIds :many
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at
-)
-
-SELECT
-    e.durable_task_id,
-    e.durable_task_inserted_at,
-    MAX(e.node_id)::BIGINT AS max_node_id
-FROM v1_durable_event_log_entry e
-JOIN inputs i ON (e.durable_task_id, e.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
-GROUP BY e.durable_task_id, e.durable_task_inserted_at
-`
-
-type GetMaxDurableEventLogNodeIdsParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-}
-
-type GetMaxDurableEventLogNodeIdsRow struct {
-	DurableTaskID         int64              `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
-	MaxNodeID             int64              `json:"max_node_id"`
-}
-
-func (q *Queries) GetMaxDurableEventLogNodeIds(ctx context.Context, db DBTX, arg GetMaxDurableEventLogNodeIdsParams) ([]*GetMaxDurableEventLogNodeIdsRow, error) {
-	rows, err := db.Query(ctx, getMaxDurableEventLogNodeIds, arg.Durabletaskids, arg.Durabletaskinsertedats)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*GetMaxDurableEventLogNodeIdsRow
-	for rows.Next() {
-		var i GetMaxDurableEventLogNodeIdsRow
-		if err := rows.Scan(&i.DurableTaskID, &i.DurableTaskInsertedAt, &i.MaxNodeID); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const incrementLogFileInvocationCounts = `-- name: IncrementLogFileInvocationCounts :many
 WITH inputs AS (
     SELECT

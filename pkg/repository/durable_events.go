@@ -1922,17 +1922,11 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 	}
 
-	maxExistingNodeIdByTaskId, err := r.getMaxExistingNodeIdsForDagStepTriggers(ctx, tx, batch, eligibleTaskIds)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
 	for _, taskId := range eligibleTaskIds {
 		opts := batch[taskId]
 		logFile := logFileByTaskId[taskId]
 
-		plan, taskErr, fatalErr := r.planDurableEventLogAppend(ctx, tx, opts, logFile, branchPointsByTaskId[taskId], maxExistingNodeIdByTaskId[taskId])
+		plan, taskErr, fatalErr := r.planDurableEventLogAppend(ctx, tx, opts, logFile, branchPointsByTaskId[taskId])
 
 		if fatalErr != nil {
 			return nil, nil, fatalErr
@@ -2098,67 +2092,6 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	return results, taskErrors, nil
 }
 
-// getMaxExistingNodeIdsForDagStepTriggers returns the highest node id on the log of each task
-// in the batch that is triggering a DAG step. It is looked up for skip-path triggers too, since
-// resolveOrphanedChildDedupes can still turn one of those into a fresh spawn while planning.
-func (r *durableEventsRepository) getMaxExistingNodeIdsForDagStepTriggers(
-	ctx context.Context,
-	tx sqlcv1.DBTX,
-	batch map[durableTaskId]IngestDurableTaskEventOpts,
-	eligibleTaskIds []durableTaskId,
-) (map[durableTaskId]int64, error) {
-	params := sqlcv1.GetMaxDurableEventLogNodeIdsParams{}
-
-	for _, taskId := range eligibleTaskIds {
-		opts := batch[taskId]
-
-		if opts.Kind != sqlcv1.V1DurableEventLogKindRUN || !hasDagStepTrigger(opts.TriggerRuns.TriggerOpts) {
-			continue
-		}
-
-		params.Durabletaskids = append(params.Durabletaskids, opts.Task.ID)
-		params.Durabletaskinsertedats = append(params.Durabletaskinsertedats, opts.Task.InsertedAt)
-	}
-
-	maxNodeIdByTaskId := make(map[durableTaskId]int64, len(params.Durabletaskids))
-
-	if len(params.Durabletaskids) == 0 {
-		return maxNodeIdByTaskId, nil
-	}
-
-	rows, err := r.queries.GetMaxDurableEventLogNodeIds(ctx, tx, params)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get max durable event log node ids: %w", err)
-	}
-
-	for _, row := range rows {
-		maxNodeIdByTaskId[durableTaskId(row.DurableTaskID)] = row.MaxNodeID
-	}
-
-	return maxNodeIdByTaskId, nil
-}
-
-func hasDagStepTrigger(triggerOpts []*WorkflowNameTriggerOpts) bool {
-	for _, to := range triggerOpts {
-		if to.IsDagStepTrigger {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasFreshDagStepTrigger(triggerOpts []*WorkflowNameTriggerOpts) bool {
-	for _, to := range triggerOpts {
-		if to.IsDagStepTrigger && !to.ShouldSkip {
-			return true
-		}
-	}
-
-	return false
-}
-
 type durableEventLogAppendPlan struct {
 	opts                         IngestDurableTaskEventOpts
 	getOrCreateOpts              GetOrCreateLogEntryOpts
@@ -2175,7 +2108,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 	opts IngestDurableTaskEventOpts,
 	logFile *sqlcv1.V1DurableEventLogFile,
 	nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint,
-	maxExistingNodeId int64,
 ) (plan *durableEventLogAppendPlan, taskErr error, fatalErr error) {
 	tenantId := opts.TenantId
 	task := opts.Task
@@ -2195,17 +2127,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 		}
 
 		childrenToReplay = resolvedChildrenToReplay
-
-		// A DAG step's identity is its spawn key (see resolveChildExternalIdsForBatch), not its
-		// position in the log: a step already spawned takes the skip path above regardless of
-		// where the replay cursor sits. So a step being spawned for the first time during a
-		// replay must not be placed at the cursor, where it would land on top of an entry the
-		// replay has not yet walked past. The operator emits ready steps in whatever order
-		// their parents happen to complete, and that order legitimately differs between the
-		// original run and a replay, so fresh DAG steps are appended after every existing entry.
-		if hasFreshDagStepTrigger(opts.TriggerRuns.TriggerOpts) {
-			baseNodeId = max(logFile.LatestNodeID, maxExistingNodeId) + 1
-		}
 
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 

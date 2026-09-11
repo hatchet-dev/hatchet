@@ -25,11 +25,28 @@ func ingestDagStepTrigger(
 ) *IngestTriggerRunsEntry {
 	t.Helper()
 
+	result, err := ingestDagStepTriggerResult(ctx, repo, tenantID, task, invocationCount, actionId, childIndex)
+	require.NoError(t, err)
+	require.NotNil(t, result.TriggerRunsResult)
+	require.Len(t, result.TriggerRunsResult.Entries, 1)
+
+	return result.TriggerRunsResult.Entries[0]
+}
+
+func ingestDagStepTriggerResult(
+	ctx context.Context,
+	repo *durableEventsRepository,
+	tenantID uuid.UUID,
+	task *sqlcv1.FlattenExternalIdsRow,
+	invocationCount int32,
+	actionId string,
+	childIndex int64,
+) (*IngestDurableTaskEventResult, error) {
 	parentExternalId := task.ExternalID
 	parentTaskId := task.ID
 	parentTaskInsertedAt := task.InsertedAt.Time
 
-	result, err := repo.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
+	return repo.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &BaseIngestEventOpts{
 			Task:            task,
 			Kind:            sqlcv1.V1DurableEventLogKindRUN,
@@ -52,11 +69,6 @@ func ingestDagStepTrigger(
 			}},
 		},
 	})
-	require.NoError(t, err)
-	require.NotNil(t, result.TriggerRunsResult)
-	require.Len(t, result.TriggerRunsResult.Entries, 1)
-
-	return result.TriggerRunsResult.Entries[0]
 }
 
 func reinvokeDurableTask(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, tenantID uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) {
@@ -70,11 +82,11 @@ func reinvokeDurableTask(t *testing.T, ctx context.Context, repos userEventScope
 	require.NoError(t, err)
 }
 
-// A DAG operator emits ready steps in whatever order their parents complete, so a replay can
-// reach a step that was never spawned in the original invocation before it reaches a step that
-// was. The never-spawned step must get its own entry after every existing one rather than the
-// entry sitting at the replay cursor.
-func TestDagStepFirstSpawnDuringReplayDoesNotCollideWithExistingEntry(t *testing.T) {
+// The operator replays steps in the order their completions were originally delivered, so a
+// replay should never plan a step at a node another step already holds. If it does, the two
+// steps share a workflow name and input, and only the step identity in the idempotency key
+// stops the replay from silently resolving one step to the other's entry.
+func TestDagStepReplayAtAnotherStepsNodeIsNondeterministic(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -89,20 +101,11 @@ func TestDagStepFirstSpawnDuringReplayDoesNotCollideWithExistingEntry(t *testing
 
 	reinvokeDurableTask(t, ctx, repos, tenantID, task)
 
-	boldDates := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 2, "my-dag:bold-dates-and-quantities", 9)
-	require.False(t, boldDates.AlreadyExisted)
-	require.EqualValues(t, 2, boldDates.NodeId)
-	require.NotEqual(t, dedupe.WorkflowRunExternalId, boldDates.WorkflowRunExternalId)
+	_, err := ingestDagStepTriggerResult(ctx, repos.durable, tenantID, task, 2, "my-dag:bold-dates-and-quantities", 9)
 
-	replayedDedupe := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 2, "my-dag:dedupe-action-items", 13)
-	require.True(t, replayedDedupe.AlreadyExisted)
-	require.EqualValues(t, 1, replayedDedupe.NodeId)
-	require.Equal(t, dedupe.WorkflowRunExternalId, replayedDedupe.WorkflowRunExternalId)
-
-	replayedBoldDates := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 2, "my-dag:bold-dates-and-quantities", 9)
-	require.True(t, replayedBoldDates.AlreadyExisted)
-	require.EqualValues(t, 2, replayedBoldDates.NodeId)
-	require.Equal(t, boldDates.WorkflowRunExternalId, replayedBoldDates.WorkflowRunExternalId)
+	var nonDeterminismErr *NonDeterminismError
+	require.ErrorAs(t, err, &nonDeterminismErr)
+	require.EqualValues(t, 1, nonDeterminismErr.NodeId)
 }
 
 // Two different steps of the same DAG carry the same workflow name and input; their entries
