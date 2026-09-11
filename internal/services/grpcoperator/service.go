@@ -26,7 +26,7 @@ import (
 )
 
 // OperatorIdMetadataKey is the incoming gRPC metadata key that carries the operator id on every
-// RPC after Register (Listen, PauseWorker, SendStepActionEvent, DurableTask).
+// RPC after Register (Listen, SendStepActionEvent, DurableTask).
 const OperatorIdMetadataKey = "hatchet-operator-id"
 
 type OperatorService interface {

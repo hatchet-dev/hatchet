@@ -63,17 +63,17 @@ service OperatorService {
     //   7. When the stream ends (client close, network failure, or engine shutdown) the worker is
     //      deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
     //      resumed worker keeps its action set.
+    //   8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
+    //      worker, and from the moment the server answers with an OperatorPauseAck no action is
+    //      delivered on the stream; one that the scheduler had already assigned is returned to
+    //      the queue instead. An operator that pauses before draining therefore knows the
+    //      actions it holds are the last it will get. pause with paused = false lets the worker
+    //      be assigned to again and is acknowledged the same way. The pause belongs to the
+    //      stream: Register clears it when it resumes the worker, so a client that reconnects
+    //      while paused sends the pause again on the new stream, before its deltas.
     //
     // Requires the hatchet-operator-id metadata.
     rpc Listen(stream OperatorListenRequest) returns (stream OperatorListenResponse);
-
-    // PauseWorker stops the scheduler assigning to one of the operator's workers, or lets it be
-    // assigned to again with paused = false. It returns once the change is committed, so an
-    // operator that pauses before draining knows no further work will arrive, and it works while
-    // the Listen stream is being torn down or reconnected. Register clears the pause when it
-    // resumes a worker, so an operator that crashed while paused comes back assignable.
-    // Requires the hatchet-operator-id metadata; the worker_id must belong to the operator.
-    rpc PauseWorker(OperatorPauseWorkerRequest) returns (OperatorPauseWorkerResponse);
 
     // SendStepActionEvent reports task progress (started, completed, failed) for an action that
     // was delivered on a Listen stream. Same semantics as Dispatcher.SendStepActionEvent.
@@ -125,29 +125,14 @@ message OperatorRegisterResponse {
     bool resumed = 4;
 }
 
-// OperatorPauseWorkerRequest names the worker to pause or unpause.
-message OperatorPauseWorkerRequest {
-    // Worker id from OperatorRegisterResponse. The worker must belong to the calling operator.
-    string worker_id = 1;
-
-    // True to stop the scheduler assigning to the worker, false to let it be assigned to again.
-    bool paused = 2;
-}
-
-message OperatorPauseWorkerResponse {
-    string worker_id = 1;
-
-    // The pause state now committed on the worker.
-    bool paused = 2;
-}
-
 // OperatorListenRequest is a client-to-server message on the Listen stream. The first message
-// must be start; every later message is a heartbeat or an actions delta.
+// must be start; every later message is a heartbeat, an actions delta or a pause.
 message OperatorListenRequest {
     oneof message {
         OperatorListenStart start = 1;
         OperatorHeartbeat heartbeat = 2;
         OperatorActionsDelta actions = 3;
+        OperatorPause pause = 4;
     }
 }
 
@@ -185,6 +170,14 @@ message OperatorActionsDelta {
     uint64 sequence = 3;
 }
 
+// OperatorPause stops the scheduler assigning to the stream's worker, or lets it be assigned to
+// again. The server answers with an OperatorPauseAck once the change is committed; after the ack
+// of a pause nothing is delivered on the stream until the pause is lifted.
+message OperatorPause {
+    // True to stop the scheduler assigning to the worker, false to let it be assigned to again.
+    bool paused = 1;
+}
+
 // OperatorListenResponse is a server-to-client message on the Listen stream.
 message OperatorListenResponse {
     oneof message {
@@ -193,6 +186,9 @@ message OperatorListenResponse {
 
         // Acknowledgement of a committed actions delta.
         OperatorActionsAck ack = 2;
+
+        // Acknowledgement of a committed pause.
+        OperatorPauseAck pause_ack = 3;
     }
 }
 
@@ -200,4 +196,10 @@ message OperatorListenResponse {
 // sequence on the stream, has been committed to the worker's action set.
 message OperatorActionsAck {
     uint64 sequence = 1;
+}
+
+// OperatorPauseAck confirms that the pause state is committed on the worker. For paused = true
+// it also confirms that no action will be delivered on the stream from here on.
+message OperatorPauseAck {
+    bool paused = 1;
 }

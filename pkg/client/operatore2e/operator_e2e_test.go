@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -721,9 +722,10 @@ func TestDurableTaskRejectsForeignWorker(t *testing.T) {
 	assert.NotNil(t, resp.GetRegisterWorker(), "own worker registers on the durable stream")
 }
 
-// A paused worker keeps its actions and its session but is not assigned to, which is what lets
-// an operator drain before it hangs up. Resuming it lets the queued run through, and so does a
-// reconnect, since Register clears the pause on a resumed worker.
+// A paused worker keeps its actions and its session but gets nothing delivered: the pause is a
+// message on the Listen stream, and once its ack is back the engine stops assigning to the
+// worker and returns to the queue anything it had assigned in the meantime. That is what lets
+// an operator drain before it hangs up. Resuming delivers the queued run once.
 func TestPauseStopsAssignment(t *testing.T) {
 	ctx := newTestContext(t)
 	v0, sdk := clients(t)
@@ -731,7 +733,10 @@ func TestPauseStopsAssignment(t *testing.T) {
 	session := connect(t, ctx, v0, "pause-operator", map[string]int32{"default": 10})
 	workerId := session.Registration().WorkerId
 
+	var handled atomic.Int32
+
 	serve(t, ctx, session, func(ctx context.Context, action *dispatchercontracts.AssignedAction) (string, error) {
+		handled.Add(1)
 		return `{"paused":"ok"}`, nil
 	})
 
@@ -739,22 +744,26 @@ func TestPauseStopsAssignment(t *testing.T) {
 	putAndAdd(t, ctx, session, simpleWorkflow(name, "grpcop:pause", false))
 	time.Sleep(schedulerConvergence)
 
+	// the ack has been received when Pause returns; the row is written before the ack
 	require.NoError(t, session.Pause(ctx))
-	pollWorkerPaused(t, ctx, workerId, true)
-	time.Sleep(schedulerConvergence)
+	assert.True(t, workerPaused(t, ctx, workerId), "the pause is committed before it is acknowledged")
 
+	// a run triggered right after the ack is either never assigned or assigned and returned to
+	// the queue; either way it does not reach the operator
 	ref, err := sdk.RunNoWait(ctx, name, map[string]any{})
 	require.NoError(t, err)
 
 	assertStaysQueued(t, ctx, sdk, ref.RunId, schedulerConvergence)
+	assert.Zero(t, handled.Load(), "nothing is delivered after the pause ack")
 
 	active, state := workerActive(t, ctx, workerId)
 	assert.True(t, active, "a paused worker keeps its session: %s", state)
 
 	require.NoError(t, session.Resume(ctx))
-	pollWorkerPaused(t, ctx, workerId, false)
+	assert.False(t, workerPaused(t, ctx, workerId), "the resume is committed before it is acknowledged")
 
 	waitForCompletion(t, ctx, sdk, ref.RunId)
+	assert.EqualValues(t, 1, handled.Load(), "the run held back by the pause runs once after the resume")
 }
 
 // Close is pause then drain: it pauses the worker before it hangs up, so nothing new is

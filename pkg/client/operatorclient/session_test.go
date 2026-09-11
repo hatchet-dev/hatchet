@@ -41,6 +41,8 @@ type fakeOperatorListenStream struct {
 	recvOnce   sync.Once
 	sendDead   atomic.Bool
 	noAck      atomic.Bool
+	// noPauseAck makes the stream withhold pause acks
+	noPauseAck atomic.Bool
 }
 
 func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
@@ -58,7 +60,48 @@ func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
 		}
 	}
 
+	if pause := req.GetPause(); pause != nil && !s.noPauseAck.Load() {
+		s.responses <- &v1.OperatorListenResponse{
+			Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{Paused: pause.Paused}},
+		}
+	}
+
 	return nil
+}
+
+// pauses lists the pause messages sent on the stream, in order.
+func (s *fakeOperatorListenStream) pauses() []*v1.OperatorPause {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var out []*v1.OperatorPause
+	for _, req := range s.requests {
+		if p := req.GetPause(); p != nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// requestKinds lists the kind of every message sent on the stream, in order.
+func (s *fakeOperatorListenStream) requestKinds() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]string, 0, len(s.requests))
+	for _, req := range s.requests {
+		switch {
+		case req.GetStart() != nil:
+			out = append(out, "start")
+		case req.GetPause() != nil:
+			out = append(out, "pause")
+		case req.GetActions() != nil:
+			out = append(out, "actions")
+		case req.GetHeartbeat() != nil:
+			out = append(out, "heartbeat")
+		}
+	}
+	return out
 }
 
 func (s *fakeOperatorListenStream) Recv() (*v1.OperatorListenResponse, error) {
@@ -166,13 +209,13 @@ type fakeOperatorServiceClient struct {
 	durableStreams      []*fakeOperatorDurableStream
 	stepEvents          []*dispatchercontracts.StepActionEvent
 	stepEventOperatorId []string
-	pauses              []*v1.OperatorPauseWorkerRequest
 	registerErr         error
 	listenErr           error
-	pauseErr            error
 	mu                  sync.Mutex
 	// noAck makes every new stream withhold delta acks
 	noAck bool
+	// noPauseAck makes every new stream withhold pause acks
+	noPauseAck bool
 }
 
 func (f *fakeOperatorServiceClient) Register(ctx context.Context, in *v1.OperatorRegisterRequest, opts ...grpc.CallOption) (*v1.OperatorRegisterResponse, error) {
@@ -212,6 +255,9 @@ func (f *fakeOperatorServiceClient) Listen(ctx context.Context, opts ...grpc.Cal
 	if f.noAck {
 		s.noAck.Store(true)
 	}
+	if f.noPauseAck {
+		s.noPauseAck.Store(true)
+	}
 	f.streams = append(f.streams, s)
 	return s, nil
 }
@@ -224,19 +270,6 @@ func (f *fakeOperatorServiceClient) SendStepActionEvent(ctx context.Context, in 
 	return &dispatchercontracts.ActionEventResponse{TenantId: "tenant-1", WorkerId: in.WorkerId}, nil
 }
 
-func (f *fakeOperatorServiceClient) PauseWorker(ctx context.Context, in *v1.OperatorPauseWorkerRequest, opts ...grpc.CallOption) (*v1.OperatorPauseWorkerResponse, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.pauseErr != nil {
-		return nil, f.pauseErr
-	}
-
-	f.pauses = append(f.pauses, in)
-
-	return &v1.OperatorPauseWorkerResponse{WorkerId: in.WorkerId, Paused: in.Paused}, nil
-}
-
 func (f *fakeOperatorServiceClient) stepEventsSent() []*dispatchercontracts.StepActionEvent {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -244,11 +277,17 @@ func (f *fakeOperatorServiceClient) stepEventsSent() []*dispatchercontracts.Step
 	return append([]*dispatchercontracts.StepActionEvent(nil), f.stepEvents...)
 }
 
-func (f *fakeOperatorServiceClient) pauseRequests() []*v1.OperatorPauseWorkerRequest {
+// pauseRequests lists the pause messages sent on every stream, in order.
+func (f *fakeOperatorServiceClient) pauseRequests() []*v1.OperatorPause {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	streams := append([]*fakeOperatorListenStream(nil), f.streams...)
+	f.mu.Unlock()
 
-	return append([]*v1.OperatorPauseWorkerRequest(nil), f.pauses...)
+	var out []*v1.OperatorPause
+	for _, s := range streams {
+		out = append(out, s.pauses()...)
+	}
+	return out
 }
 
 func (f *fakeOperatorServiceClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (v1.OperatorService_DurableTaskClient, error) {

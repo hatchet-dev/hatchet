@@ -117,16 +117,17 @@ type Session interface {
 	// caller owns the listener it builds over it and stops it before Close.
 	OpenDurableTaskStream(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
 
-	// Pause stops the scheduler assigning to this session's worker. It
-	// returns once the engine has committed the pause, so a caller that
-	// drains afterwards knows no further action will be assigned. It is its
-	// own call rather than a message on the Listen stream so it also works
-	// while the stream is reconnecting.
+	// Pause stops the scheduler assigning to this session's worker. It sends
+	// the pause on the Listen stream and returns once the engine has
+	// acknowledged it, at which point nothing more is delivered on the stream:
+	// an action the scheduler had already assigned goes back to the queue. A
+	// caller that drains afterwards therefore holds the last actions it will
+	// get. The pause is stream state that the session restores on every
+	// reconnect until Resume.
 	Pause(ctx context.Context) error
 
-	// Resume lets the scheduler assign to the worker again. Reconnecting also
-	// clears the pause, so a session that is resumed after a crash comes back
-	// assignable without this call.
+	// Resume lets the scheduler assign to the worker again, acknowledged the
+	// same way.
 	Resume(ctx context.Context) error
 
 	// Close pauses the worker, waits for the actions already handed to the

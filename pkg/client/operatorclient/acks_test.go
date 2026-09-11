@@ -54,6 +54,17 @@ func (d *droppingDeltaServer) Listen(stream v1.OperatorService_ListenServer) err
 			return err
 		}
 
+		// the pause the session's Close sends is acknowledged like the engine would
+		if pause := req.GetPause(); pause != nil {
+			if err := stream.Send(&v1.OperatorListenResponse{
+				Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{Paused: pause.Paused}},
+			}); err != nil {
+				return err
+			}
+
+			continue
+		}
+
 		delta := req.GetActions()
 		if delta == nil {
 			continue

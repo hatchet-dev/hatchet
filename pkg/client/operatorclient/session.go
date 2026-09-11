@@ -139,6 +139,13 @@ type session struct {
 	reg        Registration
 	actions    *actionDeltaQueue
 
+	// paused is the pause state the session wants on its worker, resent on every new stream
+	// (see replayActions); pauseAck is where the receive loop hands the next pause ack to the
+	// setPaused call waiting for it. Both are guarded by mu; pauseMu serialises the calls.
+	pauseAck chan bool
+	pauseMu  sync.Mutex
+	paused   bool
+
 	// inflight holds the task runs handed to the consumer that have not been
 	// reported as finished, and idle is closed the moment the last one is, so
 	// Close can drain. Both are guarded by mu.
@@ -305,12 +312,51 @@ func (s *session) openListenStream(ctx context.Context) (*listenClient, error) {
 // A stream whose replay fails is cancelled here because it is never
 // published.
 func (s *session) replayActions(_ context.Context, c *listenClient) error {
+	// the pause belongs to the stream and Register clears it on a resumed worker, so a paused
+	// session restores it first, before any delta and before the stream is published
+	if s.isPaused() {
+		if err := c.Send(pauseMessage(true)); err != nil {
+			c.cancel()
+			return fmt.Errorf("could not replay operator pause: %w", err)
+		}
+	}
+
 	if err := s.actions.replay(c, s.Registration().Resumed); err != nil {
 		c.cancel()
 		return fmt.Errorf("could not replay operator actions: %w", err)
 	}
 
 	return nil
+}
+
+func (s *session) isPaused() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.paused
+}
+
+func pauseMessage(paused bool) *v1.OperatorListenRequest {
+	return &v1.OperatorListenRequest{
+		Message: &v1.OperatorListenRequest_Pause{Pause: &v1.OperatorPause{Paused: paused}},
+	}
+}
+
+// deliverPauseAck hands a pause ack to the setPaused call waiting for one. An ack nobody waits
+// for (a replayed pause's, or one that arrived after its waiter gave up) is dropped.
+func (s *session) deliverPauseAck(paused bool) {
+	s.mu.Lock()
+	ack := s.pauseAck
+	s.mu.Unlock()
+
+	if ack == nil {
+		return
+	}
+
+	select {
+	case ack <- paused:
+	default:
+	}
 }
 
 // registerRequest snapshots the register template and, when resuming, sets
@@ -442,6 +488,8 @@ func (s *session) receiveLoop(ctx context.Context) {
 			switch msg := resp.Message.(type) {
 			case *v1.OperatorListenResponse_Ack:
 				s.actions.ack(msg.Ack.Sequence)
+			case *v1.OperatorListenResponse_PauseAck:
+				s.deliverPauseAck(msg.PauseAck.Paused)
 			case *v1.OperatorListenResponse_Action:
 				s.l.Debug().Ctx(ctx).
 					Str("action_type", msg.Action.ActionType.String()).
@@ -630,25 +678,58 @@ func (s *session) Resume(ctx context.Context) error {
 	return s.setPaused(ctx, false)
 }
 
+// setPaused sends the pause on the Listen stream and waits for the engine's ack, which is what
+// makes the pause a promise: after it nothing is delivered on the stream. The desired state is
+// recorded first, so a reconnect that happens while the send is in flight replays it, and a
+// send that fails is retried through the reconnecting stream like a heartbeat. Calls are
+// serialised, and the wait is for an ack carrying the state asked for: an ack of the previous
+// state, or of a replayed pause, is skipped.
 func (s *session) setPaused(ctx context.Context, paused bool) error {
-	workerId := s.Registration().WorkerId
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
 
-	if workerId == "" {
-		return fmt.Errorf("operator session has no worker to pause")
-	}
+	ack := make(chan bool, 1)
 
-	_, err := s.client.PauseWorker(s.opCtx(ctx), &v1.OperatorPauseWorkerRequest{
-		WorkerId: workerId,
-		Paused:   paused,
+	s.mu.Lock()
+	s.paused = paused
+	s.pauseAck = ack
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		if s.pauseAck == ack {
+			s.pauseAck = nil
+		}
+		s.mu.Unlock()
+	}()
+
+	err := s.stream.RetrySend(ctx, func(c *listenClient) error {
+		return c.Send(pauseMessage(paused))
 	})
 
-	return err
+	if err != nil {
+		return fmt.Errorf("could not send operator pause: %w", err)
+	}
+
+	for {
+		select {
+		case got := <-ack:
+			if got == paused {
+				return nil
+			}
+		case <-s.loopDone:
+			return streaming.ErrListenerClosed
+		case <-ctx.Done():
+			return fmt.Errorf("operator pause was not acknowledged: %w", ctx.Err())
+		}
+	}
 }
 
 // drain pauses the worker and waits for the actions already handed to the
-// consumer to be reported. The pause is what makes the wait terminate: without
-// it the scheduler keeps assigning. A pause that fails is logged and the wait
-// still runs, bounded by timeout, so in-flight work gets its chance to finish.
+// consumer to be reported. The pause's ack is what makes the wait terminate:
+// without it the engine keeps delivering. A pause that fails or is not
+// acknowledged in time is logged and the wait still runs, bounded by timeout,
+// so in-flight work gets its chance to finish.
 func (s *session) drain(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

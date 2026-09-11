@@ -271,3 +271,106 @@ func TestAddOperatorSessionRoutesToTheHandler(t *testing.T) {
 		t.Fatalf("expected the session to be gone after Release, got %d", len(after))
 	}
 }
+
+// A paused session returns the starts it is asked to deliver instead of sending them, the way a
+// failed send does, so the dispatcher requeues them; cancels still go through, and lifting the
+// pause delivers again.
+func TestOperatorStreamSessionPausedReturnsStarts(t *testing.T) {
+	workerId := uuid.New()
+	h := newOperatorStreamHarness(t, workerId)
+
+	start := &contracts.AssignedAction{
+		TenantId:          uuid.NewString(),
+		TaskRunExternalId: uuid.NewString(),
+		ActionType:        contracts.ActionType_START_STEP_RUN,
+	}
+
+	cancelAction := &contracts.AssignedAction{
+		TenantId:          uuid.NewString(),
+		TaskRunExternalId: uuid.NewString(),
+		ActionType:        contracts.ActionType_CANCEL_STEP_RUN,
+	}
+
+	worker := h.worker(t, workerId)
+	worker.setPaused(true)
+
+	err := worker.StartBatch(context.Background(), start)
+
+	if !errors.Is(err, errWorkerPaused) {
+		t.Fatalf("expected errWorkerPaused, got %v", err)
+	}
+
+	if err := worker.StartBatch(context.Background(), cancelAction); err != nil {
+		t.Fatalf("could not send cancel while paused: %v", err)
+	}
+
+	got := &contracts.AssignedAction{}
+
+	if err := h.stream.RecvMsg(got); err != nil {
+		t.Fatalf("could not receive cancel: %v", err)
+	}
+
+	if !proto.Equal(got, cancelAction) {
+		t.Fatalf("received %v while paused, want the cancel %v", got, cancelAction)
+	}
+
+	worker.setPaused(false)
+
+	if err := worker.StartBatch(context.Background(), start); err != nil {
+		t.Fatalf("could not send start after the pause was lifted: %v", err)
+	}
+
+	if err := h.stream.RecvMsg(got); err != nil {
+		t.Fatalf("could not receive start: %v", err)
+	}
+
+	if !proto.Equal(got, start) {
+		t.Fatalf("received %v, want %v", got, start)
+	}
+}
+
+// The handler-backed session pauses the same way: a paused session never calls its handler.
+func TestOperatorHandlerSessionPausedReturnsStarts(t *testing.T) {
+	l := zerolog.Nop()
+	d := &DispatcherImpl{workers: &workers{}, l: &l}
+	workerId := uuid.New()
+	handler := &stubActionHandler{}
+
+	session := d.AddOperatorSession(workerId, uuid.New(), handler)
+	defer session.Release()
+
+	calls := func() int {
+		handler.mu.Lock()
+		defer handler.mu.Unlock()
+
+		return len(handler.received)
+	}
+
+	session.SetPaused(true)
+
+	ws, err := d.workers.Get(workerId)
+
+	if err != nil || len(ws) != 1 {
+		t.Fatalf("expected one session, got %d (%v)", len(ws), err)
+	}
+
+	start := &contracts.AssignedAction{ActionType: contracts.ActionType_START_STEP_RUN}
+
+	if err := ws[0].StartBatch(context.Background(), start); !errors.Is(err, errWorkerPaused) {
+		t.Fatalf("expected errWorkerPaused, got %v", err)
+	}
+
+	if calls() != 0 {
+		t.Fatalf("the handler was called %d times while paused", calls())
+	}
+
+	session.SetPaused(false)
+
+	if err := ws[0].StartBatch(context.Background(), start); err != nil {
+		t.Fatalf("could not deliver after the pause was lifted: %v", err)
+	}
+
+	if calls() != 1 {
+		t.Fatalf("the handler was called %d times, want 1", calls())
+	}
+}

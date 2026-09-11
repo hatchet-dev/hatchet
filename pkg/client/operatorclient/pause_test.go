@@ -2,7 +2,6 @@ package operatorclient
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -29,8 +28,8 @@ func completed(taskRunExternalId string) *dispatchercontracts.StepActionEvent {
 	}
 }
 
-// Pause and Resume name the session's current worker and carry the operator id, so they keep
-// working across a reconnect that gave the session a new worker.
+// Pause and Resume are messages on the Listen stream, each answered by an ack before the call
+// returns.
 func TestOperatorSessionPauseAndResume(t *testing.T) {
 	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
 	s, _ := connectTestOperatorSession(t, client, true)
@@ -40,9 +39,53 @@ func TestOperatorSessionPauseAndResume(t *testing.T) {
 
 	pauses := client.pauseRequests()
 	require.Len(t, pauses, 2)
-	assert.Equal(t, "worker-1", pauses[0].WorkerId)
 	assert.True(t, pauses[0].Paused)
 	assert.False(t, pauses[1].Paused)
+	assert.Equal(t, 1, client.streamCount(), "the pause rides the stream that is already open")
+}
+
+// A pause the engine does not acknowledge holds the call until its context ends; the session
+// stays paused from its own point of view, so the next stream carries the pause.
+func TestOperatorSessionPauseWaitsForAck(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}, noPauseAck: true}
+	s, _ := newTestOperatorSession(t, client, true)
+	require.NoError(t, s.connect(context.Background()))
+	// a draining Close would wait its whole timeout for the ack that never comes
+	t.Cleanup(func() { _ = s.Close(WithoutDrain()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := s.Pause(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Len(t, client.pauseRequests(), 1, "the pause was sent even though its ack never came")
+	assert.True(t, s.isPaused())
+}
+
+// The pause belongs to the stream and Register clears it on a resumed worker, so a paused
+// session sends it again on every new stream, right after start and before its deltas.
+func TestOperatorSessionReplaysPauseOnReconnect(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false), registeredAs("worker-1", true)}}
+	s, _ := connectTestOperatorSession(t, client, true)
+
+	s.AddActions("svc:a")
+	flushed(t, s)
+
+	require.NoError(t, s.Pause(context.Background()))
+
+	client.stream(0).breakRecv()
+	waitFor(t, func() bool { return client.streamCount() == 2 }, "the session did not reconnect")
+
+	waitFor(t, func() bool { return len(client.stream(1).pauses()) == 1 }, "the pause was not replayed")
+	assert.True(t, client.stream(1).pauses()[0].Paused)
+	assert.Equal(t, []string{"start", "pause"}, client.stream(1).requestKinds()[:2], "the pause is the first message after start")
+
+	require.NoError(t, s.Resume(context.Background()))
+
+	client.stream(1).breakRecv()
+	waitFor(t, func() bool { return client.streamCount() == 3 }, "the session did not reconnect")
+	waitFor(t, func() bool { return client.stream(2).heartbeats() > 0 }, "the new stream is not live")
+	assert.Empty(t, client.stream(2).pauses(), "a resumed session replays no pause")
 }
 
 // Close is pause then drain: the pause goes out first, and the hang-up waits for the actions
@@ -142,17 +185,18 @@ func TestOperatorSessionCloseIgnoresCancelActions(t *testing.T) {
 	}
 }
 
-// A pause the engine refuses is logged, not fatal: the session still drains what it holds and
-// closes.
+// A pause the engine never acknowledges is logged, not fatal: the session still drains what it
+// holds, bounded by the drain timeout, and closes.
 func TestOperatorSessionClosesWhenPauseFails(t *testing.T) {
 	client := &fakeOperatorServiceClient{
 		registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)},
-		pauseErr:      errors.New("engine is gone"),
+		noPauseAck:    true,
 	}
 	s, _ := newTestOperatorSession(t, client, true)
 	require.NoError(t, s.connect(context.Background()))
 
-	require.NoError(t, s.Close(WithDrainTimeout(time.Second)))
+	require.NoError(t, s.Close(WithDrainTimeout(200*time.Millisecond)))
+	require.Len(t, client.pauseRequests(), 1)
 }
 
 // A consumer that reports an action the instant it takes it must still leave the session idle:

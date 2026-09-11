@@ -307,10 +307,25 @@ func (ss *Session) SendStepActionEvent(ctx context.Context, ev *contracts.StepAc
 
 // Pause stops the scheduler assigning to the session's worker, or lets it be assigned to again.
 // It returns once the change is committed, so a host that pauses before draining knows no
-// further work will arrive.
+// further work will arrive: the dispatcher session stops delivering before the pause is written,
+// and an action the scheduler assigned in the meantime goes back to the queue rather than to
+// the operator. Resuming lifts the pause in the opposite order, so nothing is refused once the
+// scheduler may assign again.
 func (ss *Session) Pause(ctx context.Context, paused bool) error {
+	if paused {
+		ss.setDelivering(false)
+	}
+
 	if err := ss.svc.PauseWorker(ctx, ss.tenant, ss.workerId, paused); err != nil {
+		if paused {
+			ss.setDelivering(true)
+		}
+
 		return err
+	}
+
+	if !paused {
+		ss.setDelivering(true)
 	}
 
 	ss.mu.Lock()
@@ -320,6 +335,18 @@ func (ss *Session) Pause(ctx context.Context, paused bool) error {
 	return nil
 }
 
+// setDelivering flips the dispatcher session between delivering and returning assignments to
+// the queue.
+func (ss *Session) setDelivering(delivering bool) {
+	if ss.stream != nil {
+		ss.stream.SetPaused(!delivering)
+	}
+
+	if ss.handler != nil {
+		ss.handler.SetPaused(!delivering)
+	}
+}
+
 type closeOpts struct {
 	pause bool
 }
@@ -327,9 +354,9 @@ type closeOpts struct {
 type CloseOpt func(*closeOpts)
 
 // WithoutPause closes the session without pausing its worker. It is what a session whose
-// operator pauses for itself uses: a gRPC operator pauses through PauseWorker before it hangs
-// up, and a stream that ends unexpectedly must leave the worker assignable so the operator's
-// next connection resumes a worker that can be given work.
+// operator pauses for itself uses: a gRPC operator pauses on its stream before it hangs up,
+// and a stream that ends unexpectedly must leave the worker assignable so the operator's next
+// connection resumes a worker that can be given work.
 func WithoutPause() CloseOpt {
 	return func(o *closeOpts) { o.pause = false }
 }

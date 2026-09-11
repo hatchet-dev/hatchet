@@ -93,16 +93,20 @@ type WorkerStore interface {
 type ActionHandler = operator.ActionHandler
 
 // StreamSession is the dispatcher session handle for a stream-backed session; see
-// dispatcher.OperatorStreamSession.
+// dispatcher.OperatorStreamSession. SetPaused(true) makes the dispatcher return every action it
+// is asked to deliver to the queue instead, so a pause the scheduler has not observed yet still
+// delivers nothing.
 type StreamSession interface {
 	Fin() <-chan bool
 	Send(ctx context.Context, msg proto.Message) error
+	SetPaused(paused bool)
 	Release()
 }
 
 // HandlerSession is the dispatcher session handle for a handler-backed session; see
-// dispatcher.OperatorHandlerSession.
+// dispatcher.OperatorHandlerSession. SetPaused is the same as on StreamSession.
 type HandlerSession interface {
+	SetPaused(paused bool)
 	Release()
 }
 
@@ -341,9 +345,9 @@ func (s *Service) SendStepActionEvent(ctx context.Context, tenant *sqlcv1.Tenant
 }
 
 // PauseWorker stops the scheduler assigning to the worker, or lets it be assigned to again.
-// It returns once the change is committed, so a caller that pauses before draining knows no
-// further work will arrive. Register clears the pause when it resumes a worker, so an operator
-// that crashed while paused comes back assignable.
+// It returns once the change is committed. Register clears the pause when it resumes a worker,
+// so an operator that crashed while paused comes back assignable. A live session pauses
+// through Session.Pause, which also stops the session delivering.
 func (s *Service) PauseWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID, paused bool) error {
 	_, err := s.workers.UpdateWorker(ctx, tenant.ID, workerId, &repository.UpdateWorkerOpts{IsPaused: &paused})
 

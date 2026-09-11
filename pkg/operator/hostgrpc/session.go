@@ -201,8 +201,8 @@ func (s *session) OpenDurable(_ context.Context, taskExternalId uuid.UUID, invoc
 	return hub.open(taskExternalId.String(), invocation)
 }
 
-// Pause implements operator.Session through the unary PauseWorker RPC, which works while the
-// Listen stream is reconnecting.
+// Pause implements operator.Session through the pause message on the Listen stream; it returns
+// once the engine has acknowledged it, at which point nothing more is delivered.
 func (s *session) Pause(ctx context.Context) error {
 	if s.isClosed() {
 		return operator.ErrSessionClosed

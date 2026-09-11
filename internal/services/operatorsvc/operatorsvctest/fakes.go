@@ -578,6 +578,8 @@ type Dispatcher struct {
 	// sent records the messages a session sent through the stream handle
 	sent    []proto.Message
 	sendErr error
+	// pauses records every SetPaused call on a session handle, in order
+	pauses []bool
 	// durableRegister records the first message the delegated durable stream received
 	durableRegister *v1contracts.DurableTaskRequest
 	durableErr      error
@@ -632,6 +634,8 @@ func (s *streamSession) Send(_ context.Context, msg proto.Message) error {
 	return nil
 }
 
+func (s *streamSession) SetPaused(paused bool) { s.d.setPaused(paused) }
+
 func (s *streamSession) Release() {
 	s.d.mu.Lock()
 	defer s.d.mu.Unlock()
@@ -643,10 +647,45 @@ type handlerSession struct {
 	d *Dispatcher
 }
 
+func (s *handlerSession) SetPaused(paused bool) { s.d.setPaused(paused) }
+
 func (s *handlerSession) Release() {
 	s.d.mu.Lock()
 	defer s.d.mu.Unlock()
 	s.d.released++
+}
+
+func (f *Dispatcher) setPaused(paused bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.pauses = append(f.pauses, paused)
+}
+
+// PausedLog returns every SetPaused call on the dispatcher's session handles, in order.
+func (f *Dispatcher) PausedLog() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]bool(nil), f.pauses...)
+}
+
+// PauseAcks returns the paused value of every pause ack sent through a session handle, in order.
+func (f *Dispatcher) PauseAcks() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var out []bool
+
+	for _, msg := range f.sent {
+		if resp, ok := msg.(*v1contracts.OperatorListenResponse); ok {
+			if ack := resp.GetPauseAck(); ack != nil {
+				out = append(out, ack.Paused)
+			}
+		}
+	}
+
+	return out
 }
 
 func (f *Dispatcher) NotifyNewWorker(_ context.Context, _ *sqlcv1.Tenant, workerId uuid.UUID) {

@@ -138,7 +138,7 @@ func TestSessionCloseAfterPauseDoesNotPauseAgain(t *testing.T) {
 	assert.Equal(t, []string{"activate", "pause", "deactivate"}, svc.workers.Ops())
 }
 
-// The gRPC host closes without a pause: its operator pauses itself through PauseWorker, and a
+// The gRPC host closes without a pause: its operator pauses itself on its stream, and a
 // stream that simply drops must leave the worker assignable for the next connection.
 func TestSessionCloseWithoutPause(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
