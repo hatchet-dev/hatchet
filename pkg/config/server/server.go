@@ -315,9 +315,9 @@ type ConfigFileRuntime struct {
 	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
 
 	// GRPCOperatorMaxListenStreamsPerOperator caps the Listen streams one operator holds open on this replica
-	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker exempt from the
-	// worker and slot metering; a stream over the cap is refused with ResourceExhausted before its worker is
-	// activated. Zero disables the cap.
+	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker, metered like an SDK
+	// worker; the cap bounds what one operator can hold on a replica on top of the tenant's worker limit. A
+	// stream over the cap is refused with ResourceExhausted before its worker is activated. Zero disables the cap.
 	GRPCOperatorMaxListenStreamsPerOperator int `mapstructure:"grpcOperatorMaxListenStreamsPerOperator" json:"grpcOperatorMaxListenStreamsPerOperator,omitempty" default:"100"`
 
 	// GRPCOperatorMaxActionsPerOperator caps the action links held across all workers of one operator

@@ -341,8 +341,11 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- the DAG operator's workers are engine infrastructure and are not metered; every other
+    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY wc.tenant_id
 ;
 
@@ -358,8 +361,11 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- the DAG operator's workers are engine infrastructure and are not metered; every other
+    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 

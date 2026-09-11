@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // workerActionsPool returns a migrated database for the worker action tests. It connects to
@@ -89,11 +91,14 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	dispatcherId := seedDispatcher(t, ctx, pool)
 	operatorId := uuid.New()
 
+	// an operator worker of the unmetered kind: this repository has no limit meter, and the
+	// hash is what is under test
 	created, err := repo.CreateNewWorker(ctx, tenantId, &CreateWorkerOpts{
 		DispatcherId: dispatcherId,
 		Name:         "initial-set",
 		Actions:      []string{"Svc:Run", "svc:other"},
 		OperatorId:   &operatorId,
+		OperatorKind: sqlcv1.V1OperatorKindDAG,
 	})
 	require.NoError(t, err)
 

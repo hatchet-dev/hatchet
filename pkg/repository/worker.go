@@ -52,6 +52,20 @@ type CreateWorkerOpts struct {
 	// (optional) The operator this worker backs. Set for workers created by operator
 	// connections (for example an OperatorService Listen stream), nil for SDK workers.
 	OperatorId *uuid.UUID `validate:"omitempty"`
+
+	// The kind of the operator this worker backs; required with OperatorId. Workers of
+	// operators the engine hosts for every tenant as infrastructure (kind DAG) are not metered
+	// against the tenant's worker and slot limits; every other worker is.
+	OperatorKind sqlcv1.V1OperatorKind `validate:"required_with=OperatorId,omitempty,oneof=HTTP_API DAG GRPC"`
+}
+
+// unmeteredWorker reports whether a worker is exempt from the tenant's WORKER and WORKER_SLOT
+// limits: the DAG operator's workers are engine infrastructure, created for every tenant with
+// DAG workflows whether or not the tenant runs workers of its own. The limit queries in
+// workers.sql and tenant_limits.sql leave the same workers out, keyed on the operator's kind,
+// so what is metered here is what they count.
+func unmeteredWorker(opts *CreateWorkerOpts) bool {
+	return opts.OperatorId != nil && opts.OperatorKind == sqlcv1.V1OperatorKindDAG
 }
 
 type UpdateWorkerOpts struct {
@@ -603,6 +617,10 @@ func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
 }
 
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
 	slotConfig := opts.SlotConfig
 	slots := int32(0)
 
@@ -610,13 +628,10 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		slots += units
 	}
 
-	// Operator workers are excluded from the WORKER and WORKER_SLOT limit counts by the
-	// "operatorId" IS NULL filters in workers.sql and tenant_limits.sql, so metering them here
-	// would charge for workers the limit queries never see.
 	postWorker := func() {}
 	postWorkerSlot := func() {}
 
-	if opts.OperatorId == nil {
+	if !unmeteredWorker(opts) {
 		var preWorker, preWorkerSlot func() error
 
 		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
@@ -630,10 +645,6 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		if err := preWorkerSlot(); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
 	}
 
 	tx, err := w.pool.Begin(ctx)
