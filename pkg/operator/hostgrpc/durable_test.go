@@ -244,6 +244,27 @@ func TestDurableChannelTriggerRunsDeliversChildCompletions(t *testing.T) {
 	assert.Equal(t, int64(5), completed.Ref.NodeId)
 }
 
+// An entry the operator learned of outside the channel is awaited like one an ack named, and
+// only once however many times it is expected.
+func TestDurableChannelExpectEntryAwaitsTheEntry(t *testing.T) {
+	s, fs, ch := openTestChannel(t)
+
+	require.NoError(t, ch.ExpectEntry(0, 9))
+	require.NoError(t, ch.ExpectEntry(0, 9))
+	require.Eventually(t, func() bool { return s.hub.listener.PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
+
+	fs.stream.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
+		EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{Ref: ref(taskId1, 2, 0, 9), Payload: []byte(`{"child":9}`)},
+	}}
+
+	completed := recvOne(t, ch).GetEntryCompleted()
+	require.NotNil(t, completed)
+	assert.Equal(t, int64(9), completed.Ref.NodeId)
+
+	require.NoError(t, ch.Close())
+	assert.ErrorIs(t, ch.ExpectEntry(0, 10), operator.ErrChannelClosed)
+}
+
 func TestDurableChannelEviction(t *testing.T) {
 	_, fs, ch := openTestChannel(t)
 

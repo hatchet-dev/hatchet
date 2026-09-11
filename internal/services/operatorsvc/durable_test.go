@@ -408,3 +408,99 @@ func TestOpenDurableCloseUnblocks(t *testing.T) {
 	assert.ErrorIs(t, err, operatorsvc.ErrChannelClosed)
 	assert.ErrorIs(t, ch.Send(t.Context(), memoRequest()), operatorsvc.ErrChannelClosed)
 }
+
+// An entry the operator learned of outside the channel (a DAG child created by the direct
+// trigger) has no ack: ExpectEntry stands in for it, releasing a completion that already
+// arrived and letting a later one through as it comes.
+func TestOpenDurableExpectEntryStandsInForTheAck(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	inv.Responses <- entryCompleted(1, 1)
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	_, err := ch.Recv(recvCtx)
+	cancel()
+	require.ErrorIs(t, err, context.DeadlineExceeded, "an entry nothing acknowledged is held")
+
+	require.NoError(t, ch.ExpectEntry(1, 1))
+
+	held, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), held.GetEntryCompleted().GetRef().GetNodeId(), "the held completion is released")
+
+	require.NoError(t, ch.ExpectEntry(1, 2))
+	inv.Responses <- entryCompleted(1, 2)
+
+	later, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), later.GetEntryCompleted().GetRef().GetNodeId(), "a completion after the expectation is delivered as it comes")
+}
+
+// A completion is delivered once: the engine resends satisfied entries the operator reports as
+// awaited, and a repeat must neither be delivered again nor be retained.
+func TestOpenDurableDeliversACompletionOnce(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	require.NoError(t, ch.ExpectEntry(0, 5))
+	inv.Responses <- entryCompleted(0, 5)
+	inv.Responses <- entryCompleted(0, 5)
+
+	first, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, first.GetEntryCompleted())
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	_, err = ch.Recv(recvCtx)
+	cancel()
+	require.ErrorIs(t, err, context.DeadlineExceeded, "the repeat is dropped")
+
+	require.NoError(t, ch.ExpectEntry(0, 5), "expecting a delivered entry again changes nothing")
+	assert.Zero(t, operatorsvc.RetainedResponses(ch), "nothing is retained for a delivered entry")
+}
+
+// What the pump retains for Recv, deliverable or held, is bounded for the life of the
+// invocation: past the limit the channel fails rather than buffer without end.
+func TestOpenDurableRetainedResponsesAreBounded(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	fed := make(chan struct{})
+
+	go func() {
+		defer close(fed)
+
+		for i := 0; i <= operatorsvc.RetainedResponseLimit; i++ {
+			select {
+			case inv.Responses <- entryCompleted(0, int64(i)):
+			case <-t.Context().Done():
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-fed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the engine could not hand its responses to the pump")
+	}
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	_, err := ch.Recv(recvCtx)
+	require.ErrorIs(t, err, operatorsvc.ErrChannelClosed, "a channel past its retention limit fails")
+
+	require.ErrorIs(t, ch.Send(t.Context(), waitForRequest()), operatorsvc.ErrChannelClosed)
+	assert.Zero(t, operatorsvc.RetainedResponses(ch), "a failed channel retains nothing")
+}
