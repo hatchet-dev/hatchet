@@ -126,7 +126,7 @@ func (m *multiplexedListener) startListening() {
 // listener's own context going down during a graceful shutdown, as opposed to
 // a real listener failure, which should keep logging at its original level.
 func (m *multiplexedListener) isShutdownErr(err error) bool {
-	if m.listenerCtx.Err() == nil {
+	if !errors.Is(m.listenerCtx.Err(), context.Canceled) {
 		return false
 	}
 

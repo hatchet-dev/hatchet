@@ -604,11 +604,15 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	return s.subscribeToWorkflowRunsV1(server)
 }
 
-// isShutdownErr reports whether err is the cancellation produced by ctx going
-// down during a graceful shutdown, as opposed to a real failure, which should
-// keep logging at its original level.
+// isShutdownErr reports whether err is the cancellation produced by ctx being
+// canceled during a graceful shutdown, as opposed to a real failure, which
+// should keep logging at its original level. The gate requires ctx to be
+// canceled specifically: a governing context whose deadline lapsed does not
+// demote, so a genuine timeout is never hidden. The error itself may be either
+// cancellation sentinel, since an in-flight operation with its own child
+// timeout can surface a deadline error while shutdown cancels around it.
 func isShutdownErr(ctx context.Context, err error) bool {
-	if ctx.Err() == nil {
+	if !errors.Is(ctx.Err(), context.Canceled) {
 		return false
 	}
 
