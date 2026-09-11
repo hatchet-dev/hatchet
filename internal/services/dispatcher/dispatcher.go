@@ -591,13 +591,9 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		return nil
 	}
 
-	// A missing durable session is an expected, self-healing condition (the task was just
-	// evicted or its session hasn't re-registered yet), so instead of returning an error --
-	// which would make the message queue nack the message to the dead-letter queue while
-	// logging it as a failure -- we publish the undelivered callbacks to the dead-letter
-	// queue ourselves and ack normally. The scheduler's dead-letter consumer re-routes them.
-	// Callbacks still can't be lost on engine failure: the publish happens before the ack,
-	// and a publish failure falls back to the nack path by returning the error.
+	// a missing session is expected (the task was just evicted or hasn't re-registered), so the
+	// undelivered callbacks are published to the dead-letter queue for re-routing instead of
+	// nacking the whole message; a publish failure still falls back to the nack path
 	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
 
 	if err != nil {
@@ -1020,7 +1016,6 @@ func resolveDagParentOutputs(
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
-				l.Warn().Ctx(ctx).Msgf("no completed output found for dag parent %s of task %s; the child will be missing that parent's output", parentExternalId, entry.payloadKey.ExternalId)
 				continue
 			}
 

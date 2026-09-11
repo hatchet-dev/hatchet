@@ -1789,8 +1789,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			return nil, fmt.Errorf("failed to trigger pending durable runs for dag step: %w", triggerErr)
 		}
 
-		// a CEL failure means the child was never created; returning success anyway would
-		// leave the durable run waiting forever on a run that does not exist
+		// the child was never created, so the run would otherwise wait on it forever
 		if len(celFailures) > 0 {
 			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
 		}
@@ -1811,9 +1810,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 
 	entry := ingestionResult.TriggerRunsResult.Entries[0]
 
-	// The operator's session channel is unbuffered and the operator is blocked in this call,
-	// so the completion is delivered from a goroutine; deliverOrdered still releases it in
-	// satisfied order relative to every other completion for this invocation.
+	// delivered from a goroutine: the operator is blocked in this call and its session channel
+	// is unbuffered
 	if entry.IsSatisfied && entry.SatisfiedOrder != nil {
 		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
 

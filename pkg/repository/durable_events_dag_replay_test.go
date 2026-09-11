@@ -82,10 +82,8 @@ func reinvokeDurableTask(t *testing.T, ctx context.Context, repos userEventScope
 	require.NoError(t, err)
 }
 
-// The operator replays steps in the order their completions were originally delivered, so a
-// replay should never plan a step at a node another step already holds. If it does, the two
-// steps share a workflow name and input, and only the step identity in the idempotency key
-// stops the replay from silently resolving one step to the other's entry.
+// two steps of one DAG share a workflow name and input, so only the step identity in the key
+// stops a misplaced replay from resolving one step to the other's entry
 func TestDagStepReplayAtAnotherStepsNodeIsNondeterministic(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -108,8 +106,6 @@ func TestDagStepReplayAtAnotherStepsNodeIsNondeterministic(t *testing.T) {
 	require.EqualValues(t, 1, nonDeterminismErr.NodeId)
 }
 
-// Two different steps of the same DAG carry the same workflow name and input; their entries
-// must still be distinguishable, or a collision resolves one step to the other's child.
 func TestDagStepEntriesOfSameWorkflowHaveDistinctIdempotencyKeys(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()

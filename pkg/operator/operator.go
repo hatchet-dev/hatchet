@@ -73,12 +73,8 @@ type DAGStepTriggerResult struct {
 	IsFailure     bool
 	ErrorMessage  *string
 
-	// SatisfiedOrder is the entry's position in the log's total satisfaction order. When set,
-	// the completion is not applied from this result: the dispatcher delivers it as an
-	// EntryCompleted on the session in that order, so a replay consumes completions in the
-	// same sequence as the original run and emits the same steps in the same order. Nil for
-	// entries that were never "satisfied" as such (a step created skipped or cancelled), whose
-	// result is applied from this struct.
+	// SatisfiedOrder is set when the completion is delivered as an EntryCompleted in satisfied
+	// order rather than applied from this result; nil for a step created skipped or cancelled.
 	SatisfiedOrder *int64
 
 	// ReExecuted is true when the step actually runs this invocation rather than being

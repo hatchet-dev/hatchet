@@ -644,8 +644,6 @@ func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
 	require.False(t, a.isCancelled || b.isCancelled)
 }
 
-// replayTrigger satisfies the given steps from the log with a satisfied order, the way a
-// re-invocation does; their completions are then delivered by the test in that order.
 func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncTriggered) {
 	triggered := make(chan asyncTriggered, 16)
 	var nextId int64 = 1
@@ -677,10 +675,8 @@ func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncT
 	return fn, triggered
 }
 
-// In the original run a completed first, so c was emitted before b completed and d followed
-// it. On replay both a and b are satisfied as soon as they're triggered; the dag must still
-// emit c before d, which it only does if it consumes the completions in satisfied order
-// rather than applying them from the trigger results.
+// a completed before b originally, so c must be emitted before d even though both roots are
+// satisfied as soon as the replay triggers them
 func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1)

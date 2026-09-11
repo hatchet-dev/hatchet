@@ -545,11 +545,9 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 	return progressed, nil
 }
 
-// applyUnorderedCompletion applies a satisfied trigger result that will not arrive as an
-// EntryCompleted. Every other completion is consumed from the session in satisfied order,
-// which is what keeps the sequence of emitted steps identical between the original run and a
-// replay: applying a replayed result here instead would let a step become ready earlier than
-// it did originally and take a different node id.
+// Completions with a satisfied order arrive as EntryCompleted in that order, which is what
+// makes a replay emit the same steps at the same node ids as the original run; applying them
+// here would let a step become ready earlier than it originally did.
 func (d *dag) applyUnorderedCompletion(ctx context.Context, t *task, result *operator.DAGStepTriggerResult) error {
 	if !result.IsSatisfied || result.SatisfiedOrder != nil {
 		return nil
