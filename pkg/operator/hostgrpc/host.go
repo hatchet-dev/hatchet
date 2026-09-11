@@ -57,20 +57,34 @@ func WithClientFactory(f ClientFactory) Opt {
 	return func(o *opts) { o.newClient = f }
 }
 
+// cachedClient is one tenant's engine client and the sessions that use it. refs counts the
+// sessions holding it; evicted records that the host no longer hands it out (its token was
+// rotated, its tenant released or the host closed). An evicted client is closed once its last
+// session releases it, so a teardown of one session never closes the connection another
+// session of the same tenant is still using. All fields are guarded by the host's mu.
 type cachedClient struct {
-	client engineClient
-	token  string
+	client  engineClient
+	token   string
+	refs    int
+	evicted bool
+	closed  bool
 }
 
-// closeClient closes the client's gRPC connection. Dropping the reference alone would leave
-// the connection's goroutines behind.
-func closeClient(c engineClient) {
-	_ = c.Close()
+// closeLocked closes the client's gRPC connection once. Dropping the reference alone would
+// leave the connection's goroutines behind. The caller holds the host's mu.
+func (c *cachedClient) closeLocked() {
+	if c.closed {
+		return
+	}
+
+	c.closed = true
+	_ = c.client.Close()
 }
 
-// Host caches one engine client per tenant. The token is asked from the source on every Open
-// so a rotated token replaces the cached client, and the client is closed when it is replaced,
-// when ReleaseTenant reports the tenant is no longer served, or when the host closes.
+// Host caches one engine client per tenant. The token is asked from the source on every
+// connect so a rotated token replaces the cached client. A client is evicted when it is
+// replaced, when ReleaseTenant reports the tenant is no longer served, or when the host
+// closes; it is closed when it is evicted and no session holds it any more.
 type Host struct {
 	tokens    TokenSource
 	l         *zerolog.Logger
@@ -122,30 +136,66 @@ func defaultClientFactory(l *zerolog.Logger) ClientFactory {
 	}
 }
 
-// clientFor returns the cached client for the tenant, rebuilding it when the token changed.
-func (h *Host) clientFor(tenantId uuid.UUID, token string) (engineClient, error) {
+// clientFor returns the cached client for the tenant, rebuilding it when the token changed,
+// with one reference on it held for the caller. The caller releases the reference exactly
+// once, when the session it opened over the client is gone. A replaced client is evicted:
+// closed now when nothing holds it, otherwise by its last release.
+func (h *Host) clientFor(tenantId uuid.UUID, token string) (engineClient, func(), error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	cached, ok := h.clients[tenantId]
 
-	if ok && cached.token == token {
-		return cached.client, nil
+	if !ok || cached.token != token {
+		c, err := h.newClient(token)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if ok {
+			h.evictLocked(tenantId, cached)
+		}
+
+		cached = &cachedClient{client: c, token: token}
+		h.clients[tenantId] = cached
 	}
 
-	c, err := h.newClient(token)
+	cached.refs++
 
-	if err != nil {
-		return nil, err
+	return cached.client, h.releaser(cached), nil
+}
+
+// releaser returns the release for one reference on cached; it runs once.
+func (h *Host) releaser(cached *cachedClient) func() {
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+
+			cached.refs--
+
+			if cached.evicted && cached.refs <= 0 {
+				cached.closeLocked()
+			}
+		})
+	}
+}
+
+// evictLocked drops cached from the map and closes it unless a session still holds it, in
+// which case the last release closes it. The caller holds mu.
+func (h *Host) evictLocked(tenantId uuid.UUID, cached *cachedClient) {
+	cached.evicted = true
+
+	if h.clients[tenantId] == cached {
+		delete(h.clients, tenantId)
 	}
 
-	if ok {
-		closeClient(cached.client)
+	if cached.refs <= 0 {
+		cached.closeLocked()
 	}
-
-	h.clients[tenantId] = &cachedClient{client: c, token: token}
-
-	return c, nil
 }
 
 func (h *Host) evict(tenantId uuid.UUID) {
@@ -153,25 +203,27 @@ func (h *Host) evict(tenantId uuid.UUID) {
 	defer h.mu.Unlock()
 
 	if cached, ok := h.clients[tenantId]; ok {
-		closeClient(cached.client)
-		delete(h.clients, tenantId)
+		h.evictLocked(tenantId, cached)
 	}
 }
 
-// ReleaseTenant closes the tenant's cached client. A multi-tenant operator calls it once it
-// serves no more of the tenant, after every session for the tenant is closed.
+// ReleaseTenant evicts the tenant's cached client: the next Open builds a new one. A
+// multi-tenant operator calls it once it serves no more of the tenant. A session of the tenant
+// that is still open (one being drained, or one opened again while an older one is torn down)
+// keeps the client until it closes; the eviction only stops the client being handed out.
 func (h *Host) ReleaseTenant(tenantId uuid.UUID) {
 	h.evict(tenantId)
 }
 
-// Close closes every cached client. Sessions are closed by whoever opened them, before the
-// host.
+// Close closes every cached client, whether or not a session still holds it. Sessions are
+// closed by whoever opened them, before the host.
 func (h *Host) Close() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	for tenantId, cached := range h.clients {
-		closeClient(cached.client)
+		cached.evicted = true
+		cached.closeLocked()
 		delete(h.clients, tenantId)
 	}
 }
@@ -181,9 +233,14 @@ func (h *Host) Close() {
 // other than GRPC is refused. An Unauthenticated connect drops the cached client and asks the
 // source once more, so a token rotated between two Opens is used without waiting for the
 // source's own reload. The initial action set is streamed to the engine right after the connect
-// and flushed before the session is returned; the client keeps it as the desired set and
-// replays it when a reconnect does not resume the worker. Assigned actions reach opts.Handler
-// from the session's deliver loop, which runs until Close.
+// and flushed before the session is returned; the session keeps it as the desired set and
+// restores it when it has to open a new client session. Assigned actions reach opts.Handler
+// from the session's delivery, which runs until Close.
+//
+// The session supervises its client session: when the client's stream fails for good (its
+// token was revoked, say) the session connects again through the host, which asks the source
+// for the tenant's current token, and resumes delivery. It gives up, and reports so through
+// Done and Err, only on a failure no retry can fix.
 func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
 	if opts.Handler == nil {
 		return nil, errors.New("hostgrpc: an action handler is required")
@@ -209,30 +266,10 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 		return nil, fmt.Errorf("hostgrpc: naming the worker: %w", operator.ErrNotSupported)
 	}
 
-	cs, err := h.connect(ctx, id, opts)
-
-	if err != nil && status.Code(err) == codes.Unauthenticated {
-		h.evict(id.TenantId)
-		cs, err = h.connect(ctx, id, opts)
-	}
+	cs, reg, release, err := h.openClientSession(ctx, id, opts)
 
 	if err != nil {
 		return nil, err
-	}
-
-	// The engine reports the tenant it authenticated the token as; the session must belong
-	// to the tenant the identity names, whatever the source handed out.
-	reg, err := parseRegistration(cs.Registration())
-
-	if err != nil {
-		_ = cs.Close(operatorclient.WithoutDrain())
-		return nil, err
-	}
-
-	if reg.TenantId != id.TenantId {
-		_ = cs.Close(operatorclient.WithoutDrain())
-
-		return nil, fmt.Errorf("hostgrpc: session for tenant %s was authenticated as tenant %s; the token source is misconfigured", id.TenantId, reg.TenantId)
 	}
 
 	if len(opts.Actions) > 0 {
@@ -240,41 +277,93 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 
 		if err := cs.Flush(ctx); err != nil {
 			_ = cs.Close(operatorclient.WithoutDrain())
+			release()
+
 			return nil, fmt.Errorf("hostgrpc: could not register initial actions for tenant %s: %w", id.TenantId, err)
 		}
 	}
 
 	s := newSession(cs, reg, opts.Handler, h.l)
+	s.release = release
+	s.startQueueSize = startQueueSizeFor(opts.SlotConfig)
+	s.addDesired(opts.Actions)
+	s.reconnect = func(ctx context.Context) (operatorclient.Session, operator.Registration, func(), error) {
+		return h.openClientSession(ctx, id, opts)
+	}
 
 	if err := s.startDelivery(); err != nil {
 		_ = cs.Close(operatorclient.WithoutDrain())
+		release()
+
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operatorclient.Session, error) {
+// errTenantMismatch marks a session the engine authenticated as another tenant than the one
+// the identity names: the token source is misconfigured, and no retry fixes that.
+var errTenantMismatch = errors.New("hostgrpc: the token source is misconfigured")
+
+// openClientSession connects a client session for the identity and verifies it: an
+// Unauthenticated connect drops the cached client and asks the source once more, and the
+// tenant the engine authenticated the token as must be the one the identity names, whatever
+// the source handed out. The returned release gives the client reference back and is called
+// once, when the client session is gone.
+func (h *Host) openClientSession(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operatorclient.Session, operator.Registration, func(), error) {
+	cs, release, err := h.connect(ctx, id, opts)
+
+	if err != nil && status.Code(err) == codes.Unauthenticated {
+		h.evict(id.TenantId)
+		cs, release, err = h.connect(ctx, id, opts)
+	}
+
+	if err != nil {
+		return nil, operator.Registration{}, nil, err
+	}
+
+	reg, err := parseRegistration(cs.Registration())
+
+	if err != nil {
+		_ = cs.Close(operatorclient.WithoutDrain())
+		release()
+
+		return nil, operator.Registration{}, nil, err
+	}
+
+	if reg.TenantId != id.TenantId {
+		_ = cs.Close(operatorclient.WithoutDrain())
+		release()
+
+		return nil, operator.Registration{}, nil, fmt.Errorf("session for tenant %s was authenticated as tenant %s: %w", id.TenantId, reg.TenantId, errTenantMismatch)
+	}
+
+	return cs, reg, release, nil
+}
+
+// connect asks the source for the tenant's token, takes a reference on the tenant's client and
+// connects. The reference is released here when the connect fails.
+func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operatorclient.Session, func(), error) {
 	token, err := h.tokens.Token(ctx, id.TenantId)
 
 	if err != nil {
 		if errors.Is(err, ErrNoToken) {
-			return nil, fmt.Errorf("tenant %s: %w", id.TenantId, ErrNoToken)
+			return nil, nil, fmt.Errorf("tenant %s: %w", id.TenantId, ErrNoToken)
 		}
 
-		return nil, fmt.Errorf("could not resolve token for tenant %s: %w", id.TenantId, err)
+		return nil, nil, fmt.Errorf("could not resolve token for tenant %s: %w", id.TenantId, err)
 	}
 
 	// A token whose tenant claim names another tenant is refused before a client is built;
 	// the engine's own answer is checked again after connecting.
 	if claims, err := loaderutils.GetConfFromJWT(token); err == nil && claims.TenantId != "" && claims.TenantId != id.TenantId.String() {
-		return nil, fmt.Errorf("token for tenant %s carries the tenant claim %s; the token source is misconfigured", id.TenantId, claims.TenantId)
+		return nil, nil, fmt.Errorf("token for tenant %s carries the tenant claim %s: %w", id.TenantId, claims.TenantId, errTenantMismatch)
 	}
 
-	c, err := h.clientFor(id.TenantId, token)
+	c, release, err := h.clientFor(id.TenantId, token)
 
 	if err != nil {
-		return nil, fmt.Errorf("tenant %s: %w", id.TenantId, err)
+		return nil, nil, fmt.Errorf("tenant %s: %w", id.TenantId, err)
 	}
 
 	labels := make(map[string]interface{}, len(opts.Labels))
@@ -283,11 +372,18 @@ func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.
 		labels[k] = v
 	}
 
-	return c.Operator().Connect(ctx, &operatorclient.ConnectRequest{
+	cs, err := c.Operator().Connect(ctx, &operatorclient.ConnectRequest{
 		Name:       id.Name,
 		SlotConfig: opts.SlotConfig,
 		Labels:     labels,
 	})
+
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+
+	return cs, release, nil
 }
 
 // parseRegistration turns the client's string ids into the contract's.
