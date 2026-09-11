@@ -267,6 +267,22 @@ func (c *durableChannel) expect(ref entryRef) {
 	c.wanted[ref] = struct{}{}
 }
 
+// ExpectEntry implements the contract: the ref counts as acknowledged, so a completion held for
+// it is queued now and one that arrives later is queued as it comes.
+func (c *durableChannel) ExpectEntry(branchId, nodeId int64) error {
+	if c.isClosed() {
+		return ErrChannelClosed
+	}
+
+	c.mu.Lock()
+	c.expect(entryRef{branchId: branchId, nodeId: nodeId})
+	c.mu.Unlock()
+
+	c.wake()
+
+	return nil
+}
+
 // wake signals a waiting Recv. The signal is coalesced: a Recv that wakes drains everything
 // queued before it waits again.
 func (c *durableChannel) wake() {

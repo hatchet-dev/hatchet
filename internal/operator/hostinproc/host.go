@@ -228,6 +228,7 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, o operator.OpenOp
 	s := &session{
 		host: h,
 		ss:   ss,
+		done: make(chan struct{}),
 		reg: operator.Registration{
 			TenantId:   reg.TenantId,
 			OperatorId: reg.OperatorId,

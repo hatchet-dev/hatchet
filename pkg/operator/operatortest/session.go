@@ -24,6 +24,7 @@ type Session struct {
 	flushes int
 	ops     []string
 	closed  bool
+	done    chan struct{}
 
 	// PauseErr, when set, fails Pause.
 	PauseErr error
@@ -31,7 +32,17 @@ type Session struct {
 
 // NewSession builds a session registered for the given tenant, operator and a fresh worker.
 func NewSession(tenantId, operatorId uuid.UUID) *Session {
-	return &Session{reg: operator.Registration{TenantId: tenantId, OperatorId: operatorId, WorkerId: uuid.New()}}
+	return &Session{reg: operator.Registration{TenantId: tenantId, OperatorId: operatorId, WorkerId: uuid.New()}, done: make(chan struct{})}
+}
+
+// Done implements operator.Session; it closes with Close.
+func (s *Session) Done() <-chan struct{} {
+	return s.done
+}
+
+// Err implements operator.Session; the recording session never gives up on its own.
+func (s *Session) Err() error {
+	return nil
 }
 
 func (s *Session) Registration() operator.Registration {
@@ -98,6 +109,10 @@ func (s *Session) Pause(context.Context) error {
 func (s *Session) Close(context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if !s.closed {
+		close(s.done)
+	}
 
 	s.closed = true
 	s.ops = append(s.ops, "close")

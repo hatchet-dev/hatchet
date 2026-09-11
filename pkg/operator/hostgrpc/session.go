@@ -36,6 +36,11 @@ type session struct {
 	hub    *durableHub
 	mu     sync.Mutex
 	closed bool
+
+	// done closes once the session stopped serving, with err set when the host gave up on
+	// it rather than the caller closing it.
+	done chan struct{}
+	err  error
 }
 
 func newSession(cs operatorclient.Session, reg operator.Registration, handler operator.ActionHandler, l *zerolog.Logger) *session {
@@ -43,7 +48,20 @@ func newSession(cs operatorclient.Session, reg operator.Registration, handler op
 
 	sl := l.With().Str("worker_id", reg.WorkerId.String()).Logger()
 
-	return &session{cs: cs, reg: reg, handler: handler, l: &sl, ctx: ctx, cancel: cancel}
+	return &session{cs: cs, reg: reg, handler: handler, l: &sl, ctx: ctx, cancel: cancel, done: make(chan struct{})}
+}
+
+// Done implements operator.Session.
+func (s *session) Done() <-chan struct{} {
+	return s.done
+}
+
+// Err implements operator.Session.
+func (s *session) Err() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.err
 }
 
 // startDelivery attaches the handler to the client's action stream.
@@ -235,6 +253,7 @@ func (s *session) Close(context.Context) error {
 
 	s.cancel()
 	s.wg.Wait()
+	close(s.done)
 
 	return err
 }

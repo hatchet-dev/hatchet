@@ -188,6 +188,9 @@ func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskRespons
 	}
 }
 
+// ExpectEntry is a no-op: the test channel applies no ordering, so nothing is ever held.
+func (c *testChannel) ExpectEntry(int64, int64) error { return nil }
+
 func (c *testChannel) Close() error {
 	c.closeOnce.Do(func() { close(c.closed) })
 	return nil

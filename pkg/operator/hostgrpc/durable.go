@@ -275,6 +275,7 @@ type durableChannel struct {
 	queue      chan recvItem
 	closed     chan struct{}
 	evictedCh  chan struct{}
+	awaited    map[entryKey]struct{}
 	taskId     string
 	invocation int32
 	closeOnce  sync.Once
@@ -283,6 +284,12 @@ type durableChannel struct {
 	mu         sync.Mutex
 	inflight   bool
 	closing    bool
+}
+
+// entryKey identifies one event log entry of the invocation.
+type entryKey struct {
+	branchId int64
+	nodeId   int64
 }
 
 // spawn runs fn on a goroutine the channel joins on Close; nothing is started once closing.
@@ -432,9 +439,39 @@ func (c *durableChannel) awaitTriggerRunsAck(resp *v1.DurableTaskResponse) {
 	}
 }
 
-// awaitEntryAsync waits for the entry on a goroutine the channel joins on Close.
+// awaitEntryAsync waits for the entry on a goroutine the channel joins on Close. An entry is
+// awaited once: a second registration would replace the listener's callback and strand the
+// first goroutine.
 func (c *durableChannel) awaitEntryAsync(branchId, nodeId int64) {
+	key := entryKey{branchId: branchId, nodeId: nodeId}
+
+	c.mu.Lock()
+
+	if _, ok := c.awaited[key]; ok {
+		c.mu.Unlock()
+		return
+	}
+
+	if c.awaited == nil {
+		c.awaited = map[entryKey]struct{}{}
+	}
+
+	c.awaited[key] = struct{}{}
+	c.mu.Unlock()
+
 	c.spawn(func() { c.awaitEntry(branchId, nodeId) })
+}
+
+// ExpectEntry implements operator.DurableChannel: an entry the operator learned of outside the
+// channel is awaited exactly as one an ack named.
+func (c *durableChannel) ExpectEntry(branchId, nodeId int64) error {
+	if c.isClosed() {
+		return operator.ErrChannelClosed
+	}
+
+	c.awaitEntryAsync(branchId, nodeId)
+
+	return nil
 }
 
 // awaitEntry registers for the entry's completion and delivers it, unless the channel is
