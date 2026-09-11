@@ -547,8 +547,12 @@ func TestServerlessRepository(t *testing.T) {
 		rows, err := repo.Endpoints().ListByIds(ctx, []uuid.UUID{b.ID, a.ID})
 		require.NoError(t, err)
 		require.Len(t, rows, 2)
-		assert.Equal(t, b.ID, rows[1].ID, "rows come back by id")
-		assert.True(t, rows[1].StatusChangedAt.Valid)
+		assert.True(t, rows[0].ID.String() < rows[1].ID.String(), "rows come back by id")
+
+		byId := map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{rows[0].ID: rows[0], rows[1].ID: rows[1]}
+		require.Contains(t, byId, a.ID)
+		require.Contains(t, byId, b.ID)
+		assert.True(t, byId[b.ID].StatusChangedAt.Valid, "the fetched row carries the status write")
 	})
 
 	t.Run("empty units are neither counted nor claimed", func(t *testing.T) {
