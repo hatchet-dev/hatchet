@@ -108,8 +108,10 @@ func TestOlderInvocationFinishKeepsCurrentInvocation(t *testing.T) {
 	old := &inflightTask{cancel: cancel1}
 	current := &inflightTask{cancel: cancel2}
 
-	// Both records are installed the way startDelivery installs them, N first.
+	// Both records are installed the way startDelivery installs them, N first, with the
+	// count startDelivery keeps beside the map.
 	reg.inflight[id] = map[attemptKey]*inflightTask{oldKey: old, currentKey: current}
+	reg.inflightCount.Store(2)
 	require.Equal(t, 2, reg.inFlight(), "both attempts are accounted for")
 
 	// N's deferred cleanup runs.
@@ -409,4 +411,49 @@ func TestUnitsOfOneTenantShareOneRegistration(t *testing.T) {
 	require.Eventually(t, reg.isClosed, eventually, 10*time.Millisecond)
 	assert.Nil(t, env.tenant(tenant))
 	assert.Eventually(t, func() bool { return len(env.host.releasedTenants()) == 1 }, eventually, 10*time.Millisecond)
+}
+
+// Deliveries belong to the tenant's registration, which stays open while the tenant owns any
+// unit: a busy tenant's units report no deliveries in flight except its last one, so a
+// process can shed the others without interrupting anything, and the delivery finishes on
+// the registration it started on.
+func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", shard: 0, actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", shard: 1, actions: []string{"svc:b"}})
+	env.addEndpoint(a)
+	env.addEndpoint(b)
+
+	started, release := holdingSender(env, a.TriggerUrl)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
+
+	session := env.host.session(0)
+	require.NotNil(t, session)
+
+	session.deliver(t, startAction(a.Namespace, "svc:a"))
+
+	select {
+	case <-started:
+	case <-time.After(eventually):
+		t.Fatal("delivery never started")
+	}
+
+	assert.Equal(t, 0, env.r.InFlight(env.unit(a)), "a unit of a tenant that owns others reports nothing in flight")
+	assert.Equal(t, 0, env.r.InFlight(env.unit(b)))
+
+	// Losing b leaves the registration and its delivery where they are; a is now the last
+	// unit and reports the delivery.
+	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(b)})
+	assert.False(t, session.isClosed())
+	assert.Equal(t, 1, env.r.InFlight(env.unit(a)))
+
+	release()
+
+	require.Eventually(t, func() bool { return env.r.InFlight(env.unit(a)) == 0 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return session.lastEvent() != nil && session.lastEvent().EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED
+	}, eventually, 10*time.Millisecond, "the delivery completed on the registration it started on")
 }

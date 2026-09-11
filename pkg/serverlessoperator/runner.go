@@ -417,13 +417,21 @@ func (r *runner) releaseTenant(tenantId uuid.UUID) {
 	}
 }
 
-// InFlight implements lease.Reconciler. Deliveries are tracked per tenant registration, so
-// every unit of a tenant reports the tenant's in-flight count: shedding then leaves a busy
-// tenant's units alone, which is the conservative reading.
+// InFlight implements lease.Reconciler. Deliveries belong to the tenant's registration, not
+// to a unit: losing one of several units stops that unit's pollers and leaves the
+// registration, and every delivery on it, where it is. So a unit reports no deliveries while
+// the tenant owns others, and shedding it costs nothing in flight. Only the tenant's last
+// unit reports the registration's count, since losing it closes the registration, which
+// drains for at most DrainTimeout and then aborts what is left; the leaser sheds such a unit
+// after the idle ones.
 func (r *runner) InFlight(unit lease.Unit) int {
 	ts := r.tenant(unit.TenantId)
 
 	if ts == nil {
+		return 0
+	}
+
+	if ts.unitCount() > 1 {
 		return 0
 	}
 

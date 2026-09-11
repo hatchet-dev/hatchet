@@ -24,8 +24,8 @@ import (
 type Unit = repository.ServerlessUnit
 
 // Reconciler is what the leaser drives: the runner opens and closes registrations and
-// pollers as ownership changes and reports in-flight deliveries so shedding can prefer idle
-// units.
+// pollers as ownership changes and reports the deliveries losing a unit would interrupt, so
+// shedding takes idle units first.
 type Reconciler interface {
 	UnitsGained(ctx context.Context, units []Unit)
 	UnitsLost(ctx context.Context, units []Unit)
@@ -541,25 +541,33 @@ func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {
 	return current, nil
 }
 
-// pickShed chooses units whose weights fit within excess, smallest first, skipping units with
-// in-flight deliveries and zero-weight units (shedding them changes nothing).
+// pickShed chooses units whose weights fit within excess: idle units first, smallest first,
+// then units with deliveries in flight, smallest first, so a busy unit is shed only when the
+// idle ones do not cover the excess. Being busy is an ordering, never an exclusion: a unit
+// with a delivery that never ends would otherwise keep an overloaded process from ever
+// shedding it. Zero-weight units are skipped, since shedding them changes nothing.
 func (s *Leaser) pickShed(current map[Unit]int32, excess int64) []Unit {
 	type candidate struct {
 		unit   Unit
 		weight int32
+		busy   bool
 	}
 
 	candidates := make([]candidate, 0, len(current))
 
 	for unit, weight := range current {
-		if weight <= 0 || s.reconciler.InFlight(unit) > 0 {
+		if weight <= 0 {
 			continue
 		}
 
-		candidates = append(candidates, candidate{unit: unit, weight: weight})
+		candidates = append(candidates, candidate{unit: unit, weight: weight, busy: s.reconciler.InFlight(unit) > 0})
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].busy != candidates[j].busy {
+			return !candidates[i].busy
+		}
+
 		if candidates[i].weight != candidates[j].weight {
 			return candidates[i].weight < candidates[j].weight
 		}
@@ -570,8 +578,12 @@ func (s *Leaser) pickShed(current map[Unit]int32, excess int64) []Unit {
 	out := make([]Unit, 0)
 
 	for _, c := range candidates {
-		if int64(c.weight) > excess {
+		if excess <= 0 {
 			break
+		}
+
+		if int64(c.weight) > excess {
+			continue
 		}
 
 		out = append(out, c.unit)

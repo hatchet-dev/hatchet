@@ -448,6 +448,32 @@ func TestTickShedsAboveFairShareSmallestIdleFirst(t *testing.T) {
 	assert.Empty(t, repo.ActionWrites())
 }
 
+// A unit with deliveries in flight is shed after the idle ones, not never: when the idle
+// units cannot cover the excess, the busy one goes.
+func TestTickShedsBusyUnitWhenIdleOnesDoNotCover(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+	other := uuid.New()
+
+	// 5 held (busy 1, idle 4) against a process with nothing: fair share 3, threshold 3.6,
+	// excess 2. The idle unit does not fit; the busy one does.
+	repo.SetLease(unit(tenantA, 0), &pid, 1)
+	repo.SetLease(unit(tenantB, 0), &pid, 4)
+
+	rec := &fakeReconciler{inflight: map[Unit]int{unit(tenantA, 0): 1}}
+	s := newLeaser(t, repo, rec, pid)
+
+	require.NoError(t, s.Tick(context.Background()))
+	require.Len(t, rec.gained, 2)
+
+	repo.SetProcess(other, 0, 0, false)
+
+	require.NoError(t, s.Tick(context.Background()))
+
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.lost)
+	assert.Equal(t, []Unit{unit(tenantB, 0)}, s.Owned())
+}
+
 func TestTickNeverShedsWhenAlone(t *testing.T) {
 	repo := memrepo.New()
 	pid := uuid.New()

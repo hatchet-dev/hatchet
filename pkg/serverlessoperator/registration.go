@@ -72,6 +72,9 @@ type registration struct {
 	slots chan struct{}
 
 	inflight map[string]map[attemptKey]*inflightTask
+	// inflightCount is the number of deliveries in inflight, every attempt included, kept
+	// beside the map so the lease tick reads it without walking the map.
+	inflightCount atomic.Int64
 	// advertised is the union the engine holds for this registration (the cache's shared
 	// sorted slice, never modified) and advertisedRev its revision: a sync is free while the
 	// cache is at the same revision.
@@ -331,6 +334,7 @@ func (reg *registration) startDelivery(ctx context.Context, action *contracts.As
 	dctx, cancel := context.WithCancel(reg.r.deliveryCtx)
 	task := &inflightTask{cancel: cancel}
 	attempts[key] = task
+	reg.inflightCount.Add(1)
 	reg.active.Add(1)
 	reg.mu.Unlock()
 
@@ -355,6 +359,7 @@ func (reg *registration) finish(taskRunExternalId string, key attemptKey, task *
 
 	if attempts, ok := reg.inflight[taskRunExternalId]; ok && attempts[key] == task {
 		delete(attempts, key)
+		reg.inflightCount.Add(-1)
 
 		if len(attempts) == 0 {
 			delete(reg.inflight, taskRunExternalId)
@@ -564,16 +569,7 @@ func (reg *registration) reportFailure(action *contracts.AssignedAction, msg str
 
 // inFlight counts every delivery in progress, every attempt included.
 func (reg *registration) inFlight() int {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	n := 0
-
-	for _, attempts := range reg.inflight {
-		n += len(attempts)
-	}
-
-	return n
+	return int(reg.inflightCount.Load())
 }
 
 // syncActions brings the registration to the cache's union revision: the delta since the
