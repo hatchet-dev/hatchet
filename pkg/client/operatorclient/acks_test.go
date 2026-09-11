@@ -3,6 +3,7 @@ package operatorclient
 import (
 	"context"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -220,10 +221,10 @@ func TestOperatorSessionFreshWorkerReplayPreservesConcurrentRemoval(t *testing.T
 	require.NoError(t, q.replay(stream, false))
 	assert.Equal(t, []string{"svc:run"}, stream.added, "the fresh worker receives the snapshot")
 
-	delta := q.takeChunk()
-	require.NotNil(t, delta, "the removal that raced the replay must still be sent")
-	assert.Equal(t, []string{"svc:run"}, delta.Remove)
-	assert.Empty(t, delta.Add)
+	staged := q.takeChunk()
+	require.NotNil(t, staged, "the removal that raced the replay must still be sent")
+	assert.Equal(t, []string{"svc:run"}, staged.delta.Remove)
+	assert.Empty(t, staged.delta.Add)
 	assert.Empty(t, q.desiredSet())
 }
 
@@ -291,4 +292,149 @@ func TestOperatorSessionActionsAndCloseConcurrently(t *testing.T) {
 		_, _, err := s.Actions(context.Background())
 		assert.ErrorIs(t, err, streaming.ErrListenerClosed, "Actions after Close is refused")
 	}
+}
+
+// setStream is a Listen stream that applies deltas to a set the way the engine does and
+// acknowledges them at once, recording the order sequences went out in.
+type setStream struct {
+	v1.OperatorService_ListenClient
+
+	q    *actionDeltaQueue
+	have map[string]bool
+	seqs []uint64
+}
+
+func newSetStream(q *actionDeltaQueue) *setStream {
+	return &setStream{q: q, have: map[string]bool{}}
+}
+
+func (s *setStream) Send(req *v1.OperatorListenRequest) error {
+	d := req.GetActions()
+	s.seqs = append(s.seqs, d.Sequence)
+
+	for _, id := range d.Add {
+		s.have[id] = true
+	}
+
+	for _, id := range d.Remove {
+		delete(s.have, id)
+	}
+
+	s.q.ack(d.Sequence)
+
+	return nil
+}
+
+func (s *setStream) set() []string {
+	out := make([]string, 0, len(s.have))
+
+	for id := range s.have {
+		out = append(out, id)
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+func newStagedQueue(desired ...string) *actionDeltaQueue {
+	q := &actionDeltaQueue{
+		desired:  map[string]struct{}{},
+		pending:  map[string]actionDeltaOp{},
+		wake:     make(chan struct{}, 1),
+		idle:     make(chan struct{}),
+		done:     make(chan struct{}),
+		maxChunk: 1000,
+	}
+
+	for _, id := range desired {
+		q.desired[id] = struct{}{}
+	}
+
+	return q
+}
+
+// sendStaged is the flusher's send of a chunk it staged with takeChunk, as run performs it
+// under the send lock: a chunk staged under an older stream generation is not sent.
+func sendStaged(q *actionDeltaQueue, stream v1.OperatorService_ListenClient, staged *stagedChunk) error {
+	if !q.currentGeneration(staged.generation) {
+		q.finishChunk(nil)
+		return nil
+	}
+
+	err := stream.Send(&v1.OperatorListenRequest{Message: &v1.OperatorListenRequest_Actions{Actions: staged.delta}})
+	q.finishChunk(err)
+
+	return err
+}
+
+// A chunk the flusher staged before a fresh-worker replay is superseded by the replay's
+// snapshot: sending it afterwards would undo the snapshot. The remove staged here must not be
+// sent after the snapshot that re-adds the action.
+func TestOperatorSessionFreshReplayDropsStagedRemoval(t *testing.T) {
+	q := newStagedQueue("svc:run")
+
+	q.remove([]string{"svc:run"})
+	staged := q.takeChunk()
+	require.NotNil(t, staged)
+	require.Equal(t, []string{"svc:run"}, staged.delta.Remove)
+
+	// the action is wanted again before the reconnect; the flusher has not sent its removal
+	q.add([]string{"svc:run"})
+
+	stream := newSetStream(q)
+	require.NoError(t, q.replay(stream, false))
+	require.NoError(t, sendStaged(q, stream, staged))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, q.flush(ctx))
+	assert.Equal(t, q.desiredSet(), stream.set(), "the engine's set is the desired set")
+	assert.Equal(t, []uint64{2}, stream.seqs, "only the snapshot went out")
+}
+
+// The reverse direction: an add staged before the replay must not be sent after the snapshot
+// that omits the action, since it was removed in between.
+func TestOperatorSessionFreshReplayDropsStagedAdd(t *testing.T) {
+	q := newStagedQueue()
+
+	q.add([]string{"svc:run"})
+	staged := q.takeChunk()
+	require.NotNil(t, staged)
+	require.Equal(t, []string{"svc:run"}, staged.delta.Add)
+
+	q.remove([]string{"svc:run"})
+
+	stream := newSetStream(q)
+	require.NoError(t, q.replay(stream, false))
+	require.NoError(t, sendStaged(q, stream, staged))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, q.flush(ctx))
+	assert.Empty(t, stream.set(), "the removed action never reached the engine")
+	assert.Empty(t, stream.seqs, "an empty desired set replays nothing and the staged add is dropped")
+}
+
+// A resumed replay resends the staged chunk itself: the flusher's own send of it is skipped, so
+// the chunk goes out exactly once.
+func TestOperatorSessionResumedReplaySendsStagedChunkOnce(t *testing.T) {
+	q := newStagedQueue()
+
+	q.add([]string{"svc:run"})
+	staged := q.takeChunk()
+	require.NotNil(t, staged)
+
+	stream := newSetStream(q)
+	require.NoError(t, q.replay(stream, true))
+	require.NoError(t, sendStaged(q, stream, staged))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, q.flush(ctx))
+	assert.Equal(t, []string{"svc:run"}, stream.set())
+	assert.Equal(t, []uint64{1}, stream.seqs, "the staged chunk went out once, by the replay")
 }

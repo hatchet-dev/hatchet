@@ -70,7 +70,11 @@ func (c *durableTaskClient) Send(req *v1.DurableTaskRequest) error {
 // actionInbox buffers assigned actions between the session's receive loop
 // and the consumer Actions starts. The receive loop must never block on a
 // consumer: delta acks share the stream with actions, and Flush may wait on
-// an ack before Actions has been called.
+// an ack before Actions has been called. The inbox itself has no bound; what
+// bounds it is the consumer draining the Actions channel eagerly (the gRPC
+// host reads it as fast as it arrives and queues starts behind a bounded
+// queue of its own, refusing what does not fit), so the engine's slots, not
+// the consumer's pace, size it.
 type actionInbox struct {
 	items []*dispatchercontracts.AssignedAction
 	ready chan struct{}
