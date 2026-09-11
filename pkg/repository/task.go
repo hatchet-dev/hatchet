@@ -311,7 +311,10 @@ type TaskRepository interface {
 
 	GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error)
 
-	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
+	// ReplayTasks replays tasks in one transaction while holding an advisory lock per workflow run, so
+	// replays of distinct runs proceed in parallel across controllers. workflowRunIds are the runs the
+	// tasks belong to.
+	ReplayTasks(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
 
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
@@ -3609,7 +3612,7 @@ func replayInputRetrieveOpt(tenantId uuid.UUID, task *sqlcv1.ListTasksForReplayR
 	}
 }
 
-func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -3618,14 +3621,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
+	lockKeys := make([]int64, len(workflowRunIds))
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
+	for i, workflowRunId := range workflowRunIds {
+		lockKeys[i] = sqlchelpers.AdvisoryLockKey("replay_" + workflowRunId.String())
 	}
 
-	if !acquired {
-		return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
+	// blocks until every run in the batch is ours; a concurrent replay of the same run then finds its
+	// tasks already queued and discards them in the preflight check below
+	if err := r.queries.AdvisoryLockMany(ctx, tx, lockKeys); err != nil {
+		return nil, fmt.Errorf("failed to acquire advisory locks for replaying tasks: %w", err)
 	}
 
 	taskIds := make([]int64, len(tasks))

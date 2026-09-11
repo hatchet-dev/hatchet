@@ -1001,6 +1001,8 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
 
 	tasks := make([]v1.TaskIdInsertedAtRetryCount, 0)
+	workflowRunIds := make([]uuid.UUID, 0)
+	seenWorkflowRunIds := make(map[uuid.UUID]struct{})
 
 	for _, msg := range msgs {
 		opts := make([]v1.TaskIdInsertedAtRetryCount, len(msg.Tasks))
@@ -1018,9 +1020,23 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 			return fmt.Errorf("failed to filter valid tasks for replay: %w", err)
 		}
 
-		for _, opt := range opts {
-			if _, ok := validTasks[opt.Id]; ok {
-				tasks = append(tasks, opt)
+		for i, opt := range opts {
+			if _, ok := validTasks[opt.Id]; !ok {
+				continue
+			}
+
+			tasks = append(tasks, opt)
+
+			// the replay lock is per workflow run; a task without one is locked on its own id
+			workflowRunId := msg.Tasks[i].WorkflowRunExternalId
+
+			if workflowRunId == uuid.Nil {
+				workflowRunId = msg.Tasks[i].TaskExternalId
+			}
+
+			if _, seen := seenWorkflowRunIds[workflowRunId]; !seen {
+				seenWorkflowRunIds[workflowRunId] = struct{}{}
+				workflowRunIds = append(workflowRunIds, workflowRunId)
 			}
 		}
 	}
@@ -1030,8 +1046,8 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	}
 
 	// replay the whole batch in one transaction, so the payload store is hit once, in parallel, for every
-	// input the batch needs instead of once per workflow run while holding the tenant replay lock
-	replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
+	// input the batch needs instead of once per workflow run
+	replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, workflowRunIds, tasks)
 
 	if err != nil {
 		return fmt.Errorf("failed to replay tasks: %w", err)
