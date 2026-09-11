@@ -107,13 +107,13 @@ func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionR
 		return nil, operator.ErrSessionClosed
 	}
 
-	if s.host.workflows == nil {
+	if s.host.admin == nil {
 		return nil, fmt.Errorf("hostinproc: put workflow: %w", operator.ErrNotSupported)
 	}
 
 	tenant := s.ss.Tenant()
 
-	resp, err := s.host.workflows.PutWorkflow(operatorsvc.WithTenant(ctx, tenant), wf)
+	resp, err := s.host.admin.PutWorkflow(operatorsvc.WithTenant(ctx, tenant), wf)
 
 	if err != nil {
 		return nil, err

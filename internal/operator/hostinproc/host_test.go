@@ -73,6 +73,7 @@ func newTestHost(t *testing.T, o hostOpts) *testHost {
 
 	if o.workflows {
 		th.workflows = operatorsvctest.NewWorkflowStore()
+		deps.Admin = th.workflows
 		deps.Workflows = th.workflows
 	}
 

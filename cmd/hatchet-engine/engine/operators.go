@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/internal/operator/claimer"
 	"github.com/hatchet-dev/hatchet/internal/operator/hostinproc"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -50,7 +46,8 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 		Service:    svc,
 		Tenants:    sc.V1.Tenant(),
 		Heartbeats: sc.V1.Workers(),
-		Workflows:  inprocWorkflows{admin: adminv1Svc, workflows: sc.V1.Workflows()},
+		Admin:      adminv1Svc,
+		Workflows:  sc.V1.Workflows(),
 		Logger:     &l,
 	})
 
@@ -89,19 +86,4 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 
 		return svc.Cleanup()
 	}, nil
-}
-
-// inprocWorkflows is the in-process host's workflow store: the admin service puts the
-// workflow and the repository lists the stored steps of the version it created.
-type inprocWorkflows struct {
-	admin     adminv1.AdminService
-	workflows repository.WorkflowRepository
-}
-
-func (w inprocWorkflows) PutWorkflow(ctx context.Context, req *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, error) {
-	return w.admin.PutWorkflow(ctx, req)
-}
-
-func (w inprocWorkflows) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
-	return w.workflows.ListStepsByWorkflowVersionId(ctx, tenantId, workflowVersionId)
 }

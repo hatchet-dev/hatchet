@@ -48,20 +48,26 @@ type HeartbeatStore interface {
 	UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeatAt time.Time) error
 }
 
-// WorkflowStore puts a workflow for a tenant and lists the steps of the version it created,
-// which is where the action ids the workflow derives are read from: the engine's stored ids
-// are the normalized ones. The admin service and the workflow repository satisfy it together.
-type WorkflowStore interface {
+// AdminService puts a workflow for the tenant on the context, the way the engine's admin
+// service does for a gRPC caller; internal/services/admin/v1.AdminService satisfies it.
+type AdminService interface {
 	PutWorkflow(ctx context.Context, req *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, error)
+}
+
+// WorkflowStore lists the steps the engine stored for a workflow version, which is where the
+// action ids a put workflow derives are read from: the stored ids are the normalized ones.
+// repository.WorkflowRepository satisfies it.
+type WorkflowStore interface {
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 }
 
-// Deps are the collaborators a Host cannot run without. Workflows is optional: without it
-// Session.PutWorkflow reports ErrNotSupported.
+// Deps are the collaborators a Host cannot run without. Admin is optional: without it
+// Session.PutWorkflow reports ErrNotSupported; with it, Workflows is required too.
 type Deps struct {
 	Service    *operatorsvc.Service
 	Tenants    TenantStore
 	Heartbeats HeartbeatStore
+	Admin      AdminService
 	Workflows  WorkflowStore
 	Logger     *zerolog.Logger
 }
@@ -82,6 +88,7 @@ type Host struct {
 	svc        *operatorsvc.Service
 	tenants    TenantStore
 	heartbeats HeartbeatStore
+	admin      AdminService
 	workflows  WorkflowStore
 	l          *zerolog.Logger
 
@@ -100,6 +107,10 @@ type Host struct {
 func New(deps Deps, fs ...Opt) (*Host, error) {
 	if deps.Service == nil || deps.Tenants == nil || deps.Heartbeats == nil {
 		return nil, errors.New("hostinproc: the operator service, tenant store and heartbeat store are required")
+	}
+
+	if deps.Admin != nil && deps.Workflows == nil {
+		return nil, errors.New("hostinproc: an admin service needs the workflow store that lists the steps it puts")
 	}
 
 	o := &opts{heartbeatInterval: defaultHeartbeatInterval}
@@ -121,6 +132,7 @@ func New(deps Deps, fs ...Opt) (*Host, error) {
 		svc:        deps.Service,
 		tenants:    deps.Tenants,
 		heartbeats: deps.Heartbeats,
+		admin:      deps.Admin,
 		workflows:  deps.Workflows,
 		l:          &hl,
 		sessions:   map[uuid.UUID]*session{},
