@@ -128,8 +128,8 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, incremental), "deltas")
 	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, churned), "add then remove")
 	assert.Equal(t, []string{"svc:other", "svc:run"}, linkedActions(t, ctx, pool, created.ID))
-	assert.Equal(t, 2, workerActionCount(t, ctx, pool, created.ID), "the initial set is counted")
-	assert.Equal(t, 2, workerActionCount(t, ctx, pool, churned))
+	assert.Equal(t, 2, workerOperatorActionCount(t, ctx, pool, created.ID), "the initial set is counted")
+	assert.Equal(t, 2, workerOperatorActionCount(t, ctx, pool, churned))
 }
 
 // Action links are only ever made between a worker and actions of the worker's own tenant:

@@ -148,8 +148,9 @@ type WorkerRepository interface {
 	// transaction, so a delta an operator acknowledges by sequence is committed whole or not at
 	// all. Adds are applied before removes; actions the worker already has are not linked again
 	// and actions it does not have are not unlinked, and neither counts in the returned totals.
-	// The worker's "actionCount" moves with the links and its "actionHash" is cleared: the
-	// digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per delta.
+	// The worker's "operatorActionCount" moves with the links and its "actionHash" is cleared:
+	// the digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per
+	// delta.
 	//
 	// maxOperatorLinks caps the links held by every worker of the operator this worker belongs
 	// to, checked in the transaction under the operator's row lock; a delta that would leave the
@@ -683,12 +684,12 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	initialActions := dedupeActionIds(opts.Actions)
 
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:     tenantId,
-		Dispatcherid: opts.DispatcherId,
-		Name:         opts.Name,
-		Actionhash:   hashActions(initialActions),
-		Actioncount:  int32(len(initialActions)), // nolint: gosec // bounded by the request size
-		OperatorId:   opts.OperatorId,
+		Tenantid:            tenantId,
+		Dispatcherid:        opts.DispatcherId,
+		Name:                opts.Name,
+		Actionhash:          hashActions(initialActions),
+		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
+		OperatorId:          opts.OperatorId,
 	}
 
 	// Default to self hosted

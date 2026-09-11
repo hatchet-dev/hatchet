@@ -22,7 +22,7 @@ SET
 WHERE
     "id" = $2::uuid
     AND "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 type ActivateWorkerListenerParams struct {
@@ -61,7 +61,7 @@ func (q *Queries) ActivateWorkerListener(ctx context.Context, db DBTX, arg Activ
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }
@@ -119,7 +119,7 @@ func (q *Queries) ComputeWorkerActionHash(ctx context.Context, db DBTX, workerid
 }
 
 const countOperatorWorkerActions = `-- name: CountOperatorWorkerActions :one
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = $1::uuid
@@ -258,7 +258,7 @@ INSERT INTO "Worker" (
     "os",
     "runtimeExtra",
     "actionHash",
-    "actionCount",
+    "operatorActionCount",
     "operatorId"
 ) VALUES (
     gen_random_uuid(),
@@ -278,22 +278,22 @@ INSERT INTO "Worker" (
     $11::integer,
     -- set for workers backing an operator connection; NULL for SDK workers
     $12::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 type CreateWorkerParams struct {
-	Tenantid        uuid.UUID      `json:"tenantid"`
-	Name            string         `json:"name"`
-	Dispatcherid    uuid.UUID      `json:"dispatcherid"`
-	Type            NullWorkerType `json:"type"`
-	SdkVersion      pgtype.Text    `json:"sdkVersion"`
-	Language        NullWorkerSDKS `json:"language"`
-	LanguageVersion pgtype.Text    `json:"languageVersion"`
-	Os              pgtype.Text    `json:"os"`
-	RuntimeExtra    pgtype.Text    `json:"runtimeExtra"`
-	Actionhash      []byte         `json:"actionhash"`
-	Actioncount     int32          `json:"actioncount"`
-	OperatorId      *uuid.UUID     `json:"operatorId"`
+	Tenantid            uuid.UUID      `json:"tenantid"`
+	Name                string         `json:"name"`
+	Dispatcherid        uuid.UUID      `json:"dispatcherid"`
+	Type                NullWorkerType `json:"type"`
+	SdkVersion          pgtype.Text    `json:"sdkVersion"`
+	Language            NullWorkerSDKS `json:"language"`
+	LanguageVersion     pgtype.Text    `json:"languageVersion"`
+	Os                  pgtype.Text    `json:"os"`
+	RuntimeExtra        pgtype.Text    `json:"runtimeExtra"`
+	Actionhash          []byte         `json:"actionhash"`
+	Operatoractioncount int32          `json:"operatoractioncount"`
+	OperatorId          *uuid.UUID     `json:"operatorId"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -308,7 +308,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Os,
 		arg.RuntimeExtra,
 		arg.Actionhash,
-		arg.Actioncount,
+		arg.Operatoractioncount,
 		arg.OperatorId,
 	)
 	var i Worker
@@ -336,7 +336,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }
@@ -388,7 +388,7 @@ WHERE
     "id" = $1::uuid
     AND "tenantId" = $2::uuid
     AND "lastListenerSessionId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 type DeactivateWorkerListenerParams struct {
@@ -427,7 +427,7 @@ func (q *Queries) DeactivateWorkerListener(ctx context.Context, db DBTX, arg Dea
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }
@@ -437,7 +437,7 @@ DELETE FROM
   "Worker"
 WHERE
   "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Worker, error) {
@@ -467,14 +467,14 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Wor
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }
 
 const getActiveWorkerById = `-- name: GetActiveWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."actionCount",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."operatorActionCount",
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
         SELECT COUNT(*)
@@ -534,7 +534,7 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 		&i.Worker.SdkVersion,
 		&i.Worker.DurableTaskDispatcherId,
 		&i.Worker.ActionHash,
-		&i.Worker.ActionCount,
+		&i.Worker.OperatorActionCount,
 		&i.WebhookUrl,
 		&i.RemainingSlots,
 	)
@@ -640,7 +640,7 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."actionCount",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."operatorActionCount",
     w."maxRuns" - (
         SELECT
             COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
@@ -688,7 +688,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.SdkVersion,
 		&i.Worker.DurableTaskDispatcherId,
 		&i.Worker.ActionHash,
-		&i.Worker.ActionCount,
+		&i.Worker.OperatorActionCount,
 		&i.RemainingSlots,
 	)
 	return &i, err
@@ -1722,7 +1722,7 @@ func (q *Queries) ListWorkerSlotConfigs(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkers = `-- name: ListWorkers :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."lastListenerSessionId", workers."isPaused", workers.type, workers."webhookId", workers."operatorId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion", workers."durableTaskDispatcherId", workers."actionHash", workers."actionCount"
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."lastListenerSessionId", workers."isPaused", workers.type, workers."webhookId", workers."operatorId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion", workers."durableTaskDispatcherId", workers."actionHash", workers."operatorActionCount"
 FROM
     "Worker" workers
 WHERE
@@ -1863,7 +1863,7 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 			&i.Worker.SdkVersion,
 			&i.Worker.DurableTaskDispatcherId,
 			&i.Worker.ActionHash,
-			&i.Worker.ActionCount,
+			&i.Worker.OperatorActionCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1916,12 +1916,12 @@ func (q *Queries) PauseWorkers(ctx context.Context, db DBTX, ids []uuid.UUID) er
 
 const recountWorkerActions = `-- name: RecountWorkerActions :exec
 UPDATE "Worker" w
-SET "actionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
+SET "operatorActionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
 WHERE w."id" = $1::uuid
 `
 
-// Sets "actionCount" to the worker's real link count, for the paths that link without
-// returning what they linked.
+// Sets "operatorActionCount" to the worker's real link count, for the paths that link
+// without returning what they linked.
 func (q *Queries) RecountWorkerActions(ctx context.Context, db DBTX, workerid uuid.UUID) error {
 	_, err := db.Exec(ctx, recountWorkerActions, workerid)
 	return err
@@ -1964,7 +1964,7 @@ func (q *Queries) SetWorkerPausedForListener(ctx context.Context, db DBTX, arg S
 const settleWorkerActionsDelta = `-- name: SettleWorkerActionsDelta :one
 UPDATE "Worker" w
 SET
-    "actionCount" = "actionCount" + $1::integer - $2::integer,
+    "operatorActionCount" = "operatorActionCount" + $1::integer - $2::integer,
     "actionHash" = NULL
 WHERE w."id" = $3::uuid
 RETURNING w."operatorId"
@@ -1976,8 +1976,9 @@ type SettleWorkerActionsDeltaParams struct {
 	Workerid uuid.UUID `json:"workerid"`
 }
 
-// Records a delta's effect on the worker row under the caller's row lock: "actionCount" moves
-// by the links the delta created minus the links it removed, and "actionHash" is cleared
+// Records a delta's effect on the worker row under the caller's row lock:
+// "operatorActionCount" moves by the links the delta created minus the links it removed, and
+// "actionHash" is cleared
 // until the session refreshes it at the end of the delta sequence. Returns the operator the
 // worker belongs to, NULL for an SDK worker, so the caller knows whose budget to check.
 func (q *Queries) SettleWorkerActionsDelta(ctx context.Context, db DBTX, arg SettleWorkerActionsDeltaParams) (*uuid.UUID, error) {
@@ -1988,7 +1989,7 @@ func (q *Queries) SettleWorkerActionsDelta(ctx context.Context, db DBTX, arg Set
 }
 
 const sumOperatorWorkerActionCounts = `-- name: SumOperatorWorkerActionCounts :one
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = $1::uuid
@@ -2062,7 +2063,7 @@ SET
     "isPaused" = coalesce($3::boolean, "isPaused")
 WHERE
     "id" = $4::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 type UpdateWorkerParams struct {
@@ -2104,7 +2105,7 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }
@@ -2139,7 +2140,7 @@ SET
     "lastHeartbeatAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount"
 `
 
 type UpdateWorkerHeartbeatParams struct {
@@ -2174,7 +2175,7 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
-		&i.ActionCount,
+		&i.OperatorActionCount,
 	)
 	return &i, err
 }

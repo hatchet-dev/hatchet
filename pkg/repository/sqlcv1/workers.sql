@@ -596,20 +596,21 @@ JOIN "Action" a ON a."id" = aw."A"
 WHERE aw."B" = @workerId::uuid;
 
 -- name: RecountWorkerActions :exec
--- Sets "actionCount" to the worker's real link count, for the paths that link without
--- returning what they linked.
+-- Sets "operatorActionCount" to the worker's real link count, for the paths that link
+-- without returning what they linked.
 UPDATE "Worker" w
-SET "actionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
+SET "operatorActionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
 WHERE w."id" = @workerId::uuid;
 
 -- name: SettleWorkerActionsDelta :one
--- Records a delta's effect on the worker row under the caller's row lock: "actionCount" moves
--- by the links the delta created minus the links it removed, and "actionHash" is cleared
+-- Records a delta's effect on the worker row under the caller's row lock:
+-- "operatorActionCount" moves by the links the delta created minus the links it removed, and
+-- "actionHash" is cleared
 -- until the session refreshes it at the end of the delta sequence. Returns the operator the
 -- worker belongs to, NULL for an SDK worker, so the caller knows whose budget to check.
 UPDATE "Worker" w
 SET
-    "actionCount" = "actionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
+    "operatorActionCount" = "operatorActionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
     "actionHash" = NULL
 WHERE w."id" = @workerId::uuid
 RETURNING w."operatorId";
@@ -618,7 +619,7 @@ RETURNING w."operatorId";
 -- The action links held by every worker of the operator, from the per-worker counts. The
 -- caller holds the operator's row lock (LockOperator), so the sum is consistent with the
 -- delta it is checking.
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = @tenantId::uuid
@@ -628,7 +629,7 @@ WHERE
 -- The action links held by every worker of the operator, from the per-worker counts. It is
 -- the unlocked reading of SumOperatorWorkerActionCounts, for reporting; the budget check
 -- inside a delta uses the locked one.
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = @tenantId::uuid
@@ -793,7 +794,7 @@ INSERT INTO "Worker" (
     "os",
     "runtimeExtra",
     "actionHash",
-    "actionCount",
+    "operatorActionCount",
     "operatorId"
 ) VALUES (
     gen_random_uuid(),
@@ -810,7 +811,7 @@ INSERT INTO "Worker" (
     sqlc.narg('runtimeExtra')::text,
     @actionHash::bytea,
     -- the size of the initial action set the caller links right after
-    @actionCount::integer,
+    @operatorActionCount::integer,
     -- set for workers backing an operator connection; NULL for SDK workers
     sqlc.narg('operatorId')::uuid
 ) RETURNING *;
