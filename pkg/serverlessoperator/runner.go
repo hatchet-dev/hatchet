@@ -13,7 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/lease"
 )
 
@@ -121,7 +120,6 @@ func (ts *tenantState) unitCount() int {
 type runner struct {
 	repo         repository.ServerlessRepository
 	host         operator.Host
-	kind         sqlcv1.V1OperatorKind
 	workerName   string
 	enc          encryption.EncryptionService
 	sender       RequestSender
@@ -149,7 +147,6 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 	return &runner{
 		repo:         deps.Repo,
 		host:         deps.Host,
-		kind:         deps.OperatorKind,
 		workerName:   deps.WorkerName,
 		enc:          deps.Encryption,
 		sender:       deps.Sender,

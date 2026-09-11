@@ -15,7 +15,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
 )
 
@@ -31,7 +30,8 @@ const serverlessRestartBackoffMax = 30 * time.Second
 // startServerlessOperator runs the serverless operator core inside the dispatcher process
 // when SERVER_SERVERLESS_OPERATOR_ENABLED is set, with the dispatcher id as its process id
 // and its sessions opened on the engine's in-process operator host, the one the claimed
-// operators use, as SERVERLESS operators named after the dispatcher. The core is
+// operators use, as self-leased GRPC operators whose workers are named after the
+// dispatcher. The core is
 // supervised: a stop that the engine did not ask for (a database that was unreachable at
 // startup, a failing loop) is logged and the core restarted with backoff, so a startup fault
 // cannot leave the engine running without its operator. It returns a stop function that
@@ -71,17 +71,16 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 
 	sup := superviseServerless(context.Background(), &l, func(ctx context.Context) error {
 		return serverlessoperator.Run(ctx, serverlessoperator.Deps{
-			Repo:         sc.V1.Serverless(),
-			Host:         host,
-			OperatorKind: sqlcv1.V1OperatorKindSERVERLESS,
-			WorkerName:   serverlessWorkerName(d.DispatcherId()),
-			Encryption:   sc.Encryption,
-			Sender:       sender,
-			Logger:       &l,
-			Version:      sc.Version,
-			Hostname:     hostname,
-			ProcessId:    d.DispatcherId(),
-			Config:       cfg,
+			Repo:       sc.V1.Serverless(),
+			Host:       host,
+			WorkerName: serverlessWorkerName(d.DispatcherId()),
+			Encryption: sc.Encryption,
+			Sender:     sender,
+			Logger:     &l,
+			Version:    sc.Version,
+			Hostname:   hostname,
+			ProcessId:  d.DispatcherId(),
+			Config:     cfg,
 		})
 	})
 

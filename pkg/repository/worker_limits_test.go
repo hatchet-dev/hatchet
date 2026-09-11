@@ -59,25 +59,25 @@ func seedOperatorForLimits(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	return operatorId
 }
 
-// seedActiveWorkerForLimits inserts a worker the limit queries count: active, heartbeating,
-// and backing operatorId when one is given.
-func seedActiveWorkerForLimits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantId uuid.UUID, operatorId *uuid.UUID) uuid.UUID {
+// seedActiveWorkerForLimits inserts an active, heartbeating worker backing operatorId when one
+// is given, exempt from the limits when exempt is set.
+func seedActiveWorkerForLimits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantId uuid.UUID, operatorId *uuid.UUID, exempt bool) uuid.UUID {
 	t.Helper()
 
 	workerId := uuid.New()
 
 	_, err := pool.Exec(ctx,
-		`INSERT INTO "Worker" ("id", "tenantId", "name", "actionHash", "isActive", "lastHeartbeatAt", "operatorId") VALUES ($1, $2, $3, $4, true, now(), $5)`,
-		workerId, tenantId, "worker-"+workerId.String()[:8], hashActions(nil), operatorId,
+		`INSERT INTO "Worker" ("id", "tenantId", "name", "actionHash", "isActive", "lastHeartbeatAt", "operatorId", "exemptFromLimits") VALUES ($1, $2, $3, $4, true, now(), $5, $6)`,
+		workerId, tenantId, "worker-"+workerId.String()[:8], hashActions(nil), operatorId, exempt,
 	)
 	require.NoError(t, err)
 
 	return workerId
 }
 
-// Operator workers count towards the tenant's worker and slot limits like SDK workers, with one
-// exception: the DAG operator's workers are engine infrastructure and are neither counted nor
-// refused.
+// Operator workers count towards the tenant's worker and slot limits like SDK workers, unless
+// whoever creates them exempts them: a worker the in-process host creates is engine
+// infrastructure and is neither counted nor refused, whatever operator it backs.
 func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 	pool := workerActionsPool(t)
 	ctx := context.Background()
@@ -88,17 +88,17 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 		return &CreateWorkerOpts{DispatcherId: dispatcherId, Name: name, SlotConfig: map[string]int32{SlotTypeDefault: 1}}
 	}
 
-	operatorWorker := func(name string, operatorId uuid.UUID, kind sqlcv1.V1OperatorKind, slots int32) *CreateWorkerOpts {
+	operatorWorker := func(name string, operatorId uuid.UUID, exempt bool, slots int32) *CreateWorkerOpts {
 		return &CreateWorkerOpts{
-			DispatcherId: dispatcherId,
-			Name:         name,
-			SlotConfig:   map[string]int32{SlotTypeDefault: slots},
-			OperatorId:   &operatorId,
-			OperatorKind: kind,
+			DispatcherId:     dispatcherId,
+			Name:             name,
+			SlotConfig:       map[string]int32{SlotTypeDefault: slots},
+			OperatorId:       &operatorId,
+			ExemptFromLimits: exempt,
 		}
 	}
 
-	t.Run("a gRPC operator worker over the worker limit is refused like an SDK worker", func(t *testing.T) {
+	t.Run("a metered operator worker over the worker limit is refused like an SDK worker", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
 		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
 
@@ -106,38 +106,41 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
 
 		// the one worker the limit allows is an operator's, and it counts
-		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &grpcOp)
+		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &grpcOp, false)
 
 		count, err := limits.queries.CountTenantWorkers(ctx, pool, tenantId)
 		require.NoError(t, err)
-		assert.EqualValues(t, 1, count, "the gRPC operator's worker is counted")
+		assert.EqualValues(t, 1, count, "the metered operator worker is counted")
 
-		_, err = repo.CreateNewWorker(ctx, tenantId, operatorWorker("grpc-op", grpcOp, sqlcv1.V1OperatorKindGRPC, 1))
+		_, err = repo.CreateNewWorker(ctx, tenantId, operatorWorker("grpc-op", grpcOp, false, 1))
 		assert.ErrorIs(t, err, ErrResourceExhausted, "an operator worker over the limit is refused")
 
 		_, err = repo.CreateNewWorker(ctx, tenantId, sdkWorker("sdk"))
 		assert.ErrorIs(t, err, ErrResourceExhausted, "with the same error an SDK worker gets")
 
-		_, err = repo.CreateNewWorker(ctx, tenantId, operatorWorker("dag-op", dagOp, sqlcv1.V1OperatorKindDAG, 10000))
-		assert.NoError(t, err, "the DAG operator's worker is infrastructure and is not metered")
+		exempt, err := repo.CreateNewWorker(ctx, tenantId, operatorWorker("dag-op", dagOp, true, 10000))
+		require.NoError(t, err, "an exempt worker is infrastructure and is not metered")
+		assert.True(t, exempt.ExemptFromLimits, "the exemption is on the row for the limit queries")
 	})
 
-	t.Run("the DAG operator's workers do not count", func(t *testing.T) {
+	t.Run("exempt workers do not count, whatever operator they back", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
 		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
 
 		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
-		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &dagOp)
+		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
+		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &dagOp, true)
+		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &grpcOp, true)
 
 		count, err := limits.queries.CountTenantWorkers(ctx, pool, tenantId)
 		require.NoError(t, err)
-		assert.Zero(t, count, "the DAG operator's worker is left out of the count")
+		assert.Zero(t, count, "exempt workers are left out of the count")
 
 		_, err = repo.CreateNewWorker(ctx, tenantId, sdkWorker("sdk"))
 		assert.NoError(t, err, "the limit is still free for the tenant's own worker")
 	})
 
-	t.Run("a gRPC operator worker over the slot limit is refused", func(t *testing.T) {
+	t.Run("a metered operator worker over the slot limit is refused", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
 		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{
 			{Resource: sqlcv1.LimitResourceWORKER, Limit: 10},
@@ -146,18 +149,22 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
 
-		_, err := repo.CreateNewWorker(ctx, tenantId, operatorWorker("grpc-op", grpcOp, sqlcv1.V1OperatorKindGRPC, 10))
+		_, err := repo.CreateNewWorker(ctx, tenantId, operatorWorker("grpc-op", grpcOp, false, 10))
 		assert.ErrorIs(t, err, ErrResourceExhausted, "the operator worker's slots are metered")
 	})
 
-	t.Run("an operator worker names its operator's kind", func(t *testing.T) {
+	t.Run("a worker of a DAG operator is metered unless exempted", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
-		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
 
-		opts := operatorWorker("grpc-op", grpcOp, sqlcv1.V1OperatorKindGRPC, 1)
-		opts.OperatorKind = ""
+		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
+		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &dagOp, false)
 
-		_, err := repo.CreateNewWorker(ctx, tenantId, opts)
-		assert.Error(t, err, "OperatorId without OperatorKind is refused before anything is metered")
+		count, err := limits.queries.CountTenantWorkers(ctx, pool, tenantId)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, count, "the exemption is the worker's, not the operator kind's")
+
+		_, err = repo.CreateNewWorker(ctx, tenantId, operatorWorker("dag-op", dagOp, false, 1))
+		assert.ErrorIs(t, err, ErrResourceExhausted)
 	})
 }

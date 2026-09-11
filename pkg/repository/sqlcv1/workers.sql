@@ -341,11 +341,10 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- the DAG operator's workers are engine infrastructure and are not metered; every other
-    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
-    )
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
+    AND NOT w."exemptFromLimits"
 GROUP BY wc.tenant_id
 ;
 
@@ -361,11 +360,10 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- the DAG operator's workers are engine infrastructure and are not metered; every other
-    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
-    )
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
+    AND NOT w."exemptFromLimits"
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -578,13 +576,14 @@ RETURNING aw."A";
 
 -- name: ComputeWorkerActionHash :one
 -- The canonical digest of the worker's linked action set: sha256 over the action ids sorted
--- by byte order, each encoded as its UTF-8 byte length as a 4-byte big-endian integer followed
--- by its bytes, so no id can be read as the boundary between two others. It is the same
--- function hashActions computes in Go, so a worker created with an initial set and a worker
--- built by deltas hash equal for the same set. The empty set hashes to sha256 of no bytes.
+-- by byte order, each followed by ";". An id cannot contain the separator (ParseActionID
+-- rejects it), so no id can be read as the boundary between two others. It is the same
+-- function hashActions computes in Go, byte for byte, so a worker created with an initial set
+-- and a worker built by deltas hash equal for the same set. The empty set hashes to sha256 of
+-- no bytes.
 SELECT sha256(coalesce(
     string_agg(
-        int4send(octet_length(convert_to(a."actionId", 'UTF8'))) || convert_to(a."actionId", 'UTF8'),
+        convert_to(a."actionId", 'UTF8') || ';'::bytea,
         ''::bytea
         ORDER BY a."actionId" COLLATE "C"
     ),
@@ -595,20 +594,21 @@ JOIN "Action" a ON a."id" = aw."A"
 WHERE aw."B" = @workerId::uuid;
 
 -- name: RecountWorkerActions :exec
--- Sets "actionCount" to the worker's real link count, for the paths that link without
--- returning what they linked.
+-- Sets "operatorActionCount" to the worker's real link count, for the paths that link
+-- without returning what they linked.
 UPDATE "Worker" w
-SET "actionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
+SET "operatorActionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
 WHERE w."id" = @workerId::uuid;
 
 -- name: SettleWorkerActionsDelta :one
--- Records a delta's effect on the worker row under the caller's row lock: "actionCount" moves
--- by the links the delta created minus the links it removed, and "actionHash" is cleared
+-- Records a delta's effect on the worker row under the caller's row lock:
+-- "operatorActionCount" moves by the links the delta created minus the links it removed, and
+-- "actionHash" is cleared
 -- until the session refreshes it at the end of the delta sequence. Returns the operator the
 -- worker belongs to, NULL for an SDK worker, so the caller knows whose budget to check.
 UPDATE "Worker" w
 SET
-    "actionCount" = "actionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
+    "operatorActionCount" = "operatorActionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
     "actionHash" = NULL
 WHERE w."id" = @workerId::uuid
 RETURNING w."operatorId";
@@ -617,7 +617,7 @@ RETURNING w."operatorId";
 -- The action links held by every worker of the operator, from the per-worker counts. The
 -- caller holds the operator's row lock (LockOperator), so the sum is consistent with the
 -- delta it is checking.
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = @tenantId::uuid
@@ -627,7 +627,7 @@ WHERE
 -- The action links held by every worker of the operator, from the per-worker counts. It is
 -- the unlocked reading of SumOperatorWorkerActionCounts, for reporting; the budget check
 -- inside a delta uses the locked one.
-SELECT coalesce(sum(w."actionCount"), 0)::bigint
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
 FROM "Worker" w
 WHERE
     w."tenantId" = @tenantId::uuid
@@ -792,8 +792,9 @@ INSERT INTO "Worker" (
     "os",
     "runtimeExtra",
     "actionHash",
-    "actionCount",
-    "operatorId"
+    "operatorActionCount",
+    "operatorId",
+    "exemptFromLimits"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -809,9 +810,11 @@ INSERT INTO "Worker" (
     sqlc.narg('runtimeExtra')::text,
     @actionHash::bytea,
     -- the size of the initial action set the caller links right after
-    @actionCount::integer,
+    @operatorActionCount::integer,
     -- set for workers backing an operator connection; NULL for SDK workers
-    sqlc.narg('operatorId')::uuid
+    sqlc.narg('operatorId')::uuid,
+    -- true only for workers the in-process operator host creates; the limit queries skip them
+    @exemptFromLimits::boolean
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

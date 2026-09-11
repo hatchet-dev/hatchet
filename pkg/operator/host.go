@@ -45,21 +45,29 @@ var (
 )
 
 // Identity names the operator a session registers as. Exactly one of OperatorId (an existing
-// row, as claimed by the in-process claimer for the DAG operator) or Name and Kind (a row the
-// host upserts by (tenant, name, kind)) is used. TenantId is always required: a Host spans
-// tenants and a Session belongs to one.
+// row, as claimed by the in-process claimer) or Name with Kind and Leasing (a row the host
+// upserts by (tenant, name, kind)) is used. TenantId is always required: a Host spans tenants
+// and a Session belongs to one.
+//
+// Kind says what the operator is and Leasing who keeps it alive; they are separate axes. A
+// contract operator is GRPC whichever host runs it. A SELF row keeps itself alive, through the
+// Listen stream the gRPC host holds or the leaser an in-process operator runs, and is what the
+// wire registers; a MANAGED row is assigned to a dispatcher by the claimer, which builds the
+// operator from a factory and opens it by OperatorId.
 type Identity struct {
 	TenantId uuid.UUID
 
-	// OperatorId is an existing operator row. The host takes the name and kind from the row
-	// and points the row's worker_id at the session's worker, so the claimer keeps recognising
-	// the assignment.
+	// OperatorId is an existing operator row. The host takes the name, kind and leasing from
+	// the row and points the row's worker_id at the session's worker, so the claimer keeps
+	// recognising the assignment.
 	OperatorId *uuid.UUID
 
-	// Name and Kind identify a row the host upserts. Kind defaults to GRPC, the only kind a
-	// host registers today.
-	Name string
-	Kind sqlcv1.V1OperatorKind
+	// Name, Kind and Leasing identify a row the host upserts. Kind defaults to GRPC, the only
+	// kind a host registers by name, and Leasing to SELF, the only leasing the gRPC host can
+	// register: a row it opened is kept alive by its stream, not by the claimer.
+	Name    string
+	Kind    sqlcv1.V1OperatorKind
+	Leasing sqlcv1.V1OperatorLeasing
 }
 
 // OpenOpts describes the worker the session backs and the handler assigned actions go to.

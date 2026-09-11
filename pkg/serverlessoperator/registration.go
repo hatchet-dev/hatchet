@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
 )
 
@@ -141,10 +142,13 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	slotConfig := r.slotConfig()
 	reg := newRegistration(r, ts, union, rev, slotConfig)
 
+	// The serverless operator is a self-leased GRPC operator in both modes: the row is kept
+	// alive by this session, whichever host opens it, so the claimer never assigns it.
 	session, err := r.host.Open(ctx, operator.Identity{
 		TenantId: ts.tenantId,
 		Name:     r.cfg.OperatorName,
-		Kind:     r.kind,
+		Kind:     sqlcv1.V1OperatorKindGRPC,
+		Leasing:  sqlcv1.V1OperatorLeasingSELF,
 	}, operator.OpenOpts{
 		Handler:    reg,
 		Actions:    union,

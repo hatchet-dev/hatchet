@@ -291,7 +291,7 @@ func (ss *Session) Heartbeat(ctx context.Context, at time.Time) error {
 // to reload it. It reports whether the set changed; a delta that only repeats what the worker
 // already has needs no notification, and the caller can still acknowledge it.
 func (ss *Session) ApplyDelta(ctx context.Context, add, remove []string) (bool, error) {
-	changed, err := ss.svc.applyDelta(ctx, &ss.l, ss.tenant.ID, ss.workerId, add, remove)
+	changed, err := ss.svc.applyDelta(ctx, &ss.l, ss.tenant.ID, ss.workerId, ss.op.Kind, add, remove)
 
 	if err != nil {
 		return false, err
@@ -479,22 +479,46 @@ func (ss *Session) deactivate(ctx context.Context) error {
 	return err
 }
 
-// actionDeltaOpts carries the validation rules for an action set delta.
+// actionDeltaOpts carries the validation rules for an action set delta of an operator whose
+// ids are the action ids workers register, "service:verb".
 type actionDeltaOpts struct {
 	Add    []string `validate:"dive,actionId"`
 	Remove []string `validate:"dive,actionId"`
+}
+
+// validateDelta checks a delta's ids against the kind of operator the session belongs to.
+// The DAG operator's actions are the orchestrator action ids of the tenant's DAG workflows,
+// "<workflow>_orchestrator", which are not action ids: they carry no ":" precisely so that no
+// SDK or GRPC worker can register one. A DAG operator is hosted in process only, its row is
+// created by the engine and never upserted through a registration, so its kind is the
+// engine's own claim and its sessions admit orchestrator ids and nothing else. Every other
+// kind admits action ids and nothing else.
+func (s *Service) validateDelta(kind sqlcv1.V1OperatorKind, add, remove []string) error {
+	if kind != sqlcv1.V1OperatorKindDAG {
+		return s.v.Validate(actionDeltaOpts{Add: add, Remove: remove})
+	}
+
+	for _, ids := range [][]string{add, remove} {
+		for _, id := range ids {
+			if !repository.IsDAGOrchestratorActionId(id) {
+				return fmt.Errorf("%q is not a dag orchestrator action id", id)
+			}
+		}
+	}
+
+	return nil
 }
 
 // applyDelta validates and applies one delta to the worker's action set, as one transaction:
 // a delta the caller acknowledges by sequence is committed whole or not at all. The
 // per-operator action cap is enforced inside that transaction, against the links every worker
 // of the operator holds. It reports whether the set changed.
-func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, add, remove []string) (bool, error) {
+func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, kind sqlcv1.V1OperatorKind, add, remove []string) (bool, error) {
 	if n := len(add) + len(remove); n > MaxActionsPerDelta {
 		return false, status.Errorf(codes.InvalidArgument, "actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta)
 	}
 
-	if err := s.v.Validate(actionDeltaOpts{Add: add, Remove: remove}); err != nil {
+	if err := s.validateDelta(kind, add, remove); err != nil {
 		return false, status.Errorf(codes.InvalidArgument, "invalid actions delta: %s", err.Error())
 	}
 

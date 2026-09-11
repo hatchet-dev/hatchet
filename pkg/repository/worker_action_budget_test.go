@@ -48,12 +48,12 @@ func seedOperatorWorker(t *testing.T, ctx context.Context, pool *pgxpool.Pool, t
 	return workerId
 }
 
-// workerActionCount reads the count the worker row carries.
-func workerActionCount(t *testing.T, ctx context.Context, pool *pgxpool.Pool, workerId uuid.UUID) int {
+// workerOperatorActionCount reads the count the worker row carries.
+func workerOperatorActionCount(t *testing.T, ctx context.Context, pool *pgxpool.Pool, workerId uuid.UUID) int {
 	t.Helper()
 
 	var n int
-	require.NoError(t, pool.QueryRow(ctx, `SELECT "actionCount" FROM "Worker" WHERE "id" = $1`, workerId).Scan(&n))
+	require.NoError(t, pool.QueryRow(ctx, `SELECT "operatorActionCount" FROM "Worker" WHERE "id" = $1`, workerId).Scan(&n))
 
 	return n
 }
@@ -70,7 +70,7 @@ func ids(prefix string, from, to int) []string {
 
 // The action budget is the operator's: two of its workers fill it together, the delta past it
 // is refused with the operator's totals and rolled back whole, and a removal on one worker
-// frees room for the other. "actionCount" follows the links on every worker.
+// frees room for the other. "operatorActionCount" follows the links on every worker.
 func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	pool := workerActionsPool(t)
 	repo := createWorkerActionsRepositoryForTest(pool)
@@ -103,8 +103,8 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	assert.EqualValues(t, cap, budgetErr.Limit)
 
 	assert.Len(t, linkedActions(t, ctx, pool, second), 10, "the refused delta rolled back its removes with its adds")
-	assert.Equal(t, 20, workerActionCount(t, ctx, pool, first))
-	assert.Equal(t, 10, workerActionCount(t, ctx, pool, second))
+	assert.Equal(t, 20, workerOperatorActionCount(t, ctx, pool, first))
+	assert.Equal(t, 10, workerOperatorActionCount(t, ctx, pool, second))
 
 	total, err := repo.CountOperatorWorkerActions(ctx, tenantId, operatorId)
 	require.NoError(t, err)
@@ -114,12 +114,12 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	_, removed, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, first, nil, ids("a", 0, 3), cap)
 	require.NoError(t, err)
 	assert.Equal(t, 3, removed)
-	assert.Equal(t, 17, workerActionCount(t, ctx, pool, first))
+	assert.Equal(t, 17, workerOperatorActionCount(t, ctx, pool, first))
 
 	added, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, second, ids("b", 0, 3), nil, cap)
 	require.NoError(t, err)
 	assert.Equal(t, 3, added)
-	assert.Equal(t, 13, workerActionCount(t, ctx, pool, second))
+	assert.Equal(t, 13, workerOperatorActionCount(t, ctx, pool, second))
 
 	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, second, ids("b", 3, 4), nil, cap)
 	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
@@ -132,7 +132,7 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	added, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, loose, ids("c", 0, 5), nil, 1)
 	require.NoError(t, err)
 	assert.Equal(t, 5, added)
-	assert.Equal(t, 5, workerActionCount(t, ctx, pool, loose))
+	assert.Equal(t, 5, workerOperatorActionCount(t, ctx, pool, loose))
 }
 
 // Concurrent deltas on two workers of one operator never leave the operator over its cap, and
@@ -186,7 +186,7 @@ func TestOperatorActionBudgetUnderConcurrentDeltas(t *testing.T) {
 
 	for _, worker := range workers {
 		links := len(linkedActions(t, ctx, pool, worker))
-		assert.Equal(t, links, workerActionCount(t, ctx, pool, worker), "the count is the link count")
+		assert.Equal(t, links, workerOperatorActionCount(t, ctx, pool, worker), "the count is the link count")
 		total += links
 	}
 
@@ -217,7 +217,7 @@ func TestWorkerActionHashRefreshFollowsDeltas(t *testing.T) {
 
 	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, worker))
 	assert.Equal(t, hashActions([]string{"svc:a", "svc:c"}), workerActionHash(t, ctx, pool, worker))
-	assert.Equal(t, 2, workerActionCount(t, ctx, pool, worker))
+	assert.Equal(t, 2, workerOperatorActionCount(t, ctx, pool, worker))
 
 	// a refresh with nothing pending is idempotent
 	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, worker))
@@ -227,20 +227,20 @@ func TestWorkerActionHashRefreshFollowsDeltas(t *testing.T) {
 	require.Error(t, repo.RefreshWorkerActionHash(ctx, other, worker), "another tenant cannot refresh the worker")
 }
 
-// The Go and SQL digests agree on ids that contain what a separator would be, and neither
-// confuses two sets whose ids concatenate to the same bytes.
-func TestWorkerActionHashEncodingIsUnambiguous(t *testing.T) {
+// The Go and SQL digests agree byte for byte for a fixed set of action sets, including ids
+// whose concatenation is the same bytes, mixed casing and the empty set, and distinct sets
+// hash distinct.
+func TestWorkerActionHashGoAndSQLAgree(t *testing.T) {
 	pool := workerActionsPool(t)
 	repo := createWorkerActionsRepositoryForTest(pool)
 	ctx := context.Background()
 	tenantId := seedTenantForActions(t, ctx, pool)
 
 	sets := [][]string{
-		{"svc:a;svc:b"},
 		{"svc:a", "svc:b"},
 		{"svc:ab", "svc:c"},
 		{"svc:a", "svc:bc"},
-		{"svc:a", "svc:b;"},
+		{"svc:a", "svc:b", "svc:c"},
 		{},
 	}
 
@@ -268,6 +268,13 @@ func TestWorkerActionHashEncodingIsUnambiguous(t *testing.T) {
 
 		hashes[string(stored)] = set
 	}
+
+	// casing, order and duplicates normalise the same way on both sides
+	worker := seedWorkerForActions(t, ctx, pool, tenantId)
+	_, err := addWorkerActions(repo, ctx, tenantId, worker, []string{"svc:b", "svc:A", "svc:a"})
+	require.NoError(t, err)
+	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, worker))
+	assert.Equal(t, hashActions([]string{"svc:a", "svc:b"}), workerActionHash(t, ctx, pool, worker))
 }
 
 // The pause is fenced on the listener session: a superseded session's pause changes nothing

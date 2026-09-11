@@ -1496,10 +1496,9 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 type V1OperatorKind string
 
 const (
-	V1OperatorKindHTTPAPI    V1OperatorKind = "HTTP_API"
-	V1OperatorKindDAG        V1OperatorKind = "DAG"
-	V1OperatorKindGRPC       V1OperatorKind = "GRPC"
-	V1OperatorKindSERVERLESS V1OperatorKind = "SERVERLESS"
+	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
+	V1OperatorKindDAG     V1OperatorKind = "DAG"
+	V1OperatorKindGRPC    V1OperatorKind = "GRPC"
 )
 
 func (e *V1OperatorKind) Scan(src interface{}) error {
@@ -1535,6 +1534,48 @@ func (ns NullV1OperatorKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1OperatorKind), nil
+}
+
+type V1OperatorLeasing string
+
+const (
+	V1OperatorLeasingMANAGED V1OperatorLeasing = "MANAGED"
+	V1OperatorLeasingSELF    V1OperatorLeasing = "SELF"
+)
+
+func (e *V1OperatorLeasing) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OperatorLeasing(s)
+	case string:
+		*e = V1OperatorLeasing(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OperatorLeasing: %T", src)
+	}
+	return nil
+}
+
+type NullV1OperatorLeasing struct {
+	V1OperatorLeasing V1OperatorLeasing `json:"v1_operator_leasing"`
+	Valid             bool              `json:"valid"` // Valid is true if V1OperatorLeasing is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OperatorLeasing) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OperatorLeasing, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OperatorLeasing.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OperatorLeasing) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OperatorLeasing), nil
 }
 
 type V1OtelSpanKind string
@@ -3615,6 +3656,7 @@ type V1Operator struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	Name      string             `json:"name"`
 	Kind      V1OperatorKind     `json:"kind"`
+	Leasing   V1OperatorLeasing  `json:"leasing"`
 	Config    []byte             `json:"config"`
 	WorkerID  *uuid.UUID         `json:"worker_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
@@ -4160,7 +4202,8 @@ type Worker struct {
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 	ActionHash              []byte           `json:"actionHash"`
-	ActionCount             int32            `json:"actionCount"`
+	OperatorActionCount     int32            `json:"operatorActionCount"`
+	ExemptFromLimits        bool             `json:"exemptFromLimits"`
 }
 
 type WorkerAssignEvent struct {

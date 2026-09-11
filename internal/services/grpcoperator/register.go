@@ -28,9 +28,12 @@ func (s *OperatorServiceImpl) Register(ctx context.Context, req *v1contracts.Ope
 		return nil, err
 	}
 
+	// A wire registration is a contract operator that keeps itself alive through this
+	// connection's Listen stream, so the row is GRPC and SELF; its workers are metered.
 	reg, err := s.svc.Register(ctx, tenant, operatorsvc.RegisterOpts{
 		Name:           req.Name,
 		Kind:           sqlcv1.V1OperatorKindGRPC,
+		Leasing:        sqlcv1.V1OperatorLeasingSELF,
 		SlotConfig:     req.SlotConfig,
 		Labels:         req.Labels,
 		RuntimeInfo:    req.RuntimeInfo,
