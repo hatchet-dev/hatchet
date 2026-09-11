@@ -1,4 +1,4 @@
-package cli
+package profilestore
 
 import (
 	"fmt"
@@ -8,22 +8,25 @@ import (
 )
 
 const (
+	lockFileName    = "config.lock"
 	lockTimeout     = 5 * time.Second
 	lockRetryDelay  = 50 * time.Millisecond
 	maxLockAttempts = 100
 )
 
-// acquireLock attempts to acquire a lock file for config operations
-func acquireLock() (func(), error) {
-	if HomeDir == "" {
+// acquireLock attempts to acquire the profile store lock file (config.lock in
+// dir) for config operations. The protocol is shared with every other writer
+// of the profile file: exclusive create, retry every 50ms up to 100 attempts,
+// and locks older than 5s are considered stale.
+func acquireLock(dir string) (func(), error) {
+	if dir == "" {
 		return nil, fmt.Errorf("home directory not set")
 	}
 
-	lockFile := filepath.Join(HomeDir, ".hatchet", "config.lock")
-	hatchetDir := filepath.Join(HomeDir, ".hatchet")
+	lockFile := filepath.Join(dir, lockFileName)
 
 	// Ensure .hatchet directory exists
-	if err := os.MkdirAll(hatchetDir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create hatchet directory: %w", err)
 	}
 
@@ -39,6 +42,7 @@ func acquireLock() (func(), error) {
 			f.Close()
 
 			if err != nil {
+				os.Remove(lockFile)
 				return nil, fmt.Errorf("failed to write to lock file: %w", err)
 			}
 

@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -1214,7 +1215,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(iterCtx, tenantId, workflowRunIds)
 
 		if err != nil {
-			s.l.Error().Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not list finalized workflow runs")
+
 			return err
 		}
 
@@ -1226,7 +1228,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		finalizedWorkflowRuns = nil // nolint: ineffassign
 
 		if err != nil {
-			s.l.Error().Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not convert task events to workflow run events")
+
 			return err
 		}
 
@@ -1251,7 +1254,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		if matchedWorkflowRunIds, ok := isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+				logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 			}
 		}
 
@@ -1307,7 +1310,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 				}
 
 				if err := iter(workflowRunIds); err != nil {
-					s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
+					logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}
