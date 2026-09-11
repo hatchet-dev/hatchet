@@ -471,33 +471,28 @@ func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX,
 const getAndLockLogFilesWithBranchPoints = `-- name: GetAndLockLogFilesWithBranchPoints :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::UUID[]) AS tenant_id
-), locked_files AS (
-    SELECT lf.tenant_id, lf.durable_task_id, lf.durable_task_inserted_at, lf.latest_invocation_count, lf.latest_inserted_at, lf.latest_node_id, lf.latest_branch_id, lf.latest_satisfied_order
-    FROM v1_durable_event_log_file lf
-    JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
-    WHERE lf.durable_task_inserted_at >= $4::TIMESTAMPTZ
-    ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
-    FOR UPDATE
+        UNNEST($2::BIGINT[]) AS durable_task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($4::UUID[]) AS tenant_id
 )
 
 SELECT
-    to_embed.tenant_id, to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.latest_invocation_count, to_embed.latest_inserted_at, to_embed.latest_node_id, to_embed.latest_branch_id, to_embed.latest_satisfied_order,
+    lf.tenant_id, lf.durable_task_id, lf.durable_task_inserted_at, lf.latest_invocation_count, lf.latest_inserted_at, lf.latest_node_id, lf.latest_branch_id, lf.latest_satisfied_order,
     bp.tenant_id, bp.id, bp.inserted_at, bp.durable_task_id, bp.durable_task_inserted_at, bp.first_node_id_in_new_branch, bp.parent_branch_id, bp.next_branch_id, bp.replay_child_external_ids
-FROM locked_files lf
-JOIN v1_durable_event_log_file to_embed
-    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+FROM v1_durable_event_log_file lf
+JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
     ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
+FOR UPDATE OF lf
 `
 
 type GetAndLockLogFilesWithBranchPointsParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
 	Durabletaskids           []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Tenantids                []uuid.UUID          `json:"tenantids"`
-	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
 }
 
 type GetAndLockLogFilesWithBranchPointsRow struct {
@@ -515,10 +510,10 @@ type GetAndLockLogFilesWithBranchPointsRow struct {
 
 func (q *Queries) GetAndLockLogFilesWithBranchPoints(ctx context.Context, db DBTX, arg GetAndLockLogFilesWithBranchPointsParams) ([]*GetAndLockLogFilesWithBranchPointsRow, error) {
 	rows, err := db.Query(ctx, getAndLockLogFilesWithBranchPoints,
+		arg.Mindurabletaskinsertedat,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Tenantids,
-		arg.Mindurabletaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -1190,9 +1185,9 @@ WITH inputs AS (
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
-SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, lf.latest_invocation_count AS invocation_count
+SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {
