@@ -73,9 +73,6 @@ type DAGStepTriggerResult struct {
 	IsFailure     bool
 	ErrorMessage  *string
 
-	// set when the completion arrives as an EntryCompleted instead of being applied from this result
-	SatisfiedOrder *int64
-
 	// ReExecuted is true when the step actually runs this invocation rather than being
 	// satisfied from the log.
 	ReExecuted bool

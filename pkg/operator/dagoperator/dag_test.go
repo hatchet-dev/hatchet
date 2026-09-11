@@ -144,6 +144,47 @@ func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskRe
 	}
 }
 
+// like the dispatcher, delivers a satisfied trigger result as an EntryCompleted, in trigger order
+func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) triggerStepFn {
+	completions := make(chan *v1contracts.DurableTaskResponse, 64)
+
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case completion := <-completions:
+				select {
+				case responseCh <- completion:
+				case <-stop:
+					return
+				}
+			}
+		}
+	}()
+
+	return func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		result, err := triggerStep(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+
+		if err != nil || !result.IsSatisfied {
+			return result, err
+		}
+
+		completions <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+				EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+					Ref:          &v1contracts.DurableEventLogEntryRef{NodeId: result.NodeId, BranchId: result.BranchId},
+					Payload:      result.ResultPayload,
+					IsFailure:    result.IsFailure,
+					ErrorMessage: result.ErrorMessage,
+				},
+			},
+		}
+
+		return result, nil
+	}
+}
+
 type dagHarness struct {
 	errCh      chan error
 	responseCh chan *v1contracts.DurableTaskResponse
@@ -177,7 +218,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	externalId := uuid.New()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
 	}()
 
 	return &dagHarness{
@@ -511,7 +552,7 @@ func TestDag_SleepWaitCondition(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
 	}()
 
 	var ref *v1contracts.DurableEventLogEntryRef
@@ -644,7 +685,7 @@ func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
 	require.False(t, a.isCancelled || b.isCancelled)
 }
 
-func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncTriggered) {
+func recordingTrigger(satisfied map[string]bool) (triggerStepFn, chan asyncTriggered) {
 	triggered := make(chan asyncTriggered, 16)
 	var nextId int64 = 1
 
@@ -656,12 +697,8 @@ func replayTrigger(satisfiedOrders map[string]int64) (triggerStepFn, chan asyncT
 			NodeId:                nodeId,
 			BranchId:              nodeId,
 			WorkflowRunExternalId: uuid.New(),
-		}
-
-		if order, ok := satisfiedOrders[actionId]; ok {
-			result.IsSatisfied = true
-			result.ResultPayload = mapToJson(map[string]interface{}{"ok": true})
-			result.SatisfiedOrder = &order
+			IsSatisfied:           satisfied[actionId],
+			ResultPayload:         mapToJson(map[string]interface{}{"ok": true}),
 		}
 
 		triggered <- asyncTriggered{
@@ -681,36 +718,17 @@ func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
 	d := newTestTask("d", "action-d", 2, b)
 	c := newTestTask("c", "action-c", 3, a)
 
-	trigger, triggered := replayTrigger(map[string]int64{"action-a": 1, "action-b": 2})
+	trigger, triggered := recordingTrigger(map[string]bool{"action-a": true, "action-b": true})
 
 	h := startDAG(t, []*task{a, b, d, c}, trigger)
 	defer h.cleanup()
 
-	first := recvTriggered(t, triggered)
-	second := recvTriggered(t, triggered)
-	require.Equal(t, "action-a", first.actionId)
-	require.Equal(t, "action-b", second.actionId)
-
-	select {
-	case unexpected := <-triggered:
-		t.Fatalf("%q triggered before any completion was delivered", unexpected.actionId)
-	case <-time.After(100 * time.Millisecond):
+	var order []string
+	for range 4 {
+		order = append(order, recvTriggered(t, triggered).actionId)
 	}
 
-	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
-
-	third := recvTriggered(t, triggered)
-	require.Equal(t, "action-c", third.actionId)
-
-	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
-
-	fourth := recvTriggered(t, triggered)
-	require.Equal(t, "action-d", fourth.actionId)
-
-	sendEntryCompleted(t, h.responseCh, third.ref, mapToJson(map[string]interface{}{"ok": true}))
-	sendEntryCompleted(t, h.responseCh, fourth.ref, mapToJson(map[string]interface{}{"ok": true}))
-
-	require.NoError(t, h.waitErr(t))
+	require.Equal(t, []string{"action-a", "action-b", "action-c", "action-d"}, order)
 }
 
 func TestDag_AsyncFailureViaEntryCompleted(t *testing.T) {
@@ -869,7 +887,7 @@ func TestDag_RunTriggerDeferredUntilWaitForAcksDrain(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
 	}()
 
 	requireTriggered := func(want string) {
@@ -1374,7 +1392,7 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
 	}()
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose

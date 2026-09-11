@@ -25,7 +25,7 @@ func ingestDagStepTrigger(
 ) *IngestTriggerRunsEntry {
 	t.Helper()
 
-	result, err := ingestDagStepTriggerResult(ctx, repo, tenantID, task, invocationCount, actionId, childIndex)
+	result, err := ingestDagStepTriggerResult(ctx, repo, tenantID, task, invocationCount, actionId, childIndex, false)
 	require.NoError(t, err)
 	require.NotNil(t, result.TriggerRunsResult)
 	require.Len(t, result.TriggerRunsResult.Entries, 1)
@@ -41,6 +41,7 @@ func ingestDagStepTriggerResult(
 	invocationCount int32,
 	actionId string,
 	childIndex int64,
+	isSkipped bool,
 ) (*IngestDurableTaskEventResult, error) {
 	parentExternalId := task.ExternalID
 	parentTaskId := task.ID
@@ -58,6 +59,7 @@ func ingestDagStepTriggerResult(
 				IsDagStepTrigger:       true,
 				ReplayOrphanedChildren: true,
 				TriggerTaskData: &TriggerTaskData{
+					IsSkipped:            isSkipped,
 					WorkflowName:         "my-dag",
 					Data:                 []byte(`{"x":1}`),
 					TargetActionId:       &actionId,
@@ -97,7 +99,7 @@ func TestDagStepReplayAtAnotherStepsNodeIsNondeterministic(t *testing.T) {
 
 	reinvokeDurableTask(t, ctx, repos, tenantID, task)
 
-	_, err := ingestDagStepTriggerResult(ctx, repos.durable, tenantID, task, 2, "my-dag:bold-dates-and-quantities", 9)
+	_, err := ingestDagStepTriggerResult(ctx, repos.durable, tenantID, task, 2, "my-dag:bold-dates-and-quantities", 9, false)
 
 	var nonDeterminismErr *NonDeterminismError
 	require.ErrorAs(t, err, &nonDeterminismErr)
@@ -124,4 +126,35 @@ func TestDagStepEntriesOfSameWorkflowHaveDistinctIdempotencyKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 	require.NotEqual(t, entries[0].IdempotencyKey, entries[1].IdempotencyKey)
+}
+
+func TestDagStepCreatedSkippedTakesNextSatisfiedOrder(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repos := newUserEventScopeTestRepositories(t, pool)
+	task := createUserEventScopeTestTask(t, ctx, repos, tenantID, 203)
+
+	running := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 1, "my-dag:step-a", 1)
+	require.False(t, running.IsSatisfied)
+	require.Nil(t, running.SatisfiedOrder)
+
+	result, err := ingestDagStepTriggerResult(ctx, repos.durable, tenantID, task, 1, "my-dag:step-b", 2, true)
+	require.NoError(t, err)
+
+	skipped := result.TriggerRunsResult.Entries[0]
+	require.True(t, skipped.IsSatisfied)
+	require.NotNil(t, skipped.SatisfiedOrder)
+	require.EqualValues(t, 1, *skipped.SatisfiedOrder)
+
+	logFile, err := repos.shared.queries.GetDurableTaskLogFiles(ctx, repos.shared.pool, sqlcv1.GetDurableTaskLogFilesParams{
+		Durabletaskids:         []int64{task.ID},
+		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:              []uuid.UUID{tenantID},
+	})
+	require.NoError(t, err)
+	require.Len(t, logFile, 1)
+	require.EqualValues(t, 1, logFile[0].LatestSatisfiedOrder)
 }

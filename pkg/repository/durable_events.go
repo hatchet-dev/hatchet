@@ -1347,6 +1347,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 						BranchID:              created.BranchID,
 						IdempotencyKey:        created.IdempotencyKey,
 						IsSatisfied:           created.IsSatisfied,
+						SatisfiedOrder:        created.SatisfiedOrder,
 						InvocationCount:       created.InvocationCount,
 					},
 					ResultPayload:  o.ResultPayload,

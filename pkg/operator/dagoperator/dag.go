@@ -533,29 +533,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		t.workflowRunExternalId = &result.WorkflowRunExternalId
 		t.isTriggered = true
 		progressed = true
-
-		if err := d.applyUnorderedCompletion(ctx, t, result); err != nil {
-			d.err = err
-			return progressed, d.err
-		}
 	}
 
 	d.pendingTasks = stillPending
 
 	return progressed, nil
-}
-
-func (d *dag) applyUnorderedCompletion(ctx context.Context, t *task, result *operator.DAGStepTriggerResult) error {
-	if !result.IsSatisfied || result.SatisfiedOrder != nil {
-		return nil
-	}
-
-	errorMessage := ""
-	if result.ErrorMessage != nil {
-		errorMessage = *result.ErrorMessage
-	}
-
-	return d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload)
 }
 
 func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
@@ -847,11 +829,6 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 	}
 
 	d.tasks = append(d.tasks, d.onFailureTask)
-
-	if err := d.applyUnorderedCompletion(ctx, d.onFailureTask, result); err != nil {
-		d.err = err
-		return true, d.err
-	}
 
 	return true, nil
 }

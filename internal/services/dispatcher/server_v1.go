@@ -1810,7 +1810,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	entry := ingestionResult.TriggerRunsResult.Entries[0]
 
 	// the operator is blocked in this call and its session channel is unbuffered
-	if entry.IsSatisfied && entry.SatisfiedOrder != nil {
+	if entry.IsSatisfied {
 		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
 
 		go func() {
@@ -1846,7 +1846,6 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		ResultPayload:         entry.ResultPayload,
 		IsFailure:             entry.ChildTaskIsFailure,
 		ErrorMessage:          entry.ChildTaskErrorMessage,
-		SatisfiedOrder:        entry.SatisfiedOrder,
 		ReExecuted:            entry.ReExecuted,
 	}, nil
 }
