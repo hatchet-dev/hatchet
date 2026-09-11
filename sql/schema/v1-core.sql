@@ -2789,8 +2789,7 @@ CREATE TABLE v1_durable_event_log_branch_point (
 -- What an operator is: DAG is the engine-internal DAG operator, GRPC a contract operator
 -- written against pkg/operator, hostable in process or out of process. HTTP_API is retained
 -- only because Postgres cannot drop enum values; the engine never instantiates operators of
--- that kind. (Databases migrated by the serverless branch also carry a retired SERVERLESS
--- value; its rows were folded into GRPC.)
+-- that kind.
 CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG', 'GRPC');
 
 -- Who keeps an operator alive: for a DISPATCHER row the dispatcher claims the row through
