@@ -232,21 +232,23 @@ VALUES (@tenantId::UUID, @shard::INT)
 ON CONFLICT (tenant_id, shard) DO NOTHING;
 
 -- name: ClaimServerlessLeases :many
--- Claims up to @claimLimit units for @processId. Unowned units come first, walked in
--- (tenant_id, shard) order from @afterTenantId/@afterShard through
--- v1_serverless_lease_claimable_idx (the caller starts at a random key and wraps around), then
--- units of processes whose heartbeat row has expired, walked per dead process through
--- v1_serverless_lease_owner_idx. Neither walk sorts the candidate population. Liveness is
--- decided here, in the statement's own snapshot, never from a process list read earlier: an
--- owner that heartbeated since the caller looked is live and keeps its units, and the caller
--- must itself be live to claim at all, so a process whose row expired or was swept cannot take
--- units until its next heartbeat. FOR UPDATE SKIP LOCKED lets concurrent claimers race without
--- blocking; a unit is claimed by exactly one of them.
+-- Claims up to @claimLimit units for @processId. Only units with endpoints are claimable: an
+-- empty unit (shard growth, every endpoint deleted) has nothing to poll and is left unowned
+-- until an endpoint lands on it. Unowned units come first, walked in (tenant_id, shard) order
+-- from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
+-- at a random key and wraps around), then units of processes whose heartbeat row has expired,
+-- walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
+-- candidate population. Liveness is decided here, in the statement's own snapshot, never from
+-- a process list read earlier: an owner that heartbeated since the caller looked is live and
+-- keeps its units, and the caller must itself be live to claim at all, so a process whose row
+-- expired or was swept cannot take units until its next heartbeat. FOR UPDATE SKIP LOCKED lets
+-- concurrent claimers race without blocking; a unit is claimed by exactly one of them.
 WITH unowned AS (
     SELECT l.tenant_id, l.shard
     FROM v1_serverless_lease l
     WHERE
         l.process_id IS NULL
+        AND l.endpoint_count > 0
         AND (l.tenant_id, l.shard) > (@afterTenantId::UUID, @afterShard::INT)
     ORDER BY l.tenant_id, l.shard
     LIMIT @claimLimit::INT
@@ -257,7 +259,7 @@ WITH unowned AS (
     CROSS JOIN LATERAL (
         SELECT l.tenant_id, l.shard
         FROM v1_serverless_lease l
-        WHERE l.process_id = p.process_id
+        WHERE l.process_id = p.process_id AND l.endpoint_count > 0
         ORDER BY l.tenant_id, l.shard
         LIMIT @claimLimit::INT
         FOR UPDATE SKIP LOCKED
@@ -311,33 +313,37 @@ WHERE process_id = @processId::UUID
 ORDER BY tenant_id, shard;
 
 -- name: CountClaimableServerlessLeases :one
--- Counts what a process may claim under the liveness rule of ClaimServerlessLeases: unowned
--- units (v1_serverless_lease_claimable_idx, index only) plus units still held by processes
--- whose heartbeat row has expired (v1_serverless_lease_owner_idx), so a survivor's fair share
--- includes the work of dead processes. Each side is counted over at most @countLimit units: a
--- caller only needs the claimable population up to the fleet's claim budget for one tick, and
--- the weight beyond the window is discovered on later ticks as the population shrinks.
+-- Counts what a process may claim under the rules of ClaimServerlessLeases: unowned units
+-- with endpoints (v1_serverless_lease_claimable_idx, index only) plus units with endpoints
+-- still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx), so
+-- a survivor's fair share includes the work of dead processes. Empty units are not counted,
+-- as they are not claimed: a window of empty rows would otherwise report a claimable
+-- population of zero weight and hide the populated units behind it. Each side is a sample
+-- of at most @countLimit units, and the abandoned side is bounded as a whole, not per dead
+-- process: a caller only needs to know the claimable population up to its own claim budget
+-- for one tick, and a full sample tells it the backlog is at least that large.
 WITH unowned AS (
     SELECT COUNT(*) AS n, COALESCE(SUM(u.endpoint_count), 0) AS w
     FROM (
         SELECT endpoint_count
         FROM v1_serverless_lease
-        WHERE process_id IS NULL
+        WHERE process_id IS NULL AND endpoint_count > 0
         LIMIT @countLimit::BIGINT
     ) u
 ), abandoned AS (
-    SELECT COALESCE(SUM(a.n), 0) AS n, COALESCE(SUM(a.w), 0) AS w
-    FROM v1_serverless_process p
-    CROSS JOIN LATERAL (
-        SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
-        FROM (
+    SELECT COUNT(*) AS n, COALESCE(SUM(o.endpoint_count), 0) AS w
+    FROM (
+        SELECT a.endpoint_count
+        FROM v1_serverless_process p
+        CROSS JOIN LATERAL (
             SELECT l.endpoint_count
             FROM v1_serverless_lease l
-            WHERE l.process_id = p.process_id
+            WHERE l.process_id = p.process_id AND l.endpoint_count > 0
             LIMIT @countLimit::BIGINT
-        ) o
-    ) a
-    WHERE p.expires_at < now()
+        ) a
+        WHERE p.expires_at < now()
+        LIMIT @countLimit::BIGINT
+    ) o
 )
 SELECT
     (unowned.n + abandoned.n)::BIGINT AS unit_count,

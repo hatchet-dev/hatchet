@@ -53,6 +53,7 @@ var (
 	tenantB = uuid.MustParse("00000000-0000-0000-0000-00000000000b")
 	tenantC = uuid.MustParse("00000000-0000-0000-0000-00000000000c")
 	tenantD = uuid.MustParse("00000000-0000-0000-0000-00000000000d")
+	tenantE = uuid.MustParse("00000000-0000-0000-0000-00000000000e")
 )
 
 // newLeaser builds a leaser with small claim batches and heartbeats it once, as Run does
@@ -338,6 +339,62 @@ func TestTickClaimsOneUnitWhenHoldingNothing(t *testing.T) {
 	require.NoError(t, s.Tick(context.Background()))
 
 	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.gained)
+}
+
+// A window of empty units ahead of the populated ones must not hide them: empty units are
+// not claimable, so the count sample skips them and the populated unit is claimed on the
+// first tick even though the process already holds its fair share.
+func TestTickClaimsPopulatedUnitsBehindEmptyOnes(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+
+	repo.SetLease(unit(tenantA, 0), &pid, 1)
+	repo.SetLease(unit(tenantA, 1), nil, 0)
+	repo.SetLease(unit(tenantB, 0), nil, 0)
+	repo.SetLease(unit(tenantC, 0), nil, 0)
+	repo.SetLease(unit(tenantD, 0), nil, 0)
+	repo.SetLease(unit(tenantE, 0), nil, 3)
+
+	rec := &fakeReconciler{}
+	s := newLeaserWithConfig(t, repo, rec, Config{ProcessId: pid, ClaimBatch: 4, MaxClaimPerTick: 4})
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, s.Tick(context.Background()))
+		require.NoError(t, s.Heartbeat(context.Background()))
+	}
+
+	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantE, 0)}, s.Owned(), "the populated unit behind the empty window is claimed")
+
+	for _, u := range []Unit{unit(tenantA, 1), unit(tenantB, 0), unit(tenantC, 0), unit(tenantD, 0)} {
+		assert.Nil(t, repo.Lease(u).ProcessID, "an empty unit is never claimed")
+	}
+}
+
+// A full count sample means the backlog is at least a tick's worth: the process takes a full
+// MaxClaimPerTick rather than the sample divided by the fleet, so a cold start does not crawl
+// on a large fleet, and the count never has to cover the whole backlog.
+func TestSaturatedSampleClaimsAFullTick(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+	other := uuid.New()
+
+	repo.SetProcess(other, 0, 0, false)
+
+	for i := 0; i < 6; i++ {
+		repo.SetLease(unit(uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-0000000000%02d", i+10)), 0), nil, 1)
+	}
+
+	rec := &fakeReconciler{}
+	s := newLeaserWithConfig(t, repo, rec, Config{ProcessId: pid, ClaimBatch: 2, MaxClaimPerTick: 4})
+
+	require.NoError(t, s.Tick(context.Background()))
+
+	assert.Len(t, rec.gained, 4, "a saturated sample claims MaxClaimPerTick, not its share of the sample")
+
+	// The sample is exact once the backlog fits in it: 4 held here, 0 there, 2 claimable is
+	// a fair share of 3, so the rest is the other process's to claim.
+	require.NoError(t, s.Tick(context.Background()))
+	assert.Len(t, rec.gained, 4)
 }
 
 func TestTickTakesOverDeadProcessUnits(t *testing.T) {

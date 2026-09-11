@@ -509,6 +509,74 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, dead)
 	})
 
+	t.Run("empty units are neither counted nor claimed", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		// Four empty units sort before the populated one; the count sample of four must
+		// skip them, and a claim must never take them.
+		for i := 0; i < 4; i++ {
+			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Shard: 0}
+			require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
+		}
+
+		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Shard: 0}
+		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, populated))
+		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, populated, 3))
+
+		sampled, err := repo.Leases().CountClaimable(ctx, 4)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), sampled.UnitCount)
+		assert.Equal(t, int64(3), sampled.EndpointCount)
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		claimed := claimAll(t, ctx, repo, processId, 10)
+		assert.Equal(t, []ServerlessUnit{populated}, claimed)
+
+		// An empty unit held by a dead process is not counted or claimed either.
+		dead := uuid.New()
+		heartbeat(t, ctx, repo, dead, time.Minute)
+		emptyDead := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000005"), Shard: 0}
+		_, err = pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, emptyDead.TenantId)
+		require.NoError(t, err)
+		expireProcess(t, ctx, pool, dead, time.Minute)
+
+		sampled, err = repo.Leases().CountClaimable(ctx, 4)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), sampled.UnitCount)
+		assert.Empty(t, claimAll(t, ctx, repo, processId, 10))
+	})
+
+	t.Run("abandoned count is bounded as a whole", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		// Three dead owners of four units each: a window of five covers five units, not
+		// five per owner.
+		for i := 0; i < 3; i++ {
+			dead := uuid.New()
+			heartbeat(t, ctx, repo, dead, time.Minute)
+
+			for j := 0; j < 4; j++ {
+				unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+				require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
+				require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, 1))
+				_, err := pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, unit.TenantId)
+				require.NoError(t, err)
+			}
+
+			expireProcess(t, ctx, pool, dead, time.Minute)
+		}
+
+		windowed, err := repo.Leases().CountClaimable(ctx, 5)
+		require.NoError(t, err)
+		assert.Equal(t, int64(5), windowed.UnitCount)
+		assert.Equal(t, int64(5), windowed.EndpointCount)
+
+		exact := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(12), exact.UnitCount)
+	})
+
 	t.Run("concurrent claims never double-claim", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 

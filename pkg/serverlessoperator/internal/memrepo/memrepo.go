@@ -535,10 +535,15 @@ func (r *Repo) liveLocked(processId uuid.UUID) bool {
 	return ok && !proc.expired
 }
 
-// claimableLocked applies the database's rule: a unit is claimable when it has no owner or
-// its owner's heartbeat row exists and has expired. A missing owner row is not claimable;
-// row deletions release their units instead.
+// claimableLocked applies the database's rule: a unit is claimable when it has endpoints
+// and either no owner or an owner whose heartbeat row exists and has expired. An empty unit
+// is never claimed; a missing owner row is not claimable, row deletions release their units
+// instead.
 func (r *Repo) claimableLocked(lease *sqlcv1.V1ServerlessLease) bool {
+	if lease.EndpointCount <= 0 {
+		return false
+	}
+
 	if lease.ProcessID == nil {
 		return true
 	}
@@ -587,7 +592,9 @@ func (l *leases) Claim(_ context.Context, processId uuid.UUID, after Unit, limit
 			break
 		}
 
-		if l.r.leases[unit].ProcessID != nil || !lessUnit(after, unit) {
+		lease := l.r.leases[unit]
+
+		if lease.ProcessID != nil || !l.r.claimableLocked(lease) || !lessUnit(after, unit) {
 			continue
 		}
 
@@ -677,12 +684,15 @@ func (l *leases) CountClaimable(_ context.Context, limit int64) (*sqlcv1.CountCl
 
 	row := &sqlcv1.CountClaimableServerlessLeasesRow{}
 
-	// The database caps each side of the count at limit; the fake counts unowned and
-	// abandoned units together against the same cap, which is what the leaser observes.
-	for _, lease := range l.r.leases {
+	// The database samples each side of the count up to limit in key order; the fake counts
+	// unowned and abandoned units together against the same cap, in key order, which is what
+	// the leaser observes.
+	for _, unit := range sortedUnits(l.r.leases) {
 		if row.UnitCount >= limit {
 			break
 		}
+
+		lease := l.r.leases[unit]
 
 		if l.r.claimableLocked(lease) {
 			row.UnitCount++
