@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 
 	"github.com/doyensec/safeurl"
 )
@@ -43,28 +44,34 @@ const (
 	reasonCredentials blockReason = "credentials"
 )
 
-// mapSafeurlError translates an error returned from safeurl's WrappedClient.Do (or our own
-// pre-checks) into one of our typed errors. The first return value is the metric reason
-// for policy blocks, or the empty string for non-policy (transient/context) errors.
+// mapSafeurlError translates an error returned from safeurl's WrappedClient.Do into one of
+// our typed errors, worded for the tenant. The first return value is the metric reason for
+// policy blocks, or the empty string for non-policy (transient/context) errors, which are
+// returned as they are for the caller to wrap.
+//
+// A policy failure's public form names the configured host and the policy category and
+// nothing else: safeurl's own messages carry the resolved address and the full request URL,
+// query string included, which must not reach task errors or endpoint status. The cause is
+// logged by the caller through logCause.
 //
 // safeurl returns scheme/credentials/host validation errors directly, while port and
 // resolved-IP errors surface from the dialer wrapped inside a *url.Error; errors.As
 // traverses that wrapping.
-func mapSafeurlError(err error) (blockReason, error) {
+func mapSafeurlError(host string, err error) (blockReason, error) {
 	if err == nil {
 		return "", nil
 	}
 
 	if _, ok := errors.AsType[*safeurl.AllowedSchemeError](err); ok {
-		return reasonScheme, fmt.Errorf("%w: %v", ErrBadScheme, err)
+		return reasonScheme, fmt.Errorf("%w: endpoint host %s", ErrBadScheme, host)
 	}
 
 	if _, ok := errors.AsType[*safeurl.AllowedPortError](err); ok {
-		return reasonPort, fmt.Errorf("%w: %v", ErrBadPort, err)
+		return reasonPort, fmt.Errorf("%w: endpoint host %s", ErrBadPort, host)
 	}
 
 	if _, ok := errors.AsType[*safeurl.SendingCredentialsBlockedError](err); ok {
-		return reasonCredentials, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonCredentials, fmt.Errorf("%w: userinfo not allowed in URL", ErrBlockedDestination)
 	}
 
 	_, isIPErr := errors.AsType[*safeurl.AllowedIPError](err)
@@ -73,7 +80,7 @@ func mapSafeurlError(err error) (blockReason, error) {
 	_, isHostErr := errors.AsType[*safeurl.AllowedHostError](err)
 
 	if isIPErr || isIPv6Err || isInvalidHostErr || isHostErr {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint host %s resolves to an address the policy does not allow", ErrBlockedDestination, host)
 	}
 
 	// Context errors stay matchable via errors.Is so callers can treat caller-owned
@@ -85,6 +92,19 @@ func mapSafeurlError(err error) (blockReason, error) {
 
 	// Everything else is a transient/network failure: retryable.
 	return "", err
+}
+
+// logCause is the form of a transport or policy error the operator log gets: a *url.Error
+// carries the whole request URL, userinfo and query string included, so its inner error is
+// logged instead, under the host the caller logs beside it.
+func logCause(err error) error {
+	var urlErr *url.Error
+
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		return fmt.Errorf("%s: %w", urlErr.Op, urlErr.Err)
+	}
+
+	return err
 }
 
 // Stage is the step of an outbound request at which a transport failure happened.

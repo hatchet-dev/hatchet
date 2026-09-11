@@ -248,3 +248,44 @@ func TestInsecureDestinations(t *testing.T) {
 	_, err = strict.Deliver(ctx, http.MethodPost, srv.URL+"/hook", []byte("{}"), nil)
 	assert.ErrorIs(t, err, ErrBadScheme)
 }
+
+// A policy block's public error names the configured host and the policy category only:
+// safeurl's own message carries the resolved address and the full request URL, query string
+// included, and neither may reach a task error or an endpoint's status.
+func TestDeliver_PolicyErrorsAreRedacted(t *testing.T) {
+	l := zerolog.Nop()
+
+	sender, err := New(Config{InfraBlockedCIDRs: []string{"10.0.0.0/8"}}, &l)
+	require.NoError(t, err)
+
+	defer sender.CloseIdleConnections()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = sender.Deliver(ctx, http.MethodPost, "https://localhost/review?credential=review-marker", nil, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrBlockedDestination)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "localhost")
+	assert.NotContains(t, msg, "review-marker", "the query string must not be in the public error")
+	assert.NotContains(t, msg, "127.0.0.1", "the resolved address must not be in the public error")
+	assert.NotContains(t, msg, "::1")
+	assert.NotContains(t, msg, "/review")
+
+	// A URL that does not parse is refused without echoing it.
+	_, err = sender.Deliver(ctx, http.MethodPost, "https://user:secret-marker@%zz/", nil, nil)
+	require.ErrorIs(t, err, ErrBlockedDestination)
+	assert.NotContains(t, err.Error(), "secret-marker")
+}
+
+// The operator log gets the cause without the request URL.
+func TestLogCauseStripsTheURL(t *testing.T) {
+	cause := &url.Error{Op: "Post", URL: "https://host/path?credential=marker", Err: errors.New("dial tcp 127.0.0.1:443: ipv6 blocked")}
+
+	logged := logCause(cause)
+	assert.NotContains(t, logged.Error(), "marker")
+	assert.Contains(t, logged.Error(), "ipv6 blocked")
+	assert.ErrorIs(t, logged, cause.Err)
+}

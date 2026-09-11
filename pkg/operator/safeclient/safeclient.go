@@ -330,10 +330,10 @@ func (s *Sender) Deliver(ctx context.Context, method, endpoint string, body []by
 	resp, err := s.client.Do(req)
 
 	if err != nil {
-		reason, mapped := mapSafeurlError(err)
+		reason, mapped := mapSafeurlError(host, err)
 
 		if reason != "" {
-			s.recordBlocked(host, reason, mapped)
+			s.recordBlocked(host, reason, err)
 			return nil, mapped
 		}
 
@@ -380,7 +380,7 @@ func (s *Sender) validate(endpoint string) (blockReason, error) {
 	// blocked range, before any network I/O.
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if ip, ok := parseHostLiteralIP(u.Hostname()); ok && s.blocklist.isBlockedIP(ip) {
@@ -390,34 +390,36 @@ func (s *Sender) validate(endpoint string) (blockReason, error) {
 	return "", nil
 }
 
-// publicError logs the transport failure in full and returns its tenant-facing form.
+// publicError logs the transport failure and returns its tenant-facing form.
 func (s *Sender) publicError(host string, err error) error {
 	public := PublicError(host, err)
 
 	var endpointErr *EndpointError
 
 	if s.l != nil && errors.As(public, &endpointErr) {
-		// Never log request bodies. Host, stage and the transport error only.
+		// Never log request bodies or URLs. Host, stage and the transport error only.
 		s.l.Warn().
 			Str("host", host).
 			Str("stage", string(endpointErr.Stage)).
-			Err(err).
+			Err(logCause(err)).
 			Msg("outbound request failed")
 	}
 
 	return public
 }
 
+// recordBlocked logs a policy block with its cause, which is the operator's to see: the
+// tenant gets the public error the caller returns.
 func (s *Sender) recordBlocked(host string, reason blockReason, err error) {
 	if s.l == nil {
 		return
 	}
 
-	// Never log request bodies. Host + matched rule only.
+	// Never log request bodies or URLs. Host, matched rule and the cause only.
 	s.l.Warn().
 		Str("host", host).
 		Str("reason", string(reason)).
-		Err(err).
+		Err(logCause(err)).
 		Msg("blocked outbound request")
 }
 
@@ -447,7 +449,7 @@ func validateInsecureURL(rawURL string) (blockReason, error) {
 	u, err := url.Parse(rawURL)
 
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if u.Scheme != allowedScheme && u.Scheme != "http" {
@@ -468,7 +470,7 @@ func validateURL(rawURL string, allowedPorts []int) (blockReason, error) {
 	u, err := url.Parse(rawURL)
 
 	if err != nil {
-		return reasonDestination, fmt.Errorf("%w: %v", ErrBlockedDestination, err)
+		return reasonDestination, fmt.Errorf("%w: endpoint URL could not be parsed", ErrBlockedDestination)
 	}
 
 	if u.Scheme != allowedScheme {
