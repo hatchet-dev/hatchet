@@ -457,3 +457,78 @@ func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
 		return session.lastEvent() != nil && session.lastEvent().EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED
 	}, eventually, 10*time.Millisecond, "the delivery completed on the registration it started on")
 }
+
+// barrierHost blocks every Open until want of them are in progress at once, or a second
+// passes, and records the most concurrent Opens it saw.
+type barrierHost struct {
+	fakeHost
+	want    int
+	entered int
+	most    int
+	release chan struct{}
+	cond    *sync.Cond
+}
+
+func newBarrierHost(want int) *barrierHost {
+	h := &barrierHost{want: want, release: make(chan struct{})}
+	h.cond = sync.NewCond(&h.fakeHost.mu)
+
+	return h
+}
+
+func (h *barrierHost) Open(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operator.Session, error) {
+	h.fakeHost.mu.Lock()
+	h.entered++
+	h.most = max(h.most, h.entered)
+
+	if h.entered == h.want {
+		close(h.release)
+	}
+
+	h.fakeHost.mu.Unlock()
+
+	select {
+	case <-h.release:
+	case <-time.After(time.Second):
+	case <-ctx.Done():
+	}
+
+	h.fakeHost.mu.Lock()
+	h.entered--
+	h.fakeHost.mu.Unlock()
+
+	return h.fakeHost.Open(ctx, id, opts)
+}
+
+func (h *barrierHost) mostConcurrent() int {
+	h.fakeHost.mu.Lock()
+	defer h.fakeHost.mu.Unlock()
+
+	return h.most
+}
+
+// One UnitsGained call carrying several tenants (a startup, a takeover) opens their
+// registrations concurrently, bounded by MaintenanceConcurrency, rather than waiting through
+// every tenant's load and Open in series.
+func TestGainedTenantsOpenConcurrently(t *testing.T) {
+	env := newTestEnv(t)
+	env.r.cfg.MaintenanceConcurrency = 4
+
+	host := newBarrierHost(4)
+	env.r.host = host
+
+	units := make([]memrepo.Unit, 0, 6)
+
+	for i := 0; i < 6; i++ {
+		row := healthyRow(endpointSpec{tenantId: uuid.New(), name: fmt.Sprintf("t%d", i), actions: []string{"svc:a"}})
+		env.addEndpoint(row)
+		units = append(units, env.unit(row))
+	}
+
+	start := time.Now()
+	env.r.UnitsGained(context.Background(), units)
+
+	assert.Equal(t, 4, host.mostConcurrent(), "gains of one batch open up to MaintenanceConcurrency tenants at once")
+	assert.Less(t, time.Since(start), 3*time.Second)
+	assert.Equal(t, 6, host.openCount())
+}

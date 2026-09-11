@@ -243,13 +243,36 @@ func (r *runner) pendingUnits() []lease.Unit {
 // UnitsGained implements lease.Reconciler: for each tenant, load its routing cache (or the
 // gained units' endpoints when it is already served), open its registration if it has none
 // and start pollers. A tenant whose load fails keeps its units pending for maintenance to
-// retry; a registration that fails to open is retried by maintenance as well.
+// retry; a registration that fails to open is retried by maintenance as well. One batch
+// gains its tenants concurrently, MaintenanceConcurrency at a time: a startup or a takeover
+// gains many tenants at once, and each tenant's gain is a load and a Host.Open, so in series
+// the lease tick would wait through every one of them.
 func (r *runner) UnitsGained(ctx context.Context, units []lease.Unit) {
-	for tenantId, shards := range groupUnits(units) {
-		r.gainUnits(ctx, tenantId, shards)
+	r.gainGroups(ctx, groupUnits(units))
+	r.updateGauges()
+}
+
+// gainGroups gains every tenant's units on a bounded pool and returns once all are done. A
+// tenant's gain runs under its own opMu, so the pool never runs two gains of one tenant.
+func (r *runner) gainGroups(ctx context.Context, groups map[uuid.UUID][]int32) {
+	sem := make(chan struct{}, r.cfg.MaintenanceConcurrency)
+
+	var wg sync.WaitGroup
+
+	for tenantId, shards := range groups {
+		wg.Add(1)
+
+		go func(tenantId uuid.UUID, shards []int32) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			r.gainUnits(ctx, tenantId, shards)
+		}(tenantId, shards)
 	}
 
-	r.updateGauges()
+	wg.Wait()
 }
 
 func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int32) {
@@ -491,10 +514,7 @@ func (r *runner) maintainOnce(ctx context.Context) {
 
 	wg.Wait()
 
-	for tenantId, shards := range groupUnits(r.pendingUnits()) {
-		r.gainUnits(ctx, tenantId, shards)
-	}
-
+	r.gainGroups(ctx, groupUnits(r.pendingUnits()))
 	r.updateGauges()
 }
 
