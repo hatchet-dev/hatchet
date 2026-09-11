@@ -256,8 +256,8 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 
 	// The engine registers every wire session as SELF: the row is kept alive by this host's
 	// stream, and an engine-leased row can never be driven over the wire.
-	if id.Leasing != "" && id.Leasing != sqlcv1.V1OperatorLeasingSELF {
-		return nil, fmt.Errorf("hostgrpc: operator leasing %s cannot be registered over OperatorService: %w", id.Leasing, operator.ErrNotSupported)
+	if id.LeasingManager != "" && id.LeasingManager != sqlcv1.V1OperatorLeasingManagerSELF {
+		return nil, fmt.Errorf("hostgrpc: operator leasing manager %s cannot be registered over OperatorService: %w", id.LeasingManager, operator.ErrNotSupported)
 	}
 
 	if id.Name == "" {

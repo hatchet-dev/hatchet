@@ -23,7 +23,7 @@ type OperatorRepository interface {
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
 
 	// UpsertOperator registers an operator by (tenant, name, kind), returning the existing row
-	// on repeat registrations with its leasing set to the one given. A SELF row never gets a
+	// on repeat registrations with its leasing manager set to the one given. A SELF row never gets a
 	// worker_id on the operator row: each registration owns its own worker, created through
 	// WorkerRepository.CreateNewWorker with CreateWorkerOpts.OperatorId and linked via
 	// "Worker"."operatorId".
@@ -57,10 +57,10 @@ type CreateOperatorOpts struct {
 	Name string                `json:"name" validate:"required"`
 	Kind sqlcv1.V1OperatorKind `json:"kind" validate:"required,oneof=DAG GRPC"`
 
-	// Leasing is who keeps the operator alive: MANAGED rows are claimed by a dispatcher and
-	// built from a factory, SELF rows register their own workers.
-	Leasing sqlcv1.V1OperatorLeasing `json:"leasing" validate:"required,oneof=MANAGED SELF"`
-	Config  []byte                   `json:"config" validate:"required"`
+	// LeasingManager is who keeps the operator alive: for a DISPATCHER row the dispatcher claims
+	// the row and builds the operator from a factory, a SELF row registers its own workers.
+	LeasingManager sqlcv1.V1OperatorLeasingManager `json:"leasing_manager" validate:"required,oneof=SELF DISPATCHER"`
+	Config         []byte                          `json:"config" validate:"required"`
 }
 
 func (r *operatorRepository) CreateOperator(ctx context.Context, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
@@ -69,11 +69,11 @@ func (r *operatorRepository) CreateOperator(ctx context.Context, tenantId uuid.U
 	}
 
 	return r.queries.CreateOperator(ctx, r.pool, sqlcv1.CreateOperatorParams{
-		Tenantid: tenantId,
-		Name:     opts.Name,
-		Kind:     opts.Kind,
-		Leasing:  opts.Leasing,
-		Config:   opts.Config,
+		Tenantid:       tenantId,
+		Name:           opts.Name,
+		Kind:           opts.Kind,
+		LeasingManager: opts.LeasingManager,
+		Config:         opts.Config,
 	})
 }
 
@@ -81,8 +81,8 @@ type UpsertOperatorOpts struct {
 	Name string                `validate:"required"`
 	Kind sqlcv1.V1OperatorKind `validate:"required,oneof=DAG GRPC"`
 
-	// Leasing is what the row is set to whether it is created or found.
-	Leasing sqlcv1.V1OperatorLeasing `validate:"required,oneof=MANAGED SELF"`
+	// LeasingManager is what the row is set to whether it is created or found.
+	LeasingManager sqlcv1.V1OperatorLeasingManager `validate:"required,oneof=SELF DISPATCHER"`
 }
 
 func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts UpsertOperatorOpts) (*sqlcv1.V1Operator, error) {
@@ -91,10 +91,10 @@ func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.U
 	}
 
 	return r.queries.UpsertOperator(ctx, r.pool, sqlcv1.UpsertOperatorParams{
-		Tenantid: tenantId,
-		Name:     opts.Name,
-		Kind:     opts.Kind,
-		Leasing:  opts.Leasing,
+		Tenantid:       tenantId,
+		Name:           opts.Name,
+		Kind:           opts.Kind,
+		LeasingManager: opts.LeasingManager,
 	})
 }
 

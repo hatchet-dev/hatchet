@@ -361,15 +361,15 @@ func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
 
 	h := newHarness(t, claimer.WithNamedFactory("serverless", named))
 
-	serverless := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
-	unknown := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "nobody-builds-this", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
-	dag := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
+	serverless := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+	unknown := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "nobody-builds-this", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+	dag := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
 
 	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
 
 	assert.Equal(t, []string{"serverless"}, built, "the named factory builds GRPC rows of its name only")
 	require.Equal(t, 1, h.host.openCount())
-	assert.Equal(t, serverless.ID, *h.host.opens[0].OperatorId, "a managed row is opened by id")
+	assert.Equal(t, serverless.ID, *h.host.opens[0].OperatorId, "a DISPATCHER row is opened by id")
 	assert.Equal(t, 1, h.Running())
 
 	// the rows with no factory stay unhosted on later polls without being retried

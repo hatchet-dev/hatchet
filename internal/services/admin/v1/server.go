@@ -962,10 +962,10 @@ func (a *AdminServiceImpl) ensureDAGOperator(ctx context.Context, tenantId uuid.
 	// The DAG operator is engine-leased: the claimer assigns the row to a dispatcher and
 	// builds the operator there.
 	_, err = a.repo.Operators().CreateOperator(ctx, tenantId, v1.CreateOperatorOpts{
-		Name:    "default",
-		Kind:    sqlcv1.V1OperatorKindDAG,
-		Leasing: sqlcv1.V1OperatorLeasingMANAGED,
-		Config:  config,
+		Name:           "default",
+		Kind:           sqlcv1.V1OperatorKindDAG,
+		LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
+		Config:         config,
 	})
 
 	// Two workflows put at once both see no operator and both create one; the row is unique

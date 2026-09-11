@@ -179,14 +179,14 @@ func New(fs ...Opt) (*Host, error) {
 }
 
 // Open implements operator.Host. It registers the operator (an existing row by id, or an upsert
-// by name, kind and leasing) and its worker, opens a handler-backed engine session under a fresh
+// by name, kind and leasing manager) and its worker, opens a handler-backed engine session under a fresh
 // session id that is both the dispatcher's key and the worker row's listener fence, links the
 // initial action set, and adds the worker to the heartbeat set. A failure after the session was
 // opened closes it again, so the caller never inherits a half-open worker.
 //
 // Every worker this host creates is exempt from the tenant's worker and slot limits: an
 // operator hosted inside the engine is infrastructure that runs whether or not the tenant runs
-// workers of its own, whichever kind or leasing its row has.
+// workers of its own, whichever kind or leasing manager its row has.
 func (h *Host) Open(ctx context.Context, id operator.Identity, o operator.OpenOpts) (operator.Session, error) {
 	if o.Handler == nil {
 		return nil, errors.New("hostinproc: an action handler is required")
@@ -208,17 +208,17 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, o operator.OpenOp
 		kind = sqlcv1.V1OperatorKindGRPC
 	}
 
-	leasing := id.Leasing
+	leasingManager := id.LeasingManager
 
-	if leasing == "" {
-		leasing = sqlcv1.V1OperatorLeasingSELF
+	if leasingManager == "" {
+		leasingManager = sqlcv1.V1OperatorLeasingManagerSELF
 	}
 
 	reg, err := h.svc.Register(ctx, tenant, operatorsvc.RegisterOpts{
 		OperatorId:       id.OperatorId,
 		Name:             id.Name,
 		Kind:             kind,
-		Leasing:          leasing,
+		LeasingManager:   leasingManager,
 		ExemptFromLimits: true,
 		WorkerName:       o.WorkerName,
 		SlotConfig:       o.SlotConfig,

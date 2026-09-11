@@ -23,7 +23,7 @@ const defaultSlotCount = 100
 // worker to back this session.
 type RegisterOpts struct {
 	// OperatorId is an existing operator row, as claimed by the in-process claimer. Name, Kind
-	// and Leasing are taken from the row and no upsert happens; the row's worker_id is pointed
+	// and LeasingManager are taken from the row and no upsert happens; the row's worker_id is pointed
 	// at the session's worker, which is how ClaimOperators recognises the assignment on later
 	// polls.
 	OperatorId *uuid.UUID
@@ -36,11 +36,11 @@ type RegisterOpts struct {
 	// when OperatorId is set.
 	Kind sqlcv1.V1OperatorKind
 
-	// Leasing is who keeps the operator alive, and is what the row is set to whether the
+	// LeasingManager is who keeps the operator alive, and is what the row is set to whether the
 	// upsert creates or finds it: SELF for a registration that holds its own stream or leaser,
-	// MANAGED for a row the claimer should assign to a dispatcher. Ignored when OperatorId is
-	// set.
-	Leasing sqlcv1.V1OperatorLeasing
+	// DISPATCHER for a row a dispatcher should claim through the claimer. Ignored when
+	// OperatorId is set.
+	LeasingManager sqlcv1.V1OperatorLeasingManager
 
 	// ExemptFromLimits leaves the worker out of the tenant's worker and slot limits. It is a
 	// hosting fact: the in-process host sets it for every worker it creates, the wire never
@@ -181,23 +181,23 @@ func (s *Service) pointOperatorAtWorker(ctx context.Context, op *sqlcv1.V1Operat
 }
 
 // upsertOperator upserts the row a named registration stands for. Only contract operators are
-// registered by name; the leasing is the caller's claim about who keeps the row alive and is
+// registered by name; the leasing manager is the caller's claim about who keeps the row alive and is
 // written whether the row is created or found.
 func (s *Service) upsertOperator(ctx context.Context, tenant *sqlcv1.Tenant, opts RegisterOpts) (*sqlcv1.V1Operator, error) {
 	if opts.Kind != sqlcv1.V1OperatorKindGRPC {
 		return nil, fmt.Errorf("operator kind %q cannot be registered through a session", opts.Kind)
 	}
 
-	switch opts.Leasing {
-	case sqlcv1.V1OperatorLeasingSELF, sqlcv1.V1OperatorLeasingMANAGED:
+	switch opts.LeasingManager {
+	case sqlcv1.V1OperatorLeasingManagerSELF, sqlcv1.V1OperatorLeasingManagerDISPATCHER:
 	default:
-		return nil, fmt.Errorf("operator leasing %q cannot be registered through a session", opts.Leasing)
+		return nil, fmt.Errorf("operator leasing manager %q cannot be registered through a session", opts.LeasingManager)
 	}
 
 	op, err := s.operators.UpsertOperator(ctx, tenant.ID, repository.UpsertOperatorOpts{
-		Name:    opts.Name,
-		Kind:    opts.Kind,
-		Leasing: opts.Leasing,
+		Name:           opts.Name,
+		Kind:           opts.Kind,
+		LeasingManager: opts.LeasingManager,
 	})
 
 	if err != nil {
