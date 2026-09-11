@@ -574,17 +574,10 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.ChildTaskErrorMessage,
 		)
 
-		if err == nil {
-			continue
-		}
-
-		if errors.Is(err, ErrNoActiveDurableInvocation) {
-			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (no active durable session on this dispatcher); will redeliver via dead-letter queue", payload.TaskExternalId)
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("could not deliver callback completion for task %s; redelivering via the dead-letter queue", payload.TaskExternalId)
 			undelivered = append(undelivered, *payload)
-			continue
 		}
-
-		d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
 	}
 
 	if len(undelivered) == 0 {
