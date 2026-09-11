@@ -29,6 +29,7 @@ import (
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
@@ -79,10 +80,10 @@ func uniqueName(prefix string) string {
 }
 
 // connect registers an operator worker with the given slot config.
-func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, slots map[string]int32) client.OperatorSession {
+func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, slots map[string]int32) operatorclient.Session {
 	t.Helper()
 
-	session, err := v0.Operator().Connect(ctx, &client.ConnectOperatorRequest{
+	session, err := v0.Operator().Connect(ctx, &operatorclient.ConnectRequest{
 		Name:       uniqueName(name),
 		SlotConfig: slots,
 	})
@@ -93,7 +94,7 @@ func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, s
 
 // putAndAdd puts the workflow, adds its actions to the session and waits for
 // the delta to land on the engine.
-func putAndAdd(t *testing.T, ctx context.Context, session client.OperatorSession, wf *v1.CreateWorkflowVersionRequest) *v1.CreateWorkflowVersionResponse {
+func putAndAdd(t *testing.T, ctx context.Context, session operatorclient.Session, wf *v1.CreateWorkflowVersionRequest) *v1.CreateWorkflowVersionResponse {
 	t.Helper()
 
 	resp, actions, err := session.PutWorkflow(ctx, wf)
@@ -116,7 +117,7 @@ func putAndAdd(t *testing.T, ctx context.Context, session client.OperatorSession
 // flushAndPoll flushes the session's deltas, then polls the worker's linked
 // actions until done accepts them: deltas are applied by the engine after the
 // stream has accepted them, so Flush alone is not a database barrier.
-func flushAndPoll(t *testing.T, ctx context.Context, session client.OperatorSession, done func(linked []string) bool) {
+func flushAndPoll(t *testing.T, ctx context.Context, session operatorclient.Session, done func(linked []string) bool) {
 	t.Helper()
 	require.NoError(t, session.Flush(ctx))
 
@@ -128,7 +129,7 @@ func flushAndPoll(t *testing.T, ctx context.Context, session client.OperatorSess
 
 // flushAndConverge is flushAndPoll followed by the scheduler's forced
 // replenish window, so its in-memory view of the worker's actions matches.
-func flushAndConverge(t *testing.T, ctx context.Context, session client.OperatorSession, done func(linked []string) bool) {
+func flushAndConverge(t *testing.T, ctx context.Context, session operatorclient.Session, done func(linked []string) bool) {
 	t.Helper()
 	flushAndPoll(t, ctx, session, done)
 	time.Sleep(schedulerConvergence)
@@ -177,7 +178,7 @@ type taskHandler func(ctx context.Context, action *dispatchercontracts.AssignedA
 // serve runs the session's action loop in the background and answers every
 // START_STEP_RUN with STARTED followed by COMPLETED or FAILED from handle.
 // Non-start actions are ignored. The loop ends when the session closes.
-func serve(t *testing.T, ctx context.Context, session client.OperatorSession, handle taskHandler) {
+func serve(t *testing.T, ctx context.Context, session operatorclient.Session, handle taskHandler) {
 	t.Helper()
 
 	actions, errCh, err := session.Actions(ctx)
@@ -440,8 +441,9 @@ func TestDurableMemo(t *testing.T) {
 
 	session := connect(t, ctx, v0, "durable-operator", map[string]int32{"default": 10, "durable": 10})
 
-	durable := session.NewDurableTaskListener()
+	durable := client.NewDurableTaskListener(session.Registration().WorkerId, session.OpenDurableTaskStream, v0.Logger())
 	durable.Start(ctx)
+	t.Cleanup(durable.Stop)
 
 	memoKey := []byte("memo-key")
 	memoPayload := []byte(`{"memo":"value"}`)
@@ -786,7 +788,8 @@ func TestHostGRPCEcho(t *testing.T) {
 	source, err := hostgrpc.NewStaticExchange(os.Getenv("HATCHET_CLIENT_TOKEN"))
 	require.NoError(t, err)
 
-	host := hostgrpc.New(source, hostgrpc.Options{})
+	host, err := hostgrpc.New(hostgrpc.WithTokenSource(source))
+	require.NoError(t, err)
 	t.Cleanup(host.Close)
 
 	echo := &operatortest.Echo{}

@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -60,7 +61,7 @@ type unackedDelta struct {
 // autofixer); mu guards desired, pending, order, unacked, nextSeq, inFlight,
 // lastErr and idle.
 type actionDeltaQueue struct {
-	stream     *reconnectingStream[*operatorListenClient]
+	stream     *streaming.ReconnectingStream[*listenClient]
 	l          *zerolog.Logger
 	desired    map[string]struct{}
 	pending    map[string]actionDeltaOp
@@ -80,7 +81,7 @@ type actionDeltaQueue struct {
 	inFlight bool
 }
 
-func newActionDeltaQueue(l *zerolog.Logger, stream *reconnectingStream[*operatorListenClient], interval time.Duration, maxChunk int) *actionDeltaQueue {
+func newActionDeltaQueue(l *zerolog.Logger, stream *streaming.ReconnectingStream[*listenClient], interval time.Duration, maxChunk int) *actionDeltaQueue {
 	q := &actionDeltaQueue{
 		stream:     stream,
 		l:          l,
@@ -203,7 +204,7 @@ func (q *actionDeltaQueue) unackedSequences() []uint64 {
 }
 
 // replay brings a fresh stream up to date. It runs under the reconnecting
-// stream's sendMu before the stream is published, so no chunk is sent in
+// stream's send lock before the stream is published, so no chunk is sent in
 // between: a chunk taken by the flusher while replay runs waits for the
 // lock and goes out on the new stream afterwards.
 //
@@ -320,7 +321,7 @@ func (q *actionDeltaQueue) flush(ctx context.Context) error {
 		select {
 		case <-idle:
 		case <-q.done:
-			return errListenerClosed
+			return streaming.ErrListenerClosed
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -377,7 +378,7 @@ func (q *actionDeltaQueue) run() {
 				break
 			}
 
-			err := q.stream.sendOnce(func(c *operatorListenClient) error {
+			err := q.stream.SendOnce(func(c *listenClient) error {
 				return c.Send(&v1.OperatorListenRequest{Message: &v1.OperatorListenRequest_Actions{Actions: chunk}})
 			})
 
@@ -387,7 +388,7 @@ func (q *actionDeltaQueue) run() {
 				// the chunk stays in flight until the reconnect attempt settles, so a
 				// flush observes either the replayed chunk or the send error, never the
 				// error of a send the replay is about to repeat
-				if rerr := q.stream.connectOnce(ctx); rerr != nil {
+				if rerr := q.stream.ConnectOnce(ctx); rerr != nil {
 					q.l.Warn().Err(rerr).Msg("could not reconnect operator listener after a failed delta send")
 					q.finishChunk(err)
 				} else {
@@ -445,7 +446,7 @@ func (q *actionDeltaQueue) expireUnacked() {
 
 	q.l.Warn().Uint64("sequence", oldest).Dur("timeout", q.ackTimeout).Msg("operator action delta was not acknowledged in time, reconnecting")
 
-	if err := q.stream.closeStream(); err != nil {
+	if err := q.stream.CloseStream(); err != nil {
 		q.l.Warn().Err(err).Msg("could not close operator listener stream after an ack timeout")
 	}
 }

@@ -22,6 +22,7 @@ import (
 
 	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -35,7 +36,7 @@ type Client interface {
 	Cron() CronClient
 	Schedule() ScheduleClient
 	Dispatcher() DispatcherClient
-	Operator() OperatorClient
+	Operator() operatorclient.Client
 	Event() EventClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
@@ -58,7 +59,7 @@ type clientImpl struct {
 	cron       CronClient
 	schedule   ScheduleClient
 	dispatcher DispatcherClient
-	operator   OperatorClient
+	operator   operatorclient.Client
 	event      EventClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
@@ -353,7 +354,17 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	subscribe := newSubscribe(conn, shared)
 	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
-	operator := newOperatorClient(conn, shared, opts.presetWorkerLabels)
+	operator, err := operatorclient.New(conn,
+		operatorclient.WithToken(opts.token),
+		operatorclient.WithHeaders(opts.grpcHeaders),
+		operatorclient.WithLogger(opts.l),
+		operatorclient.WithValidator(opts.v),
+		operatorclient.WithPresetWorkerLabels(opts.presetWorkerLabels),
+	)
+
+	if err != nil {
+		return nil, err
+	}
 	event := newEvent(conn, shared)
 
 	authEditor := func(ctx context.Context, req *http.Request) error {
@@ -439,7 +450,7 @@ func (c *clientImpl) Dispatcher() DispatcherClient {
 	return c.dispatcher
 }
 
-func (c *clientImpl) Operator() OperatorClient {
+func (c *clientImpl) Operator() operatorclient.Client {
 	return c.operator
 }
 

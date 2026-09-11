@@ -1,4 +1,10 @@
-package client
+// Package operatorclient connects an out-of-process operator to the engine's
+// OperatorService: one Connect call registers one worker and returns the
+// Session that streams its assigned actions, keeps its action set up to date
+// and reports task progress. The package speaks to a *grpc.ClientConn the
+// caller owns; pkg/client's Operator accessor builds one over its own
+// connection.
+package operatorclient
 
 import (
 	"context"
@@ -9,6 +15,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -20,16 +27,16 @@ import (
 // constant so the two packages stay independent.
 const operatorIdMetadataKey = "hatchet-operator-id"
 
-// OperatorClient connects an out-of-process operator to the engine's
-// OperatorService. One Connect call is one live worker.
-type OperatorClient interface {
-	Connect(ctx context.Context, req *ConnectOperatorRequest) (OperatorSession, error)
+// Client connects an out-of-process operator to the engine's OperatorService.
+// One Connect call is one live worker.
+type Client interface {
+	Connect(ctx context.Context, req *ConnectRequest) (Session, error)
 }
 
-// ConnectOperatorRequest describes the operator and the worker backing the
-// session. Workflows and actions are not part of registration: put workflows
-// with OperatorSession.PutWorkflow and add actions with AddActions.
-type ConnectOperatorRequest struct {
+// ConnectRequest describes the operator and the worker backing the session.
+// Workflows and actions are not part of registration: put workflows with
+// Session.PutWorkflow and add actions with AddActions.
+type ConnectRequest struct {
 	// Name is the operator name, unique per tenant among GRPC operators. The
 	// engine upserts the operator row by this name.
 	Name string `validate:"required"`
@@ -47,10 +54,10 @@ type ConnectOperatorRequest struct {
 	ResumeWorker *bool
 }
 
-// OperatorRegistration is the identity the engine assigned to the current
-// Listen stream. WorkerId can change across reconnects when the previous
-// worker no longer exists or ResumeWorker is false.
-type OperatorRegistration struct {
+// Registration is the identity the engine assigned to the current Listen
+// stream. WorkerId can change across reconnects when the previous worker no
+// longer exists or ResumeWorker is false.
+type Registration struct {
 	TenantId   string
 	OperatorId string
 	WorkerId   string
@@ -60,11 +67,11 @@ type OperatorRegistration struct {
 	Resumed bool
 }
 
-// OperatorSession is one registered operator worker. Actions may be called
-// once; the other methods are safe to call concurrently until Close. The
-// session reads its Listen stream from Connect on, so Flush observes delta
-// acknowledgements whether or not Actions has been called.
-type OperatorSession interface {
+// Session is one registered operator worker. Actions may be called once; the
+// other methods are safe to call concurrently until Close. The session reads
+// its Listen stream from Connect on, so Flush observes delta acknowledgements
+// whether or not Actions has been called.
+type Session interface {
 	// Actions starts the receive and heartbeat loops and returns the assigned
 	// action stream. The channels close when ctx is cancelled, the session is
 	// closed, or the stream fails permanently (reported on the error channel).
@@ -72,7 +79,7 @@ type OperatorSession interface {
 
 	// Registration returns the identity assigned by the most recent
 	// successful registration.
-	Registration() OperatorRegistration
+	Registration() Registration
 
 	// SendStepActionEvent reports task progress. An empty WorkerId is filled
 	// from the current registration.
@@ -102,10 +109,13 @@ type OperatorSession interface {
 	// second.
 	Flush(ctx context.Context) error
 
-	// NewDurableTaskListener builds a durable task listener bound to this
-	// session's worker. The caller starts it with Start; Close stops every
-	// listener created here.
-	NewDurableTaskListener(opts ...DurableTaskListenerOpt) *DurableTaskListener
+	// OpenDurableTaskStream opens the OperatorService durable task stream
+	// with the session's operator metadata, shaped as the V1Dispatcher
+	// stream a durable task listener expects. The register message's worker
+	// id is rewritten to the current registration, so a listener built
+	// before a reconnect registers the worker the engine now knows. The
+	// caller owns the listener it builds over it and stops it before Close.
+	OpenDurableTaskStream(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
 
 	// Pause stops the scheduler assigning to this session's worker. It
 	// returns once the engine has committed the pause, so a caller that
@@ -126,7 +136,7 @@ type OperatorSession interface {
 	Close(opts ...CloseOpt) error
 }
 
-// CloseOpt changes how an operator session is closed.
+// CloseOpt changes how a session is closed.
 type CloseOpt func(*closeOpts)
 
 type closeOpts struct {
@@ -148,29 +158,124 @@ func WithDrainTimeout(d time.Duration) CloseOpt {
 	return func(o *closeOpts) { o.drainTimeout = d }
 }
 
-type operatorClientImpl struct {
+// Opt configures New.
+type Opt func(*opts)
+
+type opts struct {
+	l                  *zerolog.Logger
+	v                  validator.Validator
+	headers            map[string]string
+	presetWorkerLabels map[string]string
+	token              string
+}
+
+func defaultOpts() *opts {
+	l := zerolog.Nop()
+
+	return &opts{
+		l: &l,
+		v: validator.NewDefaultValidator(),
+	}
+}
+
+// WithToken sets the bearer token every RPC carries. It is required.
+func WithToken(token string) Opt {
+	return func(o *opts) { o.token = token }
+}
+
+// WithHeaders adds metadata to every RPC alongside the bearer token.
+func WithHeaders(headers map[string]string) Opt {
+	return func(o *opts) { o.headers = headers }
+}
+
+// WithLogger sets the logger; the default discards everything.
+func WithLogger(l *zerolog.Logger) Opt {
+	return func(o *opts) { o.l = l }
+}
+
+// WithValidator sets the validator Connect checks its request with.
+func WithValidator(v validator.Validator) Opt {
+	return func(o *opts) { o.v = v }
+}
+
+// WithPresetWorkerLabels sets labels every connected worker carries on top of
+// the request's own; a preset label wins over a request label of the same
+// name.
+func WithPresetWorkerLabels(labels map[string]string) Opt {
+	return func(o *opts) { o.presetWorkerLabels = labels }
+}
+
+// callMetadata is the outgoing metadata every RPC carries: the bearer token
+// and any extra headers.
+type callMetadata struct {
+	headers map[string]string
+	token   string
+}
+
+func newCallMetadata(token string, headers map[string]string) *callMetadata {
+	return &callMetadata{token: token, headers: headers}
+}
+
+// context returns ctx with the bearer token and headers as outgoing metadata.
+func (m *callMetadata) context(ctx context.Context) context.Context {
+	pairs := map[string]string{
+		"authorization": "Bearer " + m.token,
+	}
+
+	for k, v := range m.headers {
+		pairs[k] = v
+	}
+
+	return metadata.NewOutgoingContext(ctx, metadata.New(pairs))
+}
+
+type clientImpl struct {
 	client             v1.OperatorServiceClient
 	admin              v1.AdminServiceClient
 	l                  *zerolog.Logger
 	v                  validator.Validator
-	ctx                *contextLoader
+	md                 *callMetadata
 	presetWorkerLabels map[string]string
 }
 
-func newOperatorClient(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) OperatorClient {
-	return &operatorClientImpl{
+// New builds a Client over conn. WithToken is required; the other options
+// have defaults.
+func New(conn *grpc.ClientConn, fs ...Opt) (Client, error) {
+	if conn == nil {
+		return nil, fmt.Errorf("a gRPC connection is required")
+	}
+
+	o := defaultOpts()
+
+	for _, f := range fs {
+		f(o)
+	}
+
+	if o.token == "" {
+		return nil, fmt.Errorf("a token is required. use WithToken")
+	}
+
+	if o.l == nil {
+		return nil, fmt.Errorf("a logger is required. use WithLogger or omit it for the default")
+	}
+
+	if o.v == nil {
+		return nil, fmt.Errorf("a validator is required. use WithValidator or omit it for the default")
+	}
+
+	return &clientImpl{
 		client:             v1.NewOperatorServiceClient(conn),
 		admin:              v1.NewAdminServiceClient(conn),
-		l:                  opts.l,
-		v:                  opts.v,
-		ctx:                opts.ctxLoader,
-		presetWorkerLabels: presetWorkerLabels,
-	}
+		l:                  o.l,
+		v:                  o.v,
+		md:                 newCallMetadata(o.token, o.headers),
+		presetWorkerLabels: o.presetWorkerLabels,
+	}, nil
 }
 
-func (o *operatorClientImpl) Connect(ctx context.Context, req *ConnectOperatorRequest) (OperatorSession, error) {
+func (o *clientImpl) Connect(ctx context.Context, req *ConnectRequest) (Session, error) {
 	if req == nil {
-		return nil, fmt.Errorf("connect operator request is required")
+		return nil, fmt.Errorf("connect request is required")
 	}
 
 	if err := o.v.Validate(req); err != nil {
@@ -197,16 +302,48 @@ func (o *operatorClientImpl) Connect(ctx context.Context, req *ConnectOperatorRe
 
 	resume := req.ResumeWorker == nil || *req.ResumeWorker
 
-	session := newOperatorSession(o.client, o.admin, o.ctx, o.l, register, resume)
+	s := newSession(o.client, o.admin, o.md, o.l, register, resume)
 
-	if err := session.connect(ctx); err != nil {
+	if err := s.connect(ctx); err != nil {
 		// nothing has been assigned to a worker that never connected, so there is nothing to
 		// drain and possibly no worker to pause
-		_ = session.Close(WithoutDrain())
+		_ = s.Close(WithoutDrain())
 		return nil, fmt.Errorf("could not connect operator %s: %w", req.Name, err)
 	}
 
-	return session, nil
+	return s, nil
+}
+
+// mapLabels converts request labels to the contract's typed labels the way
+// worker registration does: strings and ints keep their type, anything else
+// is formatted as a string.
+func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.WorkerLabels {
+	labels := map[string]*dispatchercontracts.WorkerLabels{}
+
+	for k, v := range req {
+		label := dispatchercontracts.WorkerLabels{}
+
+		switch value := v.(type) {
+		case string:
+			strValue := value
+			label.StrValue = &strValue
+		case int:
+			intValue := int32(value) // nolint: gosec
+			label.IntValue = &intValue
+		case int32:
+			label.IntValue = &value
+		case int64:
+			intValue := int32(value) // nolint: gosec
+			label.IntValue = &intValue
+		default:
+			strValue := fmt.Sprintf("%v", value)
+			label.StrValue = &strValue
+		}
+
+		labels[k] = &label
+	}
+
+	return labels
 }
 
 // goRuntimeInfo describes this process the same way worker registration does,

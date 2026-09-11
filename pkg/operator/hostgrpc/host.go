@@ -1,7 +1,9 @@
 // Package hostgrpc is the out-of-process operator host: it implements pkg/operator.Host over
-// pkg/client's OperatorSession, speaking OperatorService to the engine with a per-tenant API
-// token from a TokenSource. It depends on pkg/client and pkg/operator only, so an operator
-// binary links it without the engine.
+// pkg/client/operatorclient, speaking OperatorService to the engine with a per-tenant API
+// token from a TokenSource. It depends on the client packages and pkg/operator only, so an
+// operator binary links it without the engine. The legacy pkg/client is used for two things
+// only: turning a token and the HATCHET_CLIENT_* environment into a connection, and the
+// durable task listener the Go SDK worker shares.
 package hostgrpc
 
 import (
@@ -15,7 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -23,24 +25,46 @@ import (
 
 // ClientFactory builds the engine client for one token. The default derives the gRPC address
 // and TLS settings from the token's claims and HATCHET_CLIENT_* environment, like the SDK.
-type ClientFactory func(token string) (client.Client, error) //nolint:staticcheck // see import
+type ClientFactory func(token string) (engineClient, error)
 
-// Options configures a Host.
-type Options struct {
-	Logger *zerolog.Logger
+// Opt configures New.
+type Opt func(*opts)
 
-	// NewClient replaces the default client factory; tests inject a fake.
-	NewClient ClientFactory
+type opts struct {
+	tokens    TokenSource
+	l         *zerolog.Logger
+	newClient ClientFactory
+}
+
+func defaultOpts() *opts {
+	l := zerolog.Nop()
+
+	return &opts{l: &l}
+}
+
+// WithTokenSource sets where the host asks for each tenant's API token. It is required.
+func WithTokenSource(tokens TokenSource) Opt {
+	return func(o *opts) { o.tokens = tokens }
+}
+
+// WithLogger sets the host's logger; the default discards everything.
+func WithLogger(l *zerolog.Logger) Opt {
+	return func(o *opts) { o.l = l }
+}
+
+// WithClientFactory replaces the default client factory; tests inject a fake.
+func WithClientFactory(f ClientFactory) Opt {
+	return func(o *opts) { o.newClient = f }
 }
 
 type cachedClient struct {
-	client client.Client //nolint:staticcheck // see import
+	client engineClient
 	token  string
 }
 
 // closeClient closes the client's gRPC connection. Dropping the reference alone would leave
 // the connection's goroutines behind.
-func closeClient(c client.Client) { //nolint:staticcheck // see import
+func closeClient(c engineClient) {
 	_ = c.Close()
 }
 
@@ -55,48 +79,51 @@ type Host struct {
 	mu        sync.Mutex
 }
 
-var _ operator.Host = (*Host)(nil)
+// New builds a Host. WithTokenSource is required; the other options have defaults.
+func New(fs ...Opt) (*Host, error) {
+	o := defaultOpts()
 
-// New builds a Host over tokens.
-func New(tokens TokenSource, opts Options) *Host {
-	l := opts.Logger
-
-	if l == nil {
-		nop := zerolog.Nop()
-		l = &nop
+	for _, f := range fs {
+		f(o)
 	}
 
-	factory := opts.NewClient
+	if o.tokens == nil {
+		return nil, fmt.Errorf("a token source is required. use WithTokenSource")
+	}
 
-	if factory == nil {
-		factory = defaultClientFactory(l)
+	if o.l == nil {
+		return nil, fmt.Errorf("a logger is required. use WithLogger or omit it for the default")
+	}
+
+	if o.newClient == nil {
+		o.newClient = defaultClientFactory(o.l)
 	}
 
 	return &Host{
-		tokens:    tokens,
-		l:         l,
-		newClient: factory,
+		tokens:    o.tokens,
+		l:         o.l,
+		newClient: o.newClient,
 		clients:   map[uuid.UUID]*cachedClient{},
-	}
+	}, nil
 }
 
-// defaultClientFactory wraps client.New, which panics when the SDK config cannot be loaded
+// defaultClientFactory wraps the legacy dial, which panics when the SDK config cannot be loaded
 // from the token and environment. The panic is turned into an error so one tenant's bad
 // token cannot take the process down.
 func defaultClientFactory(l *zerolog.Logger) ClientFactory {
-	return func(token string) (c client.Client, err error) { //nolint:staticcheck // see import
+	return func(token string) (c engineClient, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err = fmt.Errorf("could not build engine client: %v", r)
 			}
 		}()
 
-		return client.New(client.WithToken(token), client.WithLogger(l)) //nolint:staticcheck // see import
+		return dialEngine(token, l)
 	}
 }
 
 // clientFor returns the cached client for the tenant, rebuilding it when the token changed.
-func (h *Host) clientFor(tenantId uuid.UUID, token string) (client.Client, error) { //nolint:staticcheck // see import
+func (h *Host) clientFor(tenantId uuid.UUID, token string) (engineClient, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -198,12 +225,12 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 	reg, err := parseRegistration(cs.Registration())
 
 	if err != nil {
-		_ = cs.Close(client.WithoutDrain())
+		_ = cs.Close(operatorclient.WithoutDrain())
 		return nil, err
 	}
 
 	if reg.TenantId != id.TenantId {
-		_ = cs.Close(client.WithoutDrain())
+		_ = cs.Close(operatorclient.WithoutDrain())
 
 		return nil, fmt.Errorf("hostgrpc: session for tenant %s was authenticated as tenant %s; the token source is misconfigured", id.TenantId, reg.TenantId)
 	}
@@ -212,7 +239,7 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 		cs.AddActions(opts.Actions...)
 
 		if err := cs.Flush(ctx); err != nil {
-			_ = cs.Close(client.WithoutDrain())
+			_ = cs.Close(operatorclient.WithoutDrain())
 			return nil, fmt.Errorf("hostgrpc: could not register initial actions for tenant %s: %w", id.TenantId, err)
 		}
 	}
@@ -220,14 +247,14 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, opts operator.Ope
 	s := newSession(cs, reg, opts.Handler, h.l)
 
 	if err := s.startDelivery(); err != nil {
-		_ = cs.Close(client.WithoutDrain())
+		_ = cs.Close(operatorclient.WithoutDrain())
 		return nil, err
 	}
 
 	return s, nil
 }
 
-func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (client.OperatorSession, error) { //nolint:staticcheck // see import
+func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.OpenOpts) (operatorclient.Session, error) {
 	token, err := h.tokens.Token(ctx, id.TenantId)
 
 	if err != nil {
@@ -256,7 +283,7 @@ func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.
 		labels[k] = v
 	}
 
-	return c.Operator().Connect(ctx, &client.ConnectOperatorRequest{ //nolint:staticcheck // see import
+	return c.Operator().Connect(ctx, &operatorclient.ConnectRequest{
 		Name:       id.Name,
 		SlotConfig: opts.SlotConfig,
 		Labels:     labels,
@@ -264,7 +291,7 @@ func (h *Host) connect(ctx context.Context, id operator.Identity, opts operator.
 }
 
 // parseRegistration turns the client's string ids into the contract's.
-func parseRegistration(reg client.OperatorRegistration) (operator.Registration, error) { //nolint:staticcheck // see import
+func parseRegistration(reg operatorclient.Registration) (operator.Registration, error) {
 	tenantId, err := uuid.Parse(reg.TenantId)
 
 	if err != nil {

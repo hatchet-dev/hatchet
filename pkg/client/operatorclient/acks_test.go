@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 // droppingDeltaServer is an OperatorService whose first Listen stream ends with Unavailable
@@ -78,7 +79,7 @@ func (d *droppingDeltaServer) Listen(stream v1.OperatorService_ListenServer) err
 	}
 }
 
-func newBufconnOperatorSession(t *testing.T, srv v1.OperatorServiceServer) *operatorSession {
+func newBufconnOperatorSession(t *testing.T, srv v1.OperatorServiceServer) *session {
 	t.Helper()
 
 	lis := bufconn.Listen(1 << 20)
@@ -95,10 +96,10 @@ func newBufconnOperatorSession(t *testing.T, srv v1.OperatorServiceServer) *oper
 	require.NoError(t, err)
 
 	l := zerolog.Nop()
-	s := newOperatorSession(v1.NewOperatorServiceClient(conn), nil, newContextLoader("token", nil), &l, &v1.OperatorRegisterRequest{Name: "acks"}, true)
+	s := newSession(v1.NewOperatorServiceClient(conn), nil, newCallMetadata("token", nil), &l, &v1.OperatorRegisterRequest{Name: "acks"}, true)
 	s.heartbeatInterval = 10 * time.Millisecond
 	s.actions.interval = time.Millisecond
-	disableStreamBackoff(t, s.stream)
+	s.stream.SetSleep(func(context.Context, int) error { return nil })
 
 	t.Cleanup(func() {
 		_ = s.Close()
@@ -277,6 +278,6 @@ func TestOperatorSessionActionsAndCloseConcurrently(t *testing.T) {
 		wg.Wait()
 
 		_, _, err := s.Actions(context.Background())
-		assert.ErrorIs(t, err, errListenerClosed, "Actions after Close is refused")
+		assert.ErrorIs(t, err, streaming.ErrListenerClosed, "Actions after Close is refused")
 	}
 }

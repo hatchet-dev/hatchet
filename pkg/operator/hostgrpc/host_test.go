@@ -23,7 +23,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -172,24 +172,23 @@ func TestStaticExchange(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// fakeSession is the minimal OperatorSession the host needs. Durable listeners are built over
-// a fakeDurableStream (durable_test.go) and stopped on Close like the real session does.
+// fakeSession is the minimal operatorclient.Session the host needs. The durable task stream
+// is one fakeDurableStream (durable_test.go), created up front and handed out on every open.
 // Action deltas and flushes are recorded in order; flushErr, when set, fails the next Flush.
 // actions is what Actions hands the host's deliver loop; the channels close on Close.
 type fakeSession struct {
-	client.OperatorSession
-	stream    *fakeDurableStream
-	listeners []*client.DurableTaskListener
-	workerId  string
-	tenantId  string
-	added     [][]string
-	removed   [][]string
-	puts      []*v1.CreateWorkflowVersionRequest
-	events    []*contracts.StepActionEvent
-	flushErr  error
-	flushes   int
-	pauses    int
-	closed    bool
+	operatorclient.Session
+	stream   *fakeDurableStream
+	workerId string
+	tenantId string
+	added    [][]string
+	removed  [][]string
+	puts     []*v1.CreateWorkflowVersionRequest
+	events   []*contracts.StepActionEvent
+	flushErr error
+	flushes  int
+	pauses   int
+	closed   bool
 
 	actions chan *contracts.AssignedAction
 	errs    chan error
@@ -200,13 +199,14 @@ func newFakeSession(workerId, tenantId string) *fakeSession {
 	return &fakeSession{
 		workerId: workerId,
 		tenantId: tenantId,
+		stream:   newFakeDurableStream(),
 		actions:  make(chan *contracts.AssignedAction),
 		errs:     make(chan error, 1),
 	}
 }
 
-func (f *fakeSession) Registration() client.OperatorRegistration {
-	return client.OperatorRegistration{WorkerId: f.workerId, TenantId: f.tenantId, OperatorId: uuid.NewString()}
+func (f *fakeSession) Registration() operatorclient.Registration {
+	return operatorclient.Registration{WorkerId: f.workerId, TenantId: f.tenantId, OperatorId: uuid.NewString()}
 }
 
 func (f *fakeSession) Actions(context.Context) (<-chan *contracts.AssignedAction, <-chan error, error) {
@@ -276,26 +276,11 @@ func (f *fakeSession) Pause(context.Context) error {
 	return nil
 }
 
-func (f *fakeSession) NewDurableTaskListener(opts ...client.DurableTaskListenerOpt) *client.DurableTaskListener {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.stream == nil {
-		f.stream = newFakeDurableStream()
-	}
-
-	stream := f.stream
-
-	listener := client.NewDurableTaskListener(f.workerId, func(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
-		return stream, nil
-	}, nil, opts...)
-
-	f.listeners = append(f.listeners, listener)
-
-	return listener
+func (f *fakeSession) OpenDurableTaskStream(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+	return f.stream, nil
 }
 
-func (f *fakeSession) Close(_ ...client.CloseOpt) error {
+func (f *fakeSession) Close(_ ...operatorclient.CloseOpt) error {
 	f.mu.Lock()
 
 	if f.closed {
@@ -304,15 +289,10 @@ func (f *fakeSession) Close(_ ...client.CloseOpt) error {
 	}
 
 	f.closed = true
-	listeners := f.listeners
 	f.mu.Unlock()
 
 	close(f.actions)
 	close(f.errs)
-
-	for _, l := range listeners {
-		l.Stop()
-	}
 
 	return nil
 }
@@ -336,11 +316,11 @@ type fakeOperatorClient struct {
 	connectErr error
 	flushErr   error
 	tenantId   string
-	requests   []*client.ConnectOperatorRequest
+	requests   []*operatorclient.ConnectRequest
 	sessions   []*fakeSession
 }
 
-func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOperatorRequest) (client.OperatorSession, error) {
+func (f *fakeOperatorClient) Connect(_ context.Context, req *operatorclient.ConnectRequest) (operatorclient.Session, error) {
 	f.requests = append(f.requests, req)
 
 	if f.connectErr != nil {
@@ -359,12 +339,12 @@ func (f *fakeOperatorClient) Connect(_ context.Context, req *client.ConnectOpera
 }
 
 type fakeClient struct {
-	client.Client
+	engineClient
 	operator *fakeOperatorClient
 	token    string
 }
 
-func (f *fakeClient) Operator() client.OperatorClient {
+func (f *fakeClient) Operator() operatorclient.Client {
 	return f.operator
 }
 
@@ -409,19 +389,41 @@ func identity(tenant uuid.UUID) operator.Identity {
 	return operator.Identity{TenantId: tenant, Name: "serverless"}
 }
 
+// newTestHost builds a host over source and factory; a nil factory keeps the default.
+func newTestHost(t *testing.T, source TokenSource, factory ClientFactory) *Host {
+	t.Helper()
+
+	opts := []Opt{WithTokenSource(source)}
+
+	if factory != nil {
+		opts = append(opts, WithClientFactory(factory))
+	}
+
+	host, err := New(opts...)
+	require.NoError(t, err)
+
+	return host
+}
+
+func TestNewRequiresTokenSource(t *testing.T) {
+	_, err := New()
+	require.ErrorContains(t, err, "WithTokenSource")
+
+	_, err = New(WithTokenSource(mapSource{}), WithLogger(nil))
+	require.ErrorContains(t, err, "WithLogger")
+}
+
 func TestOpenCachesClientPerTenant(t *testing.T) {
 	tenant := uuid.New()
 	source := mapSource{tenant: "tok-1"}
 
 	var built []*fakeClient
 
-	host := New(source, Options{
-		NewClient: func(token string) (client.Client, error) {
-			c := &fakeClient{token: token, operator: &fakeOperatorClient{tenantId: tenant.String()}}
-			built = append(built, c)
+	host := newTestHost(t, source, func(token string) (engineClient, error) {
+		c := &fakeClient{token: token, operator: &fakeOperatorClient{tenantId: tenant.String()}}
+		built = append(built, c)
 
-			return c, nil
-		},
+		return c, nil
 	})
 
 	opts := operator.OpenOpts{Handler: &recordingHandler{}, Actions: []string{"ns_svc:run"}, SlotConfig: map[string]int32{"default": 1}, Labels: map[string]interface{}{"k": "v"}}
@@ -510,10 +512,10 @@ func TestOpenRejects(t *testing.T) {
 	tenant := uuid.New()
 	connects := 0
 
-	host := New(mapSource{tenant: "tok"}, Options{NewClient: func(string) (client.Client, error) {
+	host := newTestHost(t, mapSource{tenant: "tok"}, func(string) (engineClient, error) {
 		connects++
 		return &fakeClient{operator: &fakeOperatorClient{tenantId: tenant.String()}}, nil
-	}})
+	})
 
 	handler := &recordingHandler{}
 	operatorId := uuid.New()
@@ -550,19 +552,17 @@ func TestOpenRetriesOnceOnUnauthenticated(t *testing.T) {
 
 	var built []*fakeClient
 
-	host := New(source, Options{
-		NewClient: func(token string) (client.Client, error) {
-			op := &fakeOperatorClient{tenantId: tenant.String()}
+	host := newTestHost(t, source, func(token string) (engineClient, error) {
+		op := &fakeOperatorClient{tenantId: tenant.String()}
 
-			if len(built) == 0 {
-				op.connectErr = status.Error(codes.Unauthenticated, "expired")
-			}
+		if len(built) == 0 {
+			op.connectErr = status.Error(codes.Unauthenticated, "expired")
+		}
 
-			c := &fakeClient{token: token, operator: op}
-			built = append(built, c)
+		c := &fakeClient{token: token, operator: op}
+		built = append(built, c)
 
-			return c, nil
-		},
+		return c, nil
 	})
 
 	s, err := host.Open(context.Background(), identity(tenant), operator.OpenOpts{Handler: &recordingHandler{}})
@@ -572,10 +572,8 @@ func TestOpenRetriesOnceOnUnauthenticated(t *testing.T) {
 	require.NoError(t, s.Close(context.Background()))
 
 	// Other errors are not retried.
-	host2 := New(source, Options{
-		NewClient: func(token string) (client.Client, error) {
-			return &fakeClient{operator: &fakeOperatorClient{connectErr: errors.New("boom")}}, nil
-		},
+	host2 := newTestHost(t, source, func(token string) (engineClient, error) {
+		return &fakeClient{operator: &fakeOperatorClient{connectErr: errors.New("boom")}}, nil
 	})
 
 	_, err = host2.Open(context.Background(), identity(tenant), operator.OpenOpts{Handler: &recordingHandler{}})
@@ -590,10 +588,8 @@ func TestOpenFlushesInitialActions(t *testing.T) {
 
 	op := &fakeOperatorClient{tenantId: tenant.String(), flushErr: errors.New("invalid action")}
 
-	host := New(source, Options{
-		NewClient: func(token string) (client.Client, error) {
-			return &fakeClient{token: token, operator: op}, nil
-		},
+	host := newTestHost(t, source, func(token string) (engineClient, error) {
+		return &fakeClient{token: token, operator: op}, nil
 	})
 
 	_, err := host.Open(context.Background(), identity(tenant), operator.OpenOpts{Handler: &recordingHandler{}, Actions: []string{"bad"}})
@@ -614,9 +610,9 @@ func TestOpenDeliversActionsToHandler(t *testing.T) {
 	tenant := uuid.New()
 	op := &fakeOperatorClient{tenantId: tenant.String()}
 
-	host := New(mapSource{tenant: "tok"}, Options{NewClient: func(string) (client.Client, error) {
+	host := newTestHost(t, mapSource{tenant: "tok"}, func(string) (engineClient, error) {
 		return &fakeClient{operator: op}, nil
-	}})
+	})
 
 	handler := &recordingHandler{}
 
@@ -693,12 +689,12 @@ func TestEvictedClientsAreClosed(t *testing.T) {
 
 	var built []*closableClient
 
-	host := New(source, Options{NewClient: func(string) (client.Client, error) {
+	host := newTestHost(t, source, func(string) (engineClient, error) {
 		c := newClosableClient(&fakeOperatorClient{tenantId: tenant.String()})
 		built = append(built, c)
 
 		return c, nil
-	}})
+	})
 
 	s, err := host.Open(context.Background(), identity(tenant), operator.OpenOpts{Handler: &recordingHandler{}})
 	require.NoError(t, err)
@@ -733,7 +729,7 @@ func TestEvictedClientsAreClosed(t *testing.T) {
 // The default factory builds real SDK clients over gRPC connections; releasing a tenant must
 // leave none of their goroutines behind.
 func TestReleasedRealClientsLeakNoGoroutines(t *testing.T) {
-	host := New(nil, Options{})
+	host := newTestHost(t, mapSource{}, nil)
 
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -754,22 +750,22 @@ type tenantSession struct {
 	tenantId string
 }
 
-func (s *tenantSession) Registration() client.OperatorRegistration {
-	return client.OperatorRegistration{TenantId: s.tenantId, WorkerId: s.workerId, OperatorId: uuid.NewString()}
+func (s *tenantSession) Registration() operatorclient.Registration {
+	return operatorclient.Registration{TenantId: s.tenantId, WorkerId: s.workerId, OperatorId: uuid.NewString()}
 }
 
 type tenantOperator struct{ session *tenantSession }
 
-func (o *tenantOperator) Connect(context.Context, *client.ConnectOperatorRequest) (client.OperatorSession, error) {
+func (o *tenantOperator) Connect(context.Context, *operatorclient.ConnectRequest) (operatorclient.Session, error) {
 	return o.session, nil
 }
 
 type tenantClient struct {
-	client.Client
+	engineClient
 	operator *tenantOperator
 }
 
-func (c *tenantClient) Operator() client.OperatorClient { return c.operator }
+func (c *tenantClient) Operator() operatorclient.Client { return c.operator }
 
 func (c *tenantClient) Close() error { return nil }
 
@@ -782,7 +778,7 @@ func TestOpenRefusesMismatchedTenant(t *testing.T) {
 	session := &tenantSession{fakeSession: newFakeSession(uuid.NewString(), b.String()), tenantId: b.String()}
 	c := &tenantClient{operator: &tenantOperator{session: session}}
 
-	host := New(mapSource{a: testJWT(t, a)}, Options{NewClient: func(string) (client.Client, error) { return c, nil }})
+	host := newTestHost(t, mapSource{a: testJWT(t, a)}, func(string) (engineClient, error) { return c, nil })
 
 	_, err := host.Open(context.Background(), identity(a), operator.OpenOpts{Handler: &recordingHandler{}, Actions: []string{"review:run"}})
 	require.Error(t, err, "the engine authenticated tenant B for a session of tenant A")
@@ -793,10 +789,10 @@ func TestOpenRefusesMismatchedTenant(t *testing.T) {
 	// A token whose claim names another tenant is refused before connecting.
 	session2 := &tenantSession{fakeSession: newFakeSession(uuid.NewString(), a.String()), tenantId: a.String()}
 	connects := 0
-	host2 := New(mapSource{a: testJWT(t, b)}, Options{NewClient: func(string) (client.Client, error) {
+	host2 := newTestHost(t, mapSource{a: testJWT(t, b)}, func(string) (engineClient, error) {
 		connects++
 		return &tenantClient{operator: &tenantOperator{session: session2}}, nil
-	}})
+	})
 
 	_, err = host2.Open(context.Background(), identity(a), operator.OpenOpts{Handler: &recordingHandler{}})
 	require.Error(t, err, "the source returned tenant B's token for tenant A")

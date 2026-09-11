@@ -11,18 +11,18 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 // refusalReportTimeout bounds the failure report for an action the handler refused.
 const refusalReportTimeout = 30 * time.Second
 
-// session adapts an OperatorSession to operator.Session and runs the deliver loop that hands
-// the client's assigned actions to the handler. hub is created by the first OpenDurable and
-// holds the session's one DurableTaskListener.
+// session adapts an operatorclient.Session to operator.Session and runs the deliver loop that
+// hands the client's assigned actions to the handler. hub is created by the first OpenDurable
+// and holds the session's one DurableTaskListener.
 type session struct {
-	cs      client.OperatorSession //nolint:staticcheck // see import
+	cs      operatorclient.Session
 	reg     operator.Registration
 	handler operator.ActionHandler
 	l       *zerolog.Logger
@@ -38,9 +38,7 @@ type session struct {
 	closed bool
 }
 
-var _ operator.Session = (*session)(nil)
-
-func newSession(cs client.OperatorSession, reg operator.Registration, handler operator.ActionHandler, l *zerolog.Logger) *session { //nolint:staticcheck // see import
+func newSession(cs operatorclient.Session, reg operator.Registration, handler operator.ActionHandler, l *zerolog.Logger) *session {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sl := l.With().Str("worker_id", reg.WorkerId.String()).Logger()
@@ -182,8 +180,9 @@ func (s *session) SendStepActionEvent(ctx context.Context, ev *contracts.StepAct
 	return err
 }
 
-// OpenDurable implements operator.Session over the client's DurableTaskListener, one per
-// session, multiplexed by task external id and invocation.
+// OpenDurable implements operator.Session over one DurableTaskListener per session, opened
+// on the client session's durable task stream and multiplexed by task external id and
+// invocation.
 func (s *session) OpenDurable(_ context.Context, taskExternalId uuid.UUID, invocation int32) (operator.DurableChannel, error) {
 	s.mu.Lock()
 
@@ -193,7 +192,7 @@ func (s *session) OpenDurable(_ context.Context, taskExternalId uuid.UUID, invoc
 	}
 
 	if s.hub == nil {
-		s.hub = newDurableHub(s.cs)
+		s.hub = newDurableHub(s.cs, s.l)
 	}
 
 	hub := s.hub
@@ -212,10 +211,10 @@ func (s *session) Pause(ctx context.Context) error {
 	return s.cs.Pause(ctx)
 }
 
-// Close implements operator.Session: open durable channels are closed, then the client session
-// is closed, which pauses the worker, waits for the actions already handed to the handler to be
-// reported, flushes pending deltas and ends the stream, and only then is the deliver loop
-// released. Close runs once; later calls return nil.
+// Close implements operator.Session: open durable channels are closed and the durable
+// listener stopped, then the client session is closed, which pauses the worker, waits for the
+// actions already handed to the handler to be reported, flushes pending deltas and ends the
+// stream, and only then is the deliver loop released. Close runs once; later calls return nil.
 func (s *session) Close(context.Context) error {
 	s.mu.Lock()
 

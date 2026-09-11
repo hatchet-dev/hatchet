@@ -29,8 +29,6 @@ type Session struct {
 	PauseErr error
 }
 
-var _ operator.Session = (*Session)(nil)
-
 // NewSession builds a session registered for the given tenant, operator and a fresh worker.
 func NewSession(tenantId, operatorId uuid.UUID) *Session {
 	return &Session{reg: operator.Registration{TenantId: tenantId, OperatorId: operatorId, WorkerId: uuid.New()}}

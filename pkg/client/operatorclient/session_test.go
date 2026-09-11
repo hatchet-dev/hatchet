@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 // fakeOperatorListenStream is one Listen stream as the client sees it. It
@@ -162,6 +163,7 @@ type fakeOperatorServiceClient struct {
 	registrations       []*v1.OperatorRegisterResponse
 	registers           []*v1.OperatorRegisterRequest
 	streams             []*fakeOperatorListenStream
+	durableStreams      []*fakeOperatorDurableStream
 	stepEvents          []*dispatchercontracts.StepActionEvent
 	stepEventOperatorId []string
 	pauses              []*v1.OperatorPauseWorkerRequest
@@ -250,7 +252,40 @@ func (f *fakeOperatorServiceClient) pauseRequests() []*v1.OperatorPauseWorkerReq
 }
 
 func (f *fakeOperatorServiceClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (v1.OperatorService_DurableTaskClient, error) {
-	return nil, status.Error(codes.Unimplemented, "not implemented")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s := &fakeOperatorDurableStream{operatorId: outgoingOperatorId(ctx)}
+	f.durableStreams = append(f.durableStreams, s)
+	return s, nil
+}
+
+func (f *fakeOperatorServiceClient) durableStream(i int) *fakeOperatorDurableStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.durableStreams[i]
+}
+
+// fakeOperatorDurableStream records the requests sent on one DurableTask
+// stream and the operator id metadata it was opened with.
+type fakeOperatorDurableStream struct {
+	v1.OperatorService_DurableTaskClient
+	operatorId string
+	requests   []*v1.DurableTaskRequest
+	mu         sync.Mutex
+}
+
+func (s *fakeOperatorDurableStream) Send(req *v1.DurableTaskRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, req)
+	return nil
+}
+
+func (s *fakeOperatorDurableStream) sent() []*v1.DurableTaskRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]*v1.DurableTaskRequest(nil), s.requests...)
 }
 
 func (f *fakeOperatorServiceClient) stream(i int) *fakeOperatorListenStream {
@@ -312,15 +347,15 @@ func registeredAs(workerId string, resumed bool) *v1.OperatorRegisterResponse {
 	}
 }
 
-func newTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, resume bool) (*operatorSession, *fakeAdminServiceClient) {
+func newTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, resume bool) (*session, *fakeAdminServiceClient) {
 	t.Helper()
 
 	logger := zerolog.Nop()
 	admin := &fakeAdminServiceClient{}
-	s := newOperatorSession(
+	s := newSession(
 		client,
 		admin,
-		newContextLoader("token", nil),
+		newCallMetadata("token", nil),
 		&logger,
 		&v1.OperatorRegisterRequest{
 			Name:       "test-operator",
@@ -330,11 +365,11 @@ func newTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, res
 	)
 	s.heartbeatInterval = 5 * time.Millisecond
 	s.actions.interval = 5 * time.Millisecond
-	disableStreamBackoff(t, s.stream)
+	s.stream.SetSleep(func(context.Context, int) error { return nil })
 	return s, admin
 }
 
-func connectTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, resume bool) (*operatorSession, *fakeAdminServiceClient) {
+func connectTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, resume bool) (*session, *fakeAdminServiceClient) {
 	t.Helper()
 
 	s, admin := newTestOperatorSession(t, client, resume)
@@ -355,7 +390,7 @@ func waitFor(t *testing.T, cond func() bool, msg string) {
 	t.Fatal(msg)
 }
 
-func flushed(t *testing.T, s *operatorSession) {
+func flushed(t *testing.T, s *session) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -434,7 +469,7 @@ func TestOperatorSessionConnectFailsWhenRegisterFails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := s.stream.connectSync(ctx)
+	err := s.stream.ConnectSync(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not register operator")
 	assert.Zero(t, client.streamCount(), "Listen is not opened when Register fails")
@@ -682,10 +717,6 @@ func TestOperatorSessionCloseDrainsPendingDeltas(t *testing.T) {
 	actions, errCh, err := s.Actions(context.Background())
 	require.NoError(t, err)
 
-	durable := s.NewDurableTaskListener(WithReconnectInterval(time.Millisecond))
-	durable.Start(context.Background())
-	waitFor(t, func() bool { return durable.IsRunning() }, "durable listener did not start")
-
 	waitFor(t, func() bool { return client.stream(0).heartbeats() >= 1 }, "no heartbeat before close")
 
 	s.AddActions("svc:late")
@@ -714,17 +745,15 @@ func TestOperatorSessionCloseDrainsPendingDeltas(t *testing.T) {
 		t.Fatal("error channel still open after Close")
 	}
 
-	waitFor(t, func() bool { return !durable.IsRunning() }, "durable listener still running after Close")
-
 	require.NoError(t, s.Close(), "Close is idempotent")
 
 	_, _, err = s.Actions(context.Background())
-	require.ErrorIs(t, err, errListenerClosed)
+	require.ErrorIs(t, err, streaming.ErrListenerClosed)
 
 	s.AddActions("svc:after-close")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.ErrorIs(t, s.Flush(ctx), errListenerClosed)
+	assert.ErrorIs(t, s.Flush(ctx), streaming.ErrListenerClosed)
 
 	heartbeatsAtClose := client.stream(0).heartbeats()
 	time.Sleep(20 * time.Millisecond)
@@ -816,13 +845,9 @@ func TestActionsForWorkflowErrors(t *testing.T) {
 }
 
 func TestOperatorDurableTaskClientRewritesRegisterWorkerId(t *testing.T) {
-	var sent *v1.DurableTaskRequest
-	inner := &fakeOperatorDurableStream{sendFn: func(req *v1.DurableTaskRequest) error {
-		sent = req
-		return nil
-	}}
+	inner := &fakeOperatorDurableStream{}
 
-	adapter := &operatorDurableTaskClient{
+	adapter := &durableTaskClient{
 		OperatorService_DurableTaskClient: inner,
 		workerId:                          func() string { return "worker-now" },
 	}
@@ -832,18 +857,48 @@ func TestOperatorDurableTaskClientRewritesRegisterWorkerId(t *testing.T) {
 			RegisterWorker: &v1.DurableTaskRequestRegisterWorker{WorkerId: "worker-then"},
 		},
 	}))
-	assert.Equal(t, "worker-now", sent.GetRegisterWorker().WorkerId)
+	assert.Equal(t, "worker-now", inner.sent()[0].GetRegisterWorker().WorkerId)
 
 	memo := &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_Memo{Memo: &v1.DurableTaskMemoRequest{}}}
 	require.NoError(t, adapter.Send(memo))
-	assert.Same(t, memo, sent, "non-register messages pass through untouched")
+	assert.Same(t, memo, inner.sent()[1], "non-register messages pass through untouched")
 }
 
-type fakeOperatorDurableStream struct {
-	v1.OperatorService_DurableTaskClient
-	sendFn func(req *v1.DurableTaskRequest) error
-}
+// The durable task stream carries the operator id and registers the worker the
+// session currently has, whichever worker id the listener was built with.
+func TestOperatorSessionOpenDurableTaskStreamRewritesWorkerId(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{
+		registeredAs("worker-1", false),
+		registeredAs("worker-2", false),
+	}}
+	s, _ := connectTestOperatorSession(t, client, true)
 
-func (f *fakeOperatorDurableStream) Send(req *v1.DurableTaskRequest) error {
-	return f.sendFn(req)
+	register := func(workerId string) *v1.DurableTaskRequest {
+		return &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_RegisterWorker{
+			RegisterWorker: &v1.DurableTaskRequestRegisterWorker{WorkerId: workerId},
+		}}
+	}
+
+	stream, err := s.OpenDurableTaskStream(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, stream.Send(register("stale")))
+	require.NoError(t, stream.Send(&v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_WorkerStatus{
+		WorkerStatus: &v1.DurableTaskWorkerStatusRequest{},
+	}}))
+
+	assert.Equal(t, "operator-1", client.durableStream(0).operatorId)
+	sent := client.durableStream(0).sent()
+	require.Len(t, sent, 2)
+	assert.Equal(t, "worker-1", sent[0].GetRegisterWorker().GetWorkerId())
+	assert.NotNil(t, sent[1].GetWorkerStatus(), "other messages pass through unchanged")
+
+	// A reconnect that assigned a new worker is what the next register carries.
+	s.ForgetWorker()
+	client.stream(0).breakRecv()
+	waitFor(t, func() bool { return s.Registration().WorkerId == "worker-2" }, "session did not reconnect as worker-2")
+
+	require.NoError(t, stream.Send(register("stale")))
+	sent = client.durableStream(0).sent()
+	require.Len(t, sent, 3)
+	assert.Equal(t, "worker-2", sent[2].GetRegisterWorker().GetWorkerId())
 }

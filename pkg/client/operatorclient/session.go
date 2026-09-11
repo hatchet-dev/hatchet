@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 const (
@@ -36,28 +37,29 @@ const (
 
 var errOperatorActionsStarted = errors.New("operator session actions already started")
 
-// operatorListenClient is one Listen stream plus the cancel for its own
+// listenClient is one Listen stream plus the cancel for its own
 // context. The stream context is a child of the reconnecting stream's
 // lifecycle context so that Close releases every stream; cancel is invoked
 // directly when the handshake or the replay fails and the stream is never
 // published. Retired streams are half-closed with CloseSend and left to the
 // server to end, so the receive loop hands off on EOF like the other
 // listeners in this package.
-type operatorListenClient struct {
+type listenClient struct {
 	v1.OperatorService_ListenClient
 	cancel context.CancelFunc
 }
 
-// operatorDurableTaskClient adapts the OperatorService durable stream to the
-// V1Dispatcher one DurableTaskListener expects and rewrites the worker id on
-// the register message to the session's current registration, so a listener
-// built before a reconnect still registers the worker the engine now knows.
-type operatorDurableTaskClient struct {
+// durableTaskClient adapts the OperatorService durable stream to the
+// V1Dispatcher one a durable task listener expects and rewrites the worker id
+// on the register message to the session's current registration, so a
+// listener built before a reconnect still registers the worker the engine
+// now knows.
+type durableTaskClient struct {
 	v1.OperatorService_DurableTaskClient
 	workerId func() string
 }
 
-func (c *operatorDurableTaskClient) Send(req *v1.DurableTaskRequest) error {
+func (c *durableTaskClient) Send(req *v1.DurableTaskRequest) error {
 	if register := req.GetRegisterWorker(); register != nil {
 		register.WorkerId = c.workerId()
 	}
@@ -110,33 +112,31 @@ func (b *actionInbox) pop() *dispatchercontracts.AssignedAction {
 	return action
 }
 
-// operatorSession is the OperatorSession implementation. It owns one
-// reconnecting Listen stream whose constructor performs the Register call and
-// the start handshake and whose replay callback resends unacknowledged
-// action deltas, a heartbeat goroutine that sends through retrySend so a
-// dead stream reconnects, the receive loop that demultiplexes assigned
-// actions and delta acks, and the action delta queue (operator_actions.go).
-// The receive and heartbeat loops run from connect until Close so that
-// Flush can observe acks before Actions is called; Actions only attaches a
-// consumer to the inbox.
+// session is the Session implementation. It owns one reconnecting Listen
+// stream whose constructor performs the Register call and the start
+// handshake and whose replay callback resends unacknowledged action deltas,
+// a heartbeat goroutine that sends through RetrySend so a dead stream
+// reconnects, the receive loop that demultiplexes assigned actions and delta
+// acks, and the action delta queue (actions.go). The receive and heartbeat
+// loops run from connect until Close so that Flush can observe acks before
+// Actions is called; Actions only attaches a consumer to the inbox.
 // NOTE: field order follows govet fieldalignment (enforced by the pre-commit
-// autofixer); mu guards register, reg, durables, loopErr, inflight, idle,
-// started, consuming and closed. Lock order is stream.sendMu → mu, never reverse: mu is only
-// taken in short critical sections that do no stream I/O.
-type operatorSession struct {
+// autofixer); mu guards register, reg, loopErr, inflight, idle, started,
+// consuming and closed. Lock order is the stream's send lock → mu, never
+// reverse: mu is only taken in short critical sections that do no stream I/O.
+type session struct {
 	client     v1.OperatorServiceClient
 	admin      v1.AdminServiceClient
-	ctxLoader  *contextLoader
+	md         *callMetadata
 	l          *zerolog.Logger
-	stream     *reconnectingStream[*operatorListenClient]
+	stream     *streaming.ReconnectingStream[*listenClient]
 	register   *v1.OperatorRegisterRequest
 	inbox      *actionInbox
 	loopCtx    context.Context
 	loopCancel context.CancelFunc
 	loopDone   chan struct{}
 	loopErr    error
-	durables   []*DurableTaskListener
-	reg        OperatorRegistration
+	reg        Registration
 	actions    *actionDeltaQueue
 
 	// inflight holds the task runs handed to the consumer that have not been
@@ -155,22 +155,22 @@ type operatorSession struct {
 	closed       bool
 }
 
-func newOperatorSession(
+func newSession(
 	client v1.OperatorServiceClient,
 	admin v1.AdminServiceClient,
-	ctxLoader *contextLoader,
+	md *callMetadata,
 	l *zerolog.Logger,
 	register *v1.OperatorRegisterRequest,
 	resumeWorker bool,
-) *operatorSession {
+) *session {
 	sl := l.With().Str("operator", register.Name).Logger()
 
 	loopCtx, loopCancel := context.WithCancel(context.Background())
 
-	s := &operatorSession{
+	s := &session{
 		client:            client,
 		admin:             admin,
-		ctxLoader:         ctxLoader,
+		md:                md,
 		l:                 &sl,
 		register:          register,
 		resumeWorker:      resumeWorker,
@@ -182,12 +182,12 @@ func newOperatorSession(
 		inflight:          map[string]struct{}{},
 	}
 
-	s.stream = newReconnectingStreamWithLifecycle(
+	s.stream = streaming.NewReconnectingStreamWithLifecycle(
 		context.Background(),
 		&sl,
 		"operator listener",
 		s.openListenStream,
-		func(c *operatorListenClient) error {
+		func(c *listenClient) error {
 			return c.CloseSend()
 		},
 		s.replayActions,
@@ -199,8 +199,8 @@ func newOperatorSession(
 }
 
 // connect opens the first stream and starts the session loops.
-func (s *operatorSession) connect(ctx context.Context) error {
-	if err := s.stream.connectSync(ctx); err != nil {
+func (s *session) connect(ctx context.Context) error {
+	if err := s.stream.ConnectSync(ctx); err != nil {
 		return err
 	}
 
@@ -212,7 +212,7 @@ func (s *operatorSession) connect(ctx context.Context) error {
 // start launches the receive and heartbeat loops once. The WaitGroup is
 // incremented under mu, in the same critical section that checks closed, so
 // Close never waits on a count that a concurrent start is still adding to.
-func (s *operatorSession) start() {
+func (s *session) start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -240,7 +240,7 @@ func (s *operatorSession) start() {
 // operatorRegisterTimeout; the stream itself outlives ctx and is bound to
 // the lifecycle context. Action deltas are replayed by replayActions once
 // the stream is constructed.
-func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListenClient, error) {
+func (s *session) openListenStream(ctx context.Context) (*listenClient, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -248,22 +248,22 @@ func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListen
 	handshakeCtx, cancelHandshake := context.WithTimeout(ctx, operatorRegisterTimeout)
 	defer cancelHandshake()
 
-	registered, err := s.client.Register(s.ctxLoader.newContext(handshakeCtx), s.registerRequest())
+	registered, err := s.client.Register(s.md.context(handshakeCtx), s.registerRequest())
 	if err != nil {
 		return nil, fmt.Errorf("could not register operator: %w", err)
 	}
 
-	s.setRegistration(OperatorRegistration{
+	s.setRegistration(Registration{
 		TenantId:   registered.TenantId,
 		OperatorId: registered.OperatorId,
 		WorkerId:   registered.WorkerId,
 		Resumed:    registered.Resumed,
 	})
 
-	streamCtx, cancelStream := context.WithCancel(s.stream.lifecycleContext())
+	streamCtx, cancelStream := context.WithCancel(s.stream.LifecycleContext())
 	stopAfter := context.AfterFunc(handshakeCtx, cancelStream)
 
-	fail := func(err error) (*operatorListenClient, error) {
+	fail := func(err error) (*listenClient, error) {
 		stopAfter()
 		cancelStream()
 		if herr := handshakeCtx.Err(); herr != nil {
@@ -296,15 +296,15 @@ func (s *operatorSession) openListenStream(ctx context.Context) (*operatorListen
 		Bool("resumed", registered.Resumed).
 		Msg("operator registered")
 
-	return &operatorListenClient{OperatorService_ListenClient: listen, cancel: cancelStream}, nil
+	return &listenClient{OperatorService_ListenClient: listen, cancel: cancelStream}, nil
 }
 
 // replayActions is the reconnecting stream's replay callback: it runs under
-// sendMu on every new stream before the stream is published and brings the
+// the send lock on every new stream before the stream is published and brings the
 // engine's view of the action set up to date (see actionDeltaQueue.replay).
 // A stream whose replay fails is cancelled here because it is never
 // published.
-func (s *operatorSession) replayActions(_ context.Context, c *operatorListenClient) error {
+func (s *session) replayActions(_ context.Context, c *listenClient) error {
 	if err := s.actions.replay(c, s.Registration().Resumed); err != nil {
 		c.cancel()
 		return fmt.Errorf("could not replay operator actions: %w", err)
@@ -315,7 +315,7 @@ func (s *operatorSession) replayActions(_ context.Context, c *operatorListenClie
 
 // registerRequest snapshots the register template and, when resuming, sets
 // the worker id from the most recent registration.
-func (s *operatorSession) registerRequest() *v1.OperatorRegisterRequest {
+func (s *session) registerRequest() *v1.OperatorRegisterRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -334,13 +334,13 @@ func (s *operatorSession) registerRequest() *v1.OperatorRegisterRequest {
 	return req
 }
 
-func (s *operatorSession) setRegistration(reg OperatorRegistration) {
+func (s *session) setRegistration(reg Registration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reg = reg
 }
 
-func (s *operatorSession) Registration() OperatorRegistration {
+func (s *session) Registration() Registration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.reg
@@ -348,18 +348,18 @@ func (s *operatorSession) Registration() OperatorRegistration {
 
 // opCtx attaches the bearer token and the hatchet-operator-id metadata every
 // RPC after Register requires.
-func (s *operatorSession) opCtx(ctx context.Context) context.Context {
+func (s *session) opCtx(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(
-		s.ctxLoader.newContext(ctx),
+		s.md.context(ctx),
 		operatorIdMetadataKey, s.Registration().OperatorId,
 	)
 }
 
-func (s *operatorSession) Actions(ctx context.Context) (<-chan *dispatchercontracts.AssignedAction, <-chan error, error) {
+func (s *session) Actions(ctx context.Context) (<-chan *dispatchercontracts.AssignedAction, <-chan error, error) {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return nil, nil, errListenerClosed
+		return nil, nil, streaming.ErrListenerClosed
 	}
 	if s.consuming {
 		s.mu.Unlock()
@@ -384,7 +384,7 @@ func (s *operatorSession) Actions(ctx context.Context) (<-chan *dispatchercontra
 	return ch, errCh, nil
 }
 
-func (s *operatorSession) heartbeatLoop(ctx context.Context) {
+func (s *session) heartbeatLoop(ctx context.Context) {
 	ticker := time.NewTicker(s.heartbeatInterval)
 	defer ticker.Stop()
 
@@ -395,7 +395,7 @@ func (s *operatorSession) heartbeatLoop(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		err := s.stream.retrySend(ctx, func(c *operatorListenClient) error {
+		err := s.stream.RetrySend(ctx, func(c *listenClient) error {
 			return c.Send(&v1.OperatorListenRequest{
 				Message: &v1.OperatorListenRequest_Heartbeat{
 					Heartbeat: &v1.OperatorHeartbeat{HeartbeatAt: timestamppb.Now()},
@@ -409,7 +409,7 @@ func (s *operatorSession) heartbeatLoop(ctx context.Context) {
 
 		s.l.Error().Ctx(ctx).Err(err).Str("worker_id", s.Registration().WorkerId).Msg("could not send operator heartbeat")
 
-		if errors.Is(err, errListenerClosed) {
+		if errors.Is(err, streaming.ErrListenerClosed) {
 			return
 		}
 	}
@@ -420,7 +420,7 @@ func (s *operatorSession) heartbeatLoop(ctx context.Context) {
 // reason, ends the session's stream and the heartbeat loop: a session
 // without a receive loop cannot run actions or confirm deltas, so keeping
 // the worker alive would only attract work.
-func (s *operatorSession) receiveLoop(ctx context.Context) {
+func (s *session) receiveLoop(ctx context.Context) {
 	defer close(s.loopDone)
 	defer func() {
 		s.loopCancel()
@@ -430,12 +430,12 @@ func (s *operatorSession) receiveLoop(ctx context.Context) {
 		}
 	}()
 
-	classify := newStreamClassifier(func(ctx context.Context) bool {
+	classify := streaming.NewClassifier(func(ctx context.Context) bool {
 		return ctx.Err() == nil
 	})
 
-	err := listenStream(ctx, s.stream,
-		func(c *operatorListenClient) (*v1.OperatorListenResponse, error) {
+	err := streaming.Listen(ctx, s.stream,
+		func(c *listenClient) (*v1.OperatorListenResponse, error) {
 			return c.Recv()
 		},
 		func(resp *v1.OperatorListenResponse) error {
@@ -465,7 +465,7 @@ func (s *operatorSession) receiveLoop(ctx context.Context) {
 }
 
 // terminalErr reports why the receive loop ended, if it ended on an error.
-func (s *operatorSession) terminalErr() error {
+func (s *session) terminalErr() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.loopErr
@@ -475,7 +475,7 @@ func (s *operatorSession) terminalErr() error {
 // session closes, or the receive loop exits. Cancelling ctx ends the
 // session's stream, as a consumer that has stopped taking actions must not
 // keep its worker active.
-func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
+func (s *session) deliverLoop(ctx context.Context, ch chan<- *dispatchercontracts.AssignedAction, errCh chan<- error) {
 	defer close(ch)
 	defer close(errCh)
 	// once delivery ends there is nobody left to report the runs the consumer was handed, so a
@@ -516,14 +516,14 @@ func (s *operatorSession) deliverLoop(ctx context.Context, ch chan<- *dispatcher
 		}
 
 		if err := s.terminalErr(); err != nil && ctx.Err() == nil {
-			sendListenerError(ctx, errCh, err)
+			streaming.SendListenerError(ctx, errCh, err)
 		}
 
 		return
 	}
 }
 
-func (s *operatorSession) SendStepActionEvent(ctx context.Context, in *dispatchercontracts.StepActionEvent) (*dispatchercontracts.ActionEventResponse, error) {
+func (s *session) SendStepActionEvent(ctx context.Context, in *dispatchercontracts.StepActionEvent) (*dispatchercontracts.ActionEventResponse, error) {
 	if in.WorkerId == "" {
 		in.WorkerId = s.Registration().WorkerId
 	}
@@ -556,7 +556,7 @@ func isTerminalStepEvent(eventType dispatchercontracts.StepActionEventType) bool
 // carry no work of their own and are never reported, so they are not tracked. A task run is
 // tracked once: a retry of the same run replaces the entry rather than adding one, since the
 // caller reports the run, not the attempt.
-func (s *operatorSession) startAction(action *dispatchercontracts.AssignedAction) {
+func (s *session) startAction(action *dispatchercontracts.AssignedAction) {
 	if action.ActionType == dispatchercontracts.ActionType_CANCEL_STEP_RUN {
 		return
 	}
@@ -568,7 +568,7 @@ func (s *operatorSession) startAction(action *dispatchercontracts.AssignedAction
 }
 
 // finishAction records that the caller reported the task run's outcome.
-func (s *operatorSession) finishAction(taskRunExternalId string) {
+func (s *session) finishAction(taskRunExternalId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -587,7 +587,7 @@ func (s *operatorSession) finishAction(taskRunExternalId string) {
 // abandonInflight forgets every task run handed to the consumer. Delivery has ended, so the
 // consumer that would have reported them is gone; the engine retries whatever it was holding
 // once those tasks time out.
-func (s *operatorSession) abandonInflight() {
+func (s *session) abandonInflight() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -604,7 +604,7 @@ func (s *operatorSession) abandonInflight() {
 }
 
 // idleCh returns a channel that is closed once nothing is in flight.
-func (s *operatorSession) idleCh() <-chan struct{} {
+func (s *session) idleCh() <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -622,15 +622,15 @@ func (s *operatorSession) idleCh() <-chan struct{} {
 	return s.idle
 }
 
-func (s *operatorSession) Pause(ctx context.Context) error {
+func (s *session) Pause(ctx context.Context) error {
 	return s.setPaused(ctx, true)
 }
 
-func (s *operatorSession) Resume(ctx context.Context) error {
+func (s *session) Resume(ctx context.Context) error {
 	return s.setPaused(ctx, false)
 }
 
-func (s *operatorSession) setPaused(ctx context.Context, paused bool) error {
+func (s *session) setPaused(ctx context.Context, paused bool) error {
 	workerId := s.Registration().WorkerId
 
 	if workerId == "" {
@@ -649,7 +649,7 @@ func (s *operatorSession) setPaused(ctx context.Context, paused bool) error {
 // consumer to be reported. The pause is what makes the wait terminate: without
 // it the scheduler keeps assigning. A pause that fails is logged and the wait
 // still runs, bounded by timeout, so in-flight work gets its chance to finish.
-func (s *operatorSession) drain(timeout time.Duration) {
+func (s *session) drain(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -674,7 +674,7 @@ func (s *operatorSession) drain(timeout time.Duration) {
 	s.l.Warn().Int("in_flight", outstanding).Msg("operator session closed with actions still in flight")
 }
 
-func (s *operatorSession) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, []string, error) {
+func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionResponse, []string, error) {
 	actions, err := actionsForWorkflow(wf)
 	if err != nil {
 		return nil, nil, err
@@ -682,7 +682,7 @@ func (s *operatorSession) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflow
 
 	// The admin service authenticates with the bearer token alone; the
 	// operator id metadata is only meaningful to OperatorService.
-	resp, err := s.admin.PutWorkflow(s.ctxLoader.newContext(ctx), wf)
+	resp, err := s.admin.PutWorkflow(s.md.context(ctx), wf)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -690,66 +690,49 @@ func (s *operatorSession) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflow
 	return resp, actions, nil
 }
 
-func (s *operatorSession) AddActions(ids ...string) {
+func (s *session) AddActions(ids ...string) {
 	s.actions.add(ids)
 }
 
-func (s *operatorSession) RemoveActions(ids ...string) {
+func (s *session) RemoveActions(ids ...string) {
 	s.actions.remove(ids)
 }
 
-func (s *operatorSession) Flush(ctx context.Context) error {
+func (s *session) Flush(ctx context.Context) error {
 	return s.actions.flush(ctx)
 }
 
-// NewDurableTaskListener builds a listener bound to this session's worker. A
-// listener created after Close is stopped before it is returned: the
-// session no longer has a worker for it to register.
-func (s *operatorSession) NewDurableTaskListener(opts ...DurableTaskListenerOpt) *DurableTaskListener {
-	currentWorkerId := func() string {
-		return s.Registration().WorkerId
+// OpenDurableTaskStream opens the OperatorService durable task stream with
+// the operator metadata and returns it shaped as the V1Dispatcher stream a
+// durable task listener expects; the register message's worker id is
+// rewritten to the current registration on every send.
+func (s *session) OpenDurableTaskStream(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+	stream, err := s.client.DurableTask(s.opCtx(ctx), grpc_retry.Disable())
+	if err != nil {
+		return nil, err
 	}
 
-	listener := NewDurableTaskListener(
-		currentWorkerId(),
-		func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
-			stream, err := s.client.DurableTask(s.opCtx(ctx), grpc_retry.Disable())
-			if err != nil {
-				return nil, err
-			}
-			return &operatorDurableTaskClient{OperatorService_DurableTaskClient: stream, workerId: currentWorkerId}, nil
+	return &durableTaskClient{
+		OperatorService_DurableTaskClient: stream,
+		workerId: func() string {
+			return s.Registration().WorkerId
 		},
-		s.l,
-		opts...,
-	)
-
-	s.mu.Lock()
-	closed := s.closed
-	if !closed {
-		s.durables = append(s.durables, listener)
-	}
-	s.mu.Unlock()
-
-	if closed {
-		listener.Stop()
-	}
-
-	return listener
+	}, nil
 }
 
 // CloseListenStream half-closes the current Listen stream without closing the
 // session, so the automatic reconnect registers the worker again. It exists
 // to exercise reconnect against a live engine; production callers do not
 // need it.
-func (s *operatorSession) CloseListenStream() error {
-	return s.stream.closeStream()
+func (s *session) CloseListenStream() error {
+	return s.stream.CloseStream()
 }
 
 // ForgetWorker clears the remembered worker id so the next reconnect
 // registers a new worker instead of resuming the previous one. Like
 // CloseListenStream it exists to exercise the non-resume path against a live
 // engine.
-func (s *operatorSession) ForgetWorker() {
+func (s *session) ForgetWorker() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reg.WorkerId = ""
@@ -759,7 +742,7 @@ func (s *operatorSession) ForgetWorker() {
 // assigning, the actions already handed to the consumer are given the drain
 // timeout to be reported, and only then is the stream ended and the worker
 // deactivated. WithoutDrain hangs up at once instead.
-func (s *operatorSession) Close(fs ...CloseOpt) error {
+func (s *session) Close(fs ...CloseOpt) error {
 	o := &closeOpts{drain: true, drainTimeout: operatorCloseDrainTimeout}
 
 	for _, f := range fs {
@@ -772,7 +755,6 @@ func (s *operatorSession) Close(fs ...CloseOpt) error {
 		return nil
 	}
 	s.closed = true
-	durables := s.durables
 	s.mu.Unlock()
 
 	// The loops are still running here, so the consumer can finish the work it
@@ -799,10 +781,6 @@ func (s *operatorSession) Close(fs ...CloseOpt) error {
 
 	s.actions.stop()
 	s.wg.Wait()
-
-	for _, listener := range durables {
-		listener.Stop()
-	}
 
 	return err
 }

@@ -1,4 +1,4 @@
-package client
+package streaming
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 		return workingClient, nil
 	})
 
-	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
 	})
 
@@ -70,7 +70,7 @@ func TestReconnectingStreamSnapshotNotBlockedByConnect(t *testing.T) {
 
 	retryErr := make(chan error, 1)
 	go func() {
-		retryErr <- stream.connectOnce(context.Background())
+		retryErr <- stream.ConnectOnce(context.Background())
 	}()
 
 	select {
@@ -84,7 +84,7 @@ func TestReconnectingStreamSnapshotNotBlockedByConnect(t *testing.T) {
 		generation uint64
 	}, 1)
 	go func() {
-		client, generation, _ := stream.snapshot()
+		client, generation, _ := stream.Snapshot()
 		snapshotRead <- struct {
 			client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
 			generation uint64
@@ -118,12 +118,12 @@ func TestRetrySendConnectAttemptsAreFlat(t *testing.T) {
 		constructorCalls.Add(1)
 		return nil, status.Error(codes.Unavailable, "engine down")
 	})
-	stream.sleep = func(context.Context, int) error {
+	stream.SetSleep(func(context.Context, int) error {
 		sleepCalls.Add(1)
 		return nil
-	}
+	})
 
-	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
 	})
 
@@ -144,7 +144,7 @@ func TestRetrySend_FailsAfterMaxRetries(t *testing.T) {
 		return failingClient, nil
 	})
 
-	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
 	})
 
@@ -166,7 +166,7 @@ func TestRetrySend_SucceedsOnFirstAttempt(t *testing.T) {
 		return workingClient, nil
 	})
 
-	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
 	})
 
@@ -180,12 +180,12 @@ func TestRetrySend_HandlesNilClient(t *testing.T) {
 		return nil, fmt.Errorf("connection failed")
 	})
 
-	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
 	})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errStreamNotConnected)
+	assert.ErrorIs(t, err, ErrStreamNotConnected)
 }
 
 func TestRetrySend_ConcurrentSafety(t *testing.T) {
@@ -219,7 +219,7 @@ func TestRetrySend_ConcurrentSafety(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			<-start
-			err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+			err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 				return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: fmt.Sprintf("workflow-run-%d", id)})
 			})
 			assert.NoError(t, err)
@@ -252,7 +252,7 @@ func TestRetrySubscribe_SingleflightCoalescesConcurrentCalls(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := stream.connectSync(context.Background())
+			err := stream.ConnectSync(context.Background())
 			assert.NoError(t, err)
 		}()
 	}
@@ -270,17 +270,17 @@ func TestRetrySubscribe_GenerationIncrements(t *testing.T) {
 		return client, nil
 	})
 
-	_, gen0, _ := stream.snapshot()
+	_, gen0, _ := stream.Snapshot()
 	assert.Equal(t, uint64(0), gen0)
 
-	require.NoError(t, stream.connectSync(context.Background()))
+	require.NoError(t, stream.ConnectSync(context.Background()))
 
-	_, gen1, _ := stream.snapshot()
+	_, gen1, _ := stream.Snapshot()
 	assert.Equal(t, uint64(1), gen1)
 
-	require.NoError(t, stream.connectSync(context.Background()))
+	require.NoError(t, stream.ConnectSync(context.Background()))
 
-	_, gen2, _ := stream.snapshot()
+	_, gen2, _ := stream.Snapshot()
 	assert.Equal(t, uint64(2), gen2)
 }
 
@@ -289,7 +289,7 @@ func TestGetClientSnapshot_ReturnsCurrentClient(t *testing.T) {
 
 	stream := newTestWorkflowStream(t, client1, nil)
 
-	got, gen, ok := stream.snapshot()
+	got, gen, ok := stream.Snapshot()
 	assert.True(t, ok)
 	assert.Equal(t, client1, got)
 	assert.Equal(t, uint64(0), gen)
@@ -303,7 +303,7 @@ func TestRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
 		return nil, status.Error(codes.Unavailable, "still down")
 	})
 
-	err := stream.connectSync(context.Background())
+	err := stream.ConnectSync(context.Background())
 	require.Error(t, err)
 	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), constructorCalls.Load())
 }
@@ -333,7 +333,7 @@ func TestRetrySendStaleGenerationSkipsReconnect(t *testing.T) {
 		return status.Error(codes.Unavailable, "send failed")
 	}
 
-	require.NoError(t, stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+	require.NoError(t, stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "run-1"})
 	}))
 	assert.Equal(t, int32(0), constructorCalls.Load())
@@ -369,10 +369,10 @@ func TestReconnectingStreamConnectsAreCoalesced(t *testing.T) {
 	backgroundDone := make(chan error, 1)
 
 	go func() {
-		syncDone <- stream.connectSync(context.Background())
+		syncDone <- stream.ConnectSync(context.Background())
 	}()
 	go func() {
-		backgroundDone <- stream.connectOnce(context.Background())
+		backgroundDone <- stream.ConnectOnce(context.Background())
 	}()
 
 	require.Eventually(t, func() bool {
@@ -401,7 +401,7 @@ func TestRetrySendShortCircuitsOnPermanentReconnectError(t *testing.T) {
 			return nil, status.Error(codes.Unauthenticated, "auth failed")
 		})
 
-		err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+		err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 			return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "run-1"})
 		})
 
@@ -422,11 +422,11 @@ func TestRetrySendShortCircuitsOnPermanentReconnectError(t *testing.T) {
 
 		require.NoError(t, stream.Close())
 
-		err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+		err := stream.RetrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 			return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "run-1"})
 		})
 
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errListenerClosed)
+		assert.ErrorIs(t, err, ErrListenerClosed)
 	})
 }

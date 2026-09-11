@@ -7,8 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // OperatorService's client lives in the legacy client package
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
@@ -36,13 +38,13 @@ const (
 // durableHub owns the session's single DurableTaskListener and the channels open on it,
 // indexed by task and then invocation so a server-evict notice, which names one task, finds
 // that task's channels without walking every open channel under the lock. It is created on
-// the first OpenDurable.
+// the first OpenDurable and stops the listener it built when it closes.
 //
 // Requests reach the listener through the hub's bounded outbound queue and one pump
 // goroutine: the listener's own enqueue has no cancellation, so only the pump ever blocks on
 // it, while every channel's Send selects on its own close signal.
 type durableHub struct {
-	listener *client.DurableTaskListener //nolint:staticcheck // see import
+	listener *durableTaskListener
 	channels map[string]map[int32]*durableChannel
 	outbound chan outboundRequest
 	stopped  chan struct{}
@@ -55,6 +57,9 @@ type durableHub struct {
 	// blocked on the listener's full queue returns.
 	pumpCtx    context.Context
 	pumpCancel context.CancelFunc
+
+	// stopListener stops the listener the hub built; nil when the caller owns it.
+	stopListener func()
 }
 
 // outboundRequest is one queued request and the channel it belongs to; the pump drops
@@ -64,20 +69,23 @@ type outboundRequest struct {
 	ch  *durableChannel
 }
 
-func newDurableHub(session client.OperatorSession) *durableHub { //nolint:staticcheck // see import
-	listener := session.NewDurableTaskListener()
+// newDurableHub builds the session's listener over its durable task stream and starts it.
+// The listener registers the worker the session currently has on every stream it opens.
+func newDurableHub(session operatorclient.Session, l *zerolog.Logger) *durableHub {
+	listener := newDurableTaskListener(session.Registration().WorkerId, session.OpenDurableTaskStream, l)
 	hub := newDurableHubOver(listener)
+	hub.stopListener = listener.Stop
 
 	listener.SetServerEvictCallback(hub.onServerEvict)
-	// The session stops the listener when it closes; Start's context only bounds the
-	// listener's own reconnect loop.
+	// closeAll stops the listener; Start's context only bounds the listener's own reconnect
+	// loop.
 	listener.Start(context.Background())
 
 	return hub
 }
 
 // newDurableHubOver builds a hub over a listener the caller starts and stops.
-func newDurableHubOver(listener *client.DurableTaskListener) *durableHub { //nolint:staticcheck // see import
+func newDurableHubOver(listener *durableTaskListener) *durableHub {
 	pumpCtx, pumpCancel := context.WithCancel(context.Background())
 
 	hub := &durableHub{
@@ -218,8 +226,7 @@ func (h *durableHub) onServerEvict(taskId string, invocation int32, reason strin
 	}
 }
 
-// closeAll closes every open channel and stops the pump; the listener itself is stopped by
-// the session.
+// closeAll closes every open channel, stops the pump and then the listener the hub built.
 func (h *durableHub) closeAll() {
 	h.mu.Lock()
 	h.closed = true
@@ -240,6 +247,10 @@ func (h *durableHub) closeAll() {
 	h.stopOnce.Do(func() {
 		close(h.stopped)
 		h.pumpCancel()
+
+		if h.stopListener != nil {
+			h.stopListener()
+		}
 	})
 }
 
@@ -260,7 +271,7 @@ type recvItem struct {
 // after the cleanup.
 type durableChannel struct {
 	hub        *durableHub
-	listener   *client.DurableTaskListener //nolint:staticcheck // see import
+	listener   *durableTaskListener
 	queue      chan recvItem
 	closed     chan struct{}
 	evictedCh  chan struct{}
@@ -273,8 +284,6 @@ type durableChannel struct {
 	inflight   bool
 	closing    bool
 }
-
-var _ operator.DurableChannel = (*durableChannel)(nil)
 
 // spawn runs fn on a goroutine the channel joins on Close; nothing is started once closing.
 func (c *durableChannel) spawn(fn func()) {
@@ -294,8 +303,8 @@ func (c *durableChannel) spawn(fn func()) {
 	}()
 }
 
-func (c *durableChannel) ackKey() client.PendingAckKey { //nolint:staticcheck // see import
-	return client.PendingAckKey{TaskID: c.taskId, SignalKey: int64(c.invocation)} //nolint:staticcheck // see import
+func (c *durableChannel) ackKey() pendingAckKey {
+	return pendingAckKey{TaskID: c.taskId, SignalKey: int64(c.invocation)}
 }
 
 // acquire takes the one in-flight slot for ack-bearing requests.
@@ -435,7 +444,7 @@ func (c *durableChannel) awaitEntry(branchId, nodeId int64) {
 		return
 	}
 
-	key := client.PendingCallbackKey{ //nolint:staticcheck // see import
+	key := pendingCallbackKey{
 		TaskID:    c.taskId,
 		SignalKey: int64(c.invocation),
 		NodeID:    nodeId,
@@ -508,7 +517,7 @@ func (c *durableChannel) sendEviction(ctx context.Context, req *v1.DurableTaskRe
 // becomes an error response the operator handles like any engine error; anything else is a
 // transport failure, unless a server-evict notice explains it within the grace.
 func (c *durableChannel) failed(err error) {
-	var nonDet *client.NonDeterminismError //nolint:staticcheck // see import
+	var nonDet *nonDeterminismError
 
 	if errors.As(err, &nonDet) {
 		c.push(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_Error{
