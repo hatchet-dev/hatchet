@@ -608,51 +608,62 @@ func (c *routingCache) Revision() uint64 {
 }
 
 // ActionUnion is the sorted union of registered_actions over the tenant's enabled endpoints,
-// the action set every registration for the tenant advertises, with its revision. The slice
-// is shared and must not be modified; it is rebuilt once per revision.
+// the action set a registration opens with, and its revision. The slice is shared and must
+// not be modified. It is built once per revision, and only on demand: a registration's sync
+// never needs it, so a changed union costs the sort at most once per open. The keys are
+// copied under the read lock and sorted outside any lock, since sorting a million ids would
+// otherwise hold every route on the tenant; the result is published if the revision it was
+// built for is still current, else built again.
 func (c *routingCache) ActionUnion() ([]string, uint64) {
-	c.mu.RLock()
+	for {
+		c.mu.RLock()
 
-	if c.sortedRev == c.rev && c.sorted != nil {
-		sorted, rev := c.sorted, c.rev
-		c.mu.RUnlock()
+		if c.sortedRev == c.rev && c.sorted != nil {
+			sorted, rev := c.sorted, c.rev
+			c.mu.RUnlock()
 
-		return sorted, rev
-	}
+			return sorted, rev
+		}
 
-	c.mu.RUnlock()
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.sortedRev != c.rev || c.sorted == nil {
+		rev := c.rev
 		sorted := make([]string, 0, len(c.counts))
 
 		for action := range c.counts {
 			sorted = append(sorted, action)
 		}
 
+		c.mu.RUnlock()
+
 		sort.Strings(sorted)
 
-		c.sorted = sorted
-		c.sortedRev = c.rev
-	}
+		c.mu.Lock()
 
-	return c.sorted, c.rev
+		if c.rev == rev {
+			c.sorted = sorted
+			c.sortedRev = rev
+			c.mu.Unlock()
+
+			return sorted, rev
+		}
+
+		c.mu.Unlock()
+	}
 }
 
-// DeltasSince coalesces the union changes after revision rev. ok is false when the log no
-// longer reaches back to rev, in which case the caller diffs against the full union.
-func (c *routingCache) DeltasSince(rev uint64) (added, removed []string, ok bool) {
+// DeltasSince coalesces the union changes after revision rev into the delta that brings a
+// set at rev to the current revision, which is returned with it. ok is false when the log no
+// longer reaches back to rev, in which case the caller diffs its set with DiffAgainst. A
+// caller at the current revision gets an empty delta.
+func (c *routingCache) DeltasSince(rev uint64) (added, removed []string, current uint64, ok bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if rev == c.rev {
-		return nil, nil, true
+		return nil, nil, c.rev, true
 	}
 
 	if rev > c.rev || len(c.log) == 0 || c.log[0].rev > rev+1 {
-		return nil, nil, false
+		return nil, nil, c.rev, false
 	}
 
 	addedSet := map[string]struct{}{}
@@ -682,21 +693,44 @@ func (c *routingCache) DeltasSince(rev uint64) (added, removed []string, ok bool
 		}
 	}
 
-	added = make([]string, 0, len(addedSet))
-	removed = make([]string, 0, len(removedSet))
+	return sortedKeys(addedSet), sortedKeys(removedSet), c.rev, true
+}
 
-	for action := range addedSet {
-		added = append(added, action)
+// DiffAgainst is the delta from have to the current union (the ids to add and the ids to
+// remove) with the union's revision, for a caller whose revision the log no longer reaches.
+// It walks both sets once under the read lock and sorts nothing but the delta.
+func (c *routingCache) DiffAgainst(have map[string]struct{}) (added, removed []string, rev uint64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for action := range c.counts {
+		if _, ok := have[action]; !ok {
+			added = append(added, action)
+		}
 	}
 
-	for action := range removedSet {
-		removed = append(removed, action)
+	for action := range have {
+		if _, ok := c.counts[action]; !ok {
+			removed = append(removed, action)
+		}
 	}
 
 	sort.Strings(added)
 	sort.Strings(removed)
 
-	return added, removed, true
+	return added, removed, c.rev
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+
+	for action := range set {
+		out = append(out, action)
+	}
+
+	sort.Strings(out)
+
+	return out
 }
 
 // endpointsOnShards snapshots the endpoints on the given shards, in no particular order.

@@ -170,8 +170,9 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.Equal(t, 2, repo.ListForTenantCalls(), "the initial load plus the miss on the disabled endpoint")
 	assert.Equal(t, 1, repo.ListSinceCalls())
 
-	added, removed, ok := cache.DeltasSince(1)
+	added, removed, current, ok := cache.DeltasSince(1)
 	require.True(t, ok)
+	assert.Equal(t, uint64(2), current, "the delta ends at the current revision")
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a2")}, added)
 	assert.Empty(t, removed)
 
@@ -186,13 +187,20 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 
 	// Deltas coalesce across revisions: svc:a2 entered at 2 and left at 3, so from 1 the net
 	// change is svc:a out, svc:new in.
-	added, removed, ok = cache.DeltasSince(1)
+	added, removed, current, ok = cache.DeltasSince(1)
 	require.True(t, ok)
+	assert.Equal(t, uint64(3), current)
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:new")}, added)
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a")}, removed)
 
-	_, _, ok = cache.DeltasSince(7)
+	_, _, _, ok = cache.DeltasSince(7)
 	assert.False(t, ok, "a revision the cache never published falls back to a full diff")
+
+	// The fallback diffs a set against the union without the log.
+	added, removed, current = cache.DiffAgainst(map[string]struct{}{prefixed(a.Namespace, "svc:a"): {}})
+	assert.Equal(t, uint64(3), current)
+	assert.Equal(t, []string{prefixed(a.Namespace, "svc:new")}, added)
+	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a")}, removed)
 
 	// A refresh returning the row at the version the cache already applied changes nothing.
 	require.NoError(t, cache.Refresh(context.Background()))
