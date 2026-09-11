@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -55,11 +57,17 @@ const (
 	sessionLoginPath  = "/api/v1/users/login"
 	sessionLogoutPath = "/api/v1/users/logout"
 
-	// loginBackoff bounds how often the transport performs a login: a page
-	// load fires many API calls at once, and every one of them can race
-	// through the auth-failure path before the first Set-Cookie reaches the
-	// browser.
+	// loginBackoff is the minimum interval between login attempts, whatever
+	// the previous attempt's outcome: a page load fires many API calls at
+	// once, and every one of them can race through the auth-failure path
+	// before the first Set-Cookie reaches the browser; likewise a genuine
+	// permission 403 must not turn every denied request into a fresh login.
 	loginBackoff = 2 * time.Second
+
+	// defaultLoginTimeout bounds the whole login operation (request and
+	// response drain). The login runs while t.mu is held, so a stalled engine
+	// must not block every other request needing session state.
+	defaultLoginTimeout = 10 * time.Second
 
 	// maxReplayBody is the largest request body the transport buffers so the
 	// request can be retried after a login. Dashboard requests are small;
@@ -78,17 +86,26 @@ type sessionTransport struct {
 	base  http.RoundTripper
 	creds adminCredentials
 
-	// loginURL is the embedded API's login endpoint on the proxy target.
-	loginURL string
+	// loginURL is the embedded API's login endpoint on the proxy target,
+	// including the target's path prefix. loginPath and logoutPath are the
+	// corresponding request paths on the target used to recognize the session
+	// lifecycle endpoints.
+	loginURL   string
+	loginPath  string
+	logoutPath string
+
+	// loginTimeout bounds each login operation; defaults to
+	// defaultLoginTimeout (overridable in tests).
+	loginTimeout time.Duration
 
 	// logf reports login failures (rate-limited by loginBackoff).
 	logf func(format string, args ...interface{})
 
-	mu         sync.Mutex
-	cookies    []*http.Cookie // session cookies from the last successful login
-	obtainedAt time.Time
-	lastErr    error
-	failedAt   time.Time
+	mu          sync.Mutex
+	cookies     []*http.Cookie // session cookies from the last successful login
+	obtainedAt  time.Time
+	lastErr     error
+	attemptedAt time.Time // start of the last login attempt, successful or not
 }
 
 func newSessionTransport(base http.RoundTripper, target *url.URL, creds adminCredentials, logf func(format string, args ...interface{})) *sessionTransport {
@@ -99,11 +116,30 @@ func newSessionTransport(base http.RoundTripper, target *url.URL, creds adminCre
 		logf = func(string, ...interface{}) {}
 	}
 
+	// Join the session endpoints onto the full target URL so a target under a
+	// path prefix keeps its prefix, matching the metadata check and the
+	// reverse proxy's own URL rewriting. Credentials must only ever be sent
+	// to the validated target.
+	loginTarget := target.JoinPath(sessionLoginPath)
+	logoutTarget := target.JoinPath(sessionLogoutPath)
+
+	// JoinPath leaves the leading slash off when the target has no path;
+	// proxied request paths always start with one.
+	if !strings.HasPrefix(loginTarget.Path, "/") {
+		loginTarget.Path = "/" + loginTarget.Path
+	}
+	if !strings.HasPrefix(logoutTarget.Path, "/") {
+		logoutTarget.Path = "/" + logoutTarget.Path
+	}
+
 	return &sessionTransport{
-		base:     base,
-		creds:    creds,
-		loginURL: target.Scheme + "://" + target.Host + sessionLoginPath,
-		logf:     logf,
+		base:         base,
+		creds:        creds,
+		loginURL:     loginTarget.String(),
+		loginPath:    loginTarget.Path,
+		logoutPath:   logoutTarget.Path,
+		loginTimeout: defaultLoginTimeout,
+		logf:         logf,
 	}
 }
 
@@ -182,7 +218,7 @@ func (t *sessionTransport) eligible(req *http.Request) bool {
 	}
 
 	switch req.URL.Path {
-	case sessionLoginPath, sessionLogoutPath:
+	case t.loginPath, t.logoutPath:
 		return false
 	}
 
@@ -239,16 +275,24 @@ func (t *sessionTransport) refreshSession(failed *http.Request, stale []*http.Co
 }
 
 // loginLocked performs a login (t.mu must be held), updating the cache and
-// applying the failure backoff.
+// applying the attempt backoff.
 func (t *sessionTransport) loginLocked(req *http.Request) ([]*http.Cookie, error) {
-	if t.lastErr != nil && time.Since(t.failedAt) < loginBackoff {
-		return nil, t.lastErr
+	// Apply loginBackoff to every login attempt, successful or not: a genuine
+	// permission 403 on the cached-session path must not perform a fresh
+	// admin login for each denied request.
+	if !t.attemptedAt.IsZero() && time.Since(t.attemptedAt) < loginBackoff {
+		if t.lastErr != nil {
+			return nil, t.lastErr
+		}
+
+		return nil, fmt.Errorf("a login was already attempted in the last %s", loginBackoff)
 	}
+
+	t.attemptedAt = time.Now()
 
 	cookies, err := t.login(req)
 	if err != nil {
 		t.lastErr = err
-		t.failedAt = time.Now()
 		t.logf("could not sign the dashboard in automatically (sign in manually with the printed credentials): %v", err)
 
 		return nil, err
@@ -293,7 +337,14 @@ func (t *sessionTransport) login(orig *http.Request) ([]*http.Cookie, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(orig.Context(), http.MethodPost, t.loginURL, bytes.NewReader(payload))
+	// The login runs while t.mu is held: bound the whole operation (request
+	// and response drain) so a stalled engine cannot block other requests on
+	// the mutex indefinitely. cancel is deferred before discardResponse so
+	// the drain still runs inside the timed scope.
+	ctx, cancel := context.WithTimeout(orig.Context(), t.loginTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.loginURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +363,15 @@ func (t *sessionTransport) login(orig *http.Request) ([]*http.Cookie, error) {
 
 	var cookies []*http.Cookie
 	for _, c := range resp.Cookies() {
+		// Never collect the proxy's own auth cookie: caching and relaying it
+		// would let an engine response overwrite the browser's ui-token. The
+		// engine's session cookie name is config-driven (SERVER_AUTH_COOKIE_NAME,
+		// default "hatchet"), so the reserved name is denylisted rather than
+		// allowlisting a fixed session cookie name.
+		if c.Name == uiTokenCookie {
+			continue
+		}
+
 		if c.Value != "" {
 			cookies = append(cookies, c)
 		}

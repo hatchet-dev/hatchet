@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeEmbeddedAPI mimics the embedded API's cookie auth: a login endpoint
@@ -19,6 +20,13 @@ type fakeEmbeddedAPI struct {
 
 	sessionValue string
 	logins       atomic.Int64
+
+	// alwaysDeny makes the API endpoints return 403 even with a valid
+	// session, modeling a genuine permission denial.
+	alwaysDeny bool
+
+	// extraLoginCookie is an additional cookie the login response sets.
+	extraLoginCookie *http.Cookie
 
 	lastAPIRequest atomic.Pointer[http.Request]
 }
@@ -41,6 +49,9 @@ func (f *fakeEmbeddedAPI) handler() http.Handler {
 		}
 
 		http.SetCookie(w, &http.Cookie{Name: "hatchet", Value: f.sessionValue, Path: "/", HttpOnly: true})
+		if f.extraLoginCookie != nil {
+			http.SetCookie(w, f.extraLoginCookie)
+		}
 		_, _ = w.Write([]byte(`{"email":"admin@example.com"}`))
 	})
 
@@ -51,7 +62,7 @@ func (f *fakeEmbeddedAPI) handler() http.Handler {
 		f.lastAPIRequest.Store(clone)
 
 		c, err := r.Cookie("hatchet")
-		if err != nil || c.Value != f.sessionValue {
+		if err != nil || c.Value != f.sessionValue || f.alwaysDeny {
 			http.Error(w, "Please provide valid credentials", http.StatusForbidden)
 			return
 		}
@@ -252,6 +263,12 @@ func TestSessionTransportRefreshesStaleCachedSession(t *testing.T) {
 	// Simulate an API restart invalidating the cached session.
 	api.sessionValue = "session-9"
 
+	// Every login attempt is rate-limited by loginBackoff; move the transport
+	// outside the window so the refresh below is permitted.
+	rt.mu.Lock()
+	rt.attemptedAt = rt.attemptedAt.Add(-loginBackoff)
+	rt.mu.Unlock()
+
 	// A fresh browser (no cookies) must still get a working session in one
 	// request: cached session fails, transport refreshes and retries.
 	second, _ := http.NewRequest("GET", srv.URL+"/api/v1/users/current", nil)
@@ -273,6 +290,167 @@ func TestSessionTransportRefreshesStaleCachedSession(t *testing.T) {
 	if got := api.logins.Load(); got != 2 {
 		t.Errorf("expected exactly 2 logins, got %d", got)
 	}
+}
+
+func TestSessionTransportGenuineForbiddenLimitsRefreshLogins(t *testing.T) {
+	// The API accepts logins but denies the operation itself, so every request
+	// without the cached cookie takes the reuse-then-refresh path. The refresh
+	// must be rate-limited: genuine permission denials must not perform a
+	// fresh admin login per request.
+	api := &fakeEmbeddedAPI{t: t, sessionValue: "session-10", alwaysDeny: true}
+	rt, srv := newTestSessionTransport(t, api, defaultTestCreds())
+
+	for i := 0; i < 10; i++ {
+		req, _ := http.NewRequest("GET", srv.URL+"/api/v1/tenants/x/workflows", nil)
+		resp := do(t, rt, req)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("request %d: got %d, want the genuine 403", i, resp.StatusCode)
+		}
+	}
+
+	if got := api.logins.Load(); got != 1 {
+		t.Errorf("expected at most 1 login for rapid genuine 403s, got %d", got)
+	}
+}
+
+func TestSessionTransportLoginKeepsTargetPathPrefix(t *testing.T) {
+	// The embedded API lives under a path prefix; the login must go to the
+	// validated target's prefixed login endpoint, never to the origin root.
+	api := &fakeEmbeddedAPI{t: t, sessionValue: "session-11"}
+
+	var rootLogins atomic.Int64
+	mux := http.NewServeMux()
+	mux.Handle("/embedded/", http.StripPrefix("/embedded", api.handler()))
+	mux.HandleFunc("/api/v1/users/login", func(w http.ResponseWriter, r *http.Request) {
+		rootLogins.Add(1)
+		http.Error(w, "not the embedded API", http.StatusNotFound)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	target, err := url.Parse(srv.URL + "/embedded")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rt := newSessionTransport(nil, target, defaultTestCreds(), t.Logf)
+
+	req, _ := http.NewRequest("GET", srv.URL+"/embedded/api/v1/users/current", nil)
+	resp := do(t, rt, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200 via the prefixed login endpoint", resp.StatusCode)
+	}
+
+	if got := api.logins.Load(); got != 1 {
+		t.Errorf("expected 1 login on the prefixed endpoint, got %d", got)
+	}
+	if got := rootLogins.Load(); got != 0 {
+		t.Fatalf("credentials were sent outside the validated prefix (%d root logins)", got)
+	}
+
+	// The prefixed session endpoints themselves still pass through untouched.
+	logout, _ := http.NewRequest("POST", srv.URL+"/embedded/api/v1/users/logout", nil)
+	if resp := do(t, rt, logout); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("prefixed logout: got %d, want pass-through 403", resp.StatusCode)
+	}
+	if got := api.logins.Load(); got != 1 {
+		t.Errorf("expected no login for the prefixed logout, got %d", got)
+	}
+}
+
+func TestSessionTransportLoginTimeout(t *testing.T) {
+	// The login runs while the session mutex is held: a login response that
+	// never arrives must fail within loginTimeout and unblock other requests.
+	release := make(chan struct{})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/users/login", func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	})
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Please provide valid credentials", http.StatusForbidden)
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) }) // runs before srv.Close, releasing the stalled handler
+
+	target, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rt := newSessionTransport(nil, target, defaultTestCreds(), t.Logf)
+	rt.loginTimeout = 100 * time.Millisecond
+
+	start := time.Now()
+
+	done := make(chan int, 1)
+	go func() {
+		req, _ := http.NewRequest("GET", srv.URL+"/api/v1/tenants/x/workflows", nil)
+		resp, err := rt.RoundTrip(req)
+		if err != nil {
+			done <- -1
+			return
+		}
+		defer resp.Body.Close()
+		done <- resp.StatusCode
+	}()
+
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/users/current", nil)
+	if resp := do(t, rt, req); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("got %d, want the original 403 when the login stalls", resp.StatusCode)
+	}
+
+	select {
+	case status := <-done:
+		if status != http.StatusForbidden {
+			t.Errorf("concurrent request: got %d, want 403", status)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("concurrent request stayed blocked past the login timeout")
+	}
+
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("login did not fail within the timeout, took %s", elapsed)
+	}
+}
+
+func TestSessionTransportRejectsReservedLoginCookie(t *testing.T) {
+	// A login response that also sets the proxy's own ui-token cookie must not
+	// have that cookie cached, sent on retries, or relayed to the browser.
+	api := &fakeEmbeddedAPI{
+		t:                t,
+		sessionValue:     "session-12",
+		extraLoginCookie: &http.Cookie{Name: uiTokenCookie, Value: "engine-forged", Path: "/"},
+	}
+	rt, srv := newTestSessionTransport(t, api, defaultTestCreds())
+
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/users/current", nil)
+	resp := do(t, rt, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200", resp.StatusCode)
+	}
+
+	for _, c := range resp.Cookies() {
+		if c.Name == uiTokenCookie {
+			t.Errorf("the reserved ui-token cookie was relayed to the browser: %v", c)
+		}
+	}
+
+	sent := api.lastAPIRequest.Load()
+	if _, err := sent.Cookie(uiTokenCookie); err == nil {
+		t.Errorf("the reserved ui-token cookie was sent on the retry: %q", sent.Header.Get("Cookie"))
+	}
+
+	rt.mu.Lock()
+	for _, c := range rt.cookies {
+		if c.Name == uiTokenCookie {
+			t.Errorf("the reserved ui-token cookie was cached")
+		}
+	}
+	rt.mu.Unlock()
 }
 
 func TestStripRequestCookie(t *testing.T) {
