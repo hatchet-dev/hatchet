@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -475,6 +474,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DDLPool:           ddlPool,
 		V1:                v1,
 		Seed:              cf.Seed,
+		Logger:            &l,
 	}, nil
 }
 
@@ -914,7 +914,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
-		log.Printf("cleaning up server config")
+		l.Debug().Msg("cleaning up server config")
 
 		cleanupSecurityCheck()
 
