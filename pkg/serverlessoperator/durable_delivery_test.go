@@ -263,6 +263,7 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
 
 	closeCode := make(chan int, 1)
+	upgraded := make(chan struct{}, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
@@ -272,6 +273,8 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 		}
 
 		defer conn.Close()
+
+		upgraded <- struct{}{}
 
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
@@ -298,6 +301,15 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
+
+	// STARTED is reported before the socket is dialed: a cancel that lands before the
+	// upgrade aborts the dial and no socket is ever closed, which is not what this test is
+	// about. Wait for the endpoint to hold the socket.
+	select {
+	case <-upgraded:
+	case <-time.After(eventually):
+		t.Fatal("endpoint never saw the upgrade")
+	}
 
 	cancel := &contracts.AssignedAction{ActionType: contracts.ActionType_CANCEL_STEP_RUN, TaskRunExternalId: action.TaskRunExternalId}
 	reg.deliver(t, cancel)
