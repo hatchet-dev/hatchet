@@ -119,7 +119,7 @@ func TestOpenClaimedRow(t *testing.T) {
 
 	s, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{
 		Handler:    handler,
-		Actions:    []string{"dag:a", "dag:b"},
+		Actions:    []string{"a_orchestrator", "b_orchestrator"},
 		SlotConfig: map[string]int32{"durable": 4},
 		Labels:     map[string]interface{}{"region": "eu", "rank": 3},
 	})
@@ -151,7 +151,7 @@ func TestOpenClaimedRow(t *testing.T) {
 	require.Len(t, h.dispatcher.Handlers(), 1)
 	assert.Equal(t, handler, h.dispatcher.Handlers()[0], "the dispatcher delivers to the handler directly")
 
-	assert.ElementsMatch(t, []string{"dag:a", "dag:b"}, h.workers.ActionSet(reg.WorkerId), "the initial actions are linked before Open returns")
+	assert.ElementsMatch(t, []string{"a_orchestrator", "b_orchestrator"}, h.workers.ActionSet(reg.WorkerId), "the initial actions are linked before Open returns")
 	assert.Equal(t, 1, h.SessionCount())
 
 	require.NoError(t, s.Close(t.Context()))
@@ -221,7 +221,7 @@ func TestOpenInitialActionsChunkedAndBudgeted(t *testing.T) {
 	actions := make([]string, 0, 1500)
 
 	for i := 0; i < 1500; i++ {
-		actions = append(actions, fmt.Sprintf("svc:action%d", i))
+		actions = append(actions, fmt.Sprintf("wf%d_orchestrator", i))
 	}
 
 	s, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{Handler: nopHandler{}, Actions: actions})
@@ -231,7 +231,7 @@ func TestOpenInitialActionsChunkedAndBudgeted(t *testing.T) {
 	require.NoError(t, s.Close(t.Context()))
 
 	// the operator now holds 1500 links, so the next worker has no budget left
-	_, err = h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{Handler: nopHandler{}, Actions: []string{"svc:one-more"}})
+	_, err = h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{Handler: nopHandler{}, Actions: []string{"one-more_orchestrator"}})
 	require.Error(t, err)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(errors.Unwrap(err)))
 
@@ -251,16 +251,21 @@ func TestDeltasAreSynchronous(t *testing.T) {
 
 	workerId := s.Registration().WorkerId
 
-	require.NoError(t, s.AddActions(t.Context(), []string{"dag:a", "dag:b"}))
-	assert.ElementsMatch(t, []string{"dag:a", "dag:b"}, h.workers.ActionSet(workerId))
+	// a DAG operator's actions are the orchestrator ids of the tenant's DAG workflows, as the
+	// engine stores them: lower-cased, without a ":"
+	require.NoError(t, s.AddActions(t.Context(), []string{"a_orchestrator", "b_orchestrator"}))
+	assert.ElementsMatch(t, []string{"a_orchestrator", "b_orchestrator"}, h.workers.ActionSet(workerId))
 
-	require.NoError(t, s.RemoveActions(t.Context(), []string{"dag:a", "dag:missing"}))
-	assert.Equal(t, []string{"dag:b"}, h.workers.ActionSet(workerId))
+	require.NoError(t, s.RemoveActions(t.Context(), []string{"a_orchestrator", "missing_orchestrator"}))
+	assert.Equal(t, []string{"b_orchestrator"}, h.workers.ActionSet(workerId))
 
 	require.NoError(t, s.Flush(t.Context()))
 
 	err = s.AddActions(t.Context(), []string{"not an action id"})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	err = s.AddActions(t.Context(), []string{"svc:a"})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err), "a DAG operator holds no worker action")
 }
 
 func TestHeartbeatCoversOpenAndDrainingSessions(t *testing.T) {
