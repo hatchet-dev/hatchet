@@ -447,7 +447,14 @@ func (x *OperatorListenStart) GetWorkerId() string {
 	return ""
 }
 
-// OperatorHeartbeat keeps the worker alive. Clients send one every 4 seconds.
+// OperatorHeartbeat keeps the worker alive. Clients send one every 4 seconds on the Listen
+// stream.
+//
+// SDK workers heartbeat out of stream (Dispatcher.Heartbeat), from a thread of their own, because
+// the runtimes the SDKs target can block their event loop while a task runs and would starve an
+// in-stream heartbeat, marking a busy worker dead. Operators are written against the Go SDK, whose
+// runtime is not subject to event loop blocking that way, so the heartbeat rides the stream it
+// keeps alive: one connection, one liveness, and a stream that is gone takes its heartbeat with it.
 type OperatorHeartbeat struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

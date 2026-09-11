@@ -36,8 +36,9 @@ type OperatorServiceClient interface {
 	//     stream is also rejected. The server waits at most 30 seconds for it.
 	//  2. Every server message is an OperatorListenResponse: either an assigned action from the
 	//     dispatcher fan-out or an ack for an actions delta.
-	//  3. The client sends a heartbeat every 4 seconds. A worker whose heartbeat goes stale is
-	//     treated as inactive by the scheduler.
+	//  3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
+	//     goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
+	//     heartbeat is in-stream rather than a separate RPC like an SDK worker's.
 	//  4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
 	//     are applied incrementally to the worker's action set and never replace it; a removed
 	//     action stops being assigned to the worker within about a second. Each delta carries at
@@ -193,8 +194,9 @@ type OperatorServiceServer interface {
 	//     stream is also rejected. The server waits at most 30 seconds for it.
 	//  2. Every server message is an OperatorListenResponse: either an assigned action from the
 	//     dispatcher fan-out or an ack for an actions delta.
-	//  3. The client sends a heartbeat every 4 seconds. A worker whose heartbeat goes stale is
-	//     treated as inactive by the scheduler.
+	//  3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
+	//     goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
+	//     heartbeat is in-stream rather than a separate RPC like an SDK worker's.
 	//  4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
 	//     are applied incrementally to the worker's action set and never replace it; a removed
 	//     action stops being assigned to the worker within about a second. Each delta carries at
