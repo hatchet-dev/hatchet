@@ -337,3 +337,43 @@ func TestListenExitsOnDispatcherFin(t *testing.T) {
 	assert.NoError(t, waitListen(t, done))
 	assert.Len(t, svc.workers.SessionLog(), 2)
 }
+
+func pauseMsg(paused bool) *v1contracts.OperatorListenRequest {
+	return &v1contracts.OperatorListenRequest{Message: &v1contracts.OperatorListenRequest_Pause{
+		Pause: &v1contracts.OperatorPause{Paused: paused},
+	}}
+}
+
+// A pause on the stream stops the session delivering, commits the pause on the worker and is
+// acknowledged in that order, so the ack promises that nothing more arrives; a pause lifted is
+// acknowledged the same way.
+func TestListenPausesOnTheStream(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
+	done := runListen(svc, stream)
+
+	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
+
+	stream.push(pauseMsg(true))
+
+	eventually(t, func() bool { return len(svc.dispatcher.PauseAcks()) == 1 }, "the pause was not acknowledged")
+	assert.Equal(t, []bool{true}, svc.dispatcher.PauseAcks())
+	assert.True(t, svc.workers.IsPaused(worker.ID), "the pause is committed before the ack")
+	assert.Equal(t, []bool{true}, svc.dispatcher.PausedLog(), "the dispatcher session stopped delivering")
+
+	stream.push(pauseMsg(false))
+
+	eventually(t, func() bool { return len(svc.dispatcher.PauseAcks()) == 2 }, "the resume was not acknowledged")
+	assert.Equal(t, []bool{true, false}, svc.dispatcher.PauseAcks())
+	assert.False(t, svc.workers.IsPaused(worker.ID))
+	assert.Equal(t, []bool{true, false}, svc.dispatcher.PausedLog())
+
+	close(stream.recv)
+	assert.NoError(t, waitListen(t, done))
+	assert.False(t, svc.workers.IsPaused(worker.ID), "the stream ending does not pause the worker")
+}

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
@@ -79,10 +81,10 @@ func uniqueName(prefix string) string {
 }
 
 // connect registers an operator worker with the given slot config.
-func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, slots map[string]int32) client.OperatorSession {
+func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, slots map[string]int32) operatorclient.Session {
 	t.Helper()
 
-	session, err := v0.Operator().Connect(ctx, &client.ConnectOperatorRequest{
+	session, err := v0.Operator().Connect(ctx, &operatorclient.ConnectRequest{
 		Name:       uniqueName(name),
 		SlotConfig: slots,
 	})
@@ -93,7 +95,7 @@ func connect(t *testing.T, ctx context.Context, v0 client.Client, name string, s
 
 // putAndAdd puts the workflow, adds its actions to the session and waits for
 // the delta to land on the engine.
-func putAndAdd(t *testing.T, ctx context.Context, session client.OperatorSession, wf *v1.CreateWorkflowVersionRequest) *v1.CreateWorkflowVersionResponse {
+func putAndAdd(t *testing.T, ctx context.Context, session operatorclient.Session, wf *v1.CreateWorkflowVersionRequest) *v1.CreateWorkflowVersionResponse {
 	t.Helper()
 
 	resp, actions, err := session.PutWorkflow(ctx, wf)
@@ -116,7 +118,7 @@ func putAndAdd(t *testing.T, ctx context.Context, session client.OperatorSession
 // flushAndPoll flushes the session's deltas, then polls the worker's linked
 // actions until done accepts them: deltas are applied by the engine after the
 // stream has accepted them, so Flush alone is not a database barrier.
-func flushAndPoll(t *testing.T, ctx context.Context, session client.OperatorSession, done func(linked []string) bool) {
+func flushAndPoll(t *testing.T, ctx context.Context, session operatorclient.Session, done func(linked []string) bool) {
 	t.Helper()
 	require.NoError(t, session.Flush(ctx))
 
@@ -128,7 +130,7 @@ func flushAndPoll(t *testing.T, ctx context.Context, session client.OperatorSess
 
 // flushAndConverge is flushAndPoll followed by the scheduler's forced
 // replenish window, so its in-memory view of the worker's actions matches.
-func flushAndConverge(t *testing.T, ctx context.Context, session client.OperatorSession, done func(linked []string) bool) {
+func flushAndConverge(t *testing.T, ctx context.Context, session operatorclient.Session, done func(linked []string) bool) {
 	t.Helper()
 	flushAndPoll(t, ctx, session, done)
 	time.Sleep(schedulerConvergence)
@@ -177,7 +179,7 @@ type taskHandler func(ctx context.Context, action *dispatchercontracts.AssignedA
 // serve runs the session's action loop in the background and answers every
 // START_STEP_RUN with STARTED followed by COMPLETED or FAILED from handle.
 // Non-start actions are ignored. The loop ends when the session closes.
-func serve(t *testing.T, ctx context.Context, session client.OperatorSession, handle taskHandler) {
+func serve(t *testing.T, ctx context.Context, session operatorclient.Session, handle taskHandler) {
 	t.Helper()
 
 	actions, errCh, err := session.Actions(ctx)
@@ -339,7 +341,9 @@ func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want b
 	})
 }
 
-// workerActionHash reads the worker's action hash straight from the database.
+// workerActionHash reads the worker's action hash straight from the database. A delta clears
+// the hash and the session refreshes it at the end of the delta sequence, within its notify
+// window, so a NULL hash means the refresh is pending and the read waits for it.
 func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte {
 	t.Helper()
 
@@ -348,7 +352,12 @@ func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte
 	defer conn.Close(ctx)
 
 	var hash []byte
-	require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+
+	require.Eventually(t, func() bool {
+		require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+
+		return hash != nil
+	}, schedulerConvergence, pollInterval, "the worker's action hash was not refreshed after its delta")
 
 	return hash
 }
@@ -440,8 +449,9 @@ func TestDurableMemo(t *testing.T) {
 
 	session := connect(t, ctx, v0, "durable-operator", map[string]int32{"default": 10, "durable": 10})
 
-	durable := session.NewDurableTaskListener()
+	durable := client.NewDurableTaskListener(session.Registration().WorkerId, session.OpenDurableTaskStream, v0.Logger())
 	durable.Start(ctx)
+	t.Cleanup(durable.Stop)
 
 	memoKey := []byte("memo-key")
 	memoPayload := []byte(`{"memo":"value"}`)
@@ -719,9 +729,10 @@ func TestDurableTaskRejectsForeignWorker(t *testing.T) {
 	assert.NotNil(t, resp.GetRegisterWorker(), "own worker registers on the durable stream")
 }
 
-// A paused worker keeps its actions and its session but is not assigned to, which is what lets
-// an operator drain before it hangs up. Resuming it lets the queued run through, and so does a
-// reconnect, since Register clears the pause on a resumed worker.
+// A paused worker keeps its actions and its session but gets nothing delivered: the pause is a
+// message on the Listen stream, and once its ack is back the engine stops assigning to the
+// worker and returns to the queue anything it had assigned in the meantime. That is what lets
+// an operator drain before it hangs up. Resuming delivers the queued run once.
 func TestPauseStopsAssignment(t *testing.T) {
 	ctx := newTestContext(t)
 	v0, sdk := clients(t)
@@ -729,7 +740,10 @@ func TestPauseStopsAssignment(t *testing.T) {
 	session := connect(t, ctx, v0, "pause-operator", map[string]int32{"default": 10})
 	workerId := session.Registration().WorkerId
 
+	var handled atomic.Int32
+
 	serve(t, ctx, session, func(ctx context.Context, action *dispatchercontracts.AssignedAction) (string, error) {
+		handled.Add(1)
 		return `{"paused":"ok"}`, nil
 	})
 
@@ -737,22 +751,26 @@ func TestPauseStopsAssignment(t *testing.T) {
 	putAndAdd(t, ctx, session, simpleWorkflow(name, "grpcop:pause", false))
 	time.Sleep(schedulerConvergence)
 
+	// the ack has been received when Pause returns; the row is written before the ack
 	require.NoError(t, session.Pause(ctx))
-	pollWorkerPaused(t, ctx, workerId, true)
-	time.Sleep(schedulerConvergence)
+	assert.True(t, workerPaused(t, ctx, workerId), "the pause is committed before it is acknowledged")
 
+	// a run triggered right after the ack is either never assigned or assigned and returned to
+	// the queue; either way it does not reach the operator
 	ref, err := sdk.RunNoWait(ctx, name, map[string]any{})
 	require.NoError(t, err)
 
 	assertStaysQueued(t, ctx, sdk, ref.RunId, schedulerConvergence)
+	assert.Zero(t, handled.Load(), "nothing is delivered after the pause ack")
 
 	active, state := workerActive(t, ctx, workerId)
 	assert.True(t, active, "a paused worker keeps its session: %s", state)
 
 	require.NoError(t, session.Resume(ctx))
-	pollWorkerPaused(t, ctx, workerId, false)
+	assert.False(t, workerPaused(t, ctx, workerId), "the resume is committed before it is acknowledged")
 
 	waitForCompletion(t, ctx, sdk, ref.RunId)
+	assert.EqualValues(t, 1, handled.Load(), "the run held back by the pause runs once after the resume")
 }
 
 // Close is pause then drain: it pauses the worker before it hangs up, so nothing new is
@@ -786,7 +804,8 @@ func TestHostGRPCEcho(t *testing.T) {
 	source, err := hostgrpc.NewStaticExchange(os.Getenv("HATCHET_CLIENT_TOKEN"))
 	require.NoError(t, err)
 
-	host := hostgrpc.New(source, hostgrpc.Options{})
+	host, err := hostgrpc.New(hostgrpc.WithTokenSource(source))
+	require.NoError(t, err)
 	t.Cleanup(host.Close)
 
 	echo := &operatortest.Echo{}

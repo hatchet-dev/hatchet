@@ -4,6 +4,7 @@ package serverlessoperator
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -281,6 +282,43 @@ func TestTokenlessTenant(t *testing.T) {
 	require.Eventually(t, func() bool { return len(env.repo.StatusWrites()) == 2 }, eventually, 10*time.Millisecond)
 	assert.True(t, env.repo.StatusWrites()[1].Healthy)
 	assert.Nil(t, env.repo.StatusWrites()[1].Error)
+}
+
+// A host that gives up on a session (the gRPC host after a token source stopped having a
+// token, a tenant mismatch) reports it through Done and Err; the runner opens a new
+// registration for the tenant instead of leaving it registered and unserved.
+func TestRegistrationReopensAfterHostGivesUp(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+
+	first := env.host.session(0)
+	require.NotNil(t, first)
+
+	first.fail(errors.New("token revoked"))
+
+	require.Eventually(t, func() bool { return env.host.openCount() == 2 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, first.isClosed, eventually, 10*time.Millisecond)
+
+	second := env.host.session(1)
+	require.NotNil(t, second)
+	require.Eventually(t, func() bool {
+		ts := env.tenant(tenant)
+		return ts != nil && ts.registration() != nil && ts.registration().session == second
+	}, eventually, 10*time.Millisecond)
+
+	assert.Equal(t, sortedUnion(a.RegisteredActions), env.host.opens[1].opts.Actions, "the new session opens with the tenant's current union")
+	assert.Empty(t, env.host.releasedTenants(), "the tenant is still served; nothing is released on the host")
+
+	// A registration closed by the runner itself is not reopened.
+	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, second.isClosed, eventually, 10*time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 2, env.host.openCount())
 }
 
 func TestStatusWritesOnlyOnTransitions(t *testing.T) {

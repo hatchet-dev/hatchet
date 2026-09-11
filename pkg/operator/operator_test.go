@@ -60,7 +60,7 @@ type captureWriter struct {
 	events []*contracts.StepActionEvent
 }
 
-func (c *captureWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (c *captureWriter) CancelTaskEventCustom(_ context.Context, _ uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	c.events = append(c.events, request)
 	return &contracts.ActionEventResponse{}, nil
 }

@@ -67,6 +67,9 @@ func (f *fakeDurableChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse,
 	}
 }
 
+// ExpectEntry is a no-op: the relay registers no entries of its own.
+func (f *fakeDurableChannel) ExpectEntry(_, _ int64) error { return nil }
+
 func (f *fakeDurableChannel) Close() error {
 	f.once.Do(func() { close(f.closed) })
 	return nil

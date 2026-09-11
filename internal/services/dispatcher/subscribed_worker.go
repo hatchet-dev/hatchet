@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +37,12 @@ type subscribedWorker struct {
 	// stream-backed workers
 	handler  operator.ActionHandler
 	workerId uuid.UUID
+
+	// paused is set by an operator session that has paused its worker: a start assigned to the
+	// worker is returned to the queue instead of delivered, the way a failed send is, so that
+	// once the operator holds the pause's ack nothing more arrives. Cancels still go through,
+	// since the paused operator may still be draining the runs they name.
+	paused atomic.Bool
 }
 
 func newGRPCSubscribedWorker(
@@ -65,6 +72,12 @@ func newOperatorSubscribedWorker(
 		pubBuffer: pubBuffer,
 		handler:   handler,
 	}
+}
+
+// setPaused makes the worker return every start it is asked to deliver to the queue, or
+// deliver again.
+func (worker *subscribedWorker) setPaused(paused bool) {
+	worker.paused.Store(paused)
 }
 
 // markDone records that the session's owner has released it.

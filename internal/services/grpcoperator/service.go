@@ -26,7 +26,7 @@ import (
 )
 
 // OperatorIdMetadataKey is the incoming gRPC metadata key that carries the operator id on every
-// RPC after Register (Listen, PauseWorker, SendStepActionEvent, DurableTask).
+// RPC after Register (Listen, SendStepActionEvent, DurableTask).
 const OperatorIdMetadataKey = "hatchet-operator-id"
 
 type OperatorService interface {
@@ -148,12 +148,10 @@ func New(fs ...OperatorServiceOpt) (*OperatorServiceImpl, error) {
 	newLogger := opts.l.With().Str("service", "grpc_operator_service").Logger()
 
 	svc, err := operatorsvc.New(
-		operatorsvc.Deps{
-			Operators:    opts.repo.Operators(),
-			Workers:      opts.repo.Workers(),
-			Dispatcher:   operatorsvc.NewDispatcherBackend(opts.dispatcher),
-			DispatcherId: opts.dispatcher.DispatcherId(),
-		},
+		operatorsvc.WithOperatorStore(opts.repo.Operators()),
+		operatorsvc.WithWorkerStore(opts.repo.Workers()),
+		operatorsvc.WithDispatcherBackend(operatorsvc.NewDispatcherBackend(opts.dispatcher)),
+		operatorsvc.WithDispatcherId(opts.dispatcher.DispatcherId()),
 		operatorsvc.WithLogger(opts.l),
 		operatorsvc.WithValidator(opts.v),
 		operatorsvc.WithAnalytics(opts.analytics),

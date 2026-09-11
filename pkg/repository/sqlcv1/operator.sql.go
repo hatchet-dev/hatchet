@@ -188,7 +188,7 @@ INSERT INTO "Worker" (
     $5::uuid,
     -- operator workers have no gRPC listener to activate them, so they are born active.
     true
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
 `
 
 type CreateOperatorWorkerParams struct {
@@ -235,6 +235,7 @@ func (q *Queries) CreateOperatorWorker(ctx context.Context, db DBTX, arg CreateO
 		&i.SdkVersion,
 		&i.DurableTaskDispatcherId,
 		&i.ActionHash,
+		&i.ActionCount,
 	)
 	return &i, err
 }
@@ -377,6 +378,30 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOperator = `-- name: LockOperator :one
+SELECT id
+FROM v1_operator
+WHERE
+    tenant_id = $1::UUID
+    AND id = $2::UUID
+FOR UPDATE
+`
+
+type LockOperatorParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// Takes the operator's row lock for the rest of the transaction. A delta on one of the
+// operator's workers takes it after the worker's own row lock, always in that order, so the
+// per-operator action budget is checked against a sum no concurrent delta is changing.
+func (q *Queries) LockOperator(ctx context.Context, db DBTX, arg LockOperatorParams) (uuid.UUID, error) {
+	row := db.QueryRow(ctx, lockOperator, arg.Tenantid, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const tenantHasDAGOperator = `-- name: TenantHasDAGOperator :one

@@ -119,10 +119,7 @@ func openTestSession(t *testing.T) (*session, *fakeSession) {
 
 	t.Cleanup(func() {
 		_ = s.Close(context.Background())
-
-		if fs.stream != nil {
-			fs.stream.end()
-		}
+		fs.stream.end()
 	})
 
 	return s, fs
@@ -189,7 +186,7 @@ func TestDurableChannelMemo(t *testing.T) {
 }
 
 func TestDurableChannelWaitForDeliversEntryCompleted(t *testing.T) {
-	_, fs, ch := openTestChannel(t)
+	s, fs, ch := openTestChannel(t)
 	ctx := context.Background()
 
 	require.NoError(t, ch.Send(ctx, &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_WaitFor{
@@ -206,7 +203,7 @@ func TestDurableChannelWaitForDeliversEntryCompleted(t *testing.T) {
 
 	// The callback is registered under (task, invocation, branch, node) like the SDK's
 	// WaitForCallback, and the worker status advertises it.
-	require.Eventually(t, func() bool { return fs.listeners[0].PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return s.hub.listener.PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
 
 	fs.stream.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
 		EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{Ref: ref(taskId1, 2, 1, 3), Payload: []byte(`{"slept":true}`)},
@@ -218,7 +215,7 @@ func TestDurableChannelWaitForDeliversEntryCompleted(t *testing.T) {
 }
 
 func TestDurableChannelTriggerRunsDeliversChildCompletions(t *testing.T) {
-	_, fs, ch := openTestChannel(t)
+	s, fs, ch := openTestChannel(t)
 	ctx := context.Background()
 
 	require.NoError(t, ch.Send(ctx, &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_TriggerRuns{
@@ -236,7 +233,7 @@ func TestDurableChannelTriggerRunsDeliversChildCompletions(t *testing.T) {
 	}}
 
 	require.NotNil(t, recvOne(t, ch).GetTriggerRunsAck())
-	require.Eventually(t, func() bool { return fs.listeners[0].PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return s.hub.listener.PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
 
 	fs.stream.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
 		EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{Ref: ref(taskId1, 2, 0, 5), Payload: []byte(`{"child":1}`)},
@@ -245,6 +242,27 @@ func TestDurableChannelTriggerRunsDeliversChildCompletions(t *testing.T) {
 	completed := recvOne(t, ch).GetEntryCompleted()
 	require.NotNil(t, completed)
 	assert.Equal(t, int64(5), completed.Ref.NodeId)
+}
+
+// An entry the operator learned of outside the channel is awaited like one an ack named, and
+// only once however many times it is expected.
+func TestDurableChannelExpectEntryAwaitsTheEntry(t *testing.T) {
+	s, fs, ch := openTestChannel(t)
+
+	require.NoError(t, ch.ExpectEntry(0, 9))
+	require.NoError(t, ch.ExpectEntry(0, 9))
+	require.Eventually(t, func() bool { return s.hub.listener.PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
+
+	fs.stream.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
+		EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{Ref: ref(taskId1, 2, 0, 9), Payload: []byte(`{"child":9}`)},
+	}}
+
+	completed := recvOne(t, ch).GetEntryCompleted()
+	require.NotNil(t, completed)
+	assert.Equal(t, int64(9), completed.Ref.NodeId)
+
+	require.NoError(t, ch.Close())
+	assert.ErrorIs(t, ch.ExpectEntry(0, 10), operator.ErrChannelClosed)
 }
 
 func TestDurableChannelEviction(t *testing.T) {
@@ -344,7 +362,7 @@ func TestDurableChannelRejectsSessionOwnedRequests(t *testing.T) {
 }
 
 func TestDurableChannelTransportFailureIsAnError(t *testing.T) {
-	_, fs, ch := openTestChannel(t)
+	s, fs, ch := openTestChannel(t)
 
 	require.NoError(t, ch.Send(context.Background(), &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_Memo{
 		Memo: &v1.DurableTaskMemoRequest{Key: []byte("k")},
@@ -352,7 +370,7 @@ func TestDurableChannelTransportFailureIsAnError(t *testing.T) {
 	fs.stream.next(t)
 
 	// Stopping the listener fails the pending ack with no eviction to explain it.
-	fs.listeners[0].Stop()
+	s.hub.listener.Stop()
 
 	err := recvErr(t, ch)
 	assert.Contains(t, err.Error(), "listener stopped")
@@ -382,7 +400,7 @@ func TestDurableChannelCloseCleansUp(t *testing.T) {
 	}}
 	recvOne(t, ch)
 
-	listener := fs.listeners[0]
+	listener := s.hub.listener
 	require.Eventually(t, func() bool { return listener.PendingCallbackCount() == 1 }, eventually, 10*time.Millisecond)
 
 	require.NoError(t, ch.Close())
@@ -420,7 +438,7 @@ func TestDurableChannelCloseCleansUp(t *testing.T) {
 // and no other task's, through the hub's per-task index.
 func TestOnServerEvictReachesOnlyTheNamedTask(t *testing.T) {
 	fs := newFakeSession(uuid.NewString(), uuid.NewString())
-	hub := newDurableHubOver(fs.NewDurableTaskListener())
+	hub := newDurableHubOver(newDurableTaskListener(fs.workerId, fs.OpenDurableTaskStream, nil))
 	defer hub.closeAll()
 
 	older, err := hub.open("task-a", 1)
@@ -532,7 +550,7 @@ func TestFullQueueSendUnblocksOnClose(t *testing.T) {
 // A callback registration scheduled just before an invocation closes must not outlive the
 // invocation on the shared listener.
 func TestLateCallbackDoesNotSurviveClose(t *testing.T) {
-	s, fs := openTestSession(t)
+	s, _ := openTestSession(t)
 
 	for i := 0; i < 100; i++ {
 		ch, err := s.OpenDurable(context.Background(), uuid.New(), 1)
@@ -548,7 +566,7 @@ func TestLateCallbackDoesNotSurviveClose(t *testing.T) {
 		c.awaitEntry(0, 2)
 	}
 
-	listener := fs.listeners[0]
+	listener := s.hub.listener
 
 	assert.Eventually(t, func() bool { return listener.PendingCallbackCount() == 0 }, eventually, 5*time.Millisecond,
 		"closed invocations left %d late callbacks on the shared listener", listener.PendingCallbackCount())

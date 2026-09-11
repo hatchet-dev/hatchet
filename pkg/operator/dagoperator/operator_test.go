@@ -22,7 +22,7 @@ type fakeTaskEventWriter struct {
 	events []*contracts.StepActionEvent
 }
 
-func (f *fakeTaskEventWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (f *fakeTaskEventWriter) CancelTaskEventCustom(_ context.Context, _ uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	f.events = append(f.events, request)
 	return &contracts.ActionEventResponse{}, nil
 }

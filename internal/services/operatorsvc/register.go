@@ -249,6 +249,7 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 		Name:         name,
 		SlotConfig:   slotConfig,
 		OperatorId:   &operatorId,
+		OperatorKind: op.Kind,
 	}
 
 	if opts.RuntimeInfo != nil {

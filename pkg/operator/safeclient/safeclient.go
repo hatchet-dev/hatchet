@@ -9,11 +9,12 @@
 //     Config.InfraBlockedCIDRs;
 //   - redirects are never followed (3xx is surfaced to the caller as the result status);
 //   - the response body is capped at Config.MaxResponseBytes, and reading stops there;
-//   - idle connections are bounded globally, per host and in time (Config.MaxIdleConns,
-//     MaxIdleConnsPerHost, IdleConnTimeout); CloseIdleConnections releases them;
+//   - HTTP/1.1 only, so every retained connection is in the transport's idle pool, which
+//     is bounded globally, per host and in time (Config.MaxIdleConns, MaxIdleConnsPerHost,
+//     IdleConnTimeout); CloseIdleConnections releases them;
 //   - transport errors are returned as EndpointError, worded for the tenant, with the
 //     detail in the operator log;
-//   - the overall request deadline is owned by the CALLER via context.Context — this
+//   - the overall request deadline is owned by the CALLER via context.Context: this
 //     package imposes no overall request timeout.
 package safeclient
 
@@ -59,13 +60,14 @@ type Config struct {
 	ConnectTimeout       time.Duration
 	MaxResponseBytes     int64
 
-	// MaxIdleConns, MaxIdleConnsPerHost and IdleConnTimeout bound the transport's idle
-	// connection pool; zero values take the package defaults (256, 4, 90s).
-	MaxIdleConns        int
-	MaxIdleConnsPerHost int
-	IdleConnTimeout     time.Duration
+	MaxRedirects int
 
-	MaxRedirects         int
+	// MaxIdleConns, MaxIdleConnsPerHost and IdleConnTimeout bound the transport's idle
+	// connection pool, which is every connection the Sender retains: it speaks HTTP/1.1
+	// only. Zero values take the defaults (256, 4 and 90s).
+	MaxIdleConns         int
+	MaxIdleConnsPerHost  int
+	IdleConnTimeout      time.Duration
 	AllowEmptyInfraCIDRs bool
 	EnableIPv6           bool
 
@@ -97,7 +99,9 @@ type httpDoer interface {
 // Sender delivers outbound HTTP requests under the SSRF policy. Construct one with New and
 // reuse it; it is safe for concurrent use.
 type Sender struct {
-	client         httpDoer
+	client httpDoer
+	// transport is the transport the client actually uses: under the SSRF policy the clone
+	// safeurl installed its dialer on, so it holds the pooled connections.
 	transport      *http.Transport
 	blocklist      *blocklist
 	l              *zerolog.Logger
@@ -145,7 +149,7 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 	transport := cfg.newTransport()
 
 	if cfg.testInsecureTLS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- test-only
+		transport.TLSClientConfig.InsecureSkipVerify = true // #nosec G402 -- test-only
 	}
 
 	builder := safeurl.GetConfigBuilder().
@@ -165,9 +169,14 @@ func New(cfg Config, l *zerolog.Logger) (*Sender, error) {
 
 	client := safeurl.Client(builder.Build())
 
-	// safeurl clones the transport it is given; the clone is the one that pools
-	// connections, so that is the one CloseIdleConnections has to reach.
-	effective, _ := client.Client.Transport.(*http.Transport)
+	// safeurl clones the transport it was given and installs its own dialer on the clone;
+	// the clone is the one that pools connections, so it is the one CloseIdleConnections
+	// has to reach.
+	effective, ok := client.Client.Transport.(*http.Transport)
+
+	if !ok {
+		return nil, fmt.Errorf("safeclient: safeurl installed a %T transport, expected *http.Transport", client.Client.Transport)
+	}
 
 	return &Sender{
 		client:         client,
@@ -228,20 +237,28 @@ func (cfg Config) withDefaults() Config {
 	return cfg
 }
 
-// newTransport builds the transport both policy modes share: no proxy, HTTP/2 on, a hung
-// TLS handshake backstopped by ConnectTimeout and a bounded idle pool.
+// newTransport builds the transport both policy modes share: no proxy, HTTP/1.1 only, a
+// hung TLS handshake backstopped by ConnectTimeout and a bounded idle pool.
+//
+// The Sender speaks HTTP/1.1 only. HTTP/2 connections live in net/http's h2 pool, which
+// MaxIdleConns does not bound: a fleet polling many distinct origins would retain one
+// connection per origin for as long as the origin is revisited. HTTP/1.1 keep-alive under
+// the bounded idle pool is the explicit policy, so every retained connection is counted
+// and evicted by the transport. Three settings make that hold together with the dialer
+// safeurl installs: ForceAttemptHTTP2 stays off, TLSNextProto is an empty map so net/http
+// never registers the h2 upgrade, and ALPN offers http/1.1 alone so an origin cannot
+// select h2 and have its frames read by the HTTP/1 parser. The SSRF dial-time check runs
+// at the TCP layer regardless of the HTTP version.
 func (cfg Config) newTransport() *http.Transport {
 	return &http.Transport{
 		// Backstop for a hung TLS handshake; see Config.ConnectTimeout caveat.
 		TLSHandshakeTimeout: cfg.ConnectTimeout,
 		// Never pick up HTTP_PROXY / HTTPS_PROXY from the environment.
-		Proxy: nil,
-		// safeurl installs a custom DialContext, which makes net/http conservatively
-		// disable HTTP/2. Force it back on so we negotiate HTTP/2 via ALPN with servers
-		// that speak it; otherwise the client reads h2 frames with the HTTP/1
-		// parser and fails with "malformed HTTP response". The SSRF dial-time check runs at
-		// the TCP layer regardless of the negotiated HTTP version.
-		ForceAttemptHTTP2:   true,
+		Proxy:             nil,
+		ForceAttemptHTTP2: false,
+		TLSNextProto:      map[string]func(string, *tls.Conn) http.RoundTripper{},
+		TLSClientConfig:   &tls.Config{NextProtos: []string{"http/1.1"}, MinVersion: tls.VersionTLS12},
+
 		MaxIdleConns:        cfg.MaxIdleConns,
 		MaxIdleConnsPerHost: cfg.MaxIdleConnsPerHost,
 		IdleConnTimeout:     cfg.IdleConnTimeout,

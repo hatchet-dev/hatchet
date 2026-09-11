@@ -99,7 +99,7 @@ func TestOlderInvocationFinishKeepsCurrentInvocation(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	fake := newFakeSession(nil, operator.Registration{WorkerId: uuid.New()})
 	reg := &registration{r: env.r, session: fake, events: &eventSender{session: fake}, inflight: map[string]map[attemptKey]*inflightTask{}}
 
 	id := uuid.New().String()
@@ -192,7 +192,7 @@ func (r *blockedOpen) OpenDurable(ctx context.Context, _ uuid.UUID, _ int32) (op
 // timeout like the rest of the invocation.
 func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 	env := newTestEnv(t)
-	fake := &fakeSession{reg: operator.Registration{WorkerId: uuid.New()}}
+	fake := newFakeSession(nil, operator.Registration{WorkerId: uuid.New()})
 	blocking := &blockedOpen{Session: fake, observed: make(chan context.Context, 1)}
 	reg := &registration{r: env.r, session: blocking, events: &eventSender{session: fake}}
 

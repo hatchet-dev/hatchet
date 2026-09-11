@@ -874,7 +874,15 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    -- The canonical digest of the worker's linked action set (ComputeWorkerActionHash). NULL
+    -- for workers registered before the column existed, and for operator workers between a
+    -- delta that changed their links and the refresh at the end of the delta sequence; the
+    -- scheduler reads such workers' actions through the join instead of the hash cache.
     "actionHash" BYTEA,
+    -- The number of "_ActionToWorker" rows the worker holds. Every path that links or unlinks
+    -- actions maintains it, so the per-operator action budget is the sum over the operator's
+    -- workers rather than a count of their links.
+    "actionCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

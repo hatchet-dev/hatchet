@@ -163,12 +163,15 @@ WHERE
 RETURNING trl.*;
 
 -- name: CountTenantWorkers :one
-SELECT COUNT(distinct id) AS "count"
-FROM "Worker"
+SELECT COUNT(distinct w.id) AS "count"
+FROM "Worker" w
 WHERE
-    "tenantId" = @tenantId::uuid
-    AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
-    AND "isActive" = true
-    -- exclude operators from worker count for metering
-    AND "operatorId" IS NULL
+    w."tenantId" = @tenantId::uuid
+    AND w."lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+    AND w."isActive" = true
+    -- the DAG operator's workers are engine infrastructure and are not metered; every other
+    -- worker, an operator's or an SDK's, counts (see unmeteredWorker in worker.go)
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_operator op WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    )
 ;

@@ -31,8 +31,8 @@ func wrapAssignedAction(action *contracts.AssignedAction) proto.Message {
 
 // Listen activates a registered worker for the lifetime of the stream and fans assigned actions
 // out to it. The dispatcher session owns the send side of the stream: actions go out through
-// its fan-out and delta acks go out through the session handle, so the two never overlap. This
-// goroutine consumes heartbeats and action deltas.
+// its fan-out and acks go out through the session handle, so the two never overlap. This
+// goroutine consumes heartbeats, action deltas and pauses.
 func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenServer) (err error) {
 	ctx := stream.Context()
 
@@ -112,9 +112,9 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 		Str("worker_id", worker.ID.String()).
 		Logger()
 
-	// The session is closed without a pause: a gRPC operator pauses its own worker through
-	// PauseWorker before it hangs up, and a stream that drops must leave the worker assignable
-	// so the operator's next connection resumes a worker the scheduler can use.
+	// The session is closed without a pause: a gRPC operator pauses its own worker on the
+	// stream before it hangs up, and a stream that drops must leave the worker assignable so
+	// the operator's next connection resumes a worker the scheduler can use.
 	defer func() {
 		closeErr := session.Close(ctx, operatorsvc.WithoutPause())
 
@@ -164,6 +164,21 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 						return status.Errorf(codes.Unavailable, "could not acknowledge actions delta %d: %s", seq, err.Error())
 					}
 				}
+			case *v1contracts.OperatorListenRequest_Pause:
+				// the pause is committed, and the session stops delivering, before the ack
+				// goes out: the ack is the client's promise that nothing more arrives
+				if err := session.Pause(ctx, msg.Pause.Paused); err != nil {
+					return err
+				}
+
+				if err := session.Send(ctx, &v1contracts.OperatorListenResponse{
+					Message: &v1contracts.OperatorListenResponse_PauseAck{PauseAck: &v1contracts.OperatorPauseAck{Paused: msg.Pause.Paused}},
+				}); err != nil {
+					l.Error().Ctx(ctx).Err(err).Bool("paused", msg.Pause.Paused).Msg("could not acknowledge operator pause")
+					return status.Errorf(codes.Unavailable, "could not acknowledge pause: %s", err.Error())
+				}
+
+				l.Info().Ctx(ctx).Bool("paused", msg.Pause.Paused).Msg("operator worker pause state changed")
 			case *v1contracts.OperatorListenRequest_Start:
 				return status.Error(codes.InvalidArgument, "the Listen stream is already started")
 			default:

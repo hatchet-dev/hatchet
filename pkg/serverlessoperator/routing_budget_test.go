@@ -223,7 +223,7 @@ func TestHealthcheckChangeCostIsLocal(t *testing.T) {
 func TestUnchangedUnionSyncIsFree(t *testing.T) {
 	c, _ := budgetCache(t, 10000, 10)
 
-	fake := &fakeSession{}
+	fake := newFakeSession(nil, operator.Registration{})
 	union, rev := c.ActionUnion()
 	reg := &registration{session: fake, advertised: union, advertisedRev: rev}
 	l := zerolog.Nop()

@@ -168,6 +168,8 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 		go prev.close()
 	}
 
+	r.superviseRegistration(ts, reg)
+
 	r.l.Info().
 		Str("tenant_id", ts.tenantId.String()).
 		Str("worker_id", session.Registration().WorkerId.String()).
@@ -175,6 +177,53 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 		Msg("serverless registration opened")
 
 	return nil
+}
+
+// superviseRegistration watches the session's Done: a host recovers transient failures on
+// its own (the gRPC host reconnects and re-reads the tenant's token), so Done closing with an
+// error means it gave up for good, on a failure no retry fixes. The registration is then
+// detached and closed (its deliveries in flight report through the closed session and the
+// engine retries them) and a new one opened at once while the tenant still owns units; an
+// open that fails is retried by maintenance like any missing registration, and a tenant
+// whose token is gone is marked the way a tokenless open marks it. A Done without an error
+// is the registration's own Close and needs nothing.
+func (r *runner) superviseRegistration(ts *tenantState, reg *registration) {
+	r.wg.Add(1)
+
+	go func() {
+		defer r.wg.Done()
+
+		select {
+		case <-reg.session.Done():
+		case <-r.loopCtx.Done():
+			return
+		}
+
+		err := reg.session.Err()
+
+		if err == nil {
+			return
+		}
+
+		r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("host gave up on the serverless registration; opening another")
+
+		ts.opMu.Lock()
+		defer ts.opMu.Unlock()
+
+		if !ts.detachRegistration(reg) {
+			return
+		}
+
+		reg.close()
+
+		if ts.removed || ts.unitCount() == 0 {
+			return
+		}
+
+		if err := r.openRegistration(r.loopCtx, ts); err != nil {
+			r.l.Warn().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("registration not reopened; will retry")
+		}
+	}()
 }
 
 func (r *runner) slotConfig() map[string]int32 {

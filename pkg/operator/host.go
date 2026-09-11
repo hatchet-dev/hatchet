@@ -148,6 +148,17 @@ type Session interface {
 	// released so nothing further is delivered, and the worker is deactivated, fenced on the
 	// session id. A host's teardown order is Pause, the operator's Drain, then Close.
 	Close(ctx context.Context) error
+
+	// Done is closed once the session no longer serves its worker: after Close, or when the
+	// host gave up on it. A host recovers from transient failures on its own (the gRPC host
+	// reconnects, re-reads the tenant's token and restores the action set); it gives up on a
+	// failure no retry can fix, such as a token source that no longer has a token for the
+	// tenant. The caller that owns the session then closes it and opens another.
+	Done() <-chan struct{}
+
+	// Err reports why Done closed: nil after Close, the terminal failure when the host gave
+	// up. It is nil while the session is live.
+	Err() error
 }
 
 // DurableChannel is one durable invocation's pipe. Send stamps the invocation's task id and
@@ -157,8 +168,20 @@ type Session interface {
 // entries the invocation is blocked on; a host whose transport reports them itself drops it.
 // Responses arrive in engine order, with an entry completion never ahead of the ack that
 // names its entry.
+//
+// An entry the operator learns of outside the channel has no ack on it: the DAG operator's
+// children are created by the engine-internal writer, which returns their refs directly. The
+// operator registers such a ref with ExpectEntry, which stands in for the ack; without it the
+// channel would hold the entry's completion for an ack that never comes.
 type DurableChannel interface {
 	Send(ctx context.Context, req *v1.DurableTaskRequest) error
 	Recv(ctx context.Context) (*v1.DurableTaskResponse, error)
+
+	// ExpectEntry registers an entry of the invocation whose completion the operator awaits
+	// and which no request on this channel acknowledged. A completion that already arrived is
+	// delivered on the next Recv; one that arrives later is delivered as it comes. Registering
+	// an entry twice, or after its completion was delivered, changes nothing.
+	ExpectEntry(branchId, nodeId int64) error
+
 	Close() error
 }

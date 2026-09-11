@@ -187,7 +187,7 @@ func newExchange(cf *configFile, l *zerolog.Logger) (hostgrpc.TokenSource, func(
 			return nil, nil, fmt.Errorf("SERVERLESS_OPERATOR_TOKEN_FILE is required with TOKEN_EXCHANGE=local")
 		}
 
-		ex, err := hostgrpc.NewLocalExchange(cf.TokenFile, hostgrpc.WithLogger(l))
+		ex, err := hostgrpc.NewLocalExchange(cf.TokenFile, hostgrpc.WithExchangeLogger(l))
 
 		if err != nil {
 			return nil, nil, err
@@ -277,7 +277,12 @@ func run(ctx context.Context, cf *configFile) error {
 	hostname, _ := os.Hostname()
 
 	// The operator name is the core's: it registers each tenant's session under it.
-	host := hostgrpc.New(exchange, hostgrpc.Options{Logger: &l})
+	host, err := hostgrpc.New(hostgrpc.WithTokenSource(exchange), hostgrpc.WithLogger(&l))
+
+	if err != nil {
+		return fmt.Errorf("could not build operator host: %w", err)
+	}
+
 	defer host.Close()
 
 	return serverlessoperator.Run(ctx, serverlessoperator.Deps{

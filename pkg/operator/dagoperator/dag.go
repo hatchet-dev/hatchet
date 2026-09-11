@@ -422,7 +422,16 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 
 			if !skip && !cancelled {
+				// One registration is in flight at a time: the channel admits one ack-bearing
+				// request until its ack arrives, and the ack is what gives the registration its
+				// node id (see taskConsumer). A task whose registration has to wait for a
+				// pending ack stays pending and is picked up again once the ack is consumed.
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
 					if err := d.registerCondition(ctx, t, conditionKindSkip); err != nil {
 						d.err = err
 						return progressed, d.err
@@ -431,6 +440,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 				}
 
 				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
 					if err := d.registerCondition(ctx, t, conditionKindCancel); err != nil {
 						d.err = err
 						return progressed, d.err
@@ -451,6 +465,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
 							t.isWaitSatisfied = true
 						} else {
+							if len(d.pendingWaitAcks) > 0 {
+								stillPending = append(stillPending, t)
+								continue
+							}
+
 							if err := d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups); err != nil {
 								d.err = err
 								return progressed, d.err
@@ -527,12 +546,30 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 				d.err = err
 				return progressed, d.err
 			}
+		} else if !t.isCompleted {
+			if err := d.expectChild(t); err != nil {
+				d.err = err
+				return progressed, d.err
+			}
 		}
 	}
 
 	d.pendingTasks = stillPending
 
 	return progressed, nil
+}
+
+// expectChild tells the channel a child's completion is awaited. The child was created by the
+// direct trigger callback, not by a trigger_runs request on the channel, so no ack names its
+// entry; the channel holds an entry completion until the ack naming it, and this registration
+// is what stands in for that ack. It runs as soon as the ref is known: the child may already
+// have finished, in which case the channel delivers the held completion at once.
+func (d *dag) expectChild(t *task) error {
+	if err := d.ch.ExpectEntry(t.branchId, t.nodeId); err != nil {
+		return fmt.Errorf("could not await the completion of step %q: %w", t.actionId, err)
+	}
+
+	return nil
 }
 
 func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
@@ -831,6 +868,11 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 			errorMessage = *result.ErrorMessage
 		}
 		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
+			d.err = err
+			return true, d.err
+		}
+	} else if !d.onFailureTask.isCompleted {
+		if err := d.expectChild(d.onFailureTask); err != nil {
 			d.err = err
 			return true, d.err
 		}

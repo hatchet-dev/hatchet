@@ -10,6 +10,7 @@ import (
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
@@ -21,7 +22,7 @@ func (s *stubV0Client) Admin() v0Client.AdminClient              { return nil }
 func (s *stubV0Client) Cron() v0Client.CronClient                { return nil }
 func (s *stubV0Client) Schedule() v0Client.ScheduleClient        { return nil }
 func (s *stubV0Client) Dispatcher() v0Client.DispatcherClient    { return nil }
-func (s *stubV0Client) Operator() v0Client.OperatorClient        { return nil }
+func (s *stubV0Client) Operator() operatorclient.Client          { return nil }
 func (s *stubV0Client) Event() v0Client.EventClient              { return nil }
 func (s *stubV0Client) Subscribe() v0Client.SubscribeClient      { return nil }
 func (s *stubV0Client) API() *rest.ClientWithResponses           { return nil }

@@ -12,9 +12,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-// A worker's action set is immutable after registration (the actionHash is a
-// sha256 of the registered action names), so cache entries never go stale.
-// The TTL only bounds memory for tenants whose workers have churned away.
+// The actionHash is the canonical digest of a worker's linked action set, so a cache entry
+// keyed by it never goes stale: a worker whose set changes gets a new hash, and while the
+// refresh that follows a delta is pending its hash is NULL and its actions are read through
+// the join (ListActionsForWorkersLegacyFallback) instead. The TTL only bounds memory for
+// tenants whose workers have churned away.
 const workerActionCacheTTL = 30 * time.Minute
 
 type workerActionCacheKey struct {
@@ -157,7 +159,8 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 		telemetry.AttributeKV{Key: "list_actions.workers_without_hash", Value: len(workersWithoutHash)},
 	)
 
-	// fallback for workers registered before actionHash existed
+	// workers registered before actionHash existed, and workers whose hash is NULL because
+	// the refresh that follows a delta has not run yet, are read through the join
 	if len(workersWithoutHash) > 0 {
 		fallbackRows, err := d.queries.ListActionsForWorkersLegacyFallback(ctx, d.pool, sqlcv1.ListActionsForWorkersLegacyFallbackParams{
 			Tenantid:  tenantId,
