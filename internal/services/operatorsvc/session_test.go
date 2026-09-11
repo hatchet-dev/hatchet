@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -248,6 +249,54 @@ func TestSessionApplyDeltaRejectsBadDeltas(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, changed)
 		assert.Len(t, svc.workers.ActionSet(worker.ID), 1)
+
+		require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
+	})
+}
+
+// A delta's ids are validated by the operator's kind. The DAG operator registers the
+// orchestrator action ids of the tenant's DAG workflows, "<workflow>_orchestrator", which are
+// not "service:verb" action ids; a session of the engine-hosted DAG operator must accept them,
+// and only them, while a GRPC operator's session must refuse them, so no worker but the
+// engine's can hold an orchestrator action.
+func TestSessionApplyDeltaValidatesIdsByOperatorKind(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+
+	orchestrator := repository.DAGOrchestratorActionId("py314-d54c50e_CancelWorkflow")
+
+	t.Run("dag operator", func(t *testing.T) {
+		svc := newTestService(t, nil)
+		op := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
+		worker := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})
+
+		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+		require.NoError(t, err)
+
+		changed, err := session.ApplyDelta(t.Context(), []string{orchestrator}, nil)
+		require.NoError(t, err, "the orchestrator id of a DAG workflow is the DAG operator's action")
+		assert.True(t, changed)
+		assert.Equal(t, []string{orchestrator}, svc.workers.ActionSet(worker.ID))
+
+		_, err = session.ApplyDelta(t.Context(), []string{"svc:run"}, nil)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "a worker action is not the DAG operator's")
+
+		_, err = session.ApplyDelta(t.Context(), nil, []string{"svc:run"})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, []string{orchestrator}, svc.workers.ActionSet(worker.ID), "a rejected delta must not touch the store")
+
+		require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
+	})
+
+	t.Run("grpc operator", func(t *testing.T) {
+		svc := newTestService(t, nil)
+		op, worker := registeredOperator(t, svc, tenant)
+
+		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+		require.NoError(t, err)
+
+		_, err = session.ApplyDelta(t.Context(), []string{orchestrator}, nil)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "an orchestrator id is the engine's alone")
+		assert.Empty(t, svc.workers.ActionSet(worker.ID))
 
 		require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
 	})

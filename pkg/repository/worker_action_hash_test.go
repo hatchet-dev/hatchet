@@ -16,8 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // workerActionsPool returns a migrated database for the worker action tests. It connects to
@@ -80,11 +78,13 @@ func TestHashActionsIsCanonical(t *testing.T) {
 	assert.NotEqual(t, hashActions(nil), hashActions([]string{"svc:a"}))
 	assert.NotEqual(t, base, xorFold([]string{"svc:a", "svc:b"}), "the hash is not a linear combination of per-action digests")
 
-	// the encoding is unambiguous for ids that contain what a delimiter would be, and for
-	// ids whose concatenation is the same
-	assert.NotEqual(t, hashActions([]string{"svc:a;svc:b"}), hashActions([]string{"svc:a", "svc:b"}), "a delimiter inside an id")
+	// the separator keeps ids whose concatenation is the same apart
 	assert.NotEqual(t, hashActions([]string{"svc:ab", "svc:c"}), hashActions([]string{"svc:a", "svc:bc"}), "equal concatenation")
-	assert.NotEqual(t, hashActions([]string{"svc:a", "svc:b;"}), hashActions([]string{"svc:a", "svc:b"}), "a trailing delimiter")
+
+	// the framing is main's, so a hash written by an older engine equals the one this engine
+	// computes for the same set
+	pinned := sha256.Sum256([]byte("svc:a;svc:b;"))
+	assert.Equal(t, pinned[:], base, "each sorted id followed by a semicolon")
 }
 
 // A worker created with an initial action set and a worker built by deltas from an empty set
@@ -97,14 +97,14 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	dispatcherId := seedDispatcher(t, ctx, pool)
 	operatorId := uuid.New()
 
-	// an operator worker of the unmetered kind: this repository has no limit meter, and the
-	// hash is what is under test
+	// an exempt operator worker: this repository has no limit meter, and the hash is what is
+	// under test
 	created, err := repo.CreateNewWorker(ctx, tenantId, &CreateWorkerOpts{
-		DispatcherId: dispatcherId,
-		Name:         "initial-set",
-		Actions:      []string{"Svc:Run", "svc:other"},
-		OperatorId:   &operatorId,
-		OperatorKind: sqlcv1.V1OperatorKindDAG,
+		DispatcherId:     dispatcherId,
+		Name:             "initial-set",
+		Actions:          []string{"Svc:Run", "svc:other"},
+		OperatorId:       &operatorId,
+		ExemptFromLimits: true,
 	})
 	require.NoError(t, err)
 
@@ -126,8 +126,8 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, incremental), "deltas")
 	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, churned), "add then remove")
 	assert.Equal(t, []string{"svc:other", "svc:run"}, linkedActions(t, ctx, pool, created.ID))
-	assert.Equal(t, 2, workerActionCount(t, ctx, pool, created.ID), "the initial set is counted")
-	assert.Equal(t, 2, workerActionCount(t, ctx, pool, churned))
+	assert.Equal(t, 2, workerOperatorActionCount(t, ctx, pool, created.ID), "the initial set is counted")
+	assert.Equal(t, 2, workerOperatorActionCount(t, ctx, pool, churned))
 }
 
 // Action links are only ever made between a worker and actions of the worker's own tenant:

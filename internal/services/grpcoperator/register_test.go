@@ -32,10 +32,12 @@ func TestRegisterAnswersWithTheAssignedIdentity(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "my-operator", op.Name)
 	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind)
+	assert.Equal(t, sqlcv1.V1OperatorLeasingSELF, op.Leasing, "a wire registration keeps itself alive")
 
 	created := svc.workers.Created()
 	require.Len(t, created, 1)
 	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
+	assert.False(t, created[0].ExemptFromLimits, "a wire-registered worker is metered")
 
 	workerId := resp.WorkerId
 

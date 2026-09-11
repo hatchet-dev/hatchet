@@ -35,13 +35,13 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = $1::UUID
 )
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
-    -- GRPC operators run out of process and register their own workers over OperatorService, and
-    -- SERVERLESS operators are leased through v1_serverless_lease and create a worker per owned
-    -- unit, so the in-engine operator manager never claims or reconciles either kind.
-    v1_operator.kind NOT IN ('GRPC', 'SERVERLESS')
+    -- Only engine-leased rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- (a Listen stream out of process, its own leaser in process) and registers its own
+    -- workers, so the claimer never claims or reconciles it.
+    v1_operator.leasing = 'MANAGED'
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR
@@ -65,6 +65,7 @@ func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
+			&i.Leasing,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -126,21 +127,24 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing,
     config
 ) VALUES (
     $1::UUID,
     $2::TEXT,
     $3::v1_operator_kind,
-    $4::JSONB
+    $4::v1_operator_leasing,
+    $5::JSONB
 )
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 `
 
 type CreateOperatorParams struct {
-	Tenantid uuid.UUID      `json:"tenantid"`
-	Name     string         `json:"name"`
-	Kind     V1OperatorKind `json:"kind"`
-	Config   []byte         `json:"config"`
+	Tenantid uuid.UUID         `json:"tenantid"`
+	Name     string            `json:"name"`
+	Kind     V1OperatorKind    `json:"kind"`
+	Leasing  V1OperatorLeasing `json:"leasing"`
+	Config   []byte            `json:"config"`
 }
 
 func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperatorParams) (*V1Operator, error) {
@@ -148,6 +152,7 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		arg.Tenantid,
 		arg.Name,
 		arg.Kind,
+		arg.Leasing,
 		arg.Config,
 	)
 	var i V1Operator
@@ -156,86 +161,11 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.Leasing,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const createOperatorWorker = `-- name: CreateOperatorWorker :one
-INSERT INTO "Worker" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "name",
-    "dispatcherId",
-    "type",
-    "actionHash",
-    "operatorId",
-    "isActive"
-) VALUES (
-    gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    $1::uuid,
-    $2::text,
-    $3::uuid,
-    'SELFHOSTED',
-    $4::bytea,
-    $5::uuid,
-    -- operator workers have no gRPC listener to activate them, so they are born active.
-    true
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "actionCount"
-`
-
-type CreateOperatorWorkerParams struct {
-	Tenantid     uuid.UUID `json:"tenantid"`
-	Name         string    `json:"name"`
-	Dispatcherid uuid.UUID `json:"dispatcherid"`
-	Actionhash   []byte    `json:"actionhash"`
-	Operatorid   uuid.UUID `json:"operatorid"`
-}
-
-// Creates a fresh worker for a single operator instance, linked back to the operator via
-// "operatorId". Each time an operator is instantiated on a dispatcher it gets its own
-// worker; older workers age out via the normal worker-inactivity path.
-func (q *Queries) CreateOperatorWorker(ctx context.Context, db DBTX, arg CreateOperatorWorkerParams) (*Worker, error) {
-	row := db.QueryRow(ctx, createOperatorWorker,
-		arg.Tenantid,
-		arg.Name,
-		arg.Dispatcherid,
-		arg.Actionhash,
-		arg.Operatorid,
-	)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.LastHeartbeatAt,
-		&i.Name,
-		&i.DispatcherId,
-		&i.MaxRuns,
-		&i.IsActive,
-		&i.LastListenerEstablished,
-		&i.LastListenerSessionId,
-		&i.IsPaused,
-		&i.Type,
-		&i.WebhookId,
-		&i.OperatorId,
-		&i.Language,
-		&i.LanguageVersion,
-		&i.Os,
-		&i.RuntimeExtra,
-		&i.SdkVersion,
-		&i.DurableTaskDispatcherId,
-		&i.ActionHash,
-		&i.ActionCount,
 	)
 	return &i, err
 }
@@ -245,7 +175,7 @@ DELETE FROM v1_operator
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 `
 
 type DeleteOperatorParams struct {
@@ -261,6 +191,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.Leasing,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -270,7 +201,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 }
 
 const getOperator = `-- name: GetOperator :one
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     id = $1::UUID
@@ -284,6 +215,7 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.Leasing,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -326,7 +258,7 @@ func (q *Queries) ListDAGOrchestrationActionsForTenant(ctx context.Context, db D
 }
 
 const listOperators = `-- name: ListOperators :many
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     tenant_id = $1::UUID
@@ -365,6 +297,7 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
+			&i.Leasing,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -431,7 +364,7 @@ SET
 WHERE
     tenant_id = $4::UUID
     AND id = $5::UUID
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 `
 
 type UpdateOperatorParams struct {
@@ -456,6 +389,7 @@ func (q *Queries) UpdateOperator(ctx context.Context, db DBTX, arg UpdateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.Leasing,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -483,79 +417,53 @@ func (q *Queries) UpdateWorkerActionsHash(ctx context.Context, db DBTX, arg Upda
 	return err
 }
 
-const upsertGRPCOperator = `-- name: UpsertGRPCOperator :one
+const upsertOperator = `-- name: UpsertOperator :one
 INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing,
     config
 ) VALUES (
     $1::UUID,
     $2::TEXT,
-    'GRPC',
+    $3::v1_operator_kind,
+    $4::v1_operator_leasing,
     '{}'::JSONB
 )
-ON CONFLICT (tenant_id, name) WHERE kind = 'GRPC' DO UPDATE
-SET updated_at = NOW()
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+ON CONFLICT (tenant_id, name, kind) DO UPDATE
+SET
+    leasing = EXCLUDED.leasing,
+    updated_at = NOW()
+RETURNING id, tenant_id, name, kind, leasing, config, worker_id, created_at, updated_at
 `
 
-type UpsertGRPCOperatorParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Name     string    `json:"name"`
+type UpsertOperatorParams struct {
+	Tenantid uuid.UUID         `json:"tenantid"`
+	Name     string            `json:"name"`
+	Kind     V1OperatorKind    `json:"kind"`
+	Leasing  V1OperatorLeasing `json:"leasing"`
 }
 
-// Registers a GRPC operator by (tenant, name) on connect. The operator row carries no config and
-// no worker_id: each Listen stream creates its own worker linked back via "Worker"."operatorId".
-func (q *Queries) UpsertGRPCOperator(ctx context.Context, db DBTX, arg UpsertGRPCOperatorParams) (*V1Operator, error) {
-	row := db.QueryRow(ctx, upsertGRPCOperator, arg.Tenantid, arg.Name)
-	var i V1Operator
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.Name,
-		&i.Kind,
-		&i.Config,
-		&i.WorkerID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+// Registers an operator by (tenant, name, kind), the row a session registers under by name. The
+// row carries no config. A repeat registration takes the leasing it names: a row the engine was
+// leasing that registers as SELF leaves the claim set on the claimer's next poll, and the other
+// way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+// back via "Worker"."operatorId".
+func (q *Queries) UpsertOperator(ctx context.Context, db DBTX, arg UpsertOperatorParams) (*V1Operator, error) {
+	row := db.QueryRow(ctx, upsertOperator,
+		arg.Tenantid,
+		arg.Name,
+		arg.Kind,
+		arg.Leasing,
 	)
-	return &i, err
-}
-
-const upsertServerlessOperator = `-- name: UpsertServerlessOperator :one
-INSERT INTO v1_operator (
-    tenant_id,
-    name,
-    kind,
-    config
-) VALUES (
-    $1::UUID,
-    $2::TEXT,
-    'SERVERLESS',
-    '{}'::JSONB
-)
-ON CONFLICT (tenant_id, name) WHERE kind = 'SERVERLESS' DO UPDATE
-SET updated_at = NOW()
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
-`
-
-type UpsertServerlessOperatorParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Name     string    `json:"name"`
-}
-
-// Registers the serverless operator by (tenant, name). The row exists only so serverless
-// registrations' workers have an "operatorId"; it carries no config and no worker_id, since
-// each registration creates its own worker linked back via "Worker"."operatorId".
-func (q *Queries) UpsertServerlessOperator(ctx context.Context, db DBTX, arg UpsertServerlessOperatorParams) (*V1Operator, error) {
-	row := db.QueryRow(ctx, upsertServerlessOperator, arg.Tenantid, arg.Name)
 	var i V1Operator
 	err := row.Scan(
 		&i.ID,
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.Leasing,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,

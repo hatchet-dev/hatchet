@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sort"
@@ -54,19 +53,14 @@ type CreateWorkerOpts struct {
 	// connections (for example an OperatorService Listen stream), nil for SDK workers.
 	OperatorId *uuid.UUID `validate:"omitempty"`
 
-	// The kind of the operator this worker backs; required with OperatorId. Workers of
-	// operators the engine hosts for every tenant as infrastructure (kind DAG) are not metered
-	// against the tenant's worker and slot limits; every other worker is.
-	OperatorKind sqlcv1.V1OperatorKind `validate:"required_with=OperatorId,omitempty,oneof=HTTP_API DAG GRPC SERVERLESS"`
-}
-
-// unmeteredWorker reports whether a worker is exempt from the tenant's WORKER and WORKER_SLOT
-// limits: the DAG operator's workers are engine infrastructure, created for every tenant with
-// DAG workflows whether or not the tenant runs workers of its own. The limit queries in
-// workers.sql and tenant_limits.sql leave the same workers out, keyed on the operator's kind,
-// so what is metered here is what they count.
-func unmeteredWorker(opts *CreateWorkerOpts) bool {
-	return opts.OperatorId != nil && opts.OperatorKind == sqlcv1.V1OperatorKindDAG
+	// ExemptFromLimits leaves the worker out of the tenant's WORKER and WORKER_SLOT limits:
+	// neither metered here nor counted by the limit queries in workers.sql and
+	// tenant_limits.sql, which read the same flag off the row. It is a hosting fact, decided by
+	// whoever creates the worker: the in-process operator host sets it for every worker it
+	// creates, since those are engine infrastructure that runs whether or not the tenant runs
+	// workers of its own; the wire never sets it, so a worker registered over OperatorService
+	// or by an SDK is metered.
+	ExemptFromLimits bool
 }
 
 type UpdateWorkerOpts struct {
@@ -149,8 +143,9 @@ type WorkerRepository interface {
 	// transaction, so a delta an operator acknowledges by sequence is committed whole or not at
 	// all. Adds are applied before removes; actions the worker already has are not linked again
 	// and actions it does not have are not unlinked, and neither counts in the returned totals.
-	// The worker's "actionCount" moves with the links and its "actionHash" is cleared: the
-	// digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per delta.
+	// The worker's "operatorActionCount" moves with the links and its "actionHash" is cleared:
+	// the digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per
+	// delta.
 	//
 	// maxOperatorLinks caps the links held by every worker of the operator this worker belongs
 	// to, checked in the transaction under the operator's row lock; a delta that would leave the
@@ -587,12 +582,17 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 }
 
 // hashActions is the canonical digest of an action set: sha256 over the ids sorted by byte
-// order, each encoded as its byte length as a 4-byte big-endian integer followed by its bytes,
-// after the same lower-casing and deduplication the "Action" table applies. The length prefix
-// is what makes the encoding unambiguous: an id may contain any byte, so a separator could be
-// read as an id boundary, while a length cannot. It is a function of the final set alone, so a
-// worker created with an initial set and a worker built by deltas hash equal for the same set,
-// and it is not a combination of per-action digests that could be solved for a chosen value.
+// order, each followed by ";", after the same lower-casing and deduplication the "Action"
+// table applies. The separator keeps ["ab", "c"] apart from ["a", "bc"]; it cannot occur
+// inside an id, because ParseActionID rejects semicolons on every registration path, so the
+// framing is unambiguous for every id that reaches the "Action" table. The per-id framing is
+// the one main has always used, so a rolling deploy needs no hash migration: a worker
+// registered by an older engine keeps the hash that engine computed until it re-registers,
+// and the scheduler treats that hash as a group of its own. Distinct hashes never misroute;
+// only equal hashes for different sets would, and both engines' digests are collision
+// resistant. The digest is a function of the final set alone, so a worker created with an
+// initial set and a worker built by deltas hash equal for the same set, and it is not a
+// combination of per-action digests that could be solved for a chosen value.
 // ComputeWorkerActionHash in workers.sql computes the same digest from the linked rows; the
 // two must stay in step because GetWorkerActionsByWorkerActionHash treats equal hashes as
 // equal sets.
@@ -603,12 +603,9 @@ func hashActions(actions []string) []byte {
 
 	h := sha256.New()
 
-	var length [4]byte
-
 	for _, action := range ids {
-		binary.BigEndian.PutUint32(length[:], uint32(len(action))) // nolint: gosec // an action id is far shorter than 4 GiB
-		h.Write(length[:])
 		h.Write([]byte(action))
+		h.Write([]byte(";"))
 	}
 
 	return h.Sum(nil)
@@ -653,7 +650,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	postWorker := func() {}
 	postWorkerSlot := func() {}
 
-	if !unmeteredWorker(opts) {
+	if !opts.ExemptFromLimits {
 		var preWorker, preWorkerSlot func() error
 
 		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
@@ -682,12 +679,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	initialActions := dedupeActionIds(opts.Actions)
 
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:     tenantId,
-		Dispatcherid: opts.DispatcherId,
-		Name:         opts.Name,
-		Actionhash:   hashActions(initialActions),
-		Actioncount:  int32(len(initialActions)), // nolint: gosec // bounded by the request size
-		OperatorId:   opts.OperatorId,
+		Tenantid:            tenantId,
+		Dispatcherid:        opts.DispatcherId,
+		Name:                opts.Name,
+		Actionhash:          hashActions(initialActions),
+		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
+		OperatorId:          opts.OperatorId,
+		Exemptfromlimits:    opts.ExemptFromLimits,
 	}
 
 	// Default to self hosted

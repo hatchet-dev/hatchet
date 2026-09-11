@@ -29,8 +29,8 @@ var (
 	_ operatorsvc.DispatcherBackend = (*Dispatcher)(nil)
 )
 
-// OperatorStore serves operators from memory and upserts by (tenant, name). Sessions authorize
-// concurrently, so the store is safe for concurrent use.
+// OperatorStore serves operators from memory and upserts by (tenant, name, kind). Sessions
+// authorize concurrently, so the store is safe for concurrent use.
 type OperatorStore struct {
 	mu        sync.Mutex
 	operators map[uuid.UUID]*sqlcv1.V1Operator
@@ -63,26 +63,20 @@ func (f *OperatorStore) GetOperatorById(_ context.Context, operatorId uuid.UUID)
 	return op, nil
 }
 
-func (f *OperatorStore) UpsertGRPCOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
-	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindGRPC), nil
-}
-
-func (f *OperatorStore) UpsertServerlessOperator(_ context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
-	return f.upsert(tenantId, name, sqlcv1.V1OperatorKindSERVERLESS), nil
-}
-
-// upsert returns the row of the given (tenant, name, kind), creating it when there is none.
-func (f *OperatorStore) upsert(tenantId uuid.UUID, name string, kind sqlcv1.V1OperatorKind) *sqlcv1.V1Operator {
+// UpsertOperator returns the row of (tenant, name, kind), creating it when there is none, and
+// sets its leasing to the one given either way, as the statement does.
+func (f *OperatorStore) UpsertOperator(_ context.Context, tenantId uuid.UUID, opts repository.UpsertOperatorOpts) (*sqlcv1.V1Operator, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	for _, op := range f.operators {
-		if op.TenantID == tenantId && op.Name == name && op.Kind == kind {
-			return op
+		if op.TenantID == tenantId && op.Name == opts.Name && op.Kind == opts.Kind {
+			op.Leasing = opts.Leasing
+			return op, nil
 		}
 	}
 
-	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: name, Kind: kind}
+	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenantId, Name: opts.Name, Kind: opts.Kind, Leasing: opts.Leasing}
 
 	if f.operators == nil {
 		f.operators = map[uuid.UUID]*sqlcv1.V1Operator{}
@@ -90,7 +84,16 @@ func (f *OperatorStore) upsert(tenantId uuid.UUID, name string, kind sqlcv1.V1Op
 
 	f.operators[op.ID] = op
 
-	return op
+	return op, nil
+}
+
+// UpsertGRPCOperator upserts a self-leased GRPC row, the row a wire registration stands for.
+func (f *OperatorStore) UpsertGRPCOperator(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1Operator, error) {
+	return f.UpsertOperator(ctx, tenantId, repository.UpsertOperatorOpts{
+		Name:    name,
+		Kind:    sqlcv1.V1OperatorKindGRPC,
+		Leasing: sqlcv1.V1OperatorLeasingSELF,
+	})
 }
 
 // UpdateOperator applies the row changes a registration makes: pointing the row at a worker.

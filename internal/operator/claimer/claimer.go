@@ -1,9 +1,15 @@
 // Package claimer hosts the operators a dispatcher claims. It polls ClaimOperators for the
-// rows assigned to this dispatcher, opens each one through the in-process host with the row
-// as its identity, and starts the operator on the session. An operator that leaves the claim
-// result is torn down the way every host tears an operator down: pause the worker, drain the
-// operator, close the session. Worker rows, heartbeats and the dispatcher's routing table are
-// the host's; the claimer owns placement and lifecycle only.
+// engine-leased rows (leasing MANAGED) assigned to this dispatcher, builds each one from a
+// factory, opens it through the in-process host with the row as its identity, and starts the
+// operator on the session. An operator that leaves the claim result is torn down the way every
+// host tears an operator down: pause the worker, drain the operator, close the session. Worker
+// rows, heartbeats and the dispatcher's routing table are the host's; the claimer owns
+// placement and lifecycle only.
+//
+// A factory is found by the row's kind, except for GRPC rows, contract operators, which are
+// found by the row's name: the kind says only that the row is a contract operator, the name
+// says which one the engine should build. A claimed row with no factory is logged once and
+// left alone.
 //
 // It runs inside the dispatcher process, wired from cmd/hatchet-engine/engine next to the
 // dispatcher, and stops before the dispatcher drains so events reported during a drain still
@@ -70,6 +76,7 @@ type opts struct {
 	claims       Claims
 	dispatcherId uuid.UUID
 	factories    map[sqlcv1.V1OperatorKind]Factory
+	named        map[string]Factory
 	l            *zerolog.Logger
 
 	pollInterval    time.Duration
@@ -83,6 +90,7 @@ func defaultOpts() *opts {
 
 	return &opts{
 		factories:       map[sqlcv1.V1OperatorKind]Factory{},
+		named:           map[string]Factory{},
 		l:               &l,
 		pollInterval:    defaultPollInterval,
 		teardownTimeout: defaultTeardownTimeout,
@@ -104,10 +112,17 @@ func WithDispatcherId(id uuid.UUID) Opt {
 	return func(o *opts) { o.dispatcherId = id }
 }
 
-// WithFactory registers how operators of one kind are built. A claimed row of a kind with no
-// factory is left alone.
+// WithFactory registers how claimed rows of one kind are built. GRPC rows are not built by
+// kind, see WithNamedFactory. A claimed row of a kind with no factory is left alone.
 func WithFactory(kind sqlcv1.V1OperatorKind, f Factory) Opt {
 	return func(o *opts) { o.factories[kind] = f }
+}
+
+// WithNamedFactory registers how claimed GRPC rows named name are built: a contract operator
+// the engine hosts in process under an engine-managed lease. A claimed GRPC row with no factory
+// of its name is left alone.
+func WithNamedFactory(name string, f Factory) Opt {
+	return func(o *opts) { o.named[name] = f }
 }
 
 func WithLogger(l *zerolog.Logger) Opt {
@@ -136,6 +151,7 @@ type Claimer struct {
 	claims       Claims
 	dispatcherId uuid.UUID
 	factories    map[sqlcv1.V1OperatorKind]Factory
+	named        map[string]Factory
 	l            *zerolog.Logger
 
 	pollInterval    time.Duration
@@ -143,6 +159,10 @@ type Claimer struct {
 
 	mu      sync.Mutex
 	running map[uuid.UUID]*hosted
+
+	// unhostable is every claimed row that was logged as having no factory, so the log line
+	// is written once per row rather than once per poll.
+	unhostable map[uuid.UUID]struct{}
 
 	// teardowns tracks the operators being torn down in the background, so Stop can wait
 	// for them.
@@ -179,10 +199,12 @@ func New(fs ...Opt) (*Claimer, error) {
 		claims:          o.claims,
 		dispatcherId:    o.dispatcherId,
 		factories:       o.factories,
+		named:           o.named,
 		l:               &cl,
 		pollInterval:    o.pollInterval,
 		teardownTimeout: o.teardownTimeout,
 		running:         map[uuid.UUID]*hosted{},
+		unhostable:      map[uuid.UUID]struct{}{},
 		pollDone:        make(chan struct{}),
 	}, nil
 }
@@ -279,16 +301,38 @@ func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 	}
 }
 
-// open builds the operator for a claimed row, opens its session and starts it. It returns nil,
-// after logging, when the row cannot be hosted; the next poll tries again.
-func (c *Claimer) open(ctx context.Context, op *sqlcv1.V1Operator) *hosted {
-	factory, ok := c.factories[op.Kind]
-
-	if !ok {
-		return nil
+// factory resolves how a claimed row is built: GRPC rows by name, every other kind by kind.
+func (c *Claimer) factory(op *sqlcv1.V1Operator) (Factory, bool) {
+	if op.Kind == sqlcv1.V1OperatorKindGRPC {
+		f, ok := c.named[op.Name]
+		return f, ok
 	}
 
-	l := c.l.With().Str("operator_id", op.ID.String()).Str("operator_kind", string(op.Kind)).Logger()
+	f, ok := c.factories[op.Kind]
+
+	return f, ok
+}
+
+// open builds the operator for a claimed row, opens its session and starts it. It returns nil,
+// after logging, when the row cannot be hosted; the next poll tries again, except for a row
+// with no factory, which no poll can host and which is logged once.
+func (c *Claimer) open(ctx context.Context, op *sqlcv1.V1Operator) *hosted {
+	l := c.l.With().Str("operator_id", op.ID.String()).Str("operator_kind", string(op.Kind)).Str("operator_name", op.Name).Logger()
+
+	factory, ok := c.factory(op)
+
+	if !ok {
+		c.mu.Lock()
+		_, logged := c.unhostable[op.ID]
+		c.unhostable[op.ID] = struct{}{}
+		c.mu.Unlock()
+
+		if !logged {
+			l.Warn().Ctx(ctx).Msg("claimed operator has no factory in this engine and is left alone")
+		}
+
+		return nil
+	}
 
 	instance, openOpts, err := factory(op)
 

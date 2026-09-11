@@ -3,11 +3,13 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing,
     config
 ) VALUES (
     @tenantId::UUID,
     @name::TEXT,
     @kind::v1_operator_kind,
+    @leasing::v1_operator_leasing,
     @config::JSONB
 )
 RETURNING *;
@@ -97,10 +99,10 @@ WITH operators_on_inactive_dispatchers AS (
 SELECT *
 FROM v1_operator
 WHERE
-    -- GRPC operators run out of process and register their own workers over OperatorService, and
-    -- SERVERLESS operators are leased through v1_serverless_lease and create a worker per owned
-    -- unit, so the in-engine operator manager never claims or reconciles either kind.
-    v1_operator.kind NOT IN ('GRPC', 'SERVERLESS')
+    -- Only engine-leased rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- (a Listen stream out of process, its own leaser in process) and registers its own
+    -- workers, so the claimer never claims or reconciles it.
+    v1_operator.leasing = 'MANAGED'
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR
@@ -109,70 +111,29 @@ WHERE
 ORDER BY v1_operator.id
 FOR UPDATE SKIP LOCKED;
 
--- name: CreateOperatorWorker :one
--- Creates a fresh worker for a single operator instance, linked back to the operator via
--- "operatorId". Each time an operator is instantiated on a dispatcher it gets its own
--- worker; older workers age out via the normal worker-inactivity path.
-INSERT INTO "Worker" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "name",
-    "dispatcherId",
-    "type",
-    "actionHash",
-    "operatorId",
-    "isActive"
-) VALUES (
-    gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    @tenantId::uuid,
-    @name::text,
-    @dispatcherId::uuid,
-    'SELFHOSTED',
-    @actionHash::bytea,
-    @operatorId::uuid,
-    -- operator workers have no gRPC listener to activate them, so they are born active.
-    true
-) RETURNING *;
-
--- name: UpsertGRPCOperator :one
--- Registers a GRPC operator by (tenant, name) on connect. The operator row carries no config and
--- no worker_id: each Listen stream creates its own worker linked back via "Worker"."operatorId".
+-- name: UpsertOperator :one
+-- Registers an operator by (tenant, name, kind), the row a session registers under by name. The
+-- row carries no config. A repeat registration takes the leasing it names: a row the engine was
+-- leasing that registers as SELF leaves the claim set on the claimer's next poll, and the other
+-- way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+-- back via "Worker"."operatorId".
 INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing,
     config
 ) VALUES (
     @tenantId::UUID,
     @name::TEXT,
-    'GRPC',
+    @kind::v1_operator_kind,
+    @leasing::v1_operator_leasing,
     '{}'::JSONB
 )
-ON CONFLICT (tenant_id, name) WHERE kind = 'GRPC' DO UPDATE
-SET updated_at = NOW()
-RETURNING *;
-
--- name: UpsertServerlessOperator :one
--- Registers the serverless operator by (tenant, name). The row exists only so serverless
--- registrations' workers have an "operatorId"; it carries no config and no worker_id, since
--- each registration creates its own worker linked back via "Worker"."operatorId".
-INSERT INTO v1_operator (
-    tenant_id,
-    name,
-    kind,
-    config
-) VALUES (
-    @tenantId::UUID,
-    @name::TEXT,
-    'SERVERLESS',
-    '{}'::JSONB
-)
-ON CONFLICT (tenant_id, name) WHERE kind = 'SERVERLESS' DO UPDATE
-SET updated_at = NOW()
+ON CONFLICT (tenant_id, name, kind) DO UPDATE
+SET
+    leasing = EXCLUDED.leasing,
+    updated_at = NOW()
 RETURNING *;
 
 -- name: UpdateWorkerActionsHash :exec

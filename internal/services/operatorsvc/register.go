@@ -22,18 +22,30 @@ const defaultSlotCount = 100
 // RegisterOpts describes the operator to upsert, or the existing row to register under, and the
 // worker to back this session.
 type RegisterOpts struct {
-	// OperatorId is an existing operator row, as claimed by the in-process claimer. Name and
-	// Kind are taken from the row and no upsert happens; the row's worker_id is pointed at the
-	// session's worker, which is how ClaimOperators recognises the assignment on later polls.
+	// OperatorId is an existing operator row, as claimed by the in-process claimer. Name, Kind
+	// and Leasing are taken from the row and no upsert happens; the row's worker_id is pointed
+	// at the session's worker, which is how ClaimOperators recognises the assignment on later
+	// polls.
 	OperatorId *uuid.UUID
 
 	// Name is the operator name, unique per (tenant, kind). Ignored when OperatorId is set.
 	Name string
 
-	// Kind is how the operator is hosted. GRPC (an out-of-process operator) and SERVERLESS
-	// (the serverless operator, in either mode) rows are upserted; the in-process kinds are
-	// registered by OperatorId. Ignored when OperatorId is set.
+	// Kind is what the operator is. Only GRPC rows, contract operators, are upserted by name;
+	// the DAG operator's rows are the engine's own and are registered by OperatorId. Ignored
+	// when OperatorId is set.
 	Kind sqlcv1.V1OperatorKind
+
+	// Leasing is who keeps the operator alive, and is what the row is set to whether the
+	// upsert creates or finds it: SELF for a registration that holds its own stream or leaser,
+	// MANAGED for a row the claimer should assign to a dispatcher. Ignored when OperatorId is
+	// set.
+	Leasing sqlcv1.V1OperatorLeasing
+
+	// ExemptFromLimits leaves the worker out of the tenant's worker and slot limits. It is a
+	// hosting fact: the in-process host sets it for every worker it creates, the wire never
+	// does.
+	ExemptFromLimits bool
 
 	// WorkerName names the worker row. It defaults to the operator name, which is what one
 	// worker per connection looks like in the dashboard.
@@ -168,20 +180,25 @@ func (s *Service) pointOperatorAtWorker(ctx context.Context, op *sqlcv1.V1Operat
 	return nil
 }
 
-// upsertOperator upserts the row a named registration stands for. Each upsertable kind has its
-// own statement because the rows are unique per (tenant, name, kind).
+// upsertOperator upserts the row a named registration stands for. Only contract operators are
+// registered by name; the leasing is the caller's claim about who keeps the row alive and is
+// written whether the row is created or found.
 func (s *Service) upsertOperator(ctx context.Context, tenant *sqlcv1.Tenant, opts RegisterOpts) (*sqlcv1.V1Operator, error) {
-	var op *sqlcv1.V1Operator
-	var err error
-
-	switch opts.Kind {
-	case sqlcv1.V1OperatorKindGRPC:
-		op, err = s.operators.UpsertGRPCOperator(ctx, tenant.ID, opts.Name)
-	case sqlcv1.V1OperatorKindSERVERLESS:
-		op, err = s.operators.UpsertServerlessOperator(ctx, tenant.ID, opts.Name)
-	default:
+	if opts.Kind != sqlcv1.V1OperatorKindGRPC {
 		return nil, fmt.Errorf("operator kind %q cannot be registered through a session", opts.Kind)
 	}
+
+	switch opts.Leasing {
+	case sqlcv1.V1OperatorLeasingSELF, sqlcv1.V1OperatorLeasingMANAGED:
+	default:
+		return nil, fmt.Errorf("operator leasing %q cannot be registered through a session", opts.Leasing)
+	}
+
+	op, err := s.operators.UpsertOperator(ctx, tenant.ID, repository.UpsertOperatorOpts{
+		Name:    opts.Name,
+		Kind:    opts.Kind,
+		Leasing: opts.Leasing,
+	})
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert %s operator %s", opts.Kind, opts.Name)
@@ -245,11 +262,11 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 	operatorId := op.ID
 
 	createOpts := &repository.CreateWorkerOpts{
-		DispatcherId: s.dispatcherId,
-		Name:         name,
-		SlotConfig:   slotConfig,
-		OperatorId:   &operatorId,
-		OperatorKind: op.Kind,
+		DispatcherId:     s.dispatcherId,
+		Name:             name,
+		SlotConfig:       slotConfig,
+		OperatorId:       &operatorId,
+		ExemptFromLimits: opts.ExemptFromLimits,
 	}
 
 	if opts.RuntimeInfo != nil {

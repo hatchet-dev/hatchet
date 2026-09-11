@@ -347,3 +347,33 @@ func TestTeardownTimeout(t *testing.T) {
 
 	assert.True(t, h.host.session(op.ID).Closed(), "the session is closed once the drain timed out")
 }
+
+// A claimed GRPC row is a contract operator the engine leases; which operator to build is
+// said by the row's name, so its factory is found by name. A GRPC row with no factory of its
+// name, or any row of a kind with no factory, is left alone.
+func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
+	var built []string
+
+	named := func(op *sqlcv1.V1Operator) (operator.Operator, operator.OpenOpts, error) {
+		built = append(built, op.Name)
+		return &fakeOperator{}, operator.OpenOpts{}, nil
+	}
+
+	h := newHarness(t, claimer.WithNamedFactory("serverless", named))
+
+	serverless := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
+	unknown := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "nobody-builds-this", Kind: sqlcv1.V1OperatorKindGRPC, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
+	dag := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindDAG, Leasing: sqlcv1.V1OperatorLeasingMANAGED}
+
+	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
+
+	assert.Equal(t, []string{"serverless"}, built, "the named factory builds GRPC rows of its name only")
+	require.Equal(t, 1, h.host.openCount())
+	assert.Equal(t, serverless.ID, *h.host.opens[0].OperatorId, "a managed row is opened by id")
+	assert.Equal(t, 1, h.Running())
+
+	// the rows with no factory stay unhosted on later polls without being retried
+	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
+	assert.Equal(t, []string{"serverless"}, built)
+	assert.Equal(t, 1, h.host.openCount())
+}
