@@ -1276,7 +1276,9 @@ BEGIN
             AND wcs.workflow_version_id = p_workflow_version_id
             AND wcs.workflow_run_id = p_workflow_run_id
             AND NOT EXISTS (
-                -- Check if any task in this DAG has a v1_concurrency_slot
+                -- Release the parent when no DAG task still holds a child slot.
+                -- The next step's insert trigger recreates the parent if that
+                -- step still needs the gate.
                 SELECT 1
                 FROM relevant_tasks_for_dags rt
                 WHERE EXISTS (
@@ -1286,10 +1288,6 @@ BEGIN
                         AND cs2.task_inserted_at = rt.inserted_at
                         AND cs2.task_retry_count = rt.retry_count
                 )
-            )
-            AND CARDINALITY(wcs.child_strategy_ids) <= (
-                SELECT COUNT(*)
-                FROM relevant_tasks_for_dags rt
             )
         GROUP BY
             wcs.strategy_id,
