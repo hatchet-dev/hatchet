@@ -341,7 +341,9 @@ func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want b
 	})
 }
 
-// workerActionHash reads the worker's action hash straight from the database.
+// workerActionHash reads the worker's action hash straight from the database. A delta clears
+// the hash and the session refreshes it at the end of the delta sequence, within its notify
+// window, so a NULL hash means the refresh is pending and the read waits for it.
 func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte {
 	t.Helper()
 
@@ -350,7 +352,12 @@ func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte
 	defer conn.Close(ctx)
 
 	var hash []byte
-	require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+
+	require.Eventually(t, func() bool {
+		require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+
+		return hash != nil
+	}, schedulerConvergence, pollInterval, "the worker's action hash was not refreshed after its delta")
 
 	return hash
 }

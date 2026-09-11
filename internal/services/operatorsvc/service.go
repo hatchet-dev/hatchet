@@ -44,7 +44,9 @@ const (
 	DefaultMaxListenStreamsPerOperator = 100
 
 	// DefaultMaxActionsPerOperator caps the action links held across all workers of one
-	// operator. Deltas that would exceed it are refused with ResourceExhausted.
+	// operator. Deltas that would exceed it are refused with ResourceExhausted. The cap is
+	// checked by the repository inside the delta's transaction, so it holds across sessions
+	// and across engine replicas.
 	DefaultMaxActionsPerOperator = 1_000_000
 
 	// MaxActionsPerDelta caps the ids (adds plus removes) one delta may carry.
@@ -64,6 +66,10 @@ const (
 
 	// deactivateTimeout bounds the detached deactivation write once the session is gone.
 	deactivateTimeout = 20 * time.Second
+
+	// actionHashRefreshTimeout bounds one recompute of a worker's action hash, which reads
+	// every link the worker holds.
+	actionHashRefreshTimeout = 30 * time.Second
 )
 
 // OperatorStore is the subset of repository.OperatorRepository the service uses. It is narrow
@@ -83,7 +89,9 @@ type WorkerStore interface {
 	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
-	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (added, removed int, err error)
+	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
+	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
+	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 }
 
@@ -137,7 +145,8 @@ type Service struct {
 
 	// maxListenStreamsPerOperator and maxActionsPerOperator are the admission limits; see the
 	// Default constants. Zero disables the limit. The stream cap only counts stream-backed
-	// sessions: an in-process session holds no stream.
+	// sessions: an in-process session holds no stream. The action cap is passed to every delta
+	// and enforced there.
 	maxListenStreamsPerOperator int
 	maxActionsPerOperator       int64
 

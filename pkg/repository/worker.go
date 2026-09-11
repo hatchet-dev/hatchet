@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sort"
@@ -145,17 +146,27 @@ type WorkerRepository interface {
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
 	// ApplyWorkerActionsDelta links add to the worker and unlinks remove from it in one
-	// transaction, and recomputes the worker's action hash once from the resulting set, so a
-	// delta an operator acknowledges by sequence is committed whole or not at all. Adds are
-	// applied before removes; actions the worker already has are not linked again and actions
-	// it does not have are not unlinked, and neither counts in the returned totals. When more
-	// than maxNewLinks actions would be newly linked the whole delta is rolled back, removes
-	// included, and an error wrapping ErrWorkerActionBudgetExceeded is returned; a negative
-	// maxNewLinks disables the cap. The worker must belong to tenantId; otherwise nothing is
-	// mutated and an error wrapping pgx.ErrNoRows is returned.
-	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (added, removed int, err error)
+	// transaction, so a delta an operator acknowledges by sequence is committed whole or not at
+	// all. Adds are applied before removes; actions the worker already has are not linked again
+	// and actions it does not have are not unlinked, and neither counts in the returned totals.
+	// The worker's "actionCount" moves with the links and its "actionHash" is cleared: the
+	// digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per delta.
+	//
+	// maxOperatorLinks caps the links held by every worker of the operator this worker belongs
+	// to, checked in the transaction under the operator's row lock; a delta that would leave the
+	// operator over it is rolled back whole, removes included, and an *ActionBudgetError, which
+	// wraps ErrWorkerActionBudgetExceeded, is returned. A negative cap disables the check, and
+	// a worker with no operator is never capped. The worker must belong to tenantId; otherwise
+	// nothing is mutated and an error wrapping pgx.ErrNoRows is returned.
+	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
 
-	// CountOperatorWorkerActions counts the action links held by every worker of the operator.
+	// RefreshWorkerActionHash recomputes the worker's action hash from its links, under the
+	// worker's row lock. It is called at the end of a delta sequence and when a session opens on
+	// a worker whose hash is NULL. The worker must belong to tenantId.
+	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
+
+	// CountOperatorWorkerActions is the action links held by every worker of the operator, from
+	// the per-worker counts.
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 
 	// UpdateWorker updates a worker for a given tenant.
@@ -185,6 +196,12 @@ type WorkerRepository interface {
 	// recorded by ActivateWorkerListener. It returns pgx.ErrNoRows when a newer session has
 	// superseded this one, in which case the worker is left untouched.
 	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
+
+	// PauseWorkerForListener sets the worker's pause on behalf of the listener session
+	// identified by sessionId, only while that session is still the one recorded by
+	// ActivateWorkerListener. It returns an error wrapping pgx.ErrNoRows when a newer session
+	// has superseded this one, in which case the worker is left untouched.
+	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
@@ -570,13 +587,15 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 }
 
 // hashActions is the canonical digest of an action set: sha256 over the ids sorted by byte
-// order, each followed by ";" so ["ab", "c"] and ["a", "bc"] differ, after the same
-// lower-casing and deduplication the "Action" table applies. It is a function of the final set
-// alone, so a worker created with an initial set and a worker built by deltas hash equal for
-// the same set, and it is not a combination of per-action digests that could be solved for a
-// chosen value. ComputeWorkerActionHash in workers.sql computes the same digest from the
-// linked rows; the two must stay in step because GetWorkerActionsByWorkerActionHash treats
-// equal hashes as equal sets.
+// order, each encoded as its byte length as a 4-byte big-endian integer followed by its bytes,
+// after the same lower-casing and deduplication the "Action" table applies. The length prefix
+// is what makes the encoding unambiguous: an id may contain any byte, so a separator could be
+// read as an id boundary, while a length cannot. It is a function of the final set alone, so a
+// worker created with an initial set and a worker built by deltas hash equal for the same set,
+// and it is not a combination of per-action digests that could be solved for a chosen value.
+// ComputeWorkerActionHash in workers.sql computes the same digest from the linked rows; the
+// two must stay in step because GetWorkerActionsByWorkerActionHash treats equal hashes as
+// equal sets.
 func hashActions(actions []string) []byte {
 	ids := dedupeActionIds(actions)
 
@@ -584,9 +603,12 @@ func hashActions(actions []string) []byte {
 
 	h := sha256.New()
 
+	var length [4]byte
+
 	for _, action := range ids {
+		binary.BigEndian.PutUint32(length[:], uint32(len(action))) // nolint: gosec // an action id is far shorter than 4 GiB
+		h.Write(length[:])
 		h.Write([]byte(action))
-		h.Write([]byte(";"))
 	}
 
 	return h.Sum(nil)
@@ -655,11 +677,16 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
+	// the initial set is linked below, in this transaction, so the row is created with its
+	// digest and its size
+	initialActions := dedupeActionIds(opts.Actions)
+
 	createParams := sqlcv1.CreateWorkerParams{
 		Tenantid:     tenantId,
 		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
-		Actionhash:   hashActions(opts.Actions),
+		Actionhash:   hashActions(initialActions),
+		Actioncount:  int32(len(initialActions)), // nolint: gosec // bounded by the request size
 		OperatorId:   opts.OperatorId,
 	}
 
@@ -779,11 +806,26 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	return worker, nil
 }
 
-// ErrWorkerActionBudgetExceeded is returned by ApplyWorkerActionsDelta when the delta would
-// link more actions than its budget allows. Nothing is changed in that case.
+// ErrWorkerActionBudgetExceeded is returned, wrapped in an *ActionBudgetError, by
+// ApplyWorkerActionsDelta when the delta would leave the operator over its action budget.
+// Nothing is changed in that case.
 var ErrWorkerActionBudgetExceeded = errors.New("worker action budget exceeded")
 
-func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxNewLinks int64) (int, int, error) {
+// ActionBudgetError reports a refused delta with the operator's totals: Linked is what the
+// operator's workers would hold with the delta applied, Limit the cap.
+type ActionBudgetError struct {
+	OperatorId uuid.UUID
+	Linked     int64
+	Limit      int64
+}
+
+func (e *ActionBudgetError) Error() string {
+	return fmt.Sprintf("operator %s would hold %d action links, the limit is %d: %s", e.OperatorId, e.Linked, e.Limit, ErrWorkerActionBudgetExceeded)
+}
+
+func (e *ActionBudgetError) Unwrap() error { return ErrWorkerActionBudgetExceeded }
+
+func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
 	add = dedupeActionIds(add)
 	remove = dedupeActionIds(remove)
 
@@ -800,7 +842,7 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 	defer rollback()
 
 	// the row lock is held until commit, so concurrent deltas for the same worker apply one
-	// after the other and each recomputes the hash from the links it leaves behind
+	// after the other and the count each leaves behind is the count of the links it leaves
 	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
 		return 0, 0, err
 	}
@@ -809,11 +851,6 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 
 	if err != nil {
 		return 0, 0, err
-	}
-
-	// the links are rolled back with the transaction, before any remove is applied
-	if maxNewLinks >= 0 && int64(added) > maxNewLinks {
-		return 0, 0, fmt.Errorf("delta would link %d new actions to worker %s, the budget allows %d: %w", added, workerId, maxNewLinks, ErrWorkerActionBudgetExceeded)
 	}
 
 	removed, err := w.unlinkActions(ctx, tx, tenantId, workerId, remove)
@@ -826,8 +863,35 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 		return 0, 0, nil
 	}
 
-	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
-		return 0, 0, err
+	operatorId, err := w.queries.SettleWorkerActionsDelta(ctx, tx, sqlcv1.SettleWorkerActionsDeltaParams{
+		Workerid: workerId,
+		Added:    int32(added),   // nolint: gosec // bounded by the delta size
+		Removed:  int32(removed), // nolint: gosec // bounded by the delta size
+	})
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not settle worker actions delta: %w", err)
+	}
+
+	// the budget is the operator's, so it is checked under the operator's lock, taken after
+	// the worker's: every delta of the operator's workers takes the two in this order
+	if maxOperatorLinks >= 0 && operatorId != nil {
+		if _, err := w.queries.LockOperator(ctx, tx, sqlcv1.LockOperatorParams{Tenantid: tenantId, ID: *operatorId}); err != nil {
+			return 0, 0, fmt.Errorf("could not lock operator %s: %w", *operatorId, err)
+		}
+
+		linked, err := w.queries.SumOperatorWorkerActionCounts(ctx, tx, sqlcv1.SumOperatorWorkerActionCountsParams{
+			Tenantid:   tenantId,
+			Operatorid: *operatorId,
+		})
+
+		if err != nil {
+			return 0, 0, fmt.Errorf("could not sum operator worker actions: %w", err)
+		}
+
+		if linked > maxOperatorLinks {
+			return 0, 0, &ActionBudgetError{OperatorId: *operatorId, Linked: linked, Limit: maxOperatorLinks}
+		}
 	}
 
 	if err := commit(ctx); err != nil {
@@ -835,6 +899,29 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 	}
 
 	return added, removed, nil
+}
+
+// RefreshWorkerActionHash recomputes the worker's action hash from its linked rows, under the
+// worker's row lock, so the digest written is the digest of the links the last committed delta
+// left behind.
+func (w *workerRepository) RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return err
+	}
+
+	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return err
+	}
+
+	return commit(ctx)
 }
 
 // linkActions links actionIds to the worker within tx, creating the "Action" rows that are
@@ -1128,10 +1215,14 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 			return nil, fmt.Errorf("could not link actions to worker: %w", err)
 		}
 
-		// links are only ever added here, so the stored hash is recomputed from the rows
-		// rather than from opts.Actions alone
+		// links are only ever added here, so the stored hash and count are recomputed from
+		// the rows rather than from opts.Actions alone
 		if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
 			return nil, err
+		}
+
+		if err := w.queries.RecountWorkerActions(ctx, tx, workerId); err != nil {
+			return nil, fmt.Errorf("could not recount worker actions: %w", err)
 		}
 	}
 
@@ -1220,6 +1311,19 @@ func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantI
 	}
 
 	return worker, nil
+}
+
+func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error {
+	if _, err := w.queries.SetWorkerPausedForListener(ctx, w.pool, sqlcv1.SetWorkerPausedForListenerParams{
+		ID:        workerId,
+		Tenantid:  tenantId,
+		Sessionid: sessionId,
+		Paused:    paused,
+	}); err != nil {
+		return fmt.Errorf("could not set paused=%t on worker %s for listener session %s: %w", paused, workerId, sessionId, err)
+	}
+
+	return nil
 }
 
 func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {

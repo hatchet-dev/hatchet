@@ -1,6 +1,7 @@
 package operatorsvc_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -362,4 +363,143 @@ func TestOpenSessionLoadsWorkerWhenNotGiven(t *testing.T) {
 	assert.NotContains(t, strings.Join(svc.workers.Ops(), ","), "pause")
 
 	require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
+}
+
+// The per-operator action cap is one budget for every session of the operator: two workers
+// that fill it together stop at the cap, whichever session sends the delta past it, and a
+// removal on one worker makes room for an add on the other.
+func TestSessionActionBudgetSpansSessions(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil, operatorsvc.WithMaxActionsPerOperator(3000))
+	op, first := registeredOperator(t, svc, tenant)
+	second := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})
+
+	a, err := svc.OpenSession(t.Context(), tenant, op, first.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close(t.Context()) })
+
+	b, err := svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close(t.Context()) })
+
+	chunk := func(n int) []string {
+		ids := make([]string, 1000)
+
+		for i := range ids {
+			ids[i] = fmt.Sprintf("svc:a%d", n*1000+i)
+		}
+
+		return ids
+	}
+
+	// three chunks fill the cap, spread over both sessions
+	for i, session := range []*operatorsvc.Session{a, b, a} {
+		_, err := session.ApplyDelta(t.Context(), chunk(i), nil)
+		require.NoError(t, err, "chunk %d is within the cap", i)
+	}
+
+	_, err = b.ApplyDelta(t.Context(), chunk(3), nil)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err), "the delta past the cap is refused: %v", err)
+	assert.ErrorContains(t, err, "3000")
+
+	total, err := svc.workers.CountOperatorWorkerActions(t.Context(), tenant.ID, op.ID)
+	require.NoError(t, err)
+	assert.EqualValues(t, 3000, total, "the operator holds exactly the cap")
+
+	// a removal on one worker frees room for the other
+	_, err = a.ApplyDelta(t.Context(), nil, chunk(0)[:1])
+	require.NoError(t, err)
+
+	_, err = b.ApplyDelta(t.Context(), chunk(3)[:1], nil)
+	require.NoError(t, err, "the freed link is available to the other session")
+
+	_, err = b.ApplyDelta(t.Context(), chunk(3)[1:2], nil)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+}
+
+// Closing a session that a newer session superseded on the same worker leaves the successor
+// assignable: the pause Close performs is fenced on the session id like the deactivation.
+func TestSessionSupersededCloseDoesNotPauseSuccessor(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	op, worker := registeredOperator(t, svc, tenant)
+
+	first, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	second, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	require.NoError(t, first.Close(t.Context()))
+	assert.True(t, svc.workers.IsActive(worker.ID), "a superseded session must not deactivate the worker")
+	assert.False(t, svc.workers.IsPaused(worker.ID), "a superseded session must not pause the worker")
+
+	require.NoError(t, first.Pause(t.Context(), true), "a superseded pause is not an error")
+	assert.False(t, svc.workers.IsPaused(worker.ID))
+
+	require.NoError(t, second.Close(t.Context()))
+	assert.False(t, svc.workers.IsActive(worker.ID))
+	assert.True(t, svc.workers.IsPaused(worker.ID), "the live session pauses on close")
+}
+
+// A delta clears the worker's action hash; the session refreshes it once per notification
+// window, before the scheduler is told to reload, and once more on close if a delta came after
+// the last window.
+func TestSessionRefreshesActionHashPerWindow(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(100*time.Millisecond))
+	op, worker := registeredOperator(t, svc, tenant)
+
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	assert.Empty(t, svc.workers.Refreshes(), "a worker with a hash is not refreshed on open")
+
+	// three chunks inside one window: the hash is refreshed once, when the window closes
+	for _, id := range []string{"svc:a", "svc:b", "svc:c"} {
+		_, err = session.ApplyDelta(t.Context(), []string{id}, nil)
+		require.NoError(t, err)
+	}
+
+	assert.True(t, svc.workers.HashPending(worker.ID), "the delta cleared the hash")
+	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 2 }, "the window did not close")
+	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.Refreshes(), "one refresh per window")
+	assert.False(t, svc.workers.HashPending(worker.ID))
+
+	// a delta that changes nothing owes no refresh
+	time.Sleep(150 * time.Millisecond)
+	_, err = session.ApplyDelta(t.Context(), []string{"svc:a"}, nil)
+	require.NoError(t, err)
+	require.NoError(t, session.Close(t.Context()))
+	assert.Len(t, svc.workers.Refreshes(), 1, "a delta that changed nothing does not refresh on close")
+
+	// a delta right before close is refreshed by the close
+	second, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	time.Sleep(150 * time.Millisecond)
+	_, err = second.ApplyDelta(t.Context(), []string{"svc:d"}, nil)
+	require.NoError(t, err)
+	_, err = second.ApplyDelta(t.Context(), []string{"svc:e"}, nil)
+	require.NoError(t, err)
+	require.NoError(t, second.Close(t.Context()))
+	assert.False(t, svc.workers.HashPending(worker.ID), "the close refreshed the pending hash")
+}
+
+// A worker whose previous session ended between a delta and its refresh has no hash; the next
+// session refreshes it before the worker is activated.
+func TestOpenSessionRefreshesPendingHash(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	op, worker := registeredOperator(t, svc, tenant)
+
+	svc.workers.SetHashPending(worker.ID)
+
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.Refreshes())
+	assert.False(t, svc.workers.HashPending(worker.ID))
+
+	require.NoError(t, session.Close(t.Context()))
 }

@@ -26,8 +26,8 @@ func addWorkerActions(repo WorkerRepository, ctx context.Context, tenantId, work
 	return added, err
 }
 
-func addWorkerActionsWithinBudget(repo WorkerRepository, ctx context.Context, tenantId, workerId uuid.UUID, ids []string, maxNewLinks int64) (int, error) {
-	added, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, workerId, ids, nil, maxNewLinks)
+func addWorkerActionsWithinBudget(repo WorkerRepository, ctx context.Context, tenantId, workerId uuid.UUID, ids []string, maxOperatorLinks int64) (int, error) {
+	added, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, workerId, ids, nil, maxOperatorLinks)
 
 	return added, err
 }
@@ -109,6 +109,16 @@ func workerActionHash(t *testing.T, ctx context.Context, pool *pgxpool.Pool, wor
 	return hash
 }
 
+// refreshedHash refreshes the worker's hash, as the session does at the end of a delta
+// sequence, and reads it back.
+func refreshedHash(t *testing.T, ctx context.Context, repo WorkerRepository, pool *pgxpool.Pool, tenantId, workerId uuid.UUID) []byte {
+	t.Helper()
+
+	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, workerId))
+
+	return workerActionHash(t, ctx, pool, workerId)
+}
+
 func TestWorkerActionDeltas(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +137,8 @@ func TestWorkerActionDeltas(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 3, added)
 		assert.Equal(t, []string{"svc:a", "svc:b", "svc:c"}, linkedActions(t, ctx, pool, workerId))
-		assert.NotEqual(t, initial, workerActionHash(t, ctx, pool, workerId))
+		assert.Nil(t, workerActionHash(t, ctx, pool, workerId), "a delta clears the hash until the refresh")
+		assert.NotEqual(t, initial, refreshedHash(t, ctx, repo, pool, tenantId, workerId))
 
 		removed, err := removeWorkerActions(repo, ctx, tenantId, workerId, []string{"svc:b"})
 		require.NoError(t, err)
@@ -138,7 +149,7 @@ func TestWorkerActionDeltas(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, removed)
 		assert.Empty(t, linkedActions(t, ctx, pool, workerId))
-		assert.Equal(t, initial, workerActionHash(t, ctx, pool, workerId), "removing every action restores the seed hash")
+		assert.Equal(t, initial, refreshedHash(t, ctx, repo, pool, tenantId, workerId), "removing every action restores the seed hash")
 	})
 
 	t.Run("adds and removes commit together", func(t *testing.T) {
@@ -152,13 +163,7 @@ func TestWorkerActionDeltas(t *testing.T) {
 		assert.Equal(t, 1, added, "an action the worker has is not linked again")
 		assert.Equal(t, 1, removed, "an action the worker lacks is not unlinked")
 		assert.Equal(t, []string{"svc:a", "svc:c"}, linkedActions(t, ctx, pool, workerId))
-		assert.Equal(t, hashActions([]string{"svc:a", "svc:c"}), workerActionHash(t, ctx, pool, workerId), "the hash is the resulting set's")
-
-		added, removed, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, workerId, []string{"svc:d", "svc:e"}, []string{"svc:a"}, 1)
-		require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
-		assert.Zero(t, added)
-		assert.Zero(t, removed)
-		assert.Equal(t, []string{"svc:a", "svc:c"}, linkedActions(t, ctx, pool, workerId), "a delta over budget rolls its removes back with its adds")
+		assert.Equal(t, hashActions([]string{"svc:a", "svc:c"}), refreshedHash(t, ctx, repo, pool, tenantId, workerId), "the hash is the resulting set's")
 
 		added, removed, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, workerId, []string{"svc:d"}, []string{"svc:d"}, -1)
 		require.NoError(t, err)
@@ -173,23 +178,24 @@ func TestWorkerActionDeltas(t *testing.T) {
 		added, err := addWorkerActions(repo, ctx, tenantId, workerId, []string{"svc:a", "svc:b"})
 		require.NoError(t, err)
 		assert.Equal(t, 2, added)
-		hash := workerActionHash(t, ctx, pool, workerId)
+		hash := refreshedHash(t, ctx, repo, pool, tenantId, workerId)
 
 		// duplicates within one call and across calls, in any casing, link nothing new
 		added, err = addWorkerActions(repo, ctx, tenantId, workerId, []string{"svc:a", "SVC:B", "svc:b", "svc:c"})
 		require.NoError(t, err)
 		assert.Equal(t, 1, added)
 		assert.Equal(t, []string{"svc:a", "svc:b", "svc:c"}, linkedActions(t, ctx, pool, workerId))
-		assert.NotEqual(t, hash, workerActionHash(t, ctx, pool, workerId))
+		assert.NotEqual(t, hash, refreshedHash(t, ctx, repo, pool, tenantId, workerId))
 
 		added, err = addWorkerActions(repo, ctx, tenantId, workerId, []string{"svc:c"})
 		require.NoError(t, err)
 		assert.Equal(t, 0, added)
+		assert.NotNil(t, workerActionHash(t, ctx, pool, workerId), "a delta that changes nothing keeps the hash")
 
 		removed, err := removeWorkerActions(repo, ctx, tenantId, workerId, []string{"svc:c"})
 		require.NoError(t, err)
 		assert.Equal(t, 1, removed)
-		assert.Equal(t, hash, workerActionHash(t, ctx, pool, workerId), "the hash only moves for actions actually linked or unlinked")
+		assert.Equal(t, hash, refreshedHash(t, ctx, repo, pool, tenantId, workerId), "the hash only moves for actions actually linked or unlinked")
 	})
 
 	t.Run("hash is order independent", func(t *testing.T) {
@@ -206,7 +212,7 @@ func TestWorkerActionDeltas(t *testing.T) {
 		_, err = addWorkerActions(repo, ctx, tenantId, second, []string{"svc:a"})
 		require.NoError(t, err)
 
-		assert.Equal(t, workerActionHash(t, ctx, pool, first), workerActionHash(t, ctx, pool, second), "the same set built in a different order hashes equal")
+		assert.Equal(t, refreshedHash(t, ctx, repo, pool, tenantId, first), refreshedHash(t, ctx, repo, pool, tenantId, second), "the same set built in a different order hashes equal")
 
 		// the shared hash resolves the shared set through the representative-worker lookup
 		records, err := sqlcv1.New().GetWorkerActionsByWorkerActionHash(ctx, pool, sqlcv1.GetWorkerActionsByWorkerActionHashParams{
@@ -225,10 +231,10 @@ func TestWorkerActionDeltas(t *testing.T) {
 
 		_, err = removeWorkerActions(repo, ctx, tenantId, second, []string{"svc:b"})
 		require.NoError(t, err)
-		assert.NotEqual(t, workerActionHash(t, ctx, pool, first), workerActionHash(t, ctx, pool, second), "a removal changes the hash")
+		assert.NotEqual(t, workerActionHash(t, ctx, pool, first), refreshedHash(t, ctx, repo, pool, tenantId, second), "a removal changes the hash")
 
 		_, err = removeWorkerActions(repo, ctx, tenantId, first, []string{"svc:b"})
 		require.NoError(t, err)
-		assert.Equal(t, workerActionHash(t, ctx, pool, first), workerActionHash(t, ctx, pool, second), "removing the same action from both restores equality")
+		assert.Equal(t, refreshedHash(t, ctx, repo, pool, tenantId, first), workerActionHash(t, ctx, pool, second), "removing the same action from both restores equality")
 	})
 }

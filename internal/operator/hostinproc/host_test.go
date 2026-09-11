@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -460,4 +461,69 @@ func TestEchoThroughHost(t *testing.T) {
 
 	assert.Equal(t, []string{"activate", "pause", "deactivate"}, h.workers.Ops())
 	assert.False(t, h.workers.IsActive(s.Registration().WorkerId))
+}
+
+// Session methods are safe to call concurrently: callers that add actions at once end with
+// exactly the union of what they added, and the budget bookkeeping does not race.
+func TestConcurrentDeltasThroughHost(t *testing.T) {
+	h := newTestHost(t, hostOpts{})
+
+	s, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, Name: "concurrent"}, operator.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = s.Close(t.Context()) })
+
+	const callers, perCaller = 12, 40
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	want := make([]string, 0, callers*perCaller)
+
+	for i := 0; i < callers; i++ {
+		for j := 0; j < perCaller; j++ {
+			want = append(want, fmt.Sprintf("svc:a%d-%d", i, j))
+		}
+
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+			<-start
+
+			for j := 0; j < perCaller; j++ {
+				if err := s.AddActions(t.Context(), []string{fmt.Sprintf("svc:a%d-%d", i, j)}); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+
+	assert.ElementsMatch(t, want, h.workers.ActionSet(s.Registration().WorkerId))
+}
+
+// A session superseded by a resume of its worker is closed on the default path (with the
+// pause): the successor stays active and assignable.
+func TestSupersededCloseLeavesSuccessorAssignable(t *testing.T) {
+	h := newTestHost(t, hostOpts{})
+	id := operator.Identity{TenantId: h.tenant.ID, Name: "fence"}
+
+	first, err := h.Open(t.Context(), id, operator.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	worker := first.Registration().WorkerId
+
+	second, err := h.Open(t.Context(), id, operator.OpenOpts{Handler: nopHandler{}, ResumeWorkerId: &worker})
+	require.NoError(t, err)
+	require.True(t, second.Registration().Resumed)
+
+	t.Cleanup(func() { _ = second.Close(t.Context()) })
+
+	require.NoError(t, first.Close(t.Context()))
+
+	assert.True(t, h.workers.IsActive(worker), "the successor owns the worker's active flag")
+	assert.False(t, h.workers.IsPaused(worker), "the superseded close must not pause the successor's worker")
 }

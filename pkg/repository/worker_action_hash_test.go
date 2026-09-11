@@ -79,6 +79,12 @@ func TestHashActionsIsCanonical(t *testing.T) {
 	assert.NotEqual(t, base, hashActions([]string{"svc:a", "svc:b", "svc:c"}))
 	assert.NotEqual(t, hashActions(nil), hashActions([]string{"svc:a"}))
 	assert.NotEqual(t, base, xorFold([]string{"svc:a", "svc:b"}), "the hash is not a linear combination of per-action digests")
+
+	// the encoding is unambiguous for ids that contain what a delimiter would be, and for
+	// ids whose concatenation is the same
+	assert.NotEqual(t, hashActions([]string{"svc:a;svc:b"}), hashActions([]string{"svc:a", "svc:b"}), "a delimiter inside an id")
+	assert.NotEqual(t, hashActions([]string{"svc:ab", "svc:c"}), hashActions([]string{"svc:a", "svc:bc"}), "equal concatenation")
+	assert.NotEqual(t, hashActions([]string{"svc:a", "svc:b;"}), hashActions([]string{"svc:a", "svc:b"}), "a trailing delimiter")
 }
 
 // A worker created with an initial action set and a worker built by deltas from an empty set
@@ -117,9 +123,11 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	want := hashActions([]string{"svc:run", "svc:other"})
 
 	assert.Equal(t, want, workerActionHash(t, ctx, pool, created.ID), "initial set")
-	assert.Equal(t, want, workerActionHash(t, ctx, pool, incremental), "deltas")
-	assert.Equal(t, want, workerActionHash(t, ctx, pool, churned), "add then remove")
+	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, incremental), "deltas")
+	assert.Equal(t, want, refreshedHash(t, ctx, repo, pool, tenantId, churned), "add then remove")
 	assert.Equal(t, []string{"svc:other", "svc:run"}, linkedActions(t, ctx, pool, created.ID))
+	assert.Equal(t, 2, workerActionCount(t, ctx, pool, created.ID), "the initial set is counted")
+	assert.Equal(t, 2, workerActionCount(t, ctx, pool, churned))
 }
 
 // Action links are only ever made between a worker and actions of the worker's own tenant:
@@ -151,14 +159,15 @@ func TestWorkerActionsRejectTenantWorkerMismatch(t *testing.T) {
 	assert.Zero(t, cross)
 }
 
-// A budgeted add links nothing when the newly linked actions would exceed the budget, and
-// repeated actions never count against it.
+// A budgeted add links nothing when it would leave the operator over its cap, repeated actions
+// never count against it, and the hash of a refused delta's worker is untouched.
 func TestAddWorkerActionsWithinBudget(t *testing.T) {
 	pool := workerActionsPool(t)
 	repo := createWorkerActionsRepositoryForTest(pool)
 	ctx := context.Background()
 	tenantId := seedTenantForActions(t, ctx, pool)
-	worker := seedWorkerForActions(t, ctx, pool, tenantId)
+	operatorId := seedOperator(t, ctx, pool, tenantId)
+	worker := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
 	initial := workerActionHash(t, ctx, pool, worker)
 
 	added, err := addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 1)
@@ -171,11 +180,11 @@ func TestAddWorkerActionsWithinBudget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, added)
 
-	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 0)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:a", "svc:b"}, 2)
 	require.NoError(t, err, "repeated actions do not consume budget")
 	assert.Zero(t, added)
 
-	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:b", "svc:c"}, 0)
+	added, err = addWorkerActionsWithinBudget(repo, ctx, tenantId, worker, []string{"svc:b", "svc:c"}, 2)
 	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
 	assert.Zero(t, added)
 	assert.Equal(t, []string{"svc:a", "svc:b"}, linkedActions(t, ctx, pool, worker))
