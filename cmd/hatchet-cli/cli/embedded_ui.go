@@ -33,7 +33,12 @@ var uiCmd = &cobra.Command{
 	Long: `Serve the Hatchet dashboard UI for an embedded Hatchet instance. Embedded
 instances run inside your application and do not ship a frontend; this command
 serves the UI bundled in the CLI binary and proxies API requests to the
-instance's API server. Access is protected by a one-time token in the opened URL.`,
+instance's API server. Access is protected by a one-time token in the opened URL.
+
+The dashboard is signed in automatically as the embedded instance's seeded
+admin user, so no login is required. If the instance was seeded with custom
+admin credentials, set the same ADMIN_EMAIL and ADMIN_PASSWORD environment
+variables for this command.`,
 	Example: `  # Serve the UI for an embedded instance's API server
   hatchet embedded-ui --api-url http://localhost:8080
 
@@ -64,7 +69,9 @@ func runUI(cmd *cobra.Command) {
 		configcli.Logger.Fatalf("%v", err)
 	}
 
-	handler, err := newUIHandler(target, insecureSkipVerify)
+	creds := resolveAdminCredentials()
+
+	handler, err := newUIHandler(target, insecureSkipVerify, creds)
 	if err != nil {
 		configcli.Logger.Fatalf("could not build UI server: %v", err)
 	}
@@ -94,7 +101,7 @@ func runUI(cmd *cobra.Command) {
 		}
 	}()
 
-	fmt.Println(uiStartedView(tokenURL, target.String(), profileName))
+	fmt.Println(uiStartedView(tokenURL, target.String(), profileName, creds))
 
 	if !noOpen {
 		openBrowser(tokenURL)
@@ -260,7 +267,7 @@ func parseTargetURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error) {
+func newUIHandler(target *url.URL, insecureSkipVerify bool, creds adminCredentials) (http.Handler, error) {
 	origin := target.Scheme + "://" + target.Host
 
 	proxy := &httputil.ReverseProxy{
@@ -274,6 +281,10 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 			if pr.Out.Header.Get("Referer") != "" {
 				pr.Out.Header.Set("Referer", origin+pr.Out.URL.Path)
 			}
+
+			// The ui-token authenticates the browser to this proxy only and
+			// is never forwarded upstream.
+			stripRequestCookie(pr.Out, uiTokenCookie)
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			if cookies := resp.Header["Set-Cookie"]; len(cookies) > 0 {
@@ -285,11 +296,14 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 		},
 	}
 
+	var base http.RoundTripper
 	if insecureSkipVerify {
-		proxy.Transport = &http.Transport{
+		base = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
 		}
 	}
+
+	proxy.Transport = newSessionTransport(base, target, creds, configcli.Logger.Warnf)
 
 	spa, err := newSPAHandler()
 	if err != nil {
@@ -302,6 +316,19 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 	mux.Handle("/", spa)
 
 	return mux, nil
+}
+
+// stripRequestCookie removes the named cookie from an outgoing request,
+// keeping every other cookie intact.
+func stripRequestCookie(req *http.Request, name string) {
+	cookies := req.Cookies()
+	req.Header.Del("Cookie")
+
+	for _, c := range cookies {
+		if c.Name != name {
+			req.AddCookie(c)
+		}
+	}
 }
 
 func rewriteSetCookie(cookie string) string {
@@ -424,7 +451,7 @@ func browserHost(host string) string {
 	}
 }
 
-func uiStartedView(localURL, targetURL, profileName string) string {
+func uiStartedView(localURL, targetURL, profileName string, creds adminCredentials) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage("Hatchet dashboard is running!"))
@@ -435,6 +462,10 @@ func uiStartedView(localURL, targetURL, profileName string) string {
 	}
 	lines = append(lines, styles.KeyValue("API server", targetURL))
 	lines = append(lines, "")
+	lines = append(lines, styles.Muted.Render(fmt.Sprintf("The dashboard signs in automatically as '%s'.", creds.email)))
+	if creds.isDefault {
+		lines = append(lines, styles.Muted.Render(fmt.Sprintf("Admin credentials: email '%s', password '%s'", creds.email, creds.password)))
+	}
 	lines = append(lines, styles.Muted.Render("Press Ctrl+C to stop."))
 
 	return styles.SuccessBox.Render(strings.Join(lines, "\n"))
