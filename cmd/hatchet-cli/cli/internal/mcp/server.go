@@ -19,10 +19,6 @@ const (
 	defaultWaitTimeout = 60 * time.Second
 	maxWaitTimeout     = 10 * time.Minute
 	runPollInterval    = 750 * time.Millisecond
-
-	// embeddedDetectionTTL bounds how often the embedded probe runs so tool
-	// calls stay fast.
-	embeddedDetectionTTL = 15 * time.Second
 )
 
 // Deps are the injectable dependencies of the MCP server. Everything the tool
@@ -41,7 +37,7 @@ type Deps struct {
 	NewEngine EngineFactory
 
 	// DetectEmbedded looks for a running embedded instance. Defaults to
-	// DetectEmbedded over Profiles when nil.
+	// detectEmbedded over Profiles when nil.
 	DetectEmbedded func(ctx context.Context) *EmbeddedDetection
 
 	// Feedback delivers submit_feedback events.
@@ -56,17 +52,15 @@ type Deps struct {
 type Server struct {
 	deps Deps
 
-	mu         sync.Mutex
-	engines    map[string]Engine
-	detection  *EmbeddedDetection
-	detectedAt time.Time
+	mu      sync.Mutex
+	engines map[string]Engine
 }
 
 // NewServer builds the MCP server and registers its tools.
 func NewServer(deps Deps) *Server {
 	if deps.DetectEmbedded == nil {
 		deps.DetectEmbedded = func(ctx context.Context) *EmbeddedDetection {
-			return DetectEmbedded(ctx, deps.Profiles)
+			return detectEmbedded(ctx, deps.Profiles)
 		}
 	}
 
@@ -93,21 +87,6 @@ func (s *Server) Run(ctx context.Context) error {
 	return server.Run(ctx, &mcpsdk.StdioTransport{})
 }
 
-// detect returns the (briefly cached) embedded detection result.
-func (s *Server) detect(ctx context.Context) *EmbeddedDetection {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.detection != nil && time.Since(s.detectedAt) < embeddedDetectionTTL {
-		return s.detection
-	}
-
-	s.detection = s.deps.DetectEmbedded(ctx)
-	s.detectedAt = time.Now()
-
-	return s.detection
-}
-
 // resolve loads grants, resolves the requested profile, and returns an engine
 // for it. Grants are re-read on every call so `hatchet mcp auth` takes effect
 // without restarting the server.
@@ -117,7 +96,13 @@ func (s *Server) resolve(ctx context.Context, requested string) (*resolvedProfil
 		return nil, nil, err
 	}
 
-	rp, err := resolveProfile(requested, s.deps.Profiles, grants, s.detect(ctx))
+	return s.selectEngine(requested, grants, s.deps.DetectEmbedded(ctx))
+}
+
+// selectEngine resolves the requested profile against already-loaded grants
+// and an already-computed detection result, and returns an engine for it.
+func (s *Server) selectEngine(requested string, grants *Grants, embedded *EmbeddedDetection) (*resolvedProfile, Engine, error) {
+	rp, err := resolveProfile(requested, s.deps.Profiles, grants, embedded)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -457,19 +442,15 @@ func (s *Server) handleEngineStatus(ctx context.Context, _ *mcpsdk.CallToolReque
 	}
 
 	profiles := regularProfiles(s.deps.Profiles)
-	embedded := s.detect(ctx)
+	embedded := s.deps.DetectEmbedded(ctx)
 
 	status := map[string]any{
 		"grantedProfiles":    grantedStatusRows(profiles, grants, effectiveDefault(profiles, s.deps.Profiles.DefaultProfile())),
 		"allProfilesGranted": grants.HasWildcard(),
-		"embeddedDetected":   embedded.Detected,
+		"embeddedDetected":   embedded.Detected(),
 	}
-	if embedded.Detected {
-		status["embeddedApiUrl"] = embedded.APIURL
-		// Which mechanism found the instance: "profile" for the engine's own
-		// registration in the profile store, or one of the detection fallbacks
-		// (handshake-env, token-env, port-probe).
-		status["embeddedSource"] = embedded.Source
+	if embedded.Detected() {
+		status["embeddedApiUrl"] = embedded.Profile.ApiServerURL
 	}
 	if embedded.Note != "" {
 		status["embeddedNote"] = embedded.Note
@@ -478,7 +459,7 @@ func (s *Server) handleEngineStatus(ctx context.Context, _ *mcpsdk.CallToolReque
 	// Reachability of the selected engine. Resolution failures are reported in
 	// the status rather than failing the tool: the error text only ever names
 	// granted profiles.
-	rp, engine, err := s.resolve(ctx, args.Profile)
+	rp, engine, err := s.selectEngine(args.Profile, grants, embedded)
 	if err != nil {
 		status["selected"] = nil
 		status["note"] = err.Error()

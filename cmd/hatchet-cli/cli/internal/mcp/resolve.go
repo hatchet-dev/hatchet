@@ -1,20 +1,27 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
 // EmbeddedProfileName is the reserved profile name for the embedded instance.
-// Newer embedded engines register themselves in the profile store under this
-// name; a stored profile with this name is never treated as a regular profile.
-// It is only usable through detection, which verifies the engine is live and
+// Embedded engines register themselves in the profile store under this name;
+// a stored profile with this name is never treated as a regular profile. It
+// is only usable through detection, which verifies the engine is live and
 // reports embedded: true, and grants it implicitly. A registration whose
 // engine is dead is treated as absent (see detectEmbedded).
 const EmbeddedProfileName = "embedded"
+
+// embeddedProbeTimeout bounds the live check of the embedded registration.
+const embeddedProbeTimeout = 3 * time.Second
 
 // ProfileSource provides read access to the CLI profile store.
 type ProfileSource struct {
@@ -23,6 +30,79 @@ type ProfileSource struct {
 
 	// DefaultProfile returns the configured default profile name ("" if unset).
 	DefaultProfile func() string
+}
+
+// EmbeddedDetection is the outcome of looking for a running embedded instance
+// via its profile-store registration.
+type EmbeddedDetection struct {
+	// Profile is the live-verified connection profile of the embedded
+	// instance, nil when none was found.
+	Profile *cliconfig.Profile
+
+	// Note explains a stale registration that was skipped.
+	Note string
+}
+
+// Detected reports whether a live embedded instance was found.
+func (d *EmbeddedDetection) Detected() bool {
+	return d != nil && d.Profile != nil
+}
+
+// detectEmbedded looks for a running embedded Hatchet instance.
+//
+// Embedded engines register themselves in the profile store under the
+// reserved "embedded" name on ready and remove the entry on graceful
+// shutdown. The registration only counts when the engine behind it is live
+// and its /api/v1/meta reports embedded: true, so a hand-made "embedded"
+// profile pointing at a non-embedded deployment can never sneak past the
+// grant checks.
+//
+// A registration whose engine is dead (e.g. after a crash) is skipped with a
+// note, never auto-deleted: the note is carried so engine_status and
+// resolution errors can surface it, but the entry is only ever removed by the
+// engine that wrote it (or overwritten by the next one).
+func detectEmbedded(ctx context.Context, source ProfileSource) *EmbeddedDetection {
+	if source.Profiles == nil {
+		return &EmbeddedDetection{}
+	}
+
+	registered, ok := source.Profiles()[EmbeddedProfileName]
+	if !ok {
+		return &EmbeddedDetection{}
+	}
+
+	if registered.Token != "" && registered.ApiServerURL != "" && isEmbeddedAPI(ctx, registered.ApiServerURL) {
+		profile := registered
+		profile.Name = EmbeddedProfileName
+
+		return &EmbeddedDetection{Profile: &profile}
+	}
+
+	return &EmbeddedDetection{
+		Note: fmt.Sprintf(
+			"stale embedded registration: the %q profile points at %s but no live embedded engine answered there (it may have exited without cleaning up); the registration was ignored",
+			EmbeddedProfileName, registered.ApiServerURL,
+		),
+	}
+}
+
+// isEmbeddedAPI reports whether apiURL is a live Hatchet API server running in
+// embedded mode, via the unauthenticated /api/v1/meta endpoint.
+func isEmbeddedAPI(ctx context.Context, apiURL string) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, embeddedProbeTimeout)
+	defer cancel()
+
+	client, err := rest.NewClientWithResponses(apiURL, rest.WithHTTPClient(&http.Client{Timeout: embeddedProbeTimeout}))
+	if err != nil {
+		return false
+	}
+
+	resp, err := client.MetadataGetWithResponse(probeCtx)
+	if err != nil || resp.StatusCode() != http.StatusOK || resp.JSON200 == nil {
+		return false
+	}
+
+	return resp.JSON200.Embedded != nil && *resp.JSON200.Embedded
 }
 
 // resolvedProfile is the outcome of profile resolution for a tool call.
@@ -80,11 +160,8 @@ func resolveProfile(requested string, source ProfileSource, grants *Grants, embe
 		}
 
 		if requested == EmbeddedProfileName {
-			if embedded != nil && embedded.Usable() {
+			if embedded.Detected() {
 				return &resolvedProfile{Name: EmbeddedProfileName, Profile: embedded.Profile, Embedded: true}, nil
-			}
-			if embedded != nil && embedded.Detected {
-				return nil, fmt.Errorf("an embedded Hatchet instance was detected at %s but no client token is available: %s", embedded.APIURL, embedded.Note)
 			}
 			if embedded != nil && embedded.Note != "" {
 				return nil, fmt.Errorf("no running embedded Hatchet instance was detected (%s); %s", embedded.Note, grantedSummary(grants))
@@ -102,7 +179,7 @@ func resolveProfile(requested string, source ProfileSource, grants *Grants, embe
 		return &resolvedProfile{Name: defaultName, Profile: &profile}, nil
 	}
 
-	if embedded != nil && embedded.Usable() {
+	if embedded.Detected() {
 		return &resolvedProfile{Name: EmbeddedProfileName, Profile: embedded.Profile, Embedded: true}, nil
 	}
 
@@ -117,15 +194,10 @@ func resolveProfile(requested string, source ProfileSource, grants *Grants, embe
 	return nil, fmt.Errorf("no profiles are granted for MCP use%s; ask the user to run `hatchet mcp auth` to grant access", embeddedHint(embedded))
 }
 
-// embeddedHint qualifies "no embedded instance" errors: a detected-but-
-// tokenless instance, or a stale registration that was skipped, is called out
-// rather than reported as absent.
+// embeddedHint qualifies "no embedded instance" errors: a stale registration
+// that was skipped is called out rather than reported as absent.
 func embeddedHint(embedded *EmbeddedDetection) string {
-	if embedded != nil && embedded.Detected && !embedded.Usable() {
-		return fmt.Sprintf(" (an embedded instance was detected at %s but no client token is available: %s)", embedded.APIURL, embedded.Note)
-	}
-
-	if embedded != nil && !embedded.Detected && embedded.Note != "" {
+	if embedded != nil && embedded.Note != "" {
 		return fmt.Sprintf(" and no embedded instance was detected (%s)", embedded.Note)
 	}
 

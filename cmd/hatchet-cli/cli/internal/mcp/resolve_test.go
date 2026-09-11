@@ -1,6 +1,10 @@
 package mcp
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,8 +35,6 @@ func grantsFor(names ...string) *Grants {
 
 func usableEmbedded() *EmbeddedDetection {
 	return &EmbeddedDetection{
-		Detected: true,
-		APIURL:   "http://localhost:28243",
 		Profile: &cliconfig.Profile{
 			Name:         EmbeddedProfileName,
 			TenantId:     "tenant-embedded",
@@ -42,6 +44,101 @@ func usableEmbedded() *EmbeddedDetection {
 			TLSStrategy:  "none",
 		},
 	}
+}
+
+// newMetaServer serves /api/v1/meta with the given embedded flag.
+func newMetaServer(t *testing.T, embedded bool) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/meta" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"embedded": %v}`, embedded)
+	}))
+}
+
+// storedProfiles builds a ProfileSource over the given profile map, mirroring
+// what the CLI profile store returns.
+func storedProfiles(profiles map[string]cliconfig.Profile) ProfileSource {
+	return ProfileSource{
+		Profiles:       func() map[string]cliconfig.Profile { return profiles },
+		DefaultProfile: func() string { return "" },
+	}
+}
+
+// registeredEmbedded is the profile the embedded engine registers on ready.
+func registeredEmbedded(apiURL string) cliconfig.Profile {
+	return cliconfig.Profile{
+		TenantId:     "tenant-registered",
+		Name:         EmbeddedProfileName,
+		Token:        "token-registered",
+		ApiServerURL: apiURL,
+		GrpcHostPort: "127.0.0.1:50051",
+		TLSStrategy:  "none",
+	}
+}
+
+func TestDetectEmbeddedViaProfileRegistration(t *testing.T) {
+	server := newMetaServer(t, true)
+	defer server.Close()
+
+	source := storedProfiles(map[string]cliconfig.Profile{
+		EmbeddedProfileName: registeredEmbedded(server.URL),
+	})
+
+	detection := detectEmbedded(context.Background(), source)
+
+	require.True(t, detection.Detected())
+	assert.Equal(t, server.URL, detection.Profile.ApiServerURL)
+	assert.Equal(t, "token-registered", detection.Profile.Token)
+	assert.Equal(t, "tenant-registered", detection.Profile.TenantId)
+	assert.Equal(t, "127.0.0.1:50051", detection.Profile.GrpcHostPort)
+	assert.Empty(t, detection.Note)
+}
+
+func TestDetectEmbeddedStaleRegistrationIsSkipped(t *testing.T) {
+	// A registration left behind by a crashed engine: nothing answers at its
+	// API URL, so it is treated as absent, with a note, and never deleted.
+	source := storedProfiles(map[string]cliconfig.Profile{
+		EmbeddedProfileName: registeredEmbedded("http://127.0.0.1:1"),
+	})
+
+	detection := detectEmbedded(context.Background(), source)
+
+	assert.False(t, detection.Detected())
+	assert.Contains(t, detection.Note, "stale embedded registration")
+}
+
+func TestDetectEmbeddedProfileForNonEmbeddedServerIsSkipped(t *testing.T) {
+	// A hand-made "embedded" profile pointing at a non-embedded deployment
+	// must not pass the implicit-grant gate: /api/v1/meta must report
+	// embedded: true.
+	server := newMetaServer(t, false)
+	defer server.Close()
+
+	source := storedProfiles(map[string]cliconfig.Profile{
+		EmbeddedProfileName: registeredEmbedded(server.URL),
+	})
+
+	detection := detectEmbedded(context.Background(), source)
+
+	assert.False(t, detection.Detected())
+	assert.Contains(t, detection.Note, "stale embedded registration")
+}
+
+func TestDetectEmbeddedNothingRegistered(t *testing.T) {
+	detection := detectEmbedded(context.Background(), storedProfiles(nil))
+
+	assert.False(t, detection.Detected())
+	assert.Empty(t, detection.Note)
+
+	detection = detectEmbedded(context.Background(), ProfileSource{})
+
+	assert.False(t, detection.Detected())
+	assert.Empty(t, detection.Note)
 }
 
 func TestResolveProfileExplicit(t *testing.T) {
@@ -165,7 +262,6 @@ func TestResolveProfileEmbedded(t *testing.T) {
 		// the (live-verified) detection result, implicitly granted.
 		sourceWithEmbedded := testProfileSource("", "embedded")
 		detection := usableEmbedded()
-		detection.Source = EmbeddedSourceProfile
 
 		rp, err := resolveProfile("embedded", sourceWithEmbedded, grantsFor(), detection)
 		require.NoError(t, err)
@@ -192,14 +288,6 @@ func TestResolveProfileEmbedded(t *testing.T) {
 		_, err := resolveProfile("", sourceWithEmbedded, grantsFor(GrantWildcard), detection)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "stale embedded registration")
-	})
-
-	t.Run("detected without token explains the limitation", func(t *testing.T) {
-		detection := &EmbeddedDetection{Detected: true, APIURL: "http://localhost:28243", Note: "export HATCHET_CLIENT_TOKEN"}
-		_, err := resolveProfile(EmbeddedProfileName, source, grantsFor(), detection)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no client token")
-		assert.Contains(t, err.Error(), "HATCHET_CLIENT_TOKEN")
 	})
 
 	t.Run("not detected", func(t *testing.T) {
