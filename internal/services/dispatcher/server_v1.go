@@ -1780,13 +1780,17 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	var tasks []*v1.V1TaskWithPayload
 
 	if pending := ingestionResult.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
-		createdTasks, createdDags, _, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
+		createdTasks, createdDags, celFailures, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
 			Task:        task,
 			PendingRuns: pending,
 		}})
 
 		if triggerErr != nil {
 			return nil, fmt.Errorf("failed to trigger pending durable runs for dag step: %w", triggerErr)
+		}
+
+		if len(celFailures) > 0 {
+			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
 		}
 
 		tasks = createdTasks
@@ -1803,29 +1807,30 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		return nil, fmt.Errorf("no entries returned from durable event ingestion")
 	}
 
-	if inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId: tenantId, taskId: task.ExternalID}); ok {
+	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	// the operator is blocked in this call and its session channel is unbuffered
+	if entry.IsSatisfied {
 		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
-		satisfiedEntries := make([]*v1.IngestTriggerRunsEntry, 0, len(ingestionResult.TriggerRunsResult.Entries))
-		for _, e := range ingestionResult.TriggerRunsResult.Entries {
-			if e.IsSatisfied {
-				satisfiedEntries = append(satisfiedEntries, e)
-			}
-		}
 
 		go func() {
-			for _, e := range satisfiedEntries {
-				if e.SatisfiedOrder == nil {
-					return
-				}
+			err := d.DeliverDurableEventLogEntryCompletion(
+				tenantId,
+				task.ExternalID,
+				invocationCount,
+				entry.BranchId,
+				entry.NodeId,
+				entry.ResultPayload,
+				entry.SatisfiedOrder,
+				entry.ChildTaskIsFailure,
+				entry.ChildTaskErrorMessage,
+			)
 
-				if err := inv.deliverOrdered(task.ExternalID, invocationCount, e.SatisfiedOrder, nil); err != nil {
-					d.l.Error().Err(err).Msgf("failed to advance ordered release for task %s past satisfied_order %d", task.ExternalID, *e.SatisfiedOrder)
-				}
+			if err != nil {
+				d.l.Error().Err(err).Msgf("failed to deliver satisfied dag step completion for task %s node %d", task.ExternalID, entry.NodeId)
 			}
 		}()
 	}
-
-	entry := ingestionResult.TriggerRunsResult.Entries[0]
 
 	if entry.ChildNeedsReplay {
 		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {

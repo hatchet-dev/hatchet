@@ -277,6 +277,19 @@ WITH inputs AS (
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
         UNNEST(@userMessages::TEXT[]) AS user_message,
         UNNEST(@waitDatas::TEXT[]) AS wait_data
+), ordered_inputs AS (
+    -- a RUN entry created already satisfied (a skipped or cancelled DAG step) takes its place in
+    -- the satisfaction order here, since nothing will satisfy it later
+    SELECT
+        i.*,
+        CASE WHEN i.is_satisfied AND i.kind = 'RUN' THEN
+            lf.latest_satisfied_order + ROW_NUMBER() OVER (
+                PARTITION BY i.durable_task_id, i.durable_task_inserted_at, (i.is_satisfied AND i.kind = 'RUN')
+                ORDER BY i.branch_id ASC, i.node_id ASC
+            )
+        END AS satisfied_order
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -290,6 +303,8 @@ WITH inputs AS (
         branch_id,
         idempotency_key,
         is_satisfied,
+        satisfied_at,
+        satisfied_order,
         user_message,
         wait_data,
         -- !!IMPORTANT: Writing the `triggered_at` explicitly as `NULL` since it has a `DEFAULT CURRENT_TIMESTAMP`,
@@ -308,19 +323,30 @@ WITH inputs AS (
         i.branch_id,
         i.idempotency_key,
         i.is_satisfied,
+        CASE WHEN i.satisfied_order IS NOT NULL THEN NOW() END,
+        i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
         NULL::TIMESTAMPTZ
-    FROM inputs i
+    FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *
+), log_file_updates AS (
+    UPDATE v1_durable_event_log_file lf
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
+    FROM (
+        SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
+        FROM inserts
+        WHERE satisfied_order IS NOT NULL
+        GROUP BY durable_task_id, durable_task_inserted_at
+    ) so
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
 SELECT i.*, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 ;
-
 
 -- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
