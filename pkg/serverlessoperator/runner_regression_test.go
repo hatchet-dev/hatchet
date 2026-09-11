@@ -13,10 +13,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -531,4 +533,36 @@ func TestGainedTenantsOpenConcurrently(t *testing.T) {
 	assert.Equal(t, 4, host.mostConcurrent(), "gains of one batch open up to MaintenanceConcurrency tenants at once")
 	assert.Less(t, time.Since(start), 3*time.Second)
 	assert.Equal(t, 6, host.openCount())
+}
+
+// partialPutSession accepts every workflow but the one named "rejected".
+type partialPutSession struct{ operator.Session }
+
+func (partialPutSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
+	if wf.Name == "rejected" {
+		return nil, errors.New("catalog validation rejection")
+	}
+
+	return nil, nil
+}
+
+// A run of rejected catalogs, each with a fresh accepted workflow ahead of the rejected one,
+// must not grow the remembered puts past the catalog: they are pruned on failure as on
+// success.
+func TestRejectedCatalogsDoNotAccumulatePutHashes(t *testing.T) {
+	l := zerolog.Nop()
+	p := &endpointPoller{putHashes: map[string]string{}, r: &runner{l: &l}}
+	reg := &registration{session: partialPutSession{}}
+
+	for i := 0; i < 250; i++ {
+		res := &healthcheckResult{
+			workflows:      []*v1.CreateWorkflowVersionRequest{{Name: fmt.Sprintf("accepted-%d", i)}, {Name: "rejected"}},
+			workflowHashes: []string{fmt.Sprint(i), "reject"},
+		}
+
+		require.Error(t, p.applyChange(context.Background(), reg, res), "the catalog is rejected")
+	}
+
+	assert.LessOrEqual(t, len(p.putHashes), 2, "only the last catalog's names are remembered")
+	assert.Contains(t, p.putHashes, "accepted-249", "the accepted put of the last catalog is still remembered for the retry")
 }
