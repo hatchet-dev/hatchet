@@ -76,8 +76,6 @@ type DAGOperator struct {
 	slots int
 }
 
-var _ operator.Operator = (*DAGOperator)(nil)
-
 type DAGOperatorOpt func(*DAGOperator)
 
 // WithSlots sets the server-wide default slot count (SERVER_DAG_OPERATOR_DEFAULT_SLOTS) used

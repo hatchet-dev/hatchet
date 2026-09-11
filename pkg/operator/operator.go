@@ -113,7 +113,8 @@ type SharedOperator[T any] struct {
 	inFlight map[string]context.CancelFunc
 
 	// lastActions is the action set the operator last advertised, so UpdateWorkerActions
-	// sends only the difference. Only the goroutine that refreshes actions touches it.
+	// sends only the difference. It is not guarded by mu: UpdateWorkerActions is the only
+	// reader and writer, and it is not safe for concurrent use (see its doc).
 	lastActions map[string]struct{}
 }
 
@@ -185,6 +186,12 @@ func (s *SharedOperator[T]) OperatorId() uuid.UUID {
 // advertised goes to the session as adds and removes, followed by a flush. It reports whether
 // anything changed. A delta that fails leaves the advertised set as it was, so the next call
 // repeats it; ids the engine already has are ignored by it.
+//
+// The difference is what makes the call cheap to repeat: the engine would accept the whole set
+// every time (adding an action the worker has is a no-op), but every send is a write, and the
+// removes cannot be derived without the previous set. It is not safe for concurrent use: the
+// operator calls it from one goroutine at a time (its Start, then the poller Start launches
+// once that first call has returned), which is why lastActions needs no lock.
 func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) (bool, error) {
 	session := s.Session()
 

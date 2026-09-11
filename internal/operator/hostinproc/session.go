@@ -25,8 +25,6 @@ type session struct {
 	closed bool
 }
 
-var _ operator.Session = (*session)(nil)
-
 func (s *session) Registration() operator.Registration {
 	return s.reg
 }
