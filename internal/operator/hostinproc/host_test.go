@@ -55,29 +55,34 @@ func newTestHost(t *testing.T, o hostOpts) *testHost {
 	d := operatorsvctest.NewDispatcher()
 
 	svc, err := operatorsvc.New(
-		operatorsvc.Deps{Operators: operators, Workers: workers, Dispatcher: d, DispatcherId: uuid.New()},
-		append([]operatorsvc.Opt{operatorsvc.WithLogger(&l)}, o.svcOpts...)...,
+		append([]operatorsvc.Opt{
+			operatorsvc.WithOperatorStore(operators),
+			operatorsvc.WithWorkerStore(workers),
+			operatorsvc.WithDispatcherBackend(d),
+			operatorsvc.WithDispatcherId(uuid.New()),
+			operatorsvc.WithLogger(&l),
+		}, o.svcOpts...)...,
 	)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { _ = svc.Cleanup() })
 
-	deps := hostinproc.Deps{
-		Service:    svc,
-		Tenants:    operatorsvctest.NewTenantStore(tenant),
-		Heartbeats: workers,
-		Logger:     &l,
+	hostOpts := []hostinproc.Opt{
+		hostinproc.WithService(svc),
+		hostinproc.WithTenantStore(operatorsvctest.NewTenantStore(tenant)),
+		hostinproc.WithHeartbeatStore(workers),
+		hostinproc.WithLogger(&l),
+		hostinproc.WithHeartbeatInterval(time.Hour),
 	}
 
 	th := &testHost{tenant: tenant, operators: operators, workers: workers, dispatcher: d}
 
 	if o.workflows {
 		th.workflows = operatorsvctest.NewWorkflowStore()
-		deps.Admin = th.workflows
-		deps.Workflows = th.workflows
+		hostOpts = append(hostOpts, hostinproc.WithAdminService(th.workflows), hostinproc.WithWorkflowStore(th.workflows))
 	}
 
-	host, err := hostinproc.New(deps, append([]hostinproc.Opt{hostinproc.WithHeartbeatInterval(time.Hour)}, o.hostOpts...)...)
+	host, err := hostinproc.New(append(hostOpts, o.hostOpts...)...)
 	require.NoError(t, err)
 
 	t.Cleanup(host.Close)

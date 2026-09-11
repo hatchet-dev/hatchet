@@ -26,12 +26,10 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 	l := sc.Logger.With().Str("service", "operator-claimer").Logger()
 
 	svc, err := operatorsvc.New(
-		operatorsvc.Deps{
-			Operators:    sc.V1.Operators(),
-			Workers:      sc.V1.Workers(),
-			Dispatcher:   operatorsvc.NewDispatcherBackend(d),
-			DispatcherId: d.DispatcherId(),
-		},
+		operatorsvc.WithOperatorStore(sc.V1.Operators()),
+		operatorsvc.WithWorkerStore(sc.V1.Workers()),
+		operatorsvc.WithDispatcherBackend(operatorsvc.NewDispatcherBackend(d)),
+		operatorsvc.WithDispatcherId(d.DispatcherId()),
 		operatorsvc.WithLogger(&l),
 		operatorsvc.WithValidator(sc.Validator),
 		operatorsvc.WithAnalytics(sc.Analytics),
@@ -42,29 +40,27 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 		return nil, fmt.Errorf("could not create operator service: %w", err)
 	}
 
-	host, err := hostinproc.New(hostinproc.Deps{
-		Service:    svc,
-		Tenants:    sc.V1.Tenant(),
-		Heartbeats: sc.V1.Workers(),
-		Admin:      adminv1Svc,
-		Workflows:  sc.V1.Workflows(),
-		Logger:     &l,
-	})
+	host, err := hostinproc.New(
+		hostinproc.WithService(svc),
+		hostinproc.WithTenantStore(sc.V1.Tenant()),
+		hostinproc.WithHeartbeatStore(sc.V1.Workers()),
+		hostinproc.WithAdminService(adminv1Svc),
+		hostinproc.WithWorkflowStore(sc.V1.Workflows()),
+		hostinproc.WithLogger(&l),
+	)
 
 	if err != nil {
 		_ = svc.Cleanup()
 		return nil, fmt.Errorf("could not create in-process operator host: %w", err)
 	}
 
-	c, err := claimer.New(claimer.Deps{
-		Host:         host,
-		Claims:       sc.V1.Operators(),
-		DispatcherId: d.DispatcherId(),
-		Factories: map[sqlcv1.V1OperatorKind]claimer.Factory{
-			sqlcv1.V1OperatorKindDAG: claimer.DAGFactory(&l, sc.V1, d, sc.Runtime.DagOperatorDefaultSlots),
-		},
-		Logger: &l,
-	})
+	c, err := claimer.New(
+		claimer.WithHost(host),
+		claimer.WithClaims(sc.V1.Operators()),
+		claimer.WithDispatcherId(d.DispatcherId()),
+		claimer.WithFactory(sqlcv1.V1OperatorKindDAG, claimer.DAGFactory(&l, sc.V1, d, sc.Runtime.DagOperatorDefaultSlots)),
+		claimer.WithLogger(&l),
+	)
 
 	if err != nil {
 		host.Close()

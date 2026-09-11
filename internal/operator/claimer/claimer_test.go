@@ -162,13 +162,13 @@ func newHarness(t *testing.T, opts ...claimer.Opt) *harness {
 		return fake, operator.OpenOpts{SlotConfig: map[string]int32{"durable": 2}}, nil
 	}
 
-	c, err := claimer.New(claimer.Deps{
-		Host:         h.host,
-		Claims:       h.claims,
-		DispatcherId: uuid.New(),
-		Factories:    map[sqlcv1.V1OperatorKind]claimer.Factory{testKind: factory},
-		Logger:       &l,
-	}, opts...)
+	c, err := claimer.New(append([]claimer.Opt{
+		claimer.WithHost(h.host),
+		claimer.WithClaims(h.claims),
+		claimer.WithDispatcherId(uuid.New()),
+		claimer.WithFactory(testKind, factory),
+		claimer.WithLogger(&l),
+	}, opts...)...)
 	require.NoError(t, err)
 
 	h.Claimer = c

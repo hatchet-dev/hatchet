@@ -61,22 +61,54 @@ type WorkflowStore interface {
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 }
 
-// Deps are the collaborators a Host cannot run without. Admin is optional: without it
-// Session.PutWorkflow reports ErrNotSupported; with it, Workflows is required too.
-type Deps struct {
-	Service    *operatorsvc.Service
-	Tenants    TenantStore
-	Heartbeats HeartbeatStore
-	Admin      AdminService
-	Workflows  WorkflowStore
-	Logger     *zerolog.Logger
-}
-
 type opts struct {
+	svc        *operatorsvc.Service
+	tenants    TenantStore
+	heartbeats HeartbeatStore
+	admin      AdminService
+	workflows  WorkflowStore
+	l          *zerolog.Logger
+
 	heartbeatInterval time.Duration
 }
 
 type Opt func(*opts)
+
+func defaultOpts() *opts {
+	l := logger.NewDefaultLogger("operator_host")
+
+	return &opts{l: &l, heartbeatInterval: defaultHeartbeatInterval}
+}
+
+// WithService sets the engine session logic the host opens sessions over. Required.
+func WithService(svc *operatorsvc.Service) Opt {
+	return func(o *opts) { o.svc = svc }
+}
+
+// WithTenantStore sets where the tenant a session belongs to is read from. Required.
+func WithTenantStore(s TenantStore) Opt {
+	return func(o *opts) { o.tenants = s }
+}
+
+// WithHeartbeatStore sets the bulk heartbeat write. Required.
+func WithHeartbeatStore(s HeartbeatStore) Opt {
+	return func(o *opts) { o.heartbeats = s }
+}
+
+// WithAdminService lets sessions put workflows. Optional: without it Session.PutWorkflow
+// reports ErrNotSupported; with it, WithWorkflowStore is required too.
+func WithAdminService(a AdminService) Opt {
+	return func(o *opts) { o.admin = a }
+}
+
+// WithWorkflowStore sets where the steps of a put workflow are read from.
+func WithWorkflowStore(s WorkflowStore) Opt {
+	return func(o *opts) { o.workflows = s }
+}
+
+func WithLogger(l *zerolog.Logger) Opt {
+	return func(o *opts) { o.l = l }
+}
 
 // WithHeartbeatInterval sets how often the bulk heartbeat runs.
 func WithHeartbeatInterval(d time.Duration) Opt {
@@ -104,36 +136,37 @@ type Host struct {
 
 // New builds a host and starts its heartbeat ticker; Close stops it. Sessions are closed by
 // whoever opened them, before the host.
-func New(deps Deps, fs ...Opt) (*Host, error) {
-	if deps.Service == nil || deps.Tenants == nil || deps.Heartbeats == nil {
-		return nil, errors.New("hostinproc: the operator service, tenant store and heartbeat store are required")
-	}
-
-	if deps.Admin != nil && deps.Workflows == nil {
-		return nil, errors.New("hostinproc: an admin service needs the workflow store that lists the steps it puts")
-	}
-
-	o := &opts{heartbeatInterval: defaultHeartbeatInterval}
+func New(fs ...Opt) (*Host, error) {
+	o := defaultOpts()
 
 	for _, f := range fs {
 		f(o)
 	}
 
-	l := deps.Logger
-
-	if l == nil {
-		defaultLogger := logger.NewDefaultLogger("operator_host")
-		l = &defaultLogger
+	if o.svc == nil {
+		return nil, errors.New("operator service is required. use WithService")
 	}
 
-	hl := l.With().Str("service", "operator_host").Logger()
+	if o.tenants == nil {
+		return nil, errors.New("tenant store is required. use WithTenantStore")
+	}
+
+	if o.heartbeats == nil {
+		return nil, errors.New("heartbeat store is required. use WithHeartbeatStore")
+	}
+
+	if o.admin != nil && o.workflows == nil {
+		return nil, errors.New("an admin service needs the workflow store that lists the steps it puts. use WithWorkflowStore")
+	}
+
+	hl := o.l.With().Str("service", "operator_host").Logger()
 
 	h := &Host{
-		svc:        deps.Service,
-		tenants:    deps.Tenants,
-		heartbeats: deps.Heartbeats,
-		admin:      deps.Admin,
-		workflows:  deps.Workflows,
+		svc:        o.svc,
+		tenants:    o.tenants,
+		heartbeats: o.heartbeats,
+		admin:      o.admin,
+		workflows:  o.workflows,
 		l:          &hl,
 		sessions:   map[uuid.UUID]*session{},
 		stop:       make(chan struct{}),

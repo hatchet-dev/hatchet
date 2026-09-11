@@ -118,17 +118,6 @@ type DispatcherBackend interface {
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
 }
 
-// Deps are the collaborators a Service cannot run without.
-type Deps struct {
-	Operators  OperatorStore
-	Workers    WorkerStore
-	Dispatcher DispatcherBackend
-
-	// DispatcherId is the id of the local dispatcher; every operator worker whose session is
-	// opened here is pinned to it, since the delivery path lives here.
-	DispatcherId uuid.UUID
-}
-
 type Service struct {
 	operators  OperatorStore
 	workers    WorkerStore
@@ -155,6 +144,11 @@ type Service struct {
 }
 
 type opts struct {
+	operators    OperatorStore
+	workers      WorkerStore
+	dispatcher   DispatcherBackend
+	dispatcherId uuid.UUID
+
 	analytics       analytics.Analytics
 	v               validator.Validator
 	l               *zerolog.Logger
@@ -165,6 +159,42 @@ type opts struct {
 }
 
 type Opt func(*opts)
+
+func defaultOpts() *opts {
+	defaultLogger := logger.NewDefaultLogger("operator_service")
+
+	return &opts{
+		analytics:       analytics.NoOpAnalytics{},
+		v:               validator.NewDefaultValidator(),
+		l:               &defaultLogger,
+		notifyInterval:  defaultNotifyInterval,
+		cacheTTL:        defaultOperatorCacheTTL,
+		maxListenStream: DefaultMaxListenStreamsPerOperator,
+		maxActions:      DefaultMaxActionsPerOperator,
+	}
+}
+
+// WithOperatorStore sets the operator rows the service registers and authorizes. Required.
+func WithOperatorStore(s OperatorStore) Opt {
+	return func(o *opts) { o.operators = s }
+}
+
+// WithWorkerStore sets the worker rows the service creates, activates and links actions to.
+// Required.
+func WithWorkerStore(s WorkerStore) Opt {
+	return func(o *opts) { o.workers = s }
+}
+
+// WithDispatcherBackend sets the local dispatcher sessions are registered with. Required.
+func WithDispatcherBackend(d DispatcherBackend) Opt {
+	return func(o *opts) { o.dispatcher = d }
+}
+
+// WithDispatcherId sets the id of the local dispatcher; every operator worker whose session is
+// opened here is pinned to it, since the delivery path lives here. Required.
+func WithDispatcherId(id uuid.UUID) Opt {
+	return func(o *opts) { o.dispatcherId = id }
+}
 
 func WithLogger(l *zerolog.Logger) Opt {
 	return func(o *opts) { o.l = l }
@@ -200,38 +230,36 @@ func WithOperatorCacheTTL(d time.Duration) Opt {
 	return func(o *opts) { o.cacheTTL = d }
 }
 
-func New(deps Deps, fs ...Opt) (*Service, error) {
-	if deps.Operators == nil || deps.Workers == nil {
-		return nil, fmt.Errorf("operator and worker stores are required")
-	}
-
-	if deps.Dispatcher == nil {
-		return nil, fmt.Errorf("dispatcher backend is required")
-	}
-
-	defaultLogger := logger.NewDefaultLogger("operator_service")
-
-	o := &opts{
-		analytics:       analytics.NoOpAnalytics{},
-		v:               validator.NewDefaultValidator(),
-		l:               &defaultLogger,
-		notifyInterval:  defaultNotifyInterval,
-		cacheTTL:        defaultOperatorCacheTTL,
-		maxListenStream: DefaultMaxListenStreamsPerOperator,
-		maxActions:      DefaultMaxActionsPerOperator,
-	}
+func New(fs ...Opt) (*Service, error) {
+	o := defaultOpts()
 
 	for _, f := range fs {
 		f(o)
 	}
 
+	if o.operators == nil {
+		return nil, fmt.Errorf("operator store is required. use WithOperatorStore")
+	}
+
+	if o.workers == nil {
+		return nil, fmt.Errorf("worker store is required. use WithWorkerStore")
+	}
+
+	if o.dispatcher == nil {
+		return nil, fmt.Errorf("dispatcher backend is required. use WithDispatcherBackend")
+	}
+
+	if o.dispatcherId == uuid.Nil {
+		return nil, fmt.Errorf("dispatcher id is required. use WithDispatcherId")
+	}
+
 	l := o.l.With().Str("service", "operator_service").Logger()
 
 	return &Service{
-		operators:                   deps.Operators,
-		workers:                     deps.Workers,
-		dispatcher:                  deps.Dispatcher,
-		dispatcherId:                deps.DispatcherId,
+		operators:                   o.operators,
+		workers:                     o.workers,
+		dispatcher:                  o.dispatcher,
+		dispatcherId:                o.dispatcherId,
 		cache:                       cache.New(o.cacheTTL),
 		analytics:                   o.analytics,
 		v:                           o.v,
