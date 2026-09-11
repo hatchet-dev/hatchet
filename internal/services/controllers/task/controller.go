@@ -1035,7 +1035,11 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 	}
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
+	allTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(taskIdRetryCounts))
+
 	for _, task := range taskIdRetryCounts {
+		allTasks = append(allTasks, task.TaskIdInsertedAtRetryCount)
+
 		if task.WorkflowRunExternalId == uuid.Nil {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
@@ -1045,10 +1049,18 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 		}
 	}
 
+	// retrieve every input for the batch up front in one parallel fan-out, instead of once per workflow run
+	// while holding the tenant replay lock
+	inputs, err := tc.repov1.Tasks().RetrieveReplayInputs(ctx, tenantId, allTasks)
+
+	if err != nil {
+		return fmt.Errorf("failed to retrieve replay inputs: %w", err)
+	}
+
 	eg := &errgroup.Group{}
 
 	for _, tasks := range workflowRunIdToTasks {
-		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
+		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks, inputs)
 
 		if err != nil {
 			return fmt.Errorf("failed to replay task: %w", err)

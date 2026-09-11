@@ -81,7 +81,7 @@ func TestReplayQueuedTaskIsRejected(t *testing.T) {
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
 		},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Empty(t, replayed.ReplayedTasks,
 		"replaying a task that is still waiting in the queue must be rejected by the preflight check")
