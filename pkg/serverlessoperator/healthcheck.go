@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
@@ -69,6 +70,29 @@ type catalogLimits struct {
 // actionRules is the engine's own action id validation, applied to every advertised action
 // before it can enter a tenant's shared union.
 var actionRules = validator.NewDefaultValidator()
+
+// maxActionIdBytes caps a namespaced action id. The engine stores ids as text with no cap of
+// its own; this one keeps a catalog from carrying ids that are only there to be large.
+const maxActionIdBytes = 1024
+
+// validateActionStorage rejects action ids the engine's rules accept but its storage cannot
+// hold or should not: a NUL code point (text columns refuse it, and the rejection would
+// arrive only after the id had entered the session's desired set), invalid UTF-8, and ids
+// over maxActionIdBytes. It runs before the union or the session sees the catalog.
+func validateActionStorage(actions []string) error {
+	for _, action := range actions {
+		switch {
+		case strings.IndexByte(action, 0) >= 0:
+			return fmt.Errorf("invalid action %q: contains a NUL code point", action)
+		case !utf8.ValidString(action):
+			return fmt.Errorf("invalid action %q: not valid UTF-8", action)
+		case len(action) > maxActionIdBytes:
+			return fmt.Errorf("invalid action %q: longer than %d bytes", action[:32]+"...", maxActionIdBytes)
+		}
+	}
+
+	return nil
+}
 
 type advertisedActions struct {
 	Actions []string `validate:"dive,actionId"`
@@ -191,6 +215,10 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 	}
 
 	if err := actionRules.Validate(advertisedActions{Actions: actions}); err != nil {
+		return nil, fmt.Errorf("healthcheck advertises an invalid action: %w", err)
+	}
+
+	if err := validateActionStorage(actions); err != nil {
 		return nil, fmt.Errorf("healthcheck advertises an invalid action: %w", err)
 	}
 

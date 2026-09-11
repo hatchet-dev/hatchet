@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -544,6 +545,55 @@ func (partialPutSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVer
 	}
 
 	return nil, nil
+}
+
+// An action the engine's rules accept but its storage cannot hold (a NUL code point, invalid
+// UTF-8, an oversized id) is refused by the parser, before the union or the session sees it.
+func TestHealthcheckRejectsUnstorableActions(t *testing.T) {
+	limits := catalogLimits{maxWorkflows: 200, maxActions: 500}
+
+	for name, body := range map[string]string{
+		"nul":       `{"actions":["review:run\u0000"]}`,
+		"oversized": `{"actions":["review:` + strings.Repeat("v", maxActionIdBytes) + `"]}`,
+		"bad utf-8": "{\"actions\":[\"review:run\xff\"]}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := parseHealthcheckResponse([]byte(body), uuid.New(), limits)
+			require.Error(t, err)
+		})
+	}
+
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), uuid.New(), limits)
+	require.NoError(t, err)
+	assert.Len(t, res.actions, 1)
+}
+
+// A delta the engine refuses is taken back out of the session: the session's desired set
+// returns to what the registration advertises, and the next sync has nothing to send.
+func TestRefusedDeltaIsReversedOnTheSession(t *testing.T) {
+	c, repo := budgetCache(t, 1, 1)
+	ep := c.byId[repo.rows[0].ID]
+	base, _ := c.ActionUnion()
+
+	fake := newFakeSession(nil, operator.Registration{})
+	reg := newRegistrationForTest(c, fake)
+	ts := reg.ts
+	p := newEndpointPoller(reg.r, ts, ep)
+
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), ep.namespace, catalogLimits{maxWorkflows: 200, maxActions: 500})
+	require.NoError(t, err)
+
+	fake.flushErr = errors.New("engine could not persist the action")
+	require.Error(t, p.applyChange(context.Background(), reg, res), "the engine's refusal is reported")
+
+	union, _ := c.ActionUnion()
+	assert.Equal(t, base, union, "the cache rolled the endpoint's contribution back")
+	assert.Equal(t, base, fake.desired(base), "the session desires the advertised set again")
+	assert.Equal(t, 4, fake.deltaCount(), "the add and the remove of the catalog, then their reversal")
+
+	require.NoError(t, reg.syncActions(context.Background(), c))
+	assert.Equal(t, 4, fake.deltaCount(), "nothing is left to send")
+	assert.Equal(t, c.Revision(), reg.advertisedRev)
 }
 
 // A run of rejected catalogs, each with a fresh accepted workflow ahead of the rejected one,

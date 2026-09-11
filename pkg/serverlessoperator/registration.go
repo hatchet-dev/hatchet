@@ -618,6 +618,7 @@ func (reg *registration) syncActions(ctx context.Context, cache *routingCache) e
 	}
 
 	if err := reg.pushDelta(ctx, added, removed); err != nil {
+		reg.reverseDelta(added, removed)
 		return err
 	}
 
@@ -665,6 +666,23 @@ func (reg *registration) pushDelta(ctx context.Context, added, removed []string)
 	}
 
 	return nil
+}
+
+// reverseDelta takes a delta the engine refused back out of the session, so what the session
+// desires is again what the registration advertises: a host that queues deltas (the gRPC
+// host) would otherwise keep the refused ids in the set it restores on every new client
+// session, and the registration, whose advertised revision the failure left unchanged, would
+// never send the removal, since the cache's rollback cancels the change in its log. The
+// inverse is idempotent on the engine and runs on its own bounded context, since the push
+// may have failed on the caller's deadline. Its own failure is logged: the next sync
+// retries the forward delta anyway.
+func (reg *registration) reverseDelta(added, removed []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), sessionOpTimeout)
+	defer cancel()
+
+	if err := reg.pushDelta(ctx, removed, added); err != nil {
+		reg.r.l.Debug().Err(err).Str("tenant_id", reg.ts.tenantId.String()).Msg("could not take a refused action delta back out of the session")
+	}
 }
 
 // advertisedSet materializes the set the engine holds: base with the applied deltas on top.

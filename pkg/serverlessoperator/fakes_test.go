@@ -60,6 +60,8 @@ type fakeSession struct {
 	reg      operator.Registration
 	putErr   error
 	deltaErr error
+	// flushErr fails the next Flush once, the way a delta the engine refuses surfaces.
+	flushErr error
 	// err is what Err reports once done is closed: nil after Close, the terminal failure a
 	// test injected through fail.
 	err         error
@@ -141,7 +143,33 @@ func (f *fakeSession) Flush(_ context.Context) error {
 
 	f.flushes++
 
+	if f.flushErr != nil {
+		err := f.flushErr
+		f.flushErr = nil
+
+		return err
+	}
+
 	return nil
+}
+
+// desired is the action set the session would restore on a new client session: the adds
+// and removes applied in order, the way the gRPC host keeps its desired set.
+func (f *fakeSession) desired(base []string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set := map[string]struct{}{}
+
+	for _, id := range base {
+		set[id] = struct{}{}
+	}
+
+	for _, d := range f.deltas {
+		applyDelta(set, d.add, d.remove)
+	}
+
+	return sortedUnion(keys(set))
 }
 
 func (f *fakeSession) SendStepActionEvent(_ context.Context, ev *contracts.StepActionEvent) error {
