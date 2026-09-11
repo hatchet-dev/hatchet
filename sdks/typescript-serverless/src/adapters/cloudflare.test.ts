@@ -109,6 +109,6 @@ describe('cloudflare adapter', () => {
     const response = await call(worker, request);
 
     expect(response.status).toBe(401);
-    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/timestamp/) });
+    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/endpoint id/) });
   });
 });

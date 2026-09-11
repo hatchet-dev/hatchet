@@ -53,6 +53,49 @@ describe('body signatures', () => {
 describe('upgrade signatures', () => {
   const now = 1_700_000_000;
 
+  it('signs the same bytes as the operator (pkg/serverlessoperator/durable/dial.go)', async () => {
+    // Reference values from contract.UpgradeSigningPayload and internal/signature.Sign on
+    // this tree, for endpoint "endpoint-1", timestamp 1700000000, nonce "nonce-1", task
+    // "task-1", invocation 2 and the secret below.
+    const payload = upgradeSigningPayload('endpoint-1', '1700000000', 'nonce-1', 'task-1', '2');
+
+    expect(payload).toBe('endpoint-1.1700000000.nonce-1.task-1.2');
+    expect(await signHex(secret, payload)).toBe(
+      '65ee3666e7f124ccb9fa5cba9ff10ba03d84c47d6179690617aef2c010ef496d'
+    );
+  });
+
+  it('refuses an upgrade without an endpoint id header', async () => {
+    const headers = await signedHeaders();
+    headers.delete(ENDPOINT_ID_HEADER);
+
+    expect(await verifyUpgradeSignature(headers, secret, { nowSeconds: now })).toMatchObject({
+      ok: false,
+      status: 401,
+      reason: 'missing endpoint id',
+    });
+  });
+
+  it('refuses a signature made for another endpoint id', async () => {
+    const headers = await signedHeaders();
+    headers.set(ENDPOINT_ID_HEADER, 'endpoint-2');
+
+    expect(await verifyUpgradeSignature(headers, secret, { nowSeconds: now })).toMatchObject({
+      ok: false,
+      status: 401,
+      reason: 'bad signature',
+    });
+  });
+
+  it('refuses the upgrade with 503 when the nonce store is full', async () => {
+    const result = await verifyUpgradeSignature(await signedHeaders(), secret, {
+      nowSeconds: now,
+      consumeNonce: () => 'full',
+    });
+
+    expect(result).toMatchObject({ ok: false, status: 503, reason: 'nonce store full' });
+  });
+
   async function signedHeaders(overrides: Record<string, string> = {}, signWith = secret) {
     const values: Record<string, string> = {
       [TIMESTAMP_HEADER]: String(now - 10),
@@ -63,6 +106,7 @@ describe('upgrade signatures', () => {
       ...overrides,
     };
     const payload = upgradeSigningPayload(
+      values[ENDPOINT_ID_HEADER],
       values[TIMESTAMP_HEADER],
       values[NONCE_HEADER],
       values[TASK_ID_HEADER],
@@ -101,7 +145,7 @@ describe('upgrade signatures', () => {
     expect(
       await verifyUpgradeSignature(await signedHeaders(), secret, {
         nowSeconds: now,
-        seenNonce: () => true,
+        consumeNonce: () => 'replayed',
       })
     ).toMatchObject({ ok: false, status: 401, reason: 'missing or replayed nonce' });
 

@@ -128,7 +128,7 @@ describe('upgrade replay protection', () => {
 
     const replay = await op.handler.fetch(new Request(url, { headers }), undefined, { upgrade });
     expect(replay.status).toBe(401);
-    expect(await replay.json()).toEqual({ error: 'missing or replayed nonce' });
+    expect(await replay.json()).toEqual({ error: 'missing or replayed nonce', retry: false });
   });
 
   it('does not consume a nonce from an unsigned upgrade', async () => {
@@ -160,26 +160,43 @@ describe('upgrade replay protection', () => {
     ).toBe(401);
     expect(seen).toHaveBeenCalledTimes(1);
   });
+
+  it('answers 503 retryable when the nonce store is full', async () => {
+    const op = operator({ seenNonce: () => 'full' });
+    const url = `https://endpoint.test${op.handler.basePath}/trigger`;
+    const headers = await op.upgradeHeaders(crypto.randomUUID(), 1);
+    const response = await op.handler.fetch(new Request(url, { headers }), undefined, {
+      upgrade,
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'nonce store full', retry: true });
+    expect(upgrade).not.toHaveBeenCalled();
+  });
 });
 
 describe('NonceSet', () => {
   it('remembers a nonce within the window and forgets it after', () => {
     const set = new NonceSet(4096, 300);
 
-    expect(set.consume('a', 1000)).toBe(false);
-    expect(set.consume('a', 1299)).toBe(true);
-    expect(set.consume('a', 1300)).toBe(false);
+    expect(set.consume('a', 1000)).toBe('accepted');
+    expect(set.consume('a', 1299)).toBe('replayed');
+    expect(set.consume('a', 1300)).toBe('accepted');
   });
 
-  it('drops the oldest entry past its capacity', () => {
+  it('refuses new nonces at capacity and keeps every unexpired one', () => {
     const set = new NonceSet(2, 300);
 
-    expect(set.consume('a', 1000)).toBe(false);
-    expect(set.consume('b', 1001)).toBe(false);
-    expect(set.consume('c', 1002)).toBe(false);
+    expect(set.consume('a', 1000)).toBe('accepted');
+    expect(set.consume('b', 1001)).toBe('accepted');
+    expect(set.consume('c', 1002)).toBe('full');
     expect(set.size).toBe(2);
-    expect(set.consume('a', 1003)).toBe(false);
-    expect(set.consume('c', 1003)).toBe(true);
+    // The refused nonce was not recorded; the accepted ones still are.
+    expect(set.consume('a', 1003)).toBe('replayed');
+    expect(set.consume('b', 1003)).toBe('replayed');
+    // Room returns only once an entry expires.
+    expect(set.consume('c', 1300)).toBe('accepted');
+    expect(set.consume('d', 1300)).toBe('full');
   });
 });
 

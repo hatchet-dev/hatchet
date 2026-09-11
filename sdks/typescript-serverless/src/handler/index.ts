@@ -10,7 +10,7 @@ import { runDurableInvocation } from './durable/invocation';
 import type { DurableHooks } from './durable/socket';
 import { buildHealthcheck, serializeHealthcheck } from './healthcheck';
 import { json, jsonText, triggerError } from './http';
-import { NonceSet } from './nonce-set';
+import { NonceSet, type NonceOutcome } from './nonce-set';
 import { buildRegistry, type ServeEntry } from './registry';
 import { verifySignedBody, verifyUpgradeSignature } from './signature';
 import { handleTrigger } from './trigger';
@@ -45,11 +45,13 @@ export interface HandlerOptions {
   durable?: boolean;
   /**
    * Replay protection for durable upgrades: consumes the nonce and returns true when it was
-   * seen before. Defaults to a bounded in-memory set (4096 entries, expiring with the
-   * request window) that lives in one isolate; back it with a Durable Object or an expiring
-   * KV key in production so a replay landing in another isolate is caught too.
+   * seen before, or `'full'` when there is no room to record it (the upgrade is then refused
+   * with 503 and the operator retries later). Defaults to a bounded in-memory set (4096
+   * entries, each kept until the request window expires) that lives in one isolate; back it
+   * with a Durable Object or an expiring KV key in production so a replay landing in another
+   * isolate is caught too.
    */
-  seenNonce?: (nonce: string) => boolean;
+  seenNonce?: (nonce: string) => boolean | 'full';
   /** Where warnings and task logs go; defaults to the global console. */
   console?: ConsoleLike;
 }
@@ -88,7 +90,15 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
   const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
   const healthcheckBody = serializeHealthcheck(healthcheck);
   const nonces = new NonceSet();
-  const seenNonce = options.seenNonce ?? ((nonce: string) => nonces.consume(nonce));
+  const consumeNonce = (nonce: string): NonceOutcome => {
+    if (!options.seenNonce) {
+      return nonces.consume(nonce);
+    }
+
+    const seen = options.seenNonce(nonce);
+
+    return seen === 'full' ? 'full' : seen ? 'replayed' : 'accepted';
+  };
 
   const routeOf = (pathname: string): Route | undefined => {
     if (!pathname.startsWith(basePath)) {
@@ -167,11 +177,12 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
 
         const verified = await verifyUpgradeSignature(request.headers, secret, {
           endpointId: resolve(options.endpointId, env),
-          seenNonce,
+          consumeNonce,
         });
 
         if (!verified.ok) {
-          return json({ error: verified.reason }, verified.status);
+          // 503 is retryable for the operator: the nonce store is full of unexpired entries.
+          return triggerError(verified.status, verified.reason, verified.status === 503);
         }
 
         return hooks.upgrade(request, (socket) =>

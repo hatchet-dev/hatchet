@@ -206,11 +206,12 @@ export class DurableOperator {
     const timestamp = overrides.timestamp ?? String(Math.floor(Date.now() / 1000));
     const nonce = overrides.nonce ?? crypto.randomUUID();
     const invocation = String(invocationCount);
+    const endpointId = overrides.endpointId ?? this.options.endpointId;
     const signature =
       overrides.signature ??
       (await signHex(
         overrides.secret ?? this.options.secret,
-        upgradeSigningPayload(timestamp, nonce, taskRunExternalId, invocation)
+        upgradeSigningPayload(endpointId, timestamp, nonce, taskRunExternalId, invocation)
       ));
 
     return new Headers({
@@ -221,7 +222,7 @@ export class DurableOperator {
       [NONCE_HEADER]: nonce,
       [TASK_ID_HEADER]: taskRunExternalId,
       [INVOCATION_HEADER]: invocation,
-      [ENDPOINT_ID_HEADER]: overrides.endpointId ?? this.options.endpointId,
+      [ENDPOINT_ID_HEADER]: endpointId,
     });
   }
 

@@ -36,15 +36,18 @@ export const ERROR_CODE_UNSPECIFIED = 'unspecified';
 
 /**
  * The string the durable upgrade signature covers (contract.UpgradeSigningPayload):
- * timestamp "." nonce "." task_id "." invocation, each as it appears in its header.
+ * endpoint_id "." timestamp "." nonce "." task_id "." invocation, each as it appears in its
+ * header. The endpoint id is part of it so a signature made for one endpoint cannot be
+ * presented to another that shares the signing secret.
  */
 export function upgradeSigningPayload(
+  endpointId: string,
   timestamp: string,
   nonce: string,
   taskId: string,
   invocation: string
 ): string {
-  return `${timestamp}.${nonce}.${taskId}.${invocation}`;
+  return `${endpointId}.${timestamp}.${nonce}.${taskId}.${invocation}`;
 }
 
 /**

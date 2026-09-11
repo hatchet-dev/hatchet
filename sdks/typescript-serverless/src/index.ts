@@ -53,6 +53,7 @@ export type {
   VerifyUpgradeOptions,
 } from './handler/signature';
 export { NonceSet } from './handler/nonce-set';
+export type { NonceOutcome } from './handler/nonce-set';
 export * from './handler/contract';
 
 // The SDK surface a task author needs.

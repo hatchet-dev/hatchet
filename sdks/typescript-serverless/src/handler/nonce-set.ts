@@ -1,11 +1,17 @@
 import { REQUEST_MAX_AGE_SECONDS } from './contract';
 
+/** What consuming a nonce found. */
+export type NonceOutcome = 'accepted' | 'replayed' | 'full';
+
 /**
- * A bounded set of upgrade nonces seen within the request window. Entries expire with the
- * window and the oldest is dropped past the capacity, so memory stays bounded whatever the
- * operator sends. It lives in one isolate: a replay that lands in another isolate is not
- * caught, which is why a production endpoint should consume nonces in a Durable Object or
- * an expiring KV key through the handler's `seenNonce` option.
+ * The upgrade nonces accepted within the request window. Every accepted nonce is kept until
+ * its window expires, so a captured upgrade cannot be replayed while its signature is still
+ * fresh; nothing is dropped early to make room. When the set holds `capacity` unexpired
+ * nonces a new one is refused rather than admitted, and the handler answers 503 so the
+ * operator retries once entries have expired. The set lives in one isolate: a replay that
+ * lands in another isolate is not caught, which is why a production endpoint should
+ * consume nonces in a Durable Object or an expiring KV key through the handler's
+ * `seenNonce` option.
  */
 export class NonceSet {
   private readonly entries = new Map<string, number>();
@@ -16,11 +22,11 @@ export class NonceSet {
   ) {}
 
   /**
-   * Records the nonce and reports whether it was already present. Expired entries are
-   * dropped first, so a nonce older than the window counts as new again; its signature would
-   * be refused for the stale timestamp anyway.
+   * Records the nonce unless it is present already or the set is full. Expired entries are
+   * dropped first; a nonce older than the window counts as new again, and its signature
+   * would be refused for the stale timestamp anyway.
    */
-  consume(nonce: string, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
+  consume(nonce: string, nowSeconds = Math.floor(Date.now() / 1000)): NonceOutcome {
     for (const [seen, expiresAt] of this.entries) {
       if (expiresAt > nowSeconds) {
         break;
@@ -30,22 +36,16 @@ export class NonceSet {
     }
 
     if (this.entries.has(nonce)) {
-      return true;
+      return 'replayed';
+    }
+
+    if (this.entries.size >= this.capacity) {
+      return 'full';
     }
 
     this.entries.set(nonce, nowSeconds + this.ttlSeconds);
 
-    while (this.entries.size > this.capacity) {
-      const oldest = this.entries.keys().next().value;
-
-      if (oldest === undefined) {
-        break;
-      }
-
-      this.entries.delete(oldest);
-    }
-
-    return false;
+    return 'accepted';
   }
 
   get size(): number {

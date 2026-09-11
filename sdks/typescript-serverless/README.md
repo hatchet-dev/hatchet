@@ -234,12 +234,18 @@ hex HMAC-SHA256). The handler checks, in this order:
   handler is configured with one (`HATCHET_ENDPOINT_ID` on Cloudflare). A captured request is
   therefore only replayable for five minutes; a task with side effects should treat
   `(endpointId, taskRunExternalId, retryCount)` as its idempotency key.
-- **Websocket upgrades** (durable trigger): the `endpointId` when configured, the same five
-  minute window on `X-Hatchet-Timestamp`, the HMAC over `timestamp.nonce.taskId.invocation`,
-  then the nonce, consumed from a bounded in-memory set only after the signature verified
-  (`NonceSet`, 4096 entries, expiring with the window). That set is per isolate; a production
-  endpoint should consume nonces in a Durable Object or an expiring KV key through the
-  `seenNonce` option, so a replay that lands in another isolate is caught too.
+- **Websocket upgrades** (durable trigger): the `X-Hatchet-Endpoint-Id` header must be present
+  and, when the handler is configured with an id, equal to it; the same five minute window
+  applies to `X-Hatchet-Timestamp`; the HMAC covers `endpointId.timestamp.nonce.taskId.invocation`
+  with the header's endpoint id, so a signature made for one endpoint cannot be presented to
+  another that shares the secret; then the nonce is consumed from a bounded in-memory set only
+  after the signature verified (`NonceSet`, 4096 entries). Every accepted nonce is kept until
+  its window expires and nothing is dropped early to make room: when the set is full of
+  unexpired nonces the upgrade is answered `503 {"error": "nonce store full", "retry": true}`
+  and the operator retries later. The set is per isolate; a production endpoint should consume
+  nonces in a Durable Object or an expiring KV key through the `seenNonce` option (return
+  `true` for a replay, `'full'` when there is no room), so a replay that lands in another
+  isolate is caught too.
 - **The first frame**: its task id and invocation must match the verified upgrade headers,
   otherwise the socket is closed with 1008 before any task code runs.
 
