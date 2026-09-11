@@ -884,6 +884,10 @@ CREATE TABLE "Worker" (
     -- over the operator's workers rather than a count of their links. Only operator workers
     -- are read; an SDK worker's count is zero until it registers and nothing reads it.
     "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
+    -- Whether the worker is left out of the tenant's WORKER and WORKER_SLOT limits. Decided
+    -- when the worker is created, by whoever hosts it: the in-process operator host exempts
+    -- every worker it creates, the wire meters every worker it registers.
+    "exemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
