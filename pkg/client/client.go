@@ -22,6 +22,7 @@ import (
 
 	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -35,6 +36,7 @@ type Client interface {
 	Cron() CronClient
 	Schedule() ScheduleClient
 	Dispatcher() DispatcherClient
+	Operator() operatorclient.Client
 	Event() EventClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
@@ -44,6 +46,10 @@ type Client interface {
 	Namespace() string
 	CloudRegisterID() *string
 	RunnableActions() []string
+
+	// Close closes the client's gRPC connection. Streams and calls in flight on it fail, so
+	// call it once the workers and listeners built on the client are stopped.
+	Close() error
 }
 
 type clientImpl struct {
@@ -53,6 +59,7 @@ type clientImpl struct {
 	cron       CronClient
 	schedule   ScheduleClient
 	dispatcher DispatcherClient
+	operator   operatorclient.Client
 	event      EventClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
@@ -347,6 +354,17 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	subscribe := newSubscribe(conn, shared)
 	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
+	operator, err := operatorclient.New(conn,
+		operatorclient.WithToken(opts.token),
+		operatorclient.WithHeaders(opts.grpcHeaders),
+		operatorclient.WithLogger(opts.l),
+		operatorclient.WithValidator(opts.v),
+		operatorclient.WithPresetWorkerLabels(opts.presetWorkerLabels),
+	)
+
+	if err != nil {
+		return nil, err
+	}
 	event := newEvent(conn, shared)
 
 	authEditor := func(ctx context.Context, req *http.Request) error {
@@ -404,6 +422,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		cron:            cronClient,
 		schedule:        scheduleClient,
 		dispatcher:      dispatcher,
+		operator:        operator,
 		subscribe:       subscribe,
 		event:           event,
 		v:               opts.v,
@@ -429,6 +448,10 @@ func (c *clientImpl) Schedule() ScheduleClient {
 
 func (c *clientImpl) Dispatcher() DispatcherClient {
 	return c.dispatcher
+}
+
+func (c *clientImpl) Operator() operatorclient.Client {
+	return c.operator
 }
 
 func (c *clientImpl) Event() EventClient {
@@ -457,6 +480,15 @@ func (c *clientImpl) TenantId() string {
 
 func (c *clientImpl) Namespace() string {
 	return c.namespace
+}
+
+// Close implements Client.
+func (c *clientImpl) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+
+	return c.conn.Close()
 }
 
 func (c *clientImpl) CloudRegisterID() *string {

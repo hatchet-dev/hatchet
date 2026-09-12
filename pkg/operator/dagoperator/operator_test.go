@@ -11,28 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// fakeTaskEventWriter captures every reported step action event.
+// fakeTaskEventWriter is the engine-internal writer; nothing in these tests reaches it.
 type fakeTaskEventWriter struct {
 	events []*contracts.StepActionEvent
 }
 
-func (f *fakeTaskEventWriter) SendStepActionEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	f.events = append(f.events, request)
-	return &contracts.ActionEventResponse{}, nil
-}
-
-func (f *fakeTaskEventWriter) RegisterDurableTask(_ context.Context, _ uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
-	return nil, nil, nil
-}
-
-func (f *fakeTaskEventWriter) CancelTaskEvent(_ context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (f *fakeTaskEventWriter) CancelTaskEventCustom(_ context.Context, _ uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	f.events = append(f.events, request)
 	return &contracts.ActionEventResponse{}, nil
 }
@@ -45,25 +35,23 @@ func (f *fakeTaskEventWriter) CancelDAGChildren(_ context.Context, _ uuid.UUID, 
 	return nil
 }
 
-// newTestDAGOperator builds a DAGOperator whose shared state is wired to a fake event writer,
-// without going through NewDAGOperator (which would start a real workflow-polling goroutine
-// and require a real repository). repo is intentionally left nil: HandleAction's cancel path
-// must not touch it, and a nil-repo panic would be a clear signal that it did.
-func newTestDAGOperator(t *testing.T, workerId uuid.UUID, writer operator.TaskEventWriter) *DAGOperator {
+// newTestDAGOperator builds a DAGOperator whose shared state is started on a recording session,
+// without going through Start (which would refresh actions from a real repository). repo is
+// intentionally left nil: HandleAction's cancel path must not touch it, and a nil-repo panic
+// would be a clear signal that it did.
+func newTestDAGOperator(t *testing.T, writer operator.TaskEventWriter) (*DAGOperator, *operatortest.Session) {
 	t.Helper()
 
 	l := zerolog.Nop()
+	op := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Config: []byte(`{}`)}
 
-	shared, err := operator.NewSharedOperator(&sqlcv1.V1Operator{
-		ID:       uuid.New(),
-		TenantID: uuid.New(),
-		Config:   []byte(`{}`),
-	}, &l, nil, writer, workerId, DAGOperatorConfig{})
+	shared, err := operator.NewSharedOperator(op, &l, writer, DAGOperatorConfig{})
 	require.NoError(t, err)
 
-	return &DAGOperator{
-		SharedOperator: shared,
-	}
+	session := operatortest.NewSession(op.TenantID, op.ID)
+	require.NoError(t, shared.Start(context.Background(), session))
+
+	return &DAGOperator{SharedOperator: shared}, session
 }
 
 func testAction() *contracts.AssignedAction {
@@ -80,9 +68,8 @@ func testAction() *contracts.AssignedAction {
 
 func TestHandleAction_CancelStepRun_ReportsCancelledWithoutRunning(t *testing.T) {
 	writer := &fakeTaskEventWriter{}
-	workerId := uuid.New()
 
-	d := newTestDAGOperator(t, workerId, writer)
+	d, session := newTestDAGOperator(t, writer)
 
 	action := testAction()
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
@@ -92,24 +79,39 @@ func TestHandleAction_CancelStepRun_ReportsCancelledWithoutRunning(t *testing.T)
 	err := d.HandleAction(context.Background(), action)
 	require.NoError(t, err)
 
-	require.Len(t, writer.events, 1, "cancelling a task must report exactly one step action event")
-	got := writer.events[0]
+	events := session.Events()
+	require.Len(t, events, 1, "cancelling a task must report exactly one step action event, through the session")
+	got := events[0]
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED, got.EventType)
 	assert.Equal(t, action.TaskRunExternalId, got.TaskRunExternalId)
 	assert.Equal(t, action.TaskId, got.TaskId)
-	assert.Equal(t, workerId.String(), got.WorkerId)
+	assert.Equal(t, session.Registration().WorkerId.String(), got.WorkerId)
+	assert.Empty(t, writer.events, "the plain cancel does not use the engine-internal writer")
 }
 
 func TestHandleAction_UnsupportedActionType_AcknowledgesWithoutReporting(t *testing.T) {
 	writer := &fakeTaskEventWriter{}
-	workerId := uuid.New()
 
-	d := newTestDAGOperator(t, workerId, writer)
+	d, session := newTestDAGOperator(t, writer)
 
 	action := testAction()
 	action.ActionType = contracts.ActionType_START_GET_GROUP_KEY
 
 	err := d.HandleAction(context.Background(), action)
 	require.NoError(t, err)
-	assert.Empty(t, writer.events, "an unsupported action type must not report any step action event")
+	assert.Empty(t, session.Events(), "an unsupported action type must not report any step action event")
+}
+
+// SlotConfig derives the worker's durable slots from the row's config, or the server default.
+func TestSlotConfig(t *testing.T) {
+	cfg, err := SlotConfig(&sqlcv1.V1Operator{Config: []byte(`{"slots": 7}`)}, 100)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int32{"durable": 7}, cfg)
+
+	cfg, err = SlotConfig(&sqlcv1.V1Operator{Config: []byte(`{}`)}, 100)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int32{"durable": 100}, cfg)
+
+	_, err = SlotConfig(&sqlcv1.V1Operator{Config: []byte(`nope`)}, 100)
+	require.Error(t, err)
 }

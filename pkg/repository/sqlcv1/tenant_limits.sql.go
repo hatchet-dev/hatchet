@@ -91,14 +91,16 @@ func (q *Queries) BulkMeterTenantResources(ctx context.Context, db DBTX, arg Bul
 }
 
 const countTenantWorkers = `-- name: CountTenantWorkers :one
-SELECT COUNT(distinct id) AS "count"
-FROM "Worker"
+SELECT COUNT(distinct w.id) AS "count"
+FROM "Worker" w
 WHERE
-    "tenantId" = $1::uuid
-    AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
-    AND "isActive" = true
-    -- exclude operators from worker count for metering
-    AND "operatorId" IS NULL
+    w."tenantId" = $1::uuid
+    AND w."lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+    AND w."isActive" = true
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
+    AND NOT w."exemptFromLimits"
 `
 
 func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {

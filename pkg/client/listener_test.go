@@ -553,7 +553,7 @@ func TestRetrySubscribeSyncReplaysHandlers(t *testing.T) {
 
 	listener.reg.store("run-1", "session-1", func(event WorkflowRunEvent) error { return nil }, nil)
 
-	require.NoError(t, listener.stream.connectSync(context.Background()))
+	require.NoError(t, listener.stream.ConnectSync(context.Background()))
 	assert.Equal(t, int32(1), sendCount.Load())
 }
 

@@ -3,6 +3,7 @@ package dagoperator
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,6 +128,74 @@ func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseC
 	return fd
 }
 
+// testChannel is a DurableChannel over the test's raw channel pair, driven from the dag's
+// goroutine alone. Like the engine's channel it never lets a send deadlock against the fake
+// dispatcher's blocking delivery: responses that arrive while a send waits are queued for the
+// next Recv. Unlike the engine's channel it applies no ordering, so the dag's own handling of
+// an entry that races ahead of its ack is what these tests exercise, and it reads responses
+// only when the dag asks, so a test that observes the dag's state after the fake dispatcher
+// delivered a response sees the dag's writes.
+type testChannel struct {
+	requestCh  chan *v1contracts.DurableTaskRequest
+	responseCh chan *v1contracts.DurableTaskResponse
+	queued     []*v1contracts.DurableTaskResponse
+	closed     chan struct{}
+	closeOnce  sync.Once
+}
+
+func newTestChannel(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse) *testChannel {
+	return &testChannel{requestCh: requestCh, responseCh: responseCh, closed: make(chan struct{})}
+}
+
+func (c *testChannel) Send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	for {
+		select {
+		case c.requestCh <- req:
+			return nil
+		case resp, ok := <-c.responseCh:
+			if !ok {
+				return operator.ErrSessionEnded
+			}
+
+			c.queued = append(c.queued, resp)
+		case <-c.closed:
+			return operator.ErrChannelClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
+	if len(c.queued) > 0 {
+		resp := c.queued[0]
+		c.queued = c.queued[1:]
+
+		return resp, nil
+	}
+
+	select {
+	case resp, ok := <-c.responseCh:
+		if !ok {
+			return nil, operator.ErrSessionEnded
+		}
+
+		return resp, nil
+	case <-c.closed:
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// ExpectEntry is a no-op: the test channel applies no ordering, so nothing is ever held.
+func (c *testChannel) ExpectEntry(int64, int64) error { return nil }
+
+func (c *testChannel) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return nil
+}
+
 func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, ref *v1contracts.DurableEventLogEntryRef, payload []byte) {
 	t.Helper()
 
@@ -170,6 +239,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	stop := make(chan struct{})
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -177,7 +247,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	externalId := uuid.New()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, triggerStep)
 	}()
 
 	return &dagHarness{
@@ -188,6 +258,7 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 		cleanup: func() {
 			close(stop)
 			cancel()
+			_ = ch.Close()
 		},
 	}
 }
@@ -505,13 +576,15 @@ func TestDag_SleepWaitCondition(t *testing.T) {
 	defer close(stop)
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	var ref *v1contracts.DurableEventLogEntryRef
@@ -795,12 +868,15 @@ func TestDag_RunTriggerDeferredUntilWaitForAcksDrain(t *testing.T) {
 		return base(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
 	}
 
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, triggerStep)
 	}()
 
 	requireTriggered := func(want string) {
@@ -1300,17 +1376,22 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
 
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
 	}()
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
 	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
-	// precede it. b registers its skip watch first, then its wait watch (dag.go:300-314).
+	// precede it. b registers its skip watch first and holds its wait watch until that
+	// registration is acknowledged (one registration is in flight at a time); the skip fires
+	// with the ack, so the wait watch is never registered.
 	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
 		t.Helper()
 		select {
@@ -1325,7 +1406,6 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	}
 
 	skipWaitFor := recvWaitFor()
-	waitWaitFor := recvWaitFor()
 
 	ref := &v1contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
@@ -1333,32 +1413,24 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 		NodeId:                4242,
 		BranchId:              4242,
 	}
-	waitRef := &v1contracts.DurableEventLogEntryRef{
-		DurableTaskExternalId: waitWaitFor.DurableTaskExternalId,
-		InvocationCount:       waitWaitFor.InvocationCount,
-		NodeId:                4243,
-		BranchId:              4243,
-	}
 
 	sendEntryCompleted(t, responseCh, ref, nil)
 
-	// Acks are correlated FIFO, so the skip watch's ack goes first; the wait watch's ack has to
-	// follow because the dag holds run triggers until every registration is acked.
-	for _, ackRef := range []*v1contracts.DurableEventLogEntryRef{ref, waitRef} {
-		select {
-		case responseCh <- &v1contracts.DurableTaskResponse{
-			Message: &v1contracts.DurableTaskResponse_WaitForAck{
-				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ackRef},
-			},
-		}:
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out sending WaitForAck")
-		}
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_WaitForAck{
+			WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending WaitForAck")
 	}
 
 	select {
 	case err := <-errCh:
 		require.NoError(t, err)
+	case req := <-requestCh:
+		t.Fatalf("the dag registered another condition after its skip watch fired: %v", req)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
 	}
@@ -1366,6 +1438,7 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
+	require.False(t, b.isWaiting, "the wait watch was held behind the skip registration and never needed")
 }
 
 func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {

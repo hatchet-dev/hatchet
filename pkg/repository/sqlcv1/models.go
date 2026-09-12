@@ -1498,6 +1498,7 @@ type V1OperatorKind string
 const (
 	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
 	V1OperatorKindDAG     V1OperatorKind = "DAG"
+	V1OperatorKindGRPC    V1OperatorKind = "GRPC"
 )
 
 func (e *V1OperatorKind) Scan(src interface{}) error {
@@ -1533,6 +1534,48 @@ func (ns NullV1OperatorKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1OperatorKind), nil
+}
+
+type V1OperatorLeasingManager string
+
+const (
+	V1OperatorLeasingManagerSELF       V1OperatorLeasingManager = "SELF"
+	V1OperatorLeasingManagerDISPATCHER V1OperatorLeasingManager = "DISPATCHER"
+)
+
+func (e *V1OperatorLeasingManager) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OperatorLeasingManager(s)
+	case string:
+		*e = V1OperatorLeasingManager(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OperatorLeasingManager: %T", src)
+	}
+	return nil
+}
+
+type NullV1OperatorLeasingManager struct {
+	V1OperatorLeasingManager V1OperatorLeasingManager `json:"v1_operator_leasing_manager"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1OperatorLeasingManager is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OperatorLeasingManager) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OperatorLeasingManager, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OperatorLeasingManager.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OperatorLeasingManager) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OperatorLeasingManager), nil
 }
 
 type V1OtelSpanKind string
@@ -3567,14 +3610,15 @@ type V1OperationIntervalSettings struct {
 }
 
 type V1Operator struct {
-	ID        uuid.UUID          `json:"id"`
-	TenantID  uuid.UUID          `json:"tenant_id"`
-	Name      string             `json:"name"`
-	Kind      V1OperatorKind     `json:"kind"`
-	Config    []byte             `json:"config"`
-	WorkerID  *uuid.UUID         `json:"worker_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             uuid.UUID                `json:"id"`
+	TenantID       uuid.UUID                `json:"tenant_id"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+	Config         []byte                   `json:"config"`
+	WorkerID       *uuid.UUID               `json:"worker_id"`
+	CreatedAt      pgtype.Timestamptz       `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz       `json:"updated_at"`
 }
 
 type V1OtelTraceLookupOlap struct {
@@ -4070,6 +4114,8 @@ type Worker struct {
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 	ActionHash              []byte           `json:"actionHash"`
+	OperatorActionCount     int32            `json:"operatorActionCount"`
+	ExemptFromLimits        bool             `json:"exemptFromLimits"`
 }
 
 type WorkerAssignEvent struct {

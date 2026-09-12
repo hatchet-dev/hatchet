@@ -2860,21 +2860,33 @@ CREATE TABLE v1_durable_event_log_branch_point (
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
--- HTTP_API is retained only because Postgres cannot drop enum values; the engine never
--- instantiates operators of that kind.
-CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
+-- What an operator is: DAG is the engine-internal DAG operator, GRPC a contract operator
+-- written against pkg/operator, hostable in process or out of process. HTTP_API is retained
+-- only because Postgres cannot drop enum values; the engine never instantiates operators of
+-- that kind.
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG', 'GRPC');
+
+-- Who keeps an operator alive: for a DISPATCHER row the dispatcher claims the row through
+-- ClaimOperators and builds the operator from a factory inside the engine; SELF rows keep
+-- themselves alive, through a Listen stream out of process or their own leaser in process, and
+-- are never claimed. Wire registration requires SELF.
+CREATE TYPE v1_operator_leasing_manager AS ENUM ('SELF', 'DISPATCHER');
 
 CREATE TABLE v1_operator (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
     kind v1_operator_kind NOT NULL,
+    leasing_manager v1_operator_leasing_manager NOT NULL DEFAULT 'SELF',
     config JSONB NOT NULL,
     worker_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
 );
+
+-- Operators are upserted by (tenant, name, kind) on registration, so that triple is unique.
+CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,

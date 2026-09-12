@@ -62,6 +62,7 @@ type Server struct {
 	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
+	operatorSvc   v1contracts.OperatorServiceServer
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -83,6 +84,7 @@ type ServerOpts struct {
 	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
+	operatorSvc   v1contracts.OperatorServiceServer
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -195,6 +197,14 @@ func WithAdminV1(a adminv1.AdminService) ServerOpt {
 	}
 }
 
+// WithOperatorService registers the v1.OperatorService for out-of-process operators. When it is
+// not set the service is not registered and callers receive Unimplemented.
+func WithOperatorService(o v1contracts.OperatorServiceServer) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.operatorSvc = o
+	}
+}
+
 func WithOTelCollector(oc otelcol.OTelCollector) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.otelCollector = oc
@@ -231,6 +241,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		dispatcherv1:  opts.dispatcherv1,
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
+		operatorSvc:   opts.operatorSvc,
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
@@ -370,6 +381,10 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if s.adminv1 != nil {
 		v1contracts.RegisterAdminServiceServer(grpcServer, s.adminv1)
+	}
+
+	if s.operatorSvc != nil {
+		v1contracts.RegisterOperatorServiceServer(grpcServer, s.operatorSvc)
 	}
 
 	if s.otelCollector != nil {

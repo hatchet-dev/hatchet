@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -33,14 +34,14 @@ type actionListenerImpl struct {
 	client       dispatchercontracts.DispatcherClient
 	listenClient dispatchercontracts.Dispatcher_ListenClient
 	v            validator.Validator
-	actionStream *reconnectingStream[dispatchercontracts.Dispatcher_ListenClient]
+	actionStream *streaming.ReconnectingStream[dispatchercontracts.Dispatcher_ListenClient]
 	l            *zerolog.Logger
 	ctx          *contextLoader
 	tenantId     string
 	workerId     string
 
 	// listenerStrategy is read and written only from the single action-loop
-	// goroutine — classifyActionError and connectOnce both execute there.
+	// goroutine — classifyActionError and ConnectOnce both execute there.
 	listenerStrategy ListenerStrategy
 
 	actionStreamOnce sync.Once
@@ -117,11 +118,11 @@ func (a *actionListenerImpl) actionLoop(ctx context.Context, ch chan<- *Action, 
 		}
 	}()
 
-	classify := a.classifyActionError(newStreamClassifier(func(ctx context.Context) bool {
+	classify := a.classifyActionError(streaming.NewClassifier(func(ctx context.Context) bool {
 		return ctx.Err() == nil
 	}))
 
-	err := listenStream(ctx, a.actionStreamCore(),
+	err := streaming.Listen(ctx, a.actionStreamCore(),
 		func(c dispatchercontracts.Dispatcher_ListenClient) (*dispatchercontracts.AssignedAction, error) {
 			return c.Recv()
 		},
@@ -140,25 +141,25 @@ func (a *actionListenerImpl) actionLoop(ctx context.Context, ch chan<- *Action, 
 		classify,
 	)
 	if err != nil && ctx.Err() == nil {
-		sendListenerError(ctx, errCh, err)
+		streaming.SendListenerError(ctx, errCh, err)
 	}
 }
 
-func (a *actionListenerImpl) classifyActionError(base streamClassifier) streamClassifier {
-	return func(ctx context.Context, err error) streamVerdict {
+func (a *actionListenerImpl) classifyActionError(base streaming.Classifier) streaming.Classifier {
+	return func(ctx context.Context, err error) streaming.Verdict {
 		if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
 			a.l.Debug().Ctx(ctx).Msg("falling back to v1 listener strategy")
 			a.listenerStrategy = ListenerStrategyV1
-			return verdictNoProgress
+			return streaming.VerdictNoProgress
 		}
 		return base(ctx, err)
 	}
 }
 
-func (a *actionListenerImpl) actionStreamCore() *reconnectingStream[dispatchercontracts.Dispatcher_ListenClient] {
+func (a *actionListenerImpl) actionStreamCore() *streaming.ReconnectingStream[dispatchercontracts.Dispatcher_ListenClient] {
 	a.actionStreamOnce.Do(func() {
 		wl := a.l.With().Str("worker_id", a.workerId).Logger()
-		a.actionStream = newReconnectingStream(
+		a.actionStream = streaming.NewReconnectingStream(
 			&wl,
 			"action listener",
 			a.subscribeActionStream,
@@ -169,7 +170,7 @@ func (a *actionListenerImpl) actionStreamCore() *reconnectingStream[dispatcherco
 		)
 
 		if a.listenClient != nil {
-			a.actionStream.setInitialClient(a.listenClient)
+			a.actionStream.SetInitialClient(a.listenClient)
 		}
 	})
 
@@ -299,18 +300,6 @@ func (a *actionListenerImpl) parseAdditionalMetadata(ctx context.Context, assign
 	}
 
 	return additionalMetadata, true
-}
-
-func streamErrorCode(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	if st, ok := status.FromError(err); ok {
-		return st.Code().String()
-	}
-
-	return "unknown"
 }
 
 func (a *actionListenerImpl) Unregister() error {
