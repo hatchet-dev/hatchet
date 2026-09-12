@@ -663,6 +663,15 @@ CREATE TABLE v1_batch_runtime (
 CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
 
+ALTER TABLE v1_batch_runtime SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 -- Per-step batching configuration
 CREATE TABLE v1_step_batch_config (
     step_id UUID NOT NULL,
@@ -726,6 +735,15 @@ CREATE TABLE v1_task_runtime_slot (
 
 CREATE INDEX v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
+
+ALTER TABLE v1_task_runtime_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 -- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
 CREATE TABLE v1_rate_limited_queue_items (
@@ -898,6 +916,15 @@ CREATE TABLE v1_match (
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
+ALTER TABLE v1_match SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
 
 -- Provides information to the caller about the action to take. This is used to differentiate
@@ -1030,6 +1057,15 @@ CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     event_resource_hint ASC
 );
 
+ALTER TABLE v1_match_condition SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE TABLE v1_dag (
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1082,6 +1118,15 @@ CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_s
 CREATE INDEX v1_workflow_concurrency_slot_filled_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id, workflow_version_id, workflow_run_id)
     WHERE is_filled = TRUE;
 
+ALTER TABLE v1_workflow_concurrency_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 -- CreateTable
 CREATE TABLE v1_concurrency_slot (
     sort_id BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -1115,6 +1160,15 @@ CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, st
 
 CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
     WHERE is_filled = FALSE;
+
+ALTER TABLE v1_concurrency_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 -- When concurrency slot is CREATED, we should check whether the parent concurrency slot exists; if not, we should create
 -- the parent concurrency slot as well.
@@ -1389,6 +1443,15 @@ CREATE TABLE v1_retry_queue_item (
 );
 
 CREATE INDEX v1_retry_queue_item_tenant_id_retry_after_idx ON v1_retry_queue_item (tenant_id ASC, retry_after ASC);
+
+ALTER TABLE v1_retry_queue_item SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
@@ -2159,6 +2222,15 @@ CREATE TABLE v1_durable_sleep (
     sleep_until TIMESTAMPTZ NOT NULL,
     sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
+);
+
+ALTER TABLE v1_durable_sleep SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
 );
 
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'DURABLE_EVENT_LOG_ENTRY_DATA', 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA');
