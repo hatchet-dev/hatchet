@@ -846,17 +846,32 @@ func (s *Scheduler) tryAssignBatch(
 	// finished is only touched on the run loop; once true, res belongs to the
 	// caller again and no parked retry or timeout may touch it.
 	finished := false
-	finish := func() {
+	finishedBy := "shutdown" // read by the caller only after assignDone is closed
+	finish := func(reason string) {
 		if finished {
 			return
 		}
 		finished = true
+		finishedBy = reason
 		close(assignDone)
 	}
 
+	enqueuedAt := time.Now()
+
 	var attempt func(isRetry bool)
 	attempt = func(isRetry bool) {
-		s.handleAssignBatch(actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
+		attemptCtx, attemptSpan := telemetry.NewSpan(ctx, "try-assign-batch-run-loop-assign")
+		defer attemptSpan.End()
+
+		telemetry.WithAttributes(attemptSpan,
+			telemetry.AttributeKV{Key: "attempt.is_retry", Value: isRetry},
+			// time spent in the ops channel behind other ops (or an unscheduled loop goroutine)
+			telemetry.AttributeKV{Key: "attempt.queued_ms", Value: float64(time.Since(enqueuedAt)) / float64(time.Millisecond)},
+		)
+
+		s.handleAssignBatch(attemptCtx, actionId, qis, res, rlAcks, rlNacks, stepIdsToLabels, stepIdsToRequests, taskIdsToLabelOverrides)
+
+		telemetry.WithAttributes(attemptSpan, batchOutcomeAttributes(res)...)
 
 		// If a replenish cycle is in flight, capacity may be milliseconds away:
 		// park the missed items and retry once when the cycle ends, instead of
@@ -866,6 +881,8 @@ func (s *Scheduler) tryAssignBatch(
 		// wait is bounded by parkedAssignRetryTimeout, so a slow replenish
 		// (e.g. degraded database reads) cannot stall assignment results.
 		if !isRetry && s.replenishing && batchHasMisses(res) {
+			telemetry.WithAttributes(attemptSpan, telemetry.AttributeKV{Key: "attempt.parked_for_replenish", Value: true})
+
 			s.afterReplenish = append(s.afterReplenish, func() {
 				if finished {
 					return
@@ -882,15 +899,20 @@ func (s *Scheduler) tryAssignBatch(
 			})
 
 			time.AfterFunc(parkedAssignRetryTimeout, func() {
-				s.mustDo(finish)
+				s.mustDo(func() { finish("timeout") })
 			})
 
 			return
 		}
 
-		finish()
+		if isRetry {
+			finish("replenish-retry")
+		} else {
+			finish("first-attempt")
+		}
 	}
 
+	_, enqueueSpan := telemetry.NewSpan(ctx, "try-assign-batch-enqueue-run-loop")
 	enqueued := ctx.Err() == nil
 	if enqueued {
 		select {
@@ -901,8 +923,21 @@ func (s *Scheduler) tryAssignBatch(
 			enqueued = false
 		}
 	}
+	telemetry.WithAttributes(enqueueSpan,
+		telemetry.AttributeKV{Key: "enqueued", Value: enqueued},
+		telemetry.AttributeKV{Key: "ops_ahead", Value: len(s.ops)},
+	)
+	enqueueSpan.End()
 
-	if !enqueued || !s.wait(assignDone) {
+	assigned := false
+	if enqueued {
+		_, waitSpan := telemetry.NewSpan(ctx, "try-assign-batch-wait-for-run-loop")
+		assigned = s.wait(assignDone)
+		telemetry.WithAttributes(waitSpan, telemetry.AttributeKV{Key: "wait.finished_by", Value: finishedBy})
+		waitSpan.End()
+	}
+
+	if !assigned {
 		// the scheduler is shutting down; treat the batch as unassignable
 		for i := range res {
 			if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
@@ -911,14 +946,45 @@ func (s *Scheduler) tryAssignBatch(
 		}
 	}
 
+	_, releaseSpan := telemetry.NewSpan(ctx, "try-assign-batch-release-rate-limits")
 	// release rate-limit reservations for items that did not get assigned
 	for i := range res {
 		if res[i].rateLimitResult == nil && !res[i].succeeded && !res[i].toBatch {
 			rlNacks[i]()
 		}
 	}
+	releaseSpan.End()
+
+	telemetry.WithAttributes(span, batchOutcomeAttributes(res)...)
 
 	return res, nil
+}
+
+func batchOutcomeAttributes(res []*assignSingleResult) []telemetry.AttributeKV {
+	assignedCount := 0
+	noSlotsCount := 0
+	rateLimitedCount := 0
+	toBatchCount := 0
+
+	for i := range res {
+		switch {
+		case res[i].toBatch:
+			toBatchCount++
+		case res[i].rateLimitResult != nil:
+			rateLimitedCount++
+		case res[i].succeeded:
+			assignedCount++
+		case res[i].noSlots:
+			noSlotsCount++
+		}
+	}
+
+	return []telemetry.AttributeKV{
+		{Key: "batch.assigned_count", Value: assignedCount},
+		{Key: "batch.no_slots_count", Value: noSlotsCount},
+		{Key: "batch.rate_limited_count", Value: rateLimitedCount},
+		{Key: "batch.to_batch_count", Value: toBatchCount},
+	}
 }
 
 // batchHasMisses runs on the run loop.
@@ -933,6 +999,7 @@ func batchHasMisses(res []*assignSingleResult) bool {
 
 // handleAssignBatch runs on the run loop.
 func (s *Scheduler) handleAssignBatch(
+	ctx context.Context,
 	actionId string,
 	qis []*sqlcv1.V1QueueItem,
 	res []*assignSingleResult,
@@ -942,9 +1009,14 @@ func (s *Scheduler) handleAssignBatch(
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-assign-batch")
+	defer span.End()
+
 	action, ok := s.actions[actionId]
 
 	if !ok || action == nil || len(action.workerIds) == 0 {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.has_workers", Value: false})
+
 		s.l.Debug().Msgf("no slots for action %s", actionId)
 
 		// Treat missing action as "no slots" for non-rate-limited, non-batch queue items.
@@ -960,6 +1032,11 @@ func (s *Scheduler) handleAssignBatch(
 
 		return
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "action.has_workers", Value: true},
+		telemetry.AttributeKV{Key: "action.worker_count", Value: len(action.workerIds)},
+	)
 
 	now := time.Now()
 
@@ -1002,12 +1079,13 @@ func (s *Scheduler) handleAssignBatch(
 			}
 		}
 
-		s.assignSingleton(action, qi, r, labels, requests, rlAcks[i], rlNacks[i], now)
+		s.assignSingleton(ctx, action, qi, r, labels, requests, rlAcks[i], rlNacks[i], now)
 	}
 }
 
 // assignSingleton runs on the run loop.
 func (s *Scheduler) assignSingleton(
+	ctx context.Context,
 	a *action,
 	qi *sqlcv1.V1QueueItem,
 	r *assignSingleResult,
@@ -1017,17 +1095,34 @@ func (s *Scheduler) assignSingleton(
 	rateLimitNack func(),
 	now time.Time,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "assign-singleton")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "task.id", Value: qi.TaskID},
+		telemetry.AttributeKV{Key: "sticky.strategy", Value: string(qi.Sticky)},
+		telemetry.AttributeKV{Key: "label.count", Value: len(labels)},
+	)
+
 	candidates := a.workerIds
 	offset := a.ringOffset
 	a.ringOffset++
 	topRankCount := len(candidates)
 
 	if qi.Sticky != sqlcv1.V1StickyStrategyNONE || len(labels) > 0 {
+		_, rankSpan := telemetry.NewSpan(ctx, "assign-singleton-rank-workers")
 		candidates, topRankCount = s.rankWorkerIds(qi, labels, a.workerIds)
+		rankSpan.End()
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "candidate.count", Value: len(candidates)},
+		telemetry.AttributeKV{Key: "candidate.top_rank_count", Value: topRankCount},
+	)
 
 	if len(candidates) == 0 || topRankCount == 0 {
 		r.noSlots = true
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
 	}
 
@@ -1061,6 +1156,7 @@ func (s *Scheduler) assignSingleton(
 
 	if selected == nil {
 		r.noSlots = true
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
 	}
 
@@ -1075,6 +1171,11 @@ func (s *Scheduler) assignSingleton(
 
 	r.workerId = selected[0].getWorkerId()
 	r.succeeded = true
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "assign.succeeded", Value: true},
+		telemetry.AttributeKV{Key: "worker.id", Value: r.workerId},
+	)
 }
 
 // tryAssignBatchQueueItem assigns a single representative queue item to obtain one worker slot
@@ -1123,7 +1224,7 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 		// scheduling skips the regular slot-request lookup path.
 		requests := map[string]int32{v1.SlotTypeDefault: 1}
 
-		s.assignSingleton(action, qi, &res, labels, requests, noop, noop, time.Now())
+		s.assignSingleton(ctx, action, qi, &res, labels, requests, noop, noop, time.Now())
 	}); !ok {
 		res.noSlots = true
 	}

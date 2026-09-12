@@ -173,6 +173,20 @@ FROM ordered_keys;
 -- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
+-- name: AdvisoryLockMany :exec
+-- Acquires a transaction-level advisory lock on every key, in ascending key order so that
+-- transactions locking overlapping key sets cannot deadlock.
+WITH keys AS (
+    SELECT UNNEST(@keys::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
+)
+
+SELECT pg_advisory_xact_lock(key)
+FROM ordered_keys;
+
 -- name: RunParentGroupRoundRobin :exec
 WITH eligible_slots_per_group AS (
     SELECT wsc.*

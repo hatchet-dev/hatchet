@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
@@ -194,4 +195,16 @@ func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context
 			l.Error().Str("stack_trace", string(trace)).Msg("Stack trace for rollback failure")
 		}
 	}
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func DisableJITForTransaction(ctx context.Context, tx execer) error {
+	if _, err := tx.Exec(ctx, "SET LOCAL jit = off"); err != nil {
+		return fmt.Errorf("failed to disable jit for transaction: %w", err)
+	}
+
+	return nil
 }
