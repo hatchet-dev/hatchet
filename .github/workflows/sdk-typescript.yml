@@ -8,11 +8,14 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
+      - "examples/serverless/cloudflare-workers/**"
   push:
     branches:
       - main
     paths:
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -288,6 +291,61 @@ jobs:
         with:
           name: sdk-typescript-api-logs-${{ matrix.package-manager }}
           path: api.log
+
+  serverless:
+    # @hatchet-dev/serverless links the SDK from its build output, so the SDK is built first.
+    runs-on: ubicloud-standard-4
+    defaults:
+      run:
+        working-directory: ./sdks/typescript-serverless
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-serverless/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build the SDK dist the package links
+        working-directory: ./sdks/typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm tsc:build
+          pnpm prepublish
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build and check the runtime entries are free of Node imports
+        run: pnpm check:edge
+
+      - name: Type check and bundle the Cloudflare example
+        working-directory: ./examples/serverless/cloudflare-workers
+        run: |
+          pnpm install
+          pnpm exec tsc --noEmit
+          pnpm exec wrangler deploy --dry-run --outdir dist
 
   publish:
     runs-on: ubicloud-standard-4
