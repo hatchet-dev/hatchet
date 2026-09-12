@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -389,11 +390,13 @@ func TestInstallMCPServerConfigRefusesSymlinks(t *testing.T) {
 
 func TestWriteCodexConfigMatchesHeaderVariants(t *testing.T) {
 	// TOML allows several spellings of the same table header; each must be
-	// recognized and replaced rather than duplicated.
+	// recognized and replaced rather than duplicated. The escaped spelling
+	// pins part of F03: decoded keys, not source text, name the table.
 	variants := []string{
 		`[mcp_servers."hatchet"]`,
 		`[mcp_servers.hatchet] # managed by hatchet`,
 		`[ mcp_servers . hatchet ]`,
+		`[mcp_servers."hat\u0063het"]`,
 	}
 
 	for _, header := range variants {
@@ -423,32 +426,263 @@ func TestWriteCodexConfigMatchesHeaderVariants(t *testing.T) {
 	}
 }
 
-func TestParseTOMLHeaderKeys(t *testing.T) {
-	cases := []struct {
-		line  string
-		keys  []string
-		array bool
-		ok    bool
+func writeCodexFixture(t *testing.T, content string) string {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	path := filepath.Join(home, ".codex", "config.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	return path
+}
+
+func readTOMLFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	doc := map[string]any{}
+	require.NoError(t, toml.Unmarshal(data, &doc))
+
+	return doc
+}
+
+// F01: quoted keys with significant whitespace name different tables; they
+// must survive an install untouched instead of being treated as the entry.
+func TestWriteCodexConfigPreservesQuotedKeyWhitespace(t *testing.T) {
+	for _, header := range []string{`[mcp_servers." hatchet "]`, `[" mcp_servers ".hatchet]`} {
+		t.Run(header, func(t *testing.T) {
+			path := writeCodexFixture(t, header+"\ncommand = 'other-tool'\n")
+
+			_, err := installMCPServerConfig("codex", path, "hatchet")
+			require.NoError(t, err)
+
+			data, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+			content := string(data)
+
+			assert.Contains(t, content, "other-tool", "the whitespace-keyed table must be preserved")
+			assert.Contains(t, content, "[mcp_servers.hatchet]")
+			assert.Contains(t, content, "command = 'hatchet'")
+		})
+	}
+}
+
+// F02: a multi-line string containing header-looking lines must never be
+// rewritten in place; either the real table installs around it or the file
+// is refused unchanged.
+func TestWriteCodexConfigMultilineFalseHeader(t *testing.T) {
+	for _, quote := range []string{`"""`, `'''`} {
+		t.Run(quote, func(t *testing.T) {
+			original := "developer_instructions = " + quote + "\nConfiguration example:\n[mcp_servers.hatchet]\ncommand = 'example'\n[example_boundary]\nKeep this text.\n" + quote + "\n"
+			path := writeCodexFixture(t, original)
+
+			var before map[string]any
+			require.NoError(t, toml.Unmarshal([]byte(original), &before))
+
+			_, err := installMCPServerConfig("codex", path, "hatchet")
+			data, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+
+			if err != nil {
+				assert.Equal(t, original, string(data), "a refusal must leave the file unchanged")
+				return
+			}
+
+			after := readTOMLFile(t, path)
+			assert.Equal(t, before["developer_instructions"], after["developer_instructions"], "the unrelated string must be untouched")
+
+			entry := after["mcp_servers"].(map[string]any)["hatchet"].(map[string]any)
+			assert.Equal(t, "hatchet", entry["command"])
+			assert.Equal(t, []any{"mcp", "serve"}, entry["args"])
+		})
+	}
+}
+
+// F03: the dotted-assignment form of the entry is replaced, not refused and
+// not duplicated.
+func TestWriteCodexConfigReplacesDottedAssignment(t *testing.T) {
+	path := writeCodexFixture(t, "mcp_servers.hatchet.command = 'stale-path'\nother = 1\n")
+
+	_, err := installMCPServerConfig("codex", path, "hatchet")
+	require.NoError(t, err)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	content := string(data)
+
+	assert.NotContains(t, content, "stale-path")
+	assert.Contains(t, content, "other = 1")
+	assert.Equal(t, 1, strings.Count(content, "mcp_servers"))
+
+	entry := readTOMLFile(t, path)["mcp_servers"].(map[string]any)["hatchet"].(map[string]any)
+	assert.Equal(t, "hatchet", entry["command"])
+	assert.Equal(t, []any{"mcp", "serve"}, entry["args"])
+}
+
+// F09: hatchet subtables separated from the parent by unrelated tables must
+// be collected and replaced too, not left behind.
+func TestWriteCodexConfigRemovesSeparatedSubtable(t *testing.T) {
+	path := writeCodexFixture(t, "[mcp_servers.hatchet]\ncommand = 'old'\n[mcp_servers.other]\ncommand = 'other'\n[mcp_servers.hatchet.env]\nKEEP = 'old-value'\n")
+
+	_, err := installMCPServerConfig("codex", path, "hatchet")
+	require.NoError(t, err)
+
+	doc := readTOMLFile(t, path)
+	servers := doc["mcp_servers"].(map[string]any)
+
+	entry := servers["hatchet"].(map[string]any)
+	assert.Equal(t, map[string]any{"command": "hatchet", "args": []any{"mcp", "serve"}}, entry, "the stale env subtable must be gone")
+
+	other := servers["other"].(map[string]any)
+	assert.Equal(t, "other", other["command"])
+}
+
+// F03: inline-table and array-of-tables forms cannot be spliced; they are
+// refused explicitly with the file left unchanged.
+func TestWriteCodexConfigRefusesInlineAndArrayForms(t *testing.T) {
+	cases := map[string]struct {
+		content string
+		wantErr string
 	}{
-		{"[mcp_servers.hatchet]", []string{"mcp_servers", "hatchet"}, false, true},
-		{`[mcp_servers."hatchet"]`, []string{"mcp_servers", "hatchet"}, false, true},
-		{"[mcp_servers.hatchet] # comment", []string{"mcp_servers", "hatchet"}, false, true},
-		{"[ mcp_servers . hatchet ]", []string{"mcp_servers", "hatchet"}, false, true},
-		{`[a."b.c"]`, []string{"a", "b.c"}, false, true},
-		{"[[fruit]]", []string{"fruit"}, true, true},
-		{"[mcp_servers.hatchet.env]", []string{"mcp_servers", "hatchet", "env"}, false, true},
-		{"key = \"value\"", nil, false, false},
-		{"[unclosed", nil, false, false},
-		{"[a.b] trailing", nil, false, false},
-		{`[a."unterminated]`, nil, false, false},
+		"inline_parent":   {"mcp_servers = { hatchet = { command = 'old' }, other = { command = 'keep' } }\n", "inline table"},
+		"inline_child":    {"[mcp_servers]\nhatchet = { command = 'old' }\n", "inline table"},
+		"inline_dotted":   {"mcp_servers.hatchet = { command = 'old' }\n", "inline table"},
+		"array_of_tables": {"[[mcp_servers.hatchet]]\ncommand = 'old'\n", "array of tables"},
 	}
 
-	for _, tc := range cases {
-		keys, array, ok := parseTOMLHeaderKeys(tc.line)
-		assert.Equal(t, tc.ok, ok, "ok for %q", tc.line)
-		if tc.ok {
-			assert.Equal(t, tc.keys, keys, "keys for %q", tc.line)
-			assert.Equal(t, tc.array, array, "array for %q", tc.line)
-		}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := writeCodexFixture(t, tc.content)
+
+			_, err := installMCPServerConfig("codex", path, "hatchet")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+			assert.Contains(t, err.Error(), "manually")
+
+			data, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+			assert.Equal(t, tc.content, string(data), "a refused file must not be modified")
+		})
 	}
+}
+
+// F04: unrelated numeric values must survive the JSON round-trip exactly.
+func TestWriteMCPServerJSONPreservesNumberPrecision(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	original := `{"large":9007199254740993,"decimal":0.1234567890123456789,"mcpServers":{"other":{"value":9223372036854775807}}}`
+	require.NoError(t, os.WriteFile(".mcp.json", []byte(original), 0o644))
+
+	_, err := installMCPServerConfig("claude-code", ".mcp.json", "hatchet")
+	require.NoError(t, err)
+
+	data, readErr := os.ReadFile(".mcp.json")
+	require.NoError(t, readErr)
+	content := string(data)
+
+	assert.Contains(t, content, "9007199254740993")
+	assert.Contains(t, content, "0.1234567890123456789")
+	assert.Contains(t, content, "9223372036854775807")
+}
+
+// F05: a null JSON root (and any other non-object root) is refused without a
+// panic and without touching the file.
+func TestWriteMCPServerJSONRefusesNonObjectRoots(t *testing.T) {
+	cases := map[string]string{
+		"null":          "null\n",
+		"array":         "[]\n",
+		"string":        `"text"`,
+		"two_documents": "{} {}",
+	}
+
+	for name, original := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.WriteFile(".mcp.json", []byte(original), 0o644))
+
+			_, err := installMCPServerConfig("claude-code", ".mcp.json", "hatchet")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), ".mcp.json")
+
+			data, readErr := os.ReadFile(".mcp.json")
+			require.NoError(t, readErr)
+			assert.Equal(t, original, string(data), "a refused file must not be modified")
+		})
+	}
+}
+
+// F07: a refusal on a later target must surface during the prepare phase,
+// before the earlier target's file is written.
+func TestPrepareMCPInstallsRefusesBeforeAnyWrite(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	require.NoError(t, os.MkdirAll(".cursor", 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(".cursor", "mcp.json"), []byte("not json"), 0o644))
+
+	paths := map[string]string{
+		"claude-code": ".mcp.json",
+		"cursor":      filepath.Join(".cursor", "mcp.json"),
+	}
+
+	_, err := prepareMCPInstalls([]string{"claude-code", "cursor"}, paths, "hatchet")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid JSON")
+
+	_, statErr := os.Stat(".mcp.json")
+	assert.True(t, os.IsNotExist(statErr), "the first target must not be written when a later target is refused")
+}
+
+// F11: an edit landing between prepare and commit is detected and refused
+// instead of being silently overwritten.
+func TestMCPInstallCommitRefusesConcurrentEdit(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	require.NoError(t, os.WriteFile(".mcp.json", []byte(`{"mcpServers":{}}`), 0o644))
+
+	p, err := prepareMCPInstall("claude-code", ".mcp.json", "hatchet")
+	require.NoError(t, err)
+	defer p.close()
+
+	concurrent := `{"concurrent":true}`
+	require.NoError(t, os.WriteFile(".mcp.json", []byte(concurrent), 0o644))
+
+	err = p.commit()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "changed while installing")
+
+	data, readErr := os.ReadFile(".mcp.json")
+	require.NoError(t, readErr)
+	assert.Equal(t, concurrent, string(data), "the concurrent edit must not be overwritten")
+}
+
+// F10: a hatchet found on PATH inside the current directory (or via a
+// relative PATH entry) is never trusted as the configured command.
+func TestResolveMCPCommandRefusesCwdPATHHit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake PATH executables are not portable to windows")
+	}
+
+	t.Chdir(t.TempDir())
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	binDir := filepath.Join(cwd, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "hatchet"), []byte("#!/bin/sh\n"), 0o755)) // #nosec G306 -- test fixture executable
+
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	// An absolute PATH entry inside the checkout must fall back.
+	t.Setenv("PATH", binDir)
+	assert.Equal(t, exe, resolveMCPCommand())
+
+	// A relative PATH entry resolves with exec.ErrDot and must fall back too.
+	t.Setenv("PATH", "bin")
+	assert.Equal(t, exe, resolveMCPCommand())
 }

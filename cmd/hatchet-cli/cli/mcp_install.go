@@ -1,18 +1,27 @@
 package cli
 
 import (
+	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/pelletier/go-toml/v2/unstable"
 	"github.com/spf13/cobra"
 
 	configcli "github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/mcp"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 )
 
@@ -45,7 +54,7 @@ snippets and add them by hand.`,
   # Also grant profiles, exactly like 'hatchet mcp auth --grant'
   hatchet mcp install --target claude-code --grant local
 
-  # Print the config snippets without writing anything
+  # Print the config snippets without modifying any agent configuration or grants
   hatchet mcp install --print`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runMCPInstall(cmd)
@@ -124,39 +133,64 @@ func runMCPInstall(cmd *cobra.Command) {
 		paths[target] = path
 	}
 
-	for _, target := range targets {
-		created, installErr := installMCPServerConfig(target, paths[target], command)
-		if installErr != nil {
-			configcli.Logger.Fatalf("%v", installErr)
-		}
-
-		verb := "Updated"
-		if created {
-			verb = "Created"
-		}
-		fmt.Println(styles.SuccessMessage(fmt.Sprintf("%s %s (%s)", verb, paths[target], target)))
+	// Two-phase install: prepare (read, merge, refuse) every target and
+	// preflight the grant request before the first write, so a predictable
+	// validation failure cannot leave a partial install behind.
+	prepared, err := prepareMCPInstalls(targets, paths, command)
+	if err != nil {
+		configcli.Logger.Fatalf("%v", err)
 	}
+	defer func() {
+		for _, p := range prepared {
+			p.close()
+		}
+	}()
 
 	store := mcpGrantStore()
-	grants, err := store.Load()
+	var grants *mcp.Grants
+	if len(grantFlags) > 0 {
+		var loadErr error
+		grants, loadErr = store.Load()
+		if loadErr != nil {
+			configcli.Logger.Fatalf("could not load MCP grants: %v", loadErr)
+		}
+		if grantErr := validateMCPGrantProfiles(grantFlags); grantErr != nil {
+			configcli.Logger.Fatalf("%v", grantErr)
+		}
+	}
+
+	written := make([]string, 0, len(prepared))
+	for _, p := range prepared {
+		if commitErr := p.commit(); commitErr != nil {
+			if len(written) > 0 {
+				configcli.Logger.Fatalf("%v (already written: %s)", commitErr, strings.Join(written, ", "))
+			}
+			configcli.Logger.Fatalf("%v", commitErr)
+		}
+		written = append(written, p.path)
+
+		verb := "Updated"
+		if p.created {
+			verb = "Created"
+		}
+		fmt.Println(styles.SuccessMessage(fmt.Sprintf("%s %s (%s)", verb, p.path, p.target)))
+	}
 
 	if len(grantFlags) > 0 {
-		if err != nil {
-			configcli.Logger.Fatalf("could not load MCP grants: %v", err)
-		}
-
 		fmt.Println()
 		runMCPAuthFlags(store, grants, grantFlags, nil)
 
 		return
 	}
 
+	grants, loadErr := store.Load()
+
 	// No grant operation was requested, so the grant state is informational
 	// only: a problem with the grants file must not fail an install whose
 	// configs are already written.
-	if err != nil {
+	if loadErr != nil {
 		fmt.Println()
-		fmt.Println(styles.InfoMessage(fmt.Sprintf("Could not read the MCP grants file (%v). Run 'hatchet mcp auth' to manage grants.", err)))
+		fmt.Println(styles.InfoMessage(fmt.Sprintf("Could not read the MCP grants file (%v). Run 'hatchet mcp auth' to manage grants.", loadErr)))
 		return
 	}
 
@@ -183,6 +217,24 @@ func runMCPInstall(cmd *cobra.Command) {
 		fmt.Println()
 		fmt.Println(styles.InfoMessage("No profiles are granted for MCP use yet. Run 'hatchet mcp auth' to grant some. A running embedded Hatchet instance is usable without a grant."))
 	}
+}
+
+// validateMCPGrantProfiles mirrors the profile check runMCPAuthFlags applies,
+// so an unknown --grant name fails before any config file is written.
+func validateMCPGrantProfiles(grantFlags []string) error {
+	profiles := configcli.Profiles.GetProfiles()
+
+	for _, name := range grantFlags {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name == "" || name == mcp.GrantWildcard {
+			continue
+		}
+		if _, ok := profiles[name]; !ok {
+			return fmt.Errorf("profile '%s' not found; available profiles: %s", name, strings.Join(configcli.Profiles.ListProfiles(), ", "))
+		}
+	}
+
+	return nil
 }
 
 func normalizeMCPInstallTargets(targetFlags []string) ([]string, error) {
@@ -269,8 +321,12 @@ func pathExists(path string) bool {
 // resolveMCPCommand picks the command agents launch. A 'hatchet' found on
 // PATH keeps the config portable so it can be committed; otherwise the
 // absolute path of the current binary is used.
+//
+// A PATH hit inside the current directory is never trusted: agents resolve
+// the configured command from the same directory later, and a checkout-local
+// binary must never be what they launch.
 func resolveMCPCommand() string {
-	if _, err := exec.LookPath("hatchet"); err == nil {
+	if found, err := exec.LookPath("hatchet"); err == nil && mcpCommandOutsideCwd(found) {
 		return "hatchet"
 	}
 
@@ -279,6 +335,36 @@ func resolveMCPCommand() string {
 	}
 
 	return "hatchet"
+}
+
+// mcpCommandOutsideCwd reports whether a LookPath result is an absolute path
+// outside the current working directory. Relative results (including the
+// exec.ErrDot cases) and anything under the checkout are rejected.
+func mcpCommandOutsideCwd(found string) bool {
+	if !filepath.IsAbs(found) {
+		return false
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+
+	if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+		cwd = resolved
+	}
+	if resolved, err := filepath.EvalSymlinks(found); err == nil {
+		found = resolved
+	}
+
+	rel, err := filepath.Rel(cwd, found)
+	if err != nil {
+		// No relative path exists (e.g. different volumes), so the hit
+		// cannot be inside the current directory.
+		return true
+	}
+
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // mcpInstallConfigPath resolves the config file a target uses at the given
@@ -315,27 +401,165 @@ func mcpInstallConfigPath(target string, userScope bool) (string, error) {
 	}
 }
 
-// installMCPServerConfig writes the hatchet server entry into the target's
-// config file, reporting whether the file was created.
-func installMCPServerConfig(target, path, command string) (bool, error) {
-	// A repository checkout can commit a project config path (.mcp.json,
-	// .cursor, .vscode) as a symlink pointing outside the project; refuse to
-	// write through one so installing in an untrusted checkout cannot rewrite
-	// files elsewhere. User-scope paths under the home directory are the
-	// user's own.
-	if !filepath.IsAbs(path) {
-		if err := rejectSymlinkComponents(path); err != nil {
-			return false, err
+// mcpInstallPrepared is one target's install split into two phases: prepare
+// does all reads, merging, and refusals; commit does the only writes. The
+// open root pins the directory tree so every filesystem operation stays
+// inside it.
+type mcpInstallPrepared struct {
+	target  string
+	path    string // as shown to the user
+	root    *os.Root
+	rel     string // path relative to root
+	prior   []byte // bytes read at prepare time; nil when the file was absent
+	merged  []byte
+	mode    os.FileMode
+	created bool
+}
+
+// prepareMCPInstalls runs the prepare phase for every target. Nothing is
+// written; on any error every already-open root is closed and no file has
+// been touched.
+func prepareMCPInstalls(targets []string, paths map[string]string, command string) ([]*mcpInstallPrepared, error) {
+	prepared := make([]*mcpInstallPrepared, 0, len(targets))
+
+	for _, target := range targets {
+		p, err := prepareMCPInstall(target, paths[target], command)
+		if err != nil {
+			for _, q := range prepared {
+				q.close()
+			}
+			return nil, err
+		}
+		prepared = append(prepared, p)
+	}
+
+	return prepared, nil
+}
+
+// prepareMCPInstall reads the target's config through a pinned root and
+// computes the merged content. All refusal errors surface here, before any
+// write.
+func prepareMCPInstall(target, path, command string) (*mcpInstallPrepared, error) {
+	root, rel, err := openMCPConfigRoot(path)
+	if err != nil {
+		return nil, err
+	}
+
+	p := &mcpInstallPrepared{target: target, path: path, root: root, rel: rel, mode: 0o644}
+
+	data, readErr := root.ReadFile(rel)
+	switch {
+	case readErr == nil:
+		p.prior = data
+		if info, statErr := root.Stat(rel); statErr == nil {
+			p.mode = info.Mode().Perm()
+		}
+	case errors.Is(readErr, fs.ErrNotExist):
+		p.created = true
+	default:
+		p.close()
+		return nil, fmt.Errorf("could not read %s: %w", path, readErr)
+	}
+
+	var merged []byte
+	var mergeErr error
+	if target == "codex" {
+		merged, mergeErr = mergeCodexConfig(p.prior, command, path)
+	} else {
+		topKey, entry := mcpServerJSONEntry(target, command)
+		merged, mergeErr = mergeMCPServerJSON(p.prior, topKey, entry, path)
+	}
+	if mergeErr != nil {
+		p.close()
+		return nil, mergeErr
+	}
+	p.merged = merged
+
+	return p, nil
+}
+
+// commit writes the prepared content through the pinned root.
+func (p *mcpInstallPrepared) commit() error {
+	if dir := filepath.Dir(p.rel); dir != "." {
+		if err := p.root.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("could not create %s: %w", dir, err)
 		}
 	}
 
-	if target == "codex" {
-		return writeCodexConfig(path, command)
+	// Best-effort lost-update check, not a transaction: a write landing
+	// between this read and the rename below can still be discarded.
+	current, err := p.root.ReadFile(p.rel)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("could not read %s: %w", p.path, err)
+	}
+	if !bytes.Equal(current, p.prior) {
+		return fmt.Errorf("%s changed while installing; rerun the command", p.path)
 	}
 
-	topKey, entry := mcpServerJSONEntry(target, command)
+	if writeErr := writeFileAtomicInRoot(p.root, p.rel, p.merged, p.mode); writeErr != nil {
+		return fmt.Errorf("could not write %s: %w", p.path, writeErr)
+	}
 
-	return writeMCPServerJSON(path, topKey, entry)
+	return nil
+}
+
+func (p *mcpInstallPrepared) close() {
+	_ = p.root.Close()
+}
+
+// installMCPServerConfig writes the hatchet server entry into the target's
+// config file, reporting whether the file was created.
+func installMCPServerConfig(target, path, command string) (bool, error) {
+	p, err := prepareMCPInstall(target, path, command)
+	if err != nil {
+		return false, err
+	}
+	defer p.close()
+
+	if err := p.commit(); err != nil {
+		return false, err
+	}
+
+	return p.created, nil
+}
+
+// openMCPConfigRoot opens the directory tree a config path may be written
+// under: the current directory for project-scope paths, the home directory
+// for user-scope paths. os.Root enforcement makes the confinement hold even
+// against concurrent symlink swaps.
+func openMCPConfigRoot(path string) (*os.Root, string, error) {
+	if !filepath.IsAbs(path) {
+		// A repository checkout can commit a project config path (.mcp.json,
+		// .cursor, .vscode) as a symlink pointing outside the project. The
+		// root confines the write either way; this pre-check exists to give
+		// the static case a clear error instead of a generic escape failure.
+		if err := rejectSymlinkComponents(path); err != nil {
+			return nil, "", err
+		}
+
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			return nil, "", fmt.Errorf("could not open the current directory: %w", err)
+		}
+		return root, path, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, "", fmt.Errorf("could not resolve the home directory: %w", err)
+	}
+
+	rel, err := filepath.Rel(home, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil, "", fmt.Errorf("%s is outside the home directory %s", path, home)
+	}
+
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not open %s: %w", home, err)
+	}
+
+	return root, rel, nil
 }
 
 // rejectSymlinkComponents fails when any existing component of the relative
@@ -371,35 +595,36 @@ func mcpServerJSONEntry(target, command string) (string, map[string]any) {
 	return "mcpServers", map[string]any{"command": command, "args": mcpServeArgs}
 }
 
-// writeMCPServerJSON adds or replaces only the hatchet entry under topKey;
+// mergeMCPServerJSON adds or replaces only the hatchet entry under topKey;
 // everything else in the file survives so an install can never clobber other
-// servers or unknown keys.
-func writeMCPServerJSON(path, topKey string, entry map[string]any) (bool, error) {
+// servers or unknown keys. Numbers are decoded as json.Number so unrelated
+// values round-trip exactly.
+func mergeMCPServerJSON(prior []byte, topKey string, entry map[string]any, path string) ([]byte, error) {
 	doc := map[string]any{}
-	mode := os.FileMode(0o644)
-	created := false
 
-	data, readErr := os.ReadFile(path) // #nosec G304 -- path is one of a fixed set of well-known local agent config locations
-	switch {
-	case readErr == nil:
-		if info, statErr := os.Stat(path); statErr == nil {
-			mode = info.Mode().Perm()
+	if len(bytes.TrimSpace(prior)) > 0 {
+		dec := json.NewDecoder(bytes.NewReader(prior))
+		dec.UseNumber()
+
+		var parsed any
+		if err := dec.Decode(&parsed); err != nil {
+			return nil, fmt.Errorf("%s contains invalid JSON; fix or remove it and rerun: %v", path, err)
 		}
-		if len(strings.TrimSpace(string(data))) > 0 {
-			if jsonErr := json.Unmarshal(data, &doc); jsonErr != nil {
-				return false, fmt.Errorf("%s contains invalid JSON; fix or remove it and rerun: %v", path, jsonErr)
-			}
+		if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("%s contains more than one JSON document; fix or remove it and rerun", path)
 		}
-	case os.IsNotExist(readErr):
-		created = true
-	default:
-		return false, fmt.Errorf("could not read %s: %w", path, readErr)
+
+		obj, ok := parsed.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("%s does not contain a JSON object; fix or remove it and rerun", path)
+		}
+		doc = obj
 	}
 
 	servers, ok := doc[topKey].(map[string]any)
 	if !ok {
 		if _, exists := doc[topKey]; exists {
-			return false, fmt.Errorf("%s has an unexpected '%s' value; fix or remove it and rerun", path, topKey)
+			return nil, fmt.Errorf("%s has an unexpected '%s' value; fix or remove it and rerun", path, topKey)
 		}
 		servers = map[string]any{}
 	}
@@ -408,34 +633,44 @@ func writeMCPServerJSON(path, topKey string, entry map[string]any) (bool, error)
 
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
-		return false, fmt.Errorf("could not encode %s: %w", path, err)
-	}
-	out = append(out, '\n')
-
-	if dir := filepath.Dir(path); dir != "." {
-		if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
-			return false, fmt.Errorf("could not create %s: %w", dir, mkdirErr)
-		}
+		return nil, fmt.Errorf("could not encode %s: %w", path, err)
 	}
 
-	if writeErr := writeFileAtomic(path, out, mode); writeErr != nil {
-		return false, fmt.Errorf("could not write %s: %w", path, writeErr)
-	}
-
-	return created, nil
+	return append(out, '\n'), nil
 }
 
-// writeFileAtomic writes via a same-directory temp file and rename, so an
-// interruption or write error cannot leave the user's existing config
-// truncated or half-written.
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
+// writeFileAtomicInRoot writes via a same-directory temp file and rename, so
+// an interruption or write error cannot leave the user's existing config
+// truncated or half-written. Every operation goes through the root so a
+// concurrently introduced symlink cannot redirect it.
+func writeFileAtomicInRoot(root *os.Root, path string, data []byte, mode os.FileMode) error {
+	var tmp *os.File
+	var tmpName string
 
-	if err := tmp.Chmod(mode); err != nil { // #nosec G302 G703 -- restoring the config file's own permissions
+	for range 10 {
+		var suffix [4]byte
+		if _, err := rand.Read(suffix[:]); err != nil {
+			return err
+		}
+
+		name := path + ".tmp-" + hex.EncodeToString(suffix[:])
+		f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				continue
+			}
+			return err
+		}
+
+		tmp, tmpName = f, name
+		break
+	}
+	if tmp == nil {
+		return fmt.Errorf("could not create a temporary file next to %s", path)
+	}
+	defer func() { _ = root.Remove(tmpName) }()
+
+	if err := tmp.Chmod(mode); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -447,7 +682,7 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 
-	return os.Rename(tmp.Name(), path)
+	return root.Rename(tmpName, path)
 }
 
 const codexSectionHeader = "[mcp_servers." + mcpServerEntryName + "]"
@@ -464,191 +699,230 @@ func codexServerSection(command string) (string, error) {
 	return codexSectionHeader + "\n" + string(body), nil
 }
 
-// writeCodexConfig adds or replaces the [mcp_servers.hatchet] table in the
-// codex config at path. The rest of the file, including comments, is
-// preserved byte for byte: only the hatchet table itself is rewritten.
-func writeCodexConfig(path, command string) (bool, error) {
+// mergeCodexConfig adds or replaces the [mcp_servers.hatchet] table in the
+// codex config bytes. Source spans owned by the hatchet subtree are located
+// with the TOML parser (decoded keys, byte offsets) and removed, and the
+// fresh table is appended; every untouched span, comments included, is
+// preserved byte for byte.
+func mergeCodexConfig(prior []byte, command, path string) ([]byte, error) {
 	section, err := codexServerSection(command)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	existing := ""
-	mode := os.FileMode(0o644)
-	created := false
-
-	data, readErr := os.ReadFile(path) // #nosec G304 -- path is the well-known codex config location under the home directory
-	switch {
-	case readErr == nil:
-		if info, statErr := os.Stat(path); statErr == nil {
-			mode = info.Mode().Perm()
-		}
-		existing = string(data)
+	if len(prior) > 0 {
 		var doc map[string]any
-		if tomlErr := toml.Unmarshal(data, &doc); tomlErr != nil {
-			return false, fmt.Errorf("%s contains invalid TOML; fix or remove it and rerun: %v", path, tomlErr)
+		if tomlErr := toml.Unmarshal(prior, &doc); tomlErr != nil {
+			return nil, fmt.Errorf("%s contains invalid TOML; fix or remove it and rerun: %v", path, tomlErr)
 		}
-	case os.IsNotExist(readErr):
-		created = true
-	default:
-		return false, fmt.Errorf("could not read %s: %w", path, readErr)
 	}
 
-	merged := replaceCodexSection(existing, section)
-
-	// Never write a config codex cannot parse back.
-	var check map[string]any
-	if err := toml.Unmarshal([]byte(merged), &check); err != nil {
-		return false, fmt.Errorf("could not merge the server entry into %s: %v", path, err)
+	merged, err := spliceCodexConfig(prior, section, path)
+	if err != nil {
+		return nil, err
 	}
 
-	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0o755); mkdirErr != nil {
-		return false, fmt.Errorf("could not create %s: %w", filepath.Dir(path), mkdirErr)
+	if err := verifyCodexMerge(prior, merged, command, path); err != nil {
+		return nil, err
 	}
 
-	if writeErr := writeFileAtomic(path, []byte(merged), mode); writeErr != nil {
-		return false, fmt.Errorf("could not write %s: %w", path, writeErr)
-	}
-
-	return created, nil
+	return merged, nil
 }
 
-// replaceCodexSection splices section into existing: an existing
-// [mcp_servers.hatchet] table (and its subtables) is replaced in place,
-// otherwise the section is appended. Everything else is left untouched.
-func replaceCodexSection(existing, section string) string {
+// codexTopExpr is one top-level TOML expression with its decoded key path and
+// the byte offset of the line it starts on. Its span runs to the start of the
+// next expression, which keeps trailing comments and blank lines attached.
+type codexTopExpr struct {
+	kind      unstable.Kind
+	keys      []string
+	valueKind unstable.Kind
+	start     int
+}
+
+func parseCodexTopExprs(data []byte) ([]codexTopExpr, error) {
+	parser := &unstable.Parser{}
+	parser.Reset(data)
+
+	var exprs []codexTopExpr
+	for parser.NextExpression() {
+		node := parser.Expression()
+
+		switch node.Kind {
+		case unstable.Table, unstable.ArrayTable, unstable.KeyValue:
+		default:
+			continue
+		}
+
+		expr := codexTopExpr{kind: node.Kind, start: -1}
+		it := node.Key()
+		for it.Next() {
+			key := it.Node()
+			if expr.start < 0 {
+				expr.start = lineStart(data, int(key.Raw.Offset))
+			}
+			expr.keys = append(expr.keys, string(key.Data))
+		}
+		if node.Kind == unstable.KeyValue {
+			expr.valueKind = node.Value().Kind
+		}
+		if expr.start < 0 {
+			return nil, fmt.Errorf("expression without a key")
+		}
+
+		exprs = append(exprs, expr)
+	}
+	if err := parser.Error(); err != nil {
+		return nil, err
+	}
+
+	return exprs, nil
+}
+
+// lineStart backs an in-expression byte offset up to the start of its line,
+// so a table header span includes its opening bracket.
+func lineStart(data []byte, offset int) int {
+	if i := bytes.LastIndexByte(data[:offset], '\n'); i >= 0 {
+		return i + 1
+	}
+	return 0
+}
+
+func isHatchetKeyPath(keys []string) bool {
+	return len(keys) >= 2 && keys[0] == "mcp_servers" && keys[1] == mcpServerEntryName
+}
+
+// spliceCodexConfig removes every source span belonging to the exact
+// mcp_servers.hatchet subtree (matching decoded keys, wherever the spans
+// appear in the file) and appends section. Representations that cannot be
+// spliced (inline tables, array of tables) are refused explicitly.
+func spliceCodexConfig(data []byte, section, path string) ([]byte, error) {
 	section = strings.TrimRight(section, "\n") + "\n"
 
-	if strings.TrimSpace(existing) == "" {
-		return section
+	if len(bytes.TrimSpace(data)) == 0 {
+		return []byte(section), nil
 	}
 
-	lines := strings.Split(existing, "\n")
-	start := -1
-	end := len(lines)
+	exprs, err := parseCodexTopExprs(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s contains invalid TOML; fix or remove it and rerun: %v", path, err)
+	}
 
-	hatchetKeys := []string{"mcp_servers", mcpServerEntryName}
+	owned := make([]bool, len(exprs))
+	inHatchet := false
+	var context []string
 
-	for i, line := range lines {
-		keys, array, isHeader := parseTOMLHeaderKeys(line)
-		if start == -1 {
-			if isHeader && !array && tomlKeysEqual(keys, hatchetKeys) {
-				start = i
+	for i, expr := range exprs {
+		switch expr.kind {
+		case unstable.Table:
+			context = expr.keys
+			inHatchet = isHatchetKeyPath(expr.keys)
+			owned[i] = inHatchet
+		case unstable.ArrayTable:
+			if isHatchetKeyPath(expr.keys) {
+				return nil, fmt.Errorf("%s defines mcp_servers.hatchet as an array of tables; edit the file manually to update it", path)
 			}
-			continue
-		}
-		// The table runs until the next header that is not one of its own
-		// subtables. A bracket line that fails to parse is treated as a
-		// boundary so the splice never swallows unrelated content.
-		if strings.HasPrefix(strings.TrimSpace(line), "[") && (!isHeader || len(keys) <= len(hatchetKeys) || !tomlKeysEqual(keys[:len(hatchetKeys)], hatchetKeys)) {
-			end = i
-			break
-		}
-	}
-
-	if start == -1 {
-		return strings.TrimRight(existing, "\n") + "\n\n" + section
-	}
-
-	var b strings.Builder
-	if start > 0 {
-		b.WriteString(strings.Join(lines[:start], "\n"))
-		b.WriteString("\n")
-	}
-	b.WriteString(section)
-
-	rest := strings.Join(lines[end:], "\n")
-	if strings.TrimSpace(rest) != "" {
-		b.WriteString("\n")
-		b.WriteString(strings.TrimLeft(rest, "\n"))
-	}
-
-	return b.String()
-}
-
-// parseTOMLHeaderKeys parses a TOML table header line into its dotted key
-// path. Matching must follow TOML key semantics, not exact text: valid
-// spellings like [mcp_servers."hatchet"] or a trailing comment after the
-// header name the same table. ok is false when the line is not a well-formed
-// header.
-func parseTOMLHeaderKeys(line string) (keys []string, array bool, ok bool) {
-	s := strings.TrimSpace(line)
-	if !strings.HasPrefix(s, "[") {
-		return nil, false, false
-	}
-
-	open, closer := "[", "]"
-	if strings.HasPrefix(s, "[[") {
-		open, closer = "[[", "]]"
-		array = true
-	}
-	s = s[len(open):]
-
-	var seg strings.Builder
-	var quote byte
-	closed := false
-	i := 0
-
-scan:
-	for ; i < len(s); i++ {
-		c := s[i]
-		if quote != 0 {
-			if c == quote {
-				quote = 0
-			} else {
-				seg.WriteByte(c)
+			context = expr.keys
+			inHatchet = false
+		case unstable.KeyValue:
+			if inHatchet {
+				owned[i] = true
+				continue
 			}
+
+			effective := make([]string, 0, len(context)+len(expr.keys))
+			effective = append(effective, context...)
+			effective = append(effective, expr.keys...)
+
+			if expr.valueKind == unstable.InlineTable {
+				if len(effective) == 1 && effective[0] == "mcp_servers" {
+					return nil, fmt.Errorf("%s defines mcp_servers as an inline table; edit the file manually to add the hatchet entry", path)
+				}
+				if len(effective) == 2 && isHatchetKeyPath(effective) {
+					return nil, fmt.Errorf("%s defines mcp_servers.hatchet as an inline table; edit the file manually to update it", path)
+				}
+			}
+
+			if isHatchetKeyPath(effective) {
+				owned[i] = true
+			}
+		}
+	}
+
+	var rest bytes.Buffer
+	prev := 0
+	for i, expr := range exprs {
+		if !owned[i] {
 			continue
 		}
 
-		switch c {
-		case '"', '\'':
-			quote = c
-		case '.':
-			keys = append(keys, strings.TrimSpace(seg.String()))
-			seg.Reset()
-		case ']':
-			if !strings.HasPrefix(s[i:], closer) {
-				return nil, false, false
-			}
-			closed = true
-			i += len(closer)
-			break scan
-		default:
-			seg.WriteByte(c)
+		end := len(data)
+		if i+1 < len(exprs) {
+			end = exprs[i+1].start
+		}
+		if expr.start > prev {
+			rest.Write(data[prev:expr.start])
+		}
+		if end > prev {
+			prev = end
 		}
 	}
+	rest.Write(data[prev:])
 
-	if !closed || quote != 0 {
-		return nil, false, false
+	remainder := rest.String()
+	if strings.TrimSpace(remainder) == "" {
+		return []byte(section), nil
 	}
 
-	// Only whitespace or a comment may follow the header.
-	if rest := strings.TrimSpace(s[i:]); rest != "" && !strings.HasPrefix(rest, "#") {
-		return nil, false, false
-	}
-
-	keys = append(keys, strings.TrimSpace(seg.String()))
-	for _, key := range keys {
-		if key == "" {
-			return nil, false, false
-		}
-	}
-
-	return keys, array, true
+	return []byte(strings.TrimRight(remainder, "\n") + "\n\n" + section), nil
 }
 
-func tomlKeysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+// verifyCodexMerge is the safety net that turns any remaining splice bug into
+// a refusal: apart from the mcp_servers.hatchet subtree the merged document
+// must parse to exactly the original, and the subtree must be exactly the
+// configured entry. Nothing is written when this fails.
+func verifyCodexMerge(original, merged []byte, command, path string) error {
+	var before, after map[string]any
+	if err := toml.Unmarshal(original, &before); err != nil {
+		return fmt.Errorf("%s contains invalid TOML; fix or remove it and rerun: %v", path, err)
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
+	if err := toml.Unmarshal(merged, &after); err != nil {
+		return fmt.Errorf("could not merge the server entry into %s: %v", path, err)
+	}
+	if before == nil {
+		before = map[string]any{}
+	}
+	if after == nil {
+		after = map[string]any{}
 	}
 
-	return true
+	servers, _ := after["mcp_servers"].(map[string]any)
+	entry, _ := servers[mcpServerEntryName].(map[string]any)
+	wantArgs := make([]any, len(mcpServeArgs))
+	for i, arg := range mcpServeArgs {
+		wantArgs[i] = arg
+	}
+	if !reflect.DeepEqual(entry, map[string]any{"command": command, "args": wantArgs}) {
+		return fmt.Errorf("could not safely update %s; edit the file manually to add the hatchet entry", path)
+	}
+
+	stripCodexHatchet(before)
+	stripCodexHatchet(after)
+	if !reflect.DeepEqual(before, after) {
+		return fmt.Errorf("could not safely update %s; edit the file manually to add the hatchet entry", path)
+	}
+
+	return nil
+}
+
+func stripCodexHatchet(doc map[string]any) {
+	servers, ok := doc["mcp_servers"].(map[string]any)
+	if !ok {
+		return
+	}
+	delete(servers, mcpServerEntryName)
+	if len(servers) == 0 {
+		delete(doc, "mcp_servers")
+	}
 }
 
 func mcpInstallPrint(targets []string, userScope bool, command string) (string, error) {

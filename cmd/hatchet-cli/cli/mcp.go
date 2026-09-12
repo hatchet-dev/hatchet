@@ -99,7 +99,7 @@ func init() {
 	mcpInstallCmd.Flags().StringSlice("target", nil, "Targets to configure, comma-separated (claude-code, cursor, vscode, codex); skips the interactive prompt")
 	mcpInstallCmd.Flags().Bool("user", false, "Write user-scope configuration where supported (cursor)")
 	mcpInstallCmd.Flags().StringSlice("grant", nil, "Profiles to grant for MCP use, comma-separated ('*' grants all profiles, including future ones)")
-	mcpInstallCmd.Flags().Bool("print", false, "Print the config snippets to stdout without writing any files")
+	mcpInstallCmd.Flags().Bool("print", false, "Print the config snippets to stdout without modifying any agent configuration or grants")
 }
 
 // mcpEngineFactory builds the MCP Engine for a resolved profile. Client
