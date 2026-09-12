@@ -99,6 +99,7 @@ import {
   V1CancelTaskRequest,
   V1CancelledTasks,
   V1CreateFilterRequest,
+  V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
   V1DurableEventLogList,
@@ -114,6 +115,9 @@ import {
   V1ReplayedTasks,
   V1RestoreTaskResponse,
   V1RunningFilter,
+  V1ServerlessEndpoint,
+  V1ServerlessEndpointList,
+  V1ServerlessTenantSettings,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -123,6 +127,8 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
+  V1UpdateServerlessEndpointRequest,
+  V1UpdateServerlessTenantSettingsRequest,
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
@@ -1225,6 +1231,159 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1Webhook, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the serverless endpoints of a tenant.
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointList
+   * @summary List serverless endpoints
+   * @request GET:/api/v1/stable/tenants/{tenant}/serverless/endpoints
+   * @secure
+   */
+  v1ServerlessEndpointList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpointList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/endpoints`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Create a serverless endpoint
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointCreate
+   * @summary Create a serverless endpoint
+   * @request POST:/api/v1/stable/tenants/{tenant}/serverless/endpoints
+   * @secure
+   */
+  v1ServerlessEndpointCreate = (
+    tenant: string,
+    data: V1CreateServerlessEndpointRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/endpoints`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a serverless endpoint by its id
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointGet
+   * @summary Get a serverless endpoint
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
+   * @secure
+   */
+  v1ServerlessEndpointGet = (v1ServerlessEndpoint: string, params: RequestParams = {}) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Update a serverless endpoint
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointUpdate
+   * @summary Update a serverless endpoint
+   * @request PATCH:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
+   * @secure
+   */
+  v1ServerlessEndpointUpdate = (
+    v1ServerlessEndpoint: string,
+    data: V1UpdateServerlessEndpointRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a serverless endpoint
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointDelete
+   * @summary Delete a serverless endpoint
+   * @request DELETE:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
+   * @secure
+   */
+  v1ServerlessEndpointDelete = (v1ServerlessEndpoint: string, params: RequestParams = {}) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
+      method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the serverless settings of a tenant
+   *
+   * @tags Serverless
+   * @name V1ServerlessTenantGet
+   * @summary Get serverless settings
+   * @request GET:/api/v1/stable/tenants/{tenant}/serverless/settings
+   * @secure
+   */
+  v1ServerlessTenantGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<V1ServerlessTenantSettings, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/settings`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Update the serverless settings of a tenant
+   *
+   * @tags Serverless
+   * @name V1ServerlessTenantUpdate
+   * @summary Update serverless settings
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/serverless/settings
+   * @secure
+   */
+  v1ServerlessTenantUpdate = (
+    tenant: string,
+    data: V1UpdateServerlessTenantSettingsRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessTenantSettings, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/settings`,
       method: 'PATCH',
       body: data,
       secure: true,

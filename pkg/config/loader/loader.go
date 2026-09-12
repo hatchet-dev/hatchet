@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -188,66 +187,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		_ = os.Setenv("DATABASE_URL", databaseUrl)
 	}
 
-	pgxpoolConnAfterConnect := func(ctx context.Context, conn *pgx.Conn) error {
-		// Set timezone to UTC for all connections
-		if _, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'"); err != nil {
-			return err
-		}
-
-		// ref: https://github.com/jackc/pgx/issues/1549
-		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
-		if err != nil {
-			return err
-		}
-
-		conn.TypeMap().RegisterType(t)
-
-		t, err = conn.LoadType(ctx, "_v1_readable_status_olap")
-		if err != nil {
-			return err
-		}
-
-		conn.TypeMap().RegisterType(t)
-
-		t, err = conn.LoadType(ctx, "v1_log_line_level")
-		if err != nil {
-			return err
-		}
-
-		conn.TypeMap().RegisterType(t)
-
-		t, err = conn.LoadType(ctx, "_v1_log_line_level")
-		if err != nil {
-			return err
-		}
-
-		conn.TypeMap().RegisterType(t)
-
-		if uuidType, ok := conn.TypeMap().TypeForName("uuid"); ok {
-			var uuidrangeOID uint32
-			err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID)
-			if err != nil && err != pgx.ErrNoRows {
-				return fmt.Errorf("loading uuidrange oid: %w", err)
-			}
-			if err == nil {
-				conn.TypeMap().RegisterType(&pgtype.Type{
-					Name:  "uuidrange",
-					OID:   uuidrangeOID,
-					Codec: &pgtype.RangeCodec{ElementType: uuidType},
-				})
-			}
-		}
-
-		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
-		if err != nil {
-			return err
-		}
-
-		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
-
-		return err
-	}
-
 	// Determine which URL the main pool should use:
 	// - If DATABASE_PGBOUNCER_URL is set, main pool connects through pgbouncer
 	// - Otherwise, main pool connects directly via DATABASE_URL
@@ -266,34 +205,23 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		appName = cf.ApplicationNamePrefix + ":" + appName
 	}
 
-	config, err := pgxpool.ParseConfig(mainPoolUrl)
+	config, err := NewPgxPoolConfig(mainPoolUrl, PgxPoolOpts{
+		ApplicationName: appName,
+		MaxConns:        int32(cf.MaxConns), // nolint: gosec
+		MinConns:        int32(cf.MinConns), // nolint: gosec
+		MaxConnLifetime: cf.MaxConnLifetime,
+		MaxConnIdleTime: cf.MaxConnIdleTime,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	setPgxApplicationName(config, appName)
-
-	config.AfterConnect = pgxpoolConnAfterConnect
 
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger:   pgxzero.NewLogger(l),
 			LogLevel: tracelog.LogLevelDebug,
 		}
-	} else {
-		config.ConnConfig.Tracer = newOTelPgxTracer()
 	}
-
-	if cf.MaxConns != 0 {
-		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
-	}
-
-	if cf.MinConns != 0 {
-		config.MinConns = int32(cf.MinConns) // nolint: gosec
-	}
-
-	config.MaxConnLifetime = cf.MaxConnLifetime
-	config.MaxConnIdleTime = cf.MaxConnIdleTime
 
 	// Check database instance timezone if enforcement is enabled
 	if cf.EnforceUTCTimezone {
@@ -331,25 +259,17 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("read replica database url is required if read replica is enabled")
 		}
 
-		readReplicaConfig, err := pgxpool.ParseConfig(cf.ReadReplicaDatabaseURL)
+		readReplicaConfig, err := NewPgxPoolConfig(cf.ReadReplicaDatabaseURL, PgxPoolOpts{
+			ApplicationName: appName + ":read-replica",
+			MaxConns:        int32(cf.ReadReplicaMaxConns), // nolint: gosec
+			MinConns:        int32(cf.ReadReplicaMinConns), // nolint: gosec
+			MaxConnLifetime: cf.MaxConnLifetime,
+			MaxConnIdleTime: cf.MaxConnIdleTime,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
-
-		setPgxApplicationName(readReplicaConfig, appName+":read-replica")
-
-		if cf.ReadReplicaMaxConns != 0 {
-			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
-		}
-
-		if cf.ReadReplicaMinConns != 0 {
-			readReplicaConfig.MinConns = int32(cf.ReadReplicaMinConns) // nolint: gosec
-		}
-
-		readReplicaConfig.MaxConnLifetime = cf.MaxConnLifetime
-		readReplicaConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-		readReplicaConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
 		// Check read replica database instance timezone if enforcement is enabled
 		if cf.EnforceUTCTimezone {
@@ -357,8 +277,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 				return nil, err
 			}
 		}
-
-		readReplicaConfig.AfterConnect = pgxpoolConnAfterConnect
 
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
 
@@ -370,19 +288,16 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	// Create a separate direct pool using DATABASE_URL for DDL operations. These operations are
 	// critical and cannot use the main pool if it's routed through pgbouncer, so a separate pool
 	// is justified.
-	ddlConfig, err := pgxpool.ParseConfig(databaseUrl)
+	ddlConfig, err := NewPgxPoolConfig(databaseUrl, PgxPoolOpts{
+		ApplicationName: appName + ":ddl",
+		MaxConns:        int32(cf.DDLPoolMaxConns), // nolint: gosec
+		MinConns:        int32(cf.DDLPoolMinConns), // nolint: gosec
+		MaxConnLifetime: cf.MaxConnLifetime,
+		MaxConnIdleTime: cf.MaxConnIdleTime,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
-
-	setPgxApplicationName(ddlConfig, appName+":ddl")
-
-	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
-	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
-	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
-	ddlConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-	ddlConfig.AfterConnect = pgxpoolConnAfterConnect
-	ddlConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
 	ddlPool, err := pgxpool.NewWithConfig(context.Background(), ddlConfig)
 	if err != nil {
@@ -1150,6 +1065,63 @@ func getStrArr(v string) []string {
 	return strings.Split(v, " ")
 }
 
+// LoadDataEncryptionSvc builds an encryption service for data at rest only, from the master
+// keyset or the CloudKMS settings, without the JWT keysets LoadEncryptionSvc also requires. It
+// is for processes that encrypt and decrypt database columns but never mint or verify tokens,
+// such as the out-of-process serverless operator; the service's JWT handles are nil.
+func LoadDataEncryptionSvc(cf *server.EncryptionConfigFile) (encryption.EncryptionService, error) {
+	hasLocalMasterKeyset := cf.MasterKeyset != "" || cf.MasterKeysetFile != ""
+	isCloudKMSEnabled := cf.CloudKMS.Enabled
+
+	if !hasLocalMasterKeyset && !isCloudKMSEnabled {
+		return nil, fmt.Errorf("encryption is required")
+	}
+
+	if hasLocalMasterKeyset && isCloudKMSEnabled {
+		return nil, fmt.Errorf("cannot use both encryption and cloud kms")
+	}
+
+	if isCloudKMSEnabled {
+		encryptionSvc, err := encryption.NewCloudKMSDataEncryption(cf.CloudKMS.KeyURI, []byte(cf.CloudKMS.CredentialsJSON))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
+		}
+
+		return encryptionSvc, nil
+	}
+
+	masterKeyset, err := loadMasterKeyset(cf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	encryptionSvc, err := encryption.NewLocalDataEncryption(masterKeyset)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
+	}
+
+	return encryptionSvc, nil
+}
+
+// loadMasterKeyset returns the local master keyset, reading it from MasterKeysetFile when that
+// is set and from MasterKeyset otherwise.
+func loadMasterKeyset(cf *server.EncryptionConfigFile) ([]byte, error) {
+	if cf.MasterKeysetFile != "" {
+		masterKeysetBytes, err := loaderutils.GetFileBytes(cf.MasterKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load master keyset file: %w", err)
+		}
+
+		return masterKeysetBytes, nil
+	}
+
+	return []byte(cf.MasterKeyset), nil
+}
+
 func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
 	var err error
 
@@ -1198,20 +1170,14 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	var encryptionSvc encryption.EncryptionService
 
 	if hasLocalMasterKeyset {
-		masterKeyset := cf.Encryption.MasterKeyset
+		masterKeyset, err := loadMasterKeyset(&cf.Encryption)
 
-		if cf.Encryption.MasterKeysetFile != "" {
-			masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not load master keyset file: %w", err)
-			}
-
-			masterKeyset = string(masterKeysetBytes)
+		if err != nil {
+			return nil, err
 		}
 
 		encryptionSvc, err = encryption.NewLocalEncryption(
-			[]byte(masterKeyset),
+			masterKeyset,
 			[]byte(privateJWT),
 			[]byte(publicJWT),
 		)

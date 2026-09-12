@@ -1886,6 +1886,48 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 	return string(ns.V1RunKind), nil
 }
 
+type V1ServerlessEndpointKind string
+
+const (
+	V1ServerlessEndpointKindGENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
+	V1ServerlessEndpointKindCLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+)
+
+func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1ServerlessEndpointKind(s)
+	case string:
+		*e = V1ServerlessEndpointKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1ServerlessEndpointKind struct {
+	V1ServerlessEndpointKind V1ServerlessEndpointKind `json:"v1_serverless_endpoint_kind"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1ServerlessEndpointKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1ServerlessEndpointKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1ServerlessEndpointKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1ServerlessEndpointKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1ServerlessEndpointKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1ServerlessEndpointKind), nil
+}
+
 type V1StatusKind string
 
 const (
@@ -3788,6 +3830,52 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+}
+
+type V1ServerlessEndpoint struct {
+	ID                    uuid.UUID                `json:"id"`
+	TenantID              uuid.UUID                `json:"tenant_id"`
+	Name                  string                   `json:"name"`
+	Namespace             uuid.UUID                `json:"namespace"`
+	Kind                  V1ServerlessEndpointKind `json:"kind"`
+	HealthcheckUrl        string                   `json:"healthcheck_url"`
+	TriggerUrl            string                   `json:"trigger_url"`
+	SigningSecretEnc      string                   `json:"signing_secret_enc"`
+	RequestTimeoutSeconds int32                    `json:"request_timeout_seconds"`
+	PollIntervalSeconds   int32                    `json:"poll_interval_seconds"`
+	InlineWaitBudgetMs    int32                    `json:"inline_wait_budget_ms"`
+	Labels                []byte                   `json:"labels"`
+	Enabled               bool                     `json:"enabled"`
+	Shard                 int32                    `json:"shard"`
+	Healthy               pgtype.Bool              `json:"healthy"`
+	StatusError           pgtype.Text              `json:"status_error"`
+	StatusChangedAt       pgtype.Timestamptz       `json:"status_changed_at"`
+	RegisteredActions     []string                 `json:"registered_actions"`
+	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
+}
+
+type V1ServerlessLease struct {
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	Shard         int32              `json:"shard"`
+	ProcessID     *uuid.UUID         `json:"process_id"`
+	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
+	EndpointCount int32              `json:"endpoint_count"`
+}
+
+type V1ServerlessProcess struct {
+	ProcessID     uuid.UUID          `json:"process_id"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	UnitCount     int32              `json:"unit_count"`
+	EndpointCount int32              `json:"endpoint_count"`
+	Hostname      pgtype.Text        `json:"hostname"`
+	Version       pgtype.Text        `json:"version"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1ServerlessTenant struct {
+	TenantID   uuid.UUID `json:"tenant_id"`
+	ShardCount int32     `json:"shard_count"`
 }
 
 type V1StatusesOlap struct {

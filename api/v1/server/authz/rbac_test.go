@@ -73,6 +73,10 @@ var memberOnlyOps = []string{
 	"WorkflowCronUpdate",
 	"WorkflowCronTrigger",
 	"WorkflowScheduledTrigger",
+	"V1ServerlessEndpointCreate",
+	"V1ServerlessEndpointUpdate",
+	"V1ServerlessEndpointDelete",
+	"V1ServerlessTenantUpdate",
 }
 
 func operationIdsFromSpec() []string {

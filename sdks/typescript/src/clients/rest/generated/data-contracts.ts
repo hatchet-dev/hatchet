@@ -236,6 +236,12 @@ export enum V1CELDebugResponseStatus {
   ERROR = 'ERROR',
 }
 
+/** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+export enum V1ServerlessEndpointKind {
+  GENERIC_HTTP = 'GENERIC_HTTP',
+  CLOUDFLARE_WORKERS = 'CLOUDFLARE_WORKERS',
+}
+
 export enum V1WebhookHMACEncoding {
   HEX = 'HEX',
   BASE64 = 'BASE64',
@@ -1243,6 +1249,163 @@ export interface V1UpdateWebhookRequest {
   staticPayload?: object;
   /** Whether to return the triggered event as the response payload when this webhook is triggered */
   returnEventAsResponsePayload?: boolean;
+}
+
+/** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+export interface V1ServerlessEndpointStatus {
+  /** Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once. */
+  healthy?: boolean;
+  /** The error from the last failed healthcheck, if the endpoint is unhealthy. */
+  error?: string;
+  /**
+   * When the healthy flag last changed.
+   * @format date-time
+   */
+  changedAt?: string;
+  /** The namespaced action ids the operator registered for this endpoint from its last healthcheck. */
+  registeredActions: string[];
+}
+
+export interface V1ServerlessEndpoint {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the tenant that owns this endpoint.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The name of the endpoint. Unique within the tenant. */
+  name: string;
+  /**
+   * The prefix applied to everything this endpoint registers (workflows, actions, events), as "<namespace>_". Read-only: assigned on creation and immutable.
+   * @format uuid
+   */
+  namespace: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds: number;
+  /**
+   * How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs: number;
+  /** Worker labels applied to the connection-backed worker the operator creates for this endpoint. */
+  labels: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled: boolean;
+  /** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+  status: V1ServerlessEndpointStatus;
+}
+
+export interface V1ServerlessEndpointList {
+  pagination?: PaginationResponse;
+  rows?: V1ServerlessEndpoint[];
+}
+
+export interface V1CreateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
+  name: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
+  /**
+   * The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
+   * @minLength 32
+   */
+  signingSecret: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds. Defaults to 30.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. Defaults to true. */
+  enabled?: boolean;
+}
+
+/** Fields to update on a serverless endpoint. Omitted fields are left unchanged. */
+export interface V1UpdateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
+  name?: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl?: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl?: string;
+  /**
+   * A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
+   * @minLength 32
+   */
+  signingSecret?: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled?: boolean;
+}
+
+export interface V1ServerlessTenantSettings {
+  /**
+   * The ID of the tenant these settings belong to.
+   * @format uuid
+   */
+  tenantId: string;
+  /**
+   * The number of shards the tenant's endpoints are spread across. Each shard is a lease unit that one operator process owns, so a count above 1 lets a hot tenant be served by several processes. Existing endpoints keep their shard; only new endpoints hash over the new count.
+   * @format int32
+   */
+  shardCount: number;
+}
+
+export interface V1UpdateServerlessTenantSettingsRequest {
+  /**
+   * The number of shards to spread the tenant's endpoints across.
+   * @format int32
+   * @min 1
+   * @max 64
+   */
+  shardCount: number;
 }
 
 export interface V1CELDebugRequest {

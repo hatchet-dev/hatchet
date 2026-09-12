@@ -192,6 +192,7 @@ tasks:
       - task: install-dependencies
       - task: generate-api
       - task: generate-proto
+      - task: generate-serverless-proto
       - task: generate-sqlc
       - task: generate-docs
       - task: generate-sdk-docs
@@ -262,6 +263,12 @@ tasks:
   generate-proto:
     cmds:
       - bash ./hack/proto/proto.sh
+  generate-serverless-proto:
+    desc: Regenerate the TypeScript bindings for the serverless wire contract
+    dir: sdks/typescript-serverless
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm run generate-proto
   generate-proto-python:
     dir: ./python-sdk
     cmds:

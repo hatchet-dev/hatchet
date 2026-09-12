@@ -1,0 +1,27 @@
+# Hatchet serverless endpoint on Cloudflare Workers.
+#
+# name, main and compatibility_date are the three required keys
+# (https://developers.cloudflare.com/workers/wrangler/configuration/).
+name = "hatchet-serverless-example"
+main = "src/index.ts"
+
+# Any date up to today; pins the Workers runtime behaviour this code was written against.
+compatibility_date = "2025-09-01"
+
+# The signing secret is NOT configured here. Set it as a Worker secret so it never lands in
+# source control:
+#
+#   wrangler secret put HATCHET_SIGNING_SECRET
+#
+# The same value goes into the endpoint's `signingSecret` when it is created in Hatchet.
+
+[limits]
+# CPU time per invocation, in milliseconds. The default on the Workers Paid plan is 30 s; the
+# maximum is 300000 (5 minutes) and it requires the Paid plan with the Standard usage model.
+# Durable tasks spend their waits evicted (not burning CPU), so this is a ceiling for the
+# work the task itself does, not for how long a run lasts.
+cpu_ms = 300000
+
+[observability]
+# Lets `wrangler tail` and the dashboard show console.log output from the Worker.
+enabled = true

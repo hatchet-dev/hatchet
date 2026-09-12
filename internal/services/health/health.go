@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -22,6 +23,16 @@ type Health struct {
 	repository v1.HealthRepository
 	queue      msgqueue.MessageQueue
 	l          *zerolog.Logger
+
+	checksMu sync.RWMutex
+	checks   []readinessCheck
+}
+
+// readinessCheck is a named condition the readiness probe requires in addition to the queue
+// and the repository.
+type readinessCheck struct {
+	name  string
+	ready func() bool
 }
 
 func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
@@ -35,6 +46,30 @@ func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, 
 
 func (h *Health) SetShuttingDown(shuttingDown bool) {
 	h.shuttingDown = shuttingDown
+}
+
+// AddReadinessCheck adds a named condition /ready requires, for a service that starts after
+// the health server (the in-engine serverless operator). While the check reports false the
+// probe answers 503 and logs the check's name; /live is not affected.
+func (h *Health) AddReadinessCheck(name string, ready func() bool) {
+	h.checksMu.Lock()
+	defer h.checksMu.Unlock()
+
+	h.checks = append(h.checks, readinessCheck{name: name, ready: ready})
+}
+
+// failedReadinessCheck returns the name of the first added check that reports not ready.
+func (h *Health) failedReadinessCheck() (string, bool) {
+	h.checksMu.RLock()
+	defer h.checksMu.RUnlock()
+
+	for _, check := range h.checks {
+		if !check.ready() {
+			return check.name, true
+		}
+	}
+
+	return "", false
 }
 
 func (h *Health) Start(port int) (func() error, error) {
@@ -62,10 +97,11 @@ func (h *Health) Start(port int) (func() error, error) {
 
 		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.IsHealthy(ctx)
+		failedCheck, checkFailed := h.failedReadinessCheck()
 
-		if h.shuttingDown || !queueReady || !repositoryReady {
+		if h.shuttingDown || !queueReady || !repositoryReady || checkFailed {
 			if !h.shuttingDown {
-				h.l.Error().Ctx(ctx).Msgf("readiness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
+				h.l.Error().Ctx(ctx).Msgf("readiness check failed - queue ready: %t, repository ready: %t, failed check: %q", queueReady, repositoryReady, failedCheck)
 			}
 
 			w.WriteHeader(http.StatusServiceUnavailable)

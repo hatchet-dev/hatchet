@@ -38,6 +38,14 @@ protoc --proto_path=api-contracts --proto_path=api-contracts/dispatcher \
     --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
     v1/operator.proto
 
+# v1/serverless.proto references .AssignedAction from the same package-less file.
+protoc --proto_path=api-contracts --proto_path=api-contracts/dispatcher \
+    --go_out=./internal/services/shared/proto/v1 \
+    --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    --go-grpc_out=./internal/services/shared/proto/v1 \
+    --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    v1/serverless.proto
+
 protoc --proto_path=api-contracts/dispatcher --go_out=./internal/services/dispatcher/contracts --go_opt=paths=source_relative \
     --go-grpc_out=./internal/services/dispatcher/contracts --go-grpc_opt=paths=source_relative \
     dispatcher.proto
