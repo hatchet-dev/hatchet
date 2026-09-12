@@ -182,7 +182,7 @@ func (t *sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	cookies, fromCache, sessionErr := t.sessionCookies(req)
 	if sessionErr != nil {
 		// Leave the original auth failure untouched: the dashboard falls back
-		// to its login screen and the printed credentials still work.
+		// to its login screen and the seeded admin credentials still work.
 		return resp, nil
 	}
 
@@ -353,7 +353,7 @@ func (t *sessionTransport) loginLocked(req *http.Request) ([]*http.Cookie, error
 	cookies, err := t.login(req)
 	if err != nil {
 		t.lastErr = err
-		t.logf("could not sign the dashboard in automatically (sign in manually with the printed credentials): %v", err)
+		t.logf("could not sign the dashboard in automatically (sign in manually with the seeded admin credentials): %v", err)
 
 		return nil, err
 	}

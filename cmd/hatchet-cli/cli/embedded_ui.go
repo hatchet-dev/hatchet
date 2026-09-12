@@ -579,9 +579,10 @@ func uiStartedView(localURL, targetURL, profileName string, creds adminCredentia
 	}
 	lines = append(lines, styles.KeyValue("API server", targetURL))
 	lines = append(lines, "")
-	lines = append(lines, styles.Muted.Render(fmt.Sprintf("The dashboard signs in automatically as '%s'.", creds.email)))
 	if creds.isDefault {
-		lines = append(lines, styles.Muted.Render(fmt.Sprintf("Admin credentials: email '%s', password '%s'", creds.email, creds.password)))
+		lines = append(lines, styles.Muted.Render("The dashboard signs in automatically as the seeded admin user (the documented embedded defaults; override with ADMIN_EMAIL and ADMIN_PASSWORD)."))
+	} else {
+		lines = append(lines, styles.Muted.Render("The dashboard signs in automatically using the ADMIN_EMAIL and ADMIN_PASSWORD environment variables."))
 	}
 	lines = append(lines, styles.Muted.Render("Press Ctrl+C to stop."))
 
