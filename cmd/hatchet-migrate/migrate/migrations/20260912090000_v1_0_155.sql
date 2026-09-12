@@ -4,9 +4,6 @@
 -- same transaction, and the backfills below use the values this file adds, so the statements
 -- have to commit one at a time. The cost is that a failure part way through leaves the earlier
 -- statements applied; undo them by hand with the Down section before re-running.
---
--- The goose id is fifteen digits because main's 202609101223115_v1_0_153.sql is, and a version
--- has to sort after every applied one or goose refuses it as a missing migration.
 
 -- +goose Up
 
