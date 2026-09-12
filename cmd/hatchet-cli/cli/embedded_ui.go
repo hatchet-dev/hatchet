@@ -15,6 +15,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +34,13 @@ var uiCmd = &cobra.Command{
 	Long: `Serve the Hatchet dashboard UI for an embedded Hatchet instance. Embedded
 instances run inside your application and do not ship a frontend; this command
 serves the UI bundled in the CLI binary and proxies API requests to the
-instance's API server. Access is protected by a one-time token in the opened URL.`,
+instance's API server. Access is protected by a token in the opened URL, which
+stays valid while the command runs.
+
+The dashboard is signed in automatically as the embedded instance's seeded
+admin user, so no login is required. If the instance was seeded with custom
+admin credentials, set the same ADMIN_EMAIL and ADMIN_PASSWORD environment
+variables for this command.`,
 	Example: `  # Serve the UI for an embedded instance's API server
   hatchet embedded-ui --api-url http://localhost:8080
 
@@ -64,7 +71,9 @@ func runUI(cmd *cobra.Command) {
 		configcli.Logger.Fatalf("%v", err)
 	}
 
-	handler, err := newUIHandler(target, insecureSkipVerify)
+	creds := resolveAdminCredentials()
+
+	handler, err := newUIHandler(target, insecureSkipVerify, creds)
 	if err != nil {
 		configcli.Logger.Fatalf("could not build UI server: %v", err)
 	}
@@ -79,11 +88,12 @@ func runUI(cmd *cobra.Command) {
 		configcli.Logger.Fatalf("could not generate access token: %v", err)
 	}
 
-	localURL := fmt.Sprintf("http://%s:%d", browserHost(host), listener.Addr().(*net.TCPAddr).Port)
+	boundPort := listener.Addr().(*net.TCPAddr).Port
+	localURL := fmt.Sprintf("http://%s:%d", browserHost(host), boundPort)
 	tokenURL := localURL + "/?ui_token=" + token
 
 	server := &http.Server{
-		Handler:           tokenGate(token, handler),
+		Handler:           originGate(allowedUIHosts(host, boundPort), tokenGate(token, handler)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -94,7 +104,7 @@ func runUI(cmd *cobra.Command) {
 		}
 	}()
 
-	fmt.Println(uiStartedView(tokenURL, target.String(), profileName))
+	fmt.Println(uiStartedView(tokenURL, target.String(), profileName, creds))
 
 	if !noOpen {
 		openBrowser(tokenURL)
@@ -210,6 +220,89 @@ func tokenGate(token string, next http.Handler) http.Handler {
 	})
 }
 
+// allowedUIHosts returns the Host header values (host:port) this listener
+// serves. A loopback or wildcard bind is reachable via the loopback names; a
+// custom --host is additionally reachable via that host.
+func allowedUIHosts(bindHost string, port int) map[string]struct{} {
+	hosts := map[string]struct{}{}
+	add := func(h string) {
+		hosts[strings.ToLower(net.JoinHostPort(h, strconv.Itoa(port)))] = struct{}{}
+	}
+
+	trimmed := strings.Trim(bindHost, "[]")
+	ip := net.ParseIP(trimmed)
+	loopback := bindHost == "" || bindHost == "localhost" || (ip != nil && (ip.IsLoopback() || ip.IsUnspecified()))
+
+	if loopback {
+		add("localhost")
+		add("127.0.0.1")
+		add("::1")
+	}
+
+	if bindHost != "" && bindHost != "localhost" {
+		add(trimmed)
+	}
+
+	return hosts
+}
+
+// hostAllowed reports whether a Host header (or origin host) names this
+// listener. A missing port defaults to 80, the plain-HTTP default.
+func hostAllowed(allowed map[string]struct{}, hostport string) bool {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host, port = hostport, "80"
+	}
+
+	host = strings.Trim(host, "[]")
+	if host == "" {
+		return false
+	}
+
+	_, ok := allowed[strings.ToLower(net.JoinHostPort(host, port))]
+
+	return ok
+}
+
+// originAllowed reports whether an Origin header value is this UI's own
+// origin. The UI is only ever served over plain HTTP, so any other scheme
+// (including the literal "null") is rejected.
+func originAllowed(allowed map[string]struct{}, origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme != "http" || u.Host == "" {
+		return false
+	}
+
+	return hostAllowed(allowed, u.Host)
+}
+
+// originGate rejects requests whose Host is not an address this listener
+// serves, and unsafe browser requests from another origin. SameSite cookies
+// do not isolate loopback ports, so without these checks untrusted content on
+// another local port could drive state-changing requests that carry the
+// ui-token cookie. Requests without an Origin header pass: browsers always
+// send Origin on cross-origin unsafe requests, and non-browser clients are
+// not a CSRF vector.
+func originGate(allowed map[string]struct{}, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hostAllowed(allowed, r.Host) {
+			http.Error(w, "access denied: unrecognized Host header", http.StatusForbidden)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			if origin := r.Header.Get("Origin"); origin != "" && !originAllowed(allowed, origin) {
+				http.Error(w, "access denied: cross-origin requests are not allowed", http.StatusForbidden)
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func checkEmbedded(target *url.URL, insecureSkipVerify bool) error {
 	httpClient := &http.Client{Timeout: 5 * time.Second}
 
@@ -260,7 +353,7 @@ func parseTargetURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error) {
+func newUIHandler(target *url.URL, insecureSkipVerify bool, creds adminCredentials) (http.Handler, error) {
 	origin := target.Scheme + "://" + target.Host
 
 	proxy := &httputil.ReverseProxy{
@@ -274,22 +367,25 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 			if pr.Out.Header.Get("Referer") != "" {
 				pr.Out.Header.Set("Referer", origin+pr.Out.URL.Path)
 			}
+
+			// The ui-token authenticates the browser to this proxy only and
+			// is never forwarded upstream.
+			stripRequestCookie(pr.Out, uiTokenCookie)
 		},
 		ModifyResponse: func(resp *http.Response) error {
-			if cookies := resp.Header["Set-Cookie"]; len(cookies) > 0 {
-				for i, c := range cookies {
-					cookies[i] = rewriteSetCookie(c)
-				}
-			}
+			rewriteResponseCookies(resp)
 			return nil
 		},
 	}
 
+	var base http.RoundTripper
 	if insecureSkipVerify {
-		proxy.Transport = &http.Transport{
+		base = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
 		}
 	}
+
+	proxy.Transport = newSessionTransport(base, target, creds, configcli.Logger.Warnf)
 
 	spa, err := newSPAHandler()
 	if err != nil {
@@ -302,6 +398,54 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 	mux.Handle("/", spa)
 
 	return mux, nil
+}
+
+// stripRequestCookie removes the named cookie from an outgoing request,
+// keeping every other cookie intact.
+func stripRequestCookie(req *http.Request, name string) {
+	cookies := req.Cookies()
+	req.Header.Del("Cookie")
+
+	for _, c := range cookies {
+		if c.Name != name {
+			req.AddCookie(c)
+		}
+	}
+}
+
+// rewriteResponseCookies adjusts upstream Set-Cookie headers for the local
+// plain-HTTP origin and drops any cookie using the proxy's reserved ui-token
+// name, so an engine response can never overwrite the browser's proxy auth
+// cookie.
+func rewriteResponseCookies(resp *http.Response) {
+	cookies := resp.Header["Set-Cookie"]
+	if len(cookies) == 0 {
+		return
+	}
+
+	kept := cookies[:0]
+	for _, c := range cookies {
+		if setCookieName(c) == uiTokenCookie {
+			continue
+		}
+
+		kept = append(kept, rewriteSetCookie(c))
+	}
+
+	if len(kept) == 0 {
+		resp.Header.Del("Set-Cookie")
+		return
+	}
+
+	resp.Header["Set-Cookie"] = kept
+}
+
+// setCookieName returns the cookie name of a raw Set-Cookie header value.
+func setCookieName(setCookie string) string {
+	nameValue, _, _ := strings.Cut(setCookie, ";")
+	name, _, _ := strings.Cut(nameValue, "=")
+
+	return strings.TrimSpace(name)
 }
 
 func rewriteSetCookie(cookie string) string {
@@ -424,7 +568,7 @@ func browserHost(host string) string {
 	}
 }
 
-func uiStartedView(localURL, targetURL, profileName string) string {
+func uiStartedView(localURL, targetURL, profileName string, creds adminCredentials) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage("Hatchet dashboard is running!"))
@@ -435,6 +579,10 @@ func uiStartedView(localURL, targetURL, profileName string) string {
 	}
 	lines = append(lines, styles.KeyValue("API server", targetURL))
 	lines = append(lines, "")
+	lines = append(lines, styles.Muted.Render(fmt.Sprintf("The dashboard signs in automatically as '%s'.", creds.email)))
+	if creds.isDefault {
+		lines = append(lines, styles.Muted.Render(fmt.Sprintf("Admin credentials: email '%s', password '%s'", creds.email, creds.password)))
+	}
 	lines = append(lines, styles.Muted.Render("Press Ctrl+C to stop."))
 
 	return styles.SuccessBox.Render(strings.Join(lines, "\n"))

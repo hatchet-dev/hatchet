@@ -130,7 +130,9 @@ Embedded instances do not ship a frontend. The `hatchet embedded-ui` CLI command
 hatchet embedded-ui
 ```
 
-This opens a browser to the locally served dashboard. The URL contains a one-time `ui_token` that is exchanged for a local session cookie; requests without the cookie are rejected, so other processes or machines cannot use the proxy port. The server binds to `localhost` unless you override `--host`.
+This opens a browser to the locally served dashboard, already signed in. The URL contains a `ui_token` that is exchanged for a local session cookie and stays valid while the command runs; requests without the cookie are rejected, so other processes or machines cannot use the proxy port. The server binds to `localhost` unless you override `--host`.
+
+There is no login screen: the proxy signs the browser in to the embedded instance automatically as the seeded admin user (email `admin@example.com`, password `Admin123!!`) and re-establishes the session transparently when it expires. The command also prints these credentials at startup in case you want to sign in manually. If you seeded a different admin (with `WithAdminUser`, or by setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` on the embedded process), run `hatchet embedded-ui` with the same `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables so the automatic sign-in uses those credentials. If you sign in manually as a different user, the proxy respects that session while it remains valid and only signs in as the admin again once it expires.
 
 If your instance is not on the default port (for example, a second instance on the same machine), pass its API server explicitly with `--api-url`, using the address from the engine's ready line. The target must report itself as an embedded instance (via `/api/v1/meta`); the command errors out for any other deployment.
 
