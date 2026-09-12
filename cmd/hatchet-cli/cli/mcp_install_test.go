@@ -351,3 +351,104 @@ func TestMCPInstallPrintWritesNothing(t *testing.T) {
 		assert.Empty(t, entries, "print mode must not create files in %s", dir)
 	}
 }
+
+func TestInstallMCPServerConfigRefusesSymlinks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics differ on windows")
+	}
+
+	outside := t.TempDir()
+	t.Chdir(t.TempDir())
+
+	// A checkout can commit the config file itself as a symlink.
+	victim := filepath.Join(outside, "victim.json")
+	require.NoError(t, os.WriteFile(victim, []byte(`{"mcpServers":{}}`), 0o644))
+	require.NoError(t, os.Symlink(victim, ".mcp.json"))
+
+	_, err := installMCPServerConfig("claude-code", ".mcp.json", "hatchet")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symbolic link")
+
+	data, readErr := os.ReadFile(victim)
+	require.NoError(t, readErr)
+	assert.Equal(t, `{"mcpServers":{}}`, string(data), "the symlink destination must not be modified")
+
+	// Or a parent directory as a symlink.
+	outsideDir := filepath.Join(outside, "cursor-elsewhere")
+	require.NoError(t, os.MkdirAll(outsideDir, 0o755))
+	require.NoError(t, os.Symlink(outsideDir, ".cursor"))
+
+	_, err = installMCPServerConfig("cursor", filepath.Join(".cursor", "mcp.json"), "hatchet")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symbolic link")
+
+	entries, readDirErr := os.ReadDir(outsideDir)
+	require.NoError(t, readDirErr)
+	assert.Empty(t, entries, "nothing may be written through the symlinked directory")
+}
+
+func TestWriteCodexConfigMatchesHeaderVariants(t *testing.T) {
+	// TOML allows several spellings of the same table header; each must be
+	// recognized and replaced rather than duplicated.
+	variants := []string{
+		`[mcp_servers."hatchet"]`,
+		`[mcp_servers.hatchet] # managed by hatchet`,
+		`[ mcp_servers . hatchet ]`,
+	}
+
+	for _, header := range variants {
+		t.Run(header, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+
+			path := filepath.Join(home, ".codex", "config.toml")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+
+			existing := "model = \"gpt-5\"\n\n" + header + "\ncommand = \"stale-path\"\nargs = [\"mcp\", \"serve\"]\n\n[history]\npersistence = \"save-all\"\n"
+			require.NoError(t, os.WriteFile(path, []byte(existing), 0o644))
+
+			_, err := installMCPServerConfig("codex", path, "hatchet")
+			require.NoError(t, err)
+
+			data, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+			content := string(data)
+
+			assert.NotContains(t, content, "stale-path")
+			assert.Contains(t, content, "command = 'hatchet'")
+			assert.Contains(t, content, `model = "gpt-5"`)
+			assert.Contains(t, content, "[history]")
+			assert.Equal(t, 1, strings.Count(content, "mcp_servers"), "the variant header must be replaced, not duplicated")
+		})
+	}
+}
+
+func TestParseTOMLHeaderKeys(t *testing.T) {
+	cases := []struct {
+		line  string
+		keys  []string
+		array bool
+		ok    bool
+	}{
+		{"[mcp_servers.hatchet]", []string{"mcp_servers", "hatchet"}, false, true},
+		{`[mcp_servers."hatchet"]`, []string{"mcp_servers", "hatchet"}, false, true},
+		{"[mcp_servers.hatchet] # comment", []string{"mcp_servers", "hatchet"}, false, true},
+		{"[ mcp_servers . hatchet ]", []string{"mcp_servers", "hatchet"}, false, true},
+		{`[a."b.c"]`, []string{"a", "b.c"}, false, true},
+		{"[[fruit]]", []string{"fruit"}, true, true},
+		{"[mcp_servers.hatchet.env]", []string{"mcp_servers", "hatchet", "env"}, false, true},
+		{"key = \"value\"", nil, false, false},
+		{"[unclosed", nil, false, false},
+		{"[a.b] trailing", nil, false, false},
+		{`[a."unterminated]`, nil, false, false},
+	}
+
+	for _, tc := range cases {
+		keys, array, ok := parseTOMLHeaderKeys(tc.line)
+		assert.Equal(t, tc.ok, ok, "ok for %q", tc.line)
+		if tc.ok {
+			assert.Equal(t, tc.keys, keys, "keys for %q", tc.line)
+			assert.Equal(t, tc.array, array, "array for %q", tc.line)
+		}
+	}
+}

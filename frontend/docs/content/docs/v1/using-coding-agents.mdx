@@ -16,7 +16,7 @@ Hatchet is designed to work well with AI coding agents. This page covers how to 
 
 <Callout type="info">
   **Prerequisite:** The `hatchet skills install` and `hatchet mcp install`
-  commands require the Hatchet CLI. See the [CLI reference](/cli) for
+  commands require the Hatchet CLI. See the <a href="/cli">CLI reference</a> for
   installation instructions.
 </Callout>
 
@@ -87,17 +87,15 @@ Add it to your agents with one command:
 hatchet mcp install
 ```
 
-This opens a multi-select of supported agents (Claude Code, Cursor, VS Code, Codex) and writes the server into each one's MCP configuration, preserving anything already there. Use `--target` for non-interactive setup:
+Use `--target` for non-interactive setup:
 
 ```bash copy
 hatchet mcp install --target claude-code,cursor
 ```
 
-Access is deny by default: the server only uses CLI profiles you grant with `hatchet mcp auth`, and a running [embedded instance](/v1/embedded) is usable without a grant. See the [MCP server reference](/cli/mcp) for all targets, scopes, and the grants model.
+Access is default-deny, you must grant access to [CLI profiles](/cli/profiles) during the installation process or with `hatchet mcp auth` after installation. The only exception is [embedded instance](/v1/embedded), which is always available without an explicit grant.
 
-### Hosted docs MCP (legacy)
-
-Earlier versions of this page recommended the hosted docs MCP endpoint (<McpUrl />) for documentation search. That endpoint is frozen: it keeps working for existing installs, but it is not recommended for new setups. Documentation search is covered by [llms.txt](#llmstxt) and the agent skills above, and the local MCP server covers operating Hatchet.
+See the [MCP server reference](/cli/mcp) for all targets, scopes, and the grants model.
 
 ## llms.txt
 

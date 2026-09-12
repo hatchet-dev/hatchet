@@ -52,10 +52,8 @@ snippets and add them by hand.`,
 	},
 }
 
-// mcpServerEntryName is the server name written into agent MCP configs.
 const mcpServerEntryName = "hatchet"
 
-// mcpServeArgs is the argv tail configured for every agent.
 var mcpServeArgs = []string{"mcp", "serve"}
 
 // mcpInstallTargetList defines the supported agents in display order.
@@ -141,15 +139,28 @@ func runMCPInstall(cmd *cobra.Command) {
 
 	store := mcpGrantStore()
 	grants, err := store.Load()
-	if err != nil {
-		configcli.Logger.Fatalf("could not load MCP grants: %v", err)
-	}
 
-	switch {
-	case len(grantFlags) > 0:
+	if len(grantFlags) > 0 {
+		if err != nil {
+			configcli.Logger.Fatalf("could not load MCP grants: %v", err)
+		}
+
 		fmt.Println()
 		runMCPAuthFlags(store, grants, grantFlags, nil)
-	case interactive && len(grants.Names()) == 0:
+
+		return
+	}
+
+	// No grant operation was requested, so the grant state is informational
+	// only: a problem with the grants file must not fail an install whose
+	// configs are already written.
+	if err != nil {
+		fmt.Println()
+		fmt.Println(styles.InfoMessage(fmt.Sprintf("Could not read the MCP grants file (%v). Run 'hatchet mcp auth' to manage grants.", err)))
+		return
+	}
+
+	if interactive && len(grants.Names()) == 0 {
 		fmt.Println()
 		var doGrant bool
 		form := huh.NewForm(
@@ -162,6 +173,9 @@ func runMCPInstall(cmd *cobra.Command) {
 		).WithTheme(styles.HatchetTheme())
 		if formErr := form.Run(); formErr == nil && doGrant {
 			runMCPAuthInteractive(store, grants)
+			if reloaded, reloadErr := store.Load(); reloadErr == nil {
+				grants = reloaded
+			}
 		}
 	}
 
@@ -171,7 +185,6 @@ func runMCPInstall(cmd *cobra.Command) {
 	}
 }
 
-// normalizeMCPInstallTargets validates and dedupes the --target values.
 func normalizeMCPInstallTargets(targetFlags []string) ([]string, error) {
 	known := make(map[string]bool, len(mcpInstallTargetList))
 	for _, target := range mcpInstallTargetList {
@@ -305,6 +318,17 @@ func mcpInstallConfigPath(target string, userScope bool) (string, error) {
 // installMCPServerConfig writes the hatchet server entry into the target's
 // config file, reporting whether the file was created.
 func installMCPServerConfig(target, path, command string) (bool, error) {
+	// A repository checkout can commit a project config path (.mcp.json,
+	// .cursor, .vscode) as a symlink pointing outside the project; refuse to
+	// write through one so installing in an untrusted checkout cannot rewrite
+	// files elsewhere. User-scope paths under the home directory are the
+	// user's own.
+	if !filepath.IsAbs(path) {
+		if err := rejectSymlinkComponents(path); err != nil {
+			return false, err
+		}
+	}
+
 	if target == "codex" {
 		return writeCodexConfig(path, command)
 	}
@@ -314,9 +338,32 @@ func installMCPServerConfig(target, path, command string) (bool, error) {
 	return writeMCPServerJSON(path, topKey, entry)
 }
 
-// mcpServerJSONEntry builds the per-target server entry and the top-level key
-// it lives under.
+// rejectSymlinkComponents fails when any existing component of the relative
+// path is a symbolic link.
+func rejectSymlinkComponents(path string) error {
+	components := strings.Split(filepath.ToSlash(path), "/")
+	for i := range components {
+		prefix := filepath.Join(components[:i+1]...)
+
+		info, err := os.Lstat(prefix)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return fmt.Errorf("could not inspect %s: %w", prefix, err)
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a symbolic link; refusing to write through it", prefix)
+		}
+	}
+
+	return nil
+}
+
 func mcpServerJSONEntry(target, command string) (string, map[string]any) {
+	// VS Code uses a different schema than the mcpServers convention: a
+	// top-level "servers" key with an explicit transport type.
 	if target == "vscode" {
 		return "servers", map[string]any{"type": "stdio", "command": command, "args": mcpServeArgs}
 	}
@@ -324,9 +371,9 @@ func mcpServerJSONEntry(target, command string) (string, map[string]any) {
 	return "mcpServers", map[string]any{"command": command, "args": mcpServeArgs}
 }
 
-// writeMCPServerJSON merges the hatchet server entry into the JSON config at
-// path, preserving every other key and server. It reports whether the file
-// was created.
+// writeMCPServerJSON adds or replaces only the hatchet entry under topKey;
+// everything else in the file survives so an install can never clobber other
+// servers or unknown keys.
 func writeMCPServerJSON(path, topKey string, entry map[string]any) (bool, error) {
 	doc := map[string]any{}
 	mode := os.FileMode(0o644)
@@ -371,17 +418,40 @@ func writeMCPServerJSON(path, topKey string, entry map[string]any) (bool, error)
 		}
 	}
 
-	if writeErr := os.WriteFile(path, out, mode); writeErr != nil { // #nosec G306 -- non-sensitive editor config, meant to be committed
+	if writeErr := writeFileAtomic(path, out, mode); writeErr != nil {
 		return false, fmt.Errorf("could not write %s: %w", path, writeErr)
 	}
 
 	return created, nil
 }
 
-// codexSectionHeader is the TOML table header for the hatchet server entry.
+// writeFileAtomic writes via a same-directory temp file and rename, so an
+// interruption or write error cannot leave the user's existing config
+// truncated or half-written.
+func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	if err := tmp.Chmod(mode); err != nil { // #nosec G302 G703 -- restoring the config file's own permissions
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmp.Name(), path)
+}
+
 const codexSectionHeader = "[mcp_servers." + mcpServerEntryName + "]"
 
-// codexServerSection renders the [mcp_servers.hatchet] table.
 func codexServerSection(command string) (string, error) {
 	body, err := toml.Marshal(struct {
 		Command string   `toml:"command"`
@@ -436,7 +506,7 @@ func writeCodexConfig(path, command string) (bool, error) {
 		return false, fmt.Errorf("could not create %s: %w", filepath.Dir(path), mkdirErr)
 	}
 
-	if writeErr := os.WriteFile(path, []byte(merged), mode); writeErr != nil { // #nosec G306 G703 -- non-sensitive editor config at a fixed well-known location under the home directory
+	if writeErr := writeFileAtomic(path, []byte(merged), mode); writeErr != nil {
 		return false, fmt.Errorf("could not write %s: %w", path, writeErr)
 	}
 
@@ -457,17 +527,20 @@ func replaceCodexSection(existing, section string) string {
 	start := -1
 	end := len(lines)
 
+	hatchetKeys := []string{"mcp_servers", mcpServerEntryName}
+
 	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		keys, array, isHeader := parseTOMLHeaderKeys(line)
 		if start == -1 {
-			if trimmed == codexSectionHeader {
+			if isHeader && !array && tomlKeysEqual(keys, hatchetKeys) {
 				start = i
 			}
 			continue
 		}
 		// The table runs until the next header that is not one of its own
-		// subtables.
-		if strings.HasPrefix(trimmed, "[") && !strings.HasPrefix(trimmed, "[mcp_servers."+mcpServerEntryName+".") {
+		// subtables. A bracket line that fails to parse is treated as a
+		// boundary so the splice never swallows unrelated content.
+		if strings.HasPrefix(strings.TrimSpace(line), "[") && (!isHeader || len(keys) <= len(hatchetKeys) || !tomlKeysEqual(keys[:len(hatchetKeys)], hatchetKeys)) {
 			end = i
 			break
 		}
@@ -493,8 +566,91 @@ func replaceCodexSection(existing, section string) string {
 	return b.String()
 }
 
-// mcpInstallPrint renders the config snippets for targets without touching
-// any files.
+// parseTOMLHeaderKeys parses a TOML table header line into its dotted key
+// path. Matching must follow TOML key semantics, not exact text: valid
+// spellings like [mcp_servers."hatchet"] or a trailing comment after the
+// header name the same table. ok is false when the line is not a well-formed
+// header.
+func parseTOMLHeaderKeys(line string) (keys []string, array bool, ok bool) {
+	s := strings.TrimSpace(line)
+	if !strings.HasPrefix(s, "[") {
+		return nil, false, false
+	}
+
+	open, closer := "[", "]"
+	if strings.HasPrefix(s, "[[") {
+		open, closer = "[[", "]]"
+		array = true
+	}
+	s = s[len(open):]
+
+	var seg strings.Builder
+	var quote byte
+	closed := false
+	i := 0
+
+scan:
+	for ; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			} else {
+				seg.WriteByte(c)
+			}
+			continue
+		}
+
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '.':
+			keys = append(keys, strings.TrimSpace(seg.String()))
+			seg.Reset()
+		case ']':
+			if !strings.HasPrefix(s[i:], closer) {
+				return nil, false, false
+			}
+			closed = true
+			i += len(closer)
+			break scan
+		default:
+			seg.WriteByte(c)
+		}
+	}
+
+	if !closed || quote != 0 {
+		return nil, false, false
+	}
+
+	// Only whitespace or a comment may follow the header.
+	if rest := strings.TrimSpace(s[i:]); rest != "" && !strings.HasPrefix(rest, "#") {
+		return nil, false, false
+	}
+
+	keys = append(keys, strings.TrimSpace(seg.String()))
+	for _, key := range keys {
+		if key == "" {
+			return nil, false, false
+		}
+	}
+
+	return keys, array, true
+}
+
+func tomlKeysEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func mcpInstallPrint(targets []string, userScope bool, command string) (string, error) {
 	var b strings.Builder
 
@@ -515,7 +671,6 @@ func mcpInstallPrint(targets []string, userScope bool, command string) (string, 
 	return b.String(), nil
 }
 
-// mcpInstallSnippet renders the standalone config snippet for one target.
 func mcpInstallSnippet(target, command string) (string, error) {
 	if target == "codex" {
 		return codexServerSection(command)
