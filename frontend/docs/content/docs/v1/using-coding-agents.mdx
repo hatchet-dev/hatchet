@@ -2,35 +2,27 @@
 title: "Using Coding Agents"
 ---
 
-import { Callout, Steps } from "@/components/nextra-compat";
+import { Callout } from "@/components/nextra-compat";
 import { Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import { snippets } from "@/lib/generated/snippets";
-import {
-  McpUrl,
-  CursorDeeplinkButton,
-  CursorMcpConfig,
-  ClaudeCodeCommand,
-  CursorTabLabel,
-  ClaudeCodeTabLabel,
-  OtherAgentsTabLabel,
-} from "@/components/McpSetup";
+import { McpUrl } from "@/components/McpSetup";
 import Keywords from "@/components/Keywords";
 
 # Using Coding Agents
 
-Hatchet is designed to work well with AI coding agents. This page covers how to give your agent access to Hatchet documentation and step-by-step skills for common CLI operations.
+Hatchet is designed to work well with AI coding agents. This page covers how to give your agent tools for operating Hatchet, step-by-step skills for common CLI operations, and access to Hatchet documentation.
 
 <Callout type="info">
-  **Prerequisite:** The `hatchet skills install` and `hatchet docs install`
+  **Prerequisite:** The `hatchet skills install` and `hatchet mcp install`
   commands require the Hatchet CLI. See the [CLI reference](/cli) for
   installation instructions.
 </Callout>
 
 ## Agent Skills
 
-Agent skills are reference documents that teach AI coding agents how to use the Hatchet CLI — triggering workflows, starting workers, debugging runs, and more.
+Agent skills are reference documents that teach AI coding agents how to use the Hatchet CLI: triggering workflows, starting workers, debugging runs, and more.
 
 Run the following command in your project root to install the skill package:
 
@@ -87,90 +79,25 @@ See [Embedded Mode](/v1/embedded) for configuration options, stopping the engine
 
 ## MCP Server
 
-Hatchet documentation is available as an **MCP (Model Context Protocol) server**, so AI coding assistants like Cursor and Claude Code can search and reference Hatchet docs directly.
+The Hatchet CLI includes a **local MCP (Model Context Protocol) server** that lets coding agents operate against a running Hatchet deployment: trigger workflow runs, inspect run status and events, list workers, replay runs, check engine status, and submit product feedback.
 
-MCP endpoint: <McpUrl />
+Add it to your agents with one command:
 
-<Tabs items={[<CursorTabLabel />, <ClaudeCodeTabLabel />, <OtherAgentsTabLabel />]}>
-  <Tabs.Tab>
+```bash copy
+hatchet mcp install
+```
 
-    <Tabs items={['Hatchet CLI', 'One-Click Install', 'Manual Config']}>
-      <Tabs.Tab>
+This opens a multi-select of supported agents (Claude Code, Cursor, VS Code, Codex) and writes the server into each one's MCP configuration, preserving anything already there. Use `--target` for non-interactive setup:
 
-        ```bash copy
-        hatchet docs install cursor
-        ```
+```bash copy
+hatchet mcp install --target claude-code,cursor
+```
 
-        This creates a `.cursor/rules/hatchet-docs.mdc` file and prints the one-click deeplink.
+Access is deny by default: the server only uses CLI profiles you grant with `hatchet mcp auth`, and a running [embedded instance](/v1/embedded) is usable without a grant. See the [MCP server reference](/cli/mcp) for all targets, scopes, and the grants model.
 
-      </Tabs.Tab>
-      <Tabs.Tab>
+### Hosted docs MCP (legacy)
 
-        Install the Hatchet docs MCP server in Cursor with one click:
-
-        <CursorDeeplinkButton />
-
-      </Tabs.Tab>
-      <Tabs.Tab>
-
-        <Steps>
-
-        ### Open Cursor Settings
-
-        Go to **Cursor Settings** → **MCP** → **Add new MCP server**.
-
-        ### Add the server configuration
-
-        <CursorMcpConfig />
-
-        ### Use in chat
-
-        Reference Hatchet docs in any Cursor chat with `@hatchet-docs` or ask questions and the agent will automatically search the docs.
-
-        </Steps>
-
-      </Tabs.Tab>
-    </Tabs>
-
-  </Tabs.Tab>
-  <Tabs.Tab>
-
-    <Tabs items={['Hatchet CLI', 'Command']}>
-      <Tabs.Tab>
-
-        ```bash copy
-        hatchet docs install claude-code
-        ```
-
-        If `claude` is on your PATH, this runs the command automatically. Otherwise it prints it for you to copy.
-
-      </Tabs.Tab>
-      <Tabs.Tab>
-
-        Run this command in your terminal:
-
-        <ClaudeCodeCommand />
-
-      </Tabs.Tab>
-    </Tabs>
-
-  </Tabs.Tab>
-  <Tabs.Tab>
-
-    For any AI tool that supports [llms.txt](https://llmstxt.org/), Hatchet docs are available at:
-
-    | Resource | URL |
-    |----------|-----|
-    | **llms.txt** (index) | [docs.hatchet.run/llms.txt](https://docs.hatchet.run/llms.txt) |
-    | **llms-full.txt** (all docs) | [docs.hatchet.run/llms-full.txt](https://docs.hatchet.run/llms-full.txt) |
-    | **Per-page markdown** | `docs.hatchet.run/llms/{section}/{page}.md` |
-    | **MCP endpoint** | <McpUrl /> |
-
-    Every documentation page also includes a `<link rel="alternate" type="text/markdown">` header
-    pointing to its markdown version, and a "View as Markdown" link at the top of the page.
-
-  </Tabs.Tab>
-</Tabs>
+Earlier versions of this page recommended the hosted docs MCP endpoint (<McpUrl />) for documentation search. That endpoint is frozen: it keeps working for existing installs, but it is not recommended for new setups. Documentation search is covered by [llms.txt](#llmstxt) and the agent skills above, and the local MCP server covers operating Hatchet.
 
 ## llms.txt
 

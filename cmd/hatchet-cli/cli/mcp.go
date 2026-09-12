@@ -26,8 +26,14 @@ run status and events, list workers, replay runs, and check engine status.
 
 The server only uses CLI profiles you have explicitly granted with
 'hatchet mcp auth'. A running embedded Hatchet instance is usable without a
-grant.`,
-	Example: `  # Grant profiles for MCP use (interactive)
+grant.
+
+Use 'hatchet mcp install' to write the server into the MCP configuration of
+supported AI coding agents.`,
+	Example: `  # Add the local MCP server to your AI coding agents
+  hatchet mcp install
+
+  # Grant profiles for MCP use (interactive)
   hatchet mcp auth
 
   # Run the MCP server over stdio (configure this command in your AI editor)
@@ -83,11 +89,17 @@ func init() {
 	rootCmd.AddCommand(mcpCmd)
 	mcpCmd.AddCommand(mcpServeCmd)
 	mcpCmd.AddCommand(mcpAuthCmd)
+	mcpCmd.AddCommand(mcpInstallCmd)
 
 	mcpAuthCmd.Flags().StringSlice("grant", nil, "Profiles to grant, comma-separated ('*' grants all profiles, including future ones)")
 	mcpAuthCmd.Flags().StringSlice("revoke", nil, "Profiles to revoke, comma-separated")
 	mcpAuthCmd.Flags().Bool("all", false, "Revoke all grants")
 	mcpAuthCmd.Flags().Bool("list", false, "List current grants")
+
+	mcpInstallCmd.Flags().StringSlice("target", nil, "Targets to configure, comma-separated (claude-code, cursor, vscode, codex); skips the interactive prompt")
+	mcpInstallCmd.Flags().Bool("user", false, "Write user-scope configuration where supported (cursor)")
+	mcpInstallCmd.Flags().StringSlice("grant", nil, "Profiles to grant for MCP use, comma-separated ('*' grants all profiles, including future ones)")
+	mcpInstallCmd.Flags().Bool("print", false, "Print the config snippets to stdout without writing any files")
 }
 
 // mcpEngineFactory builds the MCP Engine for a resolved profile. Client

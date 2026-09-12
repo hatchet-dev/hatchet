@@ -1,0 +1,103 @@
+---
+title: "MCP Server"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# MCP Server
+
+The Hatchet CLI includes a local MCP (Model Context Protocol) server that lets AI coding agents operate against a running Hatchet deployment. The server exposes tools to trigger workflow runs, inspect run status and events, list workers, replay runs, check engine status, and submit product feedback to the Hatchet team.
+
+The server runs over stdio and is launched by your agent, not by hand. Three subcommands manage it:
+
+- `hatchet mcp install` writes the server into your agents' MCP configuration files
+- `hatchet mcp auth` controls which CLI profiles the server may use
+- `hatchet mcp serve` runs the server itself
+
+## Installing into agents
+
+The `hatchet mcp install` command adds the server to supported AI coding agents so you do not have to hand-edit JSON:
+
+```sh
+hatchet mcp install
+```
+
+Without flags, this opens a multi-select of supported agents. Agents whose config directory is detected in the current project (or home directory) are pre-checked. After writing the configs, the command offers to grant profiles if none are granted yet.
+
+### Targets
+
+| Target        | File written                                                      |
+| ------------- | ----------------------------------------------------------------- |
+| `claude-code` | project `.mcp.json`                                               |
+| `cursor`      | project `.cursor/mcp.json`, or `~/.cursor/mcp.json` with `--user` |
+| `vscode`      | project `.vscode/mcp.json`                                        |
+| `codex`       | user `~/.codex/config.toml`                                       |
+
+Select targets non-interactively with `--target` (repeatable or comma-separated):
+
+```sh
+hatchet mcp install --target claude-code,cursor
+```
+
+Existing configuration is preserved: only the `hatchet` server entry is added or updated, so re-running the command is safe. Project-scope files like `.mcp.json` are conventionally committed to version control.
+
+### Scope
+
+The `--user` flag writes user-scope configuration for targets that support it (currently `cursor`). Targets that only support project scope (`claude-code`, `vscode`) fail with an error when `--user` is passed. The `codex` target always writes user-scope configuration.
+
+### Other agents
+
+For agents not listed above, `--print` writes the config snippets to stdout without touching any files:
+
+```sh
+hatchet mcp install --print
+```
+
+### Granting during install
+
+The `--grant` flag applies grants exactly like `hatchet mcp auth --grant`:
+
+```sh
+hatchet mcp install --target claude-code --grant local
+```
+
+## Granting profiles
+
+Access is deny by default: the MCP server only uses [CLI profiles](/cli/profiles) you have explicitly granted, and tool calls against ungranted profiles are refused. Manage grants with `hatchet mcp auth`:
+
+```sh
+# Interactive multi-select of your profiles
+hatchet mcp auth
+
+# Grant specific profiles
+hatchet mcp auth --grant local,staging
+
+# Grant everything, including future profiles
+hatchet mcp auth --grant '*'
+
+# Revoke a profile / revoke everything
+hatchet mcp auth --revoke staging
+hatchet mcp auth --all
+
+# List current grants
+hatchet mcp auth --list
+```
+
+Grants are stored in `~/.hatchet/mcp-grants.yaml`, next to the profile store. The `*` entry grants every profile, including profiles added in the future.
+
+<Callout type="info">
+  A running [embedded Hatchet instance](/v1/embedded) is usable without a grant.
+  Embedded engines register themselves in the profile store when they start, and
+  the MCP server auto-detects a live registration and grants it implicitly. Only
+  a verified local embedded engine qualifies.
+</Callout>
+
+## Running the server
+
+Agents launch the server with:
+
+```sh
+hatchet mcp serve
+```
+
+This is the command `hatchet mcp install` writes into your agents' configuration. You normally never run it yourself.
