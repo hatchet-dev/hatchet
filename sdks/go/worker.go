@@ -52,11 +52,34 @@ func WithLabels(labels map[string]any) WorkerOption {
 	}
 }
 
-// WithLogger sets a custom logger for the worker.
+// WithLogger sets a custom logger for the worker. When not set, the worker inherits the client's logger.
 func WithLogger(logger *zerolog.Logger) WorkerOption {
 	return func(config *workerConfig) {
 		config.logger = logger
 	}
+}
+
+// resolveWorkerLogger picks the logger a worker should use: an explicitly
+// configured worker logger (via WithLogger) always wins; otherwise the client's
+// logger is inherited as a sub-logger tagged with service=worker, so worker
+// output follows the client's configured level and format. Returns nil when
+// neither logger is available.
+//
+// The client logger already carries its own service field, so the emitted JSON
+// repeats the key with the worker value last; JSON consumers and zerolog's
+// console writer both resolve to service=worker.
+func resolveWorkerLogger(configured *zerolog.Logger, clientLogger *zerolog.Logger) *zerolog.Logger {
+	if configured != nil {
+		return configured
+	}
+
+	if clientLogger == nil {
+		return nil
+	}
+
+	derived := clientLogger.With().Str("service", "worker").Logger()
+
+	return &derived
 }
 
 // WithDurableSlots sets the maximum number of concurrent durable task runs.

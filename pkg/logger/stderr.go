@@ -42,7 +42,23 @@ func NewDefaultLogger(service string) zerolog.Logger {
 	return NewStdErr(&shared.LoggerConfigFile{}, service)
 }
 
+// NewStdErr creates a logger that writes to os.Stderr, unless the config
+// carries a runtime writer override (cf.Writer), in which case output is
+// routed there instead.
 func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
+	var w io.Writer = os.Stderr
+
+	if cf.Writer != nil {
+		w = cf.Writer
+	}
+
+	return NewWithWriter(cf, service, w)
+}
+
+// NewWithWriter creates a logger that writes to w in the configured format
+// (console or json). The explicit writer always wins: any cf.Writer override
+// is ignored. w must be non-nil.
+func NewWithWriter(cf *shared.LoggerConfigFile, service string, w io.Writer) zerolog.Logger {
 	lvl := zerolog.DebugLevel
 	var err error
 
@@ -54,11 +70,11 @@ func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
 		}
 	}
 
-	var out io.Writer = os.Stderr
+	out := w
 
 	if cf.Format == "console" {
 		out = zerolog.ConsoleWriter{
-			Out:        os.Stderr,
+			Out:        w,
 			TimeFormat: "2006-01-02T15:04:05.999Z07:00",
 		}
 	}
