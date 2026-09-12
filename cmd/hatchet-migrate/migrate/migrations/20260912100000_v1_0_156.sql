@@ -4,9 +4,6 @@
 -- the autocommit treatment an ALTER TYPE ... ADD VALUE would. The retired SERVERLESS operator
 -- kind is never added; the serverless operator is a GRPC operator with leasing manager SELF,
 -- and its rows are unique under v1_operator_tenant_name_kind_key like every other kind.
---
--- The goose id is fifteen digits because main's 202609101223115_v1_0_153.sql is, and a version
--- has to sort after every applied one or goose refuses it as a missing migration.
 
 CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
 
