@@ -148,18 +148,6 @@ $$
 LANGUAGE plpgsql;
 -- +goose StatementEnd
 
--- +goose StatementBegin
--- NOTE: this file originally shipped as 202609101223115_v1_0_153.sql.
--- Rewrite the recorded goose version so already-applied DBs match the
--- 14-digit filename and sort before v1_0_154.
-UPDATE goose_db_version
-SET version_id = 20260910122311
-WHERE version_id = 202609101223115
-  AND NOT EXISTS (
-      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
-  );
--- +goose StatementEnd
-
 -- +goose Down
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION v1_retry_queue_item_delete_function()

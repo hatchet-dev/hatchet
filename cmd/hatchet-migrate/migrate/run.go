@@ -291,10 +291,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		}
 	}
 
-	// NOTE: v1_0_153 shipped as 202609101223115 (15 digits). Rewrite the
-	// recorded version before goose.Up so an already-applied 153 is not
-	// treated as a missing file after the rename, and so 154 sorts after it.
-	if _, err := conn.ExecContext(ctx, rewriteV1_0_153GooseVersionSQL); err != nil {
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
 	}
 
@@ -375,16 +372,20 @@ func CreateTable(tableName string) string {
 	return fmt.Sprintf(q, tableName)
 }
 
-// v1_0_153 originally used version 202609101223115. The file is now
-// 20260910122311_v1_0_153.sql so goose order matches the v1_0_* labels.
-const rewriteV1_0_153GooseVersionSQL = `
+// rewriteV1_0_153GooseVersion remaps the 15-digit version 153 originally
+// shipped under so goose matches 20260910122311_v1_0_153.sql and does not
+// treat that file as missing before the current max version.
+func rewriteV1_0_153GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
 UPDATE goose_db_version
 SET version_id = 20260910122311
 WHERE version_id = 202609101223115
   AND NOT EXISTS (
       SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
   )
-`
+`)
+	return err
+}
 
 func InsertVersion(tableName string) string {
 	q := `INSERT INTO %s (version_id, is_applied) VALUES ($1, $2)`
@@ -532,6 +533,10 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err)).Msg("session unlock failed")
 		}
 	}()
+
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
 
 	fsys, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
