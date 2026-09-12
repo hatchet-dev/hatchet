@@ -54,8 +54,9 @@ func resolveAdminCredentials() adminCredentials {
 }
 
 const (
-	sessionLoginPath  = "/api/v1/users/login"
-	sessionLogoutPath = "/api/v1/users/logout"
+	sessionLoginPath       = "/api/v1/users/login"
+	sessionLogoutPath      = "/api/v1/users/logout"
+	sessionCurrentUserPath = "/api/v1/users/current"
 
 	// loginBackoff is the minimum interval between login attempts, whatever
 	// the previous attempt's outcome: a page load fires many API calls at
@@ -89,10 +90,12 @@ type sessionTransport struct {
 	// loginURL is the embedded API's login endpoint on the proxy target,
 	// including the target's path prefix. loginPath and logoutPath are the
 	// corresponding request paths on the target used to recognize the session
-	// lifecycle endpoints.
-	loginURL   string
-	loginPath  string
-	logoutPath string
+	// lifecycle endpoints. currentUserURL is the current-user endpoint used to
+	// probe whether a session the transport did not establish is still valid.
+	loginURL       string
+	loginPath      string
+	logoutPath     string
+	currentUserURL string
 
 	// loginTimeout bounds each login operation; defaults to
 	// defaultLoginTimeout (overridable in tests).
@@ -122,6 +125,7 @@ func newSessionTransport(base http.RoundTripper, target *url.URL, creds adminCre
 	// to the validated target.
 	loginTarget := target.JoinPath(sessionLoginPath)
 	logoutTarget := target.JoinPath(sessionLogoutPath)
+	currentUserTarget := target.JoinPath(sessionCurrentUserPath)
 
 	// JoinPath leaves the leading slash off when the target has no path;
 	// proxied request paths always start with one.
@@ -131,15 +135,19 @@ func newSessionTransport(base http.RoundTripper, target *url.URL, creds adminCre
 	if !strings.HasPrefix(logoutTarget.Path, "/") {
 		logoutTarget.Path = "/" + logoutTarget.Path
 	}
+	if !strings.HasPrefix(currentUserTarget.Path, "/") {
+		currentUserTarget.Path = "/" + currentUserTarget.Path
+	}
 
 	return &sessionTransport{
-		base:         base,
-		creds:        creds,
-		loginURL:     loginTarget.String(),
-		loginPath:    loginTarget.Path,
-		logoutPath:   logoutTarget.Path,
-		loginTimeout: defaultLoginTimeout,
-		logf:         logf,
+		base:           base,
+		creds:          creds,
+		loginURL:       loginTarget.String(),
+		loginPath:      loginTarget.Path,
+		logoutPath:     logoutTarget.Path,
+		currentUserURL: currentUserTarget.String(),
+		loginTimeout:   defaultLoginTimeout,
+		logf:           logf,
 	}
 }
 
@@ -159,6 +167,16 @@ func (t *sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	resp, err := t.base.RoundTrip(req)
 	if err != nil || !isAuthFailure(resp.StatusCode) {
 		return resp, err
+	}
+
+	// A user can sign in manually as a different account (the printed
+	// credentials, or any user created in the dashboard). If the failed
+	// request carries a session the transport did not establish and that
+	// session is still valid, this is a genuine authorization denial for that
+	// account: pass it through instead of replaying the request as the seeded
+	// admin.
+	if t.carriesValidForeignSession(req) {
+		return resp, nil
 	}
 
 	cookies, fromCache, sessionErr := t.sessionCookies(req)
@@ -227,6 +245,48 @@ func (t *sessionTransport) eligible(req *http.Request) bool {
 
 func isAuthFailure(status int) bool {
 	return status == http.StatusUnauthorized || status == http.StatusForbidden
+}
+
+// carriesValidForeignSession reports whether req carries session cookies that
+// are not the transport's own cached session and that the API still accepts.
+// The API answers 403 both to requests with no valid session and to denied
+// requests from a valid one, so validity is probed with a current-user lookup
+// using exactly the carried cookies. A dead session (expired, revoked, or left
+// over from a previous engine) is not treated as foreign and is replaced by
+// the automatic sign-in as usual.
+func (t *sessionTransport) carriesValidForeignSession(req *http.Request) bool {
+	carried := req.Cookies()
+	if len(carried) == 0 {
+		return false
+	}
+
+	t.mu.Lock()
+	cached := t.cookies
+	t.mu.Unlock()
+
+	if len(cached) > 0 && requestCarriesCookies(req, cached) {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(req.Context(), t.loginTimeout)
+	defer cancel()
+
+	probe, err := http.NewRequestWithContext(ctx, http.MethodGet, t.currentUserURL, nil)
+	if err != nil {
+		return false
+	}
+
+	for _, c := range carried {
+		probe.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value}) // nolint:gosec // outgoing request cookie; Secure/HttpOnly/SameSite are response attributes
+	}
+
+	resp, err := t.base.RoundTrip(probe)
+	if err != nil {
+		return false
+	}
+	defer discardResponse(resp)
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // sessionCookies returns session cookies expected to satisfy a request that

@@ -28,6 +28,10 @@ type fakeEmbeddedAPI struct {
 	// extraLoginCookie is an additional cookie the login response sets.
 	extraLoginCookie *http.Cookie
 
+	// nonAdminValue is a session value for a signed-in non-admin account:
+	// the current-user endpoint accepts it, every other endpoint denies it.
+	nonAdminValue string
+
 	lastAPIRequest atomic.Pointer[http.Request]
 }
 
@@ -62,6 +66,16 @@ func (f *fakeEmbeddedAPI) handler() http.Handler {
 		f.lastAPIRequest.Store(clone)
 
 		c, err := r.Cookie("hatchet")
+		if err == nil && f.nonAdminValue != "" && c.Value == f.nonAdminValue {
+			if r.URL.Path == "/api/v1/users/current" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"email":"member@example.com"}`))
+				return
+			}
+
+			http.Error(w, "This user does not have permission", http.StatusForbidden)
+			return
+		}
 		if err != nil || c.Value != f.sessionValue || f.alwaysDeny {
 			http.Error(w, "Please provide valid credentials", http.StatusForbidden)
 			return
@@ -451,6 +465,37 @@ func TestSessionTransportRejectsReservedLoginCookie(t *testing.T) {
 		}
 	}
 	rt.mu.Unlock()
+}
+
+func TestSessionTransportRespectsManualNonAdminSession(t *testing.T) {
+	// A user who signed in manually as a non-admin account keeps that
+	// identity: a genuine permission denial for that account's valid session
+	// must pass through, not be replayed as the seeded admin. (A dead carried
+	// session is still replaced, see TestSessionTransportReplacesExpiredSession.)
+	api := &fakeEmbeddedAPI{t: t, sessionValue: "session-13", nonAdminValue: "member-session"}
+	rt, srv := newTestSessionTransport(t, api, defaultTestCreds())
+
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/tenants/x/invites", strings.NewReader(`{}`))
+	req.AddCookie(&http.Cookie{Name: "hatchet", Value: "member-session"})
+	resp := do(t, rt, req)
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("got %d, want the account's own 403", resp.StatusCode)
+	}
+	if got := api.logins.Load(); got != 0 {
+		t.Errorf("a denied non-admin request performed %d admin logins", got)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == "hatchet" {
+			t.Errorf("the response replaced the manual session cookie: %v", c)
+		}
+	}
+
+	// Nothing sent upstream carries a session other than the member's.
+	sent := api.lastAPIRequest.Load()
+	if c, err := sent.Cookie("hatchet"); err != nil || c.Value != "member-session" {
+		t.Errorf("expected only the member session upstream, got %q", sent.Header.Get("Cookie"))
+	}
 }
 
 func TestStripRequestCookie(t *testing.T) {
