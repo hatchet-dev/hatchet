@@ -4,7 +4,9 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -111,6 +113,46 @@ func TestCronTUI(t *testing.T) {
 	}
 	if !containsAny(content, "Cron Jobs", "Cron", "Expression") {
 		t.Errorf("expected TUI to show 'Cron Jobs' header; got:\n%s", content)
+	}
+}
+
+func TestCronTriggerJSON(t *testing.T) {
+	h := testharness.New(t)
+
+	cronName := fmt.Sprintf("e2e-cron-trigger-%d", time.Now().UnixNano())
+	createOut := h.RunJSON("cron", "create",
+		"--workflow", "e2e-echo",
+		"--cron", "0 0 1 1 *",
+		"--name", cronName,
+	)
+
+	var created struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(createOut, &created); err != nil {
+		t.Fatalf("failed to unmarshal cron create output: %v\nOutput: %s", err, createOut)
+	}
+	if created.Metadata.ID == "" {
+		t.Fatal("expected metadata.id in cron create response")
+	}
+
+	cronID := created.Metadata.ID
+	t.Cleanup(func() {
+		_ = exec.Command(h.BinaryPath, "cron", "delete", cronID, "--yes", "-o", "json", "--profile", h.Profile).Run()
+	})
+
+	triggerOut := h.RunJSON("cron", "trigger", cronID)
+
+	var triggered struct {
+		ExternalID string `json:"externalId"`
+	}
+	if err := json.Unmarshal(triggerOut, &triggered); err != nil {
+		t.Fatalf("failed to unmarshal cron trigger output: %v\nOutput: %s", err, triggerOut)
+	}
+	if triggered.ExternalID == "" {
+		t.Errorf("expected externalId in cron trigger response, got: %s", triggerOut)
 	}
 }
 

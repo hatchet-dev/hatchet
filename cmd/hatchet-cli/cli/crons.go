@@ -370,9 +370,88 @@ var cronDisableCmd = &cobra.Command{
 	},
 }
 
+var cronTriggerCmd = &cobra.Command{
+	Use:   "trigger [cron-id]",
+	Short: "Trigger a cron job's workflow now",
+	Long:  `Trigger a cron job's workflow immediately. Omit the ID to pick from a list interactively.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		var cronID string
+		if len(args) == 1 {
+			cronID = args[0]
+		} else if !isJSON {
+			limit := int64(100)
+			listResp, listErr := hatchetClient.API().CronWorkflowListWithResponse(ctx, tenantUUID, &rest.CronWorkflowListParams{
+				Limit: &limit,
+			})
+			if listErr != nil {
+				cli.Logger.Fatalf("failed to list cron jobs: %v", listErr)
+			}
+			if listResp.JSON200 == nil || listResp.JSON200.Rows == nil || len(*listResp.JSON200.Rows) == 0 {
+				cli.Logger.Fatal("no cron jobs found")
+			}
+
+			var options []huh.Option[string]
+			for _, cron := range *listResp.JSON200.Rows {
+				name := cron.Metadata.Id
+				if cron.Name != nil && *cron.Name != "" {
+					name = *cron.Name
+				}
+				label := fmt.Sprintf("%s  (%s)", name, cron.Cron)
+				options = append(options, huh.NewOption(label, cron.Metadata.Id))
+			}
+
+			height := len(options)
+			if height > 10 {
+				height = 10
+			}
+			form := huh.NewForm(huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select a cron job to trigger").
+					Options(options...).
+					Height(height).
+					Value(&cronID),
+			)).WithTheme(styles.HatchetTheme())
+			if formErr := form.Run(); formErr != nil {
+				cli.Logger.Fatalf("selection cancelled: %v", formErr)
+			}
+		} else {
+			cli.Logger.Fatal("cron job ID is required in JSON mode")
+		}
+
+		cronUUID, err := uuid.Parse(cronID)
+		if err != nil {
+			cli.Logger.Fatalf("invalid cron job ID %q: %v", cronID, err)
+		}
+
+		resp, err := hatchetClient.API().WorkflowCronTriggerWithResponse(ctx, tenantUUID, cronUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to trigger cron job: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d): %s", resp.StatusCode(), string(resp.Body))
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+		} else {
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf(
+				"Triggered cron job: %s\n  Run ID: %s",
+				cronID,
+				resp.JSON200.ExternalId,
+			)))
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(cronCmd)
-	cronCmd.AddCommand(cronListCmd, cronGetCmd, cronCreateCmd, cronDeleteCmd, cronEnableCmd, cronDisableCmd)
+	cronCmd.AddCommand(cronListCmd, cronGetCmd, cronCreateCmd, cronDeleteCmd, cronEnableCmd, cronDisableCmd, cronTriggerCmd)
 
 	cronCmd.PersistentFlags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 	cronCmd.PersistentFlags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")

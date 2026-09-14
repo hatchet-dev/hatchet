@@ -1,0 +1,226 @@
+---
+title: "Managing Resources"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Managing Resources
+
+The Hatchet CLI is a full API client for your Hatchet tenant: everything an admin-scoped API token can do through the REST API is available as a CLI command. This makes the CLI a complete alternative frontend to the Hatchet dashboard, and a convenient way to script against Hatchet from CI or the shell.
+
+## Conventions
+
+All resource commands share a few conventions:
+
+- `--profile` / `-p` selects the [profile](/cli/profiles) to connect with. Without it, the CLI prompts you to pick one.
+- `--output json` / `-o json` prints raw JSON and disables all interactive prompts, making commands safe for scripting. Without it, `list` commands open the [TUI](/cli/tui) where a view exists, and create/update commands fall back to interactive forms for missing inputs.
+- Destructive commands (`delete`, `revoke`) ask for confirmation. Pass `--yes` / `-y` to skip.
+- Every command and subcommand documents its flags via `--help`.
+
+```sh
+# Interactive: opens the runs view in the TUI
+hatchet runs list -p production
+
+# Scripting: raw JSON, no prompts
+hatchet runs list -p production -o json | jq '.rows[].metadata.id'
+```
+
+## Runs
+
+Inspect and operate on workflow runs:
+
+```sh
+hatchet runs list --status FAILED --since 2h
+hatchet runs get <run-id>
+hatchet runs status <run-id>
+hatchet runs timings <run-id>
+hatchet runs logs <run-id>
+hatchet runs events <run-id>
+hatchet runs list-children <run-id>
+hatchet runs cancel <run-id>
+hatchet runs replay <run-id>
+hatchet runs metrics
+hatchet runs restore <task-id>
+```
+
+`cancel` and `replay` also support bulk operation by filter, `metrics` reports status counts over a time window (`--points` for time-series point metrics), and `restore` brings back an evicted durable task.
+
+## Workflows
+
+```sh
+hatchet workflows list
+hatchet workflows get <workflow>
+hatchet workflows pause <workflow>
+hatchet workflows unpause <workflow>
+hatchet workflows metrics <workflow>
+hatchet workflows workers-count <workflow>
+hatchet workflows version <workflow>
+hatchet workflows delete <workflow>
+```
+
+Workflows can be referenced by name or ID. `version` fetches the latest workflow version unless `--version` is given.
+
+## Workers
+
+```sh
+hatchet worker list
+hatchet worker get <worker-id>
+hatchet worker pause <worker-id>
+hatchet worker resume <worker-id>
+```
+
+Paused workers stop receiving new task assignments until resumed. (`hatchet worker dev` runs a local worker — see [Running Workers Locally](/cli/running-workers-locally).)
+
+## Events
+
+Push events and inspect the event stream:
+
+```sh
+hatchet events push user:created --data '{"id": 123}'
+hatchet events bulk-push --file events.json
+hatchet events list --keys user:created
+hatchet events get <event-id>
+hatchet events keys
+```
+
+`push` supports `--metadata`, `--scope` (for [filters](#filters)), and `--priority`. `bulk-push` reads a JSON array of `{key, data, additionalMetadata}` entries from a file or stdin (`--file -`).
+
+## Filters
+
+Manage event filters that scope which events trigger workflow runs:
+
+```sh
+hatchet filters list
+hatchet filters create --workflow-id <id> --expression 'input.amount > 100' --scope my-scope
+hatchet filters get <filter-id>
+hatchet filters update <filter-id> --expression 'input.amount > 500'
+hatchet filters delete <filter-id>
+```
+
+Use `hatchet cel debug` to test expressions before creating a filter.
+
+## Cron Jobs
+
+```sh
+hatchet cron list
+hatchet cron create --workflow my-workflow --cron '0 * * * *' --name hourly
+hatchet cron get <cron-id>
+hatchet cron enable <cron-id>
+hatchet cron disable <cron-id>
+hatchet cron trigger <cron-id>
+hatchet cron delete <cron-id>
+```
+
+`trigger` runs the cron's workflow immediately without waiting for the schedule.
+
+## Scheduled Runs
+
+```sh
+hatchet scheduled list
+hatchet scheduled create --workflow my-workflow --trigger-at 2026-09-01T12:00:00Z --input '{}'
+hatchet scheduled get <id>
+hatchet scheduled update <id> --trigger-at 2026-09-02T12:00:00Z
+hatchet scheduled trigger <id>
+hatchet scheduled delete <id> [<id>...]
+hatchet scheduled bulk-update --ids <id>,<id> --trigger-at 2026-09-02T12:00:00Z
+```
+
+`create --trigger-at` accepts RFC3339 timestamps or durations (`--in 2h`). `delete` accepts multiple IDs and uses the bulk API.
+
+## Rate Limits
+
+```sh
+hatchet rate-limits list
+hatchet rate-limits create --key my-key --limit 100 --duration minute
+hatchet rate-limits get my-key
+hatchet rate-limits delete my-key
+```
+
+## Webhooks
+
+Manage incoming webhooks that convert HTTP requests from external systems into Hatchet events:
+
+```sh
+hatchet webhooks list
+hatchet webhooks create --name my-hook --source GENERIC --event-key-expression "'my:event'" --auth-type basic --username u --password p
+hatchet webhooks get <name>
+hatchet webhooks update <name> --event-key-expression "'other:event'"
+hatchet webhooks delete <name>
+```
+
+Supported sources include `GENERIC`, `GITHUB`, `LINEAR`, `SLACK`, `STRIPE`, and `SVIX`; auth types are `basic`, `api-key`, and `hmac`.
+
+## Logs
+
+Search log lines across all runs in the tenant:
+
+```sh
+hatchet logs list --search "error" --since 2026-08-11T00:00:00Z
+hatchet logs metrics
+```
+
+For the logs of a single run, use `hatchet runs logs <run-id>`.
+
+## API Tokens
+
+```sh
+hatchet tokens list
+hatchet tokens create --name ci-token --expires-in 720h
+hatchet tokens revoke <token-id>
+```
+
+<Callout type="warning">
+  The token value is only shown once, at creation time.
+</Callout>
+
+## Tenant
+
+Inspect and configure the tenant the profile is connected to:
+
+```sh
+hatchet tenant get
+hatchet tenant update --analytics-opt-out=true
+hatchet tenant resource-policy
+hatchet tenant queue-metrics
+hatchet tenant task-stats
+hatchet tenant prometheus-metrics
+hatchet tenant feature-flag <key>
+```
+
+Manage members and invites:
+
+```sh
+hatchet tenant members list
+hatchet tenant members update <member-id> --role ADMIN
+hatchet tenant members delete <member-id>
+
+hatchet tenant invites list
+hatchet tenant invites create --email dev@example.com --role MEMBER
+hatchet tenant invites update <invite-id> --role ADMIN
+hatchet tenant invites delete <invite-id>
+```
+
+## Alerting
+
+```sh
+hatchet alerting settings
+hatchet alerting email-groups list
+hatchet alerting email-groups create --emails oncall@example.com,dev@example.com
+hatchet alerting email-groups update <group-id> --emails oncall@example.com
+hatchet alerting email-groups delete <group-id>
+hatchet alerting slack list
+hatchet alerting slack delete <webhook-id>
+hatchet alerting sns list
+hatchet alerting sns create --topic-arn arn:aws:sns:us-east-1:123456789012:my-topic
+hatchet alerting sns delete <sns-id>
+```
+
+Slack webhooks are created through the dashboard's OAuth flow; the CLI can list and delete them.
+
+## CEL Debugging
+
+Evaluate a CEL expression against a sample input, the same way the server evaluates filter and event-key expressions:
+
+```sh
+hatchet cel debug --expression 'input.amount > 100' --input '{"amount": 250}'
+```

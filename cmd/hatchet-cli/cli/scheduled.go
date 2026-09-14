@@ -229,17 +229,210 @@ var scheduledCreateCmd = &cobra.Command{
 	},
 }
 
+var scheduledUpdateCmd = &cobra.Command{
+	Use:   "update <scheduled-run-id>",
+	Short: "Reschedule a scheduled run",
+	Long:  `Update the trigger time of a scheduled run. In --output json mode, --trigger-at is required. Otherwise, prompts if not provided.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		scheduledUUID, err := uuid.Parse(args[0])
+		if err != nil {
+			cli.Logger.Fatalf("invalid scheduled run ID %q: %v", args[0], err)
+		}
+
+		triggerAtStr, _ := cmd.Flags().GetString("trigger-at")
+		if triggerAtStr == "" {
+			if isJSON {
+				cli.Logger.Fatal("--trigger-at is required in JSON mode")
+			}
+			form := huh.NewForm(huh.NewGroup(
+				huh.NewInput().
+					Title("New trigger time (RFC3339)").
+					Value(&triggerAtStr).
+					Placeholder("2026-01-01T12:00:00Z"),
+			)).WithTheme(styles.HatchetTheme())
+			if formErr := form.Run(); formErr != nil {
+				cli.Logger.Fatalf("form cancelled: %v", formErr)
+			}
+		}
+
+		triggerAt, err := time.Parse(time.RFC3339, triggerAtStr)
+		if err != nil {
+			cli.Logger.Fatalf("invalid --trigger-at value (use RFC3339): %v", err)
+		}
+
+		resp, err := hatchetClient.API().WorkflowScheduledUpdateWithResponse(ctx, tenantUUID, scheduledUUID, rest.WorkflowScheduledUpdateJSONRequestBody{
+			TriggerAt: triggerAt,
+		})
+		if err != nil {
+			cli.Logger.Fatalf("failed to update scheduled run: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d): %s", resp.StatusCode(), string(resp.Body))
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+		} else {
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf(
+				"Updated scheduled run: %s\n  Trigger at: %s",
+				resp.JSON200.Metadata.Id,
+				resp.JSON200.TriggerAt.Local().Format("2006-01-02 15:04:05 MST"),
+			)))
+		}
+	},
+}
+
+var scheduledTriggerCmd = &cobra.Command{
+	Use:   "trigger <scheduled-run-id>",
+	Short: "Trigger a scheduled run now",
+	Long:  `Trigger a scheduled run immediately instead of waiting for its trigger time.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		scheduledUUID, err := uuid.Parse(args[0])
+		if err != nil {
+			cli.Logger.Fatalf("invalid scheduled run ID %q: %v", args[0], err)
+		}
+
+		resp, err := hatchetClient.API().WorkflowScheduledTriggerWithResponse(ctx, tenantUUID, scheduledUUID)
+		if err != nil {
+			cli.Logger.Fatalf("failed to trigger scheduled run: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d): %s", resp.StatusCode(), string(resp.Body))
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+		} else {
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf(
+				"Triggered scheduled run: %s\n  Run ID: %s",
+				args[0],
+				resp.JSON200.ExternalId,
+			)))
+		}
+	},
+}
+
+var scheduledBulkUpdateCmd = &cobra.Command{
+	Use:     "bulk-update",
+	Short:   "Reschedule multiple scheduled runs",
+	Long:    `Update the trigger time of multiple scheduled runs at once.`,
+	Example: `  hatchet scheduled bulk-update --ids id1,id2 --trigger-at 2026-01-01T12:00:00Z`,
+	Run: func(cmd *cobra.Command, args []string) {
+		isJSON := isJSONOutput(cmd)
+		_, hatchetClient := clientFromCmd(cmd)
+		ctx := cmd.Context()
+		tenantUUID := clientTenantUUID(hatchetClient)
+
+		ids, _ := cmd.Flags().GetStringSlice("ids")
+		triggerAtStr, _ := cmd.Flags().GetString("trigger-at")
+
+		triggerAt, err := time.Parse(time.RFC3339, triggerAtStr)
+		if err != nil {
+			cli.Logger.Fatalf("invalid --trigger-at value (use RFC3339): %v", err)
+		}
+
+		updates := make([]rest.ScheduledWorkflowsBulkUpdateItem, 0, len(ids))
+		for _, id := range ids {
+			u, parseErr := uuid.Parse(id)
+			if parseErr != nil {
+				cli.Logger.Fatalf("invalid scheduled run ID %q: %v", id, parseErr)
+			}
+			updates = append(updates, rest.ScheduledWorkflowsBulkUpdateItem{
+				Id:        u,
+				TriggerAt: triggerAt,
+			})
+		}
+
+		resp, err := hatchetClient.API().WorkflowScheduledBulkUpdateWithResponse(ctx, tenantUUID, rest.WorkflowScheduledBulkUpdateJSONRequestBody{
+			Updates: updates,
+		})
+		if err != nil {
+			cli.Logger.Fatalf("failed to bulk update scheduled runs: %v", err)
+		}
+		if resp.JSON200 == nil {
+			cli.Logger.Fatalf("unexpected response from API (status %d): %s", resp.StatusCode(), string(resp.Body))
+		}
+
+		if isJSON {
+			printJSON(resp.JSON200)
+		} else {
+			fmt.Println(styles.SuccessMessage(fmt.Sprintf("Updated %d scheduled run(s)", len(resp.JSON200.UpdatedIds))))
+			for _, e := range resp.JSON200.Errors {
+				if e.Id != nil {
+					fmt.Printf("  error for %s: %s\n", e.Id, e.Error)
+				} else {
+					fmt.Printf("  error: %s\n", e.Error)
+				}
+			}
+		}
+	},
+}
+
 var scheduledDeleteCmd = &cobra.Command{
-	Use:   "delete [scheduled-run-id]",
-	Short: "Delete a scheduled run",
-	Long:  `Delete a scheduled run by ID. Omit the ID to pick from a list interactively. Use --yes to skip confirmation.`,
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "delete [scheduled-run-id...]",
+	Short: "Delete scheduled runs",
+	Long:  `Delete scheduled runs by ID. Omit the ID to pick from a list interactively. Pass multiple IDs to bulk delete. Use --yes to skip confirmation.`,
+	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		isJSON := isJSONOutput(cmd)
 		yes, _ := cmd.Flags().GetBool("yes")
 		_, hatchetClient := clientFromCmd(cmd)
 		ctx := cmd.Context()
 		tenantUUID := clientTenantUUID(hatchetClient)
+
+		if len(args) >= 2 {
+			ids := make([]uuid.UUID, 0, len(args))
+			for _, id := range args {
+				u, parseErr := uuid.Parse(id)
+				if parseErr != nil {
+					cli.Logger.Fatalf("invalid scheduled run ID %q: %v", id, parseErr)
+				}
+				ids = append(ids, u)
+			}
+
+			if !isJSON && !yes {
+				if !confirmAction(fmt.Sprintf("Delete %d scheduled runs?", len(ids))) {
+					fmt.Println("Aborted.")
+					return
+				}
+			}
+
+			resp, err := hatchetClient.API().WorkflowScheduledBulkDeleteWithResponse(ctx, tenantUUID, rest.WorkflowScheduledBulkDeleteJSONRequestBody{
+				ScheduledWorkflowRunIds: &ids,
+			})
+			if err != nil {
+				cli.Logger.Fatalf("failed to bulk delete scheduled runs: %v", err)
+			}
+			if resp.JSON200 == nil {
+				cli.Logger.Fatalf("unexpected response from API (status %d): %s", resp.StatusCode(), string(resp.Body))
+			}
+
+			if isJSON {
+				printJSON(resp.JSON200)
+			} else {
+				fmt.Println(styles.SuccessMessage(fmt.Sprintf("Deleted %d scheduled run(s)", len(resp.JSON200.DeletedIds))))
+				for _, e := range resp.JSON200.Errors {
+					if e.Id != nil {
+						fmt.Printf("  error for %s: %s\n", e.Id, e.Error)
+					} else {
+						fmt.Printf("  error: %s\n", e.Error)
+					}
+				}
+			}
+			return
+		}
 
 		var scheduledID string
 		if len(args) == 1 {
@@ -311,7 +504,7 @@ var scheduledDeleteCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(scheduledCmd)
-	scheduledCmd.AddCommand(scheduledListCmd, scheduledGetCmd, scheduledCreateCmd, scheduledDeleteCmd)
+	scheduledCmd.AddCommand(scheduledListCmd, scheduledGetCmd, scheduledCreateCmd, scheduledDeleteCmd, scheduledUpdateCmd, scheduledTriggerCmd, scheduledBulkUpdateCmd)
 
 	scheduledCmd.PersistentFlags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
 	scheduledCmd.PersistentFlags().StringP("output", "o", "", "Output format: json (skips interactive TUI)")
@@ -326,4 +519,11 @@ func init() {
 	scheduledCreateCmd.Flags().String("input-file", "", "Path to a JSON file for input")
 
 	scheduledDeleteCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt")
+
+	scheduledUpdateCmd.Flags().StringP("trigger-at", "t", "", "New trigger time in RFC3339 format")
+
+	scheduledBulkUpdateCmd.Flags().StringSlice("ids", nil, "Scheduled run IDs to update (comma-separated or repeated)")
+	scheduledBulkUpdateCmd.Flags().StringP("trigger-at", "t", "", "New trigger time in RFC3339 format")
+	_ = scheduledBulkUpdateCmd.MarkFlagRequired("ids")
+	_ = scheduledBulkUpdateCmd.MarkFlagRequired("trigger-at")
 }

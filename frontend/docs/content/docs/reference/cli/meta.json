@@ -8,6 +8,8 @@
     "quickstarts",
     "running-workers-locally",
     "triggering-workflows",
+    "---API Client---",
+    "managing-resources",
     "---TUI---",
     "tui"
   ],
