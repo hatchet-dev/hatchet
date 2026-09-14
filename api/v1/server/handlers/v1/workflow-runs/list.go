@@ -2,7 +2,6 @@ package workflowruns
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -143,20 +142,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
+	filters, numFilters, hasDuplicateKeys := v1.ParseAdditionalMetadataFilters(request.Params.AdditionalMetadata)
+	if filters != nil {
+		opts.AdditionalMetadata = filters
 	}
 
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata), useGinIndex)
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, numFilters, useGinIndex, hasDuplicateKeys)
 
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
@@ -294,20 +285,12 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
+	filters, numFilters, hasDuplicateKeys := v1.ParseAdditionalMetadataFilters(request.Params.AdditionalMetadata)
+	if filters != nil {
+		opts.AdditionalMetadata = filters
 	}
 
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata), useGinIndex)
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, numFilters, useGinIndex, hasDuplicateKeys)
 
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
@@ -389,7 +372,13 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query
 // param to the repository operator, defaulting to OR
-func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator, numFilters int, useGinIndexOverride bool) v1.AdditionalMetadataOperator {
+func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator, numFilters int, useGinIndexOverride bool, hasDuplicateKeys bool) v1.AdditionalMetadataOperator {
+	// If identical keys have multiple values, they must be treated with OR semantics.
+	// We cannot use AND containment since a single key cannot hold multiple distinct scalar values.
+	if hasDuplicateKeys && (param == nil || *param != gen.AND) {
+		return v1.AdditionalMetadataOperatorOr
+	}
+
 	// if we only have one filter, always use the `AND` since it's the most performant way, and both methods are equivalent
 	if numFilters <= 1 {
 		return v1.AdditionalMetadataOperatorAnd
@@ -399,7 +388,7 @@ func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator, numFilt
 		return v1.AdditionalMetadataOperatorAnd
 	}
 
-	if useGinIndexOverride {
+	if useGinIndexOverride && !hasDuplicateKeys {
 		return v1.AdditionalMetadataOperatorAnd
 	}
 
@@ -456,17 +445,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 		WorkflowIds:  workflowIds,
 	}
 
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
+	filters, _, _ := v1.ParseAdditionalMetadataFilters(request.Params.AdditionalMetadata)
+	if filters != nil {
+		opts.AdditionalMetadata = filters
 	}
 
 	if request.Params.Until != nil {

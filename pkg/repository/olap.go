@@ -43,6 +43,103 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
+// ParseAdditionalMetadataFilters parses key:value strings into a metadata map.
+// If multiple values are provided for the same key, they are preserved in a []string
+// so that OR semantics can be applied rather than overwriting previous values.
+func ParseAdditionalMetadataFilters(raw *[]string) (map[string]interface{}, int, bool) {
+	if raw == nil {
+		return nil, 0, false
+	}
+	return ParseAdditionalMetadataStrings(*raw)
+}
+
+func ParseAdditionalMetadataStrings(raw []string) (map[string]interface{}, int, bool) {
+	if len(raw) == 0 {
+		return nil, 0, false
+	}
+
+	filters := make(map[string]interface{})
+	var count int
+	var hasDuplicateKeys bool
+
+	for _, v := range raw {
+		kv_pairs := strings.SplitN(v, ":", 2)
+		if len(kv_pairs) == 2 {
+			key := kv_pairs[0]
+			val := kv_pairs[1]
+
+			if existing, ok := filters[key]; ok {
+				switch e := existing.(type) {
+				case string:
+					if e != val {
+						hasDuplicateKeys = true
+						filters[key] = []string{e, val}
+						count++
+					}
+				case []string:
+					alreadyExists := false
+					for _, existingVal := range e {
+						if existingVal == val {
+							alreadyExists = true
+							break
+						}
+					}
+					if !alreadyExists {
+						hasDuplicateKeys = true
+						filters[key] = append(e, val)
+						count++
+					}
+				}
+			} else {
+				filters[key] = val
+				count++
+			}
+		}
+	}
+
+	return filters, count, hasDuplicateKeys
+}
+
+func HasMultiValueMetadata(additionalMetadata map[string]interface{}) bool {
+	for _, value := range additionalMetadata {
+		switch v := value.(type) {
+		case []string:
+			if len(v) > 1 {
+				return true
+			}
+		case []interface{}:
+			if len(v) > 1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func AppendMetadataKeyValues(additionalMetadata map[string]interface{}) (keys []string, values []string) {
+	for key, value := range additionalMetadata {
+		switch v := value.(type) {
+		case string:
+			keys = append(keys, key)
+			values = append(values, v)
+		case []string:
+			for _, s := range v {
+				keys = append(keys, key)
+				values = append(values, s)
+			}
+		case []interface{}:
+			for _, s := range v {
+				keys = append(keys, key)
+				values = append(values, fmt.Sprintf("%v", s))
+			}
+		default:
+			keys = append(keys, key)
+			values = append(values, fmt.Sprintf("%v", v))
+		}
+	}
+	return keys, values
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -886,7 +983,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
+	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 && !HasMultiValueMetadata(opts.AdditionalMetadata) {
 		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
 
 		if marshalErr != nil {
@@ -896,12 +993,11 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		params.AdditionalMetadataContainsAll = containsAll
 		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
+		keys, values := AppendMetadataKeyValues(opts.AdditionalMetadata)
+		params.Keys = append(params.Keys, keys...)
+		params.Values = append(params.Values, values...)
+		countParams.Keys = append(countParams.Keys, keys...)
+		countParams.Values = append(countParams.Values, values...)
 	}
 
 	var (
@@ -1248,7 +1344,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
+	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 && !HasMultiValueMetadata(opts.AdditionalMetadata) {
 		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
 
 		if marshalErr != nil {
@@ -1258,12 +1354,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		params.AdditionalMetadataContainsAll = containsAll
 		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
+		keys, values := AppendMetadataKeyValues(opts.AdditionalMetadata)
+		params.Keys = append(params.Keys, keys...)
+		params.Values = append(params.Values, values...)
+		countParams.Keys = append(countParams.Keys, keys...)
+		countParams.Values = append(countParams.Values, values...)
 	}
 
 	var (
@@ -1549,10 +1644,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 		params.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	for key, value := range opts.AdditionalMetadata {
-		params.AdditionalMetaKeys = append(params.AdditionalMetaKeys, key)
-		params.AdditionalMetaValues = append(params.AdditionalMetaValues, value.(string))
-	}
+	keys, values := AppendMetadataKeyValues(opts.AdditionalMetadata)
+	params.AdditionalMetaKeys = append(params.AdditionalMetaKeys, keys...)
+	params.AdditionalMetaValues = append(params.AdditionalMetaValues, values...)
 
 	externalIds, err := r.queries.ListWorkflowRunExternalIds(ctx, tx, params)
 
@@ -1641,13 +1735,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
-	var additionalMetaKeys []string
-	var additionalMetaValues []string
-
-	for key, value := range opts.AdditionalMetadata {
-		additionalMetaKeys = append(additionalMetaKeys, key)
-		additionalMetaValues = append(additionalMetaValues, value.(string))
-	}
+	additionalMetaKeys, additionalMetaValues := AppendMetadataKeyValues(opts.AdditionalMetadata)
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:                  tenantId,

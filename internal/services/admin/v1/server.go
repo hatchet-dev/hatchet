@@ -88,15 +88,12 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		var additionalMetadataFilters map[string]interface{}
 
 		if len(req.Filter.AdditionalMetadata) > 0 {
-			additionalMetadataFilters = make(map[string]interface{})
 			for _, v := range req.Filter.AdditionalMetadata {
-				kv_pairs := strings.SplitN(v, ":", 2)
-				if len(kv_pairs) == 2 {
-					additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-				} else {
+				if len(strings.SplitN(v, ":", 2)) != 2 {
 					return nil, status.Errorf(codes.InvalidArgument, "invalid additional metadata filter: %s", v)
 				}
 			}
+			additionalMetadataFilters, _, _ = v1.ParseAdditionalMetadataStrings(req.Filter.AdditionalMetadata)
 		}
 
 		opts := v1.ListWorkflowRunOpts{
@@ -235,15 +232,12 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		var additionalMetadataFilters map[string]interface{}
 
 		if len(req.Filter.AdditionalMetadata) > 0 {
-			additionalMetadataFilters = make(map[string]interface{})
 			for _, v := range req.Filter.AdditionalMetadata {
-				kv_pairs := strings.SplitN(v, ":", 2)
-				if len(kv_pairs) == 2 {
-					additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-				} else {
+				if len(strings.SplitN(v, ":", 2)) != 2 {
 					return nil, status.Errorf(codes.InvalidArgument, "invalid additional metadata filter: %s", v)
 				}
 			}
+			additionalMetadataFilters, _, _ = v1.ParseAdditionalMetadataStrings(req.Filter.AdditionalMetadata)
 		}
 
 		opts := v1.ListWorkflowRunOpts{

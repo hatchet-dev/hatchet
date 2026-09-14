@@ -1,8 +1,6 @@
 package tasks
 
 import (
-	"strings"
-
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -37,13 +35,8 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 
 	additionalMetadataFilters := make(map[string]interface{})
 
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
+	if filters, _, _ := v1.ParseAdditionalMetadataFilters(request.Params.AdditionalMetadata); filters != nil {
+		additionalMetadataFilters = filters
 	}
 
 	metrics, err := t.config.V1.OLAP().ReadTaskRunMetrics(ctx.Request().Context(), tenantId, v1.ReadTaskRunMetricsOpts{
