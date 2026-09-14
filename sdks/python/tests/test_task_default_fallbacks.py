@@ -156,6 +156,24 @@ def test_defaults_correctly_overridden_by_params_passed_in(
     assert t.backoff_max_seconds == 5
 
 
+@pytest.mark.parametrize("is_durable", [False, True])
+def test_explicit_zero_retries_disables_retries_despite_nonzero_default(
+    hatchet: Hatchet, is_durable: bool
+) -> None:
+    """Regression test: explicitly passing `retries=0` must disable retries even when
+    `TaskDefaults.retries` is nonzero. Previously, `retries=0` was indistinguishable from
+    "not passed" (both compared equal to the decorator's old `retries: int = 0` default),
+    so the task-level `0` was silently overridden by the workflow default."""
+    t = task(
+        hatchet=hatchet,
+        is_durable=is_durable,
+        task_defaults=TaskDefaults(retries=3),
+        retries=0,
+    )
+
+    assert t.retries == 0
+
+
 @pytest.mark.parametrize(
     "is_durable,is_standalone",
     [

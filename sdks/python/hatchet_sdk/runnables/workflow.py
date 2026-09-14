@@ -109,7 +109,10 @@ def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -
 class ComputedTaskParameters(BaseModel):
     schedule_timeout: Duration
     execution_timeout: Duration
-    retries: int
+    ## `None` means "not passed to the decorator" (falls back to `task_defaults.retries`,
+    ## or 0). This is always resolved to an `int` by `validate_params` below; callers
+    ## should treat a resolved `ComputedTaskParameters.retries` as non-`None`.
+    retries: int | None
     backoff_factor: float | None
     backoff_max_seconds: int | None
 
@@ -139,11 +142,18 @@ class ComputedTaskParameters(BaseModel):
         )
         self.retries = fall_back_to_default(
             value=self.retries,
-            param_default=0,
+            param_default=None,
             fallback_value=self.task_defaults.retries,
         )
+        if self.retries is None:
+            self.retries = 0
 
         return self
+
+    @property
+    def resolved_retries(self) -> int:
+        """`retries` after `validate_params` has run: always an `int`, never `None`."""
+        return cast(int, self.retries)
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
@@ -1422,7 +1432,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1449,7 +1459,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
-        :param retries: The number of times to retry the task before failing.
+        :param retries: The number of times to retry the task before failing. Defaults to ``None``, which falls back to the workflow's ``task_defaults.retries``. Pass ``0`` explicitly to disable retries even if the workflow default is nonzero.
 
         :param rate_limits: A list of rate limit configurations for the task.
 
@@ -1514,7 +1524,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
@@ -1681,7 +1691,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
@@ -1711,7 +1721,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1746,7 +1756,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
-        :param retries: The number of times to retry the task before failing.
+        :param retries: The number of times to retry the task before failing. Defaults to ``None``, which falls back to the workflow's ``task_defaults.retries``. Pass ``0`` explicitly to disable retries even if the workflow default is nonzero.
 
         :param rate_limits: A list of rate limit configurations for the task.
 
@@ -1804,7 +1814,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=computed_params.retries,
+                retries=computed_params.resolved_retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
