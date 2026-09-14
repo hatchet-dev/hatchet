@@ -1,0 +1,470 @@
+<title>Hatchet Startup Program</title>
+<style>
+  :root {
+    --background: hsl(0 0% 100%);
+    --foreground: hsl(222.2 84% 4.9%);
+    --card: hsl(0 0% 100%);
+    --muted-foreground: hsl(215.4 16.3% 46.9%);
+    --border: hsl(214.3 31.8% 91.4%);
+    --input: hsl(214.3 31.8% 91.4%);
+    --primary: hsl(222.2 47.4% 11.2%);
+    --primary-foreground: hsl(210 40% 98%);
+    --ring: hsl(222.2 84% 4.9%);
+    --panel: hsl(210 20% 98% / 0.5);
+    --panel-border: hsl(220 13% 91%);
+    --success: hsl(193 100% 27%);
+    --logo: rgb(0, 26, 56);
+    --shadow: 0 1px 3px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: hsl(226 82% 6%);
+      --foreground: hsl(210 40% 98%);
+      --card: hsl(222.2 84% 4.9%);
+      --muted-foreground: hsl(215 20.2% 65.1%);
+      --border: hsl(217.2 32.6% 17.5%);
+      --input: hsl(217.2 32.6% 17.5%);
+      --primary: hsl(210 40% 98%);
+      --primary-foreground: hsl(222.2 47.4% 11.2%);
+      --ring: hsl(212.7 26.8% 83.9%);
+      --panel: hsl(215 28% 17% / 0.2);
+      --panel-border: hsl(215 19% 27%);
+      --success: hsl(150 55% 60%);
+      --logo: rgb(184, 217, 255);
+      --shadow: 0 1px 3px hsl(0 0% 0% / 0.4);
+      --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --background: hsl(226 82% 6%);
+    --foreground: hsl(210 40% 98%);
+    --card: hsl(222.2 84% 4.9%);
+    --muted-foreground: hsl(215 20.2% 65.1%);
+    --border: hsl(217.2 32.6% 17.5%);
+    --input: hsl(217.2 32.6% 17.5%);
+    --primary: hsl(210 40% 98%);
+    --primary-foreground: hsl(222.2 47.4% 11.2%);
+    --ring: hsl(212.7 26.8% 83.9%);
+    --panel: hsl(215 28% 17% / 0.2);
+    --panel-border: hsl(215 19% 27%);
+    --success: hsl(150 55% 60%);
+    --logo: rgb(184, 217, 255);
+    --shadow: 0 1px 3px hsl(0 0% 0% / 0.4);
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 40px 20px 72px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 560px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .brand svg { display: block; color: var(--logo); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow);
+  }
+  .card-header {
+    padding: 24px 24px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .card-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    margin: 0;
+  }
+  .card-header p {
+    margin: 0;
+    color: var(--muted-foreground);
+  }
+
+  form {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .separator {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row .field { flex: 1 1 150px; }
+
+  label {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .req { color: var(--muted-foreground); font-weight: 400; }
+  .hint {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    margin: -2px 0 0;
+  }
+
+  input, select, textarea {
+    font: inherit;
+    color: var(--foreground);
+    background: transparent;
+    border: 1px solid var(--input);
+    border-radius: 0.375rem;
+    box-shadow: var(--shadow-sm);
+    padding: 0 12px;
+    height: 36px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: box-shadow 120ms, border-color 120ms;
+  }
+  textarea {
+    height: auto;
+    min-height: 76px;
+    padding: 8px 12px;
+    resize: vertical;
+  }
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23697386' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+  }
+  select:has(option[value=""]:checked) { color: var(--muted-foreground); }
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ring);
+  }
+  ::placeholder { color: var(--muted-foreground); }
+
+  .group-label {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .check-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-top: 2px;
+  }
+  .check-row .check { font-weight: 400; }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .check input {
+    appearance: none;
+    width: 16px; height: 16px;
+    flex: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--primary);
+    border-radius: 0.25rem;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .check input:checked { background: var(--primary); }
+  .check input:checked::after {
+    content: "";
+    width: 10px; height: 10px;
+    background-color: var(--primary-foreground);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  .check input:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 0.5rem;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .panel .note {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 13.5px;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  button[type="submit"] {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    height: 36px;
+    padding: 0 24px;
+    border: none;
+    border-radius: 0.375rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: opacity 120ms;
+  }
+  button[type="submit"]:hover { opacity: 0.9; }
+  button[type="submit"]:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+  .fine { font-size: 13px; color: var(--muted-foreground); }
+
+  .done {
+    padding: 40px 24px;
+    text-align: center;
+  }
+  .done .tick { color: var(--success); margin-bottom: 8px; }
+  .done h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .done p { margin: 0; color: var(--muted-foreground); }
+
+  footer {
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--muted-foreground);
+  }
+</style>
+
+<div class="page">
+  <div class="brand">
+    <svg width="120" height="21" viewBox="0 0 137 24" fill="none" role="img" aria-label="Hatchet">
+      <path d="M17.5 10L22 0L30.6059 8.60589C31.7939 9.79394 32.388 10.388 32.6105 11.0729C32.8063 11.6755 32.8063 12.3245 32.6105 12.9271C32.388 13.612 31.7939 14.2061 30.6059 15.3941L22 24H15L26.7517 11.3444C27.146 10.9197 27.3432 10.7074 27.3527 10.5263C27.361 10.3691 27.2947 10.2171 27.1739 10.1162C27.0347 10 26.7449 10 26.1654 10H17.5Z" fill="currentColor"/>
+      <path d="M16.5 14L12 24L3.39411 15.3941C2.20606 14.2061 1.61204 13.612 1.38947 12.9271C1.1937 12.3245 1.1937 11.6755 1.38947 11.0729C1.61204 10.388 2.20606 9.79394 3.39411 8.60589L12 0H19L7.24833 12.6556C6.854 13.0803 6.65684 13.2926 6.6473 13.4737C6.63902 13.6309 6.70527 13.7829 6.82612 13.8838C6.96529 14 7.25505 14 7.83457 14H16.5Z" fill="currentColor"/>
+      <path d="M88.5908 3.14502C92.0637 3.14506 94.5478 5.30746 94.5479 8.96436V10.1147H91.0977V9.05615C91.0975 7.42337 90.0857 6.36577 88.5908 6.36572C87.0959 6.36572 86.0841 7.42333 86.084 9.05615V14.9448C86.0841 16.5776 87.0959 17.6353 88.5908 17.6353C90.0856 17.6352 91.0975 16.5776 91.0977 14.9448V13.6108H94.5479V14.9448C94.5477 18.6476 92.0866 20.8549 88.5908 20.855C85.0949 20.855 82.634 18.6476 82.6338 14.9448V8.96436C82.6338 5.30742 85.1179 3.14502 88.5908 3.14502ZM80.4238 6.61865H76.3994V20.6489H72.9492V6.61865H68.9238V3.39893H80.4238V6.61865ZM136.884 6.61865H132.858V20.6489H129.408V6.61865H125.384V3.39893H136.884V6.61865ZM44.4502 10.3677H49.4414V3.37549H52.8916V20.6255H49.4414V13.5874H44.4502V20.6255H41V3.37549H44.4502V10.3677ZM68.4639 20.6255H64.3926L63.9326 18.3022H59.7461L59.2861 20.6255H55.4688L59.7461 3.37549H64.1855L68.4639 20.6255ZM101.157 10.3677H106.148V3.37549H109.598V20.6255H106.148V13.5874H101.157V20.6255H97.707V3.37549H101.157V10.3677ZM122.801 6.59521H116.361V10.1831H121.812V13.4038H116.361V17.4058H122.848V20.6255H112.911V3.37549H122.801V6.59521ZM60.2988 15.5425H63.4033L61.8623 7.72217L60.2988 15.5425Z" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <div class="card" id="card">
+    <div class="card-header" id="form-header">
+      <h1>Apply to the startup program</h1>
+      <p>Our startup program is designed to make it as easy as possible for early-stage teams to start using Hatchet Cloud with $3,000 in usage credits, Slack support, and a welcome gift. Apply today and we'll get back to you ASAP.</p>
+    </div>
+
+    <form id="startup-form" novalidate>
+      <div class="field">
+        <label for="company">Company name <span class="req">*</span></label>
+        <input id="company" name="company" type="text" required autocomplete="organization" placeholder="Acme Robotics">
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="team-size">Team size <span class="req">*</span></label>
+          <input id="team-size" name="team-size" type="number" required min="1" max="10000" inputmode="numeric" placeholder="8">
+        </div>
+        <div class="field">
+          <label for="founded">When were you founded? <span class="req">*</span></label>
+          <select id="founded" name="founded" required>
+            <option value="" selected disabled>Select a year</option>
+            <option>2026</option>
+            <option>2025</option>
+            <option>2024</option>
+            <option>2023</option>
+            <option>2022</option>
+            <option>2021</option>
+            <option>2020</option>
+            <option>2019</option>
+            <option>2018</option>
+            <option>2017</option>
+            <option>2016</option>
+            <option>2015</option>
+            <option>Before 2015</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="funding">Funds raised to date <span class="req">*</span></label>
+          <select id="funding" name="funding" required>
+            <option value="" selected disabled>Select a range</option>
+            <option>Bootstrapped — no outside funding</option>
+            <option>Under $1M</option>
+            <option>$1M – $5M</option>
+            <option>$5M – $20M</option>
+            <option>$20M – $50M</option>
+            <option>Over $50M</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="hq">HQ location <span class="req">*</span></label>
+          <select id="hq" name="hq" required>
+            <option value="" selected disabled>Select a country</option>
+            <optgroup label="Americas">
+              <option>United States</option>
+              <option>Canada</option>
+              <option>Brazil</option>
+              <option>Mexico</option>
+              <option>Other — Americas</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option>United Kingdom</option>
+              <option>Germany</option>
+              <option>France</option>
+              <option>Netherlands</option>
+              <option>Nordics</option>
+              <option>Other — Europe</option>
+            </optgroup>
+            <optgroup label="Asia-Pacific">
+              <option>India</option>
+              <option>Singapore</option>
+              <option>Japan</option>
+              <option>Australia / New Zealand</option>
+              <option>Other — Asia-Pacific</option>
+            </optgroup>
+            <optgroup label="Elsewhere">
+              <option>Israel</option>
+              <option>Middle East &amp; Africa</option>
+              <option>Fully remote — no HQ</option>
+              <option>Other</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="group-label" id="lang-label">Programming language</span>
+        <div class="check-row" role="group" aria-labelledby="lang-label">
+          <label class="check">
+            <input id="lang-python" name="lang-python" type="checkbox">
+            <span>Python</span>
+          </label>
+          <label class="check">
+            <input id="lang-typescript" name="lang-typescript" type="checkbox">
+            <span>TypeScript</span>
+          </label>
+          <label class="check">
+            <input id="lang-go" name="lang-go" type="checkbox">
+            <span>Go</span>
+          </label>
+          <label class="check">
+            <input id="lang-ruby" name="lang-ruby" type="checkbox">
+            <span>Ruby</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="use-case">What are you using Hatchet for? <span class="req">*</span></label>
+        <p class="hint">A sentence or two is plenty.</p>
+        <textarea id="use-case" name="use-case" required placeholder="e.g. Fanning out document-ingestion tasks from our Python API — we need durable retries and rate limiting on the embedding step."></textarea>
+      </div>
+
+      <hr class="separator">
+
+      <p class="section-title">Would you like a welcome gift?</p>
+
+      <div class="panel">
+        <p class="note">We like to send a little somethin' somethin' to new companies in our startup program. What's a good shipping address for your team?</p>
+        <label class="check">
+          <input id="in-person" name="in-person" type="checkbox">
+          <span>Does your team work in person?</span>
+        </label>
+        <div class="field">
+          <label for="ship-attn">Name / attn</label>
+          <input id="ship-attn" name="ship-attn" type="text" autocomplete="shipping name" placeholder="Acme Robotics, attn: Office Manager">
+        </div>
+        <div class="field">
+          <label for="ship-line1">Address line 1</label>
+          <input id="ship-line1" name="ship-line1" type="text" autocomplete="shipping address-line1" placeholder="Street address">
+        </div>
+        <div class="field">
+          <label for="ship-line2">Address line 2</label>
+          <input id="ship-line2" name="ship-line2" type="text" autocomplete="shipping address-line2" placeholder="Suite, floor, unit (optional)">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="ship-city">City</label>
+            <input id="ship-city" name="ship-city" type="text" autocomplete="shipping address-level2">
+          </div>
+          <div class="field">
+            <label for="ship-state">State / region</label>
+            <input id="ship-state" name="ship-state" type="text" autocomplete="shipping address-level1">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="ship-zip">Postal code</label>
+            <input id="ship-zip" name="ship-zip" type="text" autocomplete="shipping postal-code">
+          </div>
+          <div class="field">
+            <label for="ship-country">Country</label>
+            <input id="ship-country" name="ship-country" type="text" autocomplete="shipping country-name">
+          </div>
+        </div>
+        <div class="field">
+          <label for="delivery-phone">Phone number for delivery</label>
+          <input id="delivery-phone" name="delivery-phone" type="tel" autocomplete="tel" placeholder="+1 (555) 123-4567">
+        </div>
+        <div class="field">
+          <label for="allergies">Do you have any allergies or dietary restrictions?</label>
+          <textarea id="allergies" name="allergies" placeholder="e.g. one teammate has a peanut allergy"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">Apply</button>
+      </div>
+    </form>
+
+    <div class="done" id="done" hidden>
+      <div class="tick">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8.5 12.5 2.5 2.5 5-6"/></svg>
+      </div>
+      <h2>Application received</h2>
+      <p>Thanks — we'll get back to you ASAP at your work email.</p>
+    </div>
+  </div>
+
+  <footer>Design preview — submissions aren't stored or sent anywhere yet.</footer>
+</div>
+
+<script>
+  const form = document.getElementById('startup-form');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    form.hidden = true;
+    document.getElementById('form-header').hidden = true;
+    document.getElementById('done').hidden = false;
+    document.getElementById('card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+</script>
