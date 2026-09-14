@@ -1028,6 +1028,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 	_ = v.BindEnv("otel.metricsEnabled", "SERVER_OTEL_METRICS_ENABLED")
+	_ = v.BindEnv("otel.collectorHeadersString", "SERVER_OTEL_COLLECTOR_HEADERS")
 
 	// Hatchet O11y options
 	_ = v.BindEnv("observability.enabled", "SERVER_OBSERVABILITY_ENABLED")

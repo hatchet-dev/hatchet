@@ -46,3 +46,4 @@ These variables are also listed on the [engine configuration options](/self-host
 | `SERVER_OTEL_TRACE_ID_RATIO` (`otel.traceIdRatio`)  | Head sampling ratio between `0` and `1`.                            | `1`      |
 | `SERVER_OTEL_INSECURE` (`otel.insecure`)            | Use a plaintext connection instead of TLS.                          | `false`  |
 | `SERVER_OTEL_COLLECTOR_AUTH` (`otel.collectorAuth`) | Value sent in the `Authorization` header to the collector.          | empty    |
+| `SERVER_OTEL_COLLECTOR_HEADERS` (`otel.collectorHeadersString`) | Comma-separated `key=value` pairs sent as custom OTLP headers (e.g. `"X-API-Key=foo,X-Tenant=bar"`). Parsed at startup. If `Authorization` is set here it overrides `SERVER_OTEL_COLLECTOR_AUTH`. | empty    |

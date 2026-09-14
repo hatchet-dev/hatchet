@@ -410,6 +410,7 @@ For how to enable and use internal trace export with these settings, see [Intern
 | `SERVER_OTEL_INSECURE`                   | Whether to use an insecure connection to the collector URL                                                                             | `false`       |
 | `SERVER_OTEL_TRACE_ID_RATIO`             | OpenTelemetry trace ID ratio                                                                                                           | `1`           |
 | `SERVER_OTEL_COLLECTOR_AUTH`             | OpenTelemetry Collector Authorization header value                                                                                     |               |
+| `SERVER_OTEL_COLLECTOR_HEADERS`          | Comma-separated `key=value` pairs of custom OTLP headers (e.g. `X-API-Key=foo,X-Tenant=bar`). An explicit `Authorization` here overrides `SERVER_OTEL_COLLECTOR_AUTH`. |               |
 | `SERVER_OTEL_METRICS_ENABLED`            | Enable OpenTelemetry metrics collection                                                                                                | `false`       |
 | `SERVER_OBSERVABILITY_ENABLED`           | Enable the worker→engine OTel collector gRPC service and REST trace endpoints                                                          | `false`       |
 | `SERVER_OBSERVABILITY_MAX_BATCH_SIZE`    | Max spans accepted per Export RPC call                                                                                                 | `1000`        |

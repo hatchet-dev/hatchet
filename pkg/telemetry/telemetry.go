@@ -23,11 +23,23 @@ import (
 )
 
 type TracerOpts struct {
-	ServiceName   string
-	CollectorURL  string
-	Insecure      bool
-	TraceIdRatio  string
-	CollectorAuth string
+	ServiceName      string
+	CollectorURL     string
+	Insecure         bool
+	TraceIdRatio     string
+	CollectorAuth    string
+	CollectorHeaders map[string]string
+}
+
+func buildHeaders(opts *TracerOpts) map[string]string {
+	headers := make(map[string]string, len(opts.CollectorHeaders)+1)
+	for k, v := range opts.CollectorHeaders {
+		headers[k] = v
+	}
+	if _, ok := headers["Authorization"]; !ok {
+		headers["Authorization"] = opts.CollectorAuth
+	}
+	return headers
 }
 
 func InitTracer(opts *TracerOpts) (func() error, error) {
@@ -51,9 +63,7 @@ func InitTracer(opts *TracerOpts) (func() error, error) {
 		otlptracegrpc.NewClient(
 			secureOption,
 			otlptracegrpc.WithEndpoint(opts.CollectorURL),
-			otlptracegrpc.WithHeaders(map[string]string{
-				"Authorization": opts.CollectorAuth,
-			}),
+			otlptracegrpc.WithHeaders(buildHeaders(opts)),
 		),
 	)
 
@@ -128,9 +138,7 @@ func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
 		context.Background(),
 		secureOption,
 		otlpmetricgrpc.WithEndpoint(opts.CollectorURL),
-		otlpmetricgrpc.WithHeaders(map[string]string{
-			"Authorization": opts.CollectorAuth,
-		}),
+		otlpmetricgrpc.WithHeaders(buildHeaders(opts)),
 	)
 
 	if err != nil {

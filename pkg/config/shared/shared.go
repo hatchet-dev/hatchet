@@ -43,6 +43,9 @@ type OpenTelemetryConfigFile struct {
 	Insecure       bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
 	CollectorAuth  string `mapstructure:"collectorAuth" json:"collectorAuth,omitempty"`
 	MetricsEnabled bool   `mapstructure:"metricsEnabled" json:"metricsEnabled,omitempty" default:"false"`
+
+	CollectorHeadersString string            `mapstructure:"collectorHeadersString" json:"collectorHeadersString,omitempty"`
+	CollectorHeaders       map[string]string `mapstructure:"collectorHeaders" json:"collectorHeaders,omitempty"`
 }
 
 type PrometheusConfigFile struct {

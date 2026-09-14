@@ -962,6 +962,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
 	}
 
+	collectorHeaders, err := loaderutils.ParseHeaders(cf.OpenTelemetry.CollectorHeadersString)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid otel.collectorHeadersString: %w", err)
+	}
+	cf.OpenTelemetry.CollectorHeaders = collectorHeaders
+
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}

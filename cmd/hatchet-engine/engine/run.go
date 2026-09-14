@@ -29,6 +29,7 @@ import (
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
@@ -50,6 +51,7 @@ func init() {
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
 	collectorAuth := os.Getenv("SERVER_OTEL_COLLECTOR_AUTH")
+	collectorHeadersRaw := os.Getenv("SERVER_OTEL_COLLECTOR_HEADERS")
 
 	var insecureBool bool
 
@@ -57,26 +59,30 @@ func init() {
 		insecureBool = true
 	}
 
-	// we do this to we get the tracer set globally, which is needed by some of the otel
-	// integrations for the database before start
-	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   svcName,
-		CollectorURL:  collectorURL,
-		TraceIdRatio:  traceIdRatio,
-		Insecure:      insecureBool,
-		CollectorAuth: collectorAuth,
+	collectorHeaders, err := loaderutils.ParseHeaders(collectorHeadersRaw)
+	if err != nil {
+		panic(fmt.Errorf("could not parse SERVER_OTEL_COLLECTOR_HEADERS: %w", err))
+	}
+
+	_, err = telemetry.InitTracer(&telemetry.TracerOpts{
+		ServiceName:      svcName,
+		CollectorURL:     collectorURL,
+		TraceIdRatio:     traceIdRatio,
+		Insecure:         insecureBool,
+		CollectorAuth:    collectorAuth,
+		CollectorHeaders: collectorHeaders,
 	})
 
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
 	}
 
-	// Initialize the meter provider for metrics
 	_, err = telemetry.InitMeter(&telemetry.TracerOpts{
-		ServiceName:   svcName,
-		CollectorURL:  collectorURL,
-		Insecure:      insecureBool,
-		CollectorAuth: collectorAuth,
+		ServiceName:      svcName,
+		CollectorURL:     collectorURL,
+		Insecure:         insecureBool,
+		CollectorAuth:    collectorAuth,
+		CollectorHeaders: collectorHeaders,
 	})
 
 	if err != nil {
@@ -144,11 +150,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	o11yUsage := startO11yUsage(sc, cleanup)
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   sc.OpenTelemetry.ServiceName,
-		CollectorURL:  sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
-		Insecure:      sc.OpenTelemetry.Insecure,
-		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+		ServiceName:      sc.OpenTelemetry.ServiceName,
+		CollectorURL:     sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:     sc.OpenTelemetry.TraceIdRatio,
+		Insecure:         sc.OpenTelemetry.Insecure,
+		CollectorAuth:    sc.OpenTelemetry.CollectorAuth,
+		CollectorHeaders: sc.OpenTelemetry.CollectorHeaders,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize tracer: %w", err)
@@ -562,11 +569,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	o11yUsage := startO11yUsage(sc, cleanup)
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   sc.OpenTelemetry.ServiceName,
-		CollectorURL:  sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
-		Insecure:      sc.OpenTelemetry.Insecure,
-		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+		ServiceName:      sc.OpenTelemetry.ServiceName,
+		CollectorURL:     sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:     sc.OpenTelemetry.TraceIdRatio,
+		Insecure:         sc.OpenTelemetry.Insecure,
+		CollectorAuth:    sc.OpenTelemetry.CollectorAuth,
+		CollectorHeaders: sc.OpenTelemetry.CollectorHeaders,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize tracer: %w", err)
