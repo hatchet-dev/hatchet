@@ -9,5 +9,5 @@ Open `index.html` in a browser to view it. Submission is stubbed — the form
 validates and shows a confirmation state, but doesn't send anywhere yet.
 
 Fields: company name, team size, founding year, funds raised, HQ location,
-programming languages, use case, and an optional welcome-gift section
+use case, and an optional welcome-gift section
 (in-person checkbox, structured shipping address, delivery phone, allergies).
