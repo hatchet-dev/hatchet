@@ -290,8 +290,8 @@ CREATE TABLE v1_lookup_table_olap (
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
 
 CREATE TABLE v1_dag_to_task_olap (
     dag_id BIGINT NOT NULL,
@@ -299,7 +299,7 @@ CREATE TABLE v1_dag_to_task_olap (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 -- STATUS DEFINITION --
 CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
@@ -313,7 +313,9 @@ CREATE TABLE v1_statuses_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
 
     PRIMARY KEY (external_id, inserted_at)
-);
+) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX idx_v1_statuses_olap_query_optim ON v1_statuses_olap (tenant_id, workflow_id);
 
 
 -- EVENT DEFINITIONS --
@@ -407,7 +409,7 @@ CREATE TABLE v1_task_events_olap (
     durable_invocation_count INT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
-);
+) PARTITION BY RANGE(task_inserted_at);
 
 CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
 
@@ -654,7 +656,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     -- If the task has a dag_id and dag_inserted_at, insert into the lookup table
     INSERT INTO v1_dag_to_task_olap (
@@ -776,7 +778,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
