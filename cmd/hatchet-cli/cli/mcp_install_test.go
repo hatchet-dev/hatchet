@@ -686,3 +686,42 @@ func TestResolveMCPCommandRefusesCwdPATHHit(t *testing.T) {
 	t.Setenv("PATH", "bin")
 	assert.Equal(t, exe, resolveMCPCommand())
 }
+
+func TestWriteCodexConfigPreservesCommentBeforeNextTable(t *testing.T) {
+	// Greptile P2 on the PR: a comment block directly above the table that
+	// follows the hatchet entry documents that table and must survive the
+	// replacement. A comment inside the hatchet span separated from the next
+	// table by a blank line still goes with the removed entry.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	path := filepath.Join(home, ".codex", "config.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+
+	existing := `[mcp_servers.hatchet]
+command = "stale-path"
+# stale note about the hatchet entry
+
+# keep me: documents the history table
+[history]
+persistence = "save-all"
+`
+	require.NoError(t, os.WriteFile(path, []byte(existing), 0o644))
+
+	_, err := installMCPServerConfig("codex", path, "hatchet")
+	require.NoError(t, err)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	content := string(data)
+
+	assert.Contains(t, content, "# keep me: documents the history table")
+	assert.Contains(t, content, "[history]")
+	assert.NotContains(t, content, "stale-path")
+	assert.NotContains(t, content, "# stale note")
+	assert.Contains(t, content, "command = 'hatchet'")
+	assert.Equal(t, 1, strings.Count(content, "mcp_servers"))
+
+	// The preserved comment must still sit directly above its table.
+	assert.Contains(t, content, "# keep me: documents the history table\n[history]")
+}

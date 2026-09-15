@@ -787,6 +787,23 @@ func lineStart(data []byte, offset int) int {
 	return 0
 }
 
+// attachedCommentStart backs an expression's line start up over the comment
+// lines directly above it (no blank line in between), which document that
+// expression rather than whatever precedes it. A misjudgment here cannot
+// corrupt the file: the merged result still has to pass verifyCodexMerge.
+func attachedCommentStart(data []byte, exprStart int) int {
+	start := exprStart
+	for start > 0 {
+		prev := lineStart(data, start-1)
+		line := strings.TrimSpace(string(data[prev:start]))
+		if !strings.HasPrefix(line, "#") {
+			break
+		}
+		start = prev
+	}
+	return start
+}
+
 func isHatchetKeyPath(keys []string) bool {
 	return len(keys) >= 2 && keys[0] == "mcp_servers" && keys[1] == mcpServerEntryName
 }
@@ -858,6 +875,12 @@ func spliceCodexConfig(data []byte, section, path string) ([]byte, error) {
 		end := len(data)
 		if i+1 < len(exprs) {
 			end = exprs[i+1].start
+			// A comment block contiguous with the next unrelated expression
+			// documents that expression, not the hatchet entry: leave it in
+			// place. Comments above a removed hatchet subtable go with it.
+			if !owned[i+1] {
+				end = attachedCommentStart(data, end)
+			}
 		}
 		if expr.start > prev {
 			rest.Write(data[prev:expr.start])
