@@ -1,5 +1,6 @@
 import { usePylon } from '@/components/support-chat';
 import {
+  Invoices,
   Subscription,
   SubscriptionHistory,
 } from '@/components/v1/cloud/billing';
@@ -180,6 +181,15 @@ function OrganizationBillingContent() {
     refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
 
+  const invoices = useQuery({
+    ...queries.controlPlane.invoices(organization),
+    enabled: isControlPlaneEnabled && canBill,
+    retry: (failureCount, error) => {
+      const status = getApiErrorStatus(error);
+      return status !== 401 && status !== 403 && failureCount < 3;
+    },
+  });
+
   const activePlanCode = resolveSubscriptionPlanCode(
     billingState.data?.currentSubscription,
     null,
@@ -305,6 +315,26 @@ function OrganizationBillingContent() {
         plans={billingState.data?.plans}
         coupons={billingState.data?.coupons}
       />
+
+      <div className="mt-12 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upcoming charges and previously issued invoices for this
+            organization.
+          </p>
+        </div>
+
+        <Invoices
+          invoicePreviews={invoices.data?.invoicePreviews}
+          invoices={invoices.data?.invoices}
+          isLoading={invoices.isPending}
+          isError={invoices.isError}
+          onRetry={() => {
+            void invoices.refetch();
+          }}
+        />
+      </div>
 
       <div className="mt-12 space-y-4">
         <div>
