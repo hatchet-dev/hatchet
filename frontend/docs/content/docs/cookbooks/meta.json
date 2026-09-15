@@ -14,7 +14,8 @@
     "---Agent Patterns---",
     "hatchet-and-mcp",
     "hatchet-claude-agent-sdk-trusted-env",
-    "hatchet-openai-agents-sdk-trusted-env"
+    "hatchet-openai-agents-sdk-trusted-env",
+    "pi-agent-sessions"
   ],
   "title": "Cookbooks",
   "root": true,
