@@ -41,8 +41,6 @@ Hatchet v0.106.5 is a concurrency-focused release, adding support for dynamic co
 - Engine: duplicate rows no longer cause an on-conflict error during task assignment ([#4829](https://github.com/hatchet-dev/hatchet/pull/4829)).
 - Engine: allocated crons are counted against the latest workflow version only ([#4859](https://github.com/hatchet-dev/hatchet/pull/4859)).
 - Go SDK: all required symbols are exported and deprecated constructs are no longer depended on ([#4875](https://github.com/hatchet-dev/hatchet/pull/4875)).
-- Go SDK: `RunMany` returns results in the same order as its inputs ([#4825](https://github.com/hatchet-dev/hatchet/pull/4825)).
-- Engine: worker `isActive` is guarded by a listener session id rather than a millisecond timestamp, closing a rare race where a reconnecting worker was marked inactive ([#4916](https://github.com/hatchet-dev/hatchet/pull/4916)).
 
 ## v0.105.16 - 2026-08-31
 
