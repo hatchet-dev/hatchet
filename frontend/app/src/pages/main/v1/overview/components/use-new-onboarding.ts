@@ -8,8 +8,7 @@ export const newOnboardingStorageKey = 'hatchet:new-onboarding';
 // TODO: Replace this temporary local-storage flag with
 //   useIsFeatureEnabled(FeatureFlagId.NewOnboardingEnabled, false)
 // once that flag is added to the backend feature-flag enum and the client
-// is regenerated. Until then the whole feature stays dark for real users
-// and can only be previewed by appending ?newOnboarding=1 to the URL.
+// is regenerated.
 export function useNewOnboardingEnabled(): boolean {
   const [enabled, setEnabled] = useLocalStorageState<boolean>(
     newOnboardingStorageKey,
@@ -37,5 +36,10 @@ export function useNewOnboardingEnabled(): boolean {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return enabled;
+  // !!! TEMPORARY: forced ON for everyone for local end-to-end testing. !!!
+  // Revert this to `return enabled;` (and drop the `void enabled` line)
+  // before merge. The localStorage + ?newOnboarding=1 preview logic above is
+  // preserved so the revert is one line.
+  void enabled;
+  return true;
 }
