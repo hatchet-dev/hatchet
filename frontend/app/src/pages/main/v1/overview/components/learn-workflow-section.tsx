@@ -308,7 +308,7 @@ export function LearnWorkflowSection({
             </Button>
             {profileToken && (
               <span className="text-xs text-muted-foreground">
-                This token is only shown once — copy it now.
+                This token is only shown once, so copy it now.
               </span>
             )}
           </div>

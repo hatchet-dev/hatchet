@@ -19,6 +19,7 @@ import {
   qualifiedRunQueryParams,
   type OnboardingPersistedState,
 } from './components/onboarding-state';
+import { OverviewDashboard } from './components/overview-dashboard';
 import { SkipOnboardingDialog } from './components/skip-onboarding-dialog';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
@@ -290,6 +291,22 @@ export default function Overview() {
       hasTrackedWorkerConnection.current = true;
     }
   }, [hasConnectedWorker, capture, tenantId, currentUser?.email]);
+
+  // When the new onboarding is enabled, the Overview becomes the live
+  // dashboard: the re-entry banner, the panel grid, and the Support footer.
+  // The onboarding modal and its wiring stay mounted below regardless. When
+  // the flag is off this branch is never taken and the legacy page renders
+  // exactly as before.
+  if (newOnboardingEnabled && tenantId) {
+    return (
+      <OverviewDashboard
+        tenantId={tenantId}
+        onboarded={onboarded}
+        authDisabled={authDisabled}
+        authDisabledToken={authDisabledToken}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full w-full flex-col gap-y-8 lg:p-6">
