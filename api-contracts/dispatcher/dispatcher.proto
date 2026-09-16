@@ -441,6 +441,8 @@ message StepRunResult {
     optional string error = 4;
 
     optional string output = 5;
+
+    optional string cancellation_reason = 6;
 }
 
 message OverridesData {

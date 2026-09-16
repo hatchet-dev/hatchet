@@ -405,18 +405,20 @@ class WorkflowRunEvent(_message.Message):
     def __init__(self, workflow_run_id: _Optional[str] = ..., event_type: _Optional[_Union[WorkflowRunEventType, str]] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
 
 class StepRunResult(_message.Message):
-    __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output")
+    __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output", "cancellation_reason")
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     TASK_NAME_FIELD_NUMBER: _ClassVar[int]
     JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    CANCELLATION_REASON_FIELD_NUMBER: _ClassVar[int]
     task_run_external_id: str
     task_name: str
     job_run_id: str
     error: str
     output: str
-    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ...) -> None: ...
+    cancellation_reason: str
+    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ..., cancellation_reason: _Optional[str] = ...) -> None: ...
 
 class OverridesData(_message.Message):
     __slots__ = ("task_run_external_id", "path", "value", "caller_filename")
