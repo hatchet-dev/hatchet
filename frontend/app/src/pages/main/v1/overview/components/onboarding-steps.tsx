@@ -133,28 +133,81 @@ const mcpAgentOptions = [
 
 type McpAgentValue = (typeof mcpAgentOptions)[number]['value'];
 
-type StepKey =
-  | 'usecase'
-  | 'cli'
-  | 'profile'
-  | 'path'
-  | 'mcp'
-  | 'prompt'
-  | 'quickstart'
-  | 'runtask'
-  | 'finish';
+type StepKey = 'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
 
 const stepRailLabels: Record<StepKey, string> = {
-  usecase: 'Use case & SDK',
-  cli: 'Install CLI',
-  profile: 'Profile',
   path: 'Choose path',
-  mcp: 'Connect agent',
-  prompt: 'Generate prompt',
-  quickstart: 'Quickstart',
-  runtask: 'Run a task',
+  usecase: 'Use case & SDK',
+  setup: 'Set up CLI',
+  runagent: 'Run agent',
+  runtask: 'Run task',
   finish: 'Finish',
 };
+
+// Docs relevant to the finish step, chosen from the user's path, use case, and
+// SDK. All hrefs are real pages under docs.hatchet.run. Rendered as a short
+// list of external links so the user knows where to go next.
+const DOCS_BASE = 'https://docs.hatchet.run';
+
+const sdkReferenceDocs: Record<Sdk, { label: string; href: string }> = {
+  python: {
+    label: 'Python SDK reference',
+    href: `${DOCS_BASE}/reference/python`,
+  },
+  typescript: {
+    label: 'TypeScript SDK reference',
+    href: `${DOCS_BASE}/reference/typescript`,
+  },
+  go: { label: 'Go SDK reference', href: `${DOCS_BASE}/reference/go` },
+  ruby: { label: 'Ruby SDK reference', href: `${DOCS_BASE}/reference/ruby` },
+};
+
+const useCaseDocs: Record<UseCaseChoice, { label: string; href: string }> = {
+  simple: {
+    label: 'Running your task',
+    href: `${DOCS_BASE}/v1/running-your-task`,
+  },
+  scheduled: {
+    label: 'Scheduled runs',
+    href: `${DOCS_BASE}/v1/scheduled-runs`,
+  },
+  fanout: {
+    label: 'Fan-out and child spawning',
+    href: `${DOCS_BASE}/v1/child-spawning`,
+  },
+  event: { label: 'Event triggers', href: `${DOCS_BASE}/v1/events` },
+  durable: {
+    label: 'Durable execution',
+    href: `${DOCS_BASE}/v1/durable-execution`,
+  },
+  custom: { label: 'Quickstart', href: `${DOCS_BASE}/v1/quickstart` },
+};
+
+function relevantDocs({
+  sdk,
+  useCaseChoice,
+  path,
+}: {
+  sdk: Sdk;
+  useCaseChoice: UseCaseChoice;
+  path: SetupPath | null;
+}): { label: string; href: string }[] {
+  const docs: { label: string; href: string }[] = [
+    sdkReferenceDocs[sdk],
+    useCaseDocs[useCaseChoice],
+  ];
+  if (path === 'agent') {
+    docs.push({
+      label: 'MCP server reference',
+      href: `${DOCS_BASE}/reference/cli/mcp`,
+    });
+  }
+  docs.push({
+    label: 'Embedded mode for local iteration',
+    href: `${DOCS_BASE}/v1/embedded`,
+  });
+  return docs;
+}
 
 // SDK -> command-builder language. The command builders only speak the three
 // fully supported languages; Ruby has no scaffold/trigger template, so the
@@ -237,18 +290,10 @@ export function OnboardingSteps({
   // exists the selector is the only step; picking one reveals the rest.
   const sequence = useMemo<StepKey[]>(() => {
     if (path === 'agent') {
-      return ['path', 'usecase', 'cli', 'profile', 'mcp', 'prompt', 'finish'];
+      return ['path', 'usecase', 'setup', 'runagent', 'finish'];
     }
     if (path === 'manual') {
-      return [
-        'path',
-        'usecase',
-        'cli',
-        'profile',
-        'quickstart',
-        'runtask',
-        'finish',
-      ];
+      return ['path', 'usecase', 'setup', 'runtask', 'finish'];
     }
     return ['path'];
   }, [path]);
@@ -392,142 +437,201 @@ export function OnboardingSteps({
         </div>
       </>
     ),
-    cli: (
+    setup: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Install the Hatchet CLI</h3>
+          <h3 className="text-base font-semibold">Set up the CLI</h3>
           <p className="text-sm text-muted-foreground">
             The CLI sets up your profile, installs the MCP server, and lets your
             agent operate Hatchet.
           </p>
         </div>
-        <Tabs
-          value={installMethod}
-          onValueChange={(value) => setInstallMethod(value as InstallMethod)}
-          className="w-full"
-        >
-          <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
-            <TabsTrigger
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold">Install the CLI</h4>
+          <Tabs
+            value={installMethod}
+            onValueChange={(value) => setInstallMethod(value as InstallMethod)}
+            className="w-full"
+          >
+            <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
+              <TabsTrigger
+                value={installMethodOptions.native.value}
+                className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+              >
+                curl
+              </TabsTrigger>
+              <TabsTrigger
+                value={installMethodOptions.homebrew.value}
+                className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+              >
+                Homebrew
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent
               value={installMethodOptions.native.value}
-              className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+              className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
             >
-              curl
-            </TabsTrigger>
-            <TabsTrigger
+              <p className="text-sm">
+                <b>MacOS, Linux, WSL</b>
+              </p>
+              <CodeHighlighter
+                className={codeBlockClass}
+                code={`curl -fsSL https://install.hatchet.run/install.sh | bash`}
+                language="shell"
+                copy
+              />
+            </TabsContent>
+            <TabsContent
               value={installMethodOptions.homebrew.value}
-              className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+              className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
             >
-              Homebrew
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent
-            value={installMethodOptions.native.value}
-            className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
-          >
-            <p className="text-sm">
-              <b>MacOS, Linux, WSL</b>
-            </p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={`curl -fsSL https://install.hatchet.run/install.sh | bash`}
-              language="shell"
-              copy
-            />
-          </TabsContent>
-          <TabsContent
-            value={installMethodOptions.homebrew.value}
-            className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
-          >
-            <p className="text-sm">
-              <b>MacOS</b>
-            </p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={`brew install hatchet-dev/hatchet/hatchet --cask`}
-              language="shell"
-              copy
-            />
-          </TabsContent>
-        </Tabs>
-        <p className="text-sm">Verify it installed:</p>
-        <CodeHighlighter
-          className={codeBlockClass}
-          code={`hatchet --version`}
-          language="shell"
-          copy
-        />
-        <p className="text-sm text-muted-foreground">
-          You should see version {MIN_CLI_VERSION} or newer.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Requires Hatchet CLI {MIN_CLI_VERSION} or newer (for{' '}
-          <code>mcp install</code> and <code>profile env</code>). The command
-          above always installs the latest.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Already have an older CLI? Re-run the command above to upgrade.
-        </p>
-      </>
-    ),
-    profile: (
-      <>
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold">Set up your profile</h3>
+              <p className="text-sm">
+                <b>MacOS</b>
+              </p>
+              <CodeHighlighter
+                className={codeBlockClass}
+                code={`brew install hatchet-dev/hatchet/hatchet --cask`}
+                language="shell"
+                copy
+              />
+            </TabsContent>
+          </Tabs>
+          <p className="text-sm">Verify it installed:</p>
+          <CodeHighlighter
+            className={codeBlockClass}
+            code={`hatchet --version`}
+            language="shell"
+            copy
+          />
+          <p className="text-sm text-muted-foreground">
+            You should see version {MIN_CLI_VERSION} or newer.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Requires Hatchet CLI {MIN_CLI_VERSION} or newer (for{' '}
+            <code>mcp install</code> and <code>profile env</code>). The command
+            above always installs the latest.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Already have an older CLI? Re-run the command above to upgrade.
+          </p>
+        </div>
+        <div className="space-y-3 border-t border-border/50 pt-5">
+          <h4 className="text-sm font-semibold">Set up your profile</h4>
           <p className="text-sm text-muted-foreground">
             A profile connects the CLI to this tenant.
           </p>
-        </div>
-        {authDisabled ? (
-          <>
-            <p className="text-sm">
-              Auth is disabled on this instance, so use the built-in token
-              below.
-            </p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={`hatchet profile add --name "${escapeForDoubleQuotes(
-                profileName,
-              )}" --token "${authDisabledToken ?? '<token>'}"`}
-              language="shell"
-              copy
-            />
-          </>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                size="default"
-                className={continueButtonClass}
-                onClick={onGenerateProfileToken}
-                disabled={isGeneratingProfileToken || !canGenerateToken}
-              >
-                {isGeneratingProfileToken && <Spinner />}
-                Generate a token for this command
-              </Button>
-              {profileToken && (
-                <span className="text-xs text-muted-foreground">
-                  This token is only shown once. Copy it now.
-                </span>
+          {authDisabled ? (
+            <>
+              <p className="text-sm">
+                Auth is disabled on this instance, so use the built-in token
+                below.
+              </p>
+              <CodeHighlighter
+                className={codeBlockClass}
+                code={`hatchet profile add --name "${escapeForDoubleQuotes(
+                  profileName,
+                )}" --token "${authDisabledToken ?? '<token>'}"`}
+                language="shell"
+                copy
+              />
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="default"
+                  className={continueButtonClass}
+                  onClick={onGenerateProfileToken}
+                  disabled={isGeneratingProfileToken || !canGenerateToken}
+                >
+                  {isGeneratingProfileToken && <Spinner />}
+                  Generate a token for this command
+                </Button>
+                {profileToken && (
+                  <span className="text-xs text-muted-foreground">
+                    This token is only shown once. Copy it now.
+                  </span>
+                )}
+              </div>
+              {profileTokenError && (
+                <div className="text-sm text-red-500">{profileTokenError}</div>
               )}
+              {profileToken && (
+                <>
+                  <p className="text-sm">Then run:</p>
+                  <CodeHighlighter
+                    className={codeBlockClass}
+                    code={`hatchet profile add --name "${escapeForDoubleQuotes(
+                      profileName,
+                    )}" --token "${escapeForDoubleQuotes(profileToken)}"`}
+                    language="shell"
+                    copy
+                  />
+                </>
+              )}
+            </>
+          )}
+        </div>
+        {path === 'agent' && (
+          <div className="space-y-3 border-t border-border/50 pt-5">
+            <h4 className="text-sm font-semibold">Connect your coding agent</h4>
+            <p className="text-sm text-muted-foreground">
+              The Hatchet MCP server lets your agent trigger runs, inspect
+              results, and debug workers while it builds with you.
+            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Which coding agents do you use?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Pick one or more. We will build the install command for you.
+              </p>
             </div>
-            {profileTokenError && (
-              <div className="text-sm text-red-500">{profileTokenError}</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {mcpAgentOptions.map((option) => {
+                const checked = selectedAgents.includes(option.value);
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-border',
+                      checked && 'border-primary bg-muted/40',
+                    )}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleAgent(option.value)}
+                      className={focusRing}
+                    />
+                    <span className="font-medium">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-sm">Run this to connect your agents:</p>
+            {selectedAgents.length > 0 ? (
+              <CodeHighlighter
+                className={codeBlockClass}
+                code={mcpCommand}
+                language="shell"
+                copy
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select at least one agent from the list above.
+              </p>
             )}
-            {profileToken && (
-              <>
-                <p className="text-sm">Then run:</p>
-                <CodeHighlighter
-                  className={codeBlockClass}
-                  code={`hatchet profile add --name "${escapeForDoubleQuotes(
-                    profileName,
-                  )}" --token "${escapeForDoubleQuotes(profileToken)}"`}
-                  language="shell"
-                  copy
-                />
-              </>
-            )}
-          </>
+            <a
+              href="https://docs.hatchet.run/reference/cli/mcp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
+            >
+              Learn more about the Hatchet MCP
+              <ExternalLinkIcon className="size-3" />
+            </a>
+          </div>
         )}
       </>
     ),
@@ -576,72 +680,10 @@ export function OnboardingSteps({
         </div>
       </>
     ),
-    mcp: (
+    runagent: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Connect your coding agent</h3>
-          <p className="text-sm text-muted-foreground">
-            The Hatchet MCP server lets your agent trigger runs, inspect
-            results, and debug workers while it builds with you.
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Which coding agents do you use?</p>
-          <p className="text-sm text-muted-foreground">
-            Pick one or more. We will build the install command for you.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {mcpAgentOptions.map((option) => {
-            const checked = selectedAgents.includes(option.value);
-            return (
-              <label
-                key={option.value}
-                className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-border',
-                  checked && 'border-primary bg-muted/40',
-                )}
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={() => toggleAgent(option.value)}
-                  className={focusRing}
-                />
-                <span className="font-medium">{option.label}</span>
-              </label>
-            );
-          })}
-        </div>
-        <p className="text-sm">Run this to connect your agents:</p>
-        {selectedAgents.length > 0 ? (
-          <CodeHighlighter
-            className={codeBlockClass}
-            code={mcpCommand}
-            language="shell"
-            copy
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Select at least one agent from the list above.
-          </p>
-        )}
-        <a
-          href="https://docs.hatchet.run/reference/cli/mcp"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
-        >
-          Learn more about the Hatchet MCP
-          <ExternalLinkIcon className="size-3" />
-        </a>
-      </>
-    ),
-    prompt: (
-      <>
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold">
-            Generate your build prompt
-          </h3>
+          <h3 className="text-base font-semibold">Run your agent</h3>
           <p className="text-sm text-muted-foreground">
             Paste this into your coding agent. It tells the agent to connect to
             your live Hatchet instance, use the MCP and the markdown docs, and
@@ -667,16 +709,27 @@ export function OnboardingSteps({
         </div>
         <p className="text-sm text-muted-foreground">
           Your agent will scaffold the project, start a worker, and trigger a
-          run. Come back here to watch it connect.
+          run. No need to refresh, we're watching things.
         </p>
+        <StatusRow
+          ready={progress.workerConnected}
+          done="Worker connected"
+          waiting="Waiting for a worker to connect..."
+        />
+        <StatusRow
+          ready={progress.runCompleted}
+          done="Task run completed"
+          waiting="Waiting for a task to run..."
+        />
       </>
     ),
-    quickstart: (
+    runtask: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Scaffold a project</h3>
+          <h3 className="text-base font-semibold">Run a task</h3>
           <p className="text-sm text-muted-foreground">
-            Generate a starter project and start a worker.
+            Scaffold a project, start a worker, then trigger a run and watch it
+            complete.
           </p>
         </div>
         {language === null ? (
@@ -715,23 +768,17 @@ export function OnboardingSteps({
           done="Worker connected"
           waiting="Waiting for the worker to connect..."
         />
-      </>
-    ),
-    runtask: (
-      <>
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold">Run a task</h3>
-          <p className="text-sm text-muted-foreground">
-            Trigger the workflow and watch it complete.
-          </p>
-        </div>
-        <p className="text-sm">Trigger a run:</p>
-        <CodeHighlighter
-          className={codeBlockClass}
-          code={triggerCommand(useCase, profileName)}
-          language="shell"
-          copy
-        />
+        {language !== null && (
+          <>
+            <p className="text-sm">Trigger a run:</p>
+            <CodeHighlighter
+              className={codeBlockClass}
+              code={triggerCommand(useCase, profileName)}
+              language="shell"
+              copy
+            />
+          </>
+        )}
         <StatusRow
           ready={progress.runCompleted}
           done="Run completed"
@@ -742,26 +789,29 @@ export function OnboardingSteps({
     finish: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Watch it connect</h3>
+          <h3 className="text-base font-semibold">You're set up</h3>
           <p className="text-sm text-muted-foreground">
-            No need to refresh, we're watching things.
+            Your worker is connected and running tasks against this tenant.
           </p>
         </div>
-        <StatusRow
-          ready={progress.workerConnected}
-          done="Worker connected"
-          waiting="Waiting for a worker to connect..."
-        />
-        <StatusRow
-          ready={progress.runCompleted}
-          done="Task run completed"
-          waiting="Waiting for a task to run..."
-        />
-        {progress.onboarded && (
-          <p className="text-sm font-medium text-green-500">
-            You're all set up!
-          </p>
-        )}
+        <div className="space-y-3 border-t border-border/50 pt-5">
+          <h4 className="text-sm font-semibold">Learn more</h4>
+          <ul className="space-y-2">
+            {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
+              <li key={doc.href}>
+                <a
+                  href={doc.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
+                >
+                  {doc.label}
+                  <ExternalLinkIcon className="size-3" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
         <Button
           variant="outline"
           size="default"
@@ -793,14 +843,14 @@ export function OnboardingSteps({
     }
   };
 
-  // Next is the sole forward control. Moving off the MCP step regenerates the
-  // prompt (and its analytics capture), preserving what the removed inline CTA
-  // did.
+  // Next is the sole forward control. Entering the run-agent step generates the
+  // prompt (and fires its analytics capture), preserving what the old
+  // move-off-MCP trigger did.
   const goNext = () => {
     if (!nextStep) {
       return;
     }
-    if (currentStep === 'mcp') {
+    if (nextStep === 'runagent') {
       onPromptGenerated(useCaseChoice, sdk);
     }
     goTo(nextStep);
