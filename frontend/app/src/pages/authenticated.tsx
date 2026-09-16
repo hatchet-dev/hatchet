@@ -42,6 +42,8 @@ import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { OnboardingModal } from '@/pages/main/v1/overview/components/onboarding-modal';
+import { useNewOnboardingEnabled } from '@/pages/main/v1/overview/components/use-new-onboarding';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -100,6 +102,11 @@ function AuthenticatedInner() {
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  // Temporary flag gating the entire new onboarding surface. Off by default,
+  // so existing users see no change. See use-new-onboarding.ts.
+  const newOnboardingEnabled = useNewOnboardingEnabled();
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -417,6 +424,14 @@ function AuthenticatedInner() {
     [],
   );
 
+  useEffect(
+    () =>
+      globalEmitter.on('open-onboarding', () => {
+        setOnboardingOpen(true);
+      }),
+    [],
+  );
+
   useEffect(() => {
     const welcomeTrigger = readWelcomeTrigger(
       localStorage.getItem(WELCOME_KEY),
@@ -568,6 +583,16 @@ function AuthenticatedInner() {
         contentScroll={!isTenantPage}
       >
         <OutletWithContext context={ctx} />
+        {/* Rendered as a sibling to the outlet, inside AppLayout, so TopNav
+            stays mounted while the onboarding overlay is open. The overlay
+            itself is fixed below the 64px header. Gated entirely behind the
+            temporary new-onboarding flag. */}
+        {newOnboardingEnabled && (
+          <OnboardingModal
+            open={onboardingOpen}
+            onClose={() => setOnboardingOpen(false)}
+          />
+        )}
       </AppLayout>
 
       <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>

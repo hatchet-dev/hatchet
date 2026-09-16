@@ -8,6 +8,7 @@ import {
   installMethodOptions,
   workflowStepOptions,
 } from './components/learn-workflow-section';
+import { openOnboarding } from './components/onboarding-modal';
 import {
   applyLanguageChange,
   applyTabChange,
@@ -22,6 +23,9 @@ import { SkipOnboardingDialog } from './components/skip-onboarding-dialog';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
 import { type AvailableUseCaseKey } from './components/use-case-options';
+import { useNewOnboardingEnabled } from './components/use-new-onboarding';
+import { useOnboardingProgress } from './components/use-onboarding-progress';
+import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import useControlPlane from '@/hooks/use-control-plane';
@@ -204,6 +208,18 @@ export default function Overview() {
 
   const selectionConfirmedAt = onboarding.selectionConfirmedAt;
 
+  // New onboarding surfaces (flag-gated, additive). When the flag is off
+  // these are inert and the page renders exactly as before.
+  const newOnboardingEnabled = useNewOnboardingEnabled();
+  const { onboarded } = useOnboardingProgress(
+    tenantId,
+    selectionConfirmedAt ?? undefined,
+  );
+  const [onboardingBannerDismissed, setOnboardingBannerDismissed] =
+    useState(false);
+  const showOnboardingBanner =
+    newOnboardingEnabled && !onboarded && !onboardingBannerDismissed;
+
   // Poll for workers while "Project quickstart" is visible and onboarding
   // is shown. Polling keeps running there even after a worker qualifies,
   // because the indicator must also flip back when a worker disconnects.
@@ -277,6 +293,36 @@ export default function Overview() {
 
   return (
     <div className="flex h-full w-full flex-col gap-y-8 lg:p-6">
+      {showOnboardingBanner && (
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border/50 bg-muted/20 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Finish setting up Hatchet</p>
+            <p className="text-sm text-muted-foreground">
+              Connect your coding agent (or onboard manually), then run your
+              first task. It takes about five minutes.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-muted/70"
+              onClick={openOnboarding}
+            >
+              Resume onboarding
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setOnboardingBannerDismissed(true)}
+            >
+              Dismiss for now
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-2 grid-cols-1 items-start lg:grid-cols-[1fr_auto]">
         <div className="flex items-center gap-6 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
@@ -371,6 +417,20 @@ export default function Overview() {
       )}
 
       <SupportSection />
+
+      {newOnboardingEnabled && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-4 text-sm text-muted-foreground">
+          <span>Need the setup guide again?</span>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0"
+            onClick={openOnboarding}
+          >
+            Open onboarding
+          </Button>
+        </div>
+      )}
 
       <SkipOnboardingDialog
         open={showSkipDialog}

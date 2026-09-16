@@ -22,4 +22,5 @@ export const globalEmitter = makeEmitter<{
     invite: OrganizationInviteCreateRequest;
   };
   'open-invite-modal': Record<string, never>;
+  'open-onboarding': Record<string, never>;
 }>();
