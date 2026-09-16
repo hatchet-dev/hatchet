@@ -48,13 +48,12 @@ export function openOnboarding() {
   globalEmitter.emit('open-onboarding', {});
 }
 
-// Full-screen onboarding overlay. It deliberately does NOT use the Radix
-// Dialog: that overlay is z-[200] and would cover the top nav. Instead this
-// fills the region below the 64px header (which is z-50) so the tenant
-// switcher stays visible and interactive. Its z-[110] sits above the sidebar
-// (z-[100], which stays mounted on desktop) so onboarding covers the sidebar,
-// yet below Radix dialogs (z-[200]) so the token-success dialog this modal
-// spawns still layers on top.
+// Full-screen onboarding overlay. It renders into AppLayout's content-area
+// overlay slot (absolute inset-0), so it covers the page and the sidebar but
+// NOT the header or banner: the nav bar and its tenant switcher stay visible
+// and interactive regardless of banner height. Its z-[110] sits above the
+// sidebar (z-[100], which stays mounted on desktop) yet below Radix dialogs
+// (z-[200]) so the token-success dialog this modal spawns still layers on top.
 //
 // The body is the redesigned OnboardingSteps stepper: shared steps, a path
 // fork (agent vs manual), and a converged finish. The modal owns the
@@ -255,11 +254,13 @@ export function OnboardingModal({
       aria-modal="true"
       aria-label="Get started with Hatchet"
       tabIndex={-1}
-      className="fixed inset-x-0 top-16 bottom-0 z-[110] overflow-y-auto bg-background outline-none"
+      className="absolute inset-0 z-[110] overflow-y-auto bg-background outline-none"
     >
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
+      {/* Center the content vertically within the region below the nav, while
+          still allowing it to scroll when it is taller than the viewport. */}
+      <div className="flex min-h-full items-center justify-center p-6">
+        <div className="flex w-full max-w-4xl flex-col gap-6">
+          <div className="space-y-1 text-center">
             <h2 className="text-2xl font-semibold tracking-tight">
               Get started with Hatchet
             </h2>
@@ -268,53 +269,56 @@ export function OnboardingModal({
               started with Hatchet.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            aria-label="Exit onboarding"
-            hoverText="Your progress is saved. You can reopen this anytime from the overview page."
-          >
-            Exit
-          </Button>
-        </div>
 
-        <OnboardingSteps
-          tenantName={tenant?.name}
-          sdk={sdk}
-          onSdkChange={handleSdkChange}
-          useCase={useCase}
-          onUseCaseChange={handleUseCaseChange}
-          onConfirmSelection={confirmSelection}
-          profileToken={profileToken}
-          isGeneratingProfileToken={createProfileTokenMutation.isPending}
-          profileTokenError={profileTokenError}
-          onGenerateProfileToken={handleGenerateProfileToken}
-          canGenerateToken={canWrite}
-          authDisabled={authDisabled}
-          authDisabledToken={authDisabledToken}
-          progress={progress}
-          // Finish just closes the overlay; completion is derived from
-          // useOnboardingProgress, never from a button.
-          onFinish={onClose}
-          onPromptGenerated={(template, promptSdk) => {
-            capture('onboarding_prompt_generated', {
-              tenant_id: tenantId,
-              user_email: currentUser?.email,
-              template,
-              sdk: promptSdk,
-              source: 'onboarding_modal',
-            });
-          }}
-          onStepChangeEvent={(_step, stepLabel) => {
-            capture('onboarding_tab_changed', {
-              tenant_id: tenantId,
-              user_email: currentUser?.email,
-              tab: stepLabel,
-              source: 'onboarding_modal',
-            });
-          }}
-        />
+          <OnboardingSteps
+            tenantName={tenant?.name}
+            sdk={sdk}
+            onSdkChange={handleSdkChange}
+            useCase={useCase}
+            onUseCaseChange={handleUseCaseChange}
+            onConfirmSelection={confirmSelection}
+            profileToken={profileToken}
+            isGeneratingProfileToken={createProfileTokenMutation.isPending}
+            profileTokenError={profileTokenError}
+            onGenerateProfileToken={handleGenerateProfileToken}
+            canGenerateToken={canWrite}
+            authDisabled={authDisabled}
+            authDisabledToken={authDisabledToken}
+            progress={progress}
+            // Finish just closes the overlay; completion is derived from
+            // useOnboardingProgress, never from a button.
+            onFinish={onClose}
+            onPromptGenerated={(template, promptSdk) => {
+              capture('onboarding_prompt_generated', {
+                tenant_id: tenantId,
+                user_email: currentUser?.email,
+                template,
+                sdk: promptSdk,
+                source: 'onboarding_modal',
+              });
+            }}
+            onStepChangeEvent={(_step, stepLabel) => {
+              capture('onboarding_tab_changed', {
+                tenant_id: tenantId,
+                user_email: currentUser?.email,
+                tab: stepLabel,
+                source: 'onboarding_modal',
+              });
+            }}
+          />
+
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={onClose}
+              hoverText="Your progress is saved. You can reopen this anytime from the overview page."
+            >
+              Skip onboarding
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -570,7 +570,16 @@ function AuthenticatedInner() {
           <TopNav
             user={currentUser}
             tenantMemberships={tenantMemberships || []}
+            onboardingActive={newOnboardingEnabled && onboardingOpen}
           />
+        }
+        overlay={
+          newOnboardingEnabled ? (
+            <OnboardingModal
+              open={onboardingOpen}
+              onClose={() => setOnboardingOpen(false)}
+            />
+          ) : undefined
         }
         footer={
           isTenantPage && DevtoolsFooter ? (
@@ -583,16 +592,6 @@ function AuthenticatedInner() {
         contentScroll={!isTenantPage}
       >
         <OutletWithContext context={ctx} />
-        {/* Rendered as a sibling to the outlet, inside AppLayout, so TopNav
-            stays mounted while the onboarding overlay is open. The overlay
-            itself is fixed below the 64px header. Gated entirely behind the
-            temporary new-onboarding flag. */}
-        {newOnboardingEnabled && (
-          <OnboardingModal
-            open={onboardingOpen}
-            onClose={() => setOnboardingOpen(false)}
-          />
-        )}
       </AppLayout>
 
       <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>

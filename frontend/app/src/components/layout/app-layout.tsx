@@ -10,6 +10,12 @@ type AppLayoutProps = {
    */
   banner?: ReactNode;
   /**
+   * Rendered over the content area only (below the header and banner), so a
+   * full-screen takeover can cover the page and sidebar while keeping the nav
+   * bar visible and interactive. The node positions itself absolute inset-0.
+   */
+  overlay?: ReactNode;
+  /**
    * When true, the content area becomes the scroll container.
    * When false, content is overflow-hidden (useful when a child layout owns scrolling).
    */
@@ -22,6 +28,7 @@ export function AppLayout({
   children,
   footer,
   banner,
+  overlay,
   contentScroll = true,
   className,
 }: AppLayoutProps) {
@@ -49,7 +56,7 @@ export function AppLayout({
 
       {header}
 
-      <div className="min-h-0 min-w-0 overflow-hidden">
+      <div className="relative min-h-0 min-w-0 overflow-hidden">
         <div
           className={cn(
             'h-full w-full min-h-0 min-w-0',
@@ -58,6 +65,7 @@ export function AppLayout({
         >
           {children}
         </div>
+        {overlay}
       </div>
 
       {hasFooter ? (

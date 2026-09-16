@@ -54,6 +54,9 @@ import React from 'react';
 interface TopNavProps {
   user?: User;
   tenantMemberships: TenantMember[];
+  // Hides the breadcrumbs during a full-screen onboarding takeover, where they
+  // are out of context. The tenant switcher stays so tenants can be changed.
+  onboardingActive?: boolean;
 }
 
 const THEME_OPTIONS = [
@@ -144,7 +147,11 @@ function AccountDropdown({ user }: { user?: User }) {
   );
 }
 
-export default function TopNav({ user, tenantMemberships }: TopNavProps) {
+export default function TopNav({
+  user,
+  tenantMemberships,
+  onboardingActive,
+}: TopNavProps) {
   const {
     toggleSidebarOpen,
     isWide,
@@ -272,7 +279,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="min-w-0 px-8">
-          {breadcrumbs.length > 0 && (
+          {!onboardingActive && breadcrumbs.length > 0 && (
             <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbs.map((crumb, index) => (
