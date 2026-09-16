@@ -51,7 +51,10 @@ export function openOnboarding() {
 // Full-screen onboarding overlay. It deliberately does NOT use the Radix
 // Dialog: that overlay is z-[200] and would cover the top nav. Instead this
 // fills the region below the 64px header (which is z-50) so the tenant
-// switcher stays visible and interactive.
+// switcher stays visible and interactive. Its z-[110] sits above the sidebar
+// (z-[100], which stays mounted on desktop) so onboarding covers the sidebar,
+// yet below Radix dialogs (z-[200]) so the token-success dialog this modal
+// spawns still layers on top.
 //
 // The body is the redesigned OnboardingSteps stepper: shared steps, a path
 // fork (agent vs manual), and a converged finish. The modal owns the
@@ -252,7 +255,7 @@ export function OnboardingModal({
       aria-modal="true"
       aria-label="Get started with Hatchet"
       tabIndex={-1}
-      className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto bg-background outline-none"
+      className="fixed inset-x-0 top-16 bottom-0 z-[110] overflow-y-auto bg-background outline-none"
     >
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

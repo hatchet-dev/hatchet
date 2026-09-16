@@ -57,29 +57,29 @@ export const sdkFragments: Record<Sdk, SdkFragment> = {
   },
 };
 
+// Every use case offered on the agent (prompt-only) path. A superset of the
+// scaffoldable AvailableUseCaseKey: the extra keys (fanout, event, durable)
+// only drive prompt generation, not CLI scaffolding, so they live on the agent
+// path but never reach the manual command builders.
+export type AgentUseCaseKey =
+  AvailableUseCaseKey | 'fanout' | 'event' | 'durable';
+
 // The use-case blocks spliced in at {useCaseBlock}. Mirrors
-// [copy: prompt.usecase.*]. All five templates from the copy file are kept
-// here even though only `simple` and `scheduled` are currently selectable
-// (availableUseCases), so the module stays faithful to the copy and forward
-// compatible if more use cases are enabled. `custom` is handled separately
+// [copy: prompt.usecase.*]. One map keyed by every agent use case; the manual
+// path only ever passes a scaffoldable key. `custom` is handled separately
 // because it interpolates the freeform text and the SDK name.
-export const useCaseBlocks: Record<AvailableUseCaseKey, string> = {
+export const useCaseBlocks: Record<AgentUseCaseKey, string> = {
   simple:
     'Scaffold a single Hatchet task that takes a typed input and returns a typed output. Give it a clear name, validate the input, and log a line when it runs. Register it on a worker.',
   scheduled:
     'Scaffold a Hatchet workflow that runs on a cron schedule (start with every 5 minutes). The workflow should do one small unit of work and log its result. Show me how to change the schedule and how to see upcoming runs.',
-};
-
-// Kept alongside the selectable ones so the wording is not lost as more use
-// cases are enabled; not indexed today because they are not selectable.
-export const roadmapUseCaseBlocks = {
   fanout:
     'Scaffold a Hatchet fan-out workflow: a parent task that splits its input into N items and spawns a child task per item to run in parallel, then a step that aggregates the child results into one output. Make N configurable from the input.',
   event:
     'Scaffold an event-driven Hatchet workflow: a workflow that is triggered by an event I push (choose a clear event key), plus a small script that pushes a sample event. Show me the run that results and its events.',
   durable:
     'Scaffold a durable Hatchet task that does long-running work: use a durable sleep and a wait-for-event step so it survives worker restarts. Show me that the run resumes correctly if the worker is restarted mid-run.',
-} as const;
+};
 
 function customUseCaseBlock(sdkName: string, freeform: string): string {
   const text = freeform.trim();
@@ -100,7 +100,7 @@ export function buildOnboardingPrompt({
   freeform,
 }: {
   sdk: Sdk;
-  useCaseKey: AvailableUseCaseKey | 'custom';
+  useCaseKey: AgentUseCaseKey | 'custom';
   freeform?: string;
 }): string {
   const fragment = sdkFragments[sdk];

@@ -4,7 +4,10 @@ import {
   type InstallMethod,
   type WorkflowLanguageKey,
 } from './onboarding-options';
-import { buildOnboardingPrompt } from './prompt-templates';
+import {
+  buildOnboardingPrompt,
+  type AgentUseCaseKey,
+} from './prompt-templates';
 import {
   availableUseCases,
   escapeForDoubleQuotes,
@@ -15,6 +18,7 @@ import {
 } from './use-case-options';
 import { type OnboardingProgress } from './use-onboarding-progress';
 import { SdkSwitcher, type Sdk } from './use-preferred-sdk';
+import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -30,9 +34,11 @@ import { Textarea } from '@/components/v1/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   CheckIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
 } from '@radix-ui/react-icons';
+import { LifeBuoy } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 // The first release of the CLI that ships `hatchet profile env` and the
@@ -50,11 +56,71 @@ const focusRing =
 const continueButtonClass = `w-fit gap-2 bg-muted/70 ${focusRing}`;
 
 // A use case, or the sentinel for the freeform "describe your own" choice.
-type UseCaseChoice = AvailableUseCaseKey | 'custom';
+// The agent path offers the full AgentUseCaseKey union plus custom; the manual
+// path narrows to the scaffoldable subset (see isScaffoldableUseCase).
+type UseCaseChoice = AgentUseCaseKey | 'custom';
 
-// The chosen setup path after profile setup. null means the path selector is
-// still showing.
+// The chosen setup path. It is picked first; null means the path selector is
+// still showing and no other step exists yet.
 type SetupPath = 'agent' | 'manual';
+
+// True for use cases the CLI can scaffold + trigger (the manual path). The
+// agent path additionally offers roadmap use cases (fanout/event/durable) and
+// the freeform custom choice, which drive prompt generation only.
+function isScaffoldableUseCase(
+  choice: UseCaseChoice,
+): choice is AvailableUseCaseKey {
+  return choice !== 'custom' && choice in availableUseCases;
+}
+
+// Agent-path use-case cards. Labels + descriptions from copy 4.1
+// (usecase.*.label / .desc). The agent path is prompt-only, so it offers the
+// full list including the roadmap use cases the CLI cannot scaffold yet.
+const agentUseCaseOptions: {
+  value: AgentUseCaseKey;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: 'simple',
+    label: 'Simple task',
+    description: 'A single task that takes an input and returns a result.',
+  },
+  {
+    value: 'scheduled',
+    label: 'Cron job / scheduled run',
+    description: 'A workflow that runs on a schedule.',
+  },
+  {
+    value: 'fanout',
+    label: 'Fan-out / parallel',
+    description:
+      'A parent task that spawns work in parallel and aggregates the results.',
+  },
+  {
+    value: 'event',
+    label: 'Event-driven',
+    description: 'A workflow triggered by an event you push.',
+  },
+  {
+    value: 'durable',
+    label: 'Durable / long-running',
+    description:
+      'A task that sleeps or waits for an event and survives restarts.',
+  },
+];
+
+// Human label for any agent use case, used in the prompt-step body.
+function useCaseChoiceLabel(choice: UseCaseChoice): string {
+  if (choice === 'custom') {
+    return 'use case';
+  }
+  return (
+    agentUseCaseOptions
+      .find((option) => option.value === choice)
+      ?.label.toLowerCase() ?? 'use case'
+  );
+}
 
 // Coding agents offered in the MCP multi-select. `value` is the CLI target
 // token passed to `hatchet mcp install --target`.
@@ -155,7 +221,7 @@ export function OnboardingSteps({
   const profileName = tenantName?.trim() || 'local';
   const language = sdkToLanguage(sdk);
 
-  const [currentStep, setCurrentStep] = useState<StepKey>('usecase');
+  const [currentStep, setCurrentStep] = useState<StepKey>('path');
   const [installMethod, setInstallMethod] = useState<InstallMethod>(
     installMethodOptions.native.value,
   );
@@ -167,22 +233,31 @@ export function OnboardingSteps({
   const [path, setPath] = useState<SetupPath | null>(null);
   const [selectedAgents, setSelectedAgents] = useState<McpAgentValue[]>([]);
 
-  // The visible step sequence. It grows once a path is chosen; before that the
-  // path selector stands in for the fork.
+  // The visible step sequence. The path is chosen first, so before a path
+  // exists the selector is the only step; picking one reveals the rest.
   const sequence = useMemo<StepKey[]>(() => {
     if (path === 'agent') {
-      return ['usecase', 'cli', 'profile', 'mcp', 'prompt', 'finish'];
+      return ['path', 'usecase', 'cli', 'profile', 'mcp', 'prompt', 'finish'];
     }
     if (path === 'manual') {
-      return ['usecase', 'cli', 'profile', 'quickstart', 'runtask', 'finish'];
+      return [
+        'path',
+        'usecase',
+        'cli',
+        'profile',
+        'quickstart',
+        'runtask',
+        'finish',
+      ];
     }
-    return ['usecase', 'cli', 'profile', 'path', 'finish'];
+    return ['path'];
   }, [path]);
 
-  // Any navigation to a step past the first confirms the selection, mirroring
-  // the inline flow where clicking any later tab confirms it.
+  // Confirm the selection once the user advances past the use-case step, so
+  // progress polling begins then (never on the first steps). confirmSelection
+  // is idempotent, so firing on every later step is safe.
   const goTo = (step: StepKey) => {
-    if (step !== 'usecase') {
+    if (step !== 'path' && step !== 'usecase') {
       onConfirmSelection();
     }
     if (step !== currentStep) {
@@ -193,7 +268,12 @@ export function OnboardingSteps({
 
   const choosePath = (next: SetupPath) => {
     setPath(next);
-    goTo(next === 'agent' ? 'mcp' : 'quickstart');
+    // Roadmap/custom use cases are agent-only. Switching to the manual path
+    // with one selected falls back to the persisted scaffoldable use case.
+    if (next === 'manual' && !isScaffoldableUseCase(useCaseChoice)) {
+      setUseCaseChoice(useCase);
+    }
+    goTo('usecase');
   };
 
   const mcpTargets = selectedAgents.join(',');
@@ -261,32 +341,47 @@ export function OnboardingSteps({
             onValueChange={(value) => {
               const next = value as UseCaseChoice;
               setUseCaseChoice(next);
-              if (next !== 'custom') {
+              // Only scaffoldable use cases feed the manual command builders,
+              // so only they update the persisted state.
+              if (isScaffoldableUseCase(next)) {
                 onUseCaseChange(next);
               }
             }}
             className="grid-cols-1 gap-3 lg:grid-cols-2"
           >
-            {Object.values(availableUseCases).map((option) => (
-              <RadioGroupCardItem key={option.value} value={option.value}>
+            {path === 'manual'
+              ? Object.values(availableUseCases).map((option) => (
+                  <RadioGroupCardItem key={option.value} value={option.value}>
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </RadioGroupCardItem>
+                ))
+              : agentUseCaseOptions.map((option) => (
+                  <RadioGroupCardItem key={option.value} value={option.value}>
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </RadioGroupCardItem>
+                ))}
+            {path !== 'manual' && (
+              <RadioGroupCardItem value="custom" className="lg:col-span-2">
                 <span className="block text-sm font-medium">
-                  {option.label}
+                  Describe your own
                 </span>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  {option.description}
+                  Tell your agent exactly what to build.
                 </span>
               </RadioGroupCardItem>
-            ))}
-            <RadioGroupCardItem value="custom" className="lg:col-span-2">
-              <span className="block text-sm font-medium">
-                Describe your own
-              </span>
-              <span className="mt-1 block text-sm text-muted-foreground">
-                Tell your agent exactly what to build.
-              </span>
-            </RadioGroupCardItem>
+            )}
           </RadioGroup>
-          {useCaseChoice === 'custom' && (
+          {path !== 'manual' && useCaseChoice === 'custom' && (
             <Textarea
               value={freeform}
               onChange={(e) => setFreeform(e.target.value)}
@@ -295,15 +390,6 @@ export function OnboardingSteps({
             />
           )}
         </div>
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('cli')}
-        >
-          Continue
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     cli: (
@@ -381,15 +467,6 @@ export function OnboardingSteps({
         <p className="text-sm text-muted-foreground">
           Already have an older CLI? Re-run the command above to upgrade.
         </p>
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('profile')}
-        >
-          I have installed the CLI
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     profile: (
@@ -452,15 +529,6 @@ export function OnboardingSteps({
             )}
           </>
         )}
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('path')}
-        >
-          My profile is set up
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     path: (
@@ -566,18 +634,6 @@ export function OnboardingSteps({
           Learn more about the Hatchet MCP
           <ExternalLinkIcon className="size-3" />
         </a>
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => {
-            onPromptGenerated(useCaseChoice, sdk);
-            goTo('prompt');
-          }}
-        >
-          My agent is connected
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     prompt: (
@@ -589,11 +645,7 @@ export function OnboardingSteps({
           <p className="text-sm text-muted-foreground">
             Paste this into your coding agent. It tells the agent to connect to
             your live Hatchet instance, use the MCP and the markdown docs, and
-            build your{' '}
-            {useCaseChoice === 'custom'
-              ? 'use case'
-              : availableUseCases[useCaseChoice].label.toLowerCase()}{' '}
-            in {sdk}.
+            build your {useCaseChoiceLabel(useCaseChoice)} in {sdk}.
           </p>
         </div>
         <CodeHighlighter
@@ -617,15 +669,6 @@ export function OnboardingSteps({
           Your agent will scaffold the project, start a worker, and trigger a
           run. Come back here to watch it connect.
         </p>
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('finish')}
-        >
-          Continue
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     quickstart: (
@@ -672,15 +715,6 @@ export function OnboardingSteps({
           done="Worker connected"
           waiting="Waiting for the worker to connect..."
         />
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('runtask')}
-        >
-          Continue
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     runtask: (
@@ -703,15 +737,6 @@ export function OnboardingSteps({
           done="Run completed"
           waiting="Waiting for the run to complete..."
         />
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          onClick={() => goTo('finish')}
-        >
-          Continue
-          <ChevronRightIcon className="size-3 text-foreground/50" />
-        </Button>
       </>
     ),
     finish: (
@@ -757,6 +782,34 @@ export function OnboardingSteps({
   };
 
   const currentIndex = sequence.indexOf(currentStep);
+  const nextStep = sequence[currentIndex + 1];
+
+  // Back steps within the sequence without confirming the selection or
+  // emitting a step-change event, matching the prior Back behavior.
+  const goBack = () => {
+    const prev = sequence[currentIndex - 1];
+    if (prev) {
+      setCurrentStep(prev);
+    }
+  };
+
+  // Next is the sole forward control. Moving off the MCP step regenerates the
+  // prompt (and its analytics capture), preserving what the removed inline CTA
+  // did.
+  const goNext = () => {
+    if (!nextStep) {
+      return;
+    }
+    if (currentStep === 'mcp') {
+      onPromptGenerated(useCaseChoice, sdk);
+    }
+    goTo(nextStep);
+  };
+
+  // The path selector advances by picking a card; finish keeps its own gated
+  // CTA. Every other step advances via Next.
+  const showNext =
+    currentStep !== 'path' && currentStep !== 'finish' && Boolean(nextStep);
 
   return (
     <div className="space-y-6">
@@ -781,33 +834,50 @@ export function OnboardingSteps({
       </ol>
       <div className="rounded-md px-6 py-6 bg-muted/20 ring-1 ring-border/50 ring-inset space-y-5">
         {stepContent[currentStep]}
-        {currentStep !== 'usecase' && (
-          <div className="pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`w-fit text-muted-foreground ${focusRing}`}
-              onClick={() => {
-                const prev = sequence[currentIndex - 1];
-                if (prev) {
-                  setCurrentStep(prev);
-                }
-              }}
-            >
-              Back
-            </Button>
+        {/* Persistent, aligned footer: life-ring + Back on the left, Next on
+            the right, all on one horizontal line. */}
+        <div className="flex items-center justify-between border-t border-border/50 pt-4">
+          <div className="flex items-center gap-2">
+            <HelpDropdown
+              icon={<LifeBuoy className="size-5 text-foreground" />}
+              align="start"
+              side="top"
+              className="text-muted-foreground"
+            />
+            {currentIndex > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`gap-1 text-muted-foreground ${focusRing}`}
+                onClick={goBack}
+              >
+                <ChevronLeftIcon className="size-3" />
+                Back
+              </Button>
+            )}
             {path === 'manual' && currentStep !== 'finish' && (
               <Button
                 variant="ghost"
                 size="sm"
-                className={`w-fit text-muted-foreground underline ${focusRing}`}
+                className={`text-muted-foreground underline ${focusRing}`}
                 onClick={() => choosePath('agent')}
               >
                 Switch to the agent setup
               </Button>
             )}
           </div>
-        )}
+          {showNext && (
+            <Button
+              variant="default"
+              size="sm"
+              className={`gap-1 ${focusRing}`}
+              onClick={goNext}
+            >
+              Next
+              <ChevronRightIcon className="size-3" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
