@@ -1345,7 +1345,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
