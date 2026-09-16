@@ -53,6 +53,9 @@ hatchet profile list
 # Show details of a specific profile
 hatchet profile show --name [name] [--show-token]
 
+# Print shell exports for a profile's HATCHET_CLIENT_ variables
+eval "$(hatchet profile env --name [name])"
+
 # Update an existing profile (interactive)
 hatchet profile update
 
@@ -206,6 +209,43 @@ var profileShowCmd = &cobra.Command{
 	},
 }
 
+// profileEnvCmd represents the profile env command
+var profileEnvCmd = &cobra.Command{
+	Use:   "env",
+	Short: "Print shell exports for a profile's HATCHET_CLIENT_ variables",
+	Long:  `Print a shell export block of the HATCHET_CLIENT_ environment variables for a profile, so credentials can be loaded without reading or pasting the token.`,
+	Example: `  # Load the default profile into the current shell
+  eval "$(hatchet profile env)"
+
+  # Load a specific profile
+  eval "$(hatchet profile env --name production)"`,
+	Run: func(cmd *cobra.Command, args []string) {
+		name, _ := cmd.Flags().GetString("name")
+		noExport, _ := cmd.Flags().GetBool("no-export")
+
+		// No interactive selection here: this command feeds eval "$(...)", so
+		// stdout must stay clean and it must never block on a prompt.
+		if name == "" {
+			name = cli.Profiles.GetDefaultProfile()
+			if name == "" {
+				cli.Logger.Fatalf("no profile specified and no default profile set; pass --name")
+			}
+		}
+
+		profile, err := cli.Profiles.GetProfile(name)
+		if err != nil {
+			cli.Logger.Fatalf("could not get profile: %v", err)
+		}
+
+		block, err := renderProfileEnv(name, *profile, noExport)
+		if err != nil {
+			cli.Logger.Fatalf("could not render profile env: %v", err)
+		}
+
+		fmt.Print(block)
+	},
+}
+
 // profileUpdateCmd represents the profile update command
 var profileUpdateCmd = &cobra.Command{
 	Use:   "update",
@@ -309,6 +349,7 @@ func init() {
 	profileCmd.AddCommand(profileRemoveCmd)
 	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileShowCmd)
+	profileCmd.AddCommand(profileEnvCmd)
 	profileCmd.AddCommand(profileUpdateCmd)
 	profileCmd.AddCommand(profileSetDefaultCmd)
 	profileCmd.AddCommand(profileUnsetDefaultCmd)
@@ -323,6 +364,10 @@ func init() {
 	// Add flags to profile show command
 	profileShowCmd.Flags().StringP("name", "n", "", "Name of the profile to show (prompted if not provided)")
 	profileShowCmd.Flags().Bool("show-token", false, "Show the full token (default: masked)")
+
+	// Add flags to profile env command
+	profileEnvCmd.Flags().StringP("name", "n", "", "Name of the profile (uses the default profile if not provided)")
+	profileEnvCmd.Flags().Bool("no-export", false, "Emit VAR='value' lines without the leading 'export '")
 
 	// Add flags to profile update command
 	profileUpdateCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
@@ -675,6 +720,55 @@ func profileSelectionFailureMessage(err error, names []string) string {
 		err,
 		strings.Join(names, ", "),
 	)
+}
+
+// renderProfileEnv builds the shell export block of HATCHET_CLIENT_ variables
+// for a profile. It returns an error when the token is empty, since the block
+// would be useless without it. Values are single-quoted for shell safety. The
+// order is fixed: TOKEN, TLS_STRATEGY, HOST_PORT, SERVER_URL, TENANT_ID.
+func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, error) {
+	if p.Token == "" {
+		return "", fmt.Errorf("profile '%s' has no token", name)
+	}
+
+	// TLS_STRATEGY is always emitted. Self-hosted users with TLS disabled must
+	// have it explicit because the SDK defaults to TLS when it is unset.
+	tlsStrategy := p.TLSStrategy
+	if tlsStrategy == "" {
+		tlsStrategy = "tls"
+	}
+
+	pairs := []struct {
+		key   string
+		value string
+	}{
+		{"HATCHET_CLIENT_TOKEN", p.Token},
+		{"HATCHET_CLIENT_TLS_STRATEGY", tlsStrategy},
+		{"HATCHET_CLIENT_HOST_PORT", p.GrpcHostPort},
+		{"HATCHET_CLIENT_SERVER_URL", p.ApiServerURL},
+		{"HATCHET_CLIENT_TENANT_ID", p.TenantId},
+	}
+
+	prefix := "export "
+	if noExport {
+		prefix = ""
+	}
+
+	var b strings.Builder
+	for _, pair := range pairs {
+		if pair.value == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "%s%s=%s\n", prefix, pair.key, shellSingleQuote(pair.value))
+	}
+
+	return b.String(), nil
+}
+
+// shellSingleQuote wraps a value in single quotes for safe shell eval, escaping
+// any embedded single quote with the standard POSIX close-escape-reopen trick.
+func shellSingleQuote(v string) string {
+	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
 }
 
 // profileView renders a profile view with details
