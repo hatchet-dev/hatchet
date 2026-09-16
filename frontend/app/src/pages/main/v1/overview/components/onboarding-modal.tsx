@@ -1,11 +1,4 @@
-import {
-  LearnWorkflowSection,
-  type InstallMethod,
-  type WorkflowLanguageKey,
-  type WorkflowStepKey,
-  installMethodOptions,
-  workflowStepOptions,
-} from './learn-workflow-section';
+import { workflowLanguageOptions } from './onboarding-options';
 import {
   applyLanguageChange,
   applyTabChange,
@@ -13,22 +6,39 @@ import {
   normalizeOnboardingState,
   onboardingStorageKey,
 } from './onboarding-state';
+import { OnboardingSteps } from './onboarding-steps';
 import { type AvailableUseCaseKey } from './use-case-options';
 import { useOnboardingProgress } from './use-onboarding-progress';
-import { SdkSwitcher, usePreferredSdk } from './use-preferred-sdk';
+import { usePreferredSdk, type Sdk } from './use-preferred-sdk';
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest } from '@/lib/api';
 import { globalEmitter } from '@/lib/global-emitter';
-import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+// Maps the global SDK preference to the language the persisted onboarding
+// state and command builders understand. Ruby has no command-builder language,
+// so it leaves the persisted language untouched (the manual path is
+// unavailable for Ruby anyway).
+function sdkToWorkflowLanguage(sdk: Sdk) {
+  switch (sdk) {
+    case 'python':
+      return workflowLanguageOptions.python.value;
+    case 'typescript':
+      return workflowLanguageOptions.typescript.value;
+    case 'go':
+      return workflowLanguageOptions.go.value;
+    case 'ruby':
+      return null;
+  }
+}
 
 // A 100-year expiry, matching the profile-token flow on the Overview page.
 const PROFILE_TOKEN_EXPIRES_IN = `${100 * 365 * 24 * 60 * 60}s`;
@@ -43,10 +53,12 @@ export function openOnboarding() {
 // fills the region below the 64px header (which is z-50) so the tenant
 // switcher stays visible and interactive.
 //
-// This increment reuses the existing LearnWorkflowSection verbatim as the
-// body to keep the modal functional. The redesigned steps and the
-// agent/manual path fork land in the next increment; the step rail here is
-// intentionally a lightweight indicator, not the final stepper.
+// The body is the redesigned OnboardingSteps stepper: shared steps, a path
+// fork (agent vs manual), and a converged finish. The modal owns the
+// persisted onboarding state, the profile-token mutation, live progress, and
+// analytics; the stepper owns navigation and the local path/agent/freeform
+// selections. The inline LearnWorkflowSection flow on the Overview page is
+// unchanged and still used when the onboarding flag is off.
 export function OnboardingModal({
   open,
   onClose,
@@ -60,14 +72,11 @@ export function OnboardingModal({
   const { meta } = useApiMeta();
   const authDisabledToken =
     meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
-  const navigate = useNavigate();
   const { capture } = useAnalytics();
+  const canWrite = useCanWrite();
 
   const [sdk, setSdk] = usePreferredSdk();
 
-  const [installMethod, setInstallMethod] = useState<InstallMethod>(
-    installMethodOptions.native.value,
-  );
   const [profileToken, setProfileToken] = useState<string | undefined>();
   const [profileTokenError, setProfileTokenError] = useState<
     string | undefined
@@ -87,20 +96,21 @@ export function OnboardingModal({
     [storedOnboarding],
   );
 
-  const selectedTab: WorkflowStepKey = onboarding.tab;
-  const language: WorkflowLanguageKey = onboarding.language;
   const useCase: AvailableUseCaseKey = onboarding.useCase;
 
-  const setSelectedTab = (tab: WorkflowStepKey) =>
+  // Advancing past step 1 confirms the selection so progress polling can
+  // begin. Reuses applyTabChange semantics (any move off Choose use case sets
+  // selectionConfirmedAt exactly once).
+  const confirmSelection = () =>
     setStoredOnboarding((prev: unknown) =>
       applyTabChange(
         normalizeOnboardingState(prev),
-        tab,
+        'install',
         new Date().toISOString(),
       ),
     );
 
-  const { workerConnected, runCompleted } = useOnboardingProgress(
+  const progress = useOnboardingProgress(
     tenantId,
     onboarding.selectionConfirmedAt ?? undefined,
   );
@@ -137,6 +147,39 @@ export function OnboardingModal({
     createProfileTokenMutation.mutate({
       name: defaultTokenName ? `${defaultTokenName} (CLI)` : 'CLI token',
       expiresIn: PROFILE_TOKEN_EXPIRES_IN,
+    });
+  };
+
+  // SDK is the global source of truth. Changing it also keeps the persisted
+  // onboarding language in sync (so the manual-path command builders and the
+  // selection-confirmed gate stay coherent) and reports it as a language
+  // selection to analytics. Ruby has no command-builder language, so the
+  // persisted language is left as-is.
+  const handleSdkChange = (nextSdk: Sdk) => {
+    setSdk(nextSdk);
+    const nextLanguage = sdkToWorkflowLanguage(nextSdk);
+    if (nextLanguage) {
+      setStoredOnboarding((prev: unknown) =>
+        applyLanguageChange(normalizeOnboardingState(prev), nextLanguage),
+      );
+    }
+    capture('onboarding_language_selected', {
+      tenant_id: tenantId,
+      user_email: currentUser?.email,
+      language: nextSdk,
+      source: 'onboarding_modal',
+    });
+  };
+
+  const handleUseCaseChange = (nextUseCase: AvailableUseCaseKey) => {
+    setStoredOnboarding((prev: unknown) =>
+      applyUseCaseChange(normalizeOnboardingState(prev), nextUseCase),
+    );
+    capture('onboarding_use_case_selected', {
+      tenant_id: tenantId,
+      user_email: currentUser?.email,
+      use_case: nextUseCase,
+      source: 'onboarding_modal',
     });
   };
 
@@ -202,8 +245,6 @@ export function OnboardingModal({
     return null;
   }
 
-  const steps = Object.values(workflowStepOptions);
-
   return (
     <div
       ref={containerRef}
@@ -224,103 +265,49 @@ export function OnboardingModal({
               started with Hatchet.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">SDK</span>
-              <SdkSwitcher value={sdk} onChange={setSdk} />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              aria-label="Exit onboarding"
-              hoverText="Your progress is saved. You can reopen this anytime from the overview page."
-            >
-              Exit
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            aria-label="Exit onboarding"
+            hoverText="Your progress is saved. You can reopen this anytime from the overview page."
+          >
+            Exit
+          </Button>
         </div>
 
-        {/* Lightweight step rail. The next increment replaces this with the
-            redesigned stepper and the agent/manual path fork. */}
-        <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {steps.map((step, index) => (
-            <li
-              key={step.value}
-              className={cn(
-                'font-medium',
-                step.value === selectedTab && 'text-foreground',
-              )}
-            >
-              {index + 1}. {step.label}
-            </li>
-          ))}
-        </ol>
-
-        {/* Reused as-is for this increment. Its own tab nav still drives the
-            steps; the redesigned steps land next. */}
-        <LearnWorkflowSection
+        <OnboardingSteps
           tenantName={tenant?.name}
-          selectedTab={selectedTab}
-          onSelectedTabChange={setSelectedTab}
+          sdk={sdk}
+          onSdkChange={handleSdkChange}
           useCase={useCase}
-          onUseCaseChange={(nextUseCase) => {
-            setStoredOnboarding((prev: unknown) =>
-              applyUseCaseChange(normalizeOnboardingState(prev), nextUseCase),
-            );
-          }}
-          language={language}
-          onLanguageChange={(nextLanguage) => {
-            setStoredOnboarding((prev: unknown) =>
-              applyLanguageChange(normalizeOnboardingState(prev), nextLanguage),
-            );
-          }}
-          installMethod={installMethod}
-          onInstallMethodChange={setInstallMethod}
-          authDisabled={authDisabled}
-          authDisabledToken={authDisabledToken}
+          onUseCaseChange={handleUseCaseChange}
+          onConfirmSelection={confirmSelection}
           profileToken={profileToken}
           isGeneratingProfileToken={createProfileTokenMutation.isPending}
           profileTokenError={profileTokenError}
           onGenerateProfileToken={handleGenerateProfileToken}
-          hasConnectedWorker={workerConnected}
-          hasQualifiedRun={runCompleted}
-          onViewRuns={() => {
-            if (tenantId) {
-              navigate({
-                to: '/tenants/$tenant/runs',
-                params: { tenant: tenantId },
-              });
-            }
-            onClose();
-          }}
-          // Exit and Finish both just close the overlay in this increment;
-          // closing never marks onboarding complete. Completion is derived
-          // from useOnboardingProgress, not from a button.
-          onSkip={onClose}
+          canGenerateToken={canWrite}
+          authDisabled={authDisabled}
+          authDisabledToken={authDisabledToken}
+          progress={progress}
+          // Finish just closes the overlay; completion is derived from
+          // useOnboardingProgress, never from a button.
           onFinish={onClose}
-          onTabChangeEvent={(_tab, tabLabel) => {
+          onPromptGenerated={(template, promptSdk) => {
+            capture('onboarding_prompt_generated', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              template,
+              sdk: promptSdk,
+              source: 'onboarding_modal',
+            });
+          }}
+          onStepChangeEvent={(_step, stepLabel) => {
             capture('onboarding_tab_changed', {
               tenant_id: tenantId,
               user_email: currentUser?.email,
-              tab: tabLabel,
-              source: 'onboarding_modal',
-            });
-          }}
-          onLanguageSelectedEvent={(_language, languageLabel) => {
-            capture('onboarding_language_selected', {
-              tenant_id: tenantId,
-              user_email: currentUser?.email,
-              language: languageLabel,
-              source: 'onboarding_modal',
-            });
-          }}
-          onUseCaseSelectedEvent={(useCaseKey, useCaseLabel) => {
-            capture('onboarding_use_case_selected', {
-              tenant_id: tenantId,
-              user_email: currentUser?.email,
-              use_case: useCaseKey,
-              use_case_label: useCaseLabel,
+              tab: stepLabel,
               source: 'onboarding_modal',
             });
           }}
