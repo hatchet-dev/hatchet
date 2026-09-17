@@ -359,7 +359,7 @@ export function OnboardingSteps({
     usecase: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">What are you building?</h3>
+          <h3 className="text-sm font-medium">What are you building?</h3>
           <p className="text-sm text-muted-foreground">
             We'll customize your prompt for getting your coding agent onboarded.
           </p>
@@ -415,10 +415,7 @@ export function OnboardingSteps({
               );
             })}
             {path !== 'manual' && (
-              <RadioGroupCardItem
-                value="custom"
-                className={cn('lg:col-span-2', brandCardClass)}
-              >
+              <RadioGroupCardItem value="custom" className={brandCardClass}>
                 <div className="space-y-3">
                   <div>
                     <span className="block text-sm font-medium">
@@ -459,13 +456,13 @@ export function OnboardingSteps({
     setup: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Set up the CLI</h3>
+          <h3 className="text-sm font-medium">Set up the CLI</h3>
           <p className="text-sm text-muted-foreground">
             Install the CLI and connect a profile to this tenant.
           </p>
         </div>
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold">Install the CLI</h4>
+          <h4 className="text-sm font-medium">Install the CLI</h4>
           <Tabs
             value={installMethod}
             onValueChange={(value) => setInstallMethod(value as InstallMethod)}
@@ -522,8 +519,8 @@ export function OnboardingSteps({
             copy
           />
         </div>
-        <div className="space-y-3 border-t border-border/50 pt-5">
-          <h4 className="text-sm font-semibold">Set up your profile</h4>
+        <div className="space-y-3 border-t border-border/50 pt-4">
+          <h4 className="text-sm font-medium">Set up your profile</h4>
           <p className="text-sm text-muted-foreground">
             A profile connects the CLI to this tenant.
           </p>
@@ -585,15 +582,13 @@ export function OnboardingSteps({
     path: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">
-            Choose your preferred setup
-          </h3>
+          <h3 className="text-sm font-medium">Choose your preferred setup</h3>
         </div>
-        <div className="rounded-lg border border-brand/60 bg-brand/5 p-5 space-y-3">
+        <div className="rounded-lg border border-brand/60 bg-brand/5 p-4 space-y-3">
           <div className="flex items-start gap-3">
             <Bot className="mt-0.5 size-6 shrink-0 text-brand" />
             <div className="space-y-1">
-              <h4 className="text-sm font-semibold">
+              <h4 className="text-sm font-medium">
                 With your coding agent (recommended)
               </h4>
               <p className="text-sm text-muted-foreground">
@@ -611,23 +606,23 @@ export function OnboardingSteps({
             <ChevronRightIcon className="size-3" />
           </Button>
         </div>
-        <div className="rounded-lg border border-border/50 bg-muted/20 p-5 space-y-3">
+        <div className="rounded-lg border border-border/50 bg-muted/20 p-4 space-y-3">
           <div className="flex items-start gap-3">
             <Terminal className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
-              <h4 className="text-sm font-semibold">Manual setup</h4>
+              <h4 className="text-sm font-medium">Manual setup</h4>
               <p className="text-sm text-muted-foreground">
                 Scaffold a project, start a worker, and run a task yourself.
               </p>
             </div>
           </div>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            className={`w-fit px-0 text-muted-foreground underline ${focusRing}`}
+            className={cn('w-fit gap-2', focusRing)}
             onClick={() => choosePath('manual')}
           >
-            Prefer to set it up by hand?
+            Manual setup
           </Button>
         </div>
       </>
@@ -635,7 +630,7 @@ export function OnboardingSteps({
     runagent: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Run your agent</h3>
+          <h3 className="text-sm font-medium">Run your agent</h3>
           <p className="text-sm text-muted-foreground">
             Here's a sample prompt for your coding agent. You can customize it
             to fit your needs.
@@ -658,7 +653,7 @@ export function OnboardingSteps({
             Regenerate
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           No need to refresh, we're watching for your worker and run.
         </p>
         <StatusRow
@@ -676,7 +671,7 @@ export function OnboardingSteps({
     runtask: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Run a task</h3>
+          <h3 className="text-sm font-medium">Run a task</h3>
           <p className="text-sm text-muted-foreground">
             Scaffold a project, start a worker, then trigger a run and watch it
             complete.
@@ -739,13 +734,13 @@ export function OnboardingSteps({
     finish: (
       <>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">You're set up</h3>
+          <h3 className="text-sm font-medium">You're set up</h3>
           <p className="text-sm text-muted-foreground">
             Your worker is connected and running tasks against this tenant.
           </p>
         </div>
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold">
+          <h4 className="text-sm font-medium">
             Optional: install the Hatchet MCP
           </h4>
           <p className="text-sm text-muted-foreground">
@@ -797,8 +792,8 @@ export function OnboardingSteps({
             <ExternalLinkIcon className="size-3" />
           </a>
         </div>
-        <div className="space-y-3 border-t border-border/50 pt-5">
-          <h4 className="text-sm font-semibold">Learn more</h4>
+        <div className="space-y-3 border-t border-border/50 pt-4">
+          <h4 className="text-sm font-medium">Learn more</h4>
           <ul className="space-y-2">
             {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
               <li key={doc.href}>
@@ -881,7 +876,7 @@ export function OnboardingSteps({
     stepGateMet;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {sequence.map((step, index) => (
           <li key={step}>
@@ -902,7 +897,7 @@ export function OnboardingSteps({
           </li>
         ))}
       </ol>
-      <div className="rounded-md px-6 py-6 bg-muted/20 ring-1 ring-border/50 ring-inset space-y-5">
+      <div className="rounded-md p-4 bg-muted/20 ring-1 ring-border/50 ring-inset space-y-4">
         {stepContent[currentStep]}
         {/* Persistent, aligned footer: life-ring + Back on the left, Next on
             the right, all on one horizontal line. */}

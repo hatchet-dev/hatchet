@@ -262,71 +262,73 @@ export function OnboardingModal({
       ref={containerRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Get started with Hatchet"
+      aria-label="Build your first workflow"
       tabIndex={-1}
       className="absolute inset-0 z-[110] overflow-y-auto bg-background outline-none"
     >
-      {/* Center the content vertically within the region below the nav, while
-          still allowing it to scroll when it is taller than the viewport. */}
+      {/* Supabase-style: a centered card on a slightly-off background, below
+          the nav, scrolling when taller than the viewport. */}
       <div className="flex min-h-full items-center justify-center p-6">
-        <div className="flex w-full max-w-4xl flex-col gap-6">
-          <div className="space-y-1 text-center">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Get started with Hatchet
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Set up your first worker and run your first workflow to get
-              started with Hatchet.
-            </p>
+        <div className="w-full max-w-3xl">
+          <div className="rounded-xl border border-border bg-muted/20 shadow-sm">
+            <div className="border-b border-border px-6 py-5">
+              <h2 className="text-base font-medium tracking-tight">
+                Build your first workflow
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Connect a worker and run your first task.
+              </p>
+            </div>
+            <div className="px-6 py-5">
+              <OnboardingSteps
+                tenantName={tenant?.name}
+                sdk={sdk}
+                onSdkChange={handleSdkChange}
+                useCase={useCase}
+                onUseCaseChange={handleUseCaseChange}
+                onConfirmSelection={confirmSelection}
+                profileToken={profileToken}
+                isGeneratingProfileToken={createProfileTokenMutation.isPending}
+                profileTokenError={profileTokenError}
+                onGenerateProfileToken={handleGenerateProfileToken}
+                canGenerateToken={canWrite}
+                hasApiToken={hasApiToken}
+                authDisabled={authDisabled}
+                authDisabledToken={authDisabledToken}
+                progress={progress}
+                // Finish just closes the overlay; completion is derived from
+                // useOnboardingProgress, never from a button.
+                onFinish={onClose}
+                onPromptGenerated={(template, promptSdk) => {
+                  capture('onboarding_prompt_generated', {
+                    tenant_id: tenantId,
+                    user_email: currentUser?.email,
+                    template,
+                    sdk: promptSdk,
+                    source: 'onboarding_modal',
+                  });
+                }}
+                onStepChangeEvent={(_step, stepLabel) => {
+                  capture('onboarding_tab_changed', {
+                    tenant_id: tenantId,
+                    user_email: currentUser?.email,
+                    tab: stepLabel,
+                    source: 'onboarding_modal',
+                  });
+                }}
+              />
+            </div>
           </div>
 
-          <OnboardingSteps
-            tenantName={tenant?.name}
-            sdk={sdk}
-            onSdkChange={handleSdkChange}
-            useCase={useCase}
-            onUseCaseChange={handleUseCaseChange}
-            onConfirmSelection={confirmSelection}
-            profileToken={profileToken}
-            isGeneratingProfileToken={createProfileTokenMutation.isPending}
-            profileTokenError={profileTokenError}
-            onGenerateProfileToken={handleGenerateProfileToken}
-            canGenerateToken={canWrite}
-            hasApiToken={hasApiToken}
-            authDisabled={authDisabled}
-            authDisabledToken={authDisabledToken}
-            progress={progress}
-            // Finish just closes the overlay; completion is derived from
-            // useOnboardingProgress, never from a button.
-            onFinish={onClose}
-            onPromptGenerated={(template, promptSdk) => {
-              capture('onboarding_prompt_generated', {
-                tenant_id: tenantId,
-                user_email: currentUser?.email,
-                template,
-                sdk: promptSdk,
-                source: 'onboarding_modal',
-              });
-            }}
-            onStepChangeEvent={(_step, stepLabel) => {
-              capture('onboarding_tab_changed', {
-                tenant_id: tenantId,
-                user_email: currentUser?.email,
-                tab: stepLabel,
-                source: 'onboarding_modal',
-              });
-            }}
-          />
-
-          <div className="flex justify-center">
+          <div className="mt-4 flex justify-center">
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground"
+              className="text-xs text-muted-foreground"
               onClick={onClose}
               hoverText="Your progress is saved. You can reopen this anytime from the overview page."
             >
-              Skip onboarding
+              Skip for now
             </Button>
           </div>
         </div>

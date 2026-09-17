@@ -39,7 +39,7 @@ export function OverviewDashboard({
       </div>
 
       {showBanner && (
-        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
           <div className="space-y-1">
             <p className="text-sm font-medium">Finish setting up Hatchet</p>
             <p className="text-sm text-muted-foreground">
@@ -54,7 +54,7 @@ export function OverviewDashboard({
               className="border-brand text-brand hover:bg-brand/10 hover:text-brand"
               onClick={openOnboarding}
             >
-              Resume onboarding
+              Build your first workflow
             </Button>
             <Button
               variant="ghost"
@@ -78,14 +78,14 @@ export function OverviewDashboard({
       <SupportSection />
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-4 text-sm text-muted-foreground">
-        <span>Need the setup guide again?</span>
+        <span>Want to build your first workflow?</span>
         <Button
           variant="link"
           size="sm"
           className="h-auto p-0"
           onClick={openOnboarding}
         >
-          Open onboarding
+          Build your first workflow
         </Button>
       </div>
     </div>
