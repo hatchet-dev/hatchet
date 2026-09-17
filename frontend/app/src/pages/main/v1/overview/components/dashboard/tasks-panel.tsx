@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpRight, BarChart3 } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
+import { RiPlayLargeLine } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
 
@@ -81,7 +82,7 @@ export function TasksPanel({
 
   return (
     <PanelCard
-      icon={<BarChart3 className="size-4" />}
+      icon={<RiPlayLargeLine className="size-4" />}
       title="Runs"
       subtitle="Last 24 hours"
       action={

@@ -14,7 +14,7 @@ import { queries, V1TaskStatus, type V1TaskSummary } from '@/lib/api';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle } from 'lucide-react';
+import { RiErrorWarningLine } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
 const ERROR_LIMIT = 5;
@@ -52,7 +52,7 @@ export function ErrorsPanel({
 
   return (
     <PanelCard
-      icon={<AlertTriangle className="size-4" />}
+      icon={<RiErrorWarningLine className="size-4" />}
       title="Recent errors"
       subtitle="Failed runs, last 24 hours"
     >

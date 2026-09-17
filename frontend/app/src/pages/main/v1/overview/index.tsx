@@ -298,14 +298,7 @@ export default function Overview() {
   // the flag is off this branch is never taken and the legacy page renders
   // exactly as before.
   if (newOnboardingEnabled && tenantId) {
-    return (
-      <OverviewDashboard
-        tenantId={tenantId}
-        onboarded={onboarded}
-        authDisabled={authDisabled}
-        authDisabledToken={authDisabledToken}
-      />
-    );
+    return <OverviewDashboard tenantId={tenantId} onboarded={onboarded} />;
   }
 
   return (

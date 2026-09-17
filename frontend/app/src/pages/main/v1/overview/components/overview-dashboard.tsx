@@ -1,5 +1,4 @@
 import { ErrorsPanel } from './dashboard/errors-panel';
-import { SetupPanel } from './dashboard/setup-panel';
 import { StatsPanel } from './dashboard/stats-panel';
 import { TasksPanel } from './dashboard/tasks-panel';
 import { WorkersPanel } from './dashboard/workers-panel';
@@ -9,20 +8,16 @@ import { Button } from '@/components/v1/ui/button';
 import { useMemo, useState } from 'react';
 
 // The new, flag-gated Overview. Replaces the legacy onboarding-wizard-centric
-// content with a live dashboard of tenant data. Composes the onboarding
-// re-entry banner (until the tenant is onboarded), the panel grid (A-E), the
-// Support footer, and the footer re-entry link. The onboarding modal itself is
-// mounted globally, so the banner and footer only need to call openOnboarding.
+// content with a live dashboard of tenant data. Composes the title, the
+// onboarding re-entry highlight (until the tenant is onboarded), the panel
+// grid, the Support footer, and the footer re-entry link. The onboarding modal
+// itself is mounted globally, so the banner and footer only call openOnboarding.
 export function OverviewDashboard({
   tenantId,
   onboarded,
-  authDisabled,
-  authDisabledToken,
 }: {
   tenantId: string;
   onboarded: boolean;
-  authDisabled: boolean;
-  authDisabledToken?: string;
 }) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const showBanner = !onboarded && !bannerDismissed;
@@ -36,8 +31,15 @@ export function OverviewDashboard({
 
   return (
     <div className="flex h-full w-full flex-col gap-y-6 lg:p-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <p className="text-sm text-muted-foreground">
+          See activity across your Hatchet tenant.
+        </p>
+      </div>
+
       {showBanner && (
-        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border/50 bg-muted/20 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
           <div className="space-y-1">
             <p className="text-sm font-medium">Finish setting up Hatchet</p>
             <p className="text-sm text-muted-foreground">
@@ -47,9 +49,8 @@ export function OverviewDashboard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
-              className="bg-muted/70"
+              className="bg-brand text-white hover:bg-brand/90"
               onClick={openOnboarding}
             >
               Resume onboarding
@@ -66,21 +67,11 @@ export function OverviewDashboard({
         </div>
       )}
 
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">Dashboard</p>
-      </div>
-
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <StatsPanel tenantId={tenantId} since={since} />
         <TasksPanel tenantId={tenantId} since={since} />
         <ErrorsPanel tenantId={tenantId} since={since} />
         <WorkersPanel tenantId={tenantId} />
-        <SetupPanel
-          tenantId={tenantId}
-          authDisabled={authDisabled}
-          authDisabledToken={authDisabledToken}
-        />
       </div>
 
       <SupportSection />

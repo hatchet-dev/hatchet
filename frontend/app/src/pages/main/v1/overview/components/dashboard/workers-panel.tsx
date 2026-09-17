@@ -13,7 +13,7 @@ import { WorkerStatusBadge } from '@/pages/main/v1/workers/components/worker-col
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Cpu } from 'lucide-react';
+import { RiStackLine } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
 const WORKER_LIMIT = 6;
@@ -43,7 +43,7 @@ export function WorkersPanel({ tenantId }: { tenantId: string }) {
 
   return (
     <PanelCard
-      icon={<Cpu className="size-4" />}
+      icon={<RiStackLine className="size-4" />}
       title="Workers"
       subtitle="Connected"
     >

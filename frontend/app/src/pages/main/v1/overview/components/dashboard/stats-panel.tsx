@@ -8,8 +8,8 @@ import { PanelCard } from './panel-card';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { Gauge } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { RiBarChart2Line } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
 
@@ -81,7 +81,7 @@ export function StatsPanel({
 
   return (
     <PanelCard
-      icon={<Gauge className="size-4" />}
+      icon={<RiBarChart2Line className="size-4" />}
       title="Stats"
       className="lg:col-span-2"
       bodyClassName="p-0"
