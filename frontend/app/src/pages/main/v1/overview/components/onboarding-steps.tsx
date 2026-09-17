@@ -41,12 +41,6 @@ import {
 import { LifeBuoy } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
-// The first release of the CLI that ships `hatchet profile env` and the
-// multi-target `hatchet mcp install`. Both the agent-path commands here and
-// the generated prompt depend on it.
-// TODO: set once belanger/profile-env releases.
-const MIN_CLI_VERSION = 'TBD';
-
 // The shared Button strips the native focus outline without a replacement, so
 // each focusable onboarding control carries an explicit ring, matching
 // learn-workflow-section rather than changing the shared primitives app-wide.
@@ -442,8 +436,7 @@ export function OnboardingSteps({
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Set up the CLI</h3>
           <p className="text-sm text-muted-foreground">
-            The CLI sets up your profile, installs the MCP server, and lets your
-            agent operate Hatchet.
+            Install the CLI and connect a profile to this tenant.
           </p>
         </div>
         <div className="space-y-3">
@@ -496,24 +489,13 @@ export function OnboardingSteps({
               />
             </TabsContent>
           </Tabs>
-          <p className="text-sm">Verify it installed:</p>
+          <p className="text-sm">Confirm it installed:</p>
           <CodeHighlighter
             className={codeBlockClass}
             code={`hatchet --version`}
             language="shell"
             copy
           />
-          <p className="text-sm text-muted-foreground">
-            You should see version {MIN_CLI_VERSION} or newer.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Requires Hatchet CLI {MIN_CLI_VERSION} or newer (for{' '}
-            <code>mcp install</code> and <code>profile env</code>). The command
-            above always installs the latest.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Already have an older CLI? Re-run the command above to upgrade.
-          </p>
         </div>
         <div className="space-y-3 border-t border-border/50 pt-5">
           <h4 className="text-sm font-semibold">Set up your profile</h4>
@@ -573,66 +555,6 @@ export function OnboardingSteps({
             </>
           )}
         </div>
-        {path === 'agent' && (
-          <div className="space-y-3 border-t border-border/50 pt-5">
-            <h4 className="text-sm font-semibold">Connect your coding agent</h4>
-            <p className="text-sm text-muted-foreground">
-              The Hatchet MCP server lets your agent trigger runs, inspect
-              results, and debug workers while it builds with you.
-            </p>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
-                Which coding agents do you use?
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Pick one or more. We will build the install command for you.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {mcpAgentOptions.map((option) => {
-                const checked = selectedAgents.includes(option.value);
-                return (
-                  <label
-                    key={option.value}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-border',
-                      checked && 'border-primary bg-muted/40',
-                    )}
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleAgent(option.value)}
-                      className={focusRing}
-                    />
-                    <span className="font-medium">{option.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-            <p className="text-sm">Run this to connect your agents:</p>
-            {selectedAgents.length > 0 ? (
-              <CodeHighlighter
-                className={codeBlockClass}
-                code={mcpCommand}
-                language="shell"
-                copy
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Select at least one agent from the list above.
-              </p>
-            )}
-            <a
-              href="https://docs.hatchet.run/reference/cli/mcp"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
-            >
-              Learn more about the Hatchet MCP
-              <ExternalLinkIcon className="size-3" />
-            </a>
-          </div>
-        )}
       </>
     ),
     path: (
@@ -648,8 +570,7 @@ export function OnboardingSteps({
               With your coding agent (recommended)
             </h4>
             <p className="text-sm text-muted-foreground">
-              Connect the Hatchet MCP and let your agent scaffold, run, and
-              debug for you.
+              Let your coding agent scaffold, run, and debug for you.
             </p>
           </div>
           <Button
@@ -685,9 +606,9 @@ export function OnboardingSteps({
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Run your agent</h3>
           <p className="text-sm text-muted-foreground">
-            Paste this into your coding agent. It tells the agent to connect to
-            your live Hatchet instance, use the MCP and the markdown docs, and
-            build your {useCaseChoiceLabel(useCaseChoice)} in {sdk}.
+            Paste this into your coding agent to build your{' '}
+            {useCaseChoiceLabel(useCaseChoice)} in {sdk} against your live
+            instance.
           </p>
         </div>
         <CodeHighlighter
@@ -708,8 +629,7 @@ export function OnboardingSteps({
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Your agent will scaffold the project, start a worker, and trigger a
-          run. No need to refresh, we're watching things.
+          No need to refresh, we're watching for your worker and run.
         </p>
         <StatusRow
           ready={progress.workerConnected}
@@ -811,6 +731,57 @@ export function OnboardingSteps({
               </li>
             ))}
           </ul>
+        </div>
+        <div className="space-y-3 border-t border-border/50 pt-5">
+          <h4 className="text-sm font-semibold">
+            Optional: connect your coding agent
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            The Hatchet MCP server lets your agent trigger runs and inspect
+            results as it builds with you.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {mcpAgentOptions.map((option) => {
+              const checked = selectedAgents.includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-border',
+                    checked && 'border-primary bg-muted/40',
+                  )}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleAgent(option.value)}
+                    className={focusRing}
+                  />
+                  <span className="font-medium">{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          {selectedAgents.length > 0 ? (
+            <CodeHighlighter
+              className={codeBlockClass}
+              code={mcpCommand}
+              language="shell"
+              copy
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Select at least one agent to build the install command.
+            </p>
+          )}
+          <a
+            href="https://docs.hatchet.run/reference/cli/mcp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
+          >
+            Learn more about the Hatchet MCP
+            <ExternalLinkIcon className="size-3" />
+          </a>
         </div>
         <Button
           variant="outline"

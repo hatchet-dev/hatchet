@@ -2,10 +2,11 @@ import { buildOnboardingPrompt, sdkFragments } from './prompt-templates';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-test('includes the CLI capability preflight', () => {
+test('includes the CLI capability preflight without an MCP check', () => {
   const prompt = buildOnboardingPrompt({ sdk: 'python', useCaseKey: 'simple' });
   assert.match(prompt, /hatchet profile env --help/);
-  assert.match(prompt, /hatchet mcp --help/);
+  assert.doesNotMatch(prompt, /hatchet mcp --help/);
+  assert.doesNotMatch(prompt, /MCP/);
 });
 
 test('lists the markdown doc URLs and the SDK reference', () => {

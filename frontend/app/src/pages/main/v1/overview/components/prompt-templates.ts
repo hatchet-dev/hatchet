@@ -111,9 +111,9 @@ export function buildOnboardingPrompt({
 
   return `I'm building on Hatchet using the ${fragment.name} SDK. Hatchet is a task orchestration platform for running background tasks, workflows, schedules, and event-driven work.
 
-My setup is already done: the Hatchet CLI is installed, my profile is configured with an API token, and the Hatchet MCP server is connected to you.
+My setup is already done: the Hatchet CLI is installed and my profile is configured with an API token.
 
-First, confirm my CLI is recent enough for these commands: run \`hatchet profile env --help\` and \`hatchet mcp --help\`. If either is not a recognized command, my CLI is too old, so upgrade it by re-running the install script before continuing.
+First, confirm my CLI is recent enough for these commands: run \`hatchet profile env --help\`. If that is not a recognized command, my CLI is too old, so upgrade it by re-running the install script before continuing.
 
 Read the docs first. Hatchet's documentation is available as markdown files; fetch the ones you need before writing code:
 - Docs index (lists every page and its markdown URL): https://docs.hatchet.run/llms.txt
@@ -125,11 +125,11 @@ Then build the task below, connecting to my LIVE Hatchet instance (do not use a 
 
 1. Install the SDK: ${fragment.install}
 2. Connect to my instance. ${fragment.connect} Do not read, print, or hardcode my token. Load my credentials from my CLI profile with command substitution before running any Hatchet process: \`eval "$(hatchet profile env)"\`. This exports HATCHET_CLIENT_TOKEN and the correct TLS setting for my instance, so you never handle the token directly.
-3. Use the Hatchet MCP tools throughout to verify against my live instance: check engine status, list workers, trigger runs, and read run status and events.
+3. Use the \`hatchet\` CLI throughout to check status and inspect runs as you go (run \`hatchet --help\` to discover the available commands).
 
 ${useCaseBlock}
 
-Finally, start a worker connected to my live instance and trigger a run. Confirm the run completes using the MCP tools and show me the result.
+Finally, start a worker connected to my live instance and trigger a run. Confirm the run completes using the \`hatchet\` CLI and show me the result.
 
 Once this works, if I want faster local iteration: ${fragment.embeddedLater}`;
 }
