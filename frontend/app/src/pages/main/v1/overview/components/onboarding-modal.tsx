@@ -10,6 +10,7 @@ import { OnboardingSteps } from './onboarding-steps';
 import { type AvailableUseCaseKey } from './use-case-options';
 import { useOnboardingProgress } from './use-onboarding-progress';
 import { usePreferredSdk, type Sdk } from './use-preferred-sdk';
+import { SetupCard } from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
@@ -209,16 +210,23 @@ export function OnboardingModal({
     }
   }, [open, capture, tenantId, currentUser?.email]);
 
-  // Close on Esc and focus the overlay on open. This intentionally does NOT
-  // trap focus: the top nav (tenant/org switcher) stays interactive during the
-  // flow, and a strict Tab trap would yank focus out of those popovers and
-  // close them.
+  // Focus the overlay exactly once when it opens. This effect depends only on
+  // `open` so it does NOT re-run on every parent render. Re-focusing on every
+  // render (which happened while `onClose` was in the deps, since it is a new
+  // arrow each render) would steal focus back from the nav's tenant/org
+  // switcher popover and close it immediately. It intentionally does not trap
+  // focus: the nav stays interactive during the flow.
+  useEffect(() => {
+    if (open) {
+      containerRef.current?.focus();
+    }
+  }, [open]);
+
+  // Close on Esc while open.
   useEffect(() => {
     if (!open) {
       return;
     }
-
-    containerRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -247,56 +255,49 @@ export function OnboardingModal({
       {/* Supabase-style: a centered card on a slightly-off background, below
           the nav, scrolling when taller than the viewport. */}
       <div className="flex min-h-full items-center justify-center p-6">
-        <div className="w-full max-w-3xl">
-          <div className="rounded-xl border border-border bg-muted/20 shadow-sm">
-            <div className="border-b border-border px-6 py-5">
-              <h2 className="text-base font-medium tracking-tight">
-                Build your first workflow
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Connect a worker and run your first task.
-              </p>
-            </div>
-            <div className="px-6 py-5">
-              <OnboardingSteps
-                tenantName={tenant?.name}
-                sdk={sdk}
-                onSdkChange={handleSdkChange}
-                useCase={useCase}
-                onUseCaseChange={handleUseCaseChange}
-                onConfirmSelection={confirmSelection}
-                profileToken={profileToken}
-                isGeneratingProfileToken={createProfileTokenMutation.isPending}
-                profileTokenError={profileTokenError}
-                onGenerateProfileToken={handleGenerateProfileToken}
-                canGenerateToken={canWrite}
-                hasApiToken={hasApiToken}
-                authDisabled={authDisabled}
-                authDisabledToken={authDisabledToken}
-                progress={progress}
-                // Finish just closes the overlay; completion is derived from
-                // useOnboardingProgress, never from a button.
-                onFinish={onClose}
-                onPromptGenerated={(template, promptSdk) => {
-                  capture('onboarding_prompt_generated', {
-                    tenant_id: tenantId,
-                    user_email: currentUser?.email,
-                    template,
-                    sdk: promptSdk,
-                    source: 'onboarding_modal',
-                  });
-                }}
-                onStepChangeEvent={(_step, stepLabel) => {
-                  capture('onboarding_tab_changed', {
-                    tenant_id: tenantId,
-                    user_email: currentUser?.email,
-                    tab: stepLabel,
-                    source: 'onboarding_modal',
-                  });
-                }}
-              />
-            </div>
-          </div>
+        <div className="flex w-full flex-col items-center">
+          <SetupCard
+            title="Build your first workflow"
+            description="Connect a worker and run your first task."
+          >
+            <OnboardingSteps
+              tenantName={tenant?.name}
+              sdk={sdk}
+              onSdkChange={handleSdkChange}
+              useCase={useCase}
+              onUseCaseChange={handleUseCaseChange}
+              onConfirmSelection={confirmSelection}
+              profileToken={profileToken}
+              isGeneratingProfileToken={createProfileTokenMutation.isPending}
+              profileTokenError={profileTokenError}
+              onGenerateProfileToken={handleGenerateProfileToken}
+              canGenerateToken={canWrite}
+              hasApiToken={hasApiToken}
+              authDisabled={authDisabled}
+              authDisabledToken={authDisabledToken}
+              progress={progress}
+              // Finish just closes the overlay; completion is derived from
+              // useOnboardingProgress, never from a button.
+              onFinish={onClose}
+              onPromptGenerated={(template, promptSdk) => {
+                capture('onboarding_prompt_generated', {
+                  tenant_id: tenantId,
+                  user_email: currentUser?.email,
+                  template,
+                  sdk: promptSdk,
+                  source: 'onboarding_modal',
+                });
+              }}
+              onStepChangeEvent={(_step, stepLabel) => {
+                capture('onboarding_tab_changed', {
+                  tenant_id: tenantId,
+                  user_email: currentUser?.email,
+                  tab: stepLabel,
+                  source: 'onboarding_modal',
+                });
+              }}
+            />
+          </SetupCard>
 
           <div className="mt-4 flex justify-center">
             <Button
