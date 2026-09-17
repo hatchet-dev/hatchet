@@ -38,7 +38,18 @@ import {
   ChevronRightIcon,
   ExternalLinkIcon,
 } from '@radix-ui/react-icons';
-import { LifeBuoy } from 'lucide-react';
+import {
+  Bot,
+  CalendarClock,
+  LifeBuoy,
+  Network,
+  Radio,
+  Sparkles,
+  Terminal,
+  Timer,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 // The shared Button strips the native focus outline without a replacement, so
@@ -48,6 +59,17 @@ const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background';
 
 const continueButtonClass = `w-fit gap-2 bg-muted/70 ${focusRing}`;
+
+// The brand blue reads as the interactive/forward accent, so primary CTAs
+// (Next, Generate token) carry it locally rather than restyling the shared
+// Button. Secondary controls (Back, skip, switch) stay ghost/muted.
+const brandButtonClass = `bg-brand text-white hover:bg-brand/90 ${focusRing}`;
+
+// Brand-tinted selected state for the use-case cards, layered over the
+// RadioGroupCardItem base so selection reads brand instead of muted grey and
+// unselected cards gain a brand hover affordance.
+const brandCardClass =
+  'hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:bg-brand/5';
 
 // A use case, or the sentinel for the freeform "describe your own" choice.
 // The agent path offers the full AgentUseCaseKey union plus custom; the manual
@@ -103,6 +125,18 @@ const agentUseCaseOptions: {
       'A task that sleeps or waits for an event and survives restarts.',
   },
 ];
+
+// Per-use-case lucide icon, rendered at the left of each option card. Keyed by
+// UseCaseChoice so both the agent path (full list plus custom) and the manual
+// path (simple/scheduled) share the same glyphs for matching keys.
+const useCaseIcons: Record<UseCaseChoice, LucideIcon> = {
+  simple: Zap,
+  scheduled: CalendarClock,
+  fanout: Network,
+  event: Radio,
+  durable: Timer,
+  custom: Sparkles,
+};
 
 // Coding agents offered in the MCP multi-select. `value` is the CLI target
 // token passed to `hatchet mcp install --target`.
@@ -335,11 +369,18 @@ export function OnboardingSteps({
     waiting: string;
     ready: boolean;
   }) => (
-    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-lg border p-4',
+        ready
+          ? 'border-success/50 bg-success/5'
+          : 'border-border/50 bg-muted/20',
+      )}
+    >
       {ready ? (
         <>
-          <CheckIcon className="size-5 text-green-500" />
-          <span className="text-sm font-medium">{done}</span>
+          <CheckIcon className="size-5 text-success" />
+          <span className="text-sm font-medium text-success">{done}</span>
         </>
       ) : (
         <>
@@ -380,35 +421,60 @@ export function OnboardingSteps({
             }}
             className="grid-cols-1 gap-3 lg:grid-cols-2"
           >
-            {path === 'manual'
-              ? Object.values(availableUseCases).map((option) => (
-                  <RadioGroupCardItem key={option.value} value={option.value}>
-                    <span className="block text-sm font-medium">
-                      {option.label}
-                    </span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      {option.description}
-                    </span>
-                  </RadioGroupCardItem>
-                ))
-              : agentUseCaseOptions.map((option) => (
-                  <RadioGroupCardItem key={option.value} value={option.value}>
-                    <span className="block text-sm font-medium">
-                      {option.label}
-                    </span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      {option.description}
-                    </span>
-                  </RadioGroupCardItem>
-                ))}
+            {(path === 'manual'
+              ? Object.values(availableUseCases)
+              : agentUseCaseOptions
+            ).map((option) => {
+              const Icon = useCaseIcons[option.value];
+              const selected = useCaseChoice === option.value;
+              return (
+                <RadioGroupCardItem
+                  key={option.value}
+                  value={option.value}
+                  className={brandCardClass}
+                >
+                  <div className="flex items-start gap-3">
+                    <Icon
+                      className={cn(
+                        'mt-0.5 size-5 shrink-0',
+                        selected ? 'text-brand' : 'text-muted-foreground',
+                      )}
+                    />
+                    <div>
+                      <span className="block text-sm font-medium">
+                        {option.label}
+                      </span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </div>
+                  </div>
+                </RadioGroupCardItem>
+              );
+            })}
             {path !== 'manual' && (
-              <RadioGroupCardItem value="custom" className="lg:col-span-2">
-                <span className="block text-sm font-medium">
-                  Describe your own
-                </span>
-                <span className="mt-1 block text-sm text-muted-foreground">
-                  Tell your agent exactly what to build.
-                </span>
+              <RadioGroupCardItem
+                value="custom"
+                className={cn('lg:col-span-2', brandCardClass)}
+              >
+                <div className="flex items-start gap-3">
+                  <Sparkles
+                    className={cn(
+                      'mt-0.5 size-5 shrink-0',
+                      useCaseChoice === 'custom'
+                        ? 'text-brand'
+                        : 'text-muted-foreground',
+                    )}
+                  />
+                  <div>
+                    <span className="block text-sm font-medium">
+                      Describe your own
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      Tell your agent exactly what to build.
+                    </span>
+                  </div>
+                </div>
               </RadioGroupCardItem>
             )}
           </RadioGroup>
@@ -513,9 +579,9 @@ export function OnboardingSteps({
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="default"
-                  className={continueButtonClass}
+                  className={cn('w-fit gap-2', brandButtonClass)}
                   onClick={onGenerateProfileToken}
                   disabled={isGeneratingProfileToken || !canGenerateToken}
                 >
@@ -556,19 +622,22 @@ export function OnboardingSteps({
             Choose your preferred setup
           </h3>
         </div>
-        <div className="rounded-lg border border-primary/50 bg-muted/40 p-5 space-y-3">
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold">
-              With your coding agent (recommended)
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Let your coding agent scaffold, run, and debug for you.
-            </p>
+        <div className="rounded-lg border border-brand/60 bg-brand/5 p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <Bot className="mt-0.5 size-6 shrink-0 text-brand" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-semibold">
+                With your coding agent (recommended)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Let your coding agent scaffold, run, and debug for you.
+              </p>
+            </div>
           </div>
           <Button
             variant="default"
             size="default"
-            className={`w-fit gap-2 ${focusRing}`}
+            className={cn('w-fit gap-2', brandButtonClass)}
             onClick={() => choosePath('agent')}
           >
             Set up my agent
@@ -576,11 +645,14 @@ export function OnboardingSteps({
           </Button>
         </div>
         <div className="rounded-lg border border-border/50 bg-muted/20 p-5 space-y-3">
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold">Manual setup</h4>
-            <p className="text-sm text-muted-foreground">
-              Scaffold a project, start a worker, and run a task yourself.
-            </p>
+          <div className="flex items-start gap-3">
+            <Terminal className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-semibold">Manual setup</h4>
+              <p className="text-sm text-muted-foreground">
+                Scaffold a project, start a worker, and run a task yourself.
+              </p>
+            </div>
           </div>
           <Button
             variant="ghost"
@@ -720,8 +792,8 @@ export function OnboardingSteps({
                 <label
                   key={option.value}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-border',
-                    checked && 'border-primary bg-muted/40',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
+                    checked && 'border-brand bg-brand/5',
                   )}
                 >
                   <Checkbox
@@ -729,7 +801,9 @@ export function OnboardingSteps({
                     onCheckedChange={() => toggleAgent(option.value)}
                     className={focusRing}
                   />
-                  <span className="font-medium">{option.label}</span>
+                  <span className={cn('font-medium', checked && 'text-brand')}>
+                    {option.label}
+                  </span>
                 </label>
               );
             })}
@@ -850,9 +924,10 @@ export function OnboardingSteps({
               className={cn(
                 'font-medium transition-colors hover:text-foreground',
                 focusRing,
-                step === currentStep
-                  ? 'text-foreground'
-                  : index < currentIndex && 'text-foreground/70',
+                step === currentStep && 'text-brand font-semibold',
+                step !== currentStep &&
+                  index < currentIndex &&
+                  'text-foreground',
               )}
             >
               {index + 1}. {stepRailLabels[step]}
@@ -898,7 +973,7 @@ export function OnboardingSteps({
             <Button
               variant="default"
               size="sm"
-              className={`gap-1 ${focusRing}`}
+              className={cn('gap-1', brandButtonClass)}
               onClick={goNext}
             >
               Next

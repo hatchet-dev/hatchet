@@ -64,7 +64,7 @@ export function SdkSwitcher({
           <TabsTrigger
             key={option.value}
             value={option.value}
-            className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+            className={`rounded-lg h-full text-muted-foreground data-[state=active]:text-brand data-[state=active]:font-medium data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
           >
             {option.label}
           </TabsTrigger>
