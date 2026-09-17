@@ -349,7 +349,7 @@ export function OrganizationSelector({
           side="bottom"
           align="start"
           sideOffset={8}
-          className="z-[400] w-[287px] rounded-md border border-border p-0 shadow-md"
+          className="w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>

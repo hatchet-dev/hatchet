@@ -110,9 +110,8 @@ export function TenantSwitcher({
             side="bottom"
             align="start"
             sideOffset={8}
-            // Must render above the mobile sidebar overlay (`side-nav` uses
-            // z-[100]) and the onboarding overlay (z-[110]).
-            className="z-[400] w-[min(18rem,100vw)] max-w-[calc(100vw-2rem)] p-0"
+            // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
+            className="z-[200] w-[min(18rem,100vw)] max-w-[calc(100vw-2rem)] p-0"
           >
             <Command className="">
               <CommandList data-cy="tenant-switcher-list">
