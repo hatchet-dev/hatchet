@@ -3,11 +3,49 @@ import {
   qualifiedRunQueryParams,
 } from './onboarding-state';
 import useControlPlane from '@/hooks/use-control-plane';
-import { queries } from '@/lib/api';
+import { queries, WorkerStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 
 const POLL_INTERVAL_MS = 2000;
+const SETUP_POLL_INTERVAL_MS = 20000;
+
+// Whether the tenant is set up at all: it has an active worker AND has ever
+// completed a run. Unlike useOnboardingProgress, this is NOT scoped to the
+// onboarding-selection timestamp, so the Overview re-entry banner reflects the
+// tenant's real state (a tenant with a live worker and past runs is set up,
+// even if it never went through the new onboarding).
+export function useTenantOnboarded(tenantId: string | undefined): boolean {
+  const { isSelfHosted } = useControlPlane();
+  const enabled = !!tenantId;
+
+  const workersQuery = useQuery({
+    ...queries.workers.list(tenantId ?? ''),
+    enabled,
+    refetchInterval: SETUP_POLL_INTERVAL_MS,
+  });
+
+  const completedRunQuery = useQuery({
+    // Reuse the completed-run query shape with an epoch "since" so it matches
+    // any completed run, ever (not scoped to the onboarding selection).
+    ...queries.v1WorkflowRuns.list(
+      tenantId ?? '',
+      qualifiedRunQueryParams(new Date(0).toISOString()),
+      isSelfHosted,
+    ),
+    enabled,
+    refetchInterval: SETUP_POLL_INTERVAL_MS,
+  });
+
+  const hasActiveWorker = (workersQuery.data?.rows ?? []).some(
+    (worker) => worker.status === WorkerStatus.ACTIVE,
+  );
+  const hasCompletedRun =
+    completedRunQuery.data !== 'timeout' &&
+    (completedRunQuery.data?.rows?.length ?? 0) > 0;
+
+  return hasActiveWorker && hasCompletedRun;
+}
 
 export type OnboardingProgress = {
   // An ACTIVE worker registered after the confirmed selection exists.

@@ -6,7 +6,7 @@ import {
 } from './dashboard-metrics';
 import { PanelCard } from './panel-card';
 import { Skeleton } from '@/components/v1/ui/skeleton';
-import { queries, V1TaskStatus } from '@/lib/api';
+import { queries, V1TaskStatus, WorkerStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 import { RiBarChart2Line } from 'react-icons/ri';
@@ -75,7 +75,9 @@ export function StatsPanel({
   const tasks24h = totalTaskCount(metrics);
   const running = statusCount(metrics, V1TaskStatus.RUNNING);
   const failed = statusCount(metrics, V1TaskStatus.FAILED);
-  const workersConnected = workers.length;
+  const workersConnected = workers.filter(
+    (worker) => worker.status === WorkerStatus.ACTIVE,
+  ).length;
 
   const fmt = (n: number) => n.toLocaleString('en-US');
 

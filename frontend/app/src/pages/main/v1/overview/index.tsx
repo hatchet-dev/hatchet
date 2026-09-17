@@ -25,7 +25,7 @@ import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
 import { type AvailableUseCaseKey } from './components/use-case-options';
 import { useNewOnboardingEnabled } from './components/use-new-onboarding';
-import { useOnboardingProgress } from './components/use-onboarding-progress';
+import { useTenantOnboarded } from './components/use-onboarding-progress';
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
@@ -212,10 +212,11 @@ export default function Overview() {
   // New onboarding surfaces (flag-gated, additive). When the flag is off
   // these are inert and the page renders exactly as before.
   const newOnboardingEnabled = useNewOnboardingEnabled();
-  const { onboarded } = useOnboardingProgress(
-    tenantId,
-    selectionConfirmedAt ?? undefined,
-  );
+  // The banner nudges only until the tenant is genuinely set up (an active
+  // worker and a completed run, at any time). This is intentionally not scoped
+  // to the onboarding-selection timestamp, so a tenant that is already running
+  // does not see the nudge.
+  const onboarded = useTenantOnboarded(tenantId);
   const [onboardingBannerDismissed, setOnboardingBannerDismissed] =
     useState(false);
   const showOnboardingBanner =

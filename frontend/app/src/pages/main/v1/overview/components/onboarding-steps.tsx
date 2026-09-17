@@ -1,9 +1,11 @@
+import { useCaseGraphics } from './onboarding-graphics';
 import {
   installMethodOptions,
   workflowLanguageOptions,
   type InstallMethod,
   type WorkflowLanguageKey,
 } from './onboarding-options';
+import { type UseCaseChoice } from './onboarding-steps-types';
 import {
   buildOnboardingPrompt,
   type AgentUseCaseKey,
@@ -38,18 +40,7 @@ import {
   ChevronRightIcon,
   ExternalLinkIcon,
 } from '@radix-ui/react-icons';
-import {
-  Bot,
-  CalendarClock,
-  LifeBuoy,
-  Network,
-  Radio,
-  Sparkles,
-  Terminal,
-  Timer,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
+import { Bot, LifeBuoy, Terminal } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 // The shared Button strips the native focus outline without a replacement, so
@@ -60,21 +51,11 @@ const focusRing =
 
 const continueButtonClass = `w-fit gap-2 bg-muted/70 ${focusRing}`;
 
-// The brand blue reads as the interactive/forward accent, so primary CTAs
-// (Next, Generate token) carry it locally rather than restyling the shared
-// Button. Secondary controls (Back, skip, switch) stay ghost/muted.
-const brandButtonClass = `bg-brand text-white hover:bg-brand/90 ${focusRing}`;
-
-// Brand-tinted selected state for the use-case cards, layered over the
-// RadioGroupCardItem base so selection reads brand instead of muted grey and
-// unselected cards gain a brand hover affordance.
+// Purple-tinted selected state for the use-case cards, layered over the
+// RadioGroupCardItem base so selection reads as the marketing accent instead
+// of muted grey and unselected cards gain a purple hover affordance.
 const brandCardClass =
-  'hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:bg-brand/5';
-
-// A use case, or the sentinel for the freeform "describe your own" choice.
-// The agent path offers the full AgentUseCaseKey union plus custom; the manual
-// path narrows to the scaffoldable subset (see isScaffoldableUseCase).
-type UseCaseChoice = AgentUseCaseKey | 'custom';
+  'hover:border-[hsl(287,69%,57%)]/50 data-[state=checked]:border-[hsl(287,69%,57%)] data-[state=checked]:bg-[hsl(287,69%,57%)]/10';
 
 // The chosen setup path. It is picked first; null means the path selector is
 // still showing and no other step exists yet.
@@ -125,18 +106,6 @@ const agentUseCaseOptions: {
       'A task that sleeps or waits for an event and survives restarts.',
   },
 ];
-
-// Per-use-case lucide icon, rendered at the left of each option card. Keyed by
-// UseCaseChoice so both the agent path (full list plus custom) and the manual
-// path (simple/scheduled) share the same glyphs for matching keys.
-const useCaseIcons: Record<UseCaseChoice, LucideIcon> = {
-  simple: Zap,
-  scheduled: CalendarClock,
-  fanout: Network,
-  event: Radio,
-  durable: Timer,
-  custom: Sparkles,
-};
 
 // Coding agents offered in the MCP multi-select. `value` is the CLI target
 // token passed to `hatchet mcp install --target`.
@@ -369,18 +338,11 @@ export function OnboardingSteps({
     waiting: string;
     ready: boolean;
   }) => (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-lg border p-4',
-        ready
-          ? 'border-success/50 bg-success/5'
-          : 'border-border/50 bg-muted/20',
-      )}
-    >
+    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
       {ready ? (
         <>
-          <CheckIcon className="size-5 text-success" />
-          <span className="text-sm font-medium text-success">{done}</span>
+          <CheckIcon className="size-5 text-foreground" />
+          <span className="text-sm font-medium text-foreground">{done}</span>
         </>
       ) : (
         <>
@@ -425,7 +387,7 @@ export function OnboardingSteps({
               ? Object.values(availableUseCases)
               : agentUseCaseOptions
             ).map((option) => {
-              const Icon = useCaseIcons[option.value];
+              const Graphic = useCaseGraphics[option.value];
               const selected = useCaseChoice === option.value;
               return (
                 <RadioGroupCardItem
@@ -434,10 +396,10 @@ export function OnboardingSteps({
                   className={brandCardClass}
                 >
                   <div className="flex items-start gap-3">
-                    <Icon
+                    <Graphic
                       className={cn(
-                        'mt-0.5 size-5 shrink-0',
-                        selected ? 'text-brand' : 'text-muted-foreground',
+                        'h-10 w-12 shrink-0',
+                        selected ? 'text-foreground' : 'text-muted-foreground',
                       )}
                     />
                     <div>
@@ -458,14 +420,19 @@ export function OnboardingSteps({
                 className={cn('lg:col-span-2', brandCardClass)}
               >
                 <div className="flex items-start gap-3">
-                  <Sparkles
-                    className={cn(
-                      'mt-0.5 size-5 shrink-0',
-                      useCaseChoice === 'custom'
-                        ? 'text-brand'
-                        : 'text-muted-foreground',
-                    )}
-                  />
+                  {(() => {
+                    const G = useCaseGraphics.custom;
+                    return (
+                      <G
+                        className={cn(
+                          'h-10 w-12 shrink-0',
+                          useCaseChoice === 'custom'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground',
+                        )}
+                      />
+                    );
+                  })()}
                   <div>
                     <span className="block text-sm font-medium">
                       Describe your own
@@ -579,9 +546,9 @@ export function OnboardingSteps({
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <Button
-                  variant="default"
+                  variant="outline"
                   size="default"
-                  className={cn('w-fit gap-2', brandButtonClass)}
+                  className={cn('w-fit gap-2', focusRing)}
                   onClick={onGenerateProfileToken}
                   disabled={isGeneratingProfileToken || !canGenerateToken}
                 >
@@ -622,9 +589,9 @@ export function OnboardingSteps({
             Choose your preferred setup
           </h3>
         </div>
-        <div className="rounded-lg border border-brand/60 bg-brand/5 p-5 space-y-3">
+        <div className="rounded-lg border border-[hsl(287,69%,57%)]/60 bg-[hsl(287,69%,57%)]/5 p-5 space-y-3">
           <div className="flex items-start gap-3">
-            <Bot className="mt-0.5 size-6 shrink-0 text-brand" />
+            <Bot className="mt-0.5 size-6 shrink-0 text-[hsl(287,69%,57%)]" />
             <div className="space-y-1">
               <h4 className="text-sm font-semibold">
                 With your coding agent (recommended)
@@ -637,7 +604,7 @@ export function OnboardingSteps({
           <Button
             variant="default"
             size="default"
-            className={cn('w-fit gap-2', brandButtonClass)}
+            className={cn('w-fit gap-2', focusRing)}
             onClick={() => choosePath('agent')}
           >
             Set up my agent
@@ -792,8 +759,9 @@ export function OnboardingSteps({
                 <label
                   key={option.value}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
-                    checked && 'border-brand bg-brand/5',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-[hsl(287,69%,57%)]/50',
+                    checked &&
+                      'border-[hsl(287,69%,57%)] bg-[hsl(287,69%,57%)]/10',
                   )}
                 >
                   <Checkbox
@@ -801,7 +769,12 @@ export function OnboardingSteps({
                     onCheckedChange={() => toggleAgent(option.value)}
                     className={focusRing}
                   />
-                  <span className={cn('font-medium', checked && 'text-brand')}>
+                  <span
+                    className={cn(
+                      'font-medium',
+                      checked && 'text-[hsl(287,69%,57%)]',
+                    )}
+                  >
                     {option.label}
                   </span>
                 </label>
@@ -861,7 +834,7 @@ export function OnboardingSteps({
           onClick={onFinish}
         >
           Finish
-          <CheckIcon className="size-3 text-brand" />
+          <CheckIcon className="size-3" />
         </Button>
       </>
     ),
@@ -924,7 +897,7 @@ export function OnboardingSteps({
               className={cn(
                 'font-medium transition-colors hover:text-foreground',
                 focusRing,
-                step === currentStep && 'text-brand font-semibold',
+                step === currentStep && 'text-foreground font-semibold',
                 step !== currentStep &&
                   index < currentIndex &&
                   'text-foreground',
@@ -973,7 +946,7 @@ export function OnboardingSteps({
             <Button
               variant="default"
               size="sm"
-              className={cn('gap-1', brandButtonClass)}
+              className={cn('gap-1', focusRing)}
               onClick={goNext}
             >
               Next
