@@ -104,18 +104,6 @@ const agentUseCaseOptions: {
   },
 ];
 
-// Human label for any agent use case, used in the prompt-step body.
-function useCaseChoiceLabel(choice: UseCaseChoice): string {
-  if (choice === 'custom') {
-    return 'use case';
-  }
-  return (
-    agentUseCaseOptions
-      .find((option) => option.value === choice)
-      ?.label.toLowerCase() ?? 'use case'
-  );
-}
-
 // Coding agents offered in the MCP multi-select. `value` is the CLI target
 // token passed to `hatchet mcp install --target`.
 const mcpAgentOptions = [
@@ -231,6 +219,7 @@ export function OnboardingSteps({
   profileTokenError,
   onGenerateProfileToken,
   canGenerateToken,
+  hasApiToken,
   authDisabled,
   authDisabledToken,
   progress,
@@ -255,6 +244,9 @@ export function OnboardingSteps({
   profileTokenError?: string;
   onGenerateProfileToken: () => void;
   canGenerateToken: boolean;
+  // Whether the tenant has an API token (checked against the API). Gates the
+  // Next button on the Set up CLI step so it survives refreshes.
+  hasApiToken: boolean;
   authDisabled?: boolean;
   authDisabledToken?: string;
   progress: OnboardingProgress;
@@ -606,9 +598,8 @@ export function OnboardingSteps({
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Run your agent</h3>
           <p className="text-sm text-muted-foreground">
-            Paste this into your coding agent to build your{' '}
-            {useCaseChoiceLabel(useCaseChoice)} in {sdk} against your live
-            instance.
+            Here's a sample prompt for your coding agent. You can customize it
+            to fit your needs.
           </p>
         </div>
         <CodeHighlighter
@@ -714,27 +705,9 @@ export function OnboardingSteps({
             Your worker is connected and running tasks against this tenant.
           </p>
         </div>
-        <div className="space-y-3 border-t border-border/50 pt-5">
-          <h4 className="text-sm font-semibold">Learn more</h4>
-          <ul className="space-y-2">
-            {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
-              <li key={doc.href}>
-                <a
-                  href={doc.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
-                >
-                  {doc.label}
-                  <ExternalLinkIcon className="size-3" />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="space-y-3 border-t border-border/50 pt-5">
+        <div className="space-y-3">
           <h4 className="text-sm font-semibold">
-            Optional: connect your coding agent
+            Optional: install the Hatchet MCP
           </h4>
           <p className="text-sm text-muted-foreground">
             The Hatchet MCP server lets your agent trigger runs and inspect
@@ -783,6 +756,24 @@ export function OnboardingSteps({
             <ExternalLinkIcon className="size-3" />
           </a>
         </div>
+        <div className="space-y-3 border-t border-border/50 pt-5">
+          <h4 className="text-sm font-semibold">Learn more</h4>
+          <ul className="space-y-2">
+            {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
+              <li key={doc.href}>
+                <a
+                  href={doc.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
+                >
+                  {doc.label}
+                  <ExternalLinkIcon className="size-3" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
         <Button
           variant="outline"
           size="default"
@@ -827,10 +818,26 @@ export function OnboardingSteps({
     goTo(nextStep);
   };
 
+  // Whether the current step's completion gate (checked against the API, so it
+  // survives refreshes) is satisfied: the Set up CLI step needs an API token;
+  // the run steps need a connected worker and a completed run.
+  const stepGateMet = (() => {
+    if (currentStep === 'setup') {
+      return hasApiToken;
+    }
+    if (currentStep === 'runagent' || currentStep === 'runtask') {
+      return progress.onboarded;
+    }
+    return true;
+  })();
+
   // The path selector advances by picking a card; finish keeps its own gated
-  // CTA. Every other step advances via Next.
+  // CTA. Every other step advances via Next once its gate is met.
   const showNext =
-    currentStep !== 'path' && currentStep !== 'finish' && Boolean(nextStep);
+    currentStep !== 'path' &&
+    currentStep !== 'finish' &&
+    Boolean(nextStep) &&
+    stepGateMet;
 
   return (
     <div className="space-y-6">

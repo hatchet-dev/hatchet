@@ -17,10 +17,10 @@ import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { CreateAPITokenRequest } from '@/lib/api';
+import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { globalEmitter } from '@/lib/global-emitter';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Maps the global SDK preference to the language the persisted onboarding
@@ -116,6 +116,16 @@ export function OnboardingModal({
     tenantId,
     onboarding.selectionConfirmedAt ?? undefined,
   );
+
+  // Whether the tenant has an API token, checked against the API (not local
+  // state) so the gate survives refreshes. Polled while onboarding is open so
+  // it flips as soon as a token is generated.
+  const tokensQuery = useQuery({
+    ...queries.tokens.list(tenantId ?? ''),
+    enabled: !!tenantId && open,
+    refetchInterval: 5000,
+  });
+  const hasApiToken = (tokensQuery.data?.rows?.length ?? 0) > 0;
 
   const defaultTokenName = useMemo(() => {
     const name = currentUser?.name?.trim();
@@ -282,6 +292,7 @@ export function OnboardingModal({
             profileTokenError={profileTokenError}
             onGenerateProfileToken={handleGenerateProfileToken}
             canGenerateToken={canWrite}
+            hasApiToken={hasApiToken}
             authDisabled={authDisabled}
             authDisabledToken={authDisabledToken}
             progress={progress}
