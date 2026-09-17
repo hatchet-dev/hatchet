@@ -51,11 +51,11 @@ const focusRing =
 
 const continueButtonClass = `w-fit gap-2 bg-muted/70 ${focusRing}`;
 
-// Purple-tinted selected state for the use-case cards, layered over the
-// RadioGroupCardItem base so selection reads as the marketing accent instead
-// of muted grey and unselected cards gain a purple hover affordance.
+// Brand-tinted selected state for the use-case cards, layered over the
+// RadioGroupCardItem base so selection reads as the app's brand blue instead
+// of muted grey and unselected cards gain a brand hover affordance.
 const brandCardClass =
-  'hover:border-[hsl(287,69%,57%)]/50 data-[state=checked]:border-[hsl(287,69%,57%)] data-[state=checked]:bg-[hsl(287,69%,57%)]/10';
+  'hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:bg-brand/10';
 
 // The chosen setup path. It is picked first; null means the path selector is
 // still showing and no other step exists yet.
@@ -396,12 +396,6 @@ export function OnboardingSteps({
                   className={brandCardClass}
                 >
                   <div className="space-y-3">
-                    <Totem
-                      className={cn(
-                        'h-8 w-full',
-                        selected ? 'text-foreground' : 'text-muted-foreground',
-                      )}
-                    />
                     <div>
                       <span className="block text-sm font-medium">
                         {option.label}
@@ -410,6 +404,12 @@ export function OnboardingSteps({
                         {option.description}
                       </span>
                     </div>
+                    <Totem
+                      className={cn(
+                        'h-8 w-full',
+                        selected ? 'text-foreground' : 'text-muted-foreground',
+                      )}
+                    />
                   </div>
                 </RadioGroupCardItem>
               );
@@ -420,6 +420,14 @@ export function OnboardingSteps({
                 className={cn('lg:col-span-2', brandCardClass)}
               >
                 <div className="space-y-3">
+                  <div>
+                    <span className="block text-sm font-medium">
+                      Describe your own
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      Tell your agent exactly what to build.
+                    </span>
+                  </div>
                   {(() => {
                     const Totem = useCaseTotems.custom;
                     return (
@@ -433,14 +441,6 @@ export function OnboardingSteps({
                       />
                     );
                   })()}
-                  <div>
-                    <span className="block text-sm font-medium">
-                      Describe your own
-                    </span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      Tell your agent exactly what to build.
-                    </span>
-                  </div>
                 </div>
               </RadioGroupCardItem>
             )}
@@ -589,9 +589,9 @@ export function OnboardingSteps({
             Choose your preferred setup
           </h3>
         </div>
-        <div className="rounded-lg border border-[hsl(287,69%,57%)]/60 bg-[hsl(287,69%,57%)]/5 p-5 space-y-3">
+        <div className="rounded-lg border border-brand/60 bg-brand/5 p-5 space-y-3">
           <div className="flex items-start gap-3">
-            <Bot className="mt-0.5 size-6 shrink-0 text-[hsl(287,69%,57%)]" />
+            <Bot className="mt-0.5 size-6 shrink-0 text-brand" />
             <div className="space-y-1">
               <h4 className="text-sm font-semibold">
                 With your coding agent (recommended)
@@ -759,9 +759,8 @@ export function OnboardingSteps({
                 <label
                   key={option.value}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-[hsl(287,69%,57%)]/50',
-                    checked &&
-                      'border-[hsl(287,69%,57%)] bg-[hsl(287,69%,57%)]/10',
+                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
+                    checked && 'border-brand bg-brand/10',
                   )}
                 >
                   <Checkbox
@@ -769,12 +768,7 @@ export function OnboardingSteps({
                     onCheckedChange={() => toggleAgent(option.value)}
                     className={focusRing}
                   />
-                  <span
-                    className={cn(
-                      'font-medium',
-                      checked && 'text-[hsl(287,69%,57%)]',
-                    )}
-                  >
+                  <span className={cn('font-medium', checked && 'text-brand')}>
                     {option.label}
                   </span>
                 </label>

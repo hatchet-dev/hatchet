@@ -39,7 +39,7 @@ export function OverviewDashboard({
       </div>
 
       {showBanner && (
-        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-[hsl(287,69%,57%)]/40 bg-[hsl(287,69%,57%)]/5 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
           <div className="space-y-1">
             <p className="text-sm font-medium">Finish setting up Hatchet</p>
             <p className="text-sm text-muted-foreground">
@@ -51,7 +51,7 @@ export function OverviewDashboard({
             <Button
               variant="outline"
               size="sm"
-              className="border-[hsl(287,69%,57%)] text-[hsl(287,69%,57%)] hover:bg-[hsl(287,69%,57%)]/10 hover:text-[hsl(287,69%,57%)]"
+              className="border-brand text-brand hover:bg-brand/10 hover:text-brand"
               onClick={openOnboarding}
             >
               Resume onboarding
