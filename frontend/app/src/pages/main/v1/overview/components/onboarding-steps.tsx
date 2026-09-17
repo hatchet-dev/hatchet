@@ -1,4 +1,3 @@
-import { useCaseGraphics } from './onboarding-graphics';
 import {
   installMethodOptions,
   workflowLanguageOptions,
@@ -6,6 +5,7 @@ import {
   type WorkflowLanguageKey,
 } from './onboarding-options';
 import { type UseCaseChoice } from './onboarding-steps-types';
+import { useCaseTotems } from './onboarding-totems';
 import {
   buildOnboardingPrompt,
   type AgentUseCaseKey,
@@ -387,7 +387,7 @@ export function OnboardingSteps({
               ? Object.values(availableUseCases)
               : agentUseCaseOptions
             ).map((option) => {
-              const Graphic = useCaseGraphics[option.value];
+              const Totem = useCaseTotems[option.value];
               const selected = useCaseChoice === option.value;
               return (
                 <RadioGroupCardItem
@@ -395,10 +395,10 @@ export function OnboardingSteps({
                   value={option.value}
                   className={brandCardClass}
                 >
-                  <div className="flex items-start gap-3">
-                    <Graphic
+                  <div className="space-y-3">
+                    <Totem
                       className={cn(
-                        'h-10 w-12 shrink-0',
+                        'h-8 w-full',
                         selected ? 'text-foreground' : 'text-muted-foreground',
                       )}
                     />
@@ -419,13 +419,13 @@ export function OnboardingSteps({
                 value="custom"
                 className={cn('lg:col-span-2', brandCardClass)}
               >
-                <div className="flex items-start gap-3">
+                <div className="space-y-3">
                   {(() => {
-                    const G = useCaseGraphics.custom;
+                    const Totem = useCaseTotems.custom;
                     return (
-                      <G
+                      <Totem
                         className={cn(
-                          'h-10 w-12 shrink-0',
+                          'h-8 w-full',
                           useCaseChoice === 'custom'
                             ? 'text-foreground'
                             : 'text-muted-foreground',

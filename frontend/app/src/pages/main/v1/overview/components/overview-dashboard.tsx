@@ -49,8 +49,9 @@ export function OverviewDashboard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              variant="outline"
               size="sm"
-              className="bg-[hsl(287,69%,57%)] text-white hover:bg-[hsl(287,69%,57%)]/90"
+              className="border-[hsl(287,69%,57%)] text-[hsl(287,69%,57%)] hover:bg-[hsl(287,69%,57%)]/10 hover:text-[hsl(287,69%,57%)]"
               onClick={openOnboarding}
             >
               Resume onboarding
