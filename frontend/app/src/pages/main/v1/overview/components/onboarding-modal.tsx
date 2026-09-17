@@ -209,43 +209,21 @@ export function OnboardingModal({
     }
   }, [open, capture, tenantId, currentUser?.email]);
 
-  // Close on Esc and keep focus inside the overlay while it is open.
+  // Close on Esc and focus the overlay on open. This intentionally does NOT
+  // trap focus: the top nav (tenant/org switcher) stays interactive during the
+  // flow, and a strict Tab trap would yank focus out of those popovers and
+  // close them.
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    const container = containerRef.current;
-    container?.focus();
+    containerRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
-        return;
-      }
-
-      if (e.key !== 'Tab' || !container) {
-        return;
-      }
-
-      const focusable = Array.from(
-        container.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      );
-      if (focusable.length === 0) {
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
       }
     };
 
