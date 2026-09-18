@@ -7,6 +7,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.config import DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:
@@ -83,8 +84,25 @@ class WorkflowRunRef:
         except IndexError:
             return None
 
-    def result(self) -> dict[str, Any]:
+    def result(self, poll_interval: float | None = None) -> dict[str, Any]:
+        """
+        Poll until the workflow run reaches a terminal state and return its outputs.
+
+        :param poll_interval: Seconds between GetRunDetails polls. Defaults to the
+            client ``sync_result_poll_interval`` (1 second). Values below 1 second are
+            raised to 1 second.
+        :returns: Task outputs keyed by readable id.
+        """
         from hatchet_sdk.clients.admin import RunStatus
+
+        interval = max(
+            DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
+            (
+                poll_interval
+                if poll_interval is not None
+                else self._admin_client.config.sync_result_poll_interval
+            ),
+        )
 
         retries = 0
 
@@ -99,14 +117,14 @@ class WorkflowRunRef:
                         f"Workflow run {self.workflow_run_id} not found"
                     ) from e
 
-                time.sleep(1)
+                time.sleep(interval)
                 continue
 
             if (
                 details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
                 or details.done is False
             ):
-                time.sleep(1)
+                time.sleep(interval)
                 continue
 
             if details.status == RunStatus.FAILED:
