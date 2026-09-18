@@ -3062,7 +3062,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key, d.latest_retry_count
+    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key, d.latest_retry_count, d.is_dag_operator
 FROM
     v1_dags_olap d
 JOIN
@@ -3087,6 +3087,7 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid u
 		&i.TotalTasks,
 		&i.IdempotencyKey,
 		&i.LatestRetryCount,
+		&i.IsDagOperator,
 	)
 	return &i, err
 }
@@ -3903,7 +3904,7 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS dag_id,
         UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
-    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count
+    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count, is_dag_operator
     FROM v1_dags_olap d
     WHERE
         (d.inserted_at, d.id, d.tenant_id) IN (
