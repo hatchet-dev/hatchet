@@ -4,23 +4,18 @@ WITH inputs AS (
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
-), locked_files AS (
-    SELECT lf.*
-    FROM v1_durable_event_log_file lf
-    JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
-    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
-    ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
-    FOR UPDATE
 )
 
 SELECT
-    sqlc.embed(to_embed),
+    sqlc.embed(lf),
     bp.*
-FROM locked_files lf
-JOIN v1_durable_event_log_file to_embed
-    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+FROM v1_durable_event_log_file lf
+JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
     ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
+FOR UPDATE OF lf
 ;
 
 -- name: IncrementLogFileInvocationCounts :many
@@ -193,9 +188,9 @@ WITH inputs AS (
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
-SELECT updated.*, lf.latest_invocation_count AS invocation_count
+SELECT updated.*, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
