@@ -40,10 +40,7 @@ test('loads credentials from the named profile and never hardcodes the token', (
     useCaseKey: 'simple',
     profileName: 'prod-tenant',
   });
-  assert.match(
-    prompt,
-    /eval "\$\(hatchet profile env --name "prod-tenant"\)"/,
-  );
+  assert.match(prompt, /eval "\$\(hatchet profile env --name "prod-tenant"\)"/);
   assert.match(prompt, /Do not read, print, or hardcode my token/);
   assert.match(
     prompt,

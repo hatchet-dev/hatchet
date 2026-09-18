@@ -21,7 +21,6 @@ import { type OnboardingProgress } from './use-onboarding-progress';
 import { SdkSwitcher, type Sdk } from './use-preferred-sdk';
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import { Button } from '@/components/v1/ui/button';
-import { Checkbox } from '@/components/v1/ui/checkbox';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
 import { RadioGroup, RadioGroupCardItem } from '@/components/v1/ui/radio-group';
@@ -105,17 +104,6 @@ const agentUseCaseOptions: {
       'A task that sleeps or waits for an event and survives restarts.',
   },
 ];
-
-// Coding agents offered in the MCP multi-select. `value` is the CLI target
-// token passed to `hatchet mcp install --target`.
-const mcpAgentOptions = [
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'vscode', label: 'VS Code' },
-  { value: 'codex', label: 'Codex' },
-] as const;
-
-type McpAgentValue = (typeof mcpAgentOptions)[number]['value'];
 
 type StepKey = 'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
 
@@ -267,12 +255,10 @@ export function OnboardingSteps({
     installMethodOptions.native.value,
   );
   // Local-only session state this increment (not added to the persisted
-  // onboarding schema): the freeform choice + text, the chosen path, and the
-  // selected MCP agents.
+  // onboarding schema): the freeform choice + text and the chosen path.
   const [useCaseChoice, setUseCaseChoice] = useState<UseCaseChoice>(useCase);
   const [freeform, setFreeform] = useState('');
   const [path, setPath] = useState<SetupPath | null>(null);
-  const [selectedAgents, setSelectedAgents] = useState<McpAgentValue[]>([]);
 
   // The visible step sequence. The path is chosen first, so before a path
   // exists the selector is the only step; picking one reveals the rest.
@@ -309,9 +295,6 @@ export function OnboardingSteps({
     goTo('usecase');
   };
 
-  const mcpTargets = selectedAgents.join(',');
-  const mcpCommand = `hatchet mcp install --target ${mcpTargets}`;
-
   const generatedPrompt = useMemo(
     () =>
       buildOnboardingPrompt({
@@ -322,12 +305,6 @@ export function OnboardingSteps({
       }),
     [sdk, useCaseChoice, freeform, profileName],
   );
-
-  const toggleAgent = (value: McpAgentValue) => {
-    setSelectedAgents((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
-    );
-  };
 
   const StatusRow = ({
     done,
@@ -370,37 +347,15 @@ export function OnboardingSteps({
           results as it builds with you.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {mcpAgentOptions.map((option) => {
-          const checked = selectedAgents.includes(option.value);
-          return (
-            <label
-              key={option.value}
-              className={cn(
-                'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
-                checked && 'border-brand bg-brand/10',
-              )}
-            >
-              <Checkbox
-                checked={checked}
-                onCheckedChange={() => toggleAgent(option.value)}
-                className={focusRing}
-              />
-              <span className={cn('font-medium', checked && 'text-brand')}>
-                {option.label}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-      {selectedAgents.length > 0 && (
-        <CodeHighlighter
-          className={codeBlockClass}
-          code={mcpCommand}
-          language="shell"
-          copy
-        />
-      )}
+      <p className="text-sm">
+        Run this and follow the prompts to pick your coding agent:
+      </p>
+      <CodeHighlighter
+        className={codeBlockClass}
+        code="hatchet mcp install"
+        language="shell"
+        copy
+      />
       <a
         href="https://docs.hatchet.run/reference/cli/mcp"
         target="_blank"
