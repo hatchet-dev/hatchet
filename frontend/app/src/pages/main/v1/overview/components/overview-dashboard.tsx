@@ -68,11 +68,20 @@ export function OverviewDashboard({
         </div>
       )}
 
+      {/* Stats spans the full width. Below it, two independent columns so each
+          packs top-to-bottom on its own: Workers sits directly under Runs on
+          the left regardless of how tall the Errors panel grows on the right. A
+          single grid row would tie the two columns to a shared (Errors-driven)
+          height and leave a large gap under Runs. */}
+      <StatsPanel tenantId={tenantId} since={since} />
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        <StatsPanel tenantId={tenantId} since={since} />
-        <TasksPanel tenantId={tenantId} since={since} />
-        <ErrorsPanel tenantId={tenantId} since={since} />
-        <WorkersPanel tenantId={tenantId} />
+        <div className="flex flex-col gap-4">
+          <TasksPanel tenantId={tenantId} since={since} />
+          <WorkersPanel tenantId={tenantId} />
+        </div>
+        <div className="flex flex-col gap-4">
+          <ErrorsPanel tenantId={tenantId} since={since} />
+        </div>
       </div>
 
       <SupportSection />
