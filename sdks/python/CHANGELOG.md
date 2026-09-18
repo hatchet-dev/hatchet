@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The sync `result()` poll interval is configurable via `ClientConfig.sync_result_poll_interval` / `HATCHET_CLIENT_SYNC_RESULT_POLL_INTERVAL`, or per call on `WorkflowRunRef.result` / `TaskRunRef.result`. The minimum remains 1 second.
+- The sync `result()` poll interval is configurable via `ClientConfig.sync_result_poll_interval` or the `HATCHET_CLIENT_SYNC_RESULT_POLL_INTERVAL` environment variable, or per call on `WorkflowRunRef.result` / `TaskRunRef.result`. The minimum remains 1 second.
 
 ## [1.40.2] - 2026-09-09
 
