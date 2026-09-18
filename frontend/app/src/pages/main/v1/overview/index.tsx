@@ -212,11 +212,11 @@ export default function Overview() {
   // New onboarding surfaces (flag-gated, additive). When the flag is off
   // these are inert and the page renders exactly as before.
   const newOnboardingEnabled = useNewOnboardingEnabled();
-  // The banner nudges only until the tenant is genuinely set up (an active
-  // worker and a completed run, at any time). This is intentionally not scoped
-  // to the onboarding-selection timestamp, so a tenant that is already running
-  // does not see the nudge.
-  const onboarded = useTenantOnboarded(tenantId);
+  // The banner nudges only until the tenant is genuinely set up (it has ever
+  // completed a run). While that is still loading the tenant is treated as set
+  // up, so the nudge never flashes at tenants whose state is not known yet.
+  const tenantSetup = useTenantOnboarded(tenantId);
+  const onboarded = tenantSetup.isLoading || tenantSetup.onboarded;
   const [onboardingBannerDismissed, setOnboardingBannerDismissed] =
     useState(false);
   const showOnboardingBanner =

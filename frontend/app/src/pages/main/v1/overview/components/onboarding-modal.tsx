@@ -135,9 +135,16 @@ export function OnboardingModal({
   const tokensQuery = useQuery({
     ...queries.tokens.list(tenantId ?? ''),
     enabled: !!tenantId && open,
-    refetchInterval: 5000,
+    // Poll (for tokens created elsewhere, e.g. the settings page) only until
+    // one exists.
+    refetchInterval: (query) =>
+      (query.state.data?.rows?.length ?? 0) > 0 ? false : 2000,
   });
-  const hasApiToken = (tokensQuery.data?.rows?.length ?? 0) > 0;
+  // A token this modal just generated counts immediately, without waiting for
+  // the list to refetch, so Next appears as soon as the command is shown. An
+  // auth-disabled instance needs no token at all.
+  const hasApiToken =
+    (tokensQuery.data?.rows?.length ?? 0) > 0 || !!profileToken || authDisabled;
 
   const queryClient = useQueryClient();
 
@@ -167,6 +174,7 @@ export function OnboardingModal({
     onSuccess: (data) => {
       setProfileToken(data.token);
       setProfileTokenError(undefined);
+      void queryClient.invalidateQueries({ queryKey: ['api-token:list'] });
       capture('onboarding_token_generated', {
         tenant_id: tenantId,
         user_email: currentUser?.email,

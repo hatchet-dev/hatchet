@@ -3,28 +3,47 @@ import {
   qualifiedRunQueryParams,
 } from './onboarding-state';
 import useControlPlane from '@/hooks/use-control-plane';
-import { queries, WorkerStatus } from '@/lib/api';
+import { queries } from '@/lib/api';
 import { emptyGolangUUID } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const POLL_INTERVAL_MS = 2000;
-const SETUP_POLL_INTERVAL_MS = 20000;
+const SETUP_POLL_INTERVAL_MS = 5000;
 
-// Whether the tenant is set up at all: it has an active worker AND has ever
-// completed a run. Unlike useOnboardingProgress, this is NOT scoped to the
-// onboarding-selection timestamp, so the Overview re-entry banner reflects the
-// tenant's real state (a tenant with a live worker and past runs is set up,
-// even if it never went through the new onboarding).
-export function useTenantOnboarded(tenantId: string | undefined): boolean {
+const tenantOnboardedKey = (tenantId: string) =>
+  `hatchet:tenant-onboarded:${tenantId}`;
+
+function readStickyOnboarded(tenantId: string | undefined): boolean {
+  if (!tenantId) {
+    return false;
+  }
+  try {
+    return localStorage.getItem(tenantOnboardedKey(tenantId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+// Whether the tenant is set up at all, for the Overview re-entry banner. A
+// tenant counts as set up once it has EVER completed a run: a run cannot
+// complete without a worker having connected, so this alone proves the setup
+// worked. It deliberately does not require a currently active worker, because
+// workers come and go (an agent often stops the worker it started), and the
+// nudge must not return every time one disconnects. Unlike
+// useOnboardingProgress this is not scoped to the onboarding-selection
+// timestamp.
+//
+// `isLoading` is true until the first answer arrives, so callers can avoid
+// flashing the nudge at tenants whose state is simply not known yet. Once a
+// tenant is seen as set up, that is remembered per browser: it cannot become
+// un-set-up, and run retention may later delete the run that proved it.
+export function useTenantOnboarded(tenantId: string | undefined): {
+  onboarded: boolean;
+  isLoading: boolean;
+} {
   const { isSelfHosted } = useControlPlane();
-  const enabled = !!tenantId;
-
-  const workersQuery = useQuery({
-    ...queries.workers.list(tenantId ?? ''),
-    enabled,
-    refetchInterval: SETUP_POLL_INTERVAL_MS,
-  });
+  const sticky = readStickyOnboarded(tenantId);
 
   const completedRunQuery = useQuery({
     // Reuse the completed-run query shape with an epoch "since" so it matches
@@ -34,18 +53,38 @@ export function useTenantOnboarded(tenantId: string | undefined): boolean {
       qualifiedRunQueryParams(new Date(0).toISOString()),
       isSelfHosted,
     ),
-    enabled,
-    refetchInterval: SETUP_POLL_INTERVAL_MS,
+    enabled: !!tenantId && !sticky,
+    // Poll only while the tenant is not yet set up; stop once it is.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const done = data !== 'timeout' && (data?.rows?.length ?? 0) > 0;
+      return done ? false : SETUP_POLL_INTERVAL_MS;
+    },
   });
 
-  const hasActiveWorker = (workersQuery.data?.rows ?? []).some(
-    (worker) => worker.status === WorkerStatus.ACTIVE,
-  );
-  const hasCompletedRun =
-    completedRunQuery.data !== 'timeout' &&
-    (completedRunQuery.data?.rows?.length ?? 0) > 0;
+  const data = completedRunQuery.data;
+  const hasCompletedRun = data !== 'timeout' && (data?.rows?.length ?? 0) > 0;
 
-  return hasActiveWorker && hasCompletedRun;
+  useEffect(() => {
+    if (!tenantId || !hasCompletedRun) {
+      return;
+    }
+    try {
+      localStorage.setItem(tenantOnboardedKey(tenantId), '1');
+    } catch {
+      // Storage can be unavailable (private mode); the API check still works.
+    }
+  }, [tenantId, hasCompletedRun]);
+
+  return {
+    onboarded: sticky || hasCompletedRun,
+    // A list timeout (self-hosted) means the state is unknown, not "not set
+    // up", so it is reported as still loading rather than as a reason to nudge.
+    isLoading:
+      !sticky &&
+      !!tenantId &&
+      (completedRunQuery.isLoading || data === 'timeout'),
+  };
 }
 
 export type OnboardingProgress = {
@@ -80,6 +119,12 @@ export function useOnboardingProgress(
   // Written during render below so the refetchInterval callbacks can read
   // the latest combined state and stop polling once onboarded.
   const onboardedRef = useRef(false);
+  // Completion latches for a given tenant + selection: once both conditions
+  // were met they stay met, even if the worker then disconnects (agents often
+  // stop the worker after the first run). Otherwise Next / Start exploring
+  // would disappear again right after appearing.
+  const latchKey = `${tenantId ?? ''}:${selectionConfirmedAt ?? ''}`;
+  const latchedKeyRef = useRef<string | null>(null);
 
   const enabled = !!tenantId && !!selectionConfirmedAt;
 
@@ -111,7 +156,10 @@ export function useOnboardingProgress(
     qualifiedRunQuery.data !== 'timeout' &&
     (qualifiedRunQuery.data?.rows?.length ?? 0) > 0;
 
-  const onboarded = workerConnected && runCompleted;
+  if (workerConnected && runCompleted) {
+    latchedKeyRef.current = latchKey;
+  }
+  const onboarded = latchedKeyRef.current === latchKey;
   onboardedRef.current = onboarded;
 
   // Once a run has completed, fetch the completed TASK (only_tasks: true) so we
@@ -131,7 +179,12 @@ export function useOnboardingProgress(
       isSelfHosted,
     ),
     enabled: enabled && runCompleted,
-    refetchInterval: POLL_INTERVAL_MS,
+    // Poll only until the completed task row shows up, then stop.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const found = data !== 'timeout' && (data?.rows?.length ?? 0) > 0;
+      return found ? false : POLL_INTERVAL_MS;
+    },
   });
 
   const completedTaskRow =
