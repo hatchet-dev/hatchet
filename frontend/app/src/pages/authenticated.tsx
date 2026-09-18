@@ -49,11 +49,12 @@ import { OnboardingModal } from '@/pages/main/v1/overview/components/onboarding-
 import { useNewOnboardingEnabled } from '@/pages/main/v1/overview/components/use-new-onboarding';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
+import { appRoutes, tenantOnboardingRoute } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
+  useMatch,
   useMatchRoute,
   useNavigate,
 } from '@tanstack/react-router';
@@ -106,7 +107,6 @@ function AuthenticatedInner() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeReason, setWelcomeReason] = useState<WelcomeReason>('welcome');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   // Temporary flag gating the entire new onboarding surface. Off by default,
   // so existing users see no change. See use-new-onboarding.ts.
@@ -115,6 +115,17 @@ function AuthenticatedInner() {
   const loaderData = useLoaderData({ from: '/' });
 
   const navigate = useNavigate();
+
+  // The onboarding overlay is open exactly when the tenant onboarding route
+  // matches. Keeping that in the URL (rather than component state) makes it
+  // survive a refresh, scopes it to the tenant in the path, and gives it
+  // working back/forward. The route's search params carry the path and step.
+  const onboardingMatch = useMatch({
+    from: tenantOnboardingRoute.id,
+    shouldThrow: false,
+  });
+  const onboardingTenant = onboardingMatch?.params.tenant;
+  const onboardingOpen = newOnboardingEnabled && !!onboardingMatch;
   const location = useLocation();
   const pathname = location.pathname;
   const matchRoute = useMatchRoute();
@@ -428,13 +439,17 @@ function AuthenticatedInner() {
     [],
   );
 
-  useEffect(
-    () =>
-      globalEmitter.on('open-onboarding', () => {
-        setOnboardingOpen(true);
-      }),
-    [],
-  );
+  // With the flag off the onboarding route has nothing to show, so send a
+  // direct visit (an old link, a bookmark) to the tenant's Overview instead.
+  useEffect(() => {
+    if (onboardingTenant && !newOnboardingEnabled) {
+      navigate({
+        to: appRoutes.tenantOverviewRoute.to,
+        params: { tenant: onboardingTenant },
+        replace: true,
+      });
+    }
+  }, [onboardingTenant, newOnboardingEnabled, navigate]);
 
   useEffect(() => {
     const welcomeTrigger = readWelcomeTrigger(
@@ -458,7 +473,11 @@ function AuthenticatedInner() {
     if (newOnboardingEnabled) {
       localStorage.removeItem(WELCOME_KEY);
       if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
-        setOnboardingOpen(true);
+        navigate({
+          to: appRoutes.tenantOnboardingRoute.to,
+          params: { tenant: tenant.metadata.id },
+          replace: true,
+        });
       }
       return;
     }
@@ -526,6 +545,7 @@ function AuthenticatedInner() {
     isUserUniverseLoaded,
     canBill,
     newOnboardingEnabled,
+    navigate,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,
@@ -664,14 +684,34 @@ function AuthenticatedInner() {
           <TopNav
             user={currentUser}
             tenantMemberships={tenantMemberships || []}
-            onboardingActive={newOnboardingEnabled && onboardingOpen}
+            onboardingActive={onboardingOpen}
           />
         }
         overlay={
           newOnboardingEnabled ? (
             <OnboardingModal
               open={onboardingOpen}
-              onClose={() => setOnboardingOpen(false)}
+              path={onboardingMatch?.search.path ?? null}
+              step={onboardingMatch?.search.step}
+              onNavigate={({ path, step }) => {
+                if (!onboardingTenant) {
+                  return;
+                }
+                navigate({
+                  to: appRoutes.tenantOnboardingRoute.to,
+                  params: { tenant: onboardingTenant },
+                  search: { ...(path ? { path } : {}), step },
+                });
+              }}
+              onClose={() => {
+                if (!onboardingTenant) {
+                  return;
+                }
+                navigate({
+                  to: appRoutes.tenantOverviewRoute.to,
+                  params: { tenant: onboardingTenant },
+                });
+              }}
             />
           ) : undefined
         }

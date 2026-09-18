@@ -8,7 +8,6 @@ import {
   installMethodOptions,
   workflowStepOptions,
 } from './components/learn-workflow-section';
-import { openOnboarding } from './components/onboarding-modal';
 import {
   applyLanguageChange,
   applyTabChange,
@@ -24,7 +23,10 @@ import { SkipOnboardingDialog } from './components/skip-onboarding-dialog';
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
 import { type AvailableUseCaseKey } from './components/use-case-options';
-import { useNewOnboardingEnabled } from './components/use-new-onboarding';
+import {
+  useNewOnboardingEnabled,
+  useOpenOnboarding,
+} from './components/use-new-onboarding';
 import { useTenantOnboarded } from './components/use-onboarding-progress';
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
@@ -212,6 +214,7 @@ export default function Overview() {
   // New onboarding surfaces (flag-gated, additive). When the flag is off
   // these are inert and the page renders exactly as before.
   const newOnboardingEnabled = useNewOnboardingEnabled();
+  const openOnboarding = useOpenOnboarding(tenantId);
   // The banner nudges only until the tenant is genuinely set up (it has ever
   // completed a run). While that is still loading the tenant is treated as set
   // up, so the nudge never flashes at tenants whose state is not known yet.

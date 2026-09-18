@@ -2,8 +2,8 @@ import { ErrorsPanel } from './dashboard/errors-panel';
 import { StatsPanel } from './dashboard/stats-panel';
 import { TasksPanel } from './dashboard/tasks-panel';
 import { WorkersPanel } from './dashboard/workers-panel';
-import { openOnboarding } from './onboarding-modal';
 import { SupportSection } from './support-section';
+import { useOpenOnboarding } from './use-new-onboarding';
 import { Button } from '@/components/v1/ui/button';
 import { useMemo, useState } from 'react';
 
@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react';
 // content with a live dashboard of tenant data. Composes the title, the
 // onboarding re-entry highlight (until the tenant is onboarded), the panel
 // grid, the Support footer, and the footer re-entry link. The onboarding modal
-// itself is mounted globally, so the banner and footer only call openOnboarding.
+// itself is mounted globally, so the banner and footer only navigate to its route.
 export function OverviewDashboard({
   tenantId,
   onboarded,
@@ -19,6 +19,7 @@ export function OverviewDashboard({
   tenantId: string;
   onboarded: boolean;
 }) {
+  const openOnboarding = useOpenOnboarding(tenantId);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const showBanner = !onboarded && !bannerDismissed;
 

@@ -41,7 +41,7 @@ import {
 } from '@radix-ui/react-icons';
 import { Link } from '@tanstack/react-router';
 import { Bot, LifeBuoy, Terminal } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 // The shared Button strips the native focus outline without a replacement, so
 // each focusable onboarding control carries an explicit ring, matching
@@ -57,7 +57,7 @@ const brandCardClass =
 
 // The chosen setup path. It is picked first; null means the path selector is
 // still showing and no other step exists yet.
-type SetupPath = 'agent' | 'manual';
+export type SetupPath = 'agent' | 'manual';
 
 // True for use cases the CLI can scaffold + trigger (the manual path). The
 // agent path additionally offers roadmap use cases (fanout/event/durable) and
@@ -105,7 +105,8 @@ const agentUseCaseOptions: {
   },
 ];
 
-type StepKey = 'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
+export type StepKey =
+  'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
 
 const stepRailLabels: Record<StepKey, string> = {
   path: 'Choose path',
@@ -197,9 +198,28 @@ function sdkToLanguage(sdk: Sdk): WorkflowLanguageKey | null {
   }
 }
 
+// The visible step sequence for a path. The path is chosen first, so before a
+// path exists the selector is the only step; picking one reveals the rest.
+export function stepSequence(path: SetupPath | null): StepKey[] {
+  if (path === 'agent') {
+    return ['path', 'usecase', 'setup', 'runagent', 'finish'];
+  }
+  if (path === 'manual') {
+    return ['path', 'usecase', 'setup', 'runtask', 'finish'];
+  }
+  return ['path'];
+}
+
 export function OnboardingSteps({
   tenantName,
   tenantId,
+  path,
+  step,
+  onNavigate,
+  useCaseChoice,
+  onUseCaseChoiceChange,
+  freeform,
+  onFreeformChange,
   sdk,
   onSdkChange,
   useCase,
@@ -222,6 +242,18 @@ export function OnboardingSteps({
   // The current tenant id, used to build links to the first completed run and
   // the worker that executed it.
   tenantId?: string;
+  // Navigation is controlled by the URL (the tenant onboarding route's search
+  // params) so a refresh, back/forward, or a shared link lands on the same
+  // step. `step` may be absent or not valid for `path`; it is normalized below.
+  path: SetupPath | null;
+  step?: StepKey;
+  onNavigate: (next: { path: SetupPath | null; step: StepKey }) => void;
+  // The selected use case (including agent-only and "custom" choices) and the
+  // custom free text. Owned by the parent so they survive a refresh too.
+  useCaseChoice: UseCaseChoice;
+  onUseCaseChoiceChange: (next: UseCaseChoice) => void;
+  freeform: string;
+  onFreeformChange: (next: string) => void;
   sdk: Sdk;
   // Updates the global SDK preference; the modal also syncs the persisted
   // onboarding language and analytics.
@@ -254,49 +286,52 @@ export function OnboardingSteps({
   const profileName = tenantName?.trim() || 'local';
   const language = sdkToLanguage(sdk);
 
-  const [currentStep, setCurrentStep] = useState<StepKey>('path');
   const [installMethod, setInstallMethod] = useState<InstallMethod>(
     installMethodOptions.native.value,
   );
-  // Local-only session state this increment (not added to the persisted
-  // onboarding schema): the freeform choice + text and the chosen path.
-  const [useCaseChoice, setUseCaseChoice] = useState<UseCaseChoice>(useCase);
-  const [freeform, setFreeform] = useState('');
-  const [path, setPath] = useState<SetupPath | null>(null);
 
-  // The visible step sequence. The path is chosen first, so before a path
-  // exists the selector is the only step; picking one reveals the rest.
-  const sequence = useMemo<StepKey[]>(() => {
-    if (path === 'agent') {
-      return ['path', 'usecase', 'setup', 'runagent', 'finish'];
+  const sequence = useMemo(() => stepSequence(path), [path]);
+  // A step from the URL that does not belong to this path's sequence (a stale
+  // link, or the other path's run step) falls back to the first step.
+  const currentStep: StepKey =
+    step && sequence.includes(step) ? step : sequence[0];
+  const setUseCaseChoice = onUseCaseChoiceChange;
+
+  // Landing directly on a later step (refresh or a link) bypasses goTo, which
+  // is what normally confirms the selection. Progress polling only starts once
+  // the selection is confirmed, so confirm it here too (it is idempotent).
+  const pastSelection = currentStep !== 'path' && currentStep !== 'usecase';
+  useEffect(() => {
+    if (pastSelection) {
+      onConfirmSelection();
     }
-    if (path === 'manual') {
-      return ['path', 'usecase', 'setup', 'runtask', 'finish'];
-    }
-    return ['path'];
-  }, [path]);
+    // onConfirmSelection is a fresh closure each render; keying on the step
+    // alone avoids re-confirming on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pastSelection]);
 
   // Confirm the selection once the user advances past the use-case step, so
   // progress polling begins then (never on the first steps). confirmSelection
   // is idempotent, so firing on every later step is safe.
-  const goTo = (step: StepKey) => {
-    if (step !== 'path' && step !== 'usecase') {
+  const goTo = (target: StepKey, targetPath: SetupPath | null = path) => {
+    if (target !== 'path' && target !== 'usecase') {
       onConfirmSelection();
     }
-    if (step !== currentStep) {
-      onStepChangeEvent?.(step, stepRailLabels[step]);
+    if (target !== currentStep) {
+      onStepChangeEvent?.(target, stepRailLabels[target]);
     }
-    setCurrentStep(step);
+    onNavigate({ path: targetPath, step: target });
   };
 
   const choosePath = (next: SetupPath) => {
-    setPath(next);
     // Roadmap/custom use cases are agent-only. Switching to the manual path
     // with one selected falls back to the persisted scaffoldable use case.
     if (next === 'manual' && !isScaffoldableUseCase(useCaseChoice)) {
       setUseCaseChoice(useCase);
     }
-    goTo('usecase');
+    // Path and step change together in one navigation, so the URL never holds
+    // a step that is invalid for its path.
+    goTo('usecase', next);
   };
 
   const generatedPrompt = useMemo(
@@ -452,7 +487,7 @@ export function OnboardingSteps({
           {path !== 'manual' && useCaseChoice === 'custom' && (
             <Textarea
               value={freeform}
-              onChange={(e) => setFreeform(e.target.value)}
+              onChange={(e) => onFreeformChange(e.target.value)}
               placeholder="e.g. process uploaded CSVs and email a summary when done"
               className={focusRing}
             />
@@ -779,7 +814,7 @@ export function OnboardingSteps({
   const goBack = () => {
     const prev = sequence[currentIndex - 1];
     if (prev) {
-      setCurrentStep(prev);
+      onNavigate({ path, step: prev });
     }
   };
 
@@ -820,21 +855,21 @@ export function OnboardingSteps({
   return (
     <div className="space-y-4">
       <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {sequence.map((step, index) => (
-          <li key={step}>
+        {sequence.map((railStep, index) => (
+          <li key={railStep}>
             <button
               type="button"
-              onClick={() => goTo(step)}
+              onClick={() => goTo(railStep)}
               className={cn(
                 'font-medium transition-colors hover:text-foreground',
                 focusRing,
-                step === currentStep && 'text-foreground font-semibold',
-                step !== currentStep &&
+                railStep === currentStep && 'text-foreground font-semibold',
+                railStep !== currentStep &&
                   index < currentIndex &&
                   'text-foreground',
               )}
             >
-              {index + 1}. {stepRailLabels[step]}
+              {index + 1}. {stepRailLabels[railStep]}
             </button>
           </li>
         ))}

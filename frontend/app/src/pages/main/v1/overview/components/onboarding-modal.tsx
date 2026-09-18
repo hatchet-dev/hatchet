@@ -6,7 +6,12 @@ import {
   normalizeOnboardingState,
   onboardingStorageKey,
 } from './onboarding-state';
-import { OnboardingSteps } from './onboarding-steps';
+import {
+  OnboardingSteps,
+  type SetupPath,
+  type StepKey,
+} from './onboarding-steps';
+import { type UseCaseChoice } from './onboarding-steps-types';
 import { type AvailableUseCaseKey } from './use-case-options';
 import { useOnboardingProgress } from './use-onboarding-progress';
 import { usePreferredSdk, type Sdk } from './use-preferred-sdk';
@@ -19,7 +24,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
-import { globalEmitter } from '@/lib/global-emitter';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -55,10 +59,14 @@ function sdkToWorkflowLanguage(sdk: Sdk) {
 // A 100-year expiry, matching the profile-token flow on the Overview page.
 const PROFILE_TOKEN_EXPIRES_IN = `${100 * 365 * 24 * 60 * 60}s`;
 
-// Emit from anywhere (e.g. the Overview banner/footer) to open the modal.
-export function openOnboarding() {
-  globalEmitter.emit('open-onboarding', {});
-}
+// The agent-path selections that are not part of the shared persisted
+// onboarding schema (agent-only use cases, "custom", and its free text). Kept
+// under their own tenant-scoped key so a refresh restores them without
+// widening the schema the legacy inline flow also reads.
+type AgentSelections = { useCaseChoice?: UseCaseChoice; freeform?: string };
+
+const agentSelectionsKey = (tenantId: string) =>
+  `hatchet:onboarding-agent:${tenantId}`;
 
 // Full-screen onboarding overlay. It renders into AppLayout's content-area
 // overlay slot (absolute inset-0), so it covers the page and the sidebar but
@@ -76,9 +84,17 @@ export function openOnboarding() {
 export function OnboardingModal({
   open,
   onClose,
+  path,
+  step,
+  onNavigate,
 }: {
+  // Open state, path and step all come from the tenant onboarding route (see
+  // authenticated.tsx), so the flow is refresh-safe and tenant-scoped.
   open: boolean;
   onClose: () => void;
+  path: SetupPath | null;
+  step?: StepKey;
+  onNavigate: (next: { path: SetupPath | null; step: StepKey }) => void;
 }) {
   const { tenant, tenantId } = useTenantDetails();
   const { currentUser } = useCurrentUser();
@@ -111,6 +127,14 @@ export function OnboardingModal({
   );
 
   const useCase: AvailableUseCaseKey = onboarding.useCase;
+
+  const [agentSelections, setAgentSelections] =
+    useLocalStorageState<AgentSelections>(
+      agentSelectionsKey(tenantId ?? 'unknown'),
+      {},
+    );
+  const useCaseChoice: UseCaseChoice = agentSelections.useCaseChoice ?? useCase;
+  const freeform = agentSelections.freeform ?? '';
 
   // Advancing past step 1 confirms the selection so progress polling can
   // begin. Reuses applyTabChange semantics (any move off Choose use case sets
@@ -297,6 +321,17 @@ export function OnboardingModal({
             <OnboardingSteps
               tenantName={tenant?.name}
               tenantId={tenantId}
+              path={path}
+              step={step}
+              onNavigate={onNavigate}
+              useCaseChoice={useCaseChoice}
+              onUseCaseChoiceChange={(next) =>
+                setAgentSelections((prev) => ({ ...prev, useCaseChoice: next }))
+              }
+              freeform={freeform}
+              onFreeformChange={(next) =>
+                setAgentSelections((prev) => ({ ...prev, freeform: next }))
+              }
               sdk={sdk}
               onSdkChange={handleSdkChange}
               useCase={useCase}
