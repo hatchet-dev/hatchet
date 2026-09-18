@@ -59,6 +59,7 @@ export default function CreateOrganization() {
         description="Create your organization and first workspace to get started with Hatchet."
       >
         <NewOrganizationSaverForm
+          askAttribution
           defaultOrganizationName={user ? deriveDefaultOrgName(user) : ''}
           defaultTenantName="development"
           afterSave={({ tenant }) => {

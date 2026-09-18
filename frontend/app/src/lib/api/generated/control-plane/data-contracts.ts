@@ -94,12 +94,6 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
-export enum OrganizationOnboardingSDK {
-  PYTHON = "PYTHON",
-  TYPESCRIPT = "TYPESCRIPT",
-  GO = "GO",
-  RUBY = "RUBY",
-}
 
 export interface APIControlPlaneMetadata {
   /**
@@ -209,13 +203,25 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+  /** How the user heard about Hatchet, captured at initial signup */
+  attribution?:
+    | "search"
+    | "x_twitter"
+    | "linkedin"
+    | "hacker_news"
+    | "reddit"
+    | "github"
+    | "blog_article"
+    | "friend_colleague"
+    | "conference_event"
+    | "ai_assistant"
+    | "search_for_alternative"
+    | "other";
   /**
-   * What the user would like to build with Hatchet
-   * @maxLength 1000
+   * Free-text detail supplied when attribution is "other"
+   * @maxLength 500
    */
-  whatToBuild?: string;
-  /** Which SDK the user is planning to use */
-  sdk?: OrganizationOnboardingSDK;
+  attributionOther?: string;
 }
 
 export interface UpdateOrganizationRequest {
