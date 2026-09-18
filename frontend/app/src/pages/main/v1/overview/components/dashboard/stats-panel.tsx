@@ -2,7 +2,6 @@ import {
   computeWorkerUtilization,
   statusCount,
   sumQueueMetrics,
-  totalTaskCount,
 } from './dashboard-metrics';
 import { PanelCard } from './panel-card';
 import { Skeleton } from '@/components/v1/ui/skeleton';
@@ -72,7 +71,7 @@ export function StatsPanel({
 
   const utilization = computeWorkerUtilization(workers);
   const queued = sumQueueMetrics(queueQuery.data?.queues);
-  const tasks24h = totalTaskCount(metrics);
+  const succeeded = statusCount(metrics, V1TaskStatus.COMPLETED);
   const running = statusCount(metrics, V1TaskStatus.RUNNING);
   const failed = statusCount(metrics, V1TaskStatus.FAILED);
   const workersConnected = workers.filter(
@@ -96,13 +95,16 @@ export function StatsPanel({
         >
           {`${Math.round(utilization * 100)}%`}
         </StatCell>
-        <StatCell label="Queued tasks" loading={queueQuery.isLoading}>
+        {/* Queue depth is a live total with no time window; the three status
+            counts beside it come from the 24h run metrics, so each label says
+            which one it is. */}
+        <StatCell label="Queued tasks (total)" loading={queueQuery.isLoading}>
           {fmt(queued)}
         </StatCell>
-        <StatCell label="Tasks (24h)" loading={statusQuery.isLoading}>
-          {fmt(tasks24h)}
+        <StatCell label="Succeeded (24h)" loading={statusQuery.isLoading}>
+          {fmt(succeeded)}
         </StatCell>
-        <StatCell label="Running now" loading={statusQuery.isLoading}>
+        <StatCell label="Running (24h)" loading={statusQuery.isLoading}>
           {fmt(running)}
         </StatCell>
         <StatCell label="Failed (24h)" loading={statusQuery.isLoading}>
