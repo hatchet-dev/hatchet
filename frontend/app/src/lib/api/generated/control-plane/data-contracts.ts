@@ -94,6 +94,22 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
+/** How a user first heard about Hatchet, captured at signup */
+export enum OrganizationSignupAttribution {
+  Search = "search",
+  XTwitter = "x_twitter",
+  Linkedin = "linkedin",
+  HackerNews = "hacker_news",
+  Reddit = "reddit",
+  Github = "github",
+  BlogArticle = "blog_article",
+  FriendColleague = "friend_colleague",
+  ConferenceEvent = "conference_event",
+  AiAssistant = "ai_assistant",
+  SearchForAlternative = "search_for_alternative",
+  Other = "other",
+}
+
 
 export interface APIControlPlaneMetadata {
   /**
@@ -203,22 +219,10 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
-  /** How the user heard about Hatchet, captured at initial signup */
-  attribution?:
-    | "search"
-    | "x_twitter"
-    | "linkedin"
-    | "hacker_news"
-    | "reddit"
-    | "github"
-    | "blog_article"
-    | "friend_colleague"
-    | "conference_event"
-    | "ai_assistant"
-    | "search_for_alternative"
-    | "other";
+  /** How the user heard about Hatchet, captured at initial signup (multi-select) */
+  attribution?: OrganizationSignupAttribution[];
   /**
-   * Free-text detail supplied when attribution is "other"
+   * Free-text detail supplied when attribution includes "other"
    * @maxLength 500
    */
   attributionOther?: string;

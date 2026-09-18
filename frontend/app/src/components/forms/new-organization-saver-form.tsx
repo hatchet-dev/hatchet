@@ -63,7 +63,9 @@ const useSaveOrganization = ({
         .organizationCreateMutation()
         .mutationFn({
           name: organizationName,
-          ...(isControlPlaneEnabled && attribution ? { attribution } : {}),
+          ...(isControlPlaneEnabled && attribution?.length
+            ? { attribution }
+            : {}),
           ...(isControlPlaneEnabled && attributionOther
             ? { attributionOther }
             : {}),

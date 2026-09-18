@@ -1,63 +1,76 @@
 import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
-import { RadioGroup, RadioGroupCardItem } from '@/components/v1/ui/radio-group';
 import { Textarea } from '@/components/v1/ui/textarea';
-import { CreateOrganizationRequest } from '@/lib/api/generated/control-plane/data-contracts';
+import { OrganizationSignupAttribution } from '@/lib/api/generated/control-plane/data-contracts';
+import { cn } from '@/lib/utils';
 import { ArrowLeftIcon, ArrowRightIcon } from '@radix-ui/react-icons';
 import { useCallback, useState } from 'react';
 
 const ATTRIBUTION_OTHER_MAX_LENGTH = 500;
 
-// The stable value keys are what the control plane stores and the Slack message
-// references; only the labels are display copy. Keep in sync with the backend
-// (docs/plans/signup-attribution-copy.mdx).
-type AttributionValue = NonNullable<CreateOrganizationRequest['attribution']>;
+type AttributionOption = {
+  value: OrganizationSignupAttribution;
+  label: string;
+};
 
-const ATTRIBUTION_OPTIONS: { value: AttributionValue; label: string }[] = [
-  { value: 'search', label: 'Search engine' },
-  { value: 'x_twitter', label: 'X / Twitter' },
-  { value: 'linkedin', label: 'LinkedIn' },
-  { value: 'hacker_news', label: 'Hacker News' },
-  { value: 'reddit', label: 'Reddit' },
-  { value: 'github', label: 'GitHub' },
-  { value: 'blog_article', label: 'A blog post' },
-  { value: 'friend_colleague', label: 'Friend or colleague recommendation' },
-  { value: 'conference_event', label: 'A conference or meetup' },
-  { value: 'ai_assistant', label: 'An AI assistant recommended it' },
+// The stable value keys are what the control plane forwards to the signup
+// Slack thread and analytics; only the labels are display copy. Keep in sync
+// with the backend (docs/plans/signup-attribution-copy.mdx).
+const ATTRIBUTION_OPTIONS: AttributionOption[] = [
+  { value: OrganizationSignupAttribution.Search, label: 'Search engine' },
+  { value: OrganizationSignupAttribution.XTwitter, label: 'X / Twitter' },
+  { value: OrganizationSignupAttribution.Linkedin, label: 'LinkedIn' },
+  { value: OrganizationSignupAttribution.HackerNews, label: 'Hacker News' },
+  { value: OrganizationSignupAttribution.Reddit, label: 'Reddit' },
+  { value: OrganizationSignupAttribution.Github, label: 'GitHub' },
+  { value: OrganizationSignupAttribution.BlogArticle, label: 'A blog post' },
   {
-    value: 'search_for_alternative',
+    value: OrganizationSignupAttribution.FriendColleague,
+    label: 'Friend or colleague recommendation',
+  },
+  {
+    value: OrganizationSignupAttribution.ConferenceEvent,
+    label: 'A conference or meetup',
+  },
+  {
+    value: OrganizationSignupAttribution.AiAssistant,
+    label: 'An AI assistant recommended it',
+  },
+  {
+    value: OrganizationSignupAttribution.SearchForAlternative,
     label: 'Looking for an alternative to another tool',
   },
-  { value: 'other', label: 'Other' },
+  { value: OrganizationSignupAttribution.Other, label: 'Other' },
 ];
 
-// Randomize the display order per render to avoid order bias, but always pin
-// "other" last. Callers should compute this once (e.g. useMemo) and hold it
-// stable so the order does not reshuffle on re-render or when stepping back
-// into the form.
-export function shuffledAttributionOptions(): {
-  value: AttributionValue;
-  label: string;
-}[] {
-  const rest = ATTRIBUTION_OPTIONS.filter((o) => o.value !== 'other');
+// Randomize the display order to avoid order bias, but always pin "other"
+// last. Callers should compute this once (e.g. useMemo) and hold it stable so
+// the order does not reshuffle on re-render or when stepping back into the
+// form.
+export function shuffledAttributionOptions(): AttributionOption[] {
+  const rest = ATTRIBUTION_OPTIONS.filter(
+    (o) => o.value !== OrganizationSignupAttribution.Other,
+  );
   for (let i = rest.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [rest[i], rest[j]] = [rest[j], rest[i]];
   }
-  const other = ATTRIBUTION_OPTIONS.find((o) => o.value === 'other');
+  const other = ATTRIBUTION_OPTIONS.find(
+    (o) => o.value === OrganizationSignupAttribution.Other,
+  );
   return other ? [...rest, other] : rest;
 }
 
 export type OrganizationOnboardingAnswers = {
-  attribution?: AttributionValue;
+  attribution?: OrganizationSignupAttribution[];
   attributionOther?: string;
 };
 
 type OrganizationOnboardingQuestionsFormProps = {
   isSaving: boolean;
   // A stable, pre-shuffled option order (see shuffledAttributionOptions).
-  options: { value: AttributionValue; label: string }[];
+  options: AttributionOption[];
   defaultAnswers?: OrganizationOnboardingAnswers;
   onSubmit: (values: OrganizationOnboardingAnswers) => void;
   // Receives the current answers so the parent can restore them if the user
@@ -72,15 +85,24 @@ export function OrganizationOnboardingQuestionsForm({
   onSubmit,
   onBack,
 }: OrganizationOnboardingQuestionsFormProps) {
-  const [attribution, setAttribution] = useState<AttributionValue | undefined>(
-    defaultAnswers?.attribution,
-  );
+  const [attribution, setAttribution] = useState<
+    OrganizationSignupAttribution[]
+  >(defaultAnswers?.attribution ?? []);
   const [attributionOther, setAttributionOther] = useState(
     defaultAnswers?.attributionOther ?? '',
   );
 
+  const otherSelected = attribution.includes(
+    OrganizationSignupAttribution.Other,
+  );
+
+  const toggle = (value: OrganizationSignupAttribution) =>
+    setAttribution((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
+    );
+
   const answers = useCallback((): OrganizationOnboardingAnswers => {
-    if (!attribution) {
+    if (attribution.length === 0) {
       return {};
     }
 
@@ -88,11 +110,11 @@ export function OrganizationOnboardingQuestionsForm({
 
     return {
       attribution,
-      ...(attribution === 'other' && trimmedOther
+      ...(otherSelected && trimmedOther
         ? { attributionOther: trimmedOther }
         : {}),
     };
-  }, [attribution, attributionOther]);
+  }, [attribution, attributionOther, otherSelected]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -107,28 +129,37 @@ export function OrganizationOnboardingQuestionsForm({
       <div className="grid gap-2">
         <Label id="attribution-question">How did you hear about us?</Label>
         <p className="text-sm text-muted-foreground">
-          This helps us understand how people find Hatchet. Pick the closest.
+          We don't use tracking pixels. Instead, we humbly ask that you share a
+          bit more about where you heard about us. Thanks in advance!
         </p>
-        <RadioGroup
+        {/* Multi-select chips that flow left to right and wrap. Toggle
+            buttons with aria-pressed rather than a radio group, since more
+            than one source can apply. */}
+        <div
+          role="group"
           aria-labelledby="attribution-question"
-          value={attribution ?? ''}
-          onValueChange={(value) => setAttribution(value as AttributionValue)}
-          disabled={isSaving}
-          // Compact chips that flow left to right and wrap, rather than a tall
-          // vertical stack of full-width cards.
           className="flex flex-wrap gap-2"
         >
-          {options.map((option) => (
-            <RadioGroupCardItem
-              key={option.value}
-              value={option.value}
-              className="rounded-md px-2.5 py-1.5 text-xs"
-            >
-              {option.label}
-            </RadioGroupCardItem>
-          ))}
-        </RadioGroup>
-        {attribution === 'other' && (
+          {options.map((option) => {
+            const selected = attribution.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggle(option.value)}
+                disabled={isSaving}
+                className={cn(
+                  'rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5 text-left text-xs ring-offset-background hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                  selected && 'border-primary bg-muted/40',
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        {otherSelected && (
           <Textarea
             id="attribution-other"
             placeholder="Tell us more (optional)"
@@ -162,7 +193,11 @@ export function OrganizationOnboardingQuestionsForm({
           >
             Prefer not to say
           </Button>
-          <Button type="submit" size="sm" disabled={isSaving || !attribution}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isSaving || attribution.length === 0}
+          >
             {isSaving ? (
               <>
                 <Spinner />
