@@ -1310,6 +1310,7 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
 		arg.IdempotencyKeys,
+		arg.IsDagOperators,
 	)
 	return err
 }
