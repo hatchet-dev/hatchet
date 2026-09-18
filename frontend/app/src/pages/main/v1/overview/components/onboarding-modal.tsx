@@ -21,8 +21,19 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { globalEmitter } from '@/lib/global-emitter';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// Overview panel query-key prefixes that reflect runs/workers. Invalidated when
+// onboarding closes so the just-created worker and run show on the Overview
+// immediately, instead of the panels showing stale (often empty) data until
+// their next poll.
+const OVERVIEW_DATA_KEY_PREFIXES = [
+  'worker:list',
+  'v1:workflow-run:list',
+  'v1:task-run:metrics',
+  'v1-task:metrics',
+];
 
 // Maps the global SDK preference to the language the persisted onboarding
 // state and command builders understand. Ruby has no command-builder language,
@@ -128,6 +139,20 @@ export function OnboardingModal({
   });
   const hasApiToken = (tokensQuery.data?.rows?.length ?? 0) > 0;
 
+  const queryClient = useQueryClient();
+
+  // Refresh the Overview's run/worker data, then close. The user often creates
+  // their first worker and run while onboarding is open on top of the Overview,
+  // so its panels can be stale; invalidating refetches them in the background
+  // (existing data stays visible, no loading flash) so the new run is there
+  // when the overlay closes.
+  const handleClose = useCallback(() => {
+    OVERVIEW_DATA_KEY_PREFIXES.forEach((prefix) => {
+      void queryClient.invalidateQueries({ queryKey: [prefix] });
+    });
+    onClose();
+  }, [queryClient, onClose]);
+
   const defaultTokenName = useMemo(() => {
     const name = currentUser?.name?.trim();
     return name ? `${name}'s token` : '';
@@ -231,13 +256,13 @@ export function OnboardingModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        handleClose();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, handleClose]);
 
   if (!open) {
     return null;
@@ -263,6 +288,7 @@ export function OnboardingModal({
           >
             <OnboardingSteps
               tenantName={tenant?.name}
+              tenantId={tenantId}
               sdk={sdk}
               onSdkChange={handleSdkChange}
               useCase={useCase}
@@ -277,9 +303,9 @@ export function OnboardingModal({
               authDisabled={authDisabled}
               authDisabledToken={authDisabledToken}
               progress={progress}
-              // Finish just closes the overlay; completion is derived from
-              // useOnboardingProgress, never from a button.
-              onFinish={onClose}
+              // Finish just closes the overlay (refreshing Overview data);
+              // completion is derived from useOnboardingProgress, never a button.
+              onFinish={handleClose}
               onPromptGenerated={(template, promptSdk) => {
                 capture('onboarding_prompt_generated', {
                   tenant_id: tenantId,
@@ -305,7 +331,7 @@ export function OnboardingModal({
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground"
-              onClick={onClose}
+              onClick={handleClose}
               hoverText="Your progress is saved. You can reopen this anytime from the overview page."
             >
               Skip for now

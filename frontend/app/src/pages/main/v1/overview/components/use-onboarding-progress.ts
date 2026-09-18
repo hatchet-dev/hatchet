@@ -4,6 +4,7 @@ import {
 } from './onboarding-state';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries, WorkerStatus } from '@/lib/api';
+import { emptyGolangUUID } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 
@@ -54,6 +55,10 @@ export type OnboardingProgress = {
   runCompleted: boolean;
   // Both of the above. This is the single "successfully onboarded" signal.
   onboarded: boolean;
+  // The first qualifying completed task, once one exists: its run id (for a
+  // link to the task run) and the id of the worker that actually executed it
+  // (for a link to that specific worker, not just any connected worker).
+  completedRun?: { runId: string; workerId?: string };
   isLoading: boolean;
 };
 
@@ -109,10 +114,55 @@ export function useOnboardingProgress(
   const onboarded = workerConnected && runCompleted;
   onboardedRef.current = onboarded;
 
+  // Once a run has completed, fetch the completed TASK (only_tasks: true) so we
+  // can surface the specific run and the worker that executed it. This is a
+  // separate query from the completion check so that detection semantics stay
+  // unchanged; it is only enabled once runCompleted, and stops polling after
+  // it resolves a row.
+  const completedTaskQuery = useQuery({
+    ...queries.v1WorkflowRuns.list(
+      tenantId ?? '',
+      {
+        ...qualifiedRunQueryParams(
+          selectionConfirmedAt ?? new Date(0).toISOString(),
+        ),
+        only_tasks: true,
+      },
+      isSelfHosted,
+    ),
+    enabled: enabled && runCompleted,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+
+  const completedTaskRow =
+    completedTaskQuery.data !== 'timeout'
+      ? completedTaskQuery.data?.rows?.[0]
+      : undefined;
+  const completedRunId = completedTaskRow?.metadata.id;
+
+  // The task summary does not carry the worker, so resolve the worker that
+  // actually executed this run from its task events (the same source the run
+  // detail page uses to link workers). Empty-UUID events are skipped.
+  const runDetailsQuery = useQuery({
+    ...queries.v1WorkflowRuns.details(completedRunId ?? ''),
+    enabled: enabled && !!completedRunId,
+  });
+  const completedWorkerId = (runDetailsQuery.data?.taskEvents ?? [])
+    .map((event) => event.workerId)
+    .find(
+      (workerId): workerId is string =>
+        !!workerId && workerId !== emptyGolangUUID,
+    );
+
+  const completedRun = completedRunId
+    ? { runId: completedRunId, workerId: completedWorkerId }
+    : undefined;
+
   return {
     workerConnected,
     runCompleted,
     onboarded,
+    completedRun,
     isLoading:
       enabled && (workersQuery.isLoading || qualifiedRunQuery.isLoading),
   };

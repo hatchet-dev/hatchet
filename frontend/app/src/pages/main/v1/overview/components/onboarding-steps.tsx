@@ -32,12 +32,14 @@ import {
 } from '@/components/v1/ui/tabs';
 import { Textarea } from '@/components/v1/ui/textarea';
 import { cn } from '@/lib/utils';
+import { appRoutes } from '@/router';
 import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
 } from '@radix-ui/react-icons';
+import { Link } from '@tanstack/react-router';
 import { Bot, LifeBuoy, Terminal } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
@@ -46,8 +48,6 @@ import { useMemo, useState, type ReactNode } from 'react';
 // learn-workflow-section rather than changing the shared primitives app-wide.
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background';
-
-const continueButtonClass = `w-fit gap-2 bg-muted/70 ${focusRing}`;
 
 // Brand-tinted selected state for the use-case cards, layered over the
 // RadioGroupCardItem base so selection reads as the app's brand blue instead
@@ -199,6 +199,7 @@ function sdkToLanguage(sdk: Sdk): WorkflowLanguageKey | null {
 
 export function OnboardingSteps({
   tenantName,
+  tenantId,
   sdk,
   onSdkChange,
   useCase,
@@ -218,6 +219,9 @@ export function OnboardingSteps({
   onStepChangeEvent,
 }: {
   tenantName?: string;
+  // The current tenant id, used to build links to the first completed run and
+  // the worker that executed it.
+  tenantId?: string;
   sdk: Sdk;
   // Updates the global SDK preference; the modal also syncs the persisted
   // onboarding language and analytics.
@@ -347,6 +351,43 @@ export function OnboardingSteps({
       />
     </div>
   );
+
+  // Once the first task run completes, link out to that specific run and to
+  // the worker that executed it (opened in a new tab so the flow is not lost).
+  const completedRunLinkClass = cn(
+    'inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground',
+    focusRing,
+  );
+  const completedRunLinks =
+    progress.completedRun && tenantId ? (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link
+          to={appRoutes.tenantRunRoute.to}
+          params={{ tenant: tenantId, run: progress.completedRun.runId }}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={completedRunLinkClass}
+        >
+          View the task run
+          <ExternalLinkIcon className="size-3" />
+        </Link>
+        {progress.completedRun.workerId ? (
+          <Link
+            to={appRoutes.tenantWorkerRoute.to}
+            params={{
+              tenant: tenantId,
+              worker: progress.completedRun.workerId,
+            }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={completedRunLinkClass}
+          >
+            View the worker
+            <ExternalLinkIcon className="size-3" />
+          </Link>
+        ) : null}
+      </div>
+    ) : null;
 
   const stepContent: Record<StepKey, ReactNode> = {
     usecase: (
@@ -633,6 +674,7 @@ export function OnboardingSteps({
           done="Task run completed"
           waiting="Waiting for a task to run..."
         />
+        {completedRunLinks}
       </>
     ),
     runtask: (
@@ -696,6 +738,7 @@ export function OnboardingSteps({
           done="Run completed"
           waiting="Waiting for the run to complete..."
         />
+        {completedRunLinks}
       </>
     ),
     finish: (
@@ -724,21 +767,6 @@ export function OnboardingSteps({
             ))}
           </ul>
         </div>
-        <Button
-          variant="outline"
-          size="default"
-          className={continueButtonClass}
-          disabled={!progress.onboarded}
-          hoverText={
-            progress.onboarded
-              ? undefined
-              : 'Waiting for a worker to connect and execute a task.'
-          }
-          onClick={onFinish}
-        >
-          Finish
-          <CheckIcon className="size-3" />
-        </Button>
       </>
     ),
   };
@@ -853,6 +881,23 @@ export function OnboardingSteps({
               onClick={goNext}
             >
               Next
+              <ChevronRightIcon className="size-3" />
+            </Button>
+          )}
+          {currentStep === 'finish' && (
+            <Button
+              variant="default"
+              size="sm"
+              className={cn('gap-1', focusRing)}
+              disabled={!progress.onboarded}
+              hoverText={
+                progress.onboarded
+                  ? undefined
+                  : 'Waiting for a worker to connect and execute a task.'
+              }
+              onClick={onFinish}
+            >
+              Start exploring
               <ChevronRightIcon className="size-3" />
             </Button>
           )}

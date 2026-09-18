@@ -89,7 +89,7 @@ export function ErrorsPanel({
                   </TableCell>
                   <TableCell className="align-top">
                     <div className="flex flex-col gap-1">
-                      <span className="font-mono text-xs text-muted-foreground">
+                      <span className="line-clamp-2 font-mono text-xs text-muted-foreground">
                         {truncateError(row.errorMessage) || 'Unknown error'}
                       </span>
                       <Link
