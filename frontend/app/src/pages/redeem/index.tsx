@@ -1,4 +1,5 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
+import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
 import { usePylon } from '@/components/support-chat';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
@@ -39,13 +40,13 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
-  ArrowLeftIcon,
   ChatBubbleLeftIcon,
   ExclamationTriangleIcon,
   GiftIcon,
   CheckCircleIcon,
   PlusIcon,
   TruckIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -253,6 +254,7 @@ function OfferCard({
               <div />
             )}
             <Button
+              size="sm"
               onClick={() =>
                 onRedeem(
                   offer.recordId,
@@ -393,67 +395,64 @@ export default function RedeemOffersPage() {
   };
 
   return (
-    <div className="max-h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
-            className="gap-2 text-muted-foreground"
-          >
-            <ArrowLeftIcon className="size-4" />
-            Back to Dashboard
-          </Button>
-        </div>
+    <SetupScreen
+      topRight={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+          className="h-8 w-8 p-0"
+          aria-label="Back to Dashboard"
+        >
+          <XMarkIcon className="size-4" />
+        </Button>
+      }
+    >
+      <SetupCard
+        title="Redeem Offers"
+        description="View and redeem available offers for your account."
+        className="max-w-2xl"
+      >
+        <div className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <ExclamationTriangleIcon className="size-4" />
+              <AlertTitle>Redemption failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        <div>
-          <h1 className="text-2xl font-bold">Redeem Offers</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            View and redeem available offers for your account.
-          </p>
-        </div>
+          {successMessage && (
+            <Alert variant="default" className="border-green-500/50">
+              <CheckCircleIcon className="size-4 text-green-500" />
+              <AlertTitle>Offer redeemed</AlertTitle>
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
 
-        {error && (
-          <Alert variant="destructive">
-            <ExclamationTriangleIcon className="size-4" />
-            <AlertTitle>Redemption failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {successMessage && (
-          <Alert variant="default" className="border-green-500/50">
-            <CheckCircleIcon className="size-4 text-green-500" />
-            <AlertTitle>Offer redeemed</AlertTitle>
-            <AlertDescription>{successMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        {isLoading ? (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-5 w-28 rounded-md" />
-                  <Skeleton className="h-5 w-20 rounded-md" />
-                </div>
-                <Skeleton className="mt-2 h-4 w-44" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-9 w-full rounded-md" />
+          {isLoading ? (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-5 w-28 rounded-md" />
+                    <Skeleton className="h-5 w-20 rounded-md" />
                   </div>
-                  <Skeleton className="h-9 w-24 rounded-md" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : offers.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
+                  <Skeleton className="mt-2 h-4 w-44" />
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-9 w-full rounded-md" />
+                    </div>
+                    <Skeleton className="h-9 w-24 rounded-md" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : offers.length === 0 ? (
+            <div className="py-10 text-center">
               <GiftIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <h3 className="mb-2 text-lg font-medium">No Offers Available</h3>
               <p className="mb-4 text-muted-foreground">
@@ -461,31 +460,32 @@ export default function RedeemOffersPage() {
               </p>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() =>
                   navigate({ to: appRoutes.authenticatedRoute.to })
                 }
               >
                 Go to Dashboard
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {offers.map((offer) => (
-              <OfferCard
-                key={offer.recordId}
-                offer={offer}
-                organizations={organizations}
-                defaultOrgId={defaultOrgId}
-                onRedeem={handleRedeem}
-                onCreateOrg={handleCreateOrg}
-                isRedeeming={redeemMutation.isPending}
-                redeemingOfferId={redeemingOfferId}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {offers.map((offer) => (
+                <OfferCard
+                  key={offer.recordId}
+                  offer={offer}
+                  organizations={organizations}
+                  defaultOrgId={defaultOrgId}
+                  onRedeem={handleRedeem}
+                  onCreateOrg={handleCreateOrg}
+                  isRedeeming={redeemMutation.isPending}
+                  redeemingOfferId={redeemingOfferId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </SetupCard>
 
       <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
         <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
@@ -504,6 +504,6 @@ export default function RedeemOffersPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </SetupScreen>
   );
 }
