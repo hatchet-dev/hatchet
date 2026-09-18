@@ -3637,13 +3637,7 @@ WITH tenants AS (
                 distinct_dags dd
         )
         -- see UpdateDAGStatusesFromMQ
-        AND NOT EXISTS (
-            SELECT 1
-            FROM v1_dag_to_task_olap dt
-            WHERE
-                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-        )
+        AND NOT d.is_dag_operator
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -3911,17 +3905,8 @@ WITH inputs AS (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
-    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
-    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
-    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
-    -- this classifies correctly even for dags created by a pod that predates this change
-    AND NOT EXISTS (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE
-            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-    )
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents
+    AND NOT d.is_dag_operator
     ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
