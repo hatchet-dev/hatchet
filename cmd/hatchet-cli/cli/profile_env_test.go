@@ -35,11 +35,12 @@ func TestRenderProfileEnv(t *testing.T) {
 				"export HATCHET_CLIENT_TLS_STRATEGY='tls'",
 				"export HATCHET_CLIENT_HOST_PORT='host:443'",
 				"export HATCHET_CLIENT_SERVER_URL='https://api'",
+				"export HATCHET_CLIENT_API_URL='https://api'",
 				"export HATCHET_CLIENT_TENANT_ID='tenant-1'",
 			},
 		},
 		{
-			name:        "tls disabled self hosted emits none",
+			name:        "tls disabled self hosted emits none and unsets absent fields",
 			profileName: "local",
 			profile: cliconfig.Profile{
 				Token:        "tok",
@@ -50,8 +51,17 @@ func TestRenderProfileEnv(t *testing.T) {
 				"export HATCHET_CLIENT_TOKEN='tok'",
 				"export HATCHET_CLIENT_TLS_STRATEGY='none'",
 				"export HATCHET_CLIENT_HOST_PORT='localhost:7070'",
+				// Absent optional fields are unset in export mode so a prior
+				// profile's endpoint and tenant cannot linger in the shell.
+				"unset HATCHET_CLIENT_SERVER_URL",
+				"unset HATCHET_CLIENT_API_URL",
+				"unset HATCHET_CLIENT_TENANT_ID",
 			},
-			notContains: []string{"HATCHET_CLIENT_SERVER_URL", "HATCHET_CLIENT_TENANT_ID"},
+			notContains: []string{
+				"export HATCHET_CLIENT_SERVER_URL",
+				"export HATCHET_CLIENT_API_URL",
+				"export HATCHET_CLIENT_TENANT_ID",
+			},
 		},
 		{
 			name:        "empty tls strategy falls back to tls",
@@ -66,7 +76,7 @@ func TestRenderProfileEnv(t *testing.T) {
 			},
 		},
 		{
-			name:        "optional fields empty are omitted but token and tls remain",
+			name:        "optional fields empty are unset but token and tls remain",
 			profileName: "prod",
 			profile: cliconfig.Profile{
 				Token:       "tok",
@@ -75,11 +85,15 @@ func TestRenderProfileEnv(t *testing.T) {
 			wantLines: []string{
 				"export HATCHET_CLIENT_TOKEN='tok'",
 				"export HATCHET_CLIENT_TLS_STRATEGY='tls'",
+				"unset HATCHET_CLIENT_HOST_PORT",
+				"unset HATCHET_CLIENT_SERVER_URL",
+				"unset HATCHET_CLIENT_API_URL",
+				"unset HATCHET_CLIENT_TENANT_ID",
 			},
 			notContains: []string{
-				"HATCHET_CLIENT_HOST_PORT",
-				"HATCHET_CLIENT_SERVER_URL",
-				"HATCHET_CLIENT_TENANT_ID",
+				"export HATCHET_CLIENT_HOST_PORT",
+				"export HATCHET_CLIENT_SERVER_URL",
+				"export HATCHET_CLIENT_TENANT_ID",
 			},
 		},
 		{
@@ -103,7 +117,9 @@ func TestRenderProfileEnv(t *testing.T) {
 				"HATCHET_CLIENT_TOKEN='tok'",
 				"HATCHET_CLIENT_TLS_STRATEGY='tls'",
 			},
-			notContains: []string{"export "},
+			// A file snapshot has nothing to clear, so empty fields are omitted
+			// rather than unset, and there is no export prefix.
+			notContains: []string{"export ", "unset "},
 		},
 		{
 			name:        "single quote in value is escaped",
@@ -154,6 +170,7 @@ func TestRenderProfileEnvOrdering(t *testing.T) {
 		"HATCHET_CLIENT_TLS_STRATEGY",
 		"HATCHET_CLIENT_HOST_PORT",
 		"HATCHET_CLIENT_SERVER_URL",
+		"HATCHET_CLIENT_API_URL",
 		"HATCHET_CLIENT_TENANT_ID",
 	})
 
@@ -162,6 +179,7 @@ func TestRenderProfileEnvOrdering(t *testing.T) {
 		"HATCHET_CLIENT_TLS_STRATEGY",
 		"HATCHET_CLIENT_HOST_PORT",
 		"HATCHET_CLIENT_SERVER_URL",
+		"HATCHET_CLIENT_API_URL",
 		"HATCHET_CLIENT_TENANT_ID",
 	}, got)
 }

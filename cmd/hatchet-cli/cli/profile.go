@@ -211,7 +211,8 @@ var profileShowCmd = &cobra.Command{
 	},
 }
 
-// profileEnvCmd represents the profile env command
+// profileEnvCmd exists so credentials can be loaded by command substitution,
+// never by the user reading, printing, or pasting the token themselves.
 var profileEnvCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Print shell exports for a profile's HATCHET_CLIENT_ variables",
@@ -264,9 +265,13 @@ var profileEnvCmd = &cobra.Command{
 func printProfileEnvTTYHint(cmd *cobra.Command, name string) {
 	out := cmd.ErrOrStderr()
 
+	// Profile names are unrestricted (they can come from tenant names), so the
+	// name is single-quoted before it goes into a command the user is told to
+	// copy. An unquoted name with spaces or shell metacharacters would select
+	// the wrong profile or run arbitrary commands when the hint is pasted.
 	nameFlag := ""
 	if name != "" {
-		nameFlag = fmt.Sprintf(" --name %s", name)
+		nameFlag = " --name " + shellSingleQuote(name)
 	}
 
 	fmt.Fprintln(out, styles.Bold.Render("hatchet profile env prints credentials meant for your shell, not the screen."))
@@ -753,17 +758,23 @@ func profileSelectionFailureMessage(err error, names []string) string {
 	)
 }
 
-// renderProfileEnv builds the shell export block of HATCHET_CLIENT_ variables
-// for a profile. It returns an error when the token is empty, since the block
-// would be useless without it. Values are single-quoted for shell safety. The
-// order is fixed: TOKEN, TLS_STRATEGY, HOST_PORT, SERVER_URL, TENANT_ID.
+// renderProfileEnv turns a profile into the block that `hatchet profile env`
+// emits. Two decisions are worth calling out. The API URL is emitted twice, as
+// HATCHET_CLIENT_SERVER_URL (read by the Go and Ruby SDKs) and
+// HATCHET_CLIENT_API_URL (read by the TypeScript SDK), so a loaded profile
+// resolves the same endpoint whichever SDK consumes it. And in export mode an
+// empty optional field is `unset` rather than skipped: switching profiles with
+// `eval "$(...)"` must clear the previous profile's endpoint and tenant, which
+// would otherwise stay set and override the values embedded in the new token.
+// A --no-export dump is a fresh file snapshot with nothing to clear, so it just
+// omits empty fields.
 func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, error) {
 	if p.Token == "" {
 		return "", fmt.Errorf("profile '%s' has no token", name)
 	}
 
-	// TLS_STRATEGY is always emitted. Self-hosted users with TLS disabled must
-	// have it explicit because the SDK defaults to TLS when it is unset.
+	// The SDKs assume TLS when the strategy is unset, so a profile that turned
+	// TLS off has to say so explicitly rather than fall through to that default.
 	tlsStrategy := p.TLSStrategy
 	if tlsStrategy == "" {
 		tlsStrategy = "tls"
@@ -777,6 +788,7 @@ func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, 
 		{"HATCHET_CLIENT_TLS_STRATEGY", tlsStrategy},
 		{"HATCHET_CLIENT_HOST_PORT", p.GrpcHostPort},
 		{"HATCHET_CLIENT_SERVER_URL", p.ApiServerURL},
+		{"HATCHET_CLIENT_API_URL", p.ApiServerURL},
 		{"HATCHET_CLIENT_TENANT_ID", p.TenantId},
 	}
 
@@ -788,6 +800,9 @@ func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, 
 	var b strings.Builder
 	for _, pair := range pairs {
 		if pair.value == "" {
+			if !noExport {
+				fmt.Fprintf(&b, "unset %s\n", pair.key)
+			}
 			continue
 		}
 		fmt.Fprintf(&b, "%s%s=%s\n", prefix, pair.key, shellSingleQuote(pair.value))
@@ -796,8 +811,11 @@ func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, 
 	return b.String(), nil
 }
 
-// shellSingleQuote wraps a value in single quotes for safe shell eval, escaping
-// any embedded single quote with the standard POSIX close-escape-reopen trick.
+// shellSingleQuote makes an emitted value a single shell literal so a token or
+// URL that contains spaces or metacharacters cannot break out of, or inject
+// into, the block the caller eval's. Single quotes suppress all shell
+// interpretation; an embedded single quote (the one character that cannot
+// appear inside them) is closed, escaped, and reopened.
 func shellSingleQuote(v string) string {
 	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
 }
