@@ -248,7 +248,7 @@ export function OnboardingModal({
       ref={containerRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Build your first workflow"
+      aria-label="Run your first task"
       tabIndex={-1}
       className="absolute inset-0 z-[110] overflow-y-auto bg-background outline-none"
     >
@@ -257,8 +257,8 @@ export function OnboardingModal({
       <div className="flex min-h-full items-center justify-center p-6">
         <div className="flex w-full flex-col items-center">
           <SetupCard
-            title="Build your first workflow"
-            description="Connect a worker and run your first task."
+            title="Run your first task"
+            description="Connect a locally running worker and run your first task."
           >
             <OnboardingSteps
               tenantName={tenant?.name}

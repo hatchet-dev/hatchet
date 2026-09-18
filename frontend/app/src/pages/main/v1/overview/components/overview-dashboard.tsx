@@ -54,7 +54,7 @@ export function OverviewDashboard({
               className="border-brand text-brand hover:bg-brand/10 hover:text-brand"
               onClick={openOnboarding}
             >
-              Build your first workflow
+              Run your first task
             </Button>
             <Button
               variant="ghost"
@@ -78,14 +78,14 @@ export function OverviewDashboard({
       <SupportSection />
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-4 text-sm text-muted-foreground">
-        <span>Want to build your first workflow?</span>
+        <span>Want to run your first task?</span>
         <Button
           variant="link"
           size="sm"
           className="h-auto p-0"
           onClick={openOnboarding}
         >
-          Build your first workflow
+          Run your first task
         </Button>
       </div>
     </div>
