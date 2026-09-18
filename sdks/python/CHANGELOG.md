@@ -5,6 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.2] - 2026-09-09
+
+### Changed
+
+- Embedded mode now reports first-run progress on stderr: a line when the sidecar download starts (with version and destination) and completes, a notice when a slow release or checksum fetch blocks startup, a startup line before waiting for the engine, and a heartbeat every 30 seconds while the engine is still becoming ready. Warm starts print at most one startup line.
+- `Hatchet.from_embedded()` now warns once when `HATCHET_CLIENT_TOKEN` is set in the environment or in a `.env` file, since Hatchet clients created with the standard constructor in the same process will not use the embedded engine.
+
 ## [1.40.1] - 2026-09-09
 
 ### Fixed

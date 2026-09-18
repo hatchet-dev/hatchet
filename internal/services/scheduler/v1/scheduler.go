@@ -444,7 +444,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
-			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 

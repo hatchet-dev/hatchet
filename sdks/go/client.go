@@ -201,6 +201,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
+	// Worker log output follows the client's configured level and format by
+	// default; an explicit WithLogger on the worker takes precedence.
+	config.logger = resolveWorkerLogger(config.logger, c.legacyClient.Logger())
+
 	dumps := gatherWorkflowDumps(config.workflows)
 
 	// Check engine version to decide between new and legacy worker architecture
