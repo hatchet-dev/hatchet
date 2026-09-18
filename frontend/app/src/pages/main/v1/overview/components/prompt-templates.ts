@@ -1,4 +1,7 @@
-import { type AvailableUseCaseKey } from './use-case-options';
+import {
+  escapeForDoubleQuotes,
+  type AvailableUseCaseKey,
+} from './use-case-options';
 import { type Sdk } from './use-preferred-sdk';
 
 // Pure prompt-assembly module for the coding-agent onboarding path. No React
@@ -98,12 +101,18 @@ export function buildOnboardingPrompt({
   sdk,
   useCaseKey,
   freeform,
+  profileName,
 }: {
   sdk: Sdk;
   useCaseKey: AgentUseCaseKey | 'custom';
   freeform?: string;
+  // The name of the CLI profile the setup step configured for this tenant.
+  // The agent must load credentials from exactly this profile so it connects
+  // to the right instance when the developer has several profiles.
+  profileName: string;
 }): string {
   const fragment = sdkFragments[sdk];
+  const profile = escapeForDoubleQuotes(profileName);
   const useCaseBlock =
     useCaseKey === 'custom'
       ? customUseCaseBlock(fragment.name, freeform ?? '')
@@ -111,7 +120,7 @@ export function buildOnboardingPrompt({
 
   return `I'm building on Hatchet using the ${fragment.name} SDK. Hatchet is a task orchestration platform for running background tasks, workflows, schedules, and event-driven work.
 
-My setup is already done: the Hatchet CLI is installed and my profile is configured with an API token.
+My setup is already done: the Hatchet CLI is installed and I have a CLI profile named "${profile}" configured with an API token for this tenant. Use that profile by name for everything below (I may have other profiles pointing at other instances, so never rely on the default).
 
 First, confirm my CLI is recent enough for these commands: run \`hatchet profile env --help\`. If that is not a recognized command, my CLI is too old, so upgrade it by re-running the install script before continuing.
 
@@ -124,8 +133,8 @@ Read the docs first. Hatchet's documentation is available as markdown files; fet
 Then build the task below, connecting to my LIVE Hatchet instance (do not use a local or embedded engine for this first run):
 
 1. Install the SDK: ${fragment.install}
-2. Connect to my instance. ${fragment.connect} Do not read, print, or hardcode my token. Load my credentials from my CLI profile with command substitution before running any Hatchet process: \`eval "$(hatchet profile env)"\`. This exports HATCHET_CLIENT_TOKEN and the correct TLS setting for my instance, so you never handle the token directly.
-3. Use the \`hatchet\` CLI throughout to check status and inspect runs as you go (run \`hatchet --help\` to discover the available commands).
+2. Connect to my instance. ${fragment.connect} Do not read, print, or hardcode my token. Load my credentials from the "${profile}" CLI profile with command substitution before running any Hatchet process: \`eval "$(hatchet profile env --name "${profile}")"\`. This exports HATCHET_CLIENT_TOKEN and the correct TLS setting for that profile's instance, so you never handle the token directly. Run it in the same shell as every worker and script below.
+3. Use the \`hatchet\` CLI throughout to check status and inspect runs as you go (run \`hatchet --help\` to discover the available commands). It reads the exported HATCHET_CLIENT_TOKEN, so it targets the same instance.
 
 ${useCaseBlock}
 

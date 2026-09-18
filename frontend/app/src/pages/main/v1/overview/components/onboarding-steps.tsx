@@ -5,7 +5,6 @@ import {
   type WorkflowLanguageKey,
 } from './onboarding-options';
 import { type UseCaseChoice } from './onboarding-steps-types';
-import { useCaseTotems } from './onboarding-totems';
 import {
   buildOnboardingPrompt,
   type AgentUseCaseKey,
@@ -319,8 +318,9 @@ export function OnboardingSteps({
         sdk,
         useCaseKey: useCaseChoice,
         freeform,
+        profileName,
       }),
-    [sdk, useCaseChoice, freeform],
+    [sdk, useCaseChoice, freeform, profileName],
   );
 
   const toggleAgent = (value: McpAgentValue) => {
@@ -355,6 +355,64 @@ export function OnboardingSteps({
 
   const codeBlockClass = 'bg-muted/20 ring-1 ring-border/50 ring-inset px-1';
 
+  // Optional MCP-install section. Lets the developer wire the Hatchet MCP into
+  // their coding agent before they run the prompt, so the agent can trigger
+  // runs and inspect results as it builds. Rendered at the top of the Run agent
+  // step; skipping it does not block progress.
+  const mcpInstallSection = (
+    <div className="space-y-3 rounded-lg border border-border/50 bg-muted/10 p-4">
+      <div className="space-y-1">
+        <h4 className="text-sm font-medium">
+          Optional: install the Hatchet MCP
+        </h4>
+        <p className="text-sm text-muted-foreground">
+          The Hatchet MCP server lets your agent trigger runs and inspect
+          results as it builds with you.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {mcpAgentOptions.map((option) => {
+          const checked = selectedAgents.includes(option.value);
+          return (
+            <label
+              key={option.value}
+              className={cn(
+                'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
+                checked && 'border-brand bg-brand/10',
+              )}
+            >
+              <Checkbox
+                checked={checked}
+                onCheckedChange={() => toggleAgent(option.value)}
+                className={focusRing}
+              />
+              <span className={cn('font-medium', checked && 'text-brand')}>
+                {option.label}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {selectedAgents.length > 0 && (
+        <CodeHighlighter
+          className={codeBlockClass}
+          code={mcpCommand}
+          language="shell"
+          copy
+        />
+      )}
+      <a
+        href="https://docs.hatchet.run/reference/cli/mcp"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
+      >
+        Learn more about the Hatchet MCP
+        <ExternalLinkIcon className="size-3" />
+      </a>
+    </div>
+  );
+
   const stepContent: Record<StepKey, ReactNode> = {
     usecase: (
       <>
@@ -386,58 +444,31 @@ export function OnboardingSteps({
             {(path === 'manual'
               ? Object.values(availableUseCases)
               : agentUseCaseOptions
-            ).map((option) => {
-              const Totem = useCaseTotems[option.value];
-              const selected = useCaseChoice === option.value;
-              return (
-                <RadioGroupCardItem
-                  key={option.value}
-                  value={option.value}
-                  className={brandCardClass}
-                >
-                  <div className="space-y-3">
-                    <div>
-                      <span className="block text-sm font-medium">
-                        {option.label}
-                      </span>
-                      <span className="mt-1 block text-sm text-muted-foreground">
-                        {option.description}
-                      </span>
-                    </div>
-                    <Totem
-                      className={cn(
-                        'h-8 w-full',
-                        selected ? 'text-foreground' : 'text-muted-foreground',
-                      )}
-                    />
-                  </div>
-                </RadioGroupCardItem>
-              );
-            })}
+            ).map((option) => (
+              <RadioGroupCardItem
+                key={option.value}
+                value={option.value}
+                className={brandCardClass}
+              >
+                <div>
+                  <span className="block text-sm font-medium">
+                    {option.label}
+                  </span>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    {option.description}
+                  </span>
+                </div>
+              </RadioGroupCardItem>
+            ))}
             {path !== 'manual' && (
               <RadioGroupCardItem value="custom" className={brandCardClass}>
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-sm font-medium">
-                      Describe your own
-                    </span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      Tell your agent exactly what to build.
-                    </span>
-                  </div>
-                  {(() => {
-                    const Totem = useCaseTotems.custom;
-                    return (
-                      <Totem
-                        className={cn(
-                          'h-8 w-full',
-                          useCaseChoice === 'custom'
-                            ? 'text-foreground'
-                            : 'text-muted-foreground',
-                        )}
-                      />
-                    );
-                  })()}
+                <div>
+                  <span className="block text-sm font-medium">
+                    Describe your own
+                  </span>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    Tell your agent exactly what to build.
+                  </span>
                 </div>
               </RadioGroupCardItem>
             )}
@@ -598,7 +629,7 @@ export function OnboardingSteps({
           </div>
           <Button
             variant="default"
-            size="default"
+            size="sm"
             className={cn('w-fit gap-2', focusRing)}
             onClick={() => choosePath('agent')}
           >
@@ -629,7 +660,8 @@ export function OnboardingSteps({
     ),
     runagent: (
       <>
-        <div className="space-y-1">
+        {mcpInstallSection}
+        <div className="space-y-1 border-t border-border/50 pt-4">
           <h3 className="text-sm font-medium">Run your agent</h3>
           <p className="text-sm text-muted-foreground">
             Here's a sample prompt for your coding agent. You can customize it
@@ -640,7 +672,7 @@ export function OnboardingSteps({
           className={`${codeBlockClass} whitespace-pre-wrap`}
           code={generatedPrompt}
           language="text"
-          maxHeight="360px"
+          maxHeight="220px"
           copy
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -740,59 +772,6 @@ export function OnboardingSteps({
           </p>
         </div>
         <div className="space-y-3">
-          <h4 className="text-sm font-medium">
-            Optional: install the Hatchet MCP
-          </h4>
-          <p className="text-sm text-muted-foreground">
-            The Hatchet MCP server lets your agent trigger runs and inspect
-            results as it builds with you.
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {mcpAgentOptions.map((option) => {
-              const checked = selectedAgents.includes(option.value);
-              return (
-                <label
-                  key={option.value}
-                  className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm hover:border-brand/50',
-                    checked && 'border-brand bg-brand/10',
-                  )}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleAgent(option.value)}
-                    className={focusRing}
-                  />
-                  <span className={cn('font-medium', checked && 'text-brand')}>
-                    {option.label}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          {selectedAgents.length > 0 ? (
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={mcpCommand}
-              language="shell"
-              copy
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Select at least one agent to build the install command.
-            </p>
-          )}
-          <a
-            href="https://docs.hatchet.run/reference/cli/mcp"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
-          >
-            Learn more about the Hatchet MCP
-            <ExternalLinkIcon className="size-3" />
-          </a>
-        </div>
-        <div className="space-y-3 border-t border-border/50 pt-4">
           <h4 className="text-sm font-medium">Learn more</h4>
           <ul className="space-y-2">
             {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
