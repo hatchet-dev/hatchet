@@ -259,6 +259,7 @@ export function OnboardingModal({
           <SetupCard
             title="Run your first task"
             description="Connect a locally running worker and run your first task."
+            className="max-w-3xl"
           >
             <OnboardingSteps
               tenantName={tenant?.name}

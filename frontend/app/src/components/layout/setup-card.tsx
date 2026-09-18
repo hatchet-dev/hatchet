@@ -2,8 +2,9 @@ import { cn } from '@/lib/utils';
 import { type ReactNode } from 'react';
 
 // A centered, compact card: a small header (title + optional description) over
-// a body, with a subtle border on a slightly-off background. Matches the
-// onboarding flow's container; reused by the org/tenant creation flows.
+// a body, with a subtle border on a slightly-off background. Defaults to a
+// narrow width that suits the short org/tenant creation forms; the onboarding
+// flow, which holds a wider stepper, passes a larger max-width via className.
 export function SetupCard({
   title,
   description,
@@ -18,7 +19,7 @@ export function SetupCard({
   className?: string;
 }) {
   return (
-    <div className={cn('w-full max-w-3xl', className)}>
+    <div className={cn('w-full max-w-xl', className)}>
       <div className="rounded-xl border border-border bg-muted/20 shadow-sm">
         <div className="border-b border-border px-6 py-5">
           <h2 className="text-base font-medium tracking-tight">{title}</h2>

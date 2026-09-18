@@ -132,7 +132,11 @@ export function NewOrganizationInputForm({
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={isSaving || cannotSubmitRegion}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isSaving || cannotSubmitRegion}
+        >
           {isSaving ? (
             <>
               <Spinner />
