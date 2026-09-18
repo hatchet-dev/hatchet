@@ -216,12 +216,21 @@ var profileShowCmd = &cobra.Command{
 var profileEnvCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Print shell exports for a profile's HATCHET_CLIENT_ variables",
-	Long:  `Print a shell export block of the HATCHET_CLIENT_ environment variables for a profile, so credentials can be loaded without reading or pasting the token.`,
+	Long: `Print a shell export block of the HATCHET_CLIENT_ environment variables for a profile, so credentials can be loaded without reading or pasting the token.
+
+In scripts, prefer the two-step form below over 'eval "$(...)"'. Command
+substitution discards this command's exit code, so a failed profile lookup would
+evaluate to an empty string and succeed (even under 'set -e'), silently leaving
+any previously loaded credentials in effect.`,
 	Example: `  # Load the default profile into the current shell
   eval "$(hatchet profile env)"
 
   # Load a specific profile
-  eval "$(hatchet profile env --name production)"`,
+  eval "$(hatchet profile env --name production)"
+
+  # In a script, fail loudly if the profile cannot be loaded
+  env_block=$(hatchet profile env --name production) || exit $?
+  eval "$env_block"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		noExport, _ := cmd.Flags().GetBool("no-export")
@@ -278,8 +287,11 @@ func printProfileEnvTTYHint(cmd *cobra.Command, name string) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Load this profile into your current shell:")
 	fmt.Fprintln(out, "  "+styles.Code.Render(fmt.Sprintf("eval \"$(hatchet profile env%s)\"", nameFlag)))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, styles.Muted.Render("Or redirect it to a file to inspect it, for example: hatchet profile env"+nameFlag+" > hatchet.env"))
+	// Deliberately no "redirect to a file" suggestion: `> file` would create a
+	// world-readable (umask-dependent, typically 0644) file holding the token,
+	// and would follow a pre-existing symlink or reuse a destination's
+	// permissions. Anyone who wants a file can redirect it themselves and own
+	// that risk; the tool does not recommend leaking the token to disk.
 }
 
 // profileUpdateCmd represents the profile update command
