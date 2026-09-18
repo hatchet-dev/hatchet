@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
@@ -242,8 +244,37 @@ var profileEnvCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not render profile env: %v", err)
 		}
 
+		// When stdout is a terminal the command was run directly rather than
+		// captured by `eval "$(...)"` or a redirect, so printing the block would
+		// dump the token onto the screen. Show how to use it instead of leaking
+		// it. Command substitution and file redirects make stdout a pipe/file,
+		// not a TTY, so the normal path still emits the block for them.
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			printProfileEnvTTYHint(cmd, name)
+			return
+		}
+
 		fmt.Print(block)
 	},
+}
+
+// printProfileEnvTTYHint explains, on stderr, how to consume `profile env`
+// output. It runs only when stdout is an interactive terminal, where emitting
+// the raw export block would print the profile's token in the clear.
+func printProfileEnvTTYHint(cmd *cobra.Command, name string) {
+	out := cmd.ErrOrStderr()
+
+	nameFlag := ""
+	if name != "" {
+		nameFlag = fmt.Sprintf(" --name %s", name)
+	}
+
+	fmt.Fprintln(out, styles.Bold.Render("hatchet profile env prints credentials meant for your shell, not the screen."))
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Load this profile into your current shell:")
+	fmt.Fprintln(out, "  "+styles.Code.Render(fmt.Sprintf("eval \"$(hatchet profile env%s)\"", nameFlag)))
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, styles.Muted.Render("Or redirect it to a file to inspect it, for example: hatchet profile env"+nameFlag+" > hatchet.env"))
 }
 
 // profileUpdateCmd represents the profile update command
