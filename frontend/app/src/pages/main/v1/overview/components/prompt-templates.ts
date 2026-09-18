@@ -138,7 +138,7 @@ Then build the task below, connecting to my LIVE Hatchet instance (do not use a 
 
 ${useCaseBlock}
 
-Finally, start a worker connected to my live instance and trigger a run. Confirm the run completes using the \`hatchet\` CLI and show me the result.
+Finally, start a worker connected to my live instance and trigger a run. Confirm the run completes and instruct the user to navigate back to the dashboard when done.
 
 Once this works, if I want faster local iteration: ${fragment.embeddedLater}`;
 }
