@@ -337,7 +337,7 @@ export function OnboardingSteps({
   // runs and inspect results as it builds. Rendered at the top of the Run agent
   // step; skipping it does not block progress.
   const mcpInstallSection = (
-    <div className="space-y-3 rounded-lg border border-border/50 bg-muted/10 p-4">
+    <div className="space-y-3">
       <div className="space-y-1">
         <h4 className="text-sm font-medium">
           Optional: install the Hatchet MCP
