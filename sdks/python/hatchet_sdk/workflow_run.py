@@ -92,6 +92,8 @@ class WorkflowRunRef:
             client ``sync_result_poll_interval`` (1 second). Values below 1 second are
             raised to 1 second.
         :returns: Task outputs keyed by readable id.
+        :raises FailedTaskRunExceptionGroup: If the workflow run failed.
+        :raises ValueError: If the workflow run is not found, was cancelled, or is not complete.
         """
         from hatchet_sdk.clients.admin import RunStatus
 
