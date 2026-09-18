@@ -114,10 +114,17 @@ export function OrganizationOnboardingQuestionsForm({
           value={attribution ?? ''}
           onValueChange={(value) => setAttribution(value as AttributionValue)}
           disabled={isSaving}
+          // Compact chips that flow left to right and wrap, rather than a tall
+          // vertical stack of full-width cards.
+          className="flex flex-wrap gap-2"
         >
           {options.map((option) => (
-            <RadioGroupCardItem key={option.value} value={option.value}>
-              <span className="text-sm font-medium">{option.label}</span>
+            <RadioGroupCardItem
+              key={option.value}
+              value={option.value}
+              className="rounded-md px-2.5 py-1.5 text-xs"
+            >
+              {option.label}
             </RadioGroupCardItem>
           ))}
         </RadioGroup>
