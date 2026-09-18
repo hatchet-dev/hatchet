@@ -53,7 +53,7 @@ const focusRing =
 // RadioGroupCardItem base so selection reads as the app's brand blue instead
 // of muted grey and unselected cards gain a brand hover affordance.
 const brandCardClass =
-  'hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:bg-brand/10';
+  'data-[state=unchecked]:hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:hover:border-brand data-[state=checked]:bg-brand/10';
 
 // The chosen setup path. It is picked first; null means the path selector is
 // still showing and no other step exists yet.

@@ -35,7 +35,7 @@ const ATTRIBUTION_OPTIONS: AttributionOption[] = [
   },
   {
     value: OrganizationSignupAttribution.AiAssistant,
-    label: 'An AI assistant recommended it',
+    label: 'AI assistant / coding agent',
   },
   {
     value: OrganizationSignupAttribution.SearchForAlternative,
@@ -150,8 +150,13 @@ export function OrganizationOnboardingQuestionsForm({
                 onClick={() => toggle(option.value)}
                 disabled={isSaving}
                 className={cn(
-                  'rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5 text-left text-xs ring-offset-background hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-                  selected && 'border-primary bg-muted/40',
+                  'rounded-md border px-2.5 py-1.5 text-left text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                  // The hover border only applies to unselected chips. On a
+                  // selected chip it would override the selection outline, so
+                  // the highlight would not appear until the mouse left.
+                  selected
+                    ? 'border-primary bg-muted/40'
+                    : 'border-border/50 bg-muted/20 hover:border-border',
                 )}
               >
                 {option.label}

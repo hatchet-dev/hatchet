@@ -6,9 +6,11 @@ import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
 import {
+  freePlanLimitNoticeKey,
   readWelcomeTrigger,
   WELCOME_KEY,
   WELCOME_TRIGGER,
+  type WelcomeReason,
 } from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
@@ -39,6 +41,7 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
+import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
@@ -101,6 +104,7 @@ function AuthenticatedInner() {
     { organizationId: string; organizationName: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeReason, setWelcomeReason] = useState<WelcomeReason>('welcome');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
@@ -448,6 +452,17 @@ function AuthenticatedInner() {
       return;
     }
 
+    // With the new onboarding, a freshly created organization lands in the
+    // "run your first task" flow instead of the free-plan modal. The plan
+    // summary is deferred until the tenant approaches a limit (see below).
+    if (newOnboardingEnabled) {
+      localStorage.removeItem(WELCOME_KEY);
+      if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
+        setOnboardingOpen(true);
+      }
+      return;
+    }
+
     if (!isControlPlaneEnabled) {
       localStorage.removeItem(WELCOME_KEY);
       return;
@@ -510,6 +525,85 @@ function AuthenticatedInner() {
     isControlPlaneEnabled,
     isUserUniverseLoaded,
     canBill,
+    newOnboardingEnabled,
+    welcomeBillingState.data?.currentSubscription,
+    welcomeBillingState.error,
+    welcomeBillingState.isError,
+    welcomeBillingState.isPending,
+  ]);
+
+  // Deferred free-plan notice: shown once per organization, the first time a
+  // free-plan tenant reaches the alarm threshold (or the cap) on any resource
+  // limit, rather than immediately after signup when it is just noise. Shares
+  // its query key with the resource-limit notifications, so it adds no request.
+  const resourcePolicyQuery = useQuery({
+    ...queries.tenantResourcePolicy.get(tenant?.metadata.id ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled:
+      newOnboardingEnabled &&
+      isControlPlaneEnabled &&
+      canBill &&
+      !!tenant?.metadata.id,
+  });
+  const approachingLimit = (resourcePolicyQuery.data?.limits ?? []).some(
+    (limit) => getResourceLimitStatus(limit) !== 'ok',
+  );
+
+  useEffect(() => {
+    if (
+      !newOnboardingEnabled ||
+      !approachingLimit ||
+      !organizationId ||
+      onboardingOpen ||
+      showWelcome
+    ) {
+      return;
+    }
+
+    const billingStateError =
+      welcomeBillingState.error as AxiosError<unknown> | null;
+    const billingStateNotFound =
+      billingStateError?.status === 404 ||
+      billingStateError?.response?.status === 404;
+
+    if (
+      welcomeBillingState.isPending ||
+      (welcomeBillingState.isError && !billingStateNotFound)
+    ) {
+      return;
+    }
+
+    const currentSubscription = billingStateNotFound
+      ? undefined
+      : welcomeBillingState.data?.currentSubscription;
+    const onFreePlan =
+      !currentSubscription ||
+      currentSubscription.plan === SubscriptionPlanCode.Free;
+
+    if (!onFreePlan) {
+      return;
+    }
+
+    const noticeKey = freePlanLimitNoticeKey(organizationId);
+    if (localStorage.getItem(noticeKey)) {
+      return;
+    }
+
+    localStorage.setItem(noticeKey, new Date().toISOString());
+    setWelcomeReason('approaching-limit');
+    setShowWelcome(true);
+    capture('welcome_modal_shown', {
+      tenant_id: tenant?.metadata.id,
+      source: 'approaching_limit',
+    });
+  }, [
+    newOnboardingEnabled,
+    approachingLimit,
+    organizationId,
+    onboardingOpen,
+    showWelcome,
+    capture,
+    tenant?.metadata.id,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,
@@ -658,6 +752,7 @@ function AuthenticatedInner() {
         tenantId={tenant?.metadata.id}
         organizationId={organizationId}
         open={showWelcome}
+        reason={welcomeReason}
         onClose={() => setShowWelcome(false)}
       />
       <InviteModal
