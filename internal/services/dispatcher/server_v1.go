@@ -1828,7 +1828,13 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 				entry.ChildTaskErrorMessage,
 			)
 
-			if err != nil {
+			operatorSessionAlreadyEnded := errors.Is(err, errDurableTaskSessionClosed) || errors.Is(err, context.Canceled) || errors.Is(err, ErrNoActiveDurableInvocation)
+
+			switch {
+			case err == nil:
+			case operatorSessionAlreadyEnded:
+				d.l.Debug().Err(err).Msgf("dag operator session ended before satisfied dag step completion was delivered for task %s node %d", task.ExternalID, entry.NodeId)
+			default:
 				d.l.Error().Err(err).Msgf("failed to deliver satisfied dag step completion for task %s node %d", task.ExternalID, entry.NodeId)
 			}
 		}()
