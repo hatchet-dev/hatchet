@@ -338,33 +338,13 @@ export function OnboardingSteps({
   // step; skipping it does not block progress.
   const mcpInstallSection = (
     <div className="space-y-3">
-      <div className="space-y-1">
-        <h4 className="text-sm font-medium">
-          Optional: install the Hatchet MCP
-        </h4>
-        <p className="text-sm text-muted-foreground">
-          The Hatchet MCP server lets your agent trigger runs and inspect
-          results as it builds with you.
-        </p>
-      </div>
-      <p className="text-sm">
-        Run this and follow the prompts to pick your coding agent:
-      </p>
+      <h4 className="text-sm font-medium">Optional: install the Hatchet MCP</h4>
       <CodeHighlighter
         className={codeBlockClass}
         code="hatchet mcp install"
         language="shell"
         copy
       />
-      <a
-        href="https://docs.hatchet.run/reference/cli/mcp"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex w-fit items-center gap-1 text-sm underline hover:text-foreground"
-      >
-        Learn more about the Hatchet MCP
-        <ExternalLinkIcon className="size-3" />
-      </a>
     </div>
   );
 
